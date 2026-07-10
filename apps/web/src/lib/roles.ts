@@ -15,3 +15,18 @@ export function canViewDashboard(role: string | null | undefined): boolean {
 export function isStaff(role: string | null | undefined): boolean {
   return role != null && role !== '' && role !== 'CUSTOMER';
 }
+
+// Inventory roles mirror depot-service: READ (view stock) is broader than WRITE
+// (adjust/opname — no HEAD_OFFICE). Security stays server-side; these only show/hide UI.
+const INVENTORY_READ = new Set(['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+const INVENTORY_WRITE = new Set(['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN']);
+
+/** Whether a role may view depot stock lines. */
+export function canViewInventory(role: string | null | undefined): boolean {
+  return role != null && INVENTORY_READ.has(role);
+}
+
+/** Whether a role may adjust stock or record an opname count. */
+export function canWriteInventory(role: string | null | undefined): boolean {
+  return role != null && INVENTORY_WRITE.has(role);
+}

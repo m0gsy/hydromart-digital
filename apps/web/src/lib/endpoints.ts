@@ -67,6 +67,28 @@ export const endpoints = {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
   },
+  depots: {
+    // Public browse (active only), paginated → { items, ... }.
+    browse: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/depots/api/v1/depots${qs ? `?${qs}` : ''}`;
+    },
+  },
+  inventory: {
+    // Stock lines for one depot (staff).
+    lines: (depotId: string, q: { itemType?: string; lowStockOnly?: boolean } = {}) => {
+      const p = new URLSearchParams();
+      if (q.itemType) p.set('itemType', q.itemType);
+      if (q.lowStockOnly) p.set('lowStockOnly', 'true');
+      const qs = p.toString();
+      return `/depots/api/v1/depots/${depotId}/inventory${qs ? `?${qs}` : ''}`;
+    },
+    adjust: (itemId: string) => `/depots/api/v1/inventory/${itemId}/adjust`,
+    opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,
+  },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

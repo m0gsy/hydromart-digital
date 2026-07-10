@@ -42,4 +42,14 @@ describe('endpoints', () => {
       '/dashboard/api/v1/dashboard/executive?from=2026-06-01&to=2026-07-01',
     );
   });
+
+  it('builds the depot + inventory staff paths', () => {
+    expect(endpoints.depots.browse({ limit: 100 })).toBe('/depots/api/v1/depots?limit=100');
+    expect(endpoints.inventory.lines('d1')).toBe('/depots/api/v1/depots/d1/inventory');
+    expect(endpoints.inventory.lines('d1', { lowStockOnly: true })).toBe(
+      '/depots/api/v1/depots/d1/inventory?lowStockOnly=true',
+    );
+    expect(endpoints.inventory.adjust('i1')).toBe('/depots/api/v1/inventory/i1/adjust');
+    expect(endpoints.inventory.opname('i1')).toBe('/depots/api/v1/inventory/i1/opname');
+  });
 });

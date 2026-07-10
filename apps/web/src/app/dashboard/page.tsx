@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChartLineUp, ClipboardText, Lock, Truck } from '@phosphor-icons/react';
+import { ChartLineUp, ClipboardText, Lock, Package, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
@@ -56,13 +56,22 @@ function DashboardBody() {
           <h1 className="text-2xl font-bold">Operations</h1>
         </div>
         <p className="mt-1 text-sm text-muted">Last 30 days across sales and delivery.</p>
-        <Link
-          href="/dashboard/orders"
-          className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-        >
-          <ClipboardText size={18} weight="fill" />
-          Manage order queue
-        </Link>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <Link
+            href="/dashboard/orders"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
+          >
+            <ClipboardText size={18} weight="fill" />
+            Manage order queue
+          </Link>
+          <Link
+            href="/dashboard/inventory"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
+          >
+            <Package size={18} weight="fill" />
+            Inventory
+          </Link>
+        </div>
       </div>
 
       {/* Headline stats */}

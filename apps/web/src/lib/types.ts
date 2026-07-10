@@ -230,3 +230,33 @@ export interface ExecutiveDashboard {
   deliverySla: DeliverySla | null;
   sources: { order: 'ok' | 'unavailable'; delivery: 'ok' | 'unavailable' };
 }
+
+/* ---------- Depot inventory (staff-facing) ---------- */
+
+// Base-stock singletons (AIR/GALON/TUTUP/SEGEL) + per-product lines (PRODUK).
+export type InventoryItemType = 'AIR' | 'GALON' | 'TUTUP' | 'SEGEL' | 'PRODUK';
+
+// Minimal depot view for the inventory selector (browse returns the full record).
+export interface Depot {
+  id: string;
+  code: string;
+  name: string;
+  city: string;
+}
+
+// Mirrors depot-service ItemView: the stock record plus derived available/low-stock.
+export interface InventoryItem {
+  id: string;
+  depotId: string;
+  itemType: InventoryItemType;
+  productId: string | null;
+  label: string;
+  unit: string;
+  quantity: number;
+  reserved: number;
+  minimumStock: number;
+  sellPrice: number | null;
+  /** quantity − reserved. */
+  available: number;
+  lowStock: boolean;
+}
