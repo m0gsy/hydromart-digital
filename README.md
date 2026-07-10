@@ -24,13 +24,24 @@ Architecture overview: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ```
 hydromart/
-├── services/         Backend microservices (NestJS)
-│   └── auth-service/ Authentication & identity (Milestone 1)
-├── apps/             Frontend apps (Next.js) — added per milestone
-├── packages/         Shared libraries — extracted when >1 service needs them
-├── docs/             Requirements (BRD/PRD) + architecture docs
-└── docker-compose.yml  Local PostgreSQL + Redis
+├── services/             Backend microservices (NestJS)
+│   ├── auth-service/     Authentication & identity          (M1, :3001)
+│   ├── customer-service/ Customer profile & addresses       (M2a, :3002)
+│   ├── product-service/  Product catalog                    (M2b, :3003)
+│   ├── order-service/    Cart, checkout & order lifecycle   (M3a, :3004)
+│   └── payment-service/  Payments & refunds                 (M3b, :3005)
+├── apps/                 Frontend apps (Next.js) — added per milestone
+├── packages/
+│   └── platform/         Shared NestJS building blocks (@hydromart/platform)
+├── docs/                 Requirements (BRD/PRD) + architecture docs
+└── docker-compose.yml    Local PostgreSQL + Redis
 ```
+
+Each service owns its own database and Prisma schema, consumes `@hydromart/platform`
+for cross-cutting concerns (JWT/RBAC guards, exception filter, validation), and
+exposes Swagger at `/docs`. The order-service resolves authoritative prices from the
+product-service at checkout (never trusts client prices); the payment-service settles
+online methods via a gateway adapter and a signed webhook.
 
 ## Prerequisites
 
@@ -72,4 +83,8 @@ Unit tests run **without a database** (repositories are mocked at the port bound
 
 ## Milestones
 
-Milestone 1 (this release): **Authentication** — phone registration + OTP, phone login, Google Sign-In, JWT access/refresh, session management. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full MVP roadmap.
+- **M1 — Authentication:** phone registration + OTP, phone login, Google Sign-In, JWT access/refresh, session management.
+- **M2 — Customer & Catalog:** customer profile + delivery addresses (BR-004), product catalog with public browse + admin CRUD.
+- **M3 — Ordering & Payments:** cart → checkout → order lifecycle (BR-005/006/012, server-verified prices) and payments across Cash/Transfer/QRIS/E-Wallet/VA with refunds and a signed gateway webhook.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full MVP roadmap.

@@ -1,0 +1,63 @@
+// Hydromart payment-service data model (PRD Module 5, Payments).
+// Owns the payment record for an order and its refunds. Linked to an order by
+// orderId only (loose coupling — the order-service owns the order itself).
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PAYMENT_DATABASE_URL")
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  QRIS
+  EWALLET
+  VA
+}
+
+// PENDING → PAID | FAILED | CANCELLED; PAID → REFUNDED. Terminal: FAILED,
+// CANCELLED, REFUNDED. Online-paid cancellation goes through REFUNDED.
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+/// One payment attempt for an order. A new attempt is created if a prior one
+/// failed/was cancelled; at most one PENDING/PAID row exists per order.
+model Payment {
+  id           String        @id @default(uuid()) @db.Uuid
+  orderId      String        @db.Uuid
+  customerId   String        @db.Uuid
+  method       PaymentMethod
+  status       PaymentStatus @default(PENDING)
+  amount       Decimal       @db.Decimal(12, 2)
+  /// Provider charge reference / VA number / QRIS payload. Null for CASH.
+  reference    String?
+  /// Human-readable payment instruction shown to the customer.
+  instruction  String?
+  /// Opaque provider payload snapshot (JSON string) for audit/reconciliation.
+  gatewayData  String?
+  paidAt       DateTime?
+  failedAt     DateTime?
+
+  refundedAt     DateTime?
+  refundReason   String?
+  refundedAmount Decimal?  @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([customerId])
+  @@index([status])
+  @@map("payments")
+}

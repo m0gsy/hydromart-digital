@@ -1,0 +1,106 @@
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+
+import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+
+import { CartView } from '../application/services/cart.service';
+import { OrderService } from '../application/services/order.service';
+import { OrderRecord, OrderStatusHistoryRecord } from '../application/ports/order.repository';
+import { Page } from '../application/pagination';
+import {
+  CancelOrderDto,
+  CheckoutDto,
+  ListOrdersQueryDto,
+  UpdateOrderStatusDto,
+} from './dto/order.dto';
+
+// Staff roles permitted to advance an order through its lifecycle (BR-012).
+const FULFILMENT_ROLES = [
+  Role.DEPOT_OPERATOR,
+  Role.DEPOT_MANAGER,
+  Role.DRIVER,
+  Role.SUPER_ADMIN,
+] as const;
+
+@ApiTags('Orders')
+@ApiBearerAuth()
+@Controller({ path: 'orders', version: '1' })
+export class OrderController {
+  constructor(private readonly orders: OrderService) {}
+
+  @Post('checkout')
+  @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
+  checkout(@CurrentUser() user: AuthenticatedUser, @Body() dto: CheckoutDto): Promise<OrderRecord> {
+    return this.orders.checkout(user.sub, {
+      deliveryAddress: {
+        recipientName: dto.deliveryAddress.recipientName,
+        phone: dto.deliveryAddress.phone,
+        addressLine: dto.deliveryAddress.addressLine,
+        city: dto.deliveryAddress.city,
+        province: dto.deliveryAddress.province,
+        postalCode: dto.deliveryAddress.postalCode ?? null,
+        latitude: dto.deliveryAddress.latitude ?? null,
+        longitude: dto.deliveryAddress.longitude ?? null,
+        notes: dto.deliveryAddress.notes ?? null,
+      },
+    });
+  }
+
+  @Get()
+  @ApiOperation({ summary: "List the current customer's orders" })
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListOrdersQueryDto,
+  ): Promise<Page<OrderRecord>> {
+    return this.orders.listForCustomer(user.sub, query);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: "Get one of the current customer's orders" })
+  get(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderRecord> {
+    return this.orders.getForCustomer(user.sub, id);
+  }
+
+  @Get(':id/timeline')
+  @ApiOperation({ summary: "Get the status history of one of the customer's orders" })
+  async timeline(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderStatusHistoryRecord[]> {
+    const order = await this.orders.getForCustomer(user.sub, id);
+    return order.history;
+  }
+
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel an order (only before a driver is assigned, BR-006)' })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelOrderDto,
+  ): Promise<OrderRecord> {
+    return this.orders.cancel(user.sub, id, dto.reason);
+  }
+
+  @Post(':id/repeat')
+  @ApiOperation({ summary: "Re-add an order's available items back to the cart" })
+  repeat(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CartView> {
+    return this.orders.repeat(user.sub, id);
+  }
+
+  @Patch(':id/status')
+  @Roles(...FULFILMENT_ROLES)
+  @ApiOperation({ summary: 'Advance an order to the next status (staff, BR-012)' })
+  updateStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ): Promise<OrderRecord> {
+    return this.orders.updateStatus(id, dto.status, user.sub, dto.note);
+  }
+}

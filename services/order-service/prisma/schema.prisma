@@ -1,0 +1,110 @@
+// Hydromart order-service data model (PRD Module 4, Cart → Checkout → Order).
+// Owns the shopping cart and the order lifecycle. Prices and the delivery
+// address are SNAPSHOTTED at checkout so historical orders never drift when the
+// catalog or the customer's address book changes later.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("ORDER_DATABASE_URL")
+}
+
+// BR-012 order lifecycle. CANCELLED is reachable only before DRIVER_ASSIGNED
+// (BR-006); the sequence is otherwise strictly forward.
+enum OrderStatus {
+  CREATED
+  CONFIRMED
+  PREPARING
+  DRIVER_ASSIGNED
+  PICKED_UP
+  ON_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+}
+
+/// A line in a customer's active cart. One row per (customer, product).
+model CartItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String   @db.Uuid
+  productId  String   @db.Uuid
+  quantity   Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@map("cart_items")
+}
+
+/// A placed order. Money is stored in IDR with 2 decimals for consistency with
+/// the catalog. Delivery address fields are a snapshot taken at checkout.
+model Order {
+  id          String      @id @default(uuid()) @db.Uuid
+  orderNumber String      @unique
+  customerId  String      @db.Uuid
+  status      OrderStatus @default(CREATED)
+
+  subtotal    Decimal @db.Decimal(12, 2)
+  deliveryFee Decimal @db.Decimal(12, 2)
+  discount    Decimal @db.Decimal(12, 2)
+  total       Decimal @db.Decimal(12, 2)
+
+  // Delivery address snapshot (BR: not editable after pickup — kept immutable).
+  recipientName String
+  phone         String
+  addressLine   String
+  city          String
+  province      String
+  postalCode    String?
+  latitude      Float?
+  longitude     Float?
+  notes         String?
+
+  items   OrderItem[]
+  history OrderStatusHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@map("orders")
+}
+
+/// A price-snapshotted order line. `unitPrice`/`productName`/`sku` are frozen at
+/// checkout so the order total never changes if the catalog later does.
+model OrderItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  orderId     String  @db.Uuid
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String  @db.Uuid
+  productName String
+  sku         String
+  unit        String
+  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Int
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// Append-only audit of every status transition (BR-012 traceability).
+model OrderStatusHistory {
+  id        String      @id @default(uuid()) @db.Uuid
+  orderId   String      @db.Uuid
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  changedBy String?     @db.Uuid
+  note      String?
+  createdAt DateTime    @default(now())
+
+  @@index([orderId])
+  @@map("order_status_history")
+}

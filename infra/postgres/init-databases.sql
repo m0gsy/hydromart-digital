@@ -3,3 +3,5 @@
 -- POSTGRES_DB. Add a line here whenever a new service is introduced.
 CREATE DATABASE hydromart_customer;
 CREATE DATABASE hydromart_product;
+CREATE DATABASE hydromart_order;
+CREATE DATABASE hydromart_payment;
