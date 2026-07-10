@@ -7,9 +7,10 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
-    "start": "node dist/src/main.js",
+    "postbuild": "node ../../packages/platform/scripts/copy-prisma-to-dist.mjs",
+    "start": "node --preserve-symlinks dist/src/main.js",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/src/main.js",
+    "start:prod": "node --preserve-symlinks dist/src/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",
