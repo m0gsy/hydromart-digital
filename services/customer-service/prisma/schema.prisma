@@ -1,0 +1,65 @@
+// Hydromart customer-service data model (PRD Module 2).
+// Owns customer profile extension, delivery addresses, and notification prefs.
+// Keyed by customerId — the identity id issued by auth-service.
+
+generator client {
+  provider = "prisma-client-js"
+  // Custom output so this service's client does not clobber other services'
+  // clients in the hoisted node_modules/@prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CUSTOMER_DATABASE_URL")
+}
+
+enum MembershipTier {
+  BASIC
+  SILVER
+  GOLD
+}
+
+/// Profile extension for a customer. One row per identity, lazily created.
+model CustomerProfile {
+  customerId     String         @id @db.Uuid
+  membershipTier MembershipTier @default(BASIC)
+  pointBalance   Int            @default(0)
+  favoriteDepotId String?       @db.Uuid
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@map("customer_profiles")
+}
+
+/// A delivery address. BR-004: max 20 per customer. Exactly one is primary.
+model Address {
+  id            String   @id @default(uuid()) @db.Uuid
+  customerId    String   @db.Uuid
+  label         String
+  recipientName String
+  phone         String
+  addressLine   String
+  city          String
+  province      String
+  postalCode    String?
+  latitude      Float?
+  longitude     Float?
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([customerId])
+  @@map("addresses")
+}
+
+/// Per-customer notification channel preferences (PRD §27).
+model NotificationPreference {
+  customerId String   @id @db.Uuid
+  push       Boolean  @default(true)
+  email      Boolean  @default(true)
+  whatsapp   Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@map("notification_preferences")
+}

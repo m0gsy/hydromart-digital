@@ -36,6 +36,14 @@ over REST (`/api/v1/...`). This matches PRD §23–25.
 Bounded contexts follow the PRD data model: Customer, Order, Product, Inventory,
 Delivery, Payment, Depot, Franchise, CRM, Reporting.
 
+Cross-cutting building blocks (DomainError, Role, JWT/Roles guards, decorators,
+exception filter, validation pipe, request-context) are shared via the
+`@hydromart/platform` package (`packages/platform`) — consumed by all services
+except auth-service, which predates it and remains self-contained. Each service
+verifies auth-service's JWT access tokens using the shared `JWT_ACCESS_SECRET`.
+Each service owns its own Prisma client (custom generator `output`) so the hoisted
+`node_modules/@prisma/client` is never shared across schemas.
+
 ### Deployment target
 
 Docker images → Google Cloud Run; Cloud SQL (PostgreSQL); Memorystore (Redis);
@@ -108,8 +116,8 @@ OTP codes and refresh tokens are **hashed at rest** (never stored in plaintext).
 
 | Milestone | Scope                                              | Status         |
 | --------- | -------------------------------------------------- | -------------- |
-| M1        | Authentication (this release)                      | In progress    |
-| M2        | Customer profile + addresses, Product catalog      | Planned        |
+| M1        | Authentication                                     | Done           |
+| M2        | Customer profile + addresses (done), Product catalog | In progress  |
 | M3        | Cart → Checkout → Payment                          | Planned        |
 | M4        | Order management + Delivery (proof of delivery)     | Planned        |
 | M5        | Depot management + Inventory                        | Planned        |

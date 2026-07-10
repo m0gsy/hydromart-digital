@@ -13,6 +13,7 @@ out/
 # Prisma
 **/prisma/*.db
 **/prisma/*.db-journal
+**/prisma/generated/
 
 # Environment / secrets
 .env

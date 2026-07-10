@@ -14,6 +14,8 @@ services:
       - '5432:5432'
     volumes:
       - hydromart_pgdata:/var/lib/postgresql/data
+      # Creates the per-service databases (each microservice owns its own schema).
+      - ./infra/postgres/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U hydromart -d hydromart_auth']
       interval: 10s
