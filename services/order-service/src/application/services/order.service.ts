@@ -9,6 +9,7 @@ import {
   InvalidStatusTransitionError,
   OrderNotCancellableError,
   OrderNotFoundError,
+  OutOfServiceAreaError,
   ProductUnavailableError,
 } from '../../domain/errors';
 import {
@@ -111,8 +112,10 @@ export class OrderService {
 
     // Route to the fulfilling depot first: its delivery fee and minimum order
     // amount price this checkout. Routing is fail-OPEN (null depot when the
-    // address has no coordinates, no depot covers it, or depot-service is down),
-    // in which case we fall back to the flat config fee and skip the minimum.
+    // address has no coordinates, the directory is unreachable, or no depots are
+    // configured), in which case we fall back to the flat config fee and skip the
+    // minimum. But an address outside every known depot's radius is rejected
+    // (OutOfServiceAreaError) rather than placed unfulfillable.
     const depot = await this.routeDepot(input.deliveryAddress);
     if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
@@ -262,15 +265,25 @@ export class OrderService {
 
   /**
    * Resolves the fulfilling depot for a delivery address (nearest active depot
-   * within its service radius). Advisory only: needs coordinates, and the depot
-   * directory fails open, so an unresolved address simply yields a null depot.
+   * within its service radius). Fails OPEN (null depot) when the address has no
+   * coordinates, the directory is unreachable, or the platform has no active
+   * depots. But when the directory DID return depots and none covers the address,
+   * the address is genuinely out of service area — reject rather than place an
+   * order no depot can fulfill.
    */
   private async routeDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation | null> {
     if (address.latitude === null || address.longitude === null) {
       return null;
     }
     const depots = await this.depotDirectory.listActiveDepots();
-    return selectNearestDepot(address.latitude, address.longitude, depots);
+    if (depots === null) {
+      return null; // directory unreachable — stay fail-open, leave unrouted
+    }
+    const depot = selectNearestDepot(address.latitude, address.longitude, depots);
+    if (!depot && depots.length > 0) {
+      throw new OutOfServiceAreaError();
+    }
+    return depot;
   }
 
   private async priced(productId: string) {

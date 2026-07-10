@@ -27,6 +27,19 @@ export class BelowMinimumOrderError extends DomainError {
   }
 }
 
+/**
+ * The delivery address is outside every active depot's service radius. Only
+ * thrown when the depot directory was reachable and returned depots — a directory
+ * outage (or a platform with no depots configured) stays fail-open and unrouted.
+ */
+export class OutOfServiceAreaError extends DomainError {
+  readonly code = 'ORDER_OUT_OF_SERVICE_AREA';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This delivery address is outside our service area. No depot can deliver here.');
+  }
+}
+
 /** A supplied voucher could not be applied (invalid, or promo-service unreachable). */
 export class VoucherRejectedError extends DomainError {
   readonly code = 'ORDER_VOUCHER_REJECTED';

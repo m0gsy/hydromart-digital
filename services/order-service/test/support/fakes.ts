@@ -179,8 +179,10 @@ export class InMemoryOrderRepository implements OrderRepository {
 
 export class FakeDepotDirectory implements DepotDirectoryPort {
   depots: DepotLocation[] = [];
-  async listActiveDepots(): Promise<DepotLocation[]> {
-    return this.depots.map((d) => ({ ...d }));
+  /** Simulate the directory being unreachable (fail-open null), not just empty. */
+  unreachable = false;
+  async listActiveDepots(): Promise<DepotLocation[] | null> {
+    return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
   }
 }
 

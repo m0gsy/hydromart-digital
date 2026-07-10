@@ -12,10 +12,14 @@ export interface DepotLocation {
 
 /**
  * Reads active depots (with their service area, fee, and minimum) from the
- * depot-service. Used to stamp the fulfilling depot and price its delivery fee;
- * routing itself is advisory, so implementations fail OPEN (return []) rather
- * than block checkout when the depot-service is down.
+ * depot-service. Used to stamp the fulfilling depot and price its delivery fee.
+ *
+ * Returns `null` when the directory is UNREACHABLE (checkout stays fail-open and
+ * unrouted), versus a `DepotLocation[]` when it responded — an empty array means
+ * the platform simply has no active depots. This lets the caller distinguish a
+ * genuine out-of-service-area address (depots exist, none covers it) from an
+ * outage, which must never block checkout.
  */
 export interface DepotDirectoryPort {
-  listActiveDepots(): Promise<DepotLocation[]>;
+  listActiveDepots(): Promise<DepotLocation[] | null>;
 }

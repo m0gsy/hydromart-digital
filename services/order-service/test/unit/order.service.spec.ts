@@ -9,6 +9,7 @@ import {
   InvalidStatusTransitionError,
   OrderNotCancellableError,
   OrderNotFoundError,
+  OutOfServiceAreaError,
   ProductUnavailableError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
@@ -389,10 +390,30 @@ describe('OrderService', () => {
     ).rejects.toThrow(BelowMinimumOrderError);
   });
 
-  it('leaves an order unrouted (flat fee, no minimum) when no depot covers the address', async () => {
+  it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
       { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 5, deliveryFee: 7000, minOrderAmount: 50000 },
     ];
+    await addToCart(20000, 1);
+    await expect(
+      service.checkout(customer, {
+        deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+      }),
+    ).rejects.toBeInstanceOf(OutOfServiceAreaError);
+  });
+
+  it('stays fail-open (flat fee, unrouted) when the depot directory is unreachable', async () => {
+    depots.unreachable = true;
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    expect(order.depotId).toBeNull();
+    expect(order.deliveryFee).toBe(5000);
+  });
+
+  it('stays fail-open when no depots are configured at all', async () => {
+    depots.depots = [];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, {
       deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },

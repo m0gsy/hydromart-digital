@@ -19,9 +19,9 @@ interface DepotPage {
 }
 
 /**
- * Lists active depots from the depot-service public browse endpoint. Depot
- * routing is advisory (only stamps a reporting dimension on the order), so any
- * failure logs and returns [] — checkout must never fail because routing did.
+ * Lists active depots from the depot-service public browse endpoint. On any
+ * failure (unreachable, timeout, non-2xx) it logs and returns null so checkout
+ * stays fail-open; a successful response returns the depots (possibly empty).
  */
 @Injectable()
 export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
@@ -31,7 +31,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async listActiveDepots(): Promise<DepotLocation[]> {
+  async listActiveDepots(): Promise<DepotLocation[] | null> {
     const url = `${this.config.depotServiceUrl}/api/v1/depots?limit=${DepotDirectoryHttpAdapter.PAGE_LIMIT}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
@@ -54,7 +54,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
       }));
     } catch (error) {
       this.logger.warn(`Depot routing unavailable, order left unrouted: ${(error as Error).message}`);
-      return [];
+      return null;
     } finally {
       clearTimeout(timer);
     }
