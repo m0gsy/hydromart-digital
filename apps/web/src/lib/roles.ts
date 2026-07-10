@@ -10,3 +10,8 @@ const DASHBOARD_ROLES = new Set(['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'])
 export function canViewDashboard(role: string | null | undefined): boolean {
   return role != null && DASHBOARD_ROLES.has(role);
 }
+
+/** Any non-customer role — used to gate the staff order queue. */
+export function isStaff(role: string | null | undefined): boolean {
+  return role != null && role !== '' && role !== 'CUSTOMER';
+}

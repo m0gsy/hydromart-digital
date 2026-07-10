@@ -41,6 +41,22 @@ export function isCancellable(status: OrderStatus): boolean {
   return status === 'CREATED' || status === 'CONFIRMED' || status === 'PREPARING';
 }
 
+/** The next status in the fulfilment flow, or null at the end / for CANCELLED. */
+export function nextStatus(status: OrderStatus): OrderStatus | null {
+  const idx = ORDER_FLOW.indexOf(status);
+  if (idx < 0 || idx >= ORDER_FLOW.length - 1) return null;
+  return ORDER_FLOW[idx + 1] ?? null;
+}
+
+/**
+ * Whether depot staff may advance this order manually. Only the depot prep steps
+ * (accept → prepare) are staff-driven here; driver assignment and everything after
+ * is owned by delivery-service, so the queue stops offering advance at PREPARING.
+ */
+export function staffCanAdvance(status: OrderStatus): boolean {
+  return status === 'CREATED' || status === 'CONFIRMED';
+}
+
 /** Whether an order still needs the customer to pay. */
 export function tone(status: OrderStatus): 'active' | 'done' | 'cancelled' {
   if (status === 'CANCELLED') return 'cancelled';

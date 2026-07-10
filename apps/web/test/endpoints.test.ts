@@ -28,6 +28,14 @@ describe('endpoints', () => {
     expect(endpoints.referrals.redeem).toBe('/referrals/api/v1/referrals');
   });
 
+  it('builds the staff order queue path with filters', () => {
+    expect(endpoints.orders.manage()).toBe('/orders/api/v1/orders/manage');
+    expect(endpoints.orders.manage({ status: 'CREATED', limit: 50 })).toBe(
+      '/orders/api/v1/orders/manage?limit=50&status=CREATED',
+    );
+    expect(endpoints.orders.status('o1')).toBe('/orders/api/v1/orders/o1/status');
+  });
+
   it('builds the dashboard executive path with an optional date range', () => {
     expect(endpoints.dashboard.executive()).toBe('/dashboard/api/v1/dashboard/executive');
     expect(endpoints.dashboard.executive({ from: '2026-06-01', to: '2026-07-01' })).toBe(

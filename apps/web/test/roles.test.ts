@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canViewDashboard } from '@/lib/roles';
+import { canViewDashboard, isStaff } from '@/lib/roles';
 
 describe('canViewDashboard', () => {
   it('allows head-office and depot managers', () => {
@@ -16,5 +16,20 @@ describe('canViewDashboard', () => {
     expect(canViewDashboard(null)).toBe(false);
     expect(canViewDashboard(undefined)).toBe(false);
     expect(canViewDashboard('')).toBe(false);
+  });
+});
+
+describe('isStaff', () => {
+  it('is true for any non-customer role', () => {
+    expect(isStaff('DEPOT_OPERATOR')).toBe(true);
+    expect(isStaff('DRIVER')).toBe(true);
+    expect(isStaff('HEAD_OFFICE')).toBe(true);
+  });
+
+  it('is false for customers and empty/unknown', () => {
+    expect(isStaff('CUSTOMER')).toBe(false);
+    expect(isStaff(null)).toBe(false);
+    expect(isStaff(undefined)).toBe(false);
+    expect(isStaff('')).toBe(false);
   });
 });

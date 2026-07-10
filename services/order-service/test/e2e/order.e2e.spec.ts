@@ -202,6 +202,29 @@ describe('Order HTTP flows (e2e)', () => {
       .expect(404);
   });
 
+  it('gates the staff order queue: customer 403, staff 200 sees all customers', async () => {
+    await request(server()).get('/api/v1/orders/manage').set(auth(customerToken)).expect(403);
+
+    const res = await request(server())
+      .get('/api/v1/orders/manage')
+      .set(auth(staffToken))
+      .expect(200);
+    // Prior tests placed orders for the customer; staff sees them cross-tenant.
+    expect(res.body.total).toBeGreaterThan(0);
+
+    // Status filter is honoured.
+    const cancelled = await request(server())
+      .get('/api/v1/orders/manage?status=CANCELLED')
+      .set(auth(staffToken))
+      .expect(200);
+    expect(cancelled.body.items.every((o: { status: string }) => o.status === 'CANCELLED')).toBe(true);
+
+    await request(server())
+      .get(`/api/v1/orders/manage/${randomUUID()}`)
+      .set(auth(staffToken))
+      .expect(404);
+  });
+
   it('gates reports to staff: customer 403, staff 200', async () => {
     await request(server())
       .get('/api/v1/reports/sales?granularity=monthly')

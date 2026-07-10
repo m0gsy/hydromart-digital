@@ -8,7 +8,7 @@ import { ChartLineUp, Drop, Gift, ShoppingCart, User } from '@phosphor-icons/rea
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canViewDashboard } from '@/lib/roles';
+import { canViewDashboard, isStaff } from '@/lib/roles';
 import type { Cart } from '@/lib/types';
 
 export function Nav() {
@@ -56,7 +56,7 @@ export function Nav() {
           </Link>
           {ready && customer ? (
             <>
-              {canViewDashboard(customer.role) && (
+              {canViewDashboard(customer.role) ? (
                 <Link
                   href="/dashboard"
                   aria-label="Operations dashboard"
@@ -65,6 +65,17 @@ export function Nav() {
                   <ChartLineUp size={20} />
                   <span className="hidden sm:inline">Ops</span>
                 </Link>
+              ) : (
+                isStaff(customer.role) && (
+                  <Link
+                    href="/dashboard/orders"
+                    aria-label="Order queue"
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+                  >
+                    <ChartLineUp size={20} />
+                    <span className="hidden sm:inline">Queue</span>
+                  </Link>
+                )
               )}
               <Link
                 href="/rewards"

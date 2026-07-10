@@ -34,6 +34,16 @@ export const endpoints = {
     get: (id: string) => `/orders/api/v1/orders/${id}`,
     cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,
     repeat: (id: string) => `/orders/api/v1/orders/${id}/repeat`,
+    status: (id: string) => `/orders/api/v1/orders/${id}/status`,
+    // Staff queue across all customers.
+    manage: (q: { page?: number; limit?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',
