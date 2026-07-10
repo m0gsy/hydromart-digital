@@ -1,0 +1,87 @@
+// Hydromart delivery-service data model (PRD Module 4, Delivery & Proof of Delivery).
+// Owns the driver assignment for an order and its proof of delivery. Linked to an
+// order by orderId only; the order lifecycle itself stays owned by order-service,
+// which this service advances over HTTP as the delivery progresses (BR-012).
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DELIVERY_DATABASE_URL")
+}
+
+// Driver-facing slice of the order lifecycle. ASSIGNED → PICKED_UP → ON_DELIVERY
+// → DELIVERED; FAILED is reachable from any active state.
+enum DeliveryStatus {
+  ASSIGNED
+  PICKED_UP
+  ON_DELIVERY
+  DELIVERED
+  FAILED
+}
+
+/// One driver assignment per order (orderId unique). Destination is snapshotted
+/// at assignment so the driver app can navigate without a cross-service call.
+model Delivery {
+  id          String         @id @default(uuid()) @db.Uuid
+  orderId     String         @unique @db.Uuid
+  orderNumber String
+  driverId    String         @db.Uuid
+  status      DeliveryStatus @default(ASSIGNED)
+
+  destinationAddress String
+  destinationLat     Float?
+  destinationLng     Float?
+
+  assignedAt    DateTime  @default(now())
+  pickedUpAt    DateTime?
+  startedAt     DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  failureReason String?
+
+  proof   ProofOfDelivery?
+  history DeliveryStatusHistory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([status])
+  @@map("deliveries")
+}
+
+/// Mandatory proof captured at completion: photo, GPS, timestamp, signature
+/// (BR: proof of delivery mandatory). Exactly one per delivery.
+model ProofOfDelivery {
+  id            String   @id @default(uuid()) @db.Uuid
+  deliveryId    String   @unique @db.Uuid
+  delivery      Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  photoUrl      String
+  signatureUrl  String
+  recipientName String
+  latitude      Float
+  longitude     Float
+  note          String?
+  capturedAt    DateTime @default(now())
+
+  @@map("proofs_of_delivery")
+}
+
+/// Append-only audit of every delivery status transition.
+model DeliveryStatusHistory {
+  id         String         @id @default(uuid()) @db.Uuid
+  deliveryId String         @db.Uuid
+  delivery   Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  status     DeliveryStatus
+  changedBy  String?        @db.Uuid
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  @@index([deliveryId])
+  @@map("delivery_status_history")
+}

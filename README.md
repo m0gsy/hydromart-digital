@@ -29,7 +29,8 @@ hydromart/
 │   ├── customer-service/ Customer profile & addresses       (M2a, :3002)
 │   ├── product-service/  Product catalog                    (M2b, :3003)
 │   ├── order-service/    Cart, checkout & order lifecycle   (M3a, :3004)
-│   └── payment-service/  Payments & refunds                 (M3b, :3005)
+│   ├── payment-service/  Payments & refunds                 (M3b, :3005)
+│   └── delivery-service/ Driver assignment & proof of delivery (M4, :3006)
 ├── apps/                 Frontend apps (Next.js) — added per milestone
 ├── packages/
 │   └── platform/         Shared NestJS building blocks (@hydromart/platform)
@@ -86,5 +87,6 @@ Unit tests run **without a database** (repositories are mocked at the port bound
 - **M1 — Authentication:** phone registration + OTP, phone login, Google Sign-In, JWT access/refresh, session management.
 - **M2 — Customer & Catalog:** customer profile + delivery addresses (BR-004), product catalog with public browse + admin CRUD.
 - **M3 — Ordering & Payments:** cart → checkout → order lifecycle (BR-005/006/012, server-verified prices) and payments across Cash/Transfer/QRIS/E-Wallet/VA with refunds and a signed gateway webhook.
+- **M4 — Delivery:** driver assignment (one active delivery per driver), pickup → on-delivery → delivered flow with mandatory proof of delivery (photo + GPS + timestamp + signature); each step syncs the order status back to order-service (BR-012).
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full MVP roadmap.
