@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Lock, Package, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -21,22 +21,45 @@ function num(v: string): number | null {
   return v.trim() !== '' && Number.isFinite(n) ? n : null;
 }
 
-/** Inline adjust / opname forms for one stock line. Reload the list on success. */
+type ActionMode = 'none' | 'adjust' | 'opname' | 'price';
+
+/** Inline adjust / opname / price forms for one stock line. Reload the list on success. */
 function LineActions({ item, onChanged }: { item: InventoryItem; onChanged: () => void }) {
-  const [mode, setMode] = useState<'none' | 'adjust' | 'opname'>('none');
+  const isProduk = item.itemType === 'PRODUK';
+  const [mode, setMode] = useState<ActionMode>('none');
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function open(next: 'adjust' | 'opname') {
+  function open(next: ActionMode) {
     setMode(next);
-    setValue('');
+    setValue(next === 'price' && item.sellPrice != null ? String(item.sellPrice) : '');
     setReason('');
     setError(null);
   }
 
-  async function submit() {
+  // sellPrice = null clears the override (back to catalog base).
+  async function savePrice(clear: boolean) {
+    const parsed = clear ? null : num(value);
+    if (!clear && (parsed === null || parsed < 0)) {
+      setError('Enter a price of 0 or more, or clear the override.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(endpoints.inventory.update(item.id), { sellPrice: parsed }, true);
+      setMode('none');
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update the price.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitStock() {
     const parsed = num(value);
     if (parsed === null) {
       setError(mode === 'adjust' ? 'Enter a whole number (may be negative).' : 'Enter a count of 0 or more.');
@@ -65,13 +88,53 @@ function LineActions({ item, onChanged }: { item: InventoryItem; onChanged: () =
 
   if (mode === 'none') {
     return (
-      <div className="flex gap-2 border-t border-app pt-2">
+      <div className="flex flex-wrap gap-2 border-t border-app pt-2">
         <Button variant="secondary" onClick={() => open('adjust')}>
           Adjust
         </Button>
         <Button variant="ghost" onClick={() => open('opname')}>
           Count
         </Button>
+        {isProduk && (
+          <Button variant="ghost" onClick={() => open('price')}>
+            Price
+          </Button>
+        )}
+      </div>
+    );
+  }
+
+  if (mode === 'price') {
+    return (
+      <div className="flex flex-col gap-2 border-t border-app pt-2">
+        <Field label="Per-depot price override (IDR)" htmlFor={`p-${item.id}`} hint="Blank + Clear reverts to the catalog base price.">
+          <Input
+            id={`p-${item.id}`}
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="e.g. 22000"
+            autoFocus
+          />
+        </Field>
+        {error && (
+          <p className="text-sm font-medium text-red-600" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
+            Cancel
+          </Button>
+          {item.sellPrice != null && (
+            <Button variant="danger" onClick={() => savePrice(true)} loading={busy}>
+              Clear override
+            </Button>
+          )}
+          <Button onClick={() => savePrice(false)} loading={busy}>
+            Save price
+          </Button>
+        </div>
       </div>
     );
   }
@@ -101,7 +164,7 @@ function LineActions({ item, onChanged }: { item: InventoryItem; onChanged: () =
         <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
           Cancel
         </Button>
-        <Button onClick={submit} loading={busy}>
+        <Button onClick={submitStock} loading={busy}>
           {mode === 'adjust' ? 'Apply adjustment' : 'Save count'}
         </Button>
       </div>
@@ -144,6 +207,16 @@ function LineCard({ item, canWrite, onChanged }: { item: InventoryItem; canWrite
           <dd className="font-semibold tabular-nums">{item.minimumStock || '—'}</dd>
         </div>
       </dl>
+      {item.itemType === 'PRODUK' && (
+        <p className="text-xs text-muted">
+          Price:{' '}
+          {item.sellPrice != null ? (
+            <Money amount={item.sellPrice} className="font-semibold" />
+          ) : (
+            <span className="font-medium">catalog base</span>
+          )}
+        </p>
+      )}
       {canWrite && <LineActions item={item} onChanged={onChanged} />}
     </Card>
   );

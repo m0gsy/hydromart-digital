@@ -51,5 +51,6 @@ describe('endpoints', () => {
     );
     expect(endpoints.inventory.adjust('i1')).toBe('/depots/api/v1/inventory/i1/adjust');
     expect(endpoints.inventory.opname('i1')).toBe('/depots/api/v1/inventory/i1/opname');
+    expect(endpoints.inventory.update('i1')).toBe('/depots/api/v1/inventory/i1');
   });
 });

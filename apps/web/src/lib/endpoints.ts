@@ -88,6 +88,8 @@ export const endpoints = {
     },
     adjust: (itemId: string) => `/depots/api/v1/inventory/${itemId}/adjust`,
     opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,
+    // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
+    update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
   },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
