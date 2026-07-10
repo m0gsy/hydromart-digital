@@ -1,0 +1,80 @@
+// Hydromart crm-service data model (PRD Module 12 CRM/Broadcast Campaigns: FR-087
+// Segmentation, FR-088 Campaign, FR-093 Push Notification, FR-094 WhatsApp Broadcast).
+//
+// SCOPE BOUNDARY (MVP): a campaign broadcasts to an EXPLICIT recipient list that marketing
+// staff supply (phone required; customerId + name optional). Attribute-based segmentation
+// by tier/geography (FR-087) needs a cross-service customer directory that no staff
+// customer-list endpoint exposes today, so it is DEFERRED — recipients are always the
+// explicit list, never a fabricated/queried audience. WhatsApp is the only channel for now
+// (PRD §19 Notification Matrix makes it the primary broadcast channel).
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("CRM_DATABASE_URL")
+}
+
+/// Campaign lifecycle. DRAFT until dispatched; SENDING while recipients are processed;
+/// SENT once complete. Only a DRAFT campaign may be sent (re-send is rejected).
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  SENT
+}
+
+/// Broadcast channel. WhatsApp only for now (FR-094).
+enum CampaignChannel {
+  WHATSAPP
+}
+
+/// Per-recipient delivery state within a campaign send.
+enum RecipientStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// A broadcast campaign to an explicit staff-supplied recipient list (FR-088/FR-094).
+model Campaign {
+  id              String              @id @default(uuid())
+  name            String
+  channel         CampaignChannel     @default(WHATSAPP)
+  messageTemplate String
+  status          CampaignStatus      @default(DRAFT)
+  totalRecipients Int                 @default(0)
+  sentCount       Int                 @default(0)
+  failedCount     Int                 @default(0)
+  /// Auth subject (staff user id) that created the campaign.
+  createdBy       String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  sentAt          DateTime?
+
+  recipients CampaignRecipient[]
+
+  @@map("campaigns")
+}
+
+/// One recipient row per campaign. `customerId` is optional (a recipient may not be a
+/// registered customer); `phone` is required and unique within the campaign.
+model CampaignRecipient {
+  id         String          @id @default(uuid())
+  campaign   Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignId String
+  customerId String?
+  phone      String
+  name       String?
+  status     RecipientStatus @default(PENDING)
+  error      String?
+  sentAt     DateTime?
+  createdAt  DateTime        @default(now())
+
+  @@unique([campaignId, phone])
+  @@index([campaignId, status])
+  @@map("campaign_recipients")
+}

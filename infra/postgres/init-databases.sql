@@ -10,3 +10,4 @@ CREATE DATABASE hydromart_depot;
 CREATE DATABASE hydromart_loyalty;
 CREATE DATABASE hydromart_promo;
 CREATE DATABASE hydromart_referral;
+CREATE DATABASE hydromart_crm;
