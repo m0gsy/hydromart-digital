@@ -117,7 +117,7 @@ OTP codes and refresh tokens are **hashed at rest** (never stored in plaintext).
 | Milestone | Scope                                              | Status         |
 | --------- | -------------------------------------------------- | -------------- |
 | M1        | Authentication                                     | Done           |
-| M2        | Customer profile + addresses (done), Product catalog | In progress  |
+| M2        | Customer profile + addresses, Product catalog      | Done           |
 | M3        | Cart → Checkout → Payment                          | Planned        |
 | M4        | Order management + Delivery (proof of delivery)     | Planned        |
 | M5        | Depot management + Inventory                        | Planned        |

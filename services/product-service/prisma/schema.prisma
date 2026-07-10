@@ -1,0 +1,49 @@
+// Hydromart product-service data model (PRD Module 3, Product Catalog).
+// Global catalog. Per-depot pricing & stock are added in M5 (inventory).
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PRODUCT_DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products  Product[]
+
+  @@index([active])
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(uuid()) @db.Uuid
+  categoryId  String?  @db.Uuid
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name        String
+  sku         String   @unique
+  description String?
+  /// Sales unit label, e.g. "Galon 19L", "Botol 600ml".
+  unit        String
+  /// Catalog base price in IDR. Depot-specific overrides come later (M5).
+  basePrice   Decimal  @db.Decimal(12, 2)
+  imageUrl    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([active])
+  @@map("products")
+}
