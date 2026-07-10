@@ -12,6 +12,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -105,6 +106,11 @@ export class CreateDepotDto {
   @IsNumber()
   @Min(0)
   minOrderAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Franchise owner (account id) who manages this depot.' })
+  @IsOptional()
+  @IsUUID()
+  ownerId?: string;
 
   // ponytail: JSON blobs validated shallowly (shape documented in schema.prisma); tighten to
   // nested DTOs if operators start submitting malformed hours/holidays.

@@ -59,6 +59,12 @@ export class InMemoryDepotRepository implements DepotRepository {
     const r = this.rows.find((x) => x.code === code);
     return r ? { ...r } : null;
   }
+  async findByOwner(ownerId: string): Promise<DepotRecord[]> {
+    return this.rows
+      .filter((x) => x.ownerId === ownerId)
+      .sort((a, b) => a.code.localeCompare(b.code))
+      .map((r) => ({ ...r }));
+  }
   async create(data: CreateDepotData): Promise<DepotRecord> {
     const now = nextDate();
     const rec: DepotRecord = { ...data, id: randomUUID(), active: true, createdAt: now, updatedAt: now };

@@ -31,6 +31,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   let managerToken: string;
   let operatorToken: string;
   let customerToken: string;
+  let ownerToken: string;
+  const OWNER_SUB = '99999999-9999-4999-8999-999999999999';
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -76,6 +78,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     managerToken = jwt.sign({ sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
     operatorToken = jwt.sign({ sub: 'o', role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
+    ownerToken = jwt.sign({ sub: OWNER_SUB, role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -244,6 +247,47 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .set(auth(managerToken))
       .send({ ...depotBody, deliveryFee: -5 })
       .expect(400);
+  });
+
+  it('franchise owner sees only their own depots via /depots/mine; RBAC enforced', async () => {
+    const OTHER_OWNER = '88888888-8888-4888-8888-888888888888';
+    // manager provisions two depots for our owner (one later deactivated) and one for another owner
+    const a = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'OWN-A', ownerId: OWNER_SUB })
+        .expect(201)
+    ).body;
+    expect(a.ownerId).toBe(OWNER_SUB);
+    const b = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'OWN-B', ownerId: OWNER_SUB })
+        .expect(201)
+    ).body;
+    await request(server())
+      .post('/api/v1/depots')
+      .set(auth(managerToken))
+      .send({ ...depotBody, code: 'OWN-C', ownerId: OTHER_OWNER })
+      .expect(201);
+    // deactivate one of the owner's depots — listMine still returns it
+    await request(server()).delete(`/api/v1/depots/${b.id}`).set(auth(managerToken)).expect(200);
+
+    await request(server())
+      .get('/api/v1/depots/mine')
+      .set(auth(ownerToken))
+      .expect(200)
+      .expect((r) => {
+        const ids = (r.body as Array<{ id: string; active: boolean }>).map((d) => d.id).sort();
+        expect(ids).toEqual([a.id, b.id].sort());
+        expect(r.body.some((d: { active: boolean }) => !d.active)).toBe(true);
+      });
+
+    // RBAC: staff (manager) and customer are not franchise owners
+    await request(server()).get('/api/v1/depots/mine').set(auth(managerToken)).expect(403);
+    await request(server()).get('/api/v1/depots/mine').set(auth(customerToken)).expect(403);
   });
 
   it('admin manage lists a deactivated depot that public browse hides; customer forbidden', async () => {

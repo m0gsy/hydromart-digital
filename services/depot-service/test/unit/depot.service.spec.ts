@@ -16,6 +16,7 @@ const base = (over: Partial<CreateDepotData> = {}): CreateDepotData => ({
   serviceRadiusKm: 5,
   deliveryFee: 5000,
   minOrderAmount: null,
+  ownerId: over.ownerId ?? null,
   operatingHours: {},
   holidays: [],
 });
@@ -67,6 +68,30 @@ describe('DepotService', () => {
     await expect(service.update(b.id, { code: 'A1' })).rejects.toBeInstanceOf(
       DuplicateDepotCodeError,
     );
+  });
+
+  it('persists ownerId on create and update', async () => {
+    const owner = '11111111-1111-4111-8111-111111111111';
+    const d = await service.create(base({ ownerId: owner }));
+    expect(d.ownerId).toBe(owner);
+
+    const next = '22222222-2222-4222-8222-222222222222';
+    const updated = await service.update(d.id, { ownerId: next });
+    expect(updated.ownerId).toBe(next);
+  });
+
+  it('listMine returns only the owner\'s depots (active and inactive), excluding others', async () => {
+    const owner = '11111111-1111-4111-8111-111111111111';
+    const other = '22222222-2222-4222-8222-222222222222';
+    const active = await service.create(base({ code: 'MINE-A', ownerId: owner }));
+    const inactive = await service.create(base({ code: 'MINE-B', ownerId: owner }));
+    await service.deactivate(inactive.id);
+    await service.create(base({ code: 'OTHER-1', ownerId: other }));
+    await service.create(base({ code: 'NOOWNER' }));
+
+    const mine = await service.listMine(owner);
+    expect(mine.map((d) => d.id).sort()).toEqual([active.id, inactive.id].sort());
+    expect(mine.some((d) => !d.active)).toBe(true);
   });
 
   it('hides a soft-deleted depot from public get but not admin', async () => {

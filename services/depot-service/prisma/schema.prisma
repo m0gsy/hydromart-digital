@@ -61,6 +61,8 @@ model Depot {
   deliveryFee    Decimal       @db.Decimal(12, 2)
   /// Minimum order amount in IDR; per-depot policy. Null = no minimum.
   minOrderAmount Decimal?      @db.Decimal(12, 2)
+  /// Franchise owner (account id) who manages this depot. Null = unassigned / company-run.
+  ownerId        String?       @db.Uuid
   /// Weekly operating hours (FR-076): { mon: {open,close}, ... }.
   operatingHours Json          @default("{}")
   /// Closure dates (FR-080): [{ date: "2026-08-17", label?: "..." }].
@@ -73,6 +75,7 @@ model Depot {
 
   @@index([active])
   @@index([ownershipType])
+  @@index([ownerId])
   @@map("depots")
 }
 

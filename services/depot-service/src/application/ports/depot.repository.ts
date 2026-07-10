@@ -25,6 +25,7 @@ export interface DepotRecord {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount: number | null;
+  ownerId: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
   active: boolean;
@@ -53,6 +54,7 @@ export interface CreateDepotData {
   serviceRadiusKm: number;
   deliveryFee: number;
   minOrderAmount: number | null;
+  ownerId: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
 }
@@ -63,6 +65,8 @@ export interface DepotRepository {
   search(query: DepotQuery): Promise<{ items: DepotRecord[]; total: number }>;
   findById(id: string, activeOnly: boolean): Promise<DepotRecord | null>;
   findByCode(code: string): Promise<DepotRecord | null>;
+  /** All depots owned by an owner (active and inactive — an owner manages their own). */
+  findByOwner(ownerId: string): Promise<DepotRecord[]>;
   create(data: CreateDepotData): Promise<DepotRecord>;
   update(id: string, patch: UpdateDepotData): Promise<DepotRecord>;
 }

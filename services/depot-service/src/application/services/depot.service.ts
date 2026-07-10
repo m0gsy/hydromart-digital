@@ -66,6 +66,11 @@ export class DepotService {
     return this.depots.update(id, patch);
   }
 
+  /** Depots managed by a franchise owner (active and inactive — an owner manages their own). */
+  async listMine(ownerId: string): Promise<DepotRecord[]> {
+    return this.depots.findByOwner(ownerId);
+  }
+
   /** Soft delete. */
   async deactivate(id: string): Promise<DepotRecord> {
     await this.get(id, false);

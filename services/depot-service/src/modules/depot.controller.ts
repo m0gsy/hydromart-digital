@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public, Role, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { DepotService } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
@@ -44,6 +44,16 @@ export class DepotController {
     return this.depots.browse(query, false);
   }
 
+  // Franchise owner's own depots (active + inactive). Declared before `:id` so the
+  // static `mine` segment wins the route match.
+  @ApiBearerAuth()
+  @Roles(Role.FRANCHISE_OWNER)
+  @Get('mine')
+  @ApiOperation({ summary: 'List depots managed by the calling franchise owner' })
+  mine(@CurrentUser() user: AuthenticatedUser): Promise<DepotRecord[]> {
+    return this.depots.listMine(user.sub);
+  }
+
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active depot by id' })
@@ -68,6 +78,7 @@ export class DepotController {
       serviceRadiusKm: dto.serviceRadiusKm ?? 5,
       deliveryFee: dto.deliveryFee,
       minOrderAmount: dto.minOrderAmount ?? null,
+      ownerId: dto.ownerId ?? null,
       operatingHours: dto.operatingHours ?? {},
       holidays: dto.holidays ?? [],
     });

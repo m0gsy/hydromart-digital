@@ -43,6 +43,7 @@ describe('InventoryService', () => {
       serviceRadiusKm: 5,
       deliveryFee: 5000,
       minOrderAmount: null,
+      ownerId: null,
       operatingHours: {},
       holidays: [],
     });

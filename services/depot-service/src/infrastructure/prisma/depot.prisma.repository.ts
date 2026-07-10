@@ -26,6 +26,7 @@ interface DepotRow {
   serviceRadiusKm: number;
   deliveryFee: { toNumber(): number };
   minOrderAmount: { toNumber(): number } | null;
+  ownerId: string | null;
   operatingHours: unknown;
   holidays: unknown;
   active: boolean;
@@ -88,6 +89,14 @@ export class DepotPrismaRepository implements DepotRepository {
   async findByCode(code: string): Promise<DepotRecord | null> {
     const row = await this.prisma.depot.findUnique({ where: { code } });
     return row ? this.toRecord(row) : null;
+  }
+
+  async findByOwner(ownerId: string): Promise<DepotRecord[]> {
+    const rows = await this.prisma.depot.findMany({
+      where: { ownerId },
+      orderBy: { code: 'asc' },
+    });
+    return rows.map((r) => this.toRecord(r));
   }
 
   async create(data: CreateDepotData): Promise<DepotRecord> {
