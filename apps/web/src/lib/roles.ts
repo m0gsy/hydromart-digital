@@ -45,3 +45,11 @@ export function canViewCampaigns(role: string | null | undefined): boolean {
 export function canManageCampaigns(role: string | null | undefined): boolean {
   return role != null && CAMPAIGN_WRITE.has(role);
 }
+
+// Depot admin mirrors depot-service DEPOT_ADMIN_ROLES (manager + super-admin).
+const DEPOT_ADMIN = new Set(['DEPOT_MANAGER', 'SUPER_ADMIN']);
+
+/** Whether a role may create, edit, or deactivate depots. */
+export function canManageDepots(role: string | null | undefined): boolean {
+  return role != null && DEPOT_ADMIN.has(role);
+}

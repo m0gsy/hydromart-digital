@@ -245,4 +245,44 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .send({ ...depotBody, deliveryFee: -5 })
       .expect(400);
   });
+
+  it('admin manage lists a deactivated depot that public browse hides; customer forbidden', async () => {
+    const depotId = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'MNG-01', name: 'Depot Manage' })
+        .expect(201)
+    ).body.id;
+
+    // deactivate (soft delete)
+    await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(managerToken)).expect(200);
+
+    // public browse no longer surfaces it
+    await request(server())
+      .get('/api/v1/depots?search=manage')
+      .expect(200)
+      .expect((r) => expect(r.body.total).toBe(0));
+
+    // admin manage still returns it (so it can be reactivated)
+    await request(server())
+      .get('/api/v1/depots/manage?search=manage')
+      .set(auth(managerToken))
+      .expect(200)
+      .expect((r) => {
+        expect(r.body.total).toBe(1);
+        expect(r.body.items[0].active).toBe(false);
+      });
+
+    // customer forbidden
+    await request(server()).get('/api/v1/depots/manage').set(auth(customerToken)).expect(403);
+
+    // reactivate via PATCH
+    await request(server())
+      .patch(`/api/v1/depots/${depotId}`)
+      .set(auth(managerToken))
+      .send({ active: true })
+      .expect(200)
+      .expect((r) => expect(r.body.active).toBe(true));
+  });
 });

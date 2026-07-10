@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canManageCampaigns,
+  canManageDepots,
   canViewCampaigns,
   canViewDashboard,
   canViewInventory,
@@ -80,5 +81,16 @@ describe('campaign roles', () => {
     expect(canManageCampaigns('DEPOT_MANAGER')).toBe(false);
     expect(canManageCampaigns('CUSTOMER')).toBe(false);
     expect(canManageCampaigns(undefined)).toBe(false);
+  });
+});
+
+describe('canManageDepots', () => {
+  it('allows depot managers and super-admin only', () => {
+    expect(canManageDepots('DEPOT_MANAGER')).toBe(true);
+    expect(canManageDepots('SUPER_ADMIN')).toBe(true);
+    expect(canManageDepots('HEAD_OFFICE')).toBe(false);
+    expect(canManageDepots('DEPOT_OPERATOR')).toBe(false);
+    expect(canManageDepots('CUSTOMER')).toBe(false);
+    expect(canManageDepots(null)).toBe(false);
   });
 });

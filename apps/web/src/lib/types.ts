@@ -276,6 +276,33 @@ export interface Depot {
   city: string;
 }
 
+// Full admin record (from GET /depots/manage) + the create/update payload shape.
+export interface DepotAdmin extends Depot {
+  ownershipType: string;
+  address: string;
+  province: string;
+  lat: number;
+  lng: number;
+  serviceRadiusKm: number;
+  deliveryFee: number;
+  minOrderAmount: number | null;
+  active: boolean;
+}
+
+export interface DepotPayload {
+  code: string;
+  name: string;
+  ownershipType: string;
+  address: string;
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+  deliveryFee: number;
+  minOrderAmount: number | null;
+  serviceRadiusKm?: number;
+}
+
 // Mirrors depot-service ItemView: the stock record plus derived available/low-stock.
 export interface InventoryItem {
   id: string;

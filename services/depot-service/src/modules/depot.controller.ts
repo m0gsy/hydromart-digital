@@ -34,6 +34,16 @@ export class DepotController {
     return this.depots.browse(query, true);
   }
 
+  // Admin listing includes inactive depots (public browse is active-only), so a
+  // deactivated depot stays reachable to reactivate. Declared before `:id`.
+  @ApiBearerAuth()
+  @Roles(...DEPOT_ADMIN_ROLES)
+  @Get('manage')
+  @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
+  manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
+    return this.depots.browse(query, false);
+  }
+
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active depot by id' })

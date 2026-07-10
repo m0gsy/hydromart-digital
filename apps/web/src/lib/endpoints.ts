@@ -76,6 +76,18 @@ export const endpoints = {
       const qs = p.toString();
       return `/depots/api/v1/depots${qs ? `?${qs}` : ''}`;
     },
+    // Admin listing incl. inactive depots (create/update/deactivate target these).
+    manage: (q: { page?: number; limit?: number; search?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.search) p.set('search', q.search);
+      const qs = p.toString();
+      return `/depots/api/v1/depots/manage${qs ? `?${qs}` : ''}`;
+    },
+    create: '/depots/api/v1/depots',
+    // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
+    detail: (id: string) => `/depots/api/v1/depots/${id}`,
   },
   inventory: {
     // Stock lines for one depot (staff).
