@@ -1,0 +1,123 @@
+// Hydromart auth-service data model.
+// Owns identity, OTP challenges, refresh-token sessions, and the security audit log.
+// Secrets (OTP codes, refresh tokens) are stored HASHED, never in plaintext.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("AUTH_DATABASE_URL")
+}
+
+/// Account role. Downstream services authorize against this claim (PRD §26 RBAC).
+enum Role {
+  CUSTOMER
+  DRIVER
+  DEPOT_OPERATOR
+  DEPOT_MANAGER
+  FRANCHISE_OWNER
+  HEAD_OFFICE
+  FINANCE
+  MARKETING
+  SUPER_ADMIN
+}
+
+/// Lifecycle of an account.
+enum CustomerStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+/// Why an OTP was issued.
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+}
+
+/// An identity. In the auth context a "Customer" is any human principal; role
+/// distinguishes customers from staff. Phone is the primary login handle (FR-001).
+model Customer {
+  id           String         @id @default(uuid()) @db.Uuid
+  /// E.164 phone number, unique across the platform (BR-001).
+  phone        String         @unique
+  email        String?        @unique
+  fullName     String?
+  role         Role           @default(CUSTOMER)
+  status       CustomerStatus @default(PENDING_VERIFICATION)
+  /// Google account subject id, set when a customer links Google Sign-In (FR-006).
+  googleSub    String?        @unique
+  phoneVerifiedAt DateTime?
+  lastLoginAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  otpTokens     OtpToken[]
+  refreshTokens RefreshToken[]
+
+  @@index([status])
+  @@map("customers")
+}
+
+/// A one-time password challenge. The code is stored as a bcrypt hash. Enforces
+/// BR-002: valid <= 5 minutes, single-use, limited attempts.
+model OtpToken {
+  id         String     @id @default(uuid()) @db.Uuid
+  customerId String     @db.Uuid
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  purpose    OtpPurpose
+  /// bcrypt hash of the numeric code — never the plaintext code.
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int        @default(0)
+  consumedAt DateTime?
+  createdAt  DateTime   @default(now())
+
+  @@index([customerId, purpose])
+  @@index([expiresAt])
+  @@map("otp_tokens")
+}
+
+/// A refresh-token session (one per device). Tokens are hashed at rest and rotated
+/// on every use; reuse of a rotated token revokes the whole family (theft detection).
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  customerId   String    @db.Uuid
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// sha-256 (HMAC) hash of the opaque refresh token.
+  tokenHash    String    @unique
+  /// Session family — a rotation chain shares one familyId.
+  familyId     String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  /// Points to the token that replaced this one on rotation.
+  replacedById String?   @db.Uuid
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+
+  @@index([customerId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+/// Immutable security audit trail (Engineering Constitution: audit log required).
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  customerId String?  @db.Uuid
+  action     String
+  success    Boolean
+  ipAddress  String?
+  userAgent  String?
+  /// Non-sensitive structured context (never store secrets/PII beyond identifiers).
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
