@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { available, InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
 import {
   CreateInventoryItemData,
+  DepotProductPrice,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
@@ -23,6 +24,7 @@ interface ItemRow {
   quantity: number;
   reserved: number;
   minimumStock: number;
+  sellPrice: unknown; // Prisma Decimal | null
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,7 +55,11 @@ export class InventoryPrismaRepository implements InventoryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toItem(row: ItemRow): InventoryItemRecord {
-    return { ...row, itemType: row.itemType as InventoryItemType };
+    return {
+      ...row,
+      itemType: row.itemType as InventoryItemType,
+      sellPrice: row.sellPrice === null || row.sellPrice === undefined ? null : Number(row.sellPrice),
+    };
   }
 
   private toMovement(row: MovementRow): StockMovementRecord {
@@ -79,6 +85,22 @@ export class InventoryPrismaRepository implements InventoryRepository {
       where: { depotId, itemType, productId },
     });
     return row ? this.toItem(row) : null;
+  }
+
+  async findPrices(depotId: string, productIds: string[]): Promise<DepotProductPrice[]> {
+    if (productIds.length === 0) {
+      return [];
+    }
+    const rows = await this.prisma.inventoryItem.findMany({
+      where: {
+        depotId,
+        itemType: InventoryItemType.PRODUK,
+        productId: { in: productIds },
+        sellPrice: { not: null },
+      },
+      select: { productId: true, sellPrice: true },
+    });
+    return rows.map((r) => ({ productId: r.productId as string, sellPrice: Number(r.sellPrice) }));
   }
 
   async listForDepot(

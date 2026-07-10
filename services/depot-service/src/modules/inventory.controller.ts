@@ -11,10 +11,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { InventoryService, ItemView } from '../application/services/inventory.service';
-import { StockMovementRecord } from '../application/ports/inventory.repository';
+import { DepotProductPrice, StockMovementRecord } from '../application/ports/inventory.repository';
 import {
   AdjustStockDto,
   ConsumeStockDto,
@@ -75,9 +75,27 @@ export class DepotInventoryController {
         unit: dto.unit,
         quantity: dto.quantity ?? 0,
         minimumStock: dto.minimumStock ?? 0,
+        sellPrice: dto.sellPrice ?? null,
       },
       user.sub,
     );
+  }
+
+  // Public price lookup for checkout (order-service). Declared before the ':...'
+  // routes so the static 'prices' segment wins. Prices are customer-facing, so no
+  // auth — like the public product catalog. productIds is a comma-separated list.
+  @Public()
+  @Get('prices')
+  @ApiOperation({ summary: 'Per-depot price overrides for products (public)' })
+  prices(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Query('productIds') productIds?: string,
+  ): Promise<DepotProductPrice[]> {
+    const ids = (productIds ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return this.inventory.pricesForProducts(depotId, ids);
   }
 
   @Roles(...INVENTORY_READ_ROLES)

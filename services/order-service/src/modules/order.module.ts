@@ -14,6 +14,7 @@ import { CartPrismaRepository } from '../infrastructure/prisma/cart.prisma.repos
 import { OrderPrismaRepository } from '../infrastructure/prisma/order.prisma.repository';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
+import { DepotPricingHttpAdapter } from '../infrastructure/http/depot-pricing.http.adapter';
 import { LoyaltyCoordinationHttpAdapter } from '../infrastructure/http/loyalty-coordination.http.adapter';
 import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral-coordination.http.adapter';
 import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
@@ -34,6 +35,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
   { provide: ORDER_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   { provide: ORDER_TOKENS.DepotDirectory, useClass: DepotDirectoryHttpAdapter },
+  { provide: ORDER_TOKENS.DepotPricing, useClass: DepotPricingHttpAdapter },
   { provide: ORDER_TOKENS.LoyaltyCoordination, useClass: LoyaltyCoordinationHttpAdapter },
   { provide: ORDER_TOKENS.ReferralCoordination, useClass: ReferralCoordinationHttpAdapter },
   { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },

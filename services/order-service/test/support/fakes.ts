@@ -23,6 +23,7 @@ import {
   DepotDirectoryPort,
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
+import { DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
@@ -189,6 +190,30 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   unreachable = false;
   async listActiveDepots(): Promise<DepotLocation[] | null> {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
+  }
+}
+
+export class FakeDepotPricing implements DepotPricingPort {
+  /** depotId -> (productId -> override price). Empty = every line uses catalog base. */
+  overrides = new Map<string, Map<string, number>>();
+  /** Records the last lookup so tests can assert it was (not) called. */
+  calls: { depotId: string; productIds: string[] }[] = [];
+
+  setPrice(depotId: string, productId: string, price: number): void {
+    const forDepot = this.overrides.get(depotId) ?? new Map<string, number>();
+    forDepot.set(productId, price);
+    this.overrides.set(depotId, forDepot);
+  }
+
+  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, number>> {
+    this.calls.push({ depotId, productIds });
+    const forDepot = this.overrides.get(depotId) ?? new Map<string, number>();
+    const result = new Map<string, number>();
+    for (const id of productIds) {
+      const price = forDepot.get(id);
+      if (price !== undefined) result.set(id, price);
+    }
+    return result;
   }
 }
 

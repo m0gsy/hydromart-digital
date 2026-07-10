@@ -90,6 +90,9 @@ model InventoryItem {
   /// Units held by ACTIVE order reservations. Sellable stock = quantity - reserved.
   reserved     Int               @default(0)
   minimumStock Int               @default(0)
+  /// Per-depot sell price override in IDR (PRODUK lines only). Null = use the
+  /// catalog base price. Lets franchise (WARALABA) depots price independently.
+  sellPrice    Decimal?          @db.Decimal(12, 2)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 

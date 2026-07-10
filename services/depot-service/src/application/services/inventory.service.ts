@@ -16,6 +16,7 @@ import {
   ProductLineRequiresProductError,
 } from '../../domain/errors';
 import {
+  DepotProductPrice,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
@@ -32,6 +33,8 @@ export interface CreateLineInput {
   unit: string;
   quantity: number;
   minimumStock: number;
+  /** Per-depot price override for PRODUK lines (IDR); null/omitted = catalog base price. */
+  sellPrice?: number | null;
 }
 
 export interface ItemView extends InventoryItemRecord {
@@ -116,6 +119,7 @@ export class InventoryService {
       unit: input.unit,
       quantity: 0,
       minimumStock: input.minimumStock,
+      sellPrice: input.sellPrice ?? null,
     });
 
     if (input.quantity > 0) {
@@ -153,11 +157,20 @@ export class InventoryService {
 
   async updateMeta(
     itemId: string,
-    patch: { label?: string; unit?: string; minimumStock?: number },
+    patch: { label?: string; unit?: string; minimumStock?: number; sellPrice?: number | null },
   ): Promise<ItemView> {
     await this.require(itemId);
     const updated = await this.inventory.update(itemId, patch);
     return this.toView(updated);
+  }
+
+  /**
+   * Per-depot price overrides for the given products (FR: WARALABA depots price
+   * independently). Only PRODUK lines with a set sellPrice are returned; products
+   * without an override are absent, so order-service falls back to the catalog base.
+   */
+  async pricesForProducts(depotId: string, productIds: string[]): Promise<DepotProductPrice[]> {
+    return this.inventory.findPrices(depotId, productIds);
   }
 
   /** Signed correction (FR-072). Positive receives stock, negative consumes it. */

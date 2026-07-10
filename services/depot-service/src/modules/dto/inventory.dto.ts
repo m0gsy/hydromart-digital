@@ -7,6 +7,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
@@ -66,6 +67,16 @@ export class CreateInventoryItemDto {
   @IsInt()
   @Min(0)
   minimumStock?: number;
+
+  @ApiPropertyOptional({
+    example: 22000,
+    description: 'Per-depot sell price override in IDR (PRODUK lines); omit to use catalog price.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sellPrice?: number;
 }
 
 export class UpdateInventoryItemDto {
@@ -89,6 +100,16 @@ export class UpdateInventoryItemDto {
   @IsInt()
   @Min(0)
   minimumStock?: number;
+
+  @ApiPropertyOptional({
+    example: 22000,
+    description: 'Per-depot sell price override in IDR (PRODUK lines); set null to clear.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  sellPrice?: number;
 }
 
 export class AdjustStockDto {

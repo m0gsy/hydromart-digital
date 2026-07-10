@@ -3,6 +3,7 @@ export const ORDER_TOKENS = {
   OrderRepository: Symbol('OrderRepository'),
   ProductCatalog: Symbol('ProductCatalog'),
   DepotDirectory: Symbol('DepotDirectory'),
+  DepotPricing: Symbol('DepotPricing'),
   LoyaltyCoordination: Symbol('LoyaltyCoordination'),
   ReferralCoordination: Symbol('ReferralCoordination'),
   Membership: Symbol('Membership'),

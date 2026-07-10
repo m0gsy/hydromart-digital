@@ -31,6 +31,7 @@ import {
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
+import { DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
@@ -66,6 +67,7 @@ export class OrderService {
     @Inject(ORDER_TOKENS.CartRepository) private readonly cart: CartRepository,
     @Inject(ORDER_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depotDirectory: DepotDirectoryPort,
+    @Inject(ORDER_TOKENS.DepotPricing) private readonly depotPricing: DepotPricingPort,
     @Inject(ORDER_TOKENS.LoyaltyCoordination)
     private readonly loyalty: LoyaltyCoordinationPort,
     @Inject(ORDER_TOKENS.ReferralCoordination)
@@ -93,10 +95,28 @@ export class OrderService {
       throw new EmptyCartError();
     }
 
+    // Route to the fulfilling depot first: it prices the goods (per-depot overrides),
+    // the delivery fee, and the minimum order amount. Routing is fail-OPEN (null depot
+    // when the address has no coordinates, the directory is unreachable, or no depots
+    // are configured), in which case we fall back to catalog prices + the flat config
+    // fee and skip the minimum. But an address outside every known depot's radius is
+    // rejected (OutOfServiceAreaError) rather than placed unfulfillable.
+    const depot = await this.routeDepot(input.deliveryAddress);
+
+    // Per-depot price overrides (WARALABA depots price independently). Fails OPEN:
+    // an empty map means every line falls back to the catalog base price.
+    const overrides = depot
+      ? await this.depotPricing.getPrices(
+          depot.id,
+          lines.map((l) => l.productId),
+        )
+      : new Map<string, number>();
+
     const items: CreateOrderItemData[] = [];
     for (const line of lines) {
       const product = await this.priced(line.productId);
-      const unitPrice = money(product.basePrice);
+      const override = overrides.get(product.id);
+      const unitPrice = money(override ?? product.basePrice);
       items.push({
         productId: product.id,
         productName: product.name,
@@ -110,13 +130,6 @@ export class OrderService {
 
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
 
-    // Route to the fulfilling depot first: its delivery fee and minimum order
-    // amount price this checkout. Routing is fail-OPEN (null depot when the
-    // address has no coordinates, the directory is unreachable, or no depots are
-    // configured), in which case we fall back to the flat config fee and skip the
-    // minimum. But an address outside every known depot's radius is rejected
-    // (OutOfServiceAreaError) rather than placed unfulfillable.
-    const depot = await this.routeDepot(input.deliveryAddress);
     if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }

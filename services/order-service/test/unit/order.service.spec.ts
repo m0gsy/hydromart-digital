@@ -18,6 +18,7 @@ import { OrderStatus } from '../../src/domain/order-status';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
   FakeDepotDirectory,
+  FakeDepotPricing,
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
   FakeMembership,
@@ -47,6 +48,7 @@ describe('OrderService', () => {
   let cart: InMemoryCartRepository;
   let catalog: FakeProductCatalog;
   let depots: FakeDepotDirectory;
+  let pricing: FakeDepotPricing;
   let loyalty: FakeLoyaltyCoordination;
   let referral: FakeReferralCoordination;
   let membership: FakeMembership;
@@ -62,6 +64,7 @@ describe('OrderService', () => {
     cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
+    pricing = new FakeDepotPricing();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
     membership = new FakeMembership();
@@ -74,6 +77,7 @@ describe('OrderService', () => {
       cart,
       catalog,
       depots,
+      pricing,
       loyalty,
       referral,
       membership,
@@ -507,5 +511,38 @@ describe('OrderService', () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
     expect(order.depotId).toBeNull();
+  });
+
+  it('prices lines from the routed depot override, not the catalog base', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    const productId = await addToCart(20000, 2); // catalog base 20000
+    pricing.setPrice('depot-near', productId, 22000); // this depot sells at 22000
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
+      'Bearer tok',
+    );
+    expect(order.items[0].unitPrice).toBe(22000);
+    expect(order.subtotal).toBe(44000);
+    expect(order.total).toBe(44000 + 5000);
+  });
+
+  it('falls back to the catalog base price when the depot has no override', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    await addToCart(20000, 1); // no depot override set
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    expect(order.items[0].unitPrice).toBe(20000);
+  });
+
+  it('does not look up depot prices when the order is not routed', async () => {
+    await addToCart(20000, 1);
+    await service.checkout(customer, { deliveryAddress: address }); // no coords → unrouted
+    expect(pricing.calls).toHaveLength(0);
   });
 });

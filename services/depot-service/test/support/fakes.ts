@@ -13,6 +13,7 @@ import {
 } from '../../src/application/ports/depot.repository';
 import {
   CreateInventoryItemData,
+  DepotProductPrice,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
@@ -81,6 +82,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     const rec: InventoryItemRecord = {
       ...data,
       reserved: 0,
+      sellPrice: data.sellPrice ?? null,
       id: randomUUID(),
       createdAt: now,
       updatedAt: now,
@@ -101,6 +103,18 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       (x) => x.depotId === depotId && x.itemType === itemType && x.productId === productId,
     );
     return r ? { ...r } : null;
+  }
+  async findPrices(depotId: string, productIds: string[]): Promise<DepotProductPrice[]> {
+    return this.items
+      .filter(
+        (x) =>
+          x.depotId === depotId &&
+          x.itemType === InventoryItemType.PRODUK &&
+          x.productId !== null &&
+          productIds.includes(x.productId) &&
+          x.sellPrice !== null,
+      )
+      .map((x) => ({ productId: x.productId as string, sellPrice: x.sellPrice as number }));
   }
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     return this.items

@@ -10,8 +10,16 @@ export interface InventoryItemRecord {
   quantity: number;
   reserved: number;
   minimumStock: number;
+  /** Per-depot price override (PRODUK lines); null = use catalog base price. */
+  sellPrice: number | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** A depot's price override for one product. */
+export interface DepotProductPrice {
+  productId: string;
+  sellPrice: number;
 }
 
 export interface ReservationRecord {
@@ -43,6 +51,7 @@ export interface CreateInventoryItemData {
   unit: string;
   quantity: number;
   minimumStock: number;
+  sellPrice?: number | null;
 }
 
 export interface InventoryListFilter {
@@ -54,6 +63,7 @@ export interface UpdateInventoryItemData {
   label?: string;
   unit?: string;
   minimumStock?: number;
+  sellPrice?: number | null;
 }
 
 export interface RecordMovementData {
@@ -76,6 +86,12 @@ export interface InventoryRepository {
     itemType: InventoryItemType,
     productId: string | null,
   ): Promise<InventoryItemRecord | null>;
+  /**
+   * Price overrides for the given products at a depot (PRODUK lines with a
+   * non-null sellPrice). Products without an override are simply absent from the
+   * result — the caller falls back to the catalog base price.
+   */
+  findPrices(depotId: string, productIds: string[]): Promise<DepotProductPrice[]>;
   listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]>;
   listLowStock(depotId?: string): Promise<InventoryItemRecord[]>;
   update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord>;

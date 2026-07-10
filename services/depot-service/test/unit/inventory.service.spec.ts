@@ -318,4 +318,28 @@ describe('InventoryService', () => {
     expect(view.reserved).toBe(0);
     expect(view.available).toBe(6);
   });
+
+  it('stores and returns a per-depot price override for a PRODUK line', async () => {
+    const line = await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 0, minimumStock: 0, sellPrice: 22000 },
+      ACTOR,
+    );
+    expect(line.sellPrice).toBe(22000);
+    const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
+    expect(prices).toEqual([{ productId: PRODUCT_ID, sellPrice: 22000 }]);
+  });
+
+  it('omits products without an override from the price lookup', async () => {
+    await produkLine(PRODUCT_ID, 5); // no sellPrice → catalog base at checkout
+    const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
+    expect(prices).toEqual([]);
+  });
+
+  it('updates a PRODUK line price override', async () => {
+    const line = await produkLine(PRODUCT_ID, 5);
+    await inventory.updateMeta(line.id, { sellPrice: 18000 });
+    const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
+    expect(prices).toEqual([{ productId: PRODUCT_ID, sellPrice: 18000 }]);
+  });
 });
