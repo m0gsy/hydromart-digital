@@ -3,12 +3,14 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   InventoryItemType,
   StockMovementType,
+  available,
   isLowStock,
   isProductLine,
 } from '../../domain/inventory';
 import {
   DepotNotFoundError,
   DuplicateInventoryLineError,
+  InsufficientStockError,
   InventoryItemNotFoundError,
   NegativeStockError,
   ProductLineRequiresProductError,
@@ -34,6 +36,15 @@ export interface CreateLineInput {
 
 export interface ItemView extends InventoryItemRecord {
   lowStock: boolean;
+  /** Sellable stock = quantity - reserved. */
+  available: number;
+}
+
+export interface ReserveResult {
+  orderId: string;
+  depotId: string;
+  reserved: string[];
+  skipped: string[];
 }
 
 /**
@@ -50,7 +61,11 @@ export class InventoryService {
   ) {}
 
   private toView(item: InventoryItemRecord): ItemView {
-    return { ...item, lowStock: isLowStock(item.quantity, item.minimumStock) };
+    return {
+      ...item,
+      lowStock: isLowStock(item.quantity, item.minimumStock),
+      available: available(item.quantity, item.reserved),
+    };
   }
 
   /**
@@ -195,6 +210,91 @@ export class InventoryService {
   }
 
   /**
+   * Holds stock for an order at checkout so two customers cannot both buy the last
+   * unit (oversell prevention). Each product maps to the depot's PRODUK line;
+   * products the depot does not stock are skipped (never block checkout). If any
+   * stocked product lacks enough sellable stock (quantity - reserved), the whole
+   * reservation is rejected (InsufficientStockError) before any hold is written.
+   * Idempotent per order: a line already reserved for this order is a no-op.
+   *
+   * Ceiling: the check-then-reserve is not fully serializable, so two concurrent
+   * checkouts for the same last unit can both pass the availability check (TOCTOU).
+   * The window is small; a serializable upgrade is SELECT ... FOR UPDATE per line.
+   */
+  async reserveForOrder(
+    depotId: string,
+    orderId: string,
+    items: { productId: string; quantity: number }[],
+    // ponytail: actorId kept for signature symmetry with consume/adjust; reservations
+    // carry no actor column, so it is currently unused.
+    _actorId: string,
+  ): Promise<ReserveResult> {
+    if (!(await this.depots.findById(depotId, false))) {
+      throw new DepotNotFoundError();
+    }
+    const reserved: string[] = [];
+    const skipped: string[] = [];
+    const shortfalls: { productId: string; requested: number; available: number }[] = [];
+    const plans: { itemId: string; productId: string; quantity: number }[] = [];
+
+    for (const { productId, quantity } of items) {
+      if (quantity <= 0) {
+        continue;
+      }
+      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      if (!line) {
+        skipped.push(productId);
+        continue;
+      }
+      // Already held for this order (retry) — report reserved, don't double-hold.
+      if (await this.inventory.findReservation(line.id, orderId)) {
+        reserved.push(productId);
+        continue;
+      }
+      const sellable = available(line.quantity, line.reserved);
+      if (sellable < quantity) {
+        shortfalls.push({ productId, requested: quantity, available: sellable });
+        continue;
+      }
+      plans.push({ itemId: line.id, productId, quantity });
+    }
+
+    // All-or-nothing: reject before writing any hold if any line is short.
+    if (shortfalls.length > 0) {
+      throw new InsufficientStockError(shortfalls);
+    }
+    for (const p of plans) {
+      await this.inventory.reserve(p.itemId, orderId, p.quantity);
+      reserved.push(p.productId);
+    }
+    return { orderId, depotId, reserved, skipped };
+  }
+
+  /**
+   * Releases an order's stock holds (on cancellation). Each product maps to the
+   * depot's PRODUK line; a released or absent hold is a no-op (idempotent).
+   */
+  async releaseForOrder(
+    depotId: string,
+    orderId: string,
+    items: { productId: string; quantity: number }[],
+  ): Promise<{ orderId: string; depotId: string; released: string[] }> {
+    if (!(await this.depots.findById(depotId, false))) {
+      throw new DepotNotFoundError();
+    }
+    const released: string[] = [];
+    for (const { productId } of items) {
+      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      if (!line) {
+        continue;
+      }
+      await this.inventory.releaseReservation(line.id, orderId);
+      released.push(productId);
+    }
+    return { orderId, depotId, released };
+  }
+
+  /**
    * Deducts sold quantities from a depot's PRODUK stock lines when an order
    * completes. Each sold product maps to that depot's PRODUK line by productId;
    * a product the depot does not stock is skipped (recorded in `skipped`), never
@@ -244,6 +344,8 @@ export class InventoryService {
         actorId,
         orderId,
       });
+      // Convert the checkout-time hold into a real deduction (releases reserved units).
+      await this.inventory.consumeReservation(line.id, orderId);
       await this.alertIfNewlyLow(line, line.quantity, next, authorization);
       consumed.push(productId);
     }

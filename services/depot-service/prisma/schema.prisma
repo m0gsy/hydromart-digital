@@ -37,6 +37,13 @@ enum StockMovementType {
   SALE
 }
 
+/// Lifecycle of a per-order stock hold (reserve at checkout -> release on cancel / consume on completion).
+enum ReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
 model Depot {
   id             String        @id @default(uuid()) @db.Uuid
   /// Human-facing short code, unique across the network (e.g. "JKT-01").
@@ -80,17 +87,38 @@ model InventoryItem {
   label        String
   unit         String
   quantity     Int               @default(0)
+  /// Units held by ACTIVE order reservations. Sellable stock = quantity - reserved.
+  reserved     Int               @default(0)
   minimumStock Int               @default(0)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 
   movements    StockMovement[]
+  reservations StockReservation[]
 
   // Best-effort DB uniqueness. Non-PRODUK singletons (productId NULL) are also
   // enforced in the service layer since Postgres treats NULLs as distinct.
   @@unique([depotId, itemType, productId])
   @@index([depotId])
   @@map("inventory_items")
+}
+
+/// A per-order hold on a stock line placed at checkout. Prevents overselling
+/// between checkout and completion; released on cancel, consumed on completion.
+model StockReservation {
+  id        String            @id @default(uuid()) @db.Uuid
+  itemId    String            @db.Uuid
+  item      InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  orderId   String            @db.Uuid
+  quantity  Int
+  status    ReservationStatus @default(ACTIVE)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  // One reservation per line per order (idempotent reserve/release/consume).
+  @@unique([itemId, orderId])
+  @@index([itemId])
+  @@map("stock_reservations")
 }
 
 model StockMovement {

@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
-import { InventoryItemType, StockMovementType } from '../../domain/inventory';
+import { InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
 import {
   CreateInventoryItemData,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
   RecordMovementData,
+  ReservationRecord,
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../application/ports/inventory.repository';
@@ -20,9 +21,18 @@ interface ItemRow {
   label: string;
   unit: string;
   quantity: number;
+  reserved: number;
   minimumStock: number;
   createdAt: Date;
   updatedAt: Date;
+}
+
+interface ReservationRow {
+  id: string;
+  itemId: string;
+  orderId: string;
+  quantity: number;
+  status: string;
 }
 
 interface MovementRow {
@@ -130,5 +140,56 @@ export class InventoryPrismaRepository implements InventoryRepository {
       orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.toMovement(r));
+  }
+
+  private toReservation(row: ReservationRow): ReservationRecord {
+    return { ...row, status: row.status as ReservationStatus };
+  }
+
+  async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {
+    const row = await this.prisma.stockReservation.findUnique({
+      where: { itemId_orderId: { itemId, orderId } },
+    });
+    return row ? this.toReservation(row) : null;
+  }
+
+  async reserve(itemId: string, orderId: string, quantity: number): Promise<InventoryItemRecord> {
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.inventoryItem.update({
+        where: { id: itemId },
+        data: { reserved: { increment: quantity } },
+      }),
+      this.prisma.stockReservation.create({ data: { itemId, orderId, quantity } }),
+    ]);
+    return this.toItem(updated);
+  }
+
+  /** Flip an ACTIVE reservation to a terminal status and give back its held units. */
+  private async settleReservation(
+    itemId: string,
+    orderId: string,
+    status: ReservationStatus.RELEASED | ReservationStatus.CONSUMED,
+  ): Promise<void> {
+    const res = await this.prisma.stockReservation.findUnique({
+      where: { itemId_orderId: { itemId, orderId } },
+    });
+    if (!res || res.status !== ReservationStatus.ACTIVE) {
+      return; // idempotent: nothing to settle
+    }
+    await this.prisma.$transaction([
+      this.prisma.stockReservation.update({ where: { id: res.id }, data: { status } }),
+      this.prisma.inventoryItem.update({
+        where: { id: itemId },
+        data: { reserved: { decrement: res.quantity } },
+      }),
+    ]);
+  }
+
+  async releaseReservation(itemId: string, orderId: string): Promise<void> {
+    await this.settleReservation(itemId, orderId, ReservationStatus.RELEASED);
+  }
+
+  async consumeReservation(itemId: string, orderId: string): Promise<void> {
+    await this.settleReservation(itemId, orderId, ReservationStatus.CONSUMED);
   }
 }

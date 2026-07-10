@@ -33,6 +33,17 @@ const INVENTORY_CONSUME_ROLES = [
   Role.DRIVER,
   Role.SUPER_ADMIN,
 ] as const;
+// Reserve/release are driven by checkout/cancel, which the customer performs, so the
+// forwarded token may be a CUSTOMER. NOTE (MVP ceiling, same as promo/referral): this
+// trusts the forwarded token — a customer could hold stock against invented order ids;
+// proper hardening is service-to-service auth.
+const INVENTORY_RESERVE_ROLES = [
+  Role.CUSTOMER,
+  Role.DEPOT_OPERATOR,
+  Role.DEPOT_MANAGER,
+  Role.DRIVER,
+  Role.SUPER_ADMIN,
+] as const;
 const INVENTORY_READ_ROLES = [
   Role.DEPOT_OPERATOR,
   Role.DEPOT_MANAGER,
@@ -92,6 +103,27 @@ export class DepotInventoryController {
     @Headers('authorization') authorization: string,
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
     return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, user.sub, authorization);
+  }
+
+  @Roles(...INVENTORY_RESERVE_ROLES)
+  @Post('reserve')
+  @ApiOperation({ summary: 'Hold PRODUK stock for an order at checkout (rejects on insufficient stock)' })
+  reserve(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ConsumeStockDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ orderId: string; depotId: string; reserved: string[]; skipped: string[] }> {
+    return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, user.sub);
+  }
+
+  @Roles(...INVENTORY_RESERVE_ROLES)
+  @Post('release')
+  @ApiOperation({ summary: "Release an order's PRODUK stock holds on cancellation" })
+  release(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ConsumeStockDto,
+  ): Promise<{ orderId: string; depotId: string; released: string[] }> {
+    return this.inventory.releaseForOrder(depotId, dto.orderId, dto.items);
   }
 }
 

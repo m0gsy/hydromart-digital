@@ -47,3 +47,15 @@ export class NegativeStockError extends DomainError {
     super('Adjustment would drive stock below zero.');
   }
 }
+
+/** A reservation was requested for more units than a stocked line has available. */
+export class InsufficientStockError extends DomainError {
+  readonly code = 'INVENTORY_INSUFFICIENT_STOCK';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(shortfalls: { productId: string; requested: number; available: number }[]) {
+    const detail = shortfalls
+      .map((s) => `${s.productId} (need ${s.requested}, have ${s.available})`)
+      .join(', ');
+    super(`Insufficient stock at the fulfilling depot: ${detail}.`);
+  }
+}

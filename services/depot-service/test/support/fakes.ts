@@ -17,9 +17,11 @@ import {
   InventoryListFilter,
   InventoryRepository,
   RecordMovementData,
+  ReservationRecord,
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
+import { ReservationStatus } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
 
 let seq = 0;
@@ -72,10 +74,17 @@ export class InMemoryDepotRepository implements DepotRepository {
 export class InMemoryInventoryRepository implements InventoryRepository {
   items: InventoryItemRecord[] = [];
   moves: StockMovementRecord[] = [];
+  reservations: (ReservationRecord & { quantity: number })[] = [];
 
   async create(data: CreateInventoryItemData): Promise<InventoryItemRecord> {
     const now = nextDate();
-    const rec: InventoryItemRecord = { ...data, id: randomUUID(), createdAt: now, updatedAt: now };
+    const rec: InventoryItemRecord = {
+      ...data,
+      reserved: 0,
+      id: randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+    };
     this.items.push(rec);
     return { ...rec };
   }
@@ -133,6 +142,31 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .filter((m) => m.itemId === itemId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((m) => ({ ...m }));
+  }
+  async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {
+    const r = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
+    return r ? { ...r } : null;
+  }
+  async reserve(itemId: string, orderId: string, quantity: number): Promise<InventoryItemRecord> {
+    const item = this.items.find((x) => x.id === itemId)!;
+    item.reserved += quantity;
+    item.updatedAt = nextDate();
+    this.reservations.push({ id: randomUUID(), itemId, orderId, quantity, status: ReservationStatus.ACTIVE });
+    return { ...item };
+  }
+  private settle(itemId: string, orderId: string, status: ReservationStatus): void {
+    const res = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
+    if (!res || res.status !== ReservationStatus.ACTIVE) return;
+    res.status = status;
+    const item = this.items.find((x) => x.id === itemId)!;
+    item.reserved -= res.quantity;
+    item.updatedAt = nextDate();
+  }
+  async releaseReservation(itemId: string, orderId: string): Promise<void> {
+    this.settle(itemId, orderId, ReservationStatus.RELEASED);
+  }
+  async consumeReservation(itemId: string, orderId: string): Promise<void> {
+    this.settle(itemId, orderId, ReservationStatus.CONSUMED);
   }
 }
 

@@ -4,6 +4,7 @@ import { InventoryItemType, OwnershipType, StockMovementType } from '../../src/d
 import {
   DepotNotFoundError,
   DuplicateInventoryLineError,
+  InsufficientStockError,
   InventoryItemNotFoundError,
   NegativeStockError,
   ProductLineRequiresProductError,
@@ -233,5 +234,88 @@ describe('InventoryService', () => {
     await inventory.consumeForOrder(depotId, 'order-x', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR, TOKEN); // 12 -> 7
     expect(alerts.emitted).toHaveLength(1);
     expect(alerts.emitted[0].alert.quantity).toBe(7);
+  });
+
+  const ORDER = '44444444-4444-4444-4444-444444444444';
+
+  it('reserves stock, reducing available without touching physical quantity', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    const result = await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+    expect(result.reserved).toEqual([PRODUCT_ID]);
+    const view = await inventory.get(line.id);
+    expect(view.quantity).toBe(10);
+    expect(view.reserved).toBe(3);
+    expect(view.available).toBe(7);
+  });
+
+  it('rejects a reservation exceeding available stock, holding nothing', async () => {
+    const line = await produkLine(PRODUCT_ID, 2);
+    await expect(
+      inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR),
+    ).rejects.toBeInstanceOf(InsufficientStockError);
+    expect((await inventory.get(line.id)).reserved).toBe(0);
+  });
+
+  it('reserves available lines but rejects the whole order if any line is short (all-or-nothing)', async () => {
+    const other = '55555555-5555-5555-5555-555555555555';
+    const a = await produkLine(PRODUCT_ID, 10);
+    const b = await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: other, label: 'B', unit: 'unit', quantity: 1, minimumStock: 0 },
+      ACTOR,
+    );
+    await expect(
+      inventory.reserveForOrder(
+        depotId,
+        ORDER,
+        [
+          { productId: PRODUCT_ID, quantity: 3 },
+          { productId: other, quantity: 5 },
+        ],
+        ACTOR,
+      ),
+    ).rejects.toBeInstanceOf(InsufficientStockError);
+    expect((await inventory.get(a.id)).reserved).toBe(0);
+    expect((await inventory.get(b.id)).reserved).toBe(0);
+  });
+
+  it('skips products the depot does not stock when reserving', async () => {
+    const result = await inventory.reserveForOrder(
+      depotId,
+      ORDER,
+      [{ productId: '99999999-9999-9999-9999-999999999999', quantity: 1 }],
+      ACTOR,
+    );
+    expect(result.reserved).toEqual([]);
+    expect(result.skipped).toEqual(['99999999-9999-9999-9999-999999999999']);
+  });
+
+  it('is idempotent per order — a retried reserve does not double-hold', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    const items = [{ productId: PRODUCT_ID, quantity: 3 }];
+    await inventory.reserveForOrder(depotId, ORDER, items, ACTOR);
+    await inventory.reserveForOrder(depotId, ORDER, items, ACTOR);
+    expect((await inventory.get(line.id)).reserved).toBe(3);
+  });
+
+  it('releases a hold on cancellation, restoring available', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    const items = [{ productId: PRODUCT_ID, quantity: 4 }];
+    await inventory.reserveForOrder(depotId, ORDER, items, ACTOR);
+    await inventory.releaseForOrder(depotId, ORDER, items);
+    const view = await inventory.get(line.id);
+    expect(view.reserved).toBe(0);
+    expect(view.available).toBe(10);
+  });
+
+  it('converts a hold to a real deduction on completion (quantity and reserved both drop)', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    const items = [{ productId: PRODUCT_ID, quantity: 4 }];
+    await inventory.reserveForOrder(depotId, ORDER, items, ACTOR);
+    await inventory.consumeForOrder(depotId, ORDER, items, ACTOR, TOKEN);
+    const view = await inventory.get(line.id);
+    expect(view.quantity).toBe(6);
+    expect(view.reserved).toBe(0);
+    expect(view.available).toBe(6);
   });
 });

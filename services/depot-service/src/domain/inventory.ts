@@ -21,6 +21,18 @@ export enum StockMovementType {
   SALE = 'SALE',
 }
 
+/** Lifecycle of a per-order stock hold: held at checkout, released on cancel, consumed on completion. */
+export enum ReservationStatus {
+  ACTIVE = 'ACTIVE',
+  RELEASED = 'RELEASED',
+  CONSUMED = 'CONSUMED',
+}
+
+/** Sellable stock = physical quantity minus units held by active reservations. */
+export function available(quantity: number, reserved: number): number {
+  return quantity - reserved;
+}
+
 /** PRODUK lines track a catalog product; the four raw types are per-depot singletons. */
 export function isProductLine(type: InventoryItemType): boolean {
   return type === InventoryItemType.PRODUK;
