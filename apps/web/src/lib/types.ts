@@ -133,3 +133,57 @@ export interface Payment {
   createdAt: string;
   updatedAt: string;
 }
+
+/* ---------- Release 2: loyalty, vouchers, referrals ---------- */
+
+export type MembershipTier = 'REGULAR' | 'SILVER' | 'GOLD' | 'PLATINUM';
+export type PointsTxnType = 'EARN' | 'EXPIRE' | 'ADJUST' | 'REWARD';
+
+export interface LoyaltyAccount {
+  customerId: string;
+  tier: MembershipTier;
+  pointsBalance: number;
+  lifetimePoints: number;
+  discountRate: number;
+}
+
+export interface TierBenefit {
+  tier: MembershipTier;
+  threshold: number;
+  discountRate: number;
+}
+
+export interface PointsTransaction {
+  id: string;
+  type: PointsTxnType;
+  points: number;
+  orderId: string | null;
+  reason: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface VoucherQuote {
+  code: string;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  discount: number;
+  valid: true;
+}
+
+export interface ReferralCode {
+  customerId: string;
+  code: string;
+  createdAt: string;
+}
+
+export interface ReferralSummary {
+  code: ReferralCode;
+  referrals: unknown[];
+  referredCount: number;
+  qualifiedCount: number;
+  pointsEarned: number;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}

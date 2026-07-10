@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Drop, ShoppingCart, User } from '@phosphor-icons/react';
+import { Drop, Gift, ShoppingCart, User } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -54,13 +54,23 @@ export function Nav() {
             )}
           </Link>
           {ready && customer ? (
-            <Link
-              href="/orders"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-            >
-              <User size={20} />
-              <span className="hidden sm:inline">Orders</span>
-            </Link>
+            <>
+              <Link
+                href="/rewards"
+                aria-label="Rewards"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+              >
+                <Gift size={20} />
+                <span className="hidden sm:inline">Rewards</span>
+              </Link>
+              <Link
+                href="/orders"
+                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+              >
+                <User size={20} />
+                <span className="hidden sm:inline">Orders</span>
+              </Link>
+            </>
           ) : (
             <Link
               href="/login"

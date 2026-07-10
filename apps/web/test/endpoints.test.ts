@@ -16,4 +16,15 @@ describe('endpoints', () => {
       '/products/api/v1/products?page=2&limit=12&search=galon',
     );
   });
+
+  it('routes the Release 2 loyalty/voucher/referral paths through the gateway', () => {
+    expect(endpoints.loyalty.me).toBe('/loyalty/api/v1/loyalty/me');
+    expect(endpoints.loyalty.transactions({ limit: 10 })).toBe(
+      '/loyalty/api/v1/loyalty/me/transactions?limit=10',
+    );
+    expect(endpoints.loyalty.transactions()).toBe('/loyalty/api/v1/loyalty/me/transactions');
+    expect(endpoints.vouchers.quote).toBe('/vouchers/api/v1/vouchers/quote');
+    expect(endpoints.referrals.me).toBe('/referrals/api/v1/referrals/me');
+    expect(endpoints.referrals.redeem).toBe('/referrals/api/v1/referrals');
+  });
 });

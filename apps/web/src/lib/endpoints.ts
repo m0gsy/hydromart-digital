@@ -39,4 +39,22 @@ export const endpoints = {
     initiate: '/payments/api/v1/payments',
     forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
   },
+  loyalty: {
+    tiers: '/loyalty/api/v1/loyalty/tiers',
+    me: '/loyalty/api/v1/loyalty/me',
+    transactions: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/loyalty/api/v1/loyalty/me/transactions${qs ? `?${qs}` : ''}`;
+    },
+  },
+  vouchers: {
+    quote: '/vouchers/api/v1/vouchers/quote',
+  },
+  referrals: {
+    me: '/referrals/api/v1/referrals/me',
+    redeem: '/referrals/api/v1/referrals',
+  },
 } as const;

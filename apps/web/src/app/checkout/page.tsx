@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
-import type { Cart, Order, PaymentMethod } from '@/lib/types';
+import type { Cart, LoyaltyAccount, Order, PaymentMethod, VoucherQuote } from '@/lib/types';
 
 const METHODS: { value: PaymentMethod; label: string; hint: string }[] = [
   { value: 'CASH', label: 'Cash on delivery', hint: 'Pay the driver when your order arrives.' },
@@ -25,6 +25,15 @@ function CheckoutInner() {
   const { data: cart, error, loading, reload } = useAsync<Cart>(() =>
     api.get(endpoints.cart.view, true),
   );
+  // Non-blocking: the membership discount is a bonus preview. If loyalty is down
+  // the customer still checks out (order-service applies the tier discount itself,
+  // fail-open). rate 0 on any error.
+  const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
+
+  const [voucherCode, setVoucherCode] = useState('');
+  const [quote, setQuote] = useState<VoucherQuote | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const [voucherError, setVoucherError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     recipientName: customer?.fullName ?? '',
@@ -41,6 +50,25 @@ function CheckoutInner() {
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function applyVoucher() {
+    if (!cart || !voucherCode.trim()) return;
+    setQuoting(true);
+    setVoucherError(null);
+    setQuote(null);
+    try {
+      const result = await api.post<VoucherQuote>(
+        endpoints.vouchers.quote,
+        { code: voucherCode.trim(), subtotal: cart.subtotal },
+        true,
+      );
+      setQuote(result);
+    } catch (err) {
+      setVoucherError(err instanceof ApiError ? err.message : 'That voucher could not be applied.');
+    } finally {
+      setQuoting(false);
+    }
+  }
 
   async function placeOrder(e: React.FormEvent) {
     e.preventDefault();
@@ -59,6 +87,9 @@ function CheckoutInner() {
             postalCode: form.postalCode || undefined,
             notes: form.notes || undefined,
           },
+          // order-service re-validates the voucher (fail-closed) and applies the
+          // membership discount itself; sending the raw code is enough.
+          voucherCode: voucherCode.trim() || undefined,
         },
         true,
       );
@@ -85,6 +116,13 @@ function CheckoutInner() {
   if (!cart || cart.items.length === 0) {
     return <ErrorState message="Your cart is empty. Add products before checking out." />;
   }
+
+  // Preview only — order-service computes the authoritative discount at checkout.
+  const membershipRate = loyalty?.discountRate ?? 0;
+  const membershipDiscount = Math.floor(cart.subtotal * membershipRate);
+  const voucherDiscount = quote?.discount ?? 0;
+  const totalDiscount = Math.min(cart.subtotal, membershipDiscount + voucherDiscount);
+  const estimatedTotal = cart.subtotal - totalDiscount;
 
   return (
     <form onSubmit={placeOrder} className="flex flex-col gap-5">
@@ -146,10 +184,66 @@ function CheckoutInner() {
         </div>
       </Card>
 
+      <Card className="flex flex-col gap-3 p-4">
+        <h2 className="font-semibold">Voucher</h2>
+        <div className="flex items-center gap-2">
+          <Input
+            aria-label="Voucher code"
+            value={voucherCode}
+            onChange={(e) => {
+              setVoucherCode(e.target.value.toUpperCase());
+              setQuote(null);
+              setVoucherError(null);
+            }}
+            placeholder="e.g. HEMAT10"
+            autoCapitalize="characters"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={applyVoucher}
+            loading={quoting}
+            disabled={!voucherCode.trim()}
+          >
+            Apply
+          </Button>
+        </div>
+        {quote && (
+          <p className="text-sm font-medium text-green-700" role="status">
+            Voucher {quote.code} applied — <Money amount={quote.discount} /> off.
+          </p>
+        )}
+        {voucherError && (
+          <p className="text-sm font-medium text-red-600" role="alert">
+            {voucherError}
+          </p>
+        )}
+      </Card>
+
       <Card className="flex flex-col gap-2 p-4">
         <div className="flex justify-between text-sm">
           <span className="text-muted">Subtotal</span>
           <Money amount={cart.subtotal} />
+        </div>
+        {membershipDiscount > 0 && (
+          <div className="flex justify-between text-sm text-green-700">
+            <span>Member discount ({Math.round(membershipRate * 100)}%)</span>
+            <span>
+              −<Money amount={membershipDiscount} />
+            </span>
+          </div>
+        )}
+        {voucherDiscount > 0 && (
+          <div className="flex justify-between text-sm text-green-700">
+            <span>Voucher {quote?.code}</span>
+            <span>
+              −<Money amount={voucherDiscount} />
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between border-t border-app pt-2 font-semibold">
+          <span>Estimated total</span>
+          <Money amount={estimatedTotal} />
         </div>
         <p className="text-xs text-muted">Delivery fee is added to the total once your depot is assigned.</p>
       </Card>
