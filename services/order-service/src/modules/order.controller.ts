@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
@@ -100,7 +100,10 @@ export class OrderController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrderStatusDto,
+    @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
-    return this.orders.updateStatus(id, dto.status, user.sub, dto.note);
+    // Forward the caller's token so order-service can award loyalty points on
+    // completion (BR-013); loyalty-service enforces its own RBAC on the earn.
+    return this.orders.updateStatus(id, dto.status, user.sub, dto.note, authorization);
   }
 }

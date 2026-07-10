@@ -3,4 +3,5 @@ export const ORDER_TOKENS = {
   OrderRepository: Symbol('OrderRepository'),
   ProductCatalog: Symbol('ProductCatalog'),
   DepotDirectory: Symbol('DepotDirectory'),
+  LoyaltyCoordination: Symbol('LoyaltyCoordination'),
 } as const;

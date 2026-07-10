@@ -23,6 +23,7 @@ import {
   DepotDirectoryPort,
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
+import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -177,6 +178,25 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   }
 }
 
+export interface AwardCall {
+  customerId: string;
+  orderId: string;
+  subtotal: number;
+  authorization: string;
+}
+
+export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
+  calls: AwardCall[] = [];
+  async awardPoints(
+    customerId: string,
+    orderId: string,
+    subtotal: number,
+    authorization: string,
+  ): Promise<void> {
+    this.calls.push({ customerId, orderId, subtotal, authorization });
+  }
+}
+
 export class FakeProductCatalog implements ProductCatalogPort {
   products = new Map<string, CatalogProduct>();
   throwOnGet = false;
@@ -209,6 +229,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
     PRODUCT_SERVICE_URL: 'http://localhost:3003',
     DEPOT_SERVICE_URL: 'http://localhost:3007',
+    LOYALTY_SERVICE_URL: 'http://localhost:3009',
     ORDER_DELIVERY_FEE: '5000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',

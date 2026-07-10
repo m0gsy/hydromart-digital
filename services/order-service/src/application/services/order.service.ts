@@ -24,6 +24,7 @@ import {
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
 
@@ -51,6 +52,8 @@ export class OrderService {
     @Inject(ORDER_TOKENS.CartRepository) private readonly cart: CartRepository,
     @Inject(ORDER_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depotDirectory: DepotDirectoryPort,
+    @Inject(ORDER_TOKENS.LoyaltyCoordination)
+    private readonly loyalty: LoyaltyCoordinationPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
   ) {}
@@ -143,12 +146,24 @@ export class OrderService {
     to: OrderStatus,
     changedBy: string,
     note?: string,
+    authorization = '',
   ): Promise<OrderRecord> {
     const order = await this.getAny(orderId);
     if (!canTransition(order.status, to)) {
       throw new InvalidStatusTransitionError(order.status, to);
     }
-    return this.orders.applyStatus(order.id, to, changedBy, note ?? null);
+    const updated = await this.orders.applyStatus(order.id, to, changedBy, note ?? null);
+    // BR-013: award loyalty points once the order completes. Fail-open — the port
+    // swallows errors, so a loyalty outage never blocks completion.
+    if (to === OrderStatus.COMPLETED) {
+      await this.loyalty.awardPoints(
+        updated.customerId,
+        updated.id,
+        updated.subtotal,
+        authorization,
+      );
+    }
+    return updated;
   }
 
   /** Re-adds an order's still-available lines back into the customer's cart. */

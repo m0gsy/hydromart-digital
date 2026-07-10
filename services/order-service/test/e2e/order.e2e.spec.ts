@@ -14,6 +14,7 @@ import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeDepotDirectory,
+  FakeLoyaltyCoordination,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -56,6 +57,7 @@ describe('Order HTTP flows (e2e)', () => {
               JWT_ACCESS_SECRET: SECRET,
               PRODUCT_SERVICE_URL: 'http://localhost:3003',
               DEPOT_SERVICE_URL: 'http://localhost:3007',
+              LOYALTY_SERVICE_URL: 'http://localhost:3009',
               ORDER_DELIVERY_FEE: 5000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
@@ -76,6 +78,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(catalog)
       .overrideProvider(ORDER_TOKENS.DepotDirectory)
       .useValue(new FakeDepotDirectory())
+      .overrideProvider(ORDER_TOKENS.LoyaltyCoordination)
+      .useValue(new FakeLoyaltyCoordination())
       .compile();
 
     app = moduleRef.createNestApplication();

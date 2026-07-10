@@ -1,0 +1,72 @@
+// Hydromart loyalty-service data model (PRD Module 12 CRM/Loyalty: FR-014/015 membership
+// status & point balance; BR-013 points awarded after an order completes; BR-014 points
+// expire per company policy). Owns each customer's loyalty account plus an append-only
+// points ledger. Order-value earning is triggered by order-service on COMPLETED.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("LOYALTY_DATABASE_URL")
+}
+
+/// Membership tiers (PRD FR-014). Thresholds/benefits live in domain/membership.ts.
+enum MembershipTier {
+  REGULAR
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+/// Ledger entry kinds. EARN is positive; EXPIRE is negative; ADJUST is a signed
+/// manual correction. Balance = sum(points) across a customer's entries.
+enum PointsTxnType {
+  EARN
+  EXPIRE
+  ADJUST
+}
+
+/// One loyalty account per customer (lazy-initialised on first read/earn).
+model LoyaltyAccount {
+  id             String         @id @default(uuid())
+  customerId     String         @unique
+  tier           MembershipTier @default(REGULAR)
+  /// Spendable balance (denormalised sum of the ledger for fast reads).
+  pointsBalance  Int            @default(0)
+  /// Cumulative points ever earned; drives tier and never decreases.
+  lifetimePoints Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  transactions PointsTransaction[]
+
+  @@map("loyalty_accounts")
+}
+
+/// Append-only points ledger.
+model PointsTransaction {
+  id         String        @id @default(uuid())
+  account    LoyaltyAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountId  String
+  customerId String
+  type       PointsTxnType
+  /// Signed point delta (EARN > 0, EXPIRE < 0).
+  points     Int
+  /// Order that produced an EARN entry (BR-013). One EARN per order (idempotent).
+  orderId    String?
+  reason     String?
+  /// When an EARN lot expires (BR-014); null for non-EARN entries.
+  expiresAt  DateTime?
+  /// Set once an EARN lot has been swept into an EXPIRE entry.
+  expired    Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  @@unique([orderId, type])
+  @@index([customerId, createdAt])
+  @@index([type, expired, expiresAt])
+  @@map("points_transactions")
+}

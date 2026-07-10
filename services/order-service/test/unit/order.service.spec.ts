@@ -14,6 +14,7 @@ import { OrderStatus } from '../../src/domain/order-status';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
   FakeDepotDirectory,
+  FakeLoyaltyCoordination,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -37,6 +38,7 @@ describe('OrderService', () => {
   let cart: InMemoryCartRepository;
   let catalog: FakeProductCatalog;
   let depots: FakeDepotDirectory;
+  let loyalty: FakeLoyaltyCoordination;
   let cartService: CartService;
   let service: OrderService;
   const customer = randomUUID();
@@ -46,8 +48,9 @@ describe('OrderService', () => {
     cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
+    loyalty = new FakeLoyaltyCoordination();
     cartService = new CartService(cart, catalog);
-    service = new OrderService(orders, cart, catalog, depots, cartService, buildTestConfig());
+    service = new OrderService(orders, cart, catalog, depots, loyalty, cartService, buildTestConfig());
   });
 
   const addToCart = async (basePrice: number, quantity: number): Promise<string> => {
@@ -125,6 +128,32 @@ describe('OrderService', () => {
     await expect(service.cancel(customer, order2.id)).rejects.toBeInstanceOf(
       OrderNotCancellableError,
     );
+  });
+
+  it('awards loyalty points once, only when the order completes (BR-013)', async () => {
+    await addToCart(20000, 3); // subtotal 60000
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    const flow = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+    ];
+    for (const s of flow) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    expect(loyalty.calls).toHaveLength(0); // nothing awarded before completion
+
+    await service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok');
+    expect(loyalty.calls).toHaveLength(1);
+    expect(loyalty.calls[0]).toMatchObject({
+      customerId: customer,
+      orderId: order.id,
+      subtotal: 60000,
+      authorization: 'Bearer tok',
+    });
   });
 
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {

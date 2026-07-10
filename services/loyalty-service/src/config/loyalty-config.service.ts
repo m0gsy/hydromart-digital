@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class OrderConfigService {
+export class LoyaltyConfigService {
   constructor(private readonly config: ConfigService) {}
 
   private num(key: string): number {
@@ -16,19 +16,7 @@ export class OrderConfigService {
     return this.nodeEnv === 'production';
   }
   get port(): number {
-    return this.num('ORDER_SERVICE_PORT');
-  }
-  get productServiceUrl(): string {
-    return this.config.getOrThrow<string>('PRODUCT_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get depotServiceUrl(): string {
-    return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get loyaltyServiceUrl(): string {
-    return this.config.getOrThrow<string>('LOYALTY_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get deliveryFee(): number {
-    return this.num('ORDER_DELIVERY_FEE');
+    return this.num('LOYALTY_SERVICE_PORT');
   }
   get corsOrigins(): string[] {
     return this.config
@@ -39,5 +27,13 @@ export class OrderConfigService {
   }
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
+  }
+  /** Rupiah of order subtotal that earns one point (BR-013). */
+  get earnRateRupiah(): number {
+    return this.num('LOYALTY_EARN_RATE_RUPIAH');
+  }
+  /** Months a point remains valid after it is earned (BR-014). */
+  get pointExpiryMonths(): number {
+    return this.num('LOYALTY_POINT_EXPIRY_MONTHS');
   }
 }

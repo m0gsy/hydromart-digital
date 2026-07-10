@@ -1,0 +1,70 @@
+import { MembershipTier } from '../../domain/membership';
+import { PointsTxnType } from '../../domain/points';
+
+export interface LoyaltyAccountRecord {
+  id: string;
+  customerId: string;
+  tier: MembershipTier;
+  pointsBalance: number;
+  lifetimePoints: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PointsTransactionRecord {
+  id: string;
+  customerId: string;
+  type: PointsTxnType;
+  points: number;
+  orderId: string | null;
+  reason: string | null;
+  expiresAt: Date | null;
+  expired: boolean;
+  createdAt: Date;
+}
+
+/** Atomic account mutation: insert a ledger entry and set the account totals together. */
+export interface AccountMutation {
+  accountId: string;
+  customerId: string;
+  points: number;
+  reason: string | null;
+  newBalance: number;
+  newLifetime: number;
+  newTier: MembershipTier;
+}
+
+export interface EarnMutation extends AccountMutation {
+  orderId: string;
+  expiresAt: Date;
+}
+
+export interface ExpiryMutation {
+  lotId: string;
+  accountId: string;
+  customerId: string;
+  /** Positive magnitude of the lot being expired (recorded as a negative EXPIRE entry). */
+  points: number;
+  newBalance: number;
+}
+
+export interface LoyaltyRepository {
+  findAccount(customerId: string): Promise<LoyaltyAccountRecord | null>;
+  createAccount(customerId: string): Promise<LoyaltyAccountRecord>;
+
+  /** Existing EARN entry for an order, used to make earning idempotent (BR-013). */
+  findEarnByOrder(orderId: string): Promise<PointsTransactionRecord | null>;
+
+  recordEarn(mutation: EarnMutation): Promise<LoyaltyAccountRecord>;
+  recordAdjustment(mutation: AccountMutation & { type: PointsTxnType }): Promise<LoyaltyAccountRecord>;
+
+  listTransactions(
+    customerId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: PointsTransactionRecord[]; total: number }>;
+
+  /** EARN lots that are past their expiry and not yet swept (BR-014). */
+  findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]>;
+  recordExpiry(mutation: ExpiryMutation): Promise<void>;
+}

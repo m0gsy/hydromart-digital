@@ -7,3 +7,4 @@ CREATE DATABASE hydromart_order;
 CREATE DATABASE hydromart_payment;
 CREATE DATABASE hydromart_delivery;
 CREATE DATABASE hydromart_depot;
+CREATE DATABASE hydromart_loyalty;
