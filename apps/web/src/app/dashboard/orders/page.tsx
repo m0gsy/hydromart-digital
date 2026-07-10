@@ -37,7 +37,7 @@ function OrderRow({ order, onChanged }: { order: Order; onChanged: () => void })
     setAdvancing(true);
     setError(null);
     try {
-      await api.put(endpoints.orders.status(order.id), { status: next }, true);
+      await api.patch(endpoints.orders.status(order.id), { status: next }, true);
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not update the order.');
