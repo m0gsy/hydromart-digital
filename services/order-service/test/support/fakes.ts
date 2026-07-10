@@ -28,6 +28,7 @@ import { ReferralCoordinationPort } from '../../src/application/ports/referral-c
 import { MembershipPort } from '../../src/application/ports/membership.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
+import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
 import { VoucherRejectedError } from '../../src/domain/errors';
 
 let seq = 0;
@@ -206,6 +207,18 @@ export class FakeReferralCoordination implements ReferralCoordinationPort {
   calls: { customerId: string; orderId: string; authorization: string }[] = [];
   async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
     this.calls.push({ customerId, orderId, authorization });
+  }
+}
+
+export class FakeInventory implements InventoryPort {
+  calls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
+  async consume(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void> {
+    this.calls.push({ depotId, orderId, items, authorization });
   }
 }
 

@@ -175,6 +175,56 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .expect((r) => expect(r.body).toHaveLength(3));
   });
 
+  it('deducts PRODUK stock on order completion (consume), customer forbidden', async () => {
+    const productId = '44444444-4444-4444-8444-444444444444';
+    const unstockedId = '66666666-6666-4666-8666-666666666666';
+    const orderId = '55555555-5555-4555-8555-555555555555';
+    const depotId = (
+      await request(server())
+        .post('/api/v1/depots')
+        .set(auth(managerToken))
+        .send({ ...depotBody, code: 'CONS-01' })
+        .expect(201)
+    ).body.id;
+    const itemId = (
+      await request(server())
+        .post(`/api/v1/depots/${depotId}/inventory`)
+        .set(auth(operatorToken))
+        .send({ itemType: 'PRODUK', productId, label: 'Air RO', unit: 'unit', quantity: 50, minimumStock: 0 })
+        .expect(201)
+    ).body.id;
+
+    // a customer cannot trigger consumption
+    await request(server())
+      .post(`/api/v1/depots/${depotId}/inventory/consume`)
+      .set(auth(customerToken))
+      .send({ orderId, items: [{ productId, quantity: 4 }] })
+      .expect(403);
+
+    // operator (order-completion token) consumes; unstocked product is skipped
+    await request(server())
+      .post(`/api/v1/depots/${depotId}/inventory/consume`)
+      .set(auth(operatorToken))
+      .send({
+        orderId,
+        items: [
+          { productId, quantity: 4 },
+          { productId: unstockedId, quantity: 1 },
+        ],
+      })
+      .expect(201)
+      .expect((r) => {
+        expect(r.body.consumed).toEqual([productId]);
+        expect(r.body.skipped).toEqual([unstockedId]);
+      });
+
+    await request(server())
+      .get(`/api/v1/inventory/${itemId}`)
+      .set(auth(operatorToken))
+      .expect(200)
+      .expect((r) => expect(r.body.quantity).toBe(46));
+  });
+
   it('rejects an unauthenticated adjustment as 400 (bad uuid) only after auth — 401 first', async () => {
     await request(server())
       .post('/api/v1/inventory/11111111-1111-1111-1111-111111111111/adjust')

@@ -8,4 +8,5 @@ export const ORDER_TOKENS = {
   Membership: Symbol('Membership'),
   Notification: Symbol('Notification'),
   Promo: Symbol('Promo'),
+  Inventory: Symbol('Inventory'),
 } as const;

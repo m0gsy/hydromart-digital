@@ -19,6 +19,7 @@ import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral
 import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
 import { PromoHttpAdapter } from '../infrastructure/http/promo.http.adapter';
+import { InventoryHttpAdapter } from '../infrastructure/http/inventory.http.adapter';
 import { CartController } from './cart.controller';
 import { OrderController } from './order.controller';
 import { ReportController } from './report.controller';
@@ -38,6 +39,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },
   { provide: ORDER_TOKENS.Notification, useClass: NotificationHttpAdapter },
   { provide: ORDER_TOKENS.Promo, useClass: PromoHttpAdapter },
+  { provide: ORDER_TOKENS.Inventory, useClass: InventoryHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

@@ -28,11 +28,13 @@ enum InventoryItemType {
   PRODUK
 }
 
-/// Ledger entry kind (PRD FR-072 adjustment, FR-073 opname; RECEIPT seeds initial stock).
+/// Ledger entry kind (PRD FR-072 adjustment, FR-073 opname; RECEIPT seeds initial stock;
+/// SALE deducts sold quantities when an order completes).
 enum StockMovementType {
   RECEIPT
   ADJUSTMENT
   OPNAME
+  SALE
 }
 
 model Depot {

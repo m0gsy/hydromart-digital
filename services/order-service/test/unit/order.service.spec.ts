@@ -21,6 +21,7 @@ import {
   FakeMembership,
   FakeNotification,
   FakePromo,
+  FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -49,6 +50,7 @@ describe('OrderService', () => {
   let membership: FakeMembership;
   let notification: FakeNotification;
   let promo: FakePromo;
+  let inventory: FakeInventory;
   let cartService: CartService;
   let service: OrderService;
   const customer = randomUUID();
@@ -63,6 +65,7 @@ describe('OrderService', () => {
     membership = new FakeMembership();
     notification = new FakeNotification();
     promo = new FakePromo();
+    inventory = new FakeInventory();
     cartService = new CartService(cart, catalog);
     service = new OrderService(
       orders,
@@ -74,6 +77,7 @@ describe('OrderService', () => {
       membership,
       notification,
       promo,
+      inventory,
       cartService,
       buildTestConfig(),
     );
@@ -260,6 +264,55 @@ describe('OrderService', () => {
       authorization: 'Bearer tok',
     });
     expect(notification.calls[0].vars).toMatchObject({ orderNumber: order.orderNumber });
+  });
+
+  it('deducts routed-depot stock once, only when a routed order completes (FR-067..074)', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    const productId = await addToCart(20000, 2);
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    const flow = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+    ];
+    for (const s of flow) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    expect(inventory.calls).toHaveLength(0); // nothing consumed before completion
+
+    await service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok');
+    expect(inventory.calls).toHaveLength(1);
+    expect(inventory.calls[0]).toMatchObject({
+      depotId: 'depot-near',
+      orderId: order.id,
+      authorization: 'Bearer tok',
+    });
+    expect(inventory.calls[0].items).toEqual([{ productId, quantity: 2 }]);
+  });
+
+  it('does not deduct stock when the order was not routed to a depot', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address }); // no coords
+    const flow = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
+    ];
+    for (const s of flow) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    expect(inventory.calls).toHaveLength(0);
   });
 
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {

@@ -1,15 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
+  IsPositive,
   IsString,
   IsUUID,
   Min,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
 
 import { InventoryItemType } from '../../domain/inventory';
@@ -98,6 +102,31 @@ export class AdjustStockDto {
   @IsString()
   @MaxLength(300)
   reason?: string;
+}
+
+export class ConsumeLineDto {
+  @ApiProperty({ format: 'uuid', description: 'Catalog product sold.' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ example: 2, description: 'Quantity sold.' })
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  quantity!: number;
+}
+
+export class ConsumeStockDto {
+  @ApiProperty({ format: 'uuid', description: 'The completing order (recorded on each movement).' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiProperty({ type: [ConsumeLineDto], description: 'Sold products to deduct.' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => ConsumeLineDto)
+  items!: ConsumeLineDto[];
 }
 
 export class OpnameStockDto {

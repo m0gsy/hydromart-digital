@@ -18,6 +18,7 @@ export enum StockMovementType {
   RECEIPT = 'RECEIPT',
   ADJUSTMENT = 'ADJUSTMENT',
   OPNAME = 'OPNAME',
+  SALE = 'SALE',
 }
 
 /** PRODUK lines track a catalog product; the four raw types are per-depot singletons. */

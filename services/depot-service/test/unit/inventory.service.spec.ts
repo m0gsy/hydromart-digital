@@ -127,4 +127,57 @@ describe('InventoryService', () => {
       inventory.adjust('33333333-3333-3333-3333-333333333333', 1, null, ACTOR),
     ).rejects.toBeInstanceOf(InventoryItemNotFoundError);
   });
+
+  const produkLine = (productId: string, quantity: number) =>
+    inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId, label: 'Air RO', unit: 'unit', quantity, minimumStock: 0 },
+      ACTOR,
+    );
+
+  it('consumes sold quantities from PRODUK lines on order completion', async () => {
+    const line = await produkLine(PRODUCT_ID, 100);
+    const result = await inventory.consumeForOrder(
+      depotId,
+      'order-1',
+      [{ productId: PRODUCT_ID, quantity: 3 }],
+      ACTOR,
+    );
+    expect(result.consumed).toEqual([PRODUCT_ID]);
+    expect(result.skipped).toEqual([]);
+    expect((await inventory.get(line.id)).quantity).toBe(97);
+    const moves = await inventory.movements(line.id);
+    expect(moves[0].type).toBe(StockMovementType.SALE);
+    expect(moves[0].delta).toBe(-3);
+    expect(moves[0].reason).toBe('Order order-1');
+  });
+
+  it('skips products the depot does not stock, never erroring', async () => {
+    const unstocked = '99999999-9999-9999-9999-999999999999';
+    const result = await inventory.consumeForOrder(
+      depotId,
+      'order-2',
+      [{ productId: unstocked, quantity: 1 }],
+      ACTOR,
+    );
+    expect(result.consumed).toEqual([]);
+    expect(result.skipped).toEqual([unstocked]);
+  });
+
+  it('lets a SALE drive stock negative (records reality, not silently dropped)', async () => {
+    const line = await produkLine(PRODUCT_ID, 2);
+    await inventory.consumeForOrder(depotId, 'order-3', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);
+    expect((await inventory.get(line.id)).quantity).toBe(-3);
+  });
+
+  it('rejects consume for a missing depot', async () => {
+    await expect(
+      inventory.consumeForOrder(
+        '22222222-2222-2222-2222-222222222222',
+        'order-4',
+        [{ productId: PRODUCT_ID, quantity: 1 }],
+        ACTOR,
+      ),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
 });

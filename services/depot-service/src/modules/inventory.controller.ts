@@ -16,6 +16,7 @@ import { InventoryService, ItemView } from '../application/services/inventory.se
 import { StockMovementRecord } from '../application/ports/inventory.repository';
 import {
   AdjustStockDto,
+  ConsumeStockDto,
   CreateInventoryItemDto,
   ListInventoryQueryDto,
   OpnameStockDto,
@@ -23,6 +24,14 @@ import {
 } from './dto/inventory.dto';
 
 const INVENTORY_WRITE_ROLES = [Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+// Stock consumption is triggered by order completion, which a driver can perform,
+// so the forwarded completing-staff token may be a DRIVER.
+const INVENTORY_CONSUME_ROLES = [
+  Role.DEPOT_OPERATOR,
+  Role.DEPOT_MANAGER,
+  Role.DRIVER,
+  Role.SUPER_ADMIN,
+] as const;
 const INVENTORY_READ_ROLES = [
   Role.DEPOT_OPERATOR,
   Role.DEPOT_MANAGER,
@@ -70,6 +79,17 @@ export class DepotInventoryController {
       itemType: query.itemType,
       lowStockOnly: query.lowStockOnly,
     });
+  }
+
+  @Roles(...INVENTORY_CONSUME_ROLES)
+  @Post('consume')
+  @ApiOperation({ summary: 'Deduct sold quantities from PRODUK stock on order completion' })
+  consume(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ConsumeStockDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
+    return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, user.sub);
   }
 }
 

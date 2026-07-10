@@ -161,6 +161,53 @@ export class InventoryService {
     return this.toView(updated);
   }
 
+  /**
+   * Deducts sold quantities from a depot's PRODUK stock lines when an order
+   * completes. Each sold product maps to that depot's PRODUK line by productId;
+   * a product the depot does not stock is skipped (recorded in `skipped`), never
+   * an error. SALE movements are allowed to drive stock negative so the ledger
+   * reflects reality (surfaced by low-stock + reconciled at opname) rather than
+   * silently dropping a sale.
+   *
+   * ponytail: not idempotent — the order state machine fires COMPLETED once, so a
+   * network retry is the only double-deduct risk; add a (type, orderId) unique on
+   * stock_movements if at-least-once delivery ever becomes an issue.
+   */
+  async consumeForOrder(
+    depotId: string,
+    orderId: string,
+    items: { productId: string; quantity: number }[],
+    actorId: string,
+  ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
+    if (!(await this.depots.findById(depotId, false))) {
+      throw new DepotNotFoundError();
+    }
+    const consumed: string[] = [];
+    const skipped: string[] = [];
+    for (const { productId, quantity } of items) {
+      if (quantity <= 0) {
+        continue;
+      }
+      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      if (!line) {
+        skipped.push(productId);
+        continue;
+      }
+      const next = line.quantity - quantity;
+      await this.inventory.applyMovement(line.id, next, {
+        itemId: line.id,
+        type: StockMovementType.SALE,
+        delta: -quantity,
+        quantityBefore: line.quantity,
+        quantityAfter: next,
+        reason: `Order ${orderId}`,
+        actorId,
+      });
+      consumed.push(productId);
+    }
+    return { orderId, depotId, consumed, skipped };
+  }
+
   async movements(itemId: string): Promise<StockMovementRecord[]> {
     await this.require(itemId);
     return this.inventory.listMovements(itemId);
