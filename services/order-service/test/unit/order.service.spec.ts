@@ -17,6 +17,7 @@ import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
+  FakeMembership,
   FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -43,6 +44,7 @@ describe('OrderService', () => {
   let depots: FakeDepotDirectory;
   let loyalty: FakeLoyaltyCoordination;
   let referral: FakeReferralCoordination;
+  let membership: FakeMembership;
   let promo: FakePromo;
   let cartService: CartService;
   let service: OrderService;
@@ -55,6 +57,7 @@ describe('OrderService', () => {
     depots = new FakeDepotDirectory();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
+    membership = new FakeMembership();
     promo = new FakePromo();
     cartService = new CartService(cart, catalog);
     service = new OrderService(
@@ -64,6 +67,7 @@ describe('OrderService', () => {
       depots,
       loyalty,
       referral,
+      membership,
       promo,
       cartService,
       buildTestConfig(),
@@ -174,6 +178,34 @@ describe('OrderService', () => {
     const order = await service.checkout(customer, { deliveryAddress: address });
     expect(order.discount).toBe(0);
     expect(promo.redeemCalls).toHaveLength(0);
+  });
+
+  it('applies the membership tier discount on the subtotal (FR-032)', async () => {
+    await addToCart(20000, 3); // subtotal 60000
+    membership.rate = 0.05; // SILVER
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(3000);
+    expect(order.total).toBe(60000 + 5000 - 3000);
+  });
+
+  it('stacks the membership discount with a voucher, capped at the subtotal', async () => {
+    await addToCart(20000, 3); // subtotal 60000
+    membership.rate = 0.05; // 3000
+    promo.quoteDiscount = 6000;
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'hemat10' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(9000); // 3000 + 6000
+    expect(order.total).toBe(60000 + 5000 - 9000);
+  });
+
+  it('fails open on membership discount — no discount when loyalty is unavailable', async () => {
+    await addToCart(20000, 3);
+    membership.rate = 0; // adapter returns 0 on any error
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(0);
   });
 
   it('awards loyalty points once, only when the order completes (BR-013)', async () => {

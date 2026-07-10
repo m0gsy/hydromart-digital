@@ -26,6 +26,7 @@ import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
+import { MembershipPort } from '../ports/membership.port';
 import { PromoPort } from '../ports/promo.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
@@ -60,6 +61,7 @@ export class OrderService {
     private readonly loyalty: LoyaltyCoordinationPort,
     @Inject(ORDER_TOKENS.ReferralCoordination)
     private readonly referral: ReferralCoordinationPort,
+    @Inject(ORDER_TOKENS.Membership) private readonly membership: MembershipPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
@@ -98,16 +100,25 @@ export class OrderService {
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
     const deliveryFee = money(this.config.deliveryFee);
 
+    // FR-032: the customer's membership tier gives an always-on discount on the
+    // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
+    const membershipRate = await this.membership.getDiscountRate(authorization);
+    const membershipDiscount = money(subtotal * membershipRate);
+
     // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
     // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
     // rather than silently dropping it.
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
-    let discount = 0;
+    let voucherDiscount = 0;
     if (voucherCode) {
       const quote = await this.promo.quote(voucherCode, customerId, subtotal, authorization);
-      discount = money(Math.min(quote.discount, subtotal));
+      voucherDiscount = quote.discount;
     }
 
+    // Membership and voucher discounts stack (BR-015 forbids stacking multiple
+    // vouchers, not a voucher with a tier benefit). The combined discount can
+    // never exceed the subtotal.
+    const discount = money(Math.min(subtotal, membershipDiscount + voucherDiscount));
     const total = money(subtotal + deliveryFee - discount);
     const depotId = await this.routeDepot(input.deliveryAddress);
 

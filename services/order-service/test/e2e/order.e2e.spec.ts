@@ -16,6 +16,7 @@ import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
+  FakeMembership,
   FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -86,6 +87,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeLoyaltyCoordination())
       .overrideProvider(ORDER_TOKENS.ReferralCoordination)
       .useValue(new FakeReferralCoordination())
+      .overrideProvider(ORDER_TOKENS.Membership)
+      .useValue(new FakeMembership())
       .overrideProvider(ORDER_TOKENS.Promo)
       .useValue(new FakePromo())
       .compile();

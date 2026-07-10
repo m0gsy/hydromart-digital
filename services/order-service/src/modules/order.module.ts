@@ -16,6 +16,7 @@ import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalo
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
 import { LoyaltyCoordinationHttpAdapter } from '../infrastructure/http/loyalty-coordination.http.adapter';
 import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral-coordination.http.adapter';
+import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
 import { PromoHttpAdapter } from '../infrastructure/http/promo.http.adapter';
 import { CartController } from './cart.controller';
 import { OrderController } from './order.controller';
@@ -33,6 +34,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.DepotDirectory, useClass: DepotDirectoryHttpAdapter },
   { provide: ORDER_TOKENS.LoyaltyCoordination, useClass: LoyaltyCoordinationHttpAdapter },
   { provide: ORDER_TOKENS.ReferralCoordination, useClass: ReferralCoordinationHttpAdapter },
+  { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },
   { provide: ORDER_TOKENS.Promo, useClass: PromoHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },

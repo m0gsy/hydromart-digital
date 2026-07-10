@@ -25,6 +25,7 @@ import {
 } from '../../src/application/ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
+import { MembershipPort } from '../../src/application/ports/membership.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { VoucherRejectedError } from '../../src/domain/errors';
 
@@ -204,6 +205,13 @@ export class FakeReferralCoordination implements ReferralCoordinationPort {
   calls: { customerId: string; orderId: string; authorization: string }[] = [];
   async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
     this.calls.push({ customerId, orderId, authorization });
+  }
+}
+
+export class FakeMembership implements MembershipPort {
+  rate = 0;
+  async getDiscountRate(_authorization: string): Promise<number> {
+    return this.rate;
   }
 }
 
