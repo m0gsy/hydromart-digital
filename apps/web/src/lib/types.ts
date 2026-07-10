@@ -187,3 +187,46 @@ export interface ReferralSummary {
   limit: number;
   totalPages: number;
 }
+
+/* ---------- Operational dashboard (MVP #6, staff-facing) ---------- */
+
+export interface SalesReport {
+  granularity: string;
+  from: string | null;
+  to: string | null;
+  buckets: { period: string; orderCount: number; revenue: number }[];
+}
+
+export interface TopCustomers {
+  from: string | null;
+  to: string | null;
+  items: { customerId: string; orderCount: number; revenue: number }[];
+}
+
+export interface TopDepots {
+  from: string | null;
+  to: string | null;
+  items: { depotId: string; orderCount: number; revenue: number }[];
+}
+
+export interface DeliverySla {
+  from: string | null;
+  to: string | null;
+  thresholdMinutes: number;
+  totalDelivered: number;
+  onTime: number;
+  breached: number;
+  slaRate: number;
+  avgMinutes: number | null;
+  failedCount: number;
+}
+
+export interface ExecutiveDashboard {
+  from: string | null;
+  to: string | null;
+  sales: SalesReport | null;
+  topCustomers: TopCustomers | null;
+  topDepots: TopDepots | null;
+  deliverySla: DeliverySla | null;
+  sources: { order: 'ok' | 'unavailable'; delivery: 'ok' | 'unavailable' };
+}

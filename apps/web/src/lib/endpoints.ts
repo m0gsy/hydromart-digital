@@ -57,4 +57,13 @@ export const endpoints = {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
   },
+  dashboard: {
+    executive: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/dashboard/api/v1/dashboard/executive${qs ? `?${qs}` : ''}`;
+    },
+  },
 } as const;

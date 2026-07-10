@@ -27,4 +27,11 @@ describe('endpoints', () => {
     expect(endpoints.referrals.me).toBe('/referrals/api/v1/referrals/me');
     expect(endpoints.referrals.redeem).toBe('/referrals/api/v1/referrals');
   });
+
+  it('builds the dashboard executive path with an optional date range', () => {
+    expect(endpoints.dashboard.executive()).toBe('/dashboard/api/v1/dashboard/executive');
+    expect(endpoints.dashboard.executive({ from: '2026-06-01', to: '2026-07-01' })).toBe(
+      '/dashboard/api/v1/dashboard/executive?from=2026-06-01&to=2026-07-01',
+    );
+  });
 });

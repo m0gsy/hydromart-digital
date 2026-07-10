@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Drop, Gift, ShoppingCart, User } from '@phosphor-icons/react';
+import { ChartLineUp, Drop, Gift, ShoppingCart, User } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { canViewDashboard } from '@/lib/roles';
 import type { Cart } from '@/lib/types';
 
 export function Nav() {
@@ -55,6 +56,16 @@ export function Nav() {
           </Link>
           {ready && customer ? (
             <>
+              {canViewDashboard(customer.role) && (
+                <Link
+                  href="/dashboard"
+                  aria-label="Operations dashboard"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+                >
+                  <ChartLineUp size={20} />
+                  <span className="hidden sm:inline">Ops</span>
+                </Link>
+              )}
               <Link
                 href="/rewards"
                 aria-label="Rewards"
