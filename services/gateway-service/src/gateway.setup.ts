@@ -1,0 +1,49 @@
+import { INestApplication } from '@nestjs/common';
+import type { Express, RequestHandler } from 'express';
+import helmet from 'helmet';
+import { createProxyMiddleware } from 'http-proxy-middleware';
+
+import { GatewayConfigService } from './config/gateway-config.service';
+import { resolveRoute } from './routing/route-table';
+
+/**
+ * Wires the gateway's request pipeline onto the underlying Express instance:
+ * helmet + CORS, an owned `GET /health`, one proxy per known service segment,
+ * and a catch-all 404 for unknown segments. Shared by main.ts and the e2e test.
+ *
+ * Call BEFORE app.init()/listen() so these handlers sit ahead of Nest's own
+ * router + fallback 404 (which init() registers) in the middleware stack.
+ */
+export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
+  app.use(helmet());
+  app.enableCors({ origin: config.corsOrigins, credentials: true });
+
+  const upstreams = config.upstreams();
+  const proxies = new Map<string, RequestHandler>();
+  for (const [segment, target] of Object.entries(upstreams)) {
+    proxies.set(
+      segment,
+      createProxyMiddleware({
+        target,
+        changeOrigin: true,
+        pathRewrite: { [`^/${segment}`]: '' },
+      }) as unknown as RequestHandler,
+    );
+  }
+
+  const instance = app.getHttpAdapter().getInstance() as Express;
+
+  instance.get('/health', (_req, res) => {
+    res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() });
+  });
+
+  instance.use((req, res, next) => {
+    const route = resolveRoute(req.path, upstreams);
+    const proxy = route ? proxies.get(route.segment) : undefined;
+    if (!proxy) {
+      res.status(404).json({ statusCode: 404, message: 'Unknown service route' });
+      return;
+    }
+    proxy(req, res, next);
+  });
+}
