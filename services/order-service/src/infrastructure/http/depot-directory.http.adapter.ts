@@ -11,6 +11,8 @@ interface DepotResponse {
   lat: number;
   lng: number;
   serviceRadiusKm: number;
+  deliveryFee: number;
+  minOrderAmount?: number | null;
 }
 interface DepotPage {
   items: DepotResponse[];
@@ -47,6 +49,8 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         lat: d.lat,
         lng: d.lng,
         serviceRadiusKm: d.serviceRadiusKm,
+        deliveryFee: d.deliveryFee,
+        minOrderAmount: d.minOrderAmount ?? null,
       }));
     } catch (error) {
       this.logger.warn(`Depot routing unavailable, order left unrouted: ${(error as Error).message}`);

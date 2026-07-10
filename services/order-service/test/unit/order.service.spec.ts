@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import {
+  BelowMinimumOrderError,
   CatalogUnavailableError,
   EmptyCartError,
   InvalidStatusTransitionError,
@@ -301,8 +302,8 @@ describe('OrderService', () => {
 
   it('routes an order to the nearest in-range depot at checkout', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 }, // ~Bandung
-      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10 }, // ~Jakarta
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null }, // ~Bandung
+      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 9000, minOrderAmount: null }, // ~Jakarta
     ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, {
@@ -311,17 +312,46 @@ describe('OrderService', () => {
     expect(order.depotId).toBe('depot-near');
   });
 
-  it('leaves an order unrouted when no depot covers the address', async () => {
-    depots.depots = [{ id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 5 }];
+  it('charges the routed depot delivery fee instead of the flat config fee', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 8000, minOrderAmount: null },
+    ];
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    expect(order.deliveryFee).toBe(8000);
+    expect(order.total).toBe(28000);
+  });
+
+  it('rejects checkout when the subtotal is below the depot minimum', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: 50000 },
+    ];
+    await addToCart(20000, 1);
+    await expect(
+      service.checkout(customer, {
+        deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+      }),
+    ).rejects.toThrow(BelowMinimumOrderError);
+  });
+
+  it('leaves an order unrouted (flat fee, no minimum) when no depot covers the address', async () => {
+    depots.depots = [
+      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 5, deliveryFee: 7000, minOrderAmount: 50000 },
+    ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, {
       deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
     });
     expect(order.depotId).toBeNull();
+    expect(order.deliveryFee).toBe(5000);
   });
 
   it('leaves an order unrouted when the address has no coordinates', async () => {
-    depots.depots = [{ id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 }];
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null },
+    ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
     expect(order.depotId).toBeNull();

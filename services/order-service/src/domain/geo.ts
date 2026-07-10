@@ -30,8 +30,8 @@ export function selectNearestDepot(
   lat: number,
   lng: number,
   depots: DepotLocation[],
-): string | null {
-  let best: { id: string; distance: number } | null = null;
+): DepotLocation | null {
+  let best: { depot: DepotLocation; distance: number } | null = null;
   for (const depot of depots) {
     const distance = haversineKm(lat, lng, depot.lat, depot.lng);
     if (distance > depot.serviceRadiusKm) {
@@ -40,10 +40,10 @@ export function selectNearestDepot(
     if (
       !best ||
       distance < best.distance ||
-      (distance === best.distance && depot.id < best.id)
+      (distance === best.distance && depot.id < best.depot.id)
     ) {
-      best = { id: depot.id, distance };
+      best = { depot, distance };
     }
   }
-  return best?.id ?? null;
+  return best?.depot ?? null;
 }

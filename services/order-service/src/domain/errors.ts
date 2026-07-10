@@ -18,6 +18,15 @@ export class EmptyCartError extends DomainError {
   }
 }
 
+/** The order subtotal is below the fulfilling depot's minimum order amount. */
+export class BelowMinimumOrderError extends DomainError {
+  readonly code = 'ORDER_BELOW_MINIMUM';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(minimum: number) {
+    super(`This depot has a minimum order of ${minimum}. Please add more items.`);
+  }
+}
+
 /** A supplied voucher could not be applied (invalid, or promo-service unreachable). */
 export class VoucherRejectedError extends DomainError {
   readonly code = 'ORDER_VOUCHER_REJECTED';

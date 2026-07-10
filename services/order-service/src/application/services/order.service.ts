@@ -3,6 +3,7 @@ import { randomInt } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 
 import {
+  BelowMinimumOrderError,
   CatalogUnavailableError,
   EmptyCartError,
   InvalidStatusTransitionError,
@@ -28,7 +29,7 @@ import {
   OrderRepository,
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
-import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
@@ -105,7 +106,16 @@ export class OrderService {
     }
 
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
-    const deliveryFee = money(this.config.deliveryFee);
+
+    // Route to the fulfilling depot first: its delivery fee and minimum order
+    // amount price this checkout. Routing is fail-OPEN (null depot when the
+    // address has no coordinates, no depot covers it, or depot-service is down),
+    // in which case we fall back to the flat config fee and skip the minimum.
+    const depot = await this.routeDepot(input.deliveryAddress);
+    if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
+      throw new BelowMinimumOrderError(depot.minOrderAmount);
+    }
+    const deliveryFee = money(depot ? depot.deliveryFee : this.config.deliveryFee);
 
     // FR-032: the customer's membership tier gives an always-on discount on the
     // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -127,12 +137,11 @@ export class OrderService {
     // never exceed the subtotal.
     const discount = money(Math.min(subtotal, membershipDiscount + voucherDiscount));
     const total = money(subtotal + deliveryFee - discount);
-    const depotId = await this.routeDepot(input.deliveryAddress);
 
     const order = await this.orders.create({
       orderNumber: OrderService.newOrderNumber(),
       customerId,
-      depotId,
+      depotId: depot?.id ?? null,
       subtotal,
       deliveryFee,
       discount,
@@ -244,7 +253,7 @@ export class OrderService {
    * within its service radius). Advisory only: needs coordinates, and the depot
    * directory fails open, so an unresolved address simply yields a null depot.
    */
-  private async routeDepot(address: DeliveryAddressSnapshot): Promise<string | null> {
+  private async routeDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation | null> {
     if (address.latitude === null || address.longitude === null) {
       return null;
     }
