@@ -1,15 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
-import type { Cart, LoyaltyAccount, Order, PaymentMethod, VoucherQuote } from '@/lib/types';
+import type { Address, Cart, LoyaltyAccount, Order, PaymentMethod, VoucherQuote } from '@/lib/types';
 
 const METHODS: { value: PaymentMethod; label: string; hint: string }[] = [
   { value: 'CASH', label: 'Cash on delivery', hint: 'Pay the driver when your order arrives.' },
@@ -29,6 +30,11 @@ function CheckoutInner() {
   // the customer still checks out (order-service applies the tier discount itself,
   // fail-open). rate 0 on any error.
   const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
+  // Saved address book. Fail-soft: if this can't load, the customer just types a fresh
+  // address (as before) — never blocks checkout, so the load error is intentionally ignored.
+  const { data: savedAddresses } = useAsync<Address[]>(() =>
+    api.get(endpoints.addresses.list, true),
+  );
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -48,8 +54,53 @@ function CheckoutInner() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  // `null` = a fresh manually-typed address (no saved coordinates). Selecting a saved
+  // address stashes its lat/lng, which lets order-service route the order to a depot
+  // (per-depot pricing, delivery fee, stock reservation) — a manual address has none.
+  const [selection, setSelection] = useState<'new' | string | null>(null);
+  const [saveToBook, setSaveToBook] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('');
+  const [coords, setCoords] = useState<{ latitude: number | null; longitude: number | null }>({
+    latitude: null,
+    longitude: null,
+  });
+
+  // Preselect the primary saved address (else the first) the first time the book loads.
+  useEffect(() => {
+    if (selection !== null || !savedAddresses || savedAddresses.length === 0) return;
+    const preferred = pickDefaultAddress(savedAddresses);
+    if (preferred) {
+      setSelection(preferred.id);
+      setForm((f) => ({ ...f, ...addressToForm(preferred) }));
+      setCoords({ latitude: preferred.latitude, longitude: preferred.longitude });
+    }
+  }, [savedAddresses, selection]);
+
+  function chooseSaved(address: Address) {
+    setSelection(address.id);
+    setForm((f) => ({ ...f, ...addressToForm(address) }));
+    setCoords({ latitude: address.latitude, longitude: address.longitude });
+  }
+
+  function chooseNew() {
+    setSelection('new');
+    setCoords({ latitude: null, longitude: null });
+    setForm({
+      recipientName: customer?.fullName ?? '',
+      phone: customer?.phone ?? '',
+      addressLine: '',
+      city: '',
+      province: '',
+      postalCode: '',
+      notes: '',
+    });
+  }
+
+  // Editing an address field detaches from the saved coordinates (they no longer match).
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (k !== 'notes') setCoords({ latitude: null, longitude: null });
     setForm((f) => ({ ...f, [k]: e.target.value }));
+  };
 
   async function applyVoucher() {
     if (!cart || !voucherCode.trim()) return;
@@ -85,6 +136,8 @@ function CheckoutInner() {
             city: form.city,
             province: form.province,
             postalCode: form.postalCode || undefined,
+            latitude: coords.latitude ?? undefined,
+            longitude: coords.longitude ?? undefined,
             notes: form.notes || undefined,
           },
           // order-service re-validates the voucher (fail-closed) and applies the
@@ -93,6 +146,26 @@ function CheckoutInner() {
         },
         true,
       );
+      // Save a fresh address to the book (non-blocking) so it's reusable next time.
+      if (saveToBook && !savedAddresses?.some((a) => a.id === selection)) {
+        try {
+          await api.post(
+            endpoints.addresses.create,
+            {
+              label: saveLabel.trim() || 'Alamat',
+              recipientName: form.recipientName,
+              phone: form.phone,
+              addressLine: form.addressLine,
+              city: form.city,
+              province: form.province,
+              postalCode: form.postalCode || undefined,
+            },
+            true,
+          );
+        } catch {
+          /* the order is placed; a failed address save must not block the flow */
+        }
+      }
       // Initiate payment for the placed order; failure here still leaves a valid
       // order the customer can pay from the order page, so we don't hard-block.
       try {
@@ -117,6 +190,8 @@ function CheckoutInner() {
     return <ErrorState message="Your cart is empty. Add products before checking out." />;
   }
 
+  const isSavedSelection = savedAddresses?.some((a) => a.id === selection) ?? false;
+
   // Preview only — order-service computes the authoritative discount at checkout.
   const membershipRate = loyalty?.discountRate ?? 0;
   const membershipDiscount = Math.floor(cart.subtotal * membershipRate);
@@ -127,6 +202,53 @@ function CheckoutInner() {
   return (
     <form onSubmit={placeOrder} className="flex flex-col gap-5">
       <h1 className="text-2xl font-bold">Checkout</h1>
+
+      {savedAddresses && savedAddresses.length > 0 && (
+        <Card className="flex flex-col gap-2 p-4">
+          <h2 className="font-semibold">Deliver to</h2>
+          <div className="flex flex-col gap-2">
+            {savedAddresses.map((a) => (
+              <label
+                key={a.id}
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
+                  selection === a.id ? 'border-brand-600 bg-brand-50' : 'border-app'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="address"
+                  checked={selection === a.id}
+                  onChange={() => chooseSaved(a)}
+                  className="mt-1 accent-brand-600"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">
+                    {a.label}
+                    {a.isPrimary && <span className="text-muted"> · Primary</span>}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {a.recipientName} — {a.addressLine}, {a.city}
+                  </span>
+                </span>
+              </label>
+            ))}
+            <label
+              className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${
+                selection === 'new' ? 'border-brand-600 bg-brand-50' : 'border-app'
+              }`}
+            >
+              <input
+                type="radio"
+                name="address"
+                checked={selection === 'new'}
+                onChange={chooseNew}
+                className="accent-brand-600"
+              />
+              <span className="text-sm font-semibold">Use a new address</span>
+            </label>
+          </div>
+        </Card>
+      )}
 
       <Card className="flex flex-col gap-4 p-4">
         <h2 className="font-semibold">Delivery address</h2>
@@ -155,6 +277,30 @@ function CheckoutInner() {
         <Field label="Notes for the driver" htmlFor="notes" hint="Optional">
           <Input id="notes" value={form.notes} onChange={set('notes')} placeholder="e.g. leave with the guard" />
         </Field>
+        {!isSavedSelection && (
+          <div className="flex flex-col gap-2 border-t border-app pt-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={saveToBook}
+                onChange={(e) => setSaveToBook(e.target.checked)}
+                className="accent-brand-600"
+              />
+              Save this address to my address book
+            </label>
+            {saveToBook && (
+              <Field label="Address label" htmlFor="saveLabel" hint="e.g. Home, Office">
+                <Input
+                  id="saveLabel"
+                  value={saveLabel}
+                  onChange={(e) => setSaveLabel(e.target.value)}
+                  placeholder="Rumah"
+                  maxLength={50}
+                />
+              </Field>
+            )}
+          </div>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-3 p-4">

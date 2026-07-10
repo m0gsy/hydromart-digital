@@ -11,6 +11,11 @@ export const endpoints = {
     me: '/auth/api/v1/auth/me',
     logout: '/auth/api/v1/auth/logout',
   },
+  addresses: {
+    // Saved delivery addresses (customer-service, via the `customers` gateway segment).
+    list: '/customers/api/v1/addresses',
+    create: '/customers/api/v1/addresses',
+  },
   products: {
     browse: (q: { page?: number; limit?: number; search?: string }) => {
       const p = new URLSearchParams();

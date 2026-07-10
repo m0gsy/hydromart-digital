@@ -87,6 +87,21 @@ export interface DeliveryAddress {
   notes?: string | null;
 }
 
+/** A saved delivery address from the customer's address book. */
+export interface Address {
+  id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  province: string;
+  postalCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isPrimary: boolean;
+}
+
 export interface OrderItem {
   id: string;
   productId: string;
