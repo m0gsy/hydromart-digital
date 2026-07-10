@@ -34,6 +34,7 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   id: string;
   orderNumber: string;
   customerId: string;
+  depotId: string | null;
   status: OrderStatus;
   subtotal: number;
   deliveryFee: number;
@@ -58,6 +59,7 @@ export interface CreateOrderItemData {
 export interface CreateOrderData extends DeliveryAddressSnapshot {
   orderNumber: string;
   customerId: string;
+  depotId: string | null;
   subtotal: number;
   deliveryFee: number;
   discount: number;
@@ -72,6 +74,31 @@ export interface OrderQuery {
   limit: number;
 }
 
+/** Reporting window. Both bounds optional; open-ended when absent. */
+export interface ReportRange {
+  from?: Date;
+  to?: Date;
+}
+
+export interface SalesBucket {
+  /** YYYY-MM-DD for daily granularity, YYYY-MM for monthly. */
+  period: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface CustomerSales {
+  customerId: string;
+  orderCount: number;
+  revenue: number;
+}
+
+export interface DepotSales {
+  depotId: string;
+  orderCount: number;
+  revenue: number;
+}
+
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
@@ -83,4 +110,10 @@ export interface OrderRepository {
     changedBy: string | null,
     note: string | null,
   ): Promise<OrderRecord>;
+  /** Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096. */
+  salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]>;
+  /** Highest-spending customers in the window (CANCELLED excluded). FR-097. */
+  topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
+  /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
+  topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
 }

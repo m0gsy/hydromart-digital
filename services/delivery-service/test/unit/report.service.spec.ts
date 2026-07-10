@@ -1,0 +1,96 @@
+import { randomUUID } from 'node:crypto';
+
+import { ReportService } from '../../src/application/services/report.service';
+import { DeliveryRecord } from '../../src/application/ports/delivery.repository';
+import { DeliveryStatus } from '../../src/domain/delivery-status';
+import { InMemoryDeliveryRepository, buildTestConfig } from '../support/fakes';
+
+const ASSIGNED = new Date('2026-06-01T00:00:00.000Z');
+const at = (min: number): Date => new Date(ASSIGNED.getTime() + min * 60_000);
+
+function seed(repo: InMemoryDeliveryRepository, over: Partial<DeliveryRecord>): void {
+  repo.rows.push({
+    id: randomUUID(),
+    orderId: randomUUID(),
+    orderNumber: 'HM-1',
+    driverId: randomUUID(),
+    status: DeliveryStatus.DELIVERED,
+    destinationAddress: 'Jl. Merdeka 10',
+    destinationLat: null,
+    destinationLng: null,
+    assignedAt: ASSIGNED,
+    pickedUpAt: null,
+    startedAt: null,
+    deliveredAt: null,
+    failedAt: null,
+    failureReason: null,
+    proof: null,
+    history: [],
+    createdAt: ASSIGNED,
+    updatedAt: ASSIGNED,
+    ...over,
+  });
+}
+
+describe('ReportService.sla', () => {
+  let repo: InMemoryDeliveryRepository;
+  let service: ReportService;
+
+  beforeEach(() => {
+    repo = new InMemoryDeliveryRepository();
+    service = new ReportService(repo, buildTestConfig()); // DELIVERY_SLA_MINUTES=120
+  });
+
+  it('counts on-time (incl. boundary) vs breached, averages minutes, and counts failures', async () => {
+    seed(repo, { deliveredAt: at(60) }); // on time
+    seed(repo, { deliveredAt: at(120) }); // on time (== threshold)
+    seed(repo, { deliveredAt: at(181) }); // breached
+    seed(repo, { status: DeliveryStatus.FAILED, failedAt: at(300) });
+    seed(repo, { status: DeliveryStatus.FAILED, failedAt: at(360) });
+
+    const r = await service.sla({});
+
+    expect(r.thresholdMinutes).toBe(120);
+    expect(r.totalDelivered).toBe(3);
+    expect(r.onTime).toBe(2);
+    expect(r.breached).toBe(1);
+    expect(r.slaRate).toBeCloseTo(2 / 3, 5);
+    expect(r.avgMinutes).toBe(120.3); // (60+120+181)/3 = 120.333 -> 120.3
+    expect(r.failedCount).toBe(2);
+  });
+
+  it('filters delivered/failed by the range on their own timestamps', async () => {
+    seed(repo, { deliveredAt: at(60) }); // 2026-06-01, in range
+    seed(repo, { deliveredAt: new Date('2026-07-01T00:00:00.000Z') }); // out of range
+    seed(repo, { status: DeliveryStatus.FAILED, failedAt: at(120) }); // in range
+
+    const r = await service.sla({
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-06-02T00:00:00.000Z'),
+    });
+
+    expect(r.from).toBe('2026-06-01T00:00:00.000Z');
+    expect(r.to).toBe('2026-06-02T00:00:00.000Z');
+    expect(r.totalDelivered).toBe(1);
+    expect(r.failedCount).toBe(1);
+  });
+
+  it('honours an explicit thresholdMinutes over the configured default', async () => {
+    seed(repo, { deliveredAt: at(90) });
+
+    const r = await service.sla({}, 60);
+
+    expect(r.thresholdMinutes).toBe(60);
+    expect(r.onTime).toBe(0);
+    expect(r.breached).toBe(1);
+  });
+
+  it('returns slaRate 0 and avgMinutes null for an empty set', async () => {
+    const r = await service.sla({});
+
+    expect(r.totalDelivered).toBe(0);
+    expect(r.slaRate).toBe(0);
+    expect(r.avgMinutes).toBeNull();
+    expect(r.failedCount).toBe(0);
+  });
+});

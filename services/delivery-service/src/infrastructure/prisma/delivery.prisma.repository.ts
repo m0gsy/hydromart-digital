@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
 import {
   CreateDeliveryData,
@@ -8,6 +9,8 @@ import {
   DeliveryRepository,
   DeliveryTimestamps,
   ProofRecord,
+  ReportRange,
+  SlaStats,
 } from '../../application/ports/delivery.repository';
 import { PrismaService } from './prisma.service';
 
@@ -184,5 +187,41 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       include: INCLUDE,
     });
     return this.toRecord(row);
+  }
+
+  async slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats> {
+    const conds: Prisma.Sql[] = [Prisma.sql`"deliveredAt" IS NOT NULL`];
+    if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
+    const [agg] = await this.prisma.$queryRaw<
+      { total: bigint; ontime: bigint; summinutes: number | null }[]
+    >(Prisma.sql`
+      SELECT COUNT(*)::bigint AS total,
+             COALESCE(SUM(
+               CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
+                    THEN 1 ELSE 0 END
+             ), 0)::bigint AS ontime,
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes
+      FROM "deliveries"
+      WHERE ${Prisma.join(conds, ' AND ')}
+    `);
+    const failedCount = await this.prisma.delivery.count({
+      where: {
+        failedAt: {
+          not: null,
+          ...(range.from ? { gte: range.from } : {}),
+          ...(range.to ? { lt: range.to } : {}),
+        },
+      },
+    });
+    const totalDelivered = Number(agg.total);
+    const onTime = Number(agg.ontime);
+    return {
+      totalDelivered,
+      onTime,
+      breached: totalDelivered - onTime,
+      sumMinutes: Number(agg.summinutes ?? 0),
+      failedCount,
+    };
   }
 }

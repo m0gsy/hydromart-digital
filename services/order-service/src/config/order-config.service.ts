@@ -21,6 +21,9 @@ export class OrderConfigService {
   get productServiceUrl(): string {
     return this.config.getOrThrow<string>('PRODUCT_SERVICE_URL').replace(/\/+$/, '');
   }
+  get depotServiceUrl(): string {
+    return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
+  }
   get deliveryFee(): number {
     return this.num('ORDER_DELIVERY_FEE');
   }

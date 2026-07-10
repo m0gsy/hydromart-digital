@@ -11,6 +11,7 @@ import {
   ProductUnavailableError,
 } from '../../domain/errors';
 import { OrderStatus, canTransition, isCancellable } from '../../domain/order-status';
+import { selectNearestDepot } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
@@ -22,6 +23,7 @@ import {
   OrderRepository,
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
+import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
 
@@ -48,6 +50,7 @@ export class OrderService {
     @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
     @Inject(ORDER_TOKENS.CartRepository) private readonly cart: CartRepository,
     @Inject(ORDER_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
+    @Inject(ORDER_TOKENS.DepotDirectory) private readonly depotDirectory: DepotDirectoryPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
   ) {}
@@ -82,10 +85,12 @@ export class OrderService {
     const deliveryFee = money(this.config.deliveryFee);
     const discount = 0;
     const total = money(subtotal + deliveryFee - discount);
+    const depotId = await this.routeDepot(input.deliveryAddress);
 
     const order = await this.orders.create({
       orderNumber: OrderService.newOrderNumber(),
       customerId,
+      depotId,
       subtotal,
       deliveryFee,
       discount,
@@ -156,6 +161,19 @@ export class OrderService {
       }
     }
     return this.cartService.view(customerId);
+  }
+
+  /**
+   * Resolves the fulfilling depot for a delivery address (nearest active depot
+   * within its service radius). Advisory only: needs coordinates, and the depot
+   * directory fails open, so an unresolved address simply yields a null depot.
+   */
+  private async routeDepot(address: DeliveryAddressSnapshot): Promise<string | null> {
+    if (address.latitude === null || address.longitude === null) {
+      return null;
+    }
+    const depots = await this.depotDirectory.listActiveDepots();
+    return selectNearestDepot(address.latitude, address.longitude, depots);
   }
 
   private async priced(productId: string) {

@@ -62,6 +62,22 @@ export interface DeliveryQuery {
   limit: number;
 }
 
+/** Reporting window. Both bounds optional; open-ended when absent. */
+export interface ReportRange {
+  from?: Date;
+  to?: Date;
+}
+
+/** Raw SLA aggregates over the delivery book; formatted into rates by ReportService. */
+export interface SlaStats {
+  totalDelivered: number;
+  onTime: number;
+  breached: number;
+  /** Sum of delivery minutes ((deliveredAt-assignedAt)/60000) over the delivered set. */
+  sumMinutes: number;
+  failedCount: number;
+}
+
 export interface DeliveryRepository {
   create(data: CreateDeliveryData): Promise<DeliveryRecord>;
   findById(id: string): Promise<DeliveryRecord | null>;
@@ -82,4 +98,6 @@ export interface DeliveryRepository {
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
   ): Promise<DeliveryRecord>;
+  /** Delivery SLA aggregates over the window: delivered on-time vs breached + failures. */
+  slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats>;
 }

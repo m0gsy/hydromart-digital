@@ -13,6 +13,7 @@ import {
 import { OrderStatus } from '../../src/domain/order-status';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
+  FakeDepotDirectory,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -35,6 +36,7 @@ describe('OrderService', () => {
   let orders: InMemoryOrderRepository;
   let cart: InMemoryCartRepository;
   let catalog: FakeProductCatalog;
+  let depots: FakeDepotDirectory;
   let cartService: CartService;
   let service: OrderService;
   const customer = randomUUID();
@@ -43,8 +45,9 @@ describe('OrderService', () => {
     orders = new InMemoryOrderRepository();
     cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
+    depots = new FakeDepotDirectory();
     cartService = new CartService(cart, catalog);
-    service = new OrderService(orders, cart, catalog, cartService, buildTestConfig());
+    service = new OrderService(orders, cart, catalog, depots, cartService, buildTestConfig());
   });
 
   const addToCart = async (basePrice: number, quantity: number): Promise<string> => {
@@ -160,5 +163,33 @@ describe('OrderService', () => {
     const others = await service.listForCustomer(randomUUID(), {});
     expect(mine.total).toBe(1);
     expect(others.total).toBe(0);
+  });
+
+  it('routes an order to the nearest in-range depot at checkout', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 }, // ~Bandung
+      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10 }, // ~Jakarta
+    ];
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    expect(order.depotId).toBe('depot-near');
+  });
+
+  it('leaves an order unrouted when no depot covers the address', async () => {
+    depots.depots = [{ id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 5 }];
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    expect(order.depotId).toBeNull();
+  });
+
+  it('leaves an order unrouted when the address has no coordinates', async () => {
+    depots.depots = [{ id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 }];
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    expect(order.depotId).toBeNull();
   });
 });

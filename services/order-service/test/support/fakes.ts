@@ -7,14 +7,22 @@ import { OrderStatus } from '../../src/domain/order-status';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
   CreateOrderData,
+  CustomerSales,
+  DepotSales,
   OrderQuery,
   OrderRecord,
   OrderRepository,
+  ReportRange,
+  SalesBucket,
 } from '../../src/application/ports/order.repository';
 import {
   CatalogProduct,
   ProductCatalogPort,
 } from '../../src/application/ports/product-catalog.port';
+import {
+  DepotDirectoryPort,
+  DepotLocation,
+} from '../../src/application/ports/depot-directory.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -106,6 +114,67 @@ export class InMemoryOrderRepository implements OrderRepository {
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return structuredClone(row);
   }
+
+  private reportRows(range: ReportRange): OrderRecord[] {
+    return this.rows
+      .filter((r) => r.status !== OrderStatus.CANCELLED)
+      .filter((r) => !range.from || r.createdAt >= range.from)
+      .filter((r) => !range.to || r.createdAt < range.to);
+  }
+
+  async salesSeries(
+    granularity: 'daily' | 'monthly',
+    range: ReportRange,
+  ): Promise<SalesBucket[]> {
+    const buckets = new Map<string, { orderCount: number; revenue: number }>();
+    for (const r of this.reportRows(range)) {
+      const iso = r.createdAt.toISOString();
+      const period = granularity === 'monthly' ? iso.slice(0, 7) : iso.slice(0, 10);
+      const b = buckets.get(period) ?? { orderCount: 0, revenue: 0 };
+      b.orderCount += 1;
+      b.revenue += r.total;
+      buckets.set(period, b);
+    }
+    return [...buckets.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([period, v]) => ({ period, ...v }));
+  }
+
+  async topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]> {
+    const agg = new Map<string, { orderCount: number; revenue: number }>();
+    for (const r of this.reportRows(range)) {
+      const a = agg.get(r.customerId) ?? { orderCount: 0, revenue: 0 };
+      a.orderCount += 1;
+      a.revenue += r.total;
+      agg.set(r.customerId, a);
+    }
+    return [...agg.entries()]
+      .map(([customerId, v]) => ({ customerId, ...v }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+  }
+
+  async topDepots(range: ReportRange, limit: number): Promise<DepotSales[]> {
+    const agg = new Map<string, { orderCount: number; revenue: number }>();
+    for (const r of this.reportRows(range)) {
+      if (!r.depotId) continue;
+      const a = agg.get(r.depotId) ?? { orderCount: 0, revenue: 0 };
+      a.orderCount += 1;
+      a.revenue += r.total;
+      agg.set(r.depotId, a);
+    }
+    return [...agg.entries()]
+      .map(([depotId, v]) => ({ depotId, ...v }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, limit);
+  }
+}
+
+export class FakeDepotDirectory implements DepotDirectoryPort {
+  depots: DepotLocation[] = [];
+  async listActiveDepots(): Promise<DepotLocation[]> {
+    return this.depots.map((d) => ({ ...d }));
+  }
 }
 
 export class FakeProductCatalog implements ProductCatalogPort {
@@ -139,6 +208,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
     JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
     PRODUCT_SERVICE_URL: 'http://localhost:3003',
+    DEPOT_SERVICE_URL: 'http://localhost:3007',
     ORDER_DELIVERY_FEE: '5000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',

@@ -7,16 +7,19 @@ import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DELIVERY_TOKENS } from '../application/tokens';
 import { DeliveryService } from '../application/services/delivery.service';
+import { ReportService } from '../application/services/report.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../infrastructure/prisma/delivery.prisma.repository';
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
 import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
+import { ReportController } from './report.controller';
 
 const providers: Provider[] = [
   PrismaService,
   DeliveryConfigService,
   DeliveryService,
+  ReportService,
   { provide: DELIVERY_TOKENS.DeliveryRepository, useClass: DeliveryPrismaRepository },
   { provide: DELIVERY_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -25,7 +28,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DeliveryController, DriverDeliveryController],
+  controllers: [DeliveryController, DriverDeliveryController, ReportController],
   providers,
   exports: [PrismaService, DeliveryConfigService],
 })

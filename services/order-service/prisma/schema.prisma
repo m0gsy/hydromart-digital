@@ -50,6 +50,11 @@ model Order {
   customerId  String      @db.Uuid
   status      OrderStatus @default(CREATED)
 
+  /// Fulfilling depot, resolved at checkout by delivery-address proximity
+  /// (nearest active depot within its service radius). Null when the address
+  /// has no coordinates or no depot covers it. Powers Top-Depot reporting (FR-098).
+  depotId     String?     @db.Uuid
+
   subtotal    Decimal @db.Decimal(12, 2)
   deliveryFee Decimal @db.Decimal(12, 2)
   discount    Decimal @db.Decimal(12, 2)
@@ -74,6 +79,7 @@ model Order {
 
   @@index([customerId])
   @@index([status])
+  @@index([depotId])
   @@map("orders")
 }
 

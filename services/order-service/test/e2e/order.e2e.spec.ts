@@ -13,6 +13,7 @@ import { ORDER_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import {
+  FakeDepotDirectory,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -54,6 +55,7 @@ describe('Order HTTP flows (e2e)', () => {
               ORDER_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
               PRODUCT_SERVICE_URL: 'http://localhost:3003',
+              DEPOT_SERVICE_URL: 'http://localhost:3007',
               ORDER_DELIVERY_FEE: 5000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
@@ -72,6 +74,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new InMemoryOrderRepository())
       .overrideProvider(ORDER_TOKENS.ProductCatalog)
       .useValue(catalog)
+      .overrideProvider(ORDER_TOKENS.DepotDirectory)
+      .useValue(new FakeDepotDirectory())
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -177,5 +181,18 @@ describe('Order HTTP flows (e2e)', () => {
       .get(`/api/v1/orders/${randomUUID()}`)
       .set(auth(customerToken))
       .expect(404);
+  });
+
+  it('gates reports to staff: customer 403, staff 200', async () => {
+    await request(server())
+      .get('/api/v1/reports/sales?granularity=monthly')
+      .set(auth(customerToken))
+      .expect(403);
+    const res = await request(server())
+      .get('/api/v1/reports/sales?granularity=monthly')
+      .set(auth(staffToken))
+      .expect(200);
+    expect(res.body.granularity).toBe('monthly');
+    expect(Array.isArray(res.body.buckets)).toBe(true);
   });
 });

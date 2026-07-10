@@ -24,6 +24,9 @@ export class DeliveryConfigService {
   get maxActiveDeliveriesPerDriver(): number {
     return this.num('MAX_ACTIVE_DELIVERIES_PER_DRIVER');
   }
+  get slaMinutes(): number {
+    return this.num('DELIVERY_SLA_MINUTES');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

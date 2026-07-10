@@ -11,6 +11,8 @@ import {
   DeliveryRepository,
   DeliveryTimestamps,
   ProofRecord,
+  ReportRange,
+  SlaStats,
 } from '../../src/application/ports/delivery.repository';
 import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
 
@@ -94,6 +96,26 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return structuredClone(row);
   }
+  async slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats> {
+    const inRange = (d: Date): boolean =>
+      (!range.from || d.getTime() >= range.from.getTime()) &&
+      (!range.to || d.getTime() < range.to.getTime());
+    const delivered = this.rows.filter((r) => r.deliveredAt && inRange(r.deliveredAt));
+    let onTime = 0;
+    let sumMinutes = 0;
+    for (const r of delivered) {
+      const minutes = (r.deliveredAt!.getTime() - r.assignedAt.getTime()) / 60000;
+      sumMinutes += minutes;
+      if (minutes <= thresholdMinutes) onTime += 1;
+    }
+    return {
+      totalDelivered: delivered.length,
+      onTime,
+      breached: delivered.length - onTime,
+      sumMinutes,
+      failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt)).length,
+    };
+  }
 }
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
@@ -116,6 +138,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
     ORDER_SERVICE_URL: 'http://localhost:3004',
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
+    DELIVERY_SLA_MINUTES: '120',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',
