@@ -18,6 +18,7 @@ import {
   NotificationPreferenceRecord,
   NotificationPreferenceRepository,
 } from '../../src/application/ports/notification.repository';
+import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
 
 let seq = 0;
 // Monotonic createdAt so "most recent" ordering is deterministic in tests.
@@ -36,6 +37,8 @@ export class InMemoryProfileRepository implements ProfileRepository {
       membershipTier: MembershipTier.BASIC,
       pointBalance: 0,
       favoriteDepotId: null,
+      birthdate: null,
+      lastBirthdayRewardYear: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -47,6 +50,37 @@ export class InMemoryProfileRepository implements ProfileRepository {
     rec.favoriteDepotId = favoriteDepotId;
     rec.updatedAt = nextDate();
     return { ...rec };
+  }
+  async updateBirthdate(customerId: string, birthdate: Date | null) {
+    const rec = this.rows.get(customerId)!;
+    rec.birthdate = birthdate;
+    rec.updatedAt = nextDate();
+    return { ...rec };
+  }
+  async findBirthdayCandidates(month: number, day: number, year: number): Promise<string[]> {
+    return [...this.rows.values()]
+      .filter(
+        (r) =>
+          r.birthdate !== null &&
+          r.birthdate.getUTCMonth() + 1 === month &&
+          r.birthdate.getUTCDate() === day &&
+          r.lastBirthdayRewardYear !== year,
+      )
+      .map((r) => r.customerId);
+  }
+  async markBirthdayRewarded(customerId: string, year: number): Promise<void> {
+    const rec = this.rows.get(customerId);
+    if (rec) rec.lastBirthdayRewardYear = year;
+  }
+}
+
+/** Records reward calls; optionally throws for chosen customers to exercise fail paths. */
+export class FakeLoyaltyReward implements LoyaltyRewardPort {
+  calls: { customerId: string; points: number; reason: string }[] = [];
+  failFor = new Set<string>();
+  async reward(customerId: string, points: number, reason: string): Promise<void> {
+    if (this.failFor.has(customerId)) throw new Error('loyalty down');
+    this.calls.push({ customerId, points, reason });
   }
 }
 
@@ -114,6 +148,8 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Custome
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',
     MAX_ADDRESSES_PER_CUSTOMER: '20',
+    LOYALTY_SERVICE_URL: 'http://loyalty.test',
+    BIRTHDAY_REWARD_POINTS: '250',
     ...overrides,
   };
   const fake = {

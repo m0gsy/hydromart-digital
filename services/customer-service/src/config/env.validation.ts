@@ -10,4 +10,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   MAX_ADDRESSES_PER_CUSTOMER: Joi.number().integer().positive().max(100).default(20),
+  // Birthday promo (FR-091). Blank LOYALTY_SERVICE_URL = feature disabled (non-breaking).
+  LOYALTY_SERVICE_URL: Joi.string().allow('').default(''),
+  BIRTHDAY_REWARD_POINTS: Joi.number().integer().positive().default(250),
 });

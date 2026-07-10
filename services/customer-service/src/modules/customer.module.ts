@@ -13,6 +13,7 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
 import { NotificationPrismaRepository } from '../infrastructure/prisma/notification.prisma.repository';
 import { ProfilePrismaRepository } from '../infrastructure/prisma/profile.prisma.repository';
+import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { AddressController } from './address.controller';
 import { ProfileController } from './profile.controller';
 
@@ -25,6 +26,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   { provide: CUSTOMER_TOKENS.NotificationPreferenceRepository, useClass: NotificationPrismaRepository },
+  { provide: CUSTOMER_TOKENS.LoyaltyRewardPort, useClass: LoyaltyRewardHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

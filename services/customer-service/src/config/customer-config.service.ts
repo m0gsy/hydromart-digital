@@ -32,4 +32,12 @@ export class CustomerConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  /** loyalty-service base URL; blank disables the birthday promo (FR-091). */
+  get loyaltyServiceUrl(): string {
+    return this.config.get<string>('LOYALTY_SERVICE_URL', '').trim();
+  }
+  /** Points granted on a customer's birthday (FR-091, company policy default). */
+  get birthdayRewardPoints(): number {
+    return this.num('BIRTHDAY_REWARD_POINTS');
+  }
 }

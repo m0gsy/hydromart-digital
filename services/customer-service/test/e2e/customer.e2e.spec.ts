@@ -11,6 +11,7 @@ import { CUSTOMER_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import {
+  FakeLoyaltyReward,
   InMemoryAddressRepository,
   InMemoryNotificationRepository,
   InMemoryProfileRepository,
@@ -21,6 +22,8 @@ const SECRET = 'test-access-secret-that-is-long-enough-01';
 describe('Customer HTTP flows (e2e)', () => {
   let app: INestApplication;
   let token: string;
+  let adminToken: string;
+  const loyalty = new FakeLoyaltyReward();
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -41,6 +44,8 @@ describe('Customer HTTP flows (e2e)', () => {
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
               MAX_ADDRESSES_PER_CUSTOMER: 20,
+              LOYALTY_SERVICE_URL: 'http://loyalty.test',
+              BIRTHDAY_REWARD_POINTS: 250,
             }),
           ],
         }),
@@ -55,6 +60,8 @@ describe('Customer HTTP flows (e2e)', () => {
       .useValue(new InMemoryAddressRepository())
       .overrideProvider(CUSTOMER_TOKENS.NotificationPreferenceRepository)
       .useValue(new InMemoryNotificationRepository())
+      .overrideProvider(CUSTOMER_TOKENS.LoyaltyRewardPort)
+      .useValue(loyalty)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -66,9 +73,9 @@ describe('Customer HTTP flows (e2e)', () => {
 
     // Sign with the secret the app actually resolves, so the guard verifies it.
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
-    token = app
-      .get(JwtService)
-      .sign({ sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' }, { secret });
+    const jwt = app.get(JwtService);
+    token = jwt.sign({ sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' }, { secret });
+    adminToken = jwt.sign({ sub: 'admin-1', role: Role.SUPER_ADMIN }, { secret });
   });
 
   afterAll(async () => {
@@ -130,5 +137,28 @@ describe('Customer HTTP flows (e2e)', () => {
       request(server()).patch('/api/v1/profile/notifications').send({ whatsapp: false }),
     ).expect(200);
     expect(res.body).toMatchObject({ push: true, whatsapp: false });
+  });
+
+  it('sets DOB and runs the birthday sweep (admin grants points, customer forbidden)', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const set = await auth(
+      request(server()).patch('/api/v1/profile').send({ birthdate: today }),
+    ).expect(200);
+    expect(set.body.birthdate).toBe(today);
+
+    // Customer cannot trigger the sweep.
+    await auth(request(server()).post('/api/v1/profile/birthday-rewards')).expect(403);
+
+    // Admin sweeps: cust-1 has a birthday today → one grant.
+    const res = await request(server())
+      .post('/api/v1/profile/birthday-rewards')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    expect(res.body).toMatchObject({ granted: 1, failed: 0, disabled: false });
+    expect(loyalty.calls.some((c) => c.customerId === 'cust-1' && c.points === 250)).toBe(true);
+  });
+
+  it('rejects a malformed birthdate (400)', async () => {
+    await auth(request(server()).patch('/api/v1/profile').send({ birthdate: '17-05-1990' })).expect(400);
   });
 });

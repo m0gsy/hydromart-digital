@@ -26,6 +26,10 @@ model CustomerProfile {
   membershipTier MembershipTier @default(BASIC)
   pointBalance   Int            @default(0)
   favoriteDepotId String?       @db.Uuid
+  /// Date of birth (day precision) — drives the birthday promo (FR-091). Optional.
+  birthdate      DateTime?      @db.Date
+  /// Year of the last birthday reward grant; makes the sweep idempotent (one grant per year).
+  lastBirthdayRewardYear Int?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
