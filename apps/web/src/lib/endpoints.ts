@@ -7,6 +7,7 @@ export const endpoints = {
     verifyOtp: '/auth/api/v1/auth/otp/verify',
     resendOtp: '/auth/api/v1/auth/otp/resend',
     login: '/auth/api/v1/auth/login',
+    google: '/auth/api/v1/auth/google',
     refresh: '/auth/api/v1/auth/token/refresh',
     me: '/auth/api/v1/auth/me',
     logout: '/auth/api/v1/auth/logout',

@@ -6,6 +6,7 @@ import { Suspense, useState } from 'react';
 import { Drop } from '@phosphor-icons/react';
 
 import { Button, Field, Input } from '@/components/ui';
+import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import type { OtpChallenge } from '@/lib/types';
@@ -57,6 +58,7 @@ function RegisterForm() {
       <Button type="submit" loading={loading} className="w-full">
         Send verification code
       </Button>
+      <GoogleSignInButton next={next} />
       <p className="text-center text-sm text-muted">
         Already have an account?{' '}
         <Link href="/login" className="font-semibold text-brand-700">
