@@ -123,6 +123,30 @@ describe('Loyalty HTTP flows (e2e)', () => {
       .expect(400);
   });
 
+  it('grants a flat reward to fulfilment/system roles (403 customer, 201 operator)', async () => {
+    const customerId = randomUUID();
+    await request(server())
+      .post('/api/v1/loyalty/reward')
+      .set(auth(customerToken))
+      .send({ customerId, points: 500, reason: 'Referral reward' })
+      .expect(403);
+
+    const res = await request(server())
+      .post('/api/v1/loyalty/reward')
+      .set(auth(operatorToken))
+      .send({ customerId, points: 500, reason: 'Referral reward' })
+      .expect(201);
+    expect(res.body).toMatchObject({ pointsBalance: 500, lifetimePoints: 500 });
+  });
+
+  it('rejects a non-positive reward (validation)', async () => {
+    await request(server())
+      .post('/api/v1/loyalty/reward')
+      .set(auth(operatorToken))
+      .send({ customerId: randomUUID(), points: 0, reason: 'x' })
+      .expect(400);
+  });
+
   it('runs the expiry sweep only for SUPER_ADMIN', async () => {
     await request(server()).post('/api/v1/loyalty/expire').set(auth(managerToken)).expect(403);
     const res = await request(server()).post('/api/v1/loyalty/expire').set(auth(superToken)).expect(200);

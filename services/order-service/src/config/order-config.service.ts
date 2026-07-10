@@ -30,6 +30,9 @@ export class OrderConfigService {
   get promoServiceUrl(): string {
     return this.config.getOrThrow<string>('PROMO_SERVICE_URL').replace(/\/+$/, '');
   }
+  get referralServiceUrl(): string {
+    return this.config.getOrThrow<string>('REFERRAL_SERVICE_URL').replace(/\/+$/, '');
+  }
   get deliveryFee(): number {
     return this.num('ORDER_DELIVERY_FEE');
   }

@@ -22,6 +22,7 @@ const testEnv: Record<string, string> = {
   DASHBOARD_SERVICE_URL: 'http://localhost:3008',
   LOYALTY_SERVICE_URL: 'http://localhost:3009',
   PROMO_SERVICE_URL: 'http://localhost:3010',
+  REFERRAL_SERVICE_URL: 'http://localhost:3011',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',

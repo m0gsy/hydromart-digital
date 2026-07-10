@@ -16,6 +16,7 @@ import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repos
 import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
+  FakeReferralCoordination,
   FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -41,6 +42,7 @@ describe('OrderService', () => {
   let catalog: FakeProductCatalog;
   let depots: FakeDepotDirectory;
   let loyalty: FakeLoyaltyCoordination;
+  let referral: FakeReferralCoordination;
   let promo: FakePromo;
   let cartService: CartService;
   let service: OrderService;
@@ -52,6 +54,7 @@ describe('OrderService', () => {
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
     loyalty = new FakeLoyaltyCoordination();
+    referral = new FakeReferralCoordination();
     promo = new FakePromo();
     cartService = new CartService(cart, catalog);
     service = new OrderService(
@@ -60,6 +63,7 @@ describe('OrderService', () => {
       catalog,
       depots,
       loyalty,
+      referral,
       promo,
       cartService,
       buildTestConfig(),
@@ -188,12 +192,21 @@ describe('OrderService', () => {
     }
     expect(loyalty.calls).toHaveLength(0); // nothing awarded before completion
 
+    expect(referral.calls).toHaveLength(0); // nothing qualified before completion
+
     await service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok');
     expect(loyalty.calls).toHaveLength(1);
     expect(loyalty.calls[0]).toMatchObject({
       customerId: customer,
       orderId: order.id,
       subtotal: 60000,
+      authorization: 'Bearer tok',
+    });
+    // FR-092: completion also qualifies any pending referral for this customer.
+    expect(referral.calls).toHaveLength(1);
+    expect(referral.calls[0]).toMatchObject({
+      customerId: customer,
+      orderId: order.id,
       authorization: 'Bearer tok',
     });
   });

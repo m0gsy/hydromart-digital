@@ -14,7 +14,11 @@ created on first boot by [`infra/postgres/init-databases.sql`](../infra/postgres
 | payment-service | `hydromart_payment` | … |
 | delivery-service | `hydromart_delivery` | … |
 | depot-service | `hydromart_depot` | … |
+| loyalty-service | `hydromart_loyalty` | … |
+| promo-service | `hydromart_promo` | … |
+| referral-service | `hydromart_referral` | … |
 | dashboard-service | — (no DB, BFF aggregator) | — |
+| gateway-service | — (no DB, reverse proxy) | — |
 
 ## First-time setup
 

@@ -23,11 +23,13 @@ enum MembershipTier {
 }
 
 /// Ledger entry kinds. EARN is positive; EXPIRE is negative; ADJUST is a signed
-/// manual correction. Balance = sum(points) across a customer's entries.
+/// manual correction; REWARD is a positive system grant (e.g. referral bonus).
+/// Balance = sum(points) across a customer's entries.
 enum PointsTxnType {
   EARN
   EXPIRE
   ADJUST
+  REWARD
 }
 
 /// One loyalty account per customer (lazy-initialised on first read/earn).

@@ -1,0 +1,54 @@
+// Hydromart referral-service data model (PRD Module 12 Referral Program: FR-092).
+// Each customer has at most one shareable ReferralCode (lazy-created). A new customer
+// redeems someone's code, creating a PENDING Referral; when that customer's first order
+// qualifies, the Referral flips to QUALIFIED and both parties are awarded loyalty points
+// (rewards fired at loyalty-service, fail-open). A customer can be referred at most once.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("REFERRAL_DATABASE_URL")
+}
+
+/// Referral lifecycle. PENDING once a code is redeemed; QUALIFIED once the referee's
+/// first qualifying order completes (the point at which rewards are granted).
+enum ReferralStatus {
+  PENDING
+  QUALIFIED
+}
+
+/// One shareable code per customer (lazy-created on first read). `code` is UPPERCASE.
+model ReferralCode {
+  id         String   @id @default(uuid())
+  customerId String   @unique
+  code       String   @unique
+  createdAt  DateTime @default(now())
+
+  @@map("referral_codes")
+}
+
+/// A redeemed referral. `refereeCustomerId` is unique — a customer can be referred once.
+model Referral {
+  id                 String         @id @default(uuid())
+  referrerCustomerId String
+  refereeCustomerId  String         @unique
+  code               String
+  status             ReferralStatus @default(PENDING)
+  /// Order whose completion qualified the referral; null while PENDING.
+  qualifyingOrderId  String?
+  /// Points awarded to the referrer on qualification (0 while PENDING).
+  referrerPoints     Int            @default(0)
+  /// Welcome-bonus points awarded to the referee on qualification (0 while PENDING).
+  refereePoints      Int            @default(0)
+  qualifiedAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([referrerCustomerId])
+  @@map("referrals")
+}

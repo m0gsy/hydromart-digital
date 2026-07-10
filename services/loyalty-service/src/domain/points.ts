@@ -4,6 +4,9 @@ export enum PointsTxnType {
   EARN = 'EARN',
   EXPIRE = 'EXPIRE',
   ADJUST = 'ADJUST',
+  // Flat system-granted bonus (e.g. referral rewards). Positive, counts toward
+  // lifetime/tier like EARN, but is not tied to an order subtotal.
+  REWARD = 'REWARD',
 }
 
 /**

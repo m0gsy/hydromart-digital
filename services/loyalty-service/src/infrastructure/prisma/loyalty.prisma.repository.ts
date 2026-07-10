@@ -101,7 +101,7 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
         data: {
           accountId: m.accountId,
           customerId: m.customerId,
-          type: PrismaTxnType.ADJUST,
+          type: PrismaTxnType[m.type],
           points: m.points,
           reason: m.reason,
         },

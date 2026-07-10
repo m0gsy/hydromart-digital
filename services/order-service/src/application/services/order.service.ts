@@ -25,6 +25,7 @@ import {
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
+import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { PromoPort } from '../ports/promo.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
@@ -57,6 +58,8 @@ export class OrderService {
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depotDirectory: DepotDirectoryPort,
     @Inject(ORDER_TOKENS.LoyaltyCoordination)
     private readonly loyalty: LoyaltyCoordinationPort,
+    @Inject(ORDER_TOKENS.ReferralCoordination)
+    private readonly referral: ReferralCoordinationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
@@ -177,15 +180,18 @@ export class OrderService {
       throw new InvalidStatusTransitionError(order.status, to);
     }
     const updated = await this.orders.applyStatus(order.id, to, changedBy, note ?? null);
-    // BR-013: award loyalty points once the order completes. Fail-open — the port
-    // swallows errors, so a loyalty outage never blocks completion.
+    // Post-completion coordination (both fail-open — a downstream outage never
+    // blocks completion, and both are idempotent on the downstream side).
     if (to === OrderStatus.COMPLETED) {
+      // BR-013: award loyalty points.
       await this.loyalty.awardPoints(
         updated.customerId,
         updated.id,
         updated.subtotal,
         authorization,
       );
+      // FR-092: qualify a pending referral for this customer (rewards both parties).
+      await this.referral.qualify(updated.customerId, updated.id, authorization);
     }
     return updated;
   }

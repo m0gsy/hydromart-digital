@@ -74,7 +74,7 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     this.txns.push({
       id: randomUUID(),
       customerId: m.customerId,
-      type: PointsTxnType.ADJUST,
+      type: m.type,
       points: m.points,
       orderId: null,
       reason: m.reason,

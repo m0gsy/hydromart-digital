@@ -11,6 +11,7 @@ import {
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   PointsTransactionDto,
+  RewardPointsDto,
 } from './dto/loyalty.dto';
 
 // Points are awarded when an order completes (BR-013). order-service forwards the
@@ -75,6 +76,16 @@ export class LoyaltyController {
   @ApiOperation({ summary: 'Apply a signed manual points correction (staff)' })
   async adjust(@Body() dto: AdjustPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(await this.loyalty.adjust(dto.customerId, dto.points, dto.reason));
+  }
+
+  @ApiBearerAuth()
+  @Roles(...EARN_ROLES)
+  @Post('reward')
+  @ApiOperation({ summary: 'Grant a flat positive reward (staff/system, e.g. referral bonus)' })
+  async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
+    return LoyaltyAccountDto.from(
+      await this.loyalty.reward(dto.customerId, dto.points, dto.reason),
+    );
   }
 
   @ApiBearerAuth()

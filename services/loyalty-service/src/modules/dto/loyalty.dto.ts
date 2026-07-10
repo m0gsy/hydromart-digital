@@ -44,6 +44,24 @@ export class AdjustPointsDto {
   reason!: string;
 }
 
+export class RewardPointsDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ example: 500, description: 'Positive points to grant (system reward, e.g. referral).' })
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  points!: number;
+
+  @ApiProperty({ example: 'Referral reward: referred a new customer.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reason!: string;
+}
+
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsInt()

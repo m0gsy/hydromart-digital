@@ -4,5 +4,6 @@ export const ORDER_TOKENS = {
   ProductCatalog: Symbol('ProductCatalog'),
   DepotDirectory: Symbol('DepotDirectory'),
   LoyaltyCoordination: Symbol('LoyaltyCoordination'),
+  ReferralCoordination: Symbol('ReferralCoordination'),
   Promo: Symbol('Promo'),
 } as const;

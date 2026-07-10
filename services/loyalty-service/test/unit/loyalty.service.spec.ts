@@ -64,6 +64,18 @@ describe('LoyaltyService', () => {
     expect(account.lifetimePoints).toBe(250);
   });
 
+  it('grants a flat REWARD toward balance and lifetime (referral bonus)', async () => {
+    const account = await service.reward('cust-1', 500, 'Referral reward');
+    expect(account.pointsBalance).toBe(500);
+    expect(account.lifetimePoints).toBe(500);
+    expect(repo.txns.some((t) => t.type === PointsTxnType.REWARD && t.points === 500)).toBe(true);
+  });
+
+  it('upgrades the tier when a REWARD crosses a threshold', async () => {
+    const account = await service.reward('cust-1', 1000, 'Big referral');
+    expect(account.tier).toBe(MembershipTier.SILVER);
+  });
+
   it('sweeps expired lots into negative EXPIRE entries (BR-014)', async () => {
     // Earn with an already-past expiry so the lot is immediately due.
     const expired = new LoyaltyService(repo, buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }));

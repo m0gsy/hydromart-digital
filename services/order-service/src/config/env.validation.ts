@@ -11,6 +11,7 @@ export const envValidationSchema = Joi.object({
   DEPOT_SERVICE_URL: Joi.string().uri().required(),
   LOYALTY_SERVICE_URL: Joi.string().uri().required(),
   PROMO_SERVICE_URL: Joi.string().uri().required(),
+  REFERRAL_SERVICE_URL: Joi.string().uri().required(),
   ORDER_DELIVERY_FEE: Joi.number().min(0).default(5000),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),

@@ -24,6 +24,7 @@ import {
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
+import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { VoucherRejectedError } from '../../src/domain/errors';
 
@@ -199,6 +200,13 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   }
 }
 
+export class FakeReferralCoordination implements ReferralCoordinationPort {
+  calls: { customerId: string; orderId: string; authorization: string }[] = [];
+  async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
+    this.calls.push({ customerId, orderId, authorization });
+  }
+}
+
 export class FakePromo implements PromoPort {
   quoteDiscount = 0;
   rejectQuote = false;
@@ -258,6 +266,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     DEPOT_SERVICE_URL: 'http://localhost:3007',
     LOYALTY_SERVICE_URL: 'http://localhost:3009',
     PROMO_SERVICE_URL: 'http://localhost:3010',
+    REFERRAL_SERVICE_URL: 'http://localhost:3011',
     ORDER_DELIVERY_FEE: '5000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',

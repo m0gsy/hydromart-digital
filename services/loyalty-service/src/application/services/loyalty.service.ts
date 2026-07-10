@@ -109,6 +109,27 @@ export class LoyaltyService {
   }
 
   /**
+   * Grant a flat positive reward (e.g. a referral bonus). Counts toward
+   * lifetime/tier like an EARN, but is not tied to an order subtotal. Callers
+   * (other services) guarantee single-award idempotency; this method always
+   * records. `points` must be positive (enforced at the DTO boundary).
+   */
+  async reward(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
+    const account = await this.getAccount(customerId);
+    const newLifetime = account.lifetimePoints + points;
+    return this.repo.recordAdjustment({
+      type: PointsTxnType.REWARD,
+      accountId: account.id,
+      customerId,
+      points,
+      reason,
+      newBalance: account.pointsBalance + points,
+      newLifetime,
+      newTier: tierFor(newLifetime),
+    });
+  }
+
+  /**
    * Sweep expired point lots (BR-014). Each due EARN lot becomes a matching negative
    * EXPIRE entry and is marked swept, decrementing the account balance. Idempotent —
    * a swept lot is never picked up again. Meant to be run on a schedule.
