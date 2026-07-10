@@ -26,3 +26,16 @@ If previous implementation exists:
 - Analyze the current repository state.
 - Continue from the latest completed milestone.
 - Avoid repeating completed work.
+
+## Session Behavior
+
+If this is a new session:
+
+- Analyze the current repository state.
+- Load Claude Memory.
+- Detect the latest completed milestone.
+- Resume implementation automatically.
+
+Do not repeat completed work.
+
+Do not restart the project unless explicitly instructed.
