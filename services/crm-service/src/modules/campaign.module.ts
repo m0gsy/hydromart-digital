@@ -12,6 +12,7 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { CampaignPrismaRepository } from '../infrastructure/prisma/campaign.prisma.repository';
 import { NotificationPrismaRepository } from '../infrastructure/prisma/notification.prisma.repository';
 import { WhatsappBroadcastHttpAdapter } from '../infrastructure/whatsapp/whatsapp-broadcast.http.adapter';
+import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { CampaignController } from './campaign.controller';
 import { NotificationController } from './notification.controller';
 
@@ -23,6 +24,7 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },
   { provide: CRM_TOKENS.NotificationRepository, useClass: NotificationPrismaRepository },
   { provide: CRM_TOKENS.WhatsappBroadcast, useClass: WhatsappBroadcastHttpAdapter },
+  { provide: CRM_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

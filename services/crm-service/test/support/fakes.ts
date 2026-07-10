@@ -9,7 +9,13 @@ import {
   CampaignRepository,
   CreateCampaignData,
 } from '../../src/application/ports/campaign.repository';
+import { SegmentUnavailableError } from '../../src/domain/errors';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
+import {
+  CustomerDirectoryPort,
+  DirectoryRecipient,
+  SegmentFilter,
+} from '../../src/application/ports/customer-directory.port';
 import {
   NotificationRecord,
   NotificationRepository,
@@ -129,6 +135,22 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
     this.records.push(rec);
     return { ...rec };
+  }
+}
+
+/** Directory fake: returns a seeded audience, filtered by tier/city. Throws if `down`. */
+export class FakeCustomerDirectory implements CustomerDirectoryPort {
+  recipients: (DirectoryRecipient & { tier?: string; city?: string })[] = [];
+  down = false;
+  lastAuth?: string;
+
+  async resolveSegment(filter: SegmentFilter, authorization: string): Promise<DirectoryRecipient[]> {
+    if (this.down) throw new SegmentUnavailableError('directory down');
+    this.lastAuth = authorization;
+    return this.recipients
+      .filter((r) => !filter.tier || r.tier === filter.tier)
+      .filter((r) => !filter.city || r.city?.toLowerCase() === filter.city.toLowerCase())
+      .map(({ customerId, name, phone }) => ({ customerId, name, phone }));
   }
 }
 

@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsDateString, IsOptional, IsUUID, ValidateIf } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 import { MembershipTier } from '../../domain/membership-tier.enum';
 
@@ -53,6 +62,28 @@ export class UpdateNotificationsDto {
   @IsOptional()
   @IsBoolean()
   whatsapp?: boolean;
+}
+
+export class DirectoryQueryDto {
+  @ApiPropertyOptional({ enum: MembershipTier, description: 'Filter by membership tier.' })
+  @IsOptional()
+  @IsEnum(MembershipTier)
+  tier?: MembershipTier;
+
+  @ApiPropertyOptional({ example: 'Bandung', description: 'Filter by primary-address city (case-insensitive).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+}
+
+export class DirectoryRecipientDto {
+  @ApiProperty({ format: 'uuid' })
+  customerId!: string;
+  @ApiProperty({ example: 'Andi' })
+  name!: string;
+  @ApiProperty({ example: '+6281234567890' })
+  phone!: string;
 }
 
 export class ProfileResponseDto {

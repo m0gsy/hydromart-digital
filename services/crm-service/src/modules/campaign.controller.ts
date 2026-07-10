@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -34,16 +35,19 @@ export class CampaignController {
 
   @Roles(...WRITE_ROLES)
   @Post()
-  @ApiOperation({ summary: 'Create a draft broadcast campaign (FR-088/FR-094)' })
+  @ApiOperation({ summary: 'Create a draft broadcast campaign — explicit list or segment (FR-087/088/094)' })
   async create(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateCampaignDto,
+    @Headers('authorization') authorization: string,
   ): Promise<CampaignDto> {
     const campaign = await this.campaigns.create(
       user.sub,
       dto.name,
       dto.messageTemplate,
       dto.recipients,
+      dto.segment,
+      authorization,
     );
     return CampaignDto.from(campaign);
   }

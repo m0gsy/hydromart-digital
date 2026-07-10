@@ -4,7 +4,9 @@ import { CustomerConfigService } from '../../config/customer-config.service';
 import { LoyaltyRewardPort } from '../ports/loyalty-reward.port';
 import {
   CustomerProfileRecord,
+  DirectoryRecipient,
   ProfileRepository,
+  SegmentFilter,
 } from '../ports/profile.repository';
 import { CUSTOMER_TOKENS } from '../tokens';
 
@@ -46,6 +48,11 @@ export class ProfileService {
   async setBirthdate(customerId: string, birthdate: Date | null): Promise<CustomerProfileRecord> {
     await this.get(customerId); // ensure a row exists
     return this.profiles.updateBirthdate(customerId, birthdate);
+  }
+
+  /** Staff: resolve the CRM broadcast audience for an attribute segment (FR-087). */
+  findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    return this.profiles.findSegment(filter);
   }
 
   /**

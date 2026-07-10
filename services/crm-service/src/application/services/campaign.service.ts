@@ -14,16 +14,19 @@ import {
   CampaignRepository,
   CreateRecipientData,
 } from '../ports/campaign.repository';
+import {
+  CustomerDirectoryPort,
+  SegmentFilter,
+} from '../ports/customer-directory.port';
 import { WhatsappBroadcastPort } from '../ports/whatsapp-broadcast.port';
 import { CRM_TOKENS } from '../tokens';
 
 /**
  * Broadcast-campaign use cases (PRD Module 12 FR-088/FR-094).
  *
- * SCOPE BOUNDARY (MVP): recipients are always the EXPLICIT list marketing staff supply.
- * Attribute-based segmentation (FR-087, by tier/geography) would require a cross-service
- * customer directory that no staff customer-list endpoint exposes today, so it is DEFERRED
- * — this service never queries or fabricates an audience.
+ * Recipients come from EITHER an explicit staff-supplied list OR an attribute segment
+ * (FR-087) resolved from customer-service via the CustomerDirectoryPort. Segment resolution
+ * fails closed (SegmentUnavailableError) so a campaign is never built from an empty audience.
  */
 @Injectable()
 export class CampaignService {
@@ -33,17 +36,28 @@ export class CampaignService {
   constructor(
     @Inject(CRM_TOKENS.CampaignRepository) private readonly repo: CampaignRepository,
     @Inject(CRM_TOKENS.WhatsappBroadcast) private readonly whatsapp: WhatsappBroadcastPort,
+    @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
   ) {}
 
   async create(
     createdBy: string,
     name: string,
     messageTemplate: string,
-    recipients: CreateRecipientData[],
+    recipients: CreateRecipientData[] = [],
+    segment?: SegmentFilter,
+    authorization = '',
   ): Promise<CampaignRecord> {
+    // A segment (FR-087) resolves its own audience from the customer directory; otherwise
+    // use the explicit list. Segment resolution throws if the directory is unreachable.
+    let list: CreateRecipientData[] = recipients;
+    if (segment && (segment.tier || segment.city)) {
+      const resolved = await this.directory.resolveSegment(segment, authorization);
+      list = resolved.map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
+    }
+
     // Dedupe by phone (last wins) — a pasted list often repeats numbers, and the DB has a
     // unique(campaignId, phone) constraint that would otherwise reject the insert.
-    const deduped = [...new Map(recipients.map((r) => [r.phone, r])).values()];
+    const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
     return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
   }

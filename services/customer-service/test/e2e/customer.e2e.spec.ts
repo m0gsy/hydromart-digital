@@ -8,6 +8,7 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 
 import { CustomerModule } from '../../src/modules/customer.module';
 import { CUSTOMER_TOKENS } from '../../src/application/tokens';
+import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import {
@@ -24,6 +25,8 @@ describe('Customer HTTP flows (e2e)', () => {
   let token: string;
   let adminToken: string;
   const loyalty = new FakeLoyaltyReward();
+  const addresses = new InMemoryAddressRepository();
+  const profiles = new InMemoryProfileRepository(addresses);
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -55,9 +58,9 @@ describe('Customer HTTP flows (e2e)', () => {
       .overrideProvider(PrismaService)
       .useValue(prismaStub)
       .overrideProvider(CUSTOMER_TOKENS.ProfileRepository)
-      .useValue(new InMemoryProfileRepository())
+      .useValue(profiles)
       .overrideProvider(CUSTOMER_TOKENS.AddressRepository)
-      .useValue(new InMemoryAddressRepository())
+      .useValue(addresses)
       .overrideProvider(CUSTOMER_TOKENS.NotificationPreferenceRepository)
       .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CUSTOMER_TOKENS.LoyaltyRewardPort)
@@ -160,5 +163,51 @@ describe('Customer HTTP flows (e2e)', () => {
 
   it('rejects a malformed birthdate (400)', async () => {
     await auth(request(server()).patch('/api/v1/profile').send({ birthdate: '17-05-1990' })).expect(400);
+  });
+
+  it('resolves the CRM broadcast segment by tier + city, staff-only (FR-087)', async () => {
+    // Seed a SILVER customer in Depok and a BASIC customer in Bogor, each with a primary address.
+    const nullGeo = { postalCode: null, latitude: null, longitude: null };
+    await profiles.setTier('seg-silver', MembershipTier.SILVER);
+    await addresses.create({
+      customerId: 'seg-silver',
+      label: 'Rumah',
+      recipientName: 'Sinta',
+      phone: '+628111',
+      addressLine: 'Jl. A',
+      city: 'Depok',
+      province: 'Jawa Barat',
+      isPrimary: true,
+      ...nullGeo,
+    });
+    await profiles.create('seg-basic');
+    await addresses.create({
+      customerId: 'seg-basic',
+      label: 'Rumah',
+      recipientName: 'Bima',
+      phone: '+628222',
+      addressLine: 'Jl. B',
+      city: 'Bogor',
+      province: 'Jawa Barat',
+      isPrimary: true,
+      ...nullGeo,
+    });
+
+    // Customer cannot read the directory.
+    await auth(request(server()).get('/api/v1/profile/directory')).expect(403);
+
+    const admin = (r: request.Test) => r.set('Authorization', `Bearer ${adminToken}`);
+    const res = await admin(
+      request(server()).get('/api/v1/profile/directory').query({ tier: 'SILVER', city: 'depok' }),
+    ).expect(200);
+    expect(res.body).toEqual([{ customerId: 'seg-silver', name: 'Sinta', phone: '+628111' }]);
+  });
+
+  it('rejects an invalid tier filter (400)', async () => {
+    await request(server())
+      .get('/api/v1/profile/directory')
+      .query({ tier: 'PLATINUM' })
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(400);
   });
 });

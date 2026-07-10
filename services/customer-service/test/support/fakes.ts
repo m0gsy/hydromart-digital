@@ -6,7 +6,9 @@ import { CustomerConfigService } from '../../src/config/customer-config.service'
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import {
   CustomerProfileRecord,
+  DirectoryRecipient,
   ProfileRepository,
+  SegmentFilter,
 } from '../../src/application/ports/profile.repository';
 import {
   AddressRecord,
@@ -26,6 +28,15 @@ const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 
 export class InMemoryProfileRepository implements ProfileRepository {
   private rows = new Map<string, CustomerProfileRecord>();
+
+  // Optional address source so findSegment (FR-087) can join to a primary address.
+  constructor(private readonly addresses?: InMemoryAddressRepository) {}
+
+  /** Test helper: force a tier (membershipTier is read-only via the API). */
+  async setTier(customerId: string, tier: MembershipTier): Promise<void> {
+    const rec = this.rows.get(customerId) ?? (await this.create(customerId));
+    rec.membershipTier = tier;
+  }
 
   async findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null> {
     return this.rows.get(customerId) ?? null;
@@ -71,6 +82,19 @@ export class InMemoryProfileRepository implements ProfileRepository {
   async markBirthdayRewarded(customerId: string, year: number): Promise<void> {
     const rec = this.rows.get(customerId);
     if (rec) rec.lastBirthdayRewardYear = year;
+  }
+
+  async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    const out: DirectoryRecipient[] = [];
+    for (const p of this.rows.values()) {
+      if (filter.tier && p.membershipTier !== filter.tier) continue;
+      const addrs = this.addresses ? await this.addresses.listByCustomer(p.customerId) : [];
+      const primary = addrs.find((a) => a.isPrimary);
+      if (!primary) continue;
+      if (filter.city && primary.city.toLowerCase() !== filter.city.toLowerCase()) continue;
+      out.push({ customerId: p.customerId, name: primary.recipientName, phone: primary.phone });
+    }
+    return out;
   }
 }
 

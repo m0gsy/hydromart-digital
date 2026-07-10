@@ -11,4 +11,6 @@ export const envValidationSchema = Joi.object({
   // Optional: blank WHATSAPP_API_URL runs the broadcast adapter in console/dev mode.
   WHATSAPP_API_URL: Joi.string().allow('').default(''),
   WHATSAPP_API_TOKEN: Joi.string().allow('').default(''),
+  // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
+  CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
 });

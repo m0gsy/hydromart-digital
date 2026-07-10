@@ -6,19 +6,26 @@ import {
   CampaignNotDraftError,
   CampaignNotFoundError,
   NoRecipientsError,
+  SegmentUnavailableError,
 } from '../../src/domain/errors';
 import { CampaignService } from '../../src/application/services/campaign.service';
-import { FakeWhatsappBroadcast, InMemoryCampaignRepository } from '../support/fakes';
+import {
+  FakeCustomerDirectory,
+  FakeWhatsappBroadcast,
+  InMemoryCampaignRepository,
+} from '../support/fakes';
 
 describe('CampaignService', () => {
   let repo: InMemoryCampaignRepository;
   let whatsapp: FakeWhatsappBroadcast;
+  let directory: FakeCustomerDirectory;
   let service: CampaignService;
 
   beforeEach(() => {
     repo = new InMemoryCampaignRepository();
     whatsapp = new FakeWhatsappBroadcast();
-    service = new CampaignService(repo, whatsapp);
+    directory = new FakeCustomerDirectory();
+    service = new CampaignService(repo, whatsapp, directory);
   });
 
   const recipients = [
@@ -44,6 +51,33 @@ describe('CampaignService', () => {
       await expect(service.create('staff-1', 'Blast', 'Hi', [])).rejects.toBeInstanceOf(
         NoRecipientsError,
       );
+    });
+
+    it('resolves recipients from a segment (FR-087), forwarding the caller token', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+      ];
+      const c = await service.create('staff-1', 'Blast', 'Hi {{name}}', undefined, {
+        tier: 'SILVER',
+      }, 'Bearer tok');
+      expect(c.totalRecipients).toBe(1);
+      expect(c.recipients[0]).toMatchObject({ phone: '+628111', name: 'Sinta', customerId: 'c1' });
+      expect(directory.lastAuth).toBe('Bearer tok');
+    });
+
+    it('fails closed with SegmentUnavailableError when the directory is down', async () => {
+      directory.down = true;
+      await expect(
+        service.create('staff-1', 'Blast', 'Hi', undefined, { city: 'Depok' }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(SegmentUnavailableError);
+    });
+
+    it('throws NoRecipientsError when a segment resolves to nobody', async () => {
+      directory.recipients = [];
+      await expect(
+        service.create('staff-1', 'Blast', 'Hi', undefined, { tier: 'GOLD' }, 'Bearer tok'),
+      ).rejects.toBeInstanceOf(NoRecipientsError);
     });
   });
 

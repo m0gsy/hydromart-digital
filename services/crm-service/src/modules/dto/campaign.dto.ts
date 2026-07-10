@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize,
   IsArray,
   IsInt,
   IsNotEmpty,
@@ -43,6 +42,20 @@ export class RecipientInputDto {
   name?: string;
 }
 
+export class CampaignSegmentDto {
+  @ApiPropertyOptional({ enum: ['BASIC', 'SILVER', 'GOLD'], description: 'Filter by membership tier.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  tier?: string;
+
+  @ApiPropertyOptional({ example: 'Bandung', description: 'Filter by primary-address city.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+}
+
 export class CreateCampaignDto {
   @ApiProperty({ example: 'Ramadan Promo Blast' })
   @IsString()
@@ -59,12 +72,24 @@ export class CreateCampaignDto {
   @MaxLength(2000)
   messageTemplate!: string;
 
-  @ApiProperty({ type: [RecipientInputDto], description: 'Explicit recipient list (min 1).' })
+  @ApiPropertyOptional({
+    type: [RecipientInputDto],
+    description: 'Explicit recipient list. Provide this OR `segment` (FR-087).',
+  })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => RecipientInputDto)
-  recipients!: RecipientInputDto[];
+  recipients?: RecipientInputDto[];
+
+  @ApiPropertyOptional({
+    type: CampaignSegmentDto,
+    description: 'Attribute segment (tier/city) — resolved to recipients from customer-service (FR-087).',
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CampaignSegmentDto)
+  segment?: CampaignSegmentDto;
 }
 
 export class CampaignPageQueryDto {

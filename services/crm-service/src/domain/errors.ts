@@ -23,3 +23,11 @@ export class NoRecipientsError extends DomainError {
     super('A campaign needs at least one recipient.');
   }
 }
+
+export class SegmentUnavailableError extends DomainError {
+  readonly code = 'CAMPAIGN_SEGMENT_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(detail?: string) {
+    super(`Could not resolve the audience segment${detail ? `: ${detail}` : ''}.`);
+  }
+}

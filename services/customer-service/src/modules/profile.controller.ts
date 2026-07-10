@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Headers, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
-import { CustomerProfileRecord } from '../application/ports/profile.repository';
+import { CustomerProfileRecord, DirectoryRecipient } from '../application/ports/profile.repository';
 import { ProfileService } from '../application/services/profile.service';
 import { NotificationService } from '../application/services/notification.service';
 import {
   BirthdayRewardResultDto,
+  DirectoryQueryDto,
+  DirectoryRecipientDto,
   ProfileResponseDto,
   UpdateNotificationsDto,
   UpdateProfileDto,
@@ -54,6 +56,14 @@ export class ProfileController {
       p = await this.profiles.setBirthdate(user.sub, dto.birthdate ? new Date(dto.birthdate) : null);
     }
     return toProfileResponse(p);
+  }
+
+  @Roles(Role.MARKETING, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('profile/directory')
+  @ApiOperation({ summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)' })
+  @ApiOkResponse({ type: [DirectoryRecipientDto] })
+  async directory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
+    return this.profiles.findSegment({ tier: query.tier, city: query.city });
   }
 
   @Roles(Role.SUPER_ADMIN)

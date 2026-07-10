@@ -38,4 +38,11 @@ export class CrmConfigService {
       token: this.config.get<string>('WHATSAPP_API_TOKEN', ''),
     };
   }
+  /**
+   * customer-service base URL for the CRM broadcast directory (FR-087 segmentation). Blank
+   * disables segment targeting — a segment request then fails closed (SegmentUnavailableError).
+   */
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '').trim();
+  }
 }

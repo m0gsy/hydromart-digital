@@ -13,6 +13,7 @@ import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import {
+  FakeCustomerDirectory,
   FakeWhatsappBroadcast,
   InMemoryCampaignRepository,
   InMemoryNotificationRepository,
@@ -25,6 +26,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   let marketingToken: string;
   let customerToken: string;
   let driverToken: string;
+  const directory = new FakeCustomerDirectory();
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -60,6 +62,8 @@ describe('Campaign HTTP flows (e2e)', () => {
       .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CRM_TOKENS.WhatsappBroadcast)
       .useValue(new FakeWhatsappBroadcast())
+      .overrideProvider(CRM_TOKENS.CustomerDirectory)
+      .useValue(directory)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -119,6 +123,20 @@ describe('Campaign HTTP flows (e2e)', () => {
       .set(auth(marketingToken))
       .expect(200);
     expect(res.body).toMatchObject({ status: 'SENT', sentCount: 1, failedCount: 0 });
+  });
+
+  it('creates a campaign from an attribute segment (FR-087)', async () => {
+    directory.recipients = [
+      { customerId: randomUUID(), name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
+      { customerId: randomUUID(), name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+    ];
+    const res = await request(server())
+      .post('/api/v1/campaigns')
+      .set(auth(marketingToken))
+      .send({ name: 'Silver Depok', messageTemplate: 'Hi {{name}}!', segment: { tier: 'SILVER', city: 'Depok' } })
+      .expect(201);
+    expect(res.body).toMatchObject({ status: 'DRAFT', totalRecipients: 1 });
+    expect(res.body.recipients[0]).toMatchObject({ phone: '+628111', name: 'Sinta' });
   });
 
   it('restricts list to staff (403 customer, 200 marketing)', async () => {
