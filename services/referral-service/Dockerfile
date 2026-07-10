@@ -27,4 +27,4 @@ COPY --from=builder --chown=app:app /app/services/referral-service/package.json 
 USER app
 WORKDIR /app/services/referral-service
 EXPOSE 3011
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

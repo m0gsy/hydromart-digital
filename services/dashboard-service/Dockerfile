@@ -26,4 +26,4 @@ COPY --from=builder --chown=app:app /app/services/dashboard-service/package.json
 USER app
 WORKDIR /app/services/dashboard-service
 EXPOSE 3008
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

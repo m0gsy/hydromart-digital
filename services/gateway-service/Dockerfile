@@ -26,4 +26,4 @@ COPY --from=builder --chown=app:app /app/services/gateway-service/package.json .
 USER app
 WORKDIR /app/services/gateway-service
 EXPOSE 8080
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

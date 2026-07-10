@@ -7,9 +7,9 @@
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
-    "start": "node dist/main.js",
+    "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node dist/src/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",

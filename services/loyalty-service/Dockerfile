@@ -27,4 +27,4 @@ COPY --from=builder --chown=app:app /app/services/loyalty-service/package.json .
 USER app
 WORKDIR /app/services/loyalty-service
 EXPOSE 3009
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

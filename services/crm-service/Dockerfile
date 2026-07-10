@@ -27,4 +27,4 @@ COPY --from=builder --chown=app:app /app/services/crm-service/package.json ./ser
 USER app
 WORKDIR /app/services/crm-service
 EXPOSE 3012
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

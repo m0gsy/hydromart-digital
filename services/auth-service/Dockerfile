@@ -37,4 +37,4 @@ WORKDIR /app/services/auth-service
 
 # Cloud Run provides PORT; the app reads AUTH_SERVICE_PORT — map it at deploy time.
 EXPOSE 3001
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]
