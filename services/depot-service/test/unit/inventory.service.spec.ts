@@ -248,6 +248,42 @@ describe('InventoryService', () => {
     expect(view.available).toBe(7);
   });
 
+  it('alerts when a reservation crosses a line into sellable-low, before physical stock drops', async () => {
+    await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      ACTOR,
+    );
+    await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR, TOKEN);
+    // available 10 -> 7 (<= 8) though physical quantity is still 10
+    expect(alerts.emitted).toHaveLength(1);
+    expect(alerts.emitted[0].alert.quantity).toBe(7);
+  });
+
+  it('does not re-alert when a reserved sale merely converts a hold into a deduction', async () => {
+    await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      ACTOR,
+    );
+    const items = [{ productId: PRODUCT_ID, quantity: 3 }];
+    await inventory.reserveForOrder(depotId, ORDER, items, ACTOR, TOKEN); // available 10->7, alerts once
+    await inventory.consumeForOrder(depotId, ORDER, items, ACTOR, TOKEN); // available stays 7 (7-0)
+    expect(alerts.emitted).toHaveLength(1); // no second alert
+  });
+
+  it('lists a line as low when reservations exhaust sellable stock (physical still on hand)', async () => {
+    const line = await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      ACTOR,
+    );
+    await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR, TOKEN);
+    expect((await inventory.get(line.id)).lowStock).toBe(true); // available 7 <= 8
+    const low = await inventory.listLowStock(depotId);
+    expect(low.map((l) => l.id)).toContain(line.id);
+  });
+
   it('rejects a reservation exceeding available stock, holding nothing', async () => {
     const line = await produkLine(PRODUCT_ID, 2);
     await expect(

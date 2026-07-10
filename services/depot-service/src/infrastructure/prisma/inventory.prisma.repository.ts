@@ -112,9 +112,10 @@ export class InventoryPrismaRepository implements InventoryRepository {
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
     });
     const items = rows.map((r) => this.toItem(r));
-    // lowStockOnly is a computed predicate (minimum > 0 && qty <= minimum), not a column.
+    // lowStockOnly is a computed predicate on SELLABLE stock (min > 0 && available <= min),
+    // not a column — reserved units don't count as fulfillable.
     return filter.lowStockOnly
-      ? items.filter((i) => i.minimumStock > 0 && i.quantity <= i.minimumStock)
+      ? items.filter((i) => i.minimumStock > 0 && available(i.quantity, i.reserved) <= i.minimumStock)
       : items;
   }
 
@@ -125,7 +126,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
       where: { minimumStock: { gt: 0 }, ...(depotId ? { depotId } : {}) },
       orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
     });
-    return rows.map((r) => this.toItem(r)).filter((i) => i.quantity <= i.minimumStock);
+    return rows
+      .map((r) => this.toItem(r))
+      .filter((i) => available(i.quantity, i.reserved) <= i.minimumStock);
   }
 
   async update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord> {

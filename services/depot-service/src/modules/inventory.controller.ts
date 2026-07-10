@@ -130,8 +130,9 @@ export class DepotInventoryController {
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization: string,
   ): Promise<{ orderId: string; depotId: string; reserved: string[]; skipped: string[] }> {
-    return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, user.sub);
+    return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, user.sub, authorization);
   }
 
   @Roles(...INVENTORY_RESERVE_ROLES)

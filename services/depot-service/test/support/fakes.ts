@@ -119,12 +119,21 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     return this.items
       .filter((x) => x.depotId === depotId && (!filter.itemType || x.itemType === filter.itemType))
-      .filter((x) => !filter.lowStockOnly || (x.minimumStock > 0 && x.quantity <= x.minimumStock))
+      .filter(
+        (x) =>
+          !filter.lowStockOnly ||
+          (x.minimumStock > 0 && available(x.quantity, x.reserved) <= x.minimumStock),
+      )
       .map((x) => ({ ...x }));
   }
   async listLowStock(depotId?: string): Promise<InventoryItemRecord[]> {
     return this.items
-      .filter((x) => (!depotId || x.depotId === depotId) && x.minimumStock > 0 && x.quantity <= x.minimumStock)
+      .filter(
+        (x) =>
+          (!depotId || x.depotId === depotId) &&
+          x.minimumStock > 0 &&
+          available(x.quantity, x.reserved) <= x.minimumStock,
+      )
       .map((x) => ({ ...x }));
   }
   async update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord> {

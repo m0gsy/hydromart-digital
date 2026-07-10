@@ -64,25 +64,31 @@ export class InventoryService {
   ) {}
 
   private toView(item: InventoryItemRecord): ItemView {
+    const sellable = available(item.quantity, item.reserved);
     return {
       ...item,
-      lowStock: isLowStock(item.quantity, item.minimumStock),
-      available: available(item.quantity, item.reserved),
+      // Low stock is judged on SELLABLE stock (available), not physical quantity:
+      // units held by active reservations can't fulfil a new order (FR-074).
+      lowStock: isLowStock(sellable, item.minimumStock),
+      available: sellable,
     };
   }
 
   /**
-   * Fires a low-stock alert only when a movement *crosses* the line into low stock
-   * (edge trigger) — not on every subsequent decrement while already low, so a low
-   * product being sold repeatedly does not spam the ops number.
+   * Fires a low-stock alert only when a change *crosses* the line into low stock
+   * (edge trigger) — not on every subsequent drop while already low, so a low
+   * product does not spam the ops number. Measured on AVAILABLE (sellable) stock,
+   * so a reservation that exhausts sellable stock alerts even while physical
+   * quantity is still on hand; a consume that merely converts a hold into a sale
+   * leaves available unchanged and does not re-alert.
    */
   private async alertIfNewlyLow(
     line: InventoryItemRecord,
-    quantityBefore: number,
-    quantityAfter: number,
+    availableBefore: number,
+    availableAfter: number,
     authorization: string,
   ): Promise<void> {
-    if (!isLowStock(quantityAfter, line.minimumStock) || isLowStock(quantityBefore, line.minimumStock)) {
+    if (!isLowStock(availableAfter, line.minimumStock) || isLowStock(availableBefore, line.minimumStock)) {
       return;
     }
     const depot = await this.depots.findById(line.depotId, false);
@@ -91,7 +97,7 @@ export class InventoryService {
         depotId: line.depotId,
         depotName: depot?.name ?? line.depotId,
         label: line.label,
-        quantity: quantityAfter,
+        quantity: availableAfter,
         minimum: line.minimumStock,
       },
       authorization,
@@ -195,7 +201,13 @@ export class InventoryService {
       reason,
       actorId,
     });
-    await this.alertIfNewlyLow(item, item.quantity, next, authorization);
+    // Reserved is unchanged by an adjustment, so available moves with quantity.
+    await this.alertIfNewlyLow(
+      item,
+      available(item.quantity, item.reserved),
+      available(next, item.reserved),
+      authorization,
+    );
     return this.toView(updated);
   }
 
@@ -218,7 +230,13 @@ export class InventoryService {
       reason,
       actorId,
     });
-    await this.alertIfNewlyLow(item, item.quantity, countedQuantity, authorization);
+    // Opname reconciles physical quantity; reserved is unchanged.
+    await this.alertIfNewlyLow(
+      item,
+      available(item.quantity, item.reserved),
+      available(countedQuantity, item.reserved),
+      authorization,
+    );
     return this.toView(updated);
   }
 
@@ -241,13 +259,14 @@ export class InventoryService {
     // ponytail: actorId kept for signature symmetry with consume/adjust; reservations
     // carry no actor column, so it is currently unused.
     _actorId: string,
+    authorization = '',
   ): Promise<ReserveResult> {
     if (!(await this.depots.findById(depotId, false))) {
       throw new DepotNotFoundError();
     }
     const reserved: string[] = [];
     const skipped: string[] = [];
-    const plans: { itemId: string; productId: string; quantity: number }[] = [];
+    const plans: { itemId: string; productId: string; quantity: number; line: InventoryItemRecord }[] = [];
 
     for (const { productId, quantity } of items) {
       if (quantity <= 0) {
@@ -263,7 +282,7 @@ export class InventoryService {
         reserved.push(productId);
         continue;
       }
-      plans.push({ itemId: line.id, productId, quantity });
+      plans.push({ itemId: line.id, productId, quantity, line });
     }
 
     if (plans.length > 0) {
@@ -283,7 +302,17 @@ export class InventoryService {
           })),
         );
       }
-      for (const p of plans) reserved.push(p.productId);
+      // Reserving drops available, so this is where a line first becomes sellable-low
+      // (physical quantity is untouched). Edge-triggered per line.
+      for (const p of plans) {
+        reserved.push(p.productId);
+        await this.alertIfNewlyLow(
+          p.line,
+          available(p.line.quantity, p.line.reserved),
+          available(p.line.quantity, p.line.reserved + p.quantity),
+          authorization,
+        );
+      }
     }
     return { orderId, depotId, reserved, skipped };
   }
@@ -364,7 +393,18 @@ export class InventoryService {
       });
       // Convert the checkout-time hold into a real deduction (releases reserved units).
       await this.inventory.consumeReservation(line.id, orderId);
-      await this.alertIfNewlyLow(line, line.quantity, next, authorization);
+      // Available is measured after both writes: when a reservation existed the
+      // sale leaves available flat (already low since checkout — no re-alert); an
+      // unreserved sale drops available and can newly cross the threshold.
+      const fresh = await this.inventory.findById(line.id);
+      if (fresh) {
+        await this.alertIfNewlyLow(
+          line,
+          available(line.quantity, line.reserved),
+          available(fresh.quantity, fresh.reserved),
+          authorization,
+        );
+      }
       consumed.push(productId);
     }
     return { orderId, depotId, consumed, skipped };
