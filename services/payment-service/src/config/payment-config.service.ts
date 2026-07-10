@@ -27,6 +27,12 @@ export class PaymentConfigService {
   get webhookSecret(): string {
     return this.config.getOrThrow<string>('PAYMENT_WEBHOOK_SECRET');
   }
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

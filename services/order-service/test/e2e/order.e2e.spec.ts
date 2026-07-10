@@ -25,6 +25,7 @@ import {
 } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'test-internal-service-key-01';
 
 const ADDRESS = {
   recipientName: 'Budi',
@@ -42,6 +43,9 @@ describe('Order HTTP flows (e2e)', () => {
   const productId = randomUUID();
 
   beforeAll(async () => {
+    // Joi validationSchema validates process.env (its default '' would otherwise win over
+    // load()), and InternalAuthGuard reads the key via ConfigService — seed it here.
+    process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     catalog = new FakeProductCatalog();
     catalog.seed({ id: productId, basePrice: 20000 });
 
@@ -65,6 +69,7 @@ describe('Order HTTP flows (e2e)', () => {
               PROMO_SERVICE_URL: 'http://localhost:3010',
               REFERRAL_SERVICE_URL: 'http://localhost:3011',
               CRM_SERVICE_URL: 'http://localhost:3012',
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
               ORDER_DELIVERY_FEE: 5000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
@@ -114,6 +119,7 @@ describe('Order HTTP flows (e2e)', () => {
   });
 
   afterAll(async () => {
+    delete process.env.INTERNAL_SERVICE_KEY;
     await app.close();
   });
 
@@ -185,6 +191,32 @@ describe('Order HTTP flows (e2e)', () => {
       .set(auth(staffToken))
       .send({ status: 'PICKED_UP' })
       .expect(409);
+  });
+
+  it('confirms an order via the internal service-auth route (right key 200, wrong/no key 401)', async () => {
+    await request(server())
+      .post('/api/v1/cart/items')
+      .set(auth(customerToken))
+      .send({ productId, quantity: 1 })
+      .expect(201);
+    const order = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: ADDRESS })
+      .expect(201);
+    const id = order.body.id;
+
+    await request(server()).post(`/api/v1/orders/${id}/internal-confirm`).expect(401);
+    await request(server())
+      .post(`/api/v1/orders/${id}/internal-confirm`)
+      .set('x-internal-key', 'wrong')
+      .expect(401);
+
+    const confirmed = await request(server())
+      .post(`/api/v1/orders/${id}/internal-confirm`)
+      .set('x-internal-key', INTERNAL_KEY)
+      .expect(200);
+    expect(confirmed.body.status).toBe('CONFIRMED');
   });
 
   it('validates the checkout body (400 on missing address fields)', async () => {

@@ -341,6 +341,21 @@ export class OrderService {
     return updated;
   }
 
+  /**
+   * Confirms an order once its payment settles PAID. Called by payment-service over the
+   * internal service-auth path (no end-user token). Advances CREATED→CONFIRMED, which
+   * fires the ORDER_CONFIRMED WhatsApp. Idempotent: an order already past CREATED
+   * (staff-confirmed, in delivery, completed, or cancelled) is left untouched, so a
+   * duplicate webhook or a cash-on-delivery confirm is a safe no-op.
+   */
+  async confirmPaid(orderId: string, changedBy: string): Promise<OrderRecord> {
+    const order = await this.getAny(orderId);
+    if (order.status !== OrderStatus.CREATED) {
+      return order;
+    }
+    return this.updateStatus(orderId, OrderStatus.CONFIRMED, changedBy);
+  }
+
   /** Re-adds an order's still-available lines back into the customer's cart. */
   async repeat(customerId: string, orderId: string): Promise<CartView> {
     const order = await this.getForCustomer(customerId, orderId);

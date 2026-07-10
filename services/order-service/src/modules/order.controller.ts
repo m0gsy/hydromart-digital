@@ -1,8 +1,29 @@
-import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
+import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
 import { OrderRecord, OrderStatusHistoryRecord } from '../application/ports/order.repository';
@@ -144,6 +165,22 @@ export class OrderController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<CartView> {
     return this.orders.repeat(user.sub, id);
+  }
+
+  // Service-to-service: payment-service confirms an order once its payment settles PAID.
+  // No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY. @Public() skips
+  // the global JWT guard; InternalAuthGuard is then the sole (fail-closed) auth.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post(':id/internal-confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm an order after its payment settled (internal service auth)' })
+  async internalConfirm(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ orderId: string; status: OrderStatus }> {
+    const order = await this.orders.confirmPaid(id, 'payment-service');
+    return { orderId: order.id, status: order.status };
   }
 
   @Patch(':id/status')

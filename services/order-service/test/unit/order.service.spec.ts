@@ -125,6 +125,27 @@ describe('OrderService', () => {
     expect(received?.vars.orderNumber).toBe(order.orderNumber);
   });
 
+  it('confirms a CREATED order when its payment settles, firing ORDER_CONFIRMED', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    notification.calls.length = 0;
+
+    const confirmed = await service.confirmPaid(order.id, 'payment-service');
+    expect(confirmed.status).toBe(OrderStatus.CONFIRMED);
+    expect(notification.calls.map((c) => c.event)).toEqual(['ORDER_CONFIRMED']);
+  });
+
+  it('is a no-op when confirming a payment for an order already past CREATED (idempotent)', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    await service.confirmPaid(order.id, 'payment-service'); // CREATED→CONFIRMED
+    notification.calls.length = 0;
+
+    const again = await service.confirmPaid(order.id, 'payment-service');
+    expect(again.status).toBe(OrderStatus.CONFIRMED);
+    expect(notification.calls).toHaveLength(0);
+  });
+
   it('rejects checkout with an empty cart', async () => {
     await expect(service.checkout(customer, { deliveryAddress: address })).rejects.toBeInstanceOf(
       EmptyCartError,

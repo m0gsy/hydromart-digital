@@ -11,6 +11,7 @@ import {
 import { PaymentMethod, PaymentStatus } from '../../src/domain/payment';
 import {
   FakeGateway,
+  FakeOrderCoordination,
   InMemoryPaymentRepository,
   WEBHOOK_SECRET,
   buildTestConfig,
@@ -19,13 +20,15 @@ import {
 describe('PaymentService', () => {
   let repo: InMemoryPaymentRepository;
   let gateway: FakeGateway;
+  let orders: FakeOrderCoordination;
   let service: PaymentService;
   const customer = randomUUID();
 
   beforeEach(() => {
     repo = new InMemoryPaymentRepository();
     gateway = new FakeGateway();
-    service = new PaymentService(repo, gateway, buildTestConfig());
+    orders = new FakeOrderCoordination();
+    service = new PaymentService(repo, gateway, orders, buildTestConfig());
   });
 
   const initiate = (method: PaymentMethod, amount = 45000, orderId = randomUUID()) =>
@@ -65,6 +68,8 @@ describe('PaymentService', () => {
     const confirmed = await service.confirm(payment.id, 'staff');
     expect(confirmed.status).toBe(PaymentStatus.PAID);
     expect(confirmed.paidAt).not.toBeNull();
+    // A settled payment confirms its order (CREATED→CONFIRMED).
+    expect(orders.confirmedOrderIds).toEqual([confirmed.orderId]);
   });
 
   it('refunds a paid online payment via the gateway (BR: online-paid cancel needs refund)', async () => {
@@ -99,6 +104,20 @@ describe('PaymentService', () => {
     const result = await service.handleWebhook({ reference, event: 'PAID', signature });
     expect(result.handled).toBe(true);
     expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+    // The PAID webhook confirms the order too.
+    expect(orders.confirmedOrderIds).toEqual([payment.orderId]);
+  });
+
+  it('does not confirm the order when a webhook settles FAILED', async () => {
+    const payment = await initiate(PaymentMethod.QRIS);
+    const reference = payment.reference!;
+    const signature = createHmac('sha256', WEBHOOK_SECRET)
+      .update(`${reference}.FAILED`)
+      .digest('hex');
+    const result = await service.handleWebhook({ reference, event: 'FAILED', signature });
+    expect(result.handled).toBe(true);
+    expect(repo.rows[0].status).toBe(PaymentStatus.FAILED);
+    expect(orders.confirmedOrderIds).toEqual([]);
   });
 
   it('rejects a webhook with a bad signature', async () => {

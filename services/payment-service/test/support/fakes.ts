@@ -17,6 +17,7 @@ import {
   PaymentGatewayPort,
   RefundResult,
 } from '../../src/application/ports/payment-gateway.port';
+import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -95,6 +96,13 @@ export class FakeGateway implements PaymentGatewayPort {
       throw new Error('refund gateway down');
     }
     return { reference: `RFN-${reference}`, raw: JSON.stringify({ refunded: amount }) };
+  }
+}
+
+export class FakeOrderCoordination implements OrderCoordinationPort {
+  confirmedOrderIds: string[] = [];
+  async confirmPaid(orderId: string): Promise<void> {
+    this.confirmedOrderIds.push(orderId);
   }
 }
 

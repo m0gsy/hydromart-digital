@@ -36,6 +36,9 @@ export class OrderConfigService {
   get crmServiceUrl(): string {
     return this.config.getOrThrow<string>('CRM_SERVICE_URL').replace(/\/+$/, '');
   }
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
   get deliveryFee(): number {
     return this.num('ORDER_DELIVERY_FEE');
   }

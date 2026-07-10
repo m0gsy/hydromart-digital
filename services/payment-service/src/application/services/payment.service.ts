@@ -26,6 +26,7 @@ import {
   PaymentStatusPatch,
 } from '../ports/payment.repository';
 import { PaymentGatewayPort } from '../ports/payment-gateway.port';
+import { OrderCoordinationPort } from '../ports/order-coordination.port';
 import { PAYMENT_TOKENS } from '../tokens';
 
 export interface InitiatePaymentInput {
@@ -62,6 +63,8 @@ export class PaymentService {
   constructor(
     @Inject(PAYMENT_TOKENS.PaymentRepository) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_TOKENS.PaymentGateway) private readonly gateway: PaymentGatewayPort,
+    @Inject(PAYMENT_TOKENS.OrderCoordination)
+    private readonly orderCoordination: OrderCoordinationPort,
     private readonly config: PaymentConfigService,
   ) {}
 
@@ -149,7 +152,13 @@ export class PaymentService {
     const payment = await this.getAny(id);
     this.assertTransition(payment.status, PaymentStatus.PAID);
     this.logger.log(`Payment ${id} confirmed PAID by ${changedBy}`);
-    return this.payments.update(id, { status: PaymentStatus.PAID, paidAt: new Date() });
+    const updated = await this.payments.update(id, {
+      status: PaymentStatus.PAID,
+      paidAt: new Date(),
+    });
+    // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
+    await this.orderCoordination.confirmPaid(updated.orderId);
+    return updated;
   }
 
   async fail(id: string, changedBy: string): Promise<PaymentRecord> {
@@ -199,6 +208,8 @@ export class PaymentService {
     }
     if (payload.event === 'PAID') {
       await this.payments.update(payment.id, { status: PaymentStatus.PAID, paidAt: new Date() });
+      // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
+      await this.orderCoordination.confirmPaid(payment.orderId);
     } else {
       await this.payments.update(payment.id, {
         status: PaymentStatus.FAILED,

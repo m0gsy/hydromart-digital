@@ -10,6 +10,7 @@ import { PaymentService } from '../application/services/payment.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { PaymentPrismaRepository } from '../infrastructure/prisma/payment.prisma.repository';
 import { PaymentGatewayHttpAdapter } from '../infrastructure/http/payment-gateway.http.adapter';
+import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
 import { PaymentController } from './payment.controller';
 
 const providers: Provider[] = [
@@ -18,6 +19,7 @@ const providers: Provider[] = [
   PaymentService,
   { provide: PAYMENT_TOKENS.PaymentRepository, useClass: PaymentPrismaRepository },
   { provide: PAYMENT_TOKENS.PaymentGateway, useClass: PaymentGatewayHttpAdapter },
+  { provide: PAYMENT_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
