@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { ChartLineUp, ClipboardText, Lock, Package, Truck } from '@phosphor-icons/react';
+import { ChartLineUp, ChatCircleText, ClipboardText, Lock, Package, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canViewDashboard } from '@/lib/roles';
+import { canViewCampaigns, canViewDashboard } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ExecutiveDashboard } from '@/lib/types';
 
@@ -34,6 +34,7 @@ function shortId(id: string): string {
 }
 
 function DashboardBody() {
+  const { customer } = useAuth();
   const range = defaultRange();
   const { data, error, loading, reload } = useAsync<ExecutiveDashboard>(() =>
     api.get(endpoints.dashboard.executive(range), true),
@@ -71,6 +72,15 @@ function DashboardBody() {
             <Package size={18} weight="fill" />
             Inventory
           </Link>
+          {canViewCampaigns(customer?.role) && (
+            <Link
+              href="/dashboard/campaigns"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
+            >
+              <ChatCircleText size={18} weight="fill" />
+              Campaigns
+            </Link>
+          )}
         </div>
       </div>
 

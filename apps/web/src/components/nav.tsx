@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ChartLineUp, Drop, Gift, ShoppingCart, User } from '@phosphor-icons/react';
+import { ChartLineUp, ChatCircleText, Drop, Gift, ShoppingCart, User } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canViewDashboard, isStaff } from '@/lib/roles';
+import { canViewCampaigns, canViewDashboard, isStaff } from '@/lib/roles';
 import type { Cart } from '@/lib/types';
 
 export function Nav() {
@@ -76,6 +76,16 @@ export function Nav() {
                     <span className="hidden sm:inline">Queue</span>
                   </Link>
                 )
+              )}
+              {canViewCampaigns(customer.role) && (
+                <Link
+                  href="/dashboard/campaigns"
+                  aria-label="Campaigns"
+                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+                >
+                  <ChatCircleText size={20} />
+                  <span className="hidden sm:inline">Campaigns</span>
+                </Link>
               )}
               <Link
                 href="/rewards"

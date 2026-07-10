@@ -91,6 +91,18 @@ export const endpoints = {
     // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
   },
+  crm: {
+    // Broadcast campaigns (marketing/head-office). List is paginated → { items, ... }.
+    campaigns: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/crm/api/v1/campaigns${qs ? `?${qs}` : ''}`;
+    },
+    createCampaign: '/crm/api/v1/campaigns',
+    sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,
+  },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

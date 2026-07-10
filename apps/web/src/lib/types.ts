@@ -188,6 +188,38 @@ export interface ReferralSummary {
   totalPages: number;
 }
 
+/* ---------- CRM broadcast campaigns (staff-facing) ---------- */
+
+export type CampaignStatus = 'DRAFT' | 'SENDING' | 'SENT';
+
+// Recipient as sent to POST /campaigns; name feeds the {{name}} template token.
+export interface RecipientInput {
+  phone: string;
+  name?: string;
+  customerId?: string;
+}
+
+// Attribute segment (FR-087): tier and/or primary-address city. Resolved to
+// recipients server-side from customer-service.
+export interface CampaignSegment {
+  tier?: string;
+  city?: string;
+}
+
+// List-item shape (no message body / recipients — those come from the detail GET).
+export interface Campaign {
+  id: string;
+  name: string;
+  channel: string;
+  status: CampaignStatus;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  createdBy: string;
+  createdAt: string;
+  sentAt: string | null;
+}
+
 /* ---------- Operational dashboard (MVP #6, staff-facing) ---------- */
 
 export interface SalesReport {

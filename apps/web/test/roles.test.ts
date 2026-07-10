@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { canViewDashboard, canViewInventory, canWriteInventory, isStaff } from '@/lib/roles';
+import {
+  canManageCampaigns,
+  canViewCampaigns,
+  canViewDashboard,
+  canViewInventory,
+  canWriteInventory,
+  isStaff,
+} from '@/lib/roles';
 
 describe('canViewDashboard', () => {
   it('allows head-office and depot managers', () => {
@@ -53,5 +60,25 @@ describe('inventory roles', () => {
     expect(canWriteInventory('DRIVER')).toBe(false);
     expect(canWriteInventory('CUSTOMER')).toBe(false);
     expect(canWriteInventory(undefined)).toBe(false);
+  });
+});
+
+describe('campaign roles', () => {
+  it('READ allows marketing, head-office, super-admin; not operators/customers', () => {
+    expect(canViewCampaigns('MARKETING')).toBe(true);
+    expect(canViewCampaigns('HEAD_OFFICE')).toBe(true);
+    expect(canViewCampaigns('SUPER_ADMIN')).toBe(true);
+    expect(canViewCampaigns('DEPOT_OPERATOR')).toBe(false);
+    expect(canViewCampaigns('CUSTOMER')).toBe(false);
+    expect(canViewCampaigns(null)).toBe(false);
+  });
+
+  it('WRITE is marketing + super-admin; head-office is read-only', () => {
+    expect(canManageCampaigns('MARKETING')).toBe(true);
+    expect(canManageCampaigns('SUPER_ADMIN')).toBe(true);
+    expect(canManageCampaigns('HEAD_OFFICE')).toBe(false);
+    expect(canManageCampaigns('DEPOT_MANAGER')).toBe(false);
+    expect(canManageCampaigns('CUSTOMER')).toBe(false);
+    expect(canManageCampaigns(undefined)).toBe(false);
   });
 });

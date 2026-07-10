@@ -30,3 +30,18 @@ export function canViewInventory(role: string | null | undefined): boolean {
 export function canWriteInventory(role: string | null | undefined): boolean {
   return role != null && INVENTORY_WRITE.has(role);
 }
+
+// Campaign roles mirror crm-service: READ (view) adds HEAD_OFFICE for oversight;
+// WRITE (create/send) is marketing + super-admin. Security stays server-side.
+const CAMPAIGN_READ = new Set(['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+const CAMPAIGN_WRITE = new Set(['MARKETING', 'SUPER_ADMIN']);
+
+/** Whether a role may view broadcast campaigns. */
+export function canViewCampaigns(role: string | null | undefined): boolean {
+  return role != null && CAMPAIGN_READ.has(role);
+}
+
+/** Whether a role may create or send a broadcast campaign. */
+export function canManageCampaigns(role: string | null | undefined): boolean {
+  return role != null && CAMPAIGN_WRITE.has(role);
+}
