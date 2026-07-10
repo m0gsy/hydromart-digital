@@ -15,6 +15,9 @@ export const endpoints = {
     // Saved delivery addresses (customer-service, via the `customers` gateway segment).
     list: '/customers/api/v1/addresses',
     create: '/customers/api/v1/addresses',
+    // PATCH to edit, DELETE to remove.
+    detail: (id: string) => `/customers/api/v1/addresses/${id}`,
+    primary: (id: string) => `/customers/api/v1/addresses/${id}/primary`,
   },
   products: {
     browse: (q: { page?: number; limit?: number; search?: string }) => {
