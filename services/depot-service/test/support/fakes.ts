@@ -20,6 +20,7 @@ import {
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
+import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -132,6 +133,14 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .filter((m) => m.itemId === itemId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((m) => ({ ...m }));
+  }
+}
+
+export class FakeLowStockAlert implements LowStockAlertPort {
+  emitted: { alert: LowStockAlert; authorization: string }[] = [];
+
+  async emit(alert: LowStockAlert, authorization: string): Promise<void> {
+    this.emitted.push({ alert, authorization });
   }
 }
 

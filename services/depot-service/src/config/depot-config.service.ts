@@ -28,4 +28,11 @@ export class DepotConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  // Low-stock alerting (optional). Both blank in dev = feature off (no alert emitted).
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '');
+  }
+  get alertPhone(): string {
+    return this.config.get<string>('DEPOT_ALERT_PHONE', '');
+  }
 }

@@ -20,6 +20,7 @@ import {
   StockMovementRecord,
 } from '../ports/inventory.repository';
 import { DepotRepository } from '../ports/depot.repository';
+import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface CreateLineInput {
@@ -45,10 +46,38 @@ export class InventoryService {
   constructor(
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    @Inject(DEPOT_TOKENS.LowStockAlert) private readonly lowStockAlert: LowStockAlertPort,
   ) {}
 
   private toView(item: InventoryItemRecord): ItemView {
     return { ...item, lowStock: isLowStock(item.quantity, item.minimumStock) };
+  }
+
+  /**
+   * Fires a low-stock alert only when a movement *crosses* the line into low stock
+   * (edge trigger) — not on every subsequent decrement while already low, so a low
+   * product being sold repeatedly does not spam the ops number.
+   */
+  private async alertIfNewlyLow(
+    line: InventoryItemRecord,
+    quantityBefore: number,
+    quantityAfter: number,
+    authorization: string,
+  ): Promise<void> {
+    if (!isLowStock(quantityAfter, line.minimumStock) || isLowStock(quantityBefore, line.minimumStock)) {
+      return;
+    }
+    const depot = await this.depots.findById(line.depotId, false);
+    await this.lowStockAlert.emit(
+      {
+        depotId: line.depotId,
+        depotName: depot?.name ?? line.depotId,
+        label: line.label,
+        quantity: quantityAfter,
+        minimum: line.minimumStock,
+      },
+      authorization,
+    );
   }
 
   async createLine(depotId: string, input: CreateLineInput, actorId: string): Promise<ItemView> {
@@ -122,6 +151,7 @@ export class InventoryService {
     delta: number,
     reason: string | null,
     actorId: string,
+    authorization = '',
   ): Promise<ItemView> {
     const item = await this.require(itemId);
     const next = item.quantity + delta;
@@ -137,6 +167,7 @@ export class InventoryService {
       reason,
       actorId,
     });
+    await this.alertIfNewlyLow(item, item.quantity, next, authorization);
     return this.toView(updated);
   }
 
@@ -146,6 +177,7 @@ export class InventoryService {
     countedQuantity: number,
     reason: string | null,
     actorId: string,
+    authorization = '',
   ): Promise<ItemView> {
     const item = await this.require(itemId);
     const variance = countedQuantity - item.quantity;
@@ -158,6 +190,7 @@ export class InventoryService {
       reason,
       actorId,
     });
+    await this.alertIfNewlyLow(item, item.quantity, countedQuantity, authorization);
     return this.toView(updated);
   }
 
@@ -179,6 +212,7 @@ export class InventoryService {
     orderId: string,
     items: { productId: string; quantity: number }[],
     actorId: string,
+    authorization = '',
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
     if (!(await this.depots.findById(depotId, false))) {
       throw new DepotNotFoundError();
@@ -210,6 +244,7 @@ export class InventoryService {
         actorId,
         orderId,
       });
+      await this.alertIfNewlyLow(line, line.quantity, next, authorization);
       consumed.push(productId);
     }
     return { orderId, depotId, consumed, skipped };

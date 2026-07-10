@@ -8,21 +8,28 @@ import {
   NegativeStockError,
   ProductLineRequiresProductError,
 } from '../../src/domain/errors';
-import { InMemoryDepotRepository, InMemoryInventoryRepository } from '../support/fakes';
+import {
+  FakeLowStockAlert,
+  InMemoryDepotRepository,
+  InMemoryInventoryRepository,
+} from '../support/fakes';
 
 const ACTOR = 'staff-1';
+const TOKEN = 'Bearer staff-token';
 const PRODUCT_ID = '11111111-1111-1111-1111-111111111111';
 
 describe('InventoryService', () => {
   let depotRepo: InMemoryDepotRepository;
   let invRepo: InMemoryInventoryRepository;
+  let alerts: FakeLowStockAlert;
   let inventory: InventoryService;
   let depotId: string;
 
   beforeEach(async () => {
     depotRepo = new InMemoryDepotRepository();
     invRepo = new InMemoryInventoryRepository();
-    inventory = new InventoryService(invRepo, depotRepo);
+    alerts = new FakeLowStockAlert();
+    inventory = new InventoryService(invRepo, depotRepo, alerts);
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
       name: 'Depot Cikini',
@@ -189,5 +196,42 @@ describe('InventoryService', () => {
         ACTOR,
       ),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  it('emits a low-stock alert once when a movement crosses below minimum', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR); // 100, min 20
+    await inventory.adjust(item.id, -85, 'sales', ACTOR, TOKEN); // -> 15, crosses low
+    expect(alerts.emitted).toHaveLength(1);
+    expect(alerts.emitted[0].authorization).toBe(TOKEN);
+    expect(alerts.emitted[0].alert).toMatchObject({
+      depotName: 'Depot Cikini',
+      label: 'Galon 19L',
+      quantity: 15,
+      minimum: 20,
+    });
+  });
+
+  it('does not re-alert on further decrements while already low (edge trigger)', async () => {
+    const item = await inventory.createLine(depotId, raw(), ACTOR);
+    await inventory.adjust(item.id, -85, null, ACTOR, TOKEN); // 100 -> 15 (alert)
+    await inventory.adjust(item.id, -5, null, ACTOR, TOKEN); // 15 -> 10 (still low, no alert)
+    expect(alerts.emitted).toHaveLength(1);
+  });
+
+  it('does not alert when minimum is 0 (alerting disabled for the line)', async () => {
+    await produkLine(PRODUCT_ID, 2); // minimumStock 0
+    await inventory.consumeForOrder(depotId, 'order-low', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR, TOKEN);
+    expect(alerts.emitted).toHaveLength(0);
+  });
+
+  it('alerts when a SALE crosses a PRODUK line below minimum', async () => {
+    await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 12, minimumStock: 10 },
+      ACTOR,
+    );
+    await inventory.consumeForOrder(depotId, 'order-x', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR, TOKEN); // 12 -> 7
+    expect(alerts.emitted).toHaveLength(1);
+    expect(alerts.emitted[0].alert.quantity).toBe(7);
   });
 });

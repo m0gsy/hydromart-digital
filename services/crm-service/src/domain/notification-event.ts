@@ -10,9 +10,13 @@ export enum NotificationEvent {
   ORDER_DELIVERED = 'ORDER_DELIVERED',
   ORDER_COMPLETED = 'ORDER_COMPLETED',
   ORDER_CANCELLED = 'ORDER_CANCELLED',
+  // Operational (not customer-facing): fired by depot-service when a stock line crosses
+  // below its minimum. Recipient is an ops/warehouse number, not the customer.
+  STOCK_LOW = 'STOCK_LOW',
 }
 
-// WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}}.
+// WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
+// order events; {{depot}}, {{item}}, {{quantity}}, {{minimum}} for STOCK_LOW.
 export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
   [NotificationEvent.ORDER_CONFIRMED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami konfirmasi dan sedang kami siapkan. Terima kasih sudah memesan di Hydromart 💧',
@@ -24,6 +28,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Terima kasih, {{name}}! Pesanan {{orderNumber}} selesai. Poin loyalti kamu sudah ditambahkan — cek saldo poin di aplikasi.',
   [NotificationEvent.ORDER_CANCELLED]:
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
+  [NotificationEvent.STOCK_LOW]:
+    '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
 };
 
 export function templateFor(event: NotificationEvent): string {

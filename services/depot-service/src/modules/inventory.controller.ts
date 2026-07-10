@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -88,8 +89,9 @@ export class DepotInventoryController {
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization: string,
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
-    return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, user.sub);
+    return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, user.sub, authorization);
   }
 }
 
@@ -132,8 +134,9 @@ export class InventoryController {
     @Param('itemId', ParseUUIDPipe) itemId: string,
     @Body() dto: AdjustStockDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization: string,
   ): Promise<ItemView> {
-    return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub);
+    return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub, authorization);
   }
 
   @Roles(...INVENTORY_WRITE_ROLES)
@@ -143,8 +146,9 @@ export class InventoryController {
     @Param('itemId', ParseUUIDPipe) itemId: string,
     @Body() dto: OpnameStockDto,
     @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization: string,
   ): Promise<ItemView> {
-    return this.inventory.opname(itemId, dto.countedQuantity, dto.reason ?? null, user.sub);
+    return this.inventory.opname(itemId, dto.countedQuantity, dto.reason ?? null, user.sub, authorization);
   }
 
   @Roles(...INVENTORY_READ_ROLES)
