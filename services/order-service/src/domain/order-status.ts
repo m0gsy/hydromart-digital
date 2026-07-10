@@ -42,6 +42,29 @@ export function isCancellable(status: OrderStatus): boolean {
   return canTransition(status, OrderStatus.CANCELLED);
 }
 
+/**
+ * Maps a status the order just entered to the customer notification event to fire
+ * (FR-093/FR-094), or null when that transition warrants no message. The string
+ * values are a contract with crm-service's NotificationEvent enum. Intermediate
+ * states (PREPARING, DRIVER_ASSIGNED, PICKED_UP) and CREATED are intentionally silent.
+ */
+export function notificationEventFor(status: OrderStatus): string | null {
+  switch (status) {
+    case OrderStatus.CONFIRMED:
+      return 'ORDER_CONFIRMED';
+    case OrderStatus.ON_DELIVERY:
+      return 'ORDER_ON_DELIVERY';
+    case OrderStatus.DELIVERED:
+      return 'ORDER_DELIVERED';
+    case OrderStatus.COMPLETED:
+      return 'ORDER_COMPLETED';
+    case OrderStatus.CANCELLED:
+      return 'ORDER_CANCELLED';
+    default:
+      return null;
+  }
+}
+
 /** BR-005: an order is no longer editable once it has been picked up. */
 export function isEditable(status: OrderStatus): boolean {
   return (

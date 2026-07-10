@@ -17,6 +17,7 @@ import {
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
   FakeMembership,
+  FakeNotification,
   FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -63,6 +64,7 @@ describe('Order HTTP flows (e2e)', () => {
               LOYALTY_SERVICE_URL: 'http://localhost:3009',
               PROMO_SERVICE_URL: 'http://localhost:3010',
               REFERRAL_SERVICE_URL: 'http://localhost:3011',
+              CRM_SERVICE_URL: 'http://localhost:3012',
               ORDER_DELIVERY_FEE: 5000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
@@ -89,6 +91,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeReferralCoordination())
       .overrideProvider(ORDER_TOKENS.Membership)
       .useValue(new FakeMembership())
+      .overrideProvider(ORDER_TOKENS.Notification)
+      .useValue(new FakeNotification())
       .overrideProvider(ORDER_TOKENS.Promo)
       .useValue(new FakePromo())
       .compile();

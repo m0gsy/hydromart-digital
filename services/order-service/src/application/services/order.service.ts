@@ -10,7 +10,12 @@ import {
   OrderNotFoundError,
   ProductUnavailableError,
 } from '../../domain/errors';
-import { OrderStatus, canTransition, isCancellable } from '../../domain/order-status';
+import {
+  OrderStatus,
+  canTransition,
+  isCancellable,
+  notificationEventFor,
+} from '../../domain/order-status';
 import { selectNearestDepot } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
@@ -27,6 +32,7 @@ import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
+import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
@@ -62,6 +68,7 @@ export class OrderService {
     @Inject(ORDER_TOKENS.ReferralCoordination)
     private readonly referral: ReferralCoordinationPort,
     @Inject(ORDER_TOKENS.Membership) private readonly membership: MembershipPort,
+    @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
@@ -203,6 +210,19 @@ export class OrderService {
       );
       // FR-092: qualify a pending referral for this customer (rewards both parties).
       await this.referral.qualify(updated.customerId, updated.id, authorization);
+    }
+    // FR-093/FR-094: notify the customer over WhatsApp on notable lifecycle changes.
+    // Delivery progress reaches here too — delivery-service advances the order status
+    // over HTTP, so ON_DELIVERY/DELIVERED notifications flow through this one point.
+    const event = notificationEventFor(to);
+    if (event) {
+      await this.notification.notify(
+        event,
+        updated.phone,
+        { name: updated.recipientName, orderNumber: updated.orderNumber },
+        updated.customerId,
+        authorization,
+      );
     }
     return updated;
   }

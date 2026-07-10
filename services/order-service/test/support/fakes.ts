@@ -26,6 +26,7 @@ import {
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
+import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { VoucherRejectedError } from '../../src/domain/errors';
 
@@ -215,6 +216,25 @@ export class FakeMembership implements MembershipPort {
   }
 }
 
+export class FakeNotification implements NotificationPort {
+  calls: {
+    event: string;
+    phone: string;
+    vars: Record<string, string>;
+    customerId: string;
+    authorization: string;
+  }[] = [];
+  async notify(
+    event: string,
+    phone: string,
+    vars: Record<string, string>,
+    customerId: string,
+    authorization: string,
+  ): Promise<void> {
+    this.calls.push({ event, phone, vars, customerId, authorization });
+  }
+}
+
 export class FakePromo implements PromoPort {
   quoteDiscount = 0;
   rejectQuote = false;
@@ -275,6 +295,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     LOYALTY_SERVICE_URL: 'http://localhost:3009',
     PROMO_SERVICE_URL: 'http://localhost:3010',
     REFERRAL_SERVICE_URL: 'http://localhost:3011',
+    CRM_SERVICE_URL: 'http://localhost:3012',
     ORDER_DELIVERY_FEE: '5000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',

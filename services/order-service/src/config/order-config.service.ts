@@ -33,6 +33,9 @@ export class OrderConfigService {
   get referralServiceUrl(): string {
     return this.config.getOrThrow<string>('REFERRAL_SERVICE_URL').replace(/\/+$/, '');
   }
+  get crmServiceUrl(): string {
+    return this.config.getOrThrow<string>('CRM_SERVICE_URL').replace(/\/+$/, '');
+  }
   get deliveryFee(): number {
     return this.num('ORDER_DELIVERY_FEE');
   }

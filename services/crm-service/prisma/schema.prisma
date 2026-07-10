@@ -39,6 +39,12 @@ enum RecipientStatus {
   FAILED
 }
 
+/// Delivery outcome of a single transactional notification.
+enum NotificationStatus {
+  SENT
+  FAILED
+}
+
 /// A broadcast campaign to an explicit staff-supplied recipient list (FR-088/FR-094).
 model Campaign {
   id              String              @id @default(uuid())
@@ -77,4 +83,20 @@ model CampaignRecipient {
   @@unique([campaignId, phone])
   @@index([campaignId, status])
   @@map("campaign_recipients")
+}
+
+/// An event-triggered transactional WhatsApp notification (FR-093/FR-094). Append-only
+/// audit trail of automated messages fired by upstream services on lifecycle events.
+model Notification {
+  id         String             @id @default(uuid())
+  event      String
+  customerId String?
+  phone      String
+  message    String
+  status     NotificationStatus @default(SENT)
+  error      String?
+  createdAt  DateTime           @default(now())
+
+  @@index([customerId, createdAt])
+  @@map("notifications")
 }

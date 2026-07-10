@@ -12,7 +12,11 @@ import { CampaignModule } from '../../src/modules/campaign.module';
 import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
-import { FakeWhatsappBroadcast, InMemoryCampaignRepository } from '../support/fakes';
+import {
+  FakeWhatsappBroadcast,
+  InMemoryCampaignRepository,
+  InMemoryNotificationRepository,
+} from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 
@@ -20,6 +24,7 @@ describe('Campaign HTTP flows (e2e)', () => {
   let app: INestApplication;
   let marketingToken: string;
   let customerToken: string;
+  let driverToken: string;
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -51,6 +56,8 @@ describe('Campaign HTTP flows (e2e)', () => {
       .useValue(prismaStub)
       .overrideProvider(CRM_TOKENS.CampaignRepository)
       .useValue(new InMemoryCampaignRepository())
+      .overrideProvider(CRM_TOKENS.NotificationRepository)
+      .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CRM_TOKENS.WhatsappBroadcast)
       .useValue(new FakeWhatsappBroadcast())
       .compile();
@@ -66,6 +73,7 @@ describe('Campaign HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -120,5 +128,39 @@ describe('Campaign HTTP flows (e2e)', () => {
       .set(auth(marketingToken))
       .expect(200);
     expect(res.body.total).toBeGreaterThanOrEqual(1);
+  });
+
+  const notifyBody = () => ({
+    event: 'ORDER_CONFIRMED',
+    phone: '+6281234567890',
+    customerId: randomUUID(),
+    vars: { name: 'Budi', orderNumber: 'HM-20260710-000123' },
+  });
+
+  it('rejects a CUSTOMER triggering a notification with 403', async () => {
+    await request(server())
+      .post('/api/v1/notifications')
+      .set(auth(customerToken))
+      .send(notifyBody())
+      .expect(403);
+  });
+
+  it('lets a fulfilment role (DRIVER) trigger a rendered WhatsApp notification (200)', async () => {
+    const res = await request(server())
+      .post('/api/v1/notifications')
+      .set(auth(driverToken))
+      .send(notifyBody())
+      .expect(200);
+    expect(res.body).toMatchObject({ event: 'ORDER_CONFIRMED', status: 'SENT' });
+    expect(res.body.message).toContain('Budi');
+    expect(res.body.message).toContain('HM-20260710-000123');
+  });
+
+  it('rejects an unknown event (validation 400)', async () => {
+    await request(server())
+      .post('/api/v1/notifications')
+      .set(auth(driverToken))
+      .send({ ...notifyBody(), event: 'NOT_A_REAL_EVENT' })
+      .expect(400);
   });
 });

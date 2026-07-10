@@ -18,6 +18,7 @@ import {
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
   FakeMembership,
+  FakeNotification,
   FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
@@ -45,6 +46,7 @@ describe('OrderService', () => {
   let loyalty: FakeLoyaltyCoordination;
   let referral: FakeReferralCoordination;
   let membership: FakeMembership;
+  let notification: FakeNotification;
   let promo: FakePromo;
   let cartService: CartService;
   let service: OrderService;
@@ -58,6 +60,7 @@ describe('OrderService', () => {
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
     membership = new FakeMembership();
+    notification = new FakeNotification();
     promo = new FakePromo();
     cartService = new CartService(cart, catalog);
     service = new OrderService(
@@ -68,6 +71,7 @@ describe('OrderService', () => {
       loyalty,
       referral,
       membership,
+      notification,
       promo,
       cartService,
       buildTestConfig(),
@@ -241,6 +245,20 @@ describe('OrderService', () => {
       orderId: order.id,
       authorization: 'Bearer tok',
     });
+    // FR-093/094: notable transitions notify the customer (CONFIRMED, ON_DELIVERY,
+    // DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/PICKED_UP are silent.
+    expect(notification.calls.map((c) => c.event)).toEqual([
+      'ORDER_CONFIRMED',
+      'ORDER_ON_DELIVERY',
+      'ORDER_DELIVERED',
+      'ORDER_COMPLETED',
+    ]);
+    expect(notification.calls[0]).toMatchObject({
+      phone: order.phone,
+      customerId: customer,
+      authorization: 'Bearer tok',
+    });
+    expect(notification.calls[0].vars).toMatchObject({ orderNumber: order.orderNumber });
   });
 
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {

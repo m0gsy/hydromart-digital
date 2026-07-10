@@ -10,6 +10,11 @@ import {
   CreateCampaignData,
 } from '../../src/application/ports/campaign.repository';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
+import {
+  NotificationRecord,
+  NotificationRepository,
+  RecordNotificationData,
+} from '../../src/application/ports/notification.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -114,6 +119,16 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     c.sentAt = sentAt;
     c.updatedAt = nextDate();
     return this.clone(c);
+  }
+}
+
+export class InMemoryNotificationRepository implements NotificationRepository {
+  records: NotificationRecord[] = [];
+
+  async record(data: RecordNotificationData): Promise<NotificationRecord> {
+    const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
+    this.records.push(rec);
+    return { ...rec };
   }
 }
 
