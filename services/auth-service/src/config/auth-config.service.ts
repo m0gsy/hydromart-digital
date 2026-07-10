@@ -93,6 +93,15 @@ export class AuthConfigService {
     };
   }
 
+  // crm-service base URL + shared internal-service key for the registration welcome.
+  // Both blank in dev = welcome notification disabled (adapter no-ops, fail-open).
+  get customerNotifications(): { crmUrl: string; internalKey: string } {
+    return {
+      crmUrl: this.config.get<string>('CRM_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

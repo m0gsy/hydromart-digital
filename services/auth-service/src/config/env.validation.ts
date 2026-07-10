@@ -26,6 +26,10 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_API_TOKEN: Joi.string().allow('').optional(),
   WHATSAPP_OTP_TEMPLATE: Joi.string().allow('').default('hydromart_otp'),
 
+  // Registration welcome via crm-service (internal service auth). Both blank = disabled.
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
+
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),
   SMS_API_TOKEN: Joi.string().allow('').optional(),
   SMS_SENDER_ID: Joi.string().allow('').default('HYDROMART'),

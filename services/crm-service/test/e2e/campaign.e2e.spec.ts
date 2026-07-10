@@ -29,6 +29,9 @@ describe('Campaign HTTP flows (e2e)', () => {
   const directory = new FakeCustomerDirectory();
 
   beforeAll(async () => {
+    // Joi validationSchema validates process.env (not load()), and INTERNAL_SERVICE_KEY
+    // defaults to '' — so seed it here or the internal guard reads a blank key.
+    process.env.INTERNAL_SERVICE_KEY = 'test-internal-key';
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -48,6 +51,7 @@ describe('Campaign HTTP flows (e2e)', () => {
               RATE_LIMIT_MAX: 100,
               WHATSAPP_API_URL: '',
               WHATSAPP_API_TOKEN: '',
+              INTERNAL_SERVICE_KEY: 'test-internal-key',
             }),
           ],
         }),
@@ -180,5 +184,35 @@ describe('Campaign HTTP flows (e2e)', () => {
       .set(auth(driverToken))
       .send({ ...notifyBody(), event: 'NOT_A_REAL_EVENT' })
       .expect(400);
+  });
+
+  it('accepts a system-triggered welcome via the internal route with the right key (200)', async () => {
+    const res = await request(server())
+      .post('/api/v1/notifications/internal')
+      .set('x-internal-key', 'test-internal-key')
+      .send({ event: 'CUSTOMER_REGISTERED', phone: '+6281234567890', vars: { name: 'Sinta' } })
+      .expect(200);
+    expect(res.body).toMatchObject({ event: 'CUSTOMER_REGISTERED', status: 'SENT' });
+    expect(res.body.message).toContain('Sinta');
+  });
+
+  it('rejects the internal route without a key (401) and with a wrong key (401)', async () => {
+    await request(server())
+      .post('/api/v1/notifications/internal')
+      .send({ event: 'CUSTOMER_REGISTERED', phone: '+6281234567890', vars: { name: 'X' } })
+      .expect(401);
+    await request(server())
+      .post('/api/v1/notifications/internal')
+      .set('x-internal-key', 'wrong-key')
+      .send({ event: 'CUSTOMER_REGISTERED', phone: '+6281234567890', vars: { name: 'X' } })
+      .expect(401);
+  });
+
+  it('rejects a JWT (non-internal) caller on the internal route (401)', async () => {
+    await request(server())
+      .post('/api/v1/notifications/internal')
+      .set(auth(driverToken))
+      .send({ event: 'CUSTOMER_REGISTERED', phone: '+6281234567890', vars: { name: 'X' } })
+      .expect(401);
   });
 });

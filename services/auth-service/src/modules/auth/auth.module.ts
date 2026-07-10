@@ -26,6 +26,7 @@ import { SystemClock } from '../../infrastructure/security/system-clock';
 import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
 import { WhatsappOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/whatsapp-otp-delivery.adapter';
+import { CustomerNotificationHttpAdapter } from '../../infrastructure/notification/customer-notification.http.adapter';
 import { AccountController } from './account.controller';
 import { AuthController } from './auth.controller';
 
@@ -44,6 +45,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
   { provide: AUTH_TOKENS.GoogleVerifierPort, useClass: GoogleVerifier },
+  { provide: AUTH_TOKENS.CustomerNotificationPort, useClass: CustomerNotificationHttpAdapter },
   {
     provide: AUTH_TOKENS.OtpDeliveryPort,
     inject: [

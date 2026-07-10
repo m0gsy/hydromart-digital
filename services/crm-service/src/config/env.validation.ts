@@ -13,4 +13,7 @@ export const envValidationSchema = Joi.object({
   WHATSAPP_API_TOKEN: Joi.string().allow('').default(''),
   // Optional: customer-service base URL for FR-087 attribute segmentation. Blank disables it.
   CUSTOMER_SERVICE_URL: Joi.string().allow('').default(''),
+  // Shared secret authenticating system-to-system notification calls (POST /notifications/internal).
+  // Blank = the internal route rejects everything (fail-closed).
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
 });

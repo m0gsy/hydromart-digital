@@ -11,5 +11,6 @@ export {
 } from './nest/decorators';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
+export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { GlobalValidationPipe } from './nest/validation.pipe';

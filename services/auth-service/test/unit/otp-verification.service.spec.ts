@@ -18,11 +18,19 @@ import {
   makeCustomer,
 } from '../support/fakes';
 
+class FakeCustomerNotification {
+  readonly welcomed: { phone: string; name: string }[] = [];
+  async sendWelcome(phone: string, name: string): Promise<void> {
+    this.welcomed.push({ phone, name });
+  }
+}
+
 describe('OtpVerificationService', () => {
   let customers: InMemoryCustomerRepository;
   let otpTokens: InMemoryOtpTokenRepository;
   let audit: InMemoryAuditLogRepository;
   let otp: OtpService;
+  let notifications: FakeCustomerNotification;
   let service: OtpVerificationService;
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
@@ -43,7 +51,15 @@ describe('OtpVerificationService', () => {
       clock,
       config,
     );
-    service = new OtpVerificationService(customers, clock, otp, sessions, new AuditService(audit));
+    notifications = new FakeCustomerNotification();
+    service = new OtpVerificationService(
+      customers,
+      clock,
+      notifications,
+      otp,
+      sessions,
+      new AuditService(audit),
+    );
   });
 
   it('verifies a registration OTP, activates the account, and issues a session', async () => {
@@ -64,6 +80,16 @@ describe('OtpVerificationService', () => {
     expect(audit.actions()).toEqual(
       expect.arrayContaining([AuditAction.OTP_VERIFIED, AuditAction.LOGIN_SUCCEEDED]),
     );
+    expect(notifications.welcomed).toEqual([{ phone: pending.phone, name: activated!.fullName ?? 'Pelanggan' }]);
+  });
+
+  it('does not send a welcome on a login verification', async () => {
+    const active = makeCustomer();
+    customers.seed(active);
+    await otp.issue(active, OtpPurpose.LOGIN);
+
+    await service.verify({ phone: active.phone, code: '123456', purpose: OtpPurpose.LOGIN, context: ctx });
+    expect(notifications.welcomed).toEqual([]);
   });
 
   it('audits and rethrows on a wrong code', async () => {

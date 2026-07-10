@@ -14,6 +14,9 @@ export enum NotificationEvent {
   // Operational (not customer-facing): fired by depot-service when a stock line crosses
   // below its minimum. Recipient is an ops/warehouse number, not the customer.
   STOCK_LOW = 'STOCK_LOW',
+  // Account: fired by auth-service (via internal service auth) when a new customer
+  // completes phone verification. Token: {{name}}.
+  CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
 }
 
 // WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
@@ -33,6 +36,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
+  [NotificationEvent.CUSTOMER_REGISTERED]:
+    'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
 };
 
 export function templateFor(event: NotificationEvent): string {

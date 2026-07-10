@@ -4,6 +4,7 @@ import { CustomerNotFoundError, OtpInvalidError } from '../../domain/errors/auth
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { ClockPort } from '../ports/clock.port';
+import { CustomerNotificationPort } from '../ports/customer-notification.port';
 import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
 import { OtpChallengeResult, RequestContext, SessionResult } from '../results';
@@ -33,6 +34,8 @@ export class OtpVerificationService {
   constructor(
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     @Inject(AUTH_TOKENS.ClockPort) private readonly clock: ClockPort,
+    @Inject(AUTH_TOKENS.CustomerNotificationPort)
+    private readonly notifications: CustomerNotificationPort,
     private readonly otp: OtpService,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
@@ -61,12 +64,21 @@ export class OtpVerificationService {
     }
 
     const now = this.clock.now();
-    if (command.purpose === OtpPurpose.REGISTRATION) {
+    const isRegistration = command.purpose === OtpPurpose.REGISTRATION;
+    if (isRegistration) {
       customer.markPhoneVerified(now);
     }
     customer.ensureCanAuthenticate();
     customer.recordLogin(now);
     const saved = await this.customers.save(customer);
+
+    // Welcome the new customer. Fail-open: the adapter never throws, but guard the
+    // call anyway so notification wiring can never break the verification flow.
+    if (isRegistration) {
+      await this.notifications
+        .sendWelcome(saved.phone, saved.fullName ?? 'Pelanggan')
+        .catch(() => undefined);
+    }
 
     const session = await this.sessions.issueForCustomer(saved, command.context);
 
