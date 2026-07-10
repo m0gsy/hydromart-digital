@@ -19,6 +19,11 @@
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:validate": "npm run prisma:validate --workspaces --if-present",
+    "db:migrate": "npm run prisma:migrate --workspaces --if-present",
+    "db:generate": "npm run prisma:generate --workspaces --if-present",
     "auth:dev": "npm run start:dev --workspace @hydromart/auth-service",
     "auth:migrate": "npm run prisma:migrate --workspace @hydromart/auth-service"
   },
