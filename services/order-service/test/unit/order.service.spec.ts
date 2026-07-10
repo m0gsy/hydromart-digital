@@ -370,6 +370,30 @@ describe('OrderService', () => {
     expect(inventory.releaseCalls).toHaveLength(1);
   });
 
+  it('expires abandoned CREATED orders, releasing their held stock', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    orders.rows[0].createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000); // placed 2h ago
+    const result = await service.expireAbandoned('admin', 'Bearer tok', 60);
+    expect(result.cancelled).toBe(1);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.CANCELLED);
+    expect(inventory.releaseCalls).toHaveLength(1);
+  });
+
+  it('leaves fresh and already-confirmed orders untouched when expiring', async () => {
+    await addToCart(20000, 1);
+    const fresh = await routedCheckout(); // createdAt = now
+    await addToCart(20000, 1);
+    const confirmed = await routedCheckout();
+    orders.rows[1].createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    await service.updateStatus(confirmed.id, OrderStatus.CONFIRMED, 'staff', undefined, 'Bearer tok');
+
+    const result = await service.expireAbandoned('admin', 'Bearer tok', 60);
+    expect(result.cancelled).toBe(0); // fresh is recent; confirmed is no longer CREATED
+    expect((await service.getAny(fresh.id)).status).toBe(OrderStatus.CREATED);
+    expect((await service.getAny(confirmed.id)).status).toBe(OrderStatus.CONFIRMED);
+  });
+
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });

@@ -109,6 +109,12 @@ export class InMemoryOrderRepository implements OrderRepository {
       total: all.length,
     };
   }
+  async findStaleCreated(before: Date): Promise<OrderRecord[]> {
+    return this.rows
+      .filter((r) => r.status === OrderStatus.CREATED && r.createdAt < before)
+      .map((r) => structuredClone(r));
+  }
+
   async applyStatus(
     id: string,
     status: OrderStatus,

@@ -225,6 +225,31 @@ export class OrderService {
     return cancelled;
   }
 
+  /**
+   * Auto-cancels unconfirmed CREATED orders older than the abandonment threshold,
+   * releasing any stock they held. Admin-triggered sweep (mirrors loyalty/expire) —
+   * only CREATED orders qualify, so a legitimately in-flight order is never touched.
+   */
+  async expireAbandoned(
+    changedBy: string,
+    authorization = '',
+    olderThanMinutes?: number,
+  ): Promise<{ cancelled: number }> {
+    const minutes = olderThanMinutes ?? this.config.abandonMinutes;
+    const before = new Date(Date.now() - minutes * 60_000);
+    const stale = await this.orders.findStaleCreated(before);
+    for (const order of stale) {
+      const cancelled = await this.orders.applyStatus(
+        order.id,
+        OrderStatus.CANCELLED,
+        changedBy,
+        'Auto-cancelled: order abandoned before confirmation.',
+      );
+      await this.releaseStock(cancelled, authorization);
+    }
+    return { cancelled: stale.length };
+  }
+
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
   private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
     if (!order.depotId) {

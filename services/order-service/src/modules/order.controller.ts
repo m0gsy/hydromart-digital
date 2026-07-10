@@ -67,6 +67,22 @@ export class OrderController {
     );
   }
 
+  @Roles(Role.SUPER_ADMIN)
+  @Post('expire-abandoned')
+  @ApiOperation({ summary: 'Auto-cancel unconfirmed abandoned orders, releasing their stock (admin sweep)' })
+  expireAbandoned(
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('authorization') authorization?: string,
+    @Query('olderThanMinutes') olderThanMinutes?: string,
+  ): Promise<{ cancelled: number }> {
+    const minutes = olderThanMinutes ? Number(olderThanMinutes) : undefined;
+    return this.orders.expireAbandoned(
+      user.sub,
+      authorization,
+      minutes && minutes > 0 ? minutes : undefined,
+    );
+  }
+
   @Get()
   @ApiOperation({ summary: "List the current customer's orders" })
   list(

@@ -39,6 +39,9 @@ export class OrderConfigService {
   get deliveryFee(): number {
     return this.num('ORDER_DELIVERY_FEE');
   }
+  get abandonMinutes(): number {
+    return this.num('ORDER_ABANDON_MINUTES');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

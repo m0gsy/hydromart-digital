@@ -105,6 +105,8 @@ export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
+  /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
+  findStaleCreated(before: Date): Promise<OrderRecord[]>;
   /** Atomically move the order to `status` and append a history row. */
   applyStatus(
     id: string,

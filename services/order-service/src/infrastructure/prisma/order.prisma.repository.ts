@@ -149,6 +149,14 @@ export class OrderPrismaRepository implements OrderRepository {
     return { items: rows.map((r) => this.toRecord(r)), total };
   }
 
+  async findStaleCreated(before: Date): Promise<OrderRecord[]> {
+    const rows = await this.prisma.order.findMany({
+      where: { status: OrderStatus.CREATED, createdAt: { lt: before } },
+      include: INCLUDE,
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async applyStatus(
     id: string,
     status: OrderStatus,
