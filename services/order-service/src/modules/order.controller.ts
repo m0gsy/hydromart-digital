@@ -116,8 +116,9 @@ export class OrderController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CancelOrderDto,
+    @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
-    return this.orders.cancel(user.sub, id, dto.reason);
+    return this.orders.cancel(user.sub, id, dto.reason, authorization);
   }
 
   @Post(':id/repeat')

@@ -112,9 +112,10 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, ...order } = data;
+    const { items, id, ...order } = data;
     const row = await this.prisma.order.create({
       data: {
+        ...(id ? { id } : {}),
         ...order,
         status: OrderStatus.CREATED,
         items: { create: items },

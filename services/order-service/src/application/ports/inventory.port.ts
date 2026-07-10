@@ -17,4 +17,23 @@ export interface InventoryPort {
     items: SoldLine[],
     authorization: string,
   ): Promise<void>;
+  /**
+   * Holds stock for the order at checkout (oversell prevention). Unlike the other
+   * inventory calls this is NOT fully fail-open: a genuine shortfall (422) throws
+   * InsufficientStockError to reject the checkout, but any other failure (depot-service
+   * down, missing token) fails OPEN so inventory availability never blocks ordering.
+   */
+  reserve(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void>;
+  /** Releases an order's stock holds on cancellation. Fails OPEN. */
+  release(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void>;
 }

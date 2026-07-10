@@ -49,6 +49,15 @@ export class VoucherRejectedError extends DomainError {
   }
 }
 
+/** The fulfilling depot cannot hold enough stock for the order (oversell prevention). */
+export class InsufficientStockError extends DomainError {
+  readonly code = 'ORDER_INSUFFICIENT_STOCK';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(message = 'Some items are out of stock at the fulfilling depot.') {
+    super(message);
+  }
+}
+
 /** A cart item references a product that no longer exists or is inactive. */
 export class ProductUnavailableError extends DomainError {
   readonly code = 'ORDER_PRODUCT_UNAVAILABLE';

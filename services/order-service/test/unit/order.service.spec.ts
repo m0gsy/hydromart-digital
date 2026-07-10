@@ -6,6 +6,7 @@ import {
   BelowMinimumOrderError,
   CatalogUnavailableError,
   EmptyCartError,
+  InsufficientStockError,
   InvalidStatusTransitionError,
   OrderNotCancellableError,
   OrderNotFoundError,
@@ -314,6 +315,59 @@ describe('OrderService', () => {
       await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
     }
     expect(inventory.calls).toHaveLength(0);
+  });
+
+  const routedCheckout = () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    return service.checkout(
+      customer,
+      { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
+      'Bearer tok',
+    );
+  };
+
+  it('reserves routed-depot stock at checkout (oversell prevention)', async () => {
+    const productId = await addToCart(20000, 2);
+    const order = await routedCheckout();
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0]).toMatchObject({
+      depotId: 'depot-near',
+      orderId: order.id, // reservation is keyed by the pre-generated order id
+      authorization: 'Bearer tok',
+    });
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 2 }]);
+  });
+
+  it('does not reserve stock when the order is not routed to a depot', async () => {
+    await addToCart(20000, 1);
+    await service.checkout(customer, { deliveryAddress: address }); // no coords
+    expect(inventory.reserveCalls).toHaveLength(0);
+  });
+
+  it('rejects checkout on a stock shortfall, creating no order and keeping the cart', async () => {
+    await addToCart(20000, 2);
+    inventory.reserveError = new InsufficientStockError();
+    await expect(routedCheckout()).rejects.toBeInstanceOf(InsufficientStockError);
+    expect(orders.rows).toHaveLength(0);
+    expect(await cart.findByCustomer(customer)).toHaveLength(1); // cart untouched
+  });
+
+  it('releases held stock when a customer cancels (BR-006)', async () => {
+    const productId = await addToCart(20000, 2);
+    const order = await routedCheckout();
+    await service.cancel(customer, order.id, 'changed mind', 'Bearer tok');
+    expect(inventory.releaseCalls).toHaveLength(1);
+    expect(inventory.releaseCalls[0]).toMatchObject({ depotId: 'depot-near', orderId: order.id });
+    expect(inventory.releaseCalls[0].items).toEqual([{ productId, quantity: 2 }]);
+  });
+
+  it('releases held stock when staff cancel an order', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    await service.updateStatus(order.id, OrderStatus.CANCELLED, 'staff', undefined, 'Bearer tok');
+    expect(inventory.releaseCalls).toHaveLength(1);
   });
 
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {

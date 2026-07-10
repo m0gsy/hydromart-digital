@@ -84,7 +84,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     const now = nextDate();
     const rec: OrderRecord = {
       ...rest,
-      id: randomUUID(),
+      id: rest.id ?? randomUUID(),
       status: OrderStatus.CREATED,
       items: items.map((i) => ({ ...i, id: randomUUID() })),
       history: [{ status: OrderStatus.CREATED, changedBy: null, note: null, createdAt: now }],
@@ -214,6 +214,10 @@ export class FakeReferralCoordination implements ReferralCoordinationPort {
 
 export class FakeInventory implements InventoryPort {
   calls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
+  reserveCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
+  releaseCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
+  /** When set, reserve() throws it (simulates a stock shortfall reject). */
+  reserveError: Error | null = null;
   async consume(
     depotId: string,
     orderId: string,
@@ -221,6 +225,25 @@ export class FakeInventory implements InventoryPort {
     authorization: string,
   ): Promise<void> {
     this.calls.push({ depotId, orderId, items, authorization });
+  }
+  async reserve(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void> {
+    if (this.reserveError) {
+      throw this.reserveError;
+    }
+    this.reserveCalls.push({ depotId, orderId, items, authorization });
+  }
+  async release(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void> {
+    this.releaseCalls.push({ depotId, orderId, items, authorization });
   }
 }
 

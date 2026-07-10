@@ -57,6 +57,8 @@ export interface CreateOrderItemData {
 }
 
 export interface CreateOrderData extends DeliveryAddressSnapshot {
+  /** Pre-generated id so stock can be reserved (keyed by order id) before the row is created. */
+  id?: string;
   orderNumber: string;
   customerId: string;
   depotId: string | null;

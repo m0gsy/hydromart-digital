@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
 
@@ -143,7 +143,21 @@ export class OrderService {
     const discount = money(Math.min(subtotal, membershipDiscount + voucherDiscount));
     const total = money(subtotal + deliveryFee - discount);
 
+    // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves
+    // no dangling order. Keyed by a pre-generated id. Only when routed to a depot;
+    // reserve fails OPEN except on a genuine shortfall (throws InsufficientStockError).
+    const orderId = randomUUID();
+    if (depot) {
+      await this.inventory.reserve(
+        depot.id,
+        orderId,
+        items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        authorization,
+      );
+    }
+
     const order = await this.orders.create({
+      id: orderId,
       orderNumber: OrderService.newOrderNumber(),
       customerId,
       depotId: depot?.id ?? null,
@@ -191,12 +205,37 @@ export class OrderService {
   }
 
   /** BR-006: a customer may cancel only before a driver is assigned. */
-  async cancel(customerId: string, orderId: string, reason?: string): Promise<OrderRecord> {
+  async cancel(
+    customerId: string,
+    orderId: string,
+    reason?: string,
+    authorization = '',
+  ): Promise<OrderRecord> {
     const order = await this.getForCustomer(customerId, orderId);
     if (!isCancellable(order.status)) {
       throw new OrderNotCancellableError(order.status);
     }
-    return this.orders.applyStatus(order.id, OrderStatus.CANCELLED, customerId, reason ?? null);
+    const cancelled = await this.orders.applyStatus(
+      order.id,
+      OrderStatus.CANCELLED,
+      customerId,
+      reason ?? null,
+    );
+    await this.releaseStock(cancelled, authorization);
+    return cancelled;
+  }
+
+  /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
+  private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
+    if (!order.depotId) {
+      return;
+    }
+    await this.inventory.release(
+      order.depotId,
+      order.id,
+      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      authorization,
+    );
   }
 
   /** BR-012: staff advance an order along the legal status graph. */
@@ -234,6 +273,10 @@ export class OrderService {
           authorization,
         );
       }
+    }
+    // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
+    if (to === OrderStatus.CANCELLED) {
+      await this.releaseStock(updated, authorization);
     }
     // FR-093/FR-094: notify the customer over WhatsApp on notable lifecycle changes.
     // Delivery progress reaches here too — delivery-service advances the order status
