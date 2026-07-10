@@ -5,6 +5,7 @@
 // across the emitting services; callers pass only the event and template variables.
 
 export enum NotificationEvent {
+  ORDER_RECEIVED = 'ORDER_RECEIVED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -18,6 +19,8 @@ export enum NotificationEvent {
 // WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
 // order events; {{depot}}, {{item}}, {{quantity}}, {{minimum}} for STOCK_LOW.
 export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
+  [NotificationEvent.ORDER_RECEIVED]:
+    'Halo {{name}}! Pesanan {{orderNumber}} sudah kami terima dan sedang menunggu konfirmasi. Kami segera memprosesnya untukmu 💧',
   [NotificationEvent.ORDER_CONFIRMED]:
     'Halo {{name}}! Pesanan {{orderNumber}} sudah kami konfirmasi dan sedang kami siapkan. Terima kasih sudah memesan di Hydromart 💧',
   [NotificationEvent.ORDER_ON_DELIVERY]:

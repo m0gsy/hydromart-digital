@@ -116,6 +116,15 @@ describe('OrderService', () => {
     expect(await cart.findByCustomer(customer)).toHaveLength(0);
   });
 
+  it('notifies the customer that the order was received at checkout', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    const received = notification.calls.find((c) => c.event === 'ORDER_RECEIVED');
+    expect(received).toBeDefined();
+    expect(received?.phone).toBe(order.phone);
+    expect(received?.vars.orderNumber).toBe(order.orderNumber);
+  });
+
   it('rejects checkout with an empty cart', async () => {
     await expect(service.checkout(customer, { deliveryAddress: address })).rejects.toBeInstanceOf(
       EmptyCartError,
@@ -256,20 +265,23 @@ describe('OrderService', () => {
       orderId: order.id,
       authorization: 'Bearer tok',
     });
-    // FR-093/094: notable transitions notify the customer (CONFIRMED, ON_DELIVERY,
-    // DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/PICKED_UP are silent.
+    // FR-093/094: order-received fires at checkout, then notable transitions notify the
+    // customer (CONFIRMED, ON_DELIVERY, DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/
+    // PICKED_UP are silent.
     expect(notification.calls.map((c) => c.event)).toEqual([
+      'ORDER_RECEIVED',
       'ORDER_CONFIRMED',
       'ORDER_ON_DELIVERY',
       'ORDER_DELIVERED',
       'ORDER_COMPLETED',
     ]);
-    expect(notification.calls[0]).toMatchObject({
+    const confirmed = notification.calls[1];
+    expect(confirmed).toMatchObject({
       phone: order.phone,
       customerId: customer,
       authorization: 'Bearer tok',
     });
-    expect(notification.calls[0].vars).toMatchObject({ orderNumber: order.orderNumber });
+    expect(confirmed.vars).toMatchObject({ orderNumber: order.orderNumber });
   });
 
   it('deducts routed-depot stock once, only when a routed order completes (FR-067..074)', async () => {

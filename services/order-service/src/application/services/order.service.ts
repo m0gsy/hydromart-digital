@@ -188,6 +188,15 @@ export class OrderService {
     if (voucherCode) {
       await this.promo.redeem(voucherCode, customerId, order.id, subtotal, authorization);
     }
+    // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
+    // (the adapter never throws) — a notification hiccup must not unwind a placed order.
+    await this.notification.notify(
+      'ORDER_RECEIVED',
+      order.phone,
+      { name: order.recipientName, orderNumber: order.orderNumber },
+      order.customerId,
+      authorization,
+    );
     return order;
   }
 
