@@ -116,8 +116,16 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     const rec = this.items.find((x) => x.id === itemId)!;
     rec.quantity = newQuantity;
     rec.updatedAt = nextDate();
-    this.moves.push({ ...movement, id: randomUUID(), createdAt: nextDate() });
+    this.moves.push({
+      ...movement,
+      orderId: movement.orderId ?? null,
+      id: randomUUID(),
+      createdAt: nextDate(),
+    });
     return { ...rec };
+  }
+  async hasMovementForOrder(itemId: string, orderId: string): Promise<boolean> {
+    return this.moves.some((m) => m.itemId === itemId && m.orderId === orderId);
   }
   async listMovements(itemId: string): Promise<StockMovementRecord[]> {
     return this.moves

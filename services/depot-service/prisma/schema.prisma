@@ -105,8 +105,12 @@ model StockMovement {
   reason         String?
   /// User id of the staff member who recorded the movement.
   actorId        String
+  /// Set only on SALE movements: the order that consumed this stock. Enables
+  /// idempotent order->inventory deduction (a retried COMPLETED never double-deducts).
+  orderId        String?           @db.Uuid
   createdAt      DateTime          @default(now())
 
+  @@unique([itemId, orderId])
   @@index([itemId])
   @@map("stock_movements")
 }

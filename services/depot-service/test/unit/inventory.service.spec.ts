@@ -164,6 +164,16 @@ describe('InventoryService', () => {
     expect(result.skipped).toEqual([unstocked]);
   });
 
+  it('is idempotent per order — a retried consume does not deduct twice', async () => {
+    const line = await produkLine(PRODUCT_ID, 100);
+    const items = [{ productId: PRODUCT_ID, quantity: 3 }];
+    await inventory.consumeForOrder(depotId, 'order-dup', items, ACTOR);
+    const second = await inventory.consumeForOrder(depotId, 'order-dup', items, ACTOR);
+    expect(second.consumed).toEqual([PRODUCT_ID]);
+    expect((await inventory.get(line.id)).quantity).toBe(97);
+    expect(await inventory.movements(line.id)).toHaveLength(2); // opening RECEIPT + 1 SALE
+  });
+
   it('lets a SALE drive stock negative (records reality, not silently dropped)', async () => {
     const line = await produkLine(PRODUCT_ID, 2);
     await inventory.consumeForOrder(depotId, 'order-3', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);

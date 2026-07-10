@@ -169,9 +169,10 @@ export class InventoryService {
    * reflects reality (surfaced by low-stock + reconciled at opname) rather than
    * silently dropping a sale.
    *
-   * ponytail: not idempotent — the order state machine fires COMPLETED once, so a
-   * network retry is the only double-deduct risk; add a (type, orderId) unique on
-   * stock_movements if at-least-once delivery ever becomes an issue.
+   * Idempotent per (line, order): a SALE movement carries its orderId and the DB
+   * holds a unique (itemId, orderId), so a retried order-COMPLETED re-reports the
+   * same line as consumed without deducting again. The pre-check handles the common
+   * sequential retry; the unique index is the backstop for a concurrent double-fire.
    */
   async consumeForOrder(
     depotId: string,
@@ -193,6 +194,11 @@ export class InventoryService {
         skipped.push(productId);
         continue;
       }
+      // Already deducted for this order (retry) — report consumed, don't deduct again.
+      if (await this.inventory.hasMovementForOrder(line.id, orderId)) {
+        consumed.push(productId);
+        continue;
+      }
       const next = line.quantity - quantity;
       await this.inventory.applyMovement(line.id, next, {
         itemId: line.id,
@@ -202,6 +208,7 @@ export class InventoryService {
         quantityAfter: next,
         reason: `Order ${orderId}`,
         actorId,
+        orderId,
       });
       consumed.push(productId);
     }

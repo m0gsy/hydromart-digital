@@ -34,6 +34,7 @@ interface MovementRow {
   quantityAfter: number;
   reason: string | null;
   actorId: string;
+  orderId: string | null;
   createdAt: Date;
 }
 
@@ -113,6 +114,14 @@ export class InventoryPrismaRepository implements InventoryRepository {
       this.prisma.stockMovement.create({ data: movement }),
     ]);
     return this.toItem(updated);
+  }
+
+  async hasMovementForOrder(itemId: string, orderId: string): Promise<boolean> {
+    const row = await this.prisma.stockMovement.findFirst({
+      where: { itemId, orderId },
+      select: { id: true },
+    });
+    return row !== null;
   }
 
   async listMovements(itemId: string): Promise<StockMovementRecord[]> {

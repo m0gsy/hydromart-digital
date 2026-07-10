@@ -22,6 +22,7 @@ export interface StockMovementRecord {
   quantityAfter: number;
   reason: string | null;
   actorId: string;
+  orderId: string | null;
   createdAt: Date;
 }
 
@@ -54,6 +55,8 @@ export interface RecordMovementData {
   quantityAfter: number;
   reason: string | null;
   actorId: string;
+  /** Set only on SALE movements; keys idempotent order deduction. */
+  orderId?: string | null;
 }
 
 export interface InventoryRepository {
@@ -75,5 +78,7 @@ export interface InventoryRepository {
     newQuantity: number,
     movement: RecordMovementData,
   ): Promise<InventoryItemRecord>;
+  /** True if a movement for this item already recorded the given order (SALE idempotency). */
+  hasMovementForOrder(itemId: string, orderId: string): Promise<boolean>;
   listMovements(itemId: string): Promise<StockMovementRecord[]>;
 }
