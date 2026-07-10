@@ -234,7 +234,6 @@ export class InventoryService {
     }
     const reserved: string[] = [];
     const skipped: string[] = [];
-    const shortfalls: { productId: string; requested: number; available: number }[] = [];
     const plans: { itemId: string; productId: string; quantity: number }[] = [];
 
     for (const { productId, quantity } of items) {
@@ -251,21 +250,27 @@ export class InventoryService {
         reserved.push(productId);
         continue;
       }
-      const sellable = available(line.quantity, line.reserved);
-      if (sellable < quantity) {
-        shortfalls.push({ productId, requested: quantity, available: sellable });
-        continue;
-      }
       plans.push({ itemId: line.id, productId, quantity });
     }
 
-    // All-or-nothing: reject before writing any hold if any line is short.
-    if (shortfalls.length > 0) {
-      throw new InsufficientStockError(shortfalls);
-    }
-    for (const p of plans) {
-      await this.inventory.reserve(p.itemId, orderId, p.quantity);
-      reserved.push(p.productId);
+    if (plans.length > 0) {
+      // The availability re-check + all holds happen in one serializable, row-locked
+      // transaction, so concurrent orders can't both claim the last unit (all-or-nothing).
+      const { shortfalls } = await this.inventory.reserveAtomic(
+        plans.map((p) => ({ itemId: p.itemId, quantity: p.quantity })),
+        orderId,
+      );
+      if (shortfalls.length > 0) {
+        const productByItem = new Map(plans.map((p) => [p.itemId, p.productId]));
+        throw new InsufficientStockError(
+          shortfalls.map((s) => ({
+            productId: productByItem.get(s.itemId) ?? s.itemId,
+            requested: s.requested,
+            available: s.available,
+          })),
+        );
+      }
+      for (const p of plans) reserved.push(p.productId);
     }
     return { orderId, depotId, reserved, skipped };
   }

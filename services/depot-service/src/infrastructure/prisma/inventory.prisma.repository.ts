@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
+import { available, InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
 import {
   CreateInventoryItemData,
   InventoryItemRecord,
@@ -153,15 +153,35 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return row ? this.toReservation(row) : null;
   }
 
-  async reserve(itemId: string, orderId: string, quantity: number): Promise<InventoryItemRecord> {
-    const [updated] = await this.prisma.$transaction([
-      this.prisma.inventoryItem.update({
-        where: { id: itemId },
-        data: { reserved: { increment: quantity } },
-      }),
-      this.prisma.stockReservation.create({ data: { itemId, orderId, quantity } }),
-    ]);
-    return this.toItem(updated);
+  async reserveAtomic(
+    plans: { itemId: string; quantity: number }[],
+    orderId: string,
+  ): Promise<{ shortfalls: { itemId: string; requested: number; available: number }[] }> {
+    if (plans.length === 0) return { shortfalls: [] };
+    // Deterministic lock order (by itemId) prevents deadlocks between concurrent orders.
+    const ordered = [...plans].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
+    return this.prisma.$transaction(async (tx) => {
+      const shortfalls: { itemId: string; requested: number; available: number }[] = [];
+      for (const p of ordered) {
+        // Row lock: a concurrent reserve on the same line blocks here until we commit,
+        // then re-reads the updated `reserved` — so the last unit can't be double-sold.
+        const rows = await tx.$queryRaw<{ quantity: number; reserved: number }[]>`
+          SELECT "quantity", "reserved" FROM "inventory_items" WHERE "id" = ${p.itemId}::uuid FOR UPDATE`;
+        const sellable = rows.length ? available(Number(rows[0].quantity), Number(rows[0].reserved)) : 0;
+        if (sellable < p.quantity) {
+          shortfalls.push({ itemId: p.itemId, requested: p.quantity, available: sellable });
+        }
+      }
+      if (shortfalls.length > 0) return { shortfalls }; // nothing written → clean rollback of a read-only txn
+      for (const p of ordered) {
+        await tx.inventoryItem.update({
+          where: { id: p.itemId },
+          data: { reserved: { increment: p.quantity } },
+        });
+        await tx.stockReservation.create({ data: { itemId: p.itemId, orderId, quantity: p.quantity } });
+      }
+      return { shortfalls: [] };
+    });
   }
 
   /** Flip an ACTIVE reservation to a terminal status and give back its held units. */

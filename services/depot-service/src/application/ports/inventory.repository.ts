@@ -93,8 +93,17 @@ export interface InventoryRepository {
 
   /** The reservation this order holds on this line, if any (any status). */
   findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null>;
-  /** Atomically place an ACTIVE hold: reserved += quantity and insert the reservation row. */
-  reserve(itemId: string, orderId: string, quantity: number): Promise<InventoryItemRecord>;
+  /**
+   * Place ACTIVE holds on several lines for one order in a SINGLE serializable
+   * transaction: each line is locked FOR UPDATE, availability re-checked under the
+   * lock (closes the last-unit TOCTOU), then all-or-nothing — if any line is short,
+   * nothing is written and its shortfall is returned; otherwise every line gets
+   * `reserved += quantity` and a reservation row.
+   */
+  reserveAtomic(
+    plans: { itemId: string; quantity: number }[],
+    orderId: string,
+  ): Promise<{ shortfalls: { itemId: string; requested: number; available: number }[] }>;
   /** Release an ACTIVE hold (cancel): status -> RELEASED, reserved -= quantity. Idempotent no-op otherwise. */
   releaseReservation(itemId: string, orderId: string): Promise<void>;
   /** Convert an ACTIVE hold on completion: status -> CONSUMED, reserved -= quantity. Idempotent no-op otherwise. */

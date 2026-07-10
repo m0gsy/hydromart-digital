@@ -21,7 +21,7 @@ import {
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
-import { ReservationStatus } from '../../src/domain/inventory';
+import { available, ReservationStatus } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
 
 let seq = 0;
@@ -147,12 +147,32 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     const r = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
     return r ? { ...r } : null;
   }
-  async reserve(itemId: string, orderId: string, quantity: number): Promise<InventoryItemRecord> {
-    const item = this.items.find((x) => x.id === itemId)!;
-    item.reserved += quantity;
-    item.updatedAt = nextDate();
-    this.reservations.push({ id: randomUUID(), itemId, orderId, quantity, status: ReservationStatus.ACTIVE });
-    return { ...item };
+  async reserveAtomic(
+    plans: { itemId: string; quantity: number }[],
+    orderId: string,
+  ): Promise<{ shortfalls: { itemId: string; requested: number; available: number }[] }> {
+    const shortfalls: { itemId: string; requested: number; available: number }[] = [];
+    for (const p of plans) {
+      const item = this.items.find((x) => x.id === p.itemId);
+      const sellable = item ? available(item.quantity, item.reserved) : 0;
+      if (sellable < p.quantity) {
+        shortfalls.push({ itemId: p.itemId, requested: p.quantity, available: sellable });
+      }
+    }
+    if (shortfalls.length > 0) return { shortfalls };
+    for (const p of plans) {
+      const item = this.items.find((x) => x.id === p.itemId)!;
+      item.reserved += p.quantity;
+      item.updatedAt = nextDate();
+      this.reservations.push({
+        id: randomUUID(),
+        itemId: p.itemId,
+        orderId,
+        quantity: p.quantity,
+        status: ReservationStatus.ACTIVE,
+      });
+    }
+    return { shortfalls: [] };
   }
   private settle(itemId: string, orderId: string, status: ReservationStatus): void {
     const res = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
