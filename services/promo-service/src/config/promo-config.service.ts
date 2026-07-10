@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class OrderConfigService {
+export class PromoConfigService {
   constructor(private readonly config: ConfigService) {}
 
   private num(key: string): number {
@@ -16,22 +16,7 @@ export class OrderConfigService {
     return this.nodeEnv === 'production';
   }
   get port(): number {
-    return this.num('ORDER_SERVICE_PORT');
-  }
-  get productServiceUrl(): string {
-    return this.config.getOrThrow<string>('PRODUCT_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get depotServiceUrl(): string {
-    return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get loyaltyServiceUrl(): string {
-    return this.config.getOrThrow<string>('LOYALTY_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get promoServiceUrl(): string {
-    return this.config.getOrThrow<string>('PROMO_SERVICE_URL').replace(/\/+$/, '');
-  }
-  get deliveryFee(): number {
-    return this.num('ORDER_DELIVERY_FEE');
+    return this.num('PROMO_SERVICE_PORT');
   }
   get corsOrigins(): string[] {
     return this.config

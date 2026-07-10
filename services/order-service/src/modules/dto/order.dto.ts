@@ -76,6 +76,12 @@ export class CheckoutDto {
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
+
+  @ApiPropertyOptional({ example: 'HEMAT10', description: 'Optional discount voucher code.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  voucherCode?: string;
 }
 
 export class ListOrdersQueryDto {

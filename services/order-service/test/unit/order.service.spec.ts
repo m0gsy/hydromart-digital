@@ -9,12 +9,14 @@ import {
   OrderNotCancellableError,
   OrderNotFoundError,
   ProductUnavailableError,
+  VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
+  FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -39,6 +41,7 @@ describe('OrderService', () => {
   let catalog: FakeProductCatalog;
   let depots: FakeDepotDirectory;
   let loyalty: FakeLoyaltyCoordination;
+  let promo: FakePromo;
   let cartService: CartService;
   let service: OrderService;
   const customer = randomUUID();
@@ -49,8 +52,18 @@ describe('OrderService', () => {
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
     loyalty = new FakeLoyaltyCoordination();
+    promo = new FakePromo();
     cartService = new CartService(cart, catalog);
-    service = new OrderService(orders, cart, catalog, depots, loyalty, cartService, buildTestConfig());
+    service = new OrderService(
+      orders,
+      cart,
+      catalog,
+      depots,
+      loyalty,
+      promo,
+      cartService,
+      buildTestConfig(),
+    );
   });
 
   const addToCart = async (basePrice: number, quantity: number): Promise<string> => {
@@ -128,6 +141,35 @@ describe('OrderService', () => {
     await expect(service.cancel(customer, order2.id)).rejects.toBeInstanceOf(
       OrderNotCancellableError,
     );
+  });
+
+  it('applies a valid voucher discount and records the redemption', async () => {
+    await addToCart(20000, 3); // subtotal 60000
+    promo.quoteDiscount = 6000;
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'hemat10' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(6000);
+    expect(order.total).toBe(60000 + 5000 - 6000);
+    expect(promo.redeemCalls).toHaveLength(1);
+    expect(promo.redeemCalls[0]).toMatchObject({ code: 'HEMAT10', orderId: order.id });
+  });
+
+  it('rejects checkout (fail-closed) when a supplied voucher is invalid', async () => {
+    await addToCart(20000, 1);
+    promo.rejectQuote = true;
+    await expect(
+      service.checkout(customer, { deliveryAddress: address, voucherCode: 'BADCODE' }),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
+  });
+
+  it('does not touch the promo-service when no voucher is supplied', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    expect(order.discount).toBe(0);
+    expect(promo.redeemCalls).toHaveLength(0);
   });
 
   it('awards loyalty points once, only when the order completes (BR-013)', async () => {

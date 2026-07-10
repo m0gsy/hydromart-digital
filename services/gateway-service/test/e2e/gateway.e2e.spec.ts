@@ -21,6 +21,7 @@ const testEnv: Record<string, string> = {
   DEPOT_SERVICE_URL: 'http://localhost:3007',
   DASHBOARD_SERVICE_URL: 'http://localhost:3008',
   LOYALTY_SERVICE_URL: 'http://localhost:3009',
+  PROMO_SERVICE_URL: 'http://localhost:3010',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',

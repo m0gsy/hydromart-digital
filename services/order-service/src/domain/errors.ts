@@ -18,6 +18,15 @@ export class EmptyCartError extends DomainError {
   }
 }
 
+/** A supplied voucher could not be applied (invalid, or promo-service unreachable). */
+export class VoucherRejectedError extends DomainError {
+  readonly code = 'ORDER_VOUCHER_REJECTED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(message = 'This voucher could not be applied.') {
+    super(message);
+  }
+}
+
 /** A cart item references a product that no longer exists or is inactive. */
 export class ProductUnavailableError extends DomainError {
   readonly code = 'ORDER_PRODUCT_UNAVAILABLE';

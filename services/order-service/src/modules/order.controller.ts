@@ -30,20 +30,31 @@ export class OrderController {
 
   @Post('checkout')
   @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
-  checkout(@CurrentUser() user: AuthenticatedUser, @Body() dto: CheckoutDto): Promise<OrderRecord> {
-    return this.orders.checkout(user.sub, {
-      deliveryAddress: {
-        recipientName: dto.deliveryAddress.recipientName,
-        phone: dto.deliveryAddress.phone,
-        addressLine: dto.deliveryAddress.addressLine,
-        city: dto.deliveryAddress.city,
-        province: dto.deliveryAddress.province,
-        postalCode: dto.deliveryAddress.postalCode ?? null,
-        latitude: dto.deliveryAddress.latitude ?? null,
-        longitude: dto.deliveryAddress.longitude ?? null,
-        notes: dto.deliveryAddress.notes ?? null,
+  checkout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CheckoutDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<OrderRecord> {
+    // Forward the caller's token so checkout can validate/redeem a voucher against
+    // the promo-service (which enforces its own RBAC on quote/redeem).
+    return this.orders.checkout(
+      user.sub,
+      {
+        deliveryAddress: {
+          recipientName: dto.deliveryAddress.recipientName,
+          phone: dto.deliveryAddress.phone,
+          addressLine: dto.deliveryAddress.addressLine,
+          city: dto.deliveryAddress.city,
+          province: dto.deliveryAddress.province,
+          postalCode: dto.deliveryAddress.postalCode ?? null,
+          latitude: dto.deliveryAddress.latitude ?? null,
+          longitude: dto.deliveryAddress.longitude ?? null,
+          notes: dto.deliveryAddress.notes ?? null,
+        },
+        voucherCode: dto.voucherCode ?? null,
       },
-    });
+      authorization,
+    );
   }
 
   @Get()

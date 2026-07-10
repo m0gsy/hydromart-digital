@@ -24,6 +24,8 @@ import {
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
+import { PromoPort } from '../../src/application/ports/promo.port';
+import { VoucherRejectedError } from '../../src/domain/errors';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -197,6 +199,31 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   }
 }
 
+export class FakePromo implements PromoPort {
+  quoteDiscount = 0;
+  rejectQuote = false;
+  redeemCalls: { code: string; orderId: string; subtotal: number }[] = [];
+
+  async quote(
+    _code: string,
+    _customerId: string,
+    _subtotal: number,
+    _authorization: string,
+  ): Promise<{ discount: number }> {
+    if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
+    return { discount: this.quoteDiscount };
+  }
+  async redeem(
+    code: string,
+    _customerId: string,
+    orderId: string,
+    subtotal: number,
+    _authorization: string,
+  ): Promise<void> {
+    this.redeemCalls.push({ code, orderId, subtotal });
+  }
+}
+
 export class FakeProductCatalog implements ProductCatalogPort {
   products = new Map<string, CatalogProduct>();
   throwOnGet = false;
@@ -230,6 +257,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     PRODUCT_SERVICE_URL: 'http://localhost:3003',
     DEPOT_SERVICE_URL: 'http://localhost:3007',
     LOYALTY_SERVICE_URL: 'http://localhost:3009',
+    PROMO_SERVICE_URL: 'http://localhost:3010',
     ORDER_DELIVERY_FEE: '5000',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',

@@ -16,6 +16,7 @@ const SEGMENT_ENV: Record<string, string> = {
   depots: 'DEPOT_SERVICE_URL',
   dashboard: 'DASHBOARD_SERVICE_URL',
   loyalty: 'LOYALTY_SERVICE_URL',
+  vouchers: 'PROMO_SERVICE_URL',
 };
 
 @Injectable()

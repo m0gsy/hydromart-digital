@@ -25,11 +25,14 @@ import {
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
+import { PromoPort } from '../ports/promo.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
 
 export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
+  /** Optional voucher code to apply (validated against the promo-service). */
+  voucherCode?: string | null;
 }
 
 export interface ListOrdersInput {
@@ -54,6 +57,7 @@ export class OrderService {
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depotDirectory: DepotDirectoryPort,
     @Inject(ORDER_TOKENS.LoyaltyCoordination)
     private readonly loyalty: LoyaltyCoordinationPort,
+    @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
   ) {}
@@ -63,7 +67,11 @@ export class OrderService {
    * catalog (never trusts the client), the delivery address is snapshotted, and
    * the cart is cleared on success.
    */
-  async checkout(customerId: string, input: CheckoutInput): Promise<OrderRecord> {
+  async checkout(
+    customerId: string,
+    input: CheckoutInput,
+    authorization = '',
+  ): Promise<OrderRecord> {
     const lines = await this.cart.findByCustomer(customerId);
     if (lines.length === 0) {
       throw new EmptyCartError();
@@ -86,7 +94,17 @@ export class OrderService {
 
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
     const deliveryFee = money(this.config.deliveryFee);
-    const discount = 0;
+
+    // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
+    // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
+    // rather than silently dropping it.
+    const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
+    let discount = 0;
+    if (voucherCode) {
+      const quote = await this.promo.quote(voucherCode, customerId, subtotal, authorization);
+      discount = money(Math.min(quote.discount, subtotal));
+    }
+
     const total = money(subtotal + deliveryFee - discount);
     const depotId = await this.routeDepot(input.deliveryAddress);
 
@@ -102,6 +120,12 @@ export class OrderService {
       items,
     });
     await this.cart.clear(customerId);
+
+    // Record the redemption now that the order exists. Idempotent per order and
+    // fail-open — a failure here never unwinds a placed order.
+    if (voucherCode) {
+      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, authorization);
+    }
     return order;
   }
 

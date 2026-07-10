@@ -1,0 +1,66 @@
+// Hydromart promo-service data model (PRD Module 12 Promotions: FR-089 Coupon,
+// FR-090 Voucher; BR-015 no voucher stacking — enforced by the caller at checkout,
+// this service quotes/redeems a single voucher per order). Money is integer rupiah.
+// Redemption is idempotent per order and increments a denormalised global usedCount.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PROMO_DATABASE_URL")
+}
+
+/// How a voucher's `value` is interpreted (FR-089/FR-090).
+enum DiscountType {
+  PERCENTAGE
+  FIXED
+}
+
+/// A discount voucher/coupon. `code` is stored UPPERCASE and unique.
+model Voucher {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  description String?
+  discountType DiscountType
+  /// PERCENTAGE: a percent 1..100. FIXED: rupiah off.
+  value       Int
+  /// Minimum order subtotal (rupiah) required to use the voucher.
+  minSpend    Int          @default(0)
+  /// Cap on the discount for PERCENTAGE vouchers (rupiah); null = uncapped.
+  maxDiscount Int?
+  validFrom   DateTime?
+  validUntil  DateTime?
+  /// Global redemption cap; null = unlimited.
+  usageLimit  Int?
+  /// Per-customer redemption cap.
+  perCustomerLimit Int     @default(1)
+  /// Denormalised global redemption count (kept in step with redemptions).
+  usedCount   Int          @default(0)
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  redemptions VoucherRedemption[]
+
+  @@map("vouchers")
+}
+
+/// One row per voucher redemption. Unique per order makes redeem idempotent.
+model VoucherRedemption {
+  id              String   @id @default(uuid())
+  voucher         Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  voucherId       String
+  voucherCode     String
+  customerId      String
+  orderId         String
+  discountApplied Int
+  createdAt       DateTime @default(now())
+
+  @@unique([orderId])
+  @@index([voucherId, customerId])
+  @@map("voucher_redemptions")
+}

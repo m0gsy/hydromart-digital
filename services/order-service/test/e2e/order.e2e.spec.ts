@@ -15,6 +15,7 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
+  FakePromo,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -58,6 +59,7 @@ describe('Order HTTP flows (e2e)', () => {
               PRODUCT_SERVICE_URL: 'http://localhost:3003',
               DEPOT_SERVICE_URL: 'http://localhost:3007',
               LOYALTY_SERVICE_URL: 'http://localhost:3009',
+              PROMO_SERVICE_URL: 'http://localhost:3010',
               ORDER_DELIVERY_FEE: 5000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
@@ -80,6 +82,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeDepotDirectory())
       .overrideProvider(ORDER_TOKENS.LoyaltyCoordination)
       .useValue(new FakeLoyaltyCoordination())
+      .overrideProvider(ORDER_TOKENS.Promo)
+      .useValue(new FakePromo())
       .compile();
 
     app = moduleRef.createNestApplication();
