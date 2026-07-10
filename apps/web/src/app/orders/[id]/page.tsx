@@ -11,8 +11,9 @@ import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/u
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { isCancellable } from '@/lib/order-status';
+import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Payment } from '@/lib/types';
+import type { Order, Page, Payment, PaymentMethod } from '@/lib/types';
 
 const PAYMENT_TONE = {
   PENDING: 'warning',
@@ -28,13 +29,32 @@ function OrderDetailInner({ id }: { id: string }) {
     () => api.get(endpoints.orders.get(id), true),
     [id],
   );
-  const { data: payments } = useAsync<Page<Payment>>(
+  const { data: payments, reload: reloadPayments } = useAsync<Page<Payment>>(
     () => api.get(endpoints.payments.forOrder(id), true),
     [id],
   );
 
   const [action, setAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
+
+  async function pay() {
+    if (!order) return;
+    setAction('pay');
+    setActionError(null);
+    try {
+      await api.post(
+        endpoints.payments.initiate,
+        { orderId: id, method: payMethod, amount: order.total },
+        true,
+      );
+      reloadPayments();
+    } catch (e) {
+      setActionError(e instanceof ApiError ? e.message : 'Could not start the payment.');
+    } finally {
+      setAction(null);
+    }
+  }
 
   async function cancel() {
     setAction('cancel');
@@ -91,6 +111,45 @@ function OrderDetailInner({ id }: { id: string }) {
             {payment.instruction && <p className="text-xs text-muted">{payment.instruction}</p>}
           </div>
           <Badge tone={PAYMENT_TONE[payment.status]}>{payment.status}</Badge>
+        </Card>
+      )}
+
+      {needsPayment(order, payment) && (
+        <Card className="flex flex-col gap-3 p-4">
+          <div>
+            <h2 className="font-semibold">
+              {payment ? 'Retry payment' : 'Pay for this order'}
+            </h2>
+            <p className="text-sm text-muted">
+              Choose how you&apos;d like to pay <Money amount={order.total} className="font-semibold" />.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2">
+            {PAYMENT_METHODS.map((m) => (
+              <label
+                key={m.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
+                  payMethod === m.value ? 'border-brand-600 bg-brand-50' : 'border-app'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="payMethod"
+                  value={m.value}
+                  checked={payMethod === m.value}
+                  onChange={() => setPayMethod(m.value)}
+                  className="mt-1 accent-brand-600"
+                />
+                <span>
+                  <span className="block text-sm font-semibold">{m.label}</span>
+                  <span className="block text-xs text-muted">{m.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <Button onClick={pay} loading={action === 'pay'}>
+            Pay now
+          </Button>
         </Card>
       )}
 

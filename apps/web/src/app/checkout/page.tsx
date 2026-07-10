@@ -8,17 +8,10 @@ import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/compo
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
+import { PAYMENT_METHODS } from '@/lib/payments';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
 import type { Address, Cart, LoyaltyAccount, Order, PaymentMethod, VoucherQuote } from '@/lib/types';
-
-const METHODS: { value: PaymentMethod; label: string; hint: string }[] = [
-  { value: 'CASH', label: 'Cash on delivery', hint: 'Pay the driver when your order arrives.' },
-  { value: 'TRANSFER', label: 'Bank transfer', hint: 'Transfer manually, confirmed by the depot.' },
-  { value: 'QRIS', label: 'QRIS', hint: 'Scan to pay with any QRIS app.' },
-  { value: 'EWALLET', label: 'E-wallet', hint: 'GoPay, OVO, DANA, and more.' },
-  { value: 'VA', label: 'Virtual account', hint: 'Pay to a one-time bank account number.' },
-];
 
 function CheckoutInner() {
   const router = useRouter();
@@ -306,7 +299,7 @@ function CheckoutInner() {
       <Card className="flex flex-col gap-3 p-4">
         <h2 className="font-semibold">Payment method</h2>
         <div className="flex flex-col gap-2">
-          {METHODS.map((m) => (
+          {PAYMENT_METHODS.map((m) => (
             <label
               key={m.value}
               className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
