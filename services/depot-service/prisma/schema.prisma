@@ -1,0 +1,110 @@
+// Hydromart depot-service data model (PRD Module 10 Depot Management + Module 9 Inventory).
+// Owns depots (ownership type, operating hours, delivery zone/fee, holidays) and their
+// per-depot stock lines (Air/Galon/Tutup/Segel/Produk) with an append-only movement ledger.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DEPOT_DATABASE_URL")
+}
+
+/// Franchise (Waralaba) vs company-owned (HKP). PRD: every depot has exactly one type.
+enum OwnershipType {
+  WARALABA
+  HKP
+}
+
+/// Stock line kinds (PRD FR-067..071). PRODUK lines reference the product catalog.
+enum InventoryItemType {
+  AIR
+  GALON
+  TUTUP
+  SEGEL
+  PRODUK
+}
+
+/// Ledger entry kind (PRD FR-072 adjustment, FR-073 opname; RECEIPT seeds initial stock).
+enum StockMovementType {
+  RECEIPT
+  ADJUSTMENT
+  OPNAME
+}
+
+model Depot {
+  id             String        @id @default(uuid()) @db.Uuid
+  /// Human-facing short code, unique across the network (e.g. "JKT-01").
+  code           String        @unique
+  name           String
+  ownershipType  OwnershipType
+  address        String
+  city           String
+  province       String
+  lat            Float
+  lng            Float
+  /// Service/delivery radius in km (FR-077/FR-078).
+  serviceRadiusKm Float        @default(5)
+  /// Flat delivery fee for this depot in IDR (FR-079).
+  deliveryFee    Decimal       @db.Decimal(12, 2)
+  /// Minimum order amount in IDR; per-depot policy. Null = no minimum.
+  minOrderAmount Decimal?      @db.Decimal(12, 2)
+  /// Weekly operating hours (FR-076): { mon: {open,close}, ... }.
+  operatingHours Json          @default("{}")
+  /// Closure dates (FR-080): [{ date: "2026-08-17", label?: "..." }].
+  holidays       Json          @default("[]")
+  active         Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  inventory      InventoryItem[]
+
+  @@index([active])
+  @@index([ownershipType])
+  @@map("depots")
+}
+
+model InventoryItem {
+  id           String            @id @default(uuid()) @db.Uuid
+  depotId      String            @db.Uuid
+  depot        Depot             @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  itemType     InventoryItemType
+  /// Set only for PRODUK lines: the catalog product this line tracks.
+  productId    String?           @db.Uuid
+  /// Display label, e.g. "Air RO", "Galon 19L", or the product name for PRODUK lines.
+  label        String
+  unit         String
+  quantity     Int               @default(0)
+  minimumStock Int               @default(0)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  movements    StockMovement[]
+
+  // Best-effort DB uniqueness. Non-PRODUK singletons (productId NULL) are also
+  // enforced in the service layer since Postgres treats NULLs as distinct.
+  @@unique([depotId, itemType, productId])
+  @@index([depotId])
+  @@map("inventory_items")
+}
+
+model StockMovement {
+  id             String            @id @default(uuid()) @db.Uuid
+  itemId         String            @db.Uuid
+  item           InventoryItem     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  type           StockMovementType
+  /// Signed change applied to quantity (+receipt/positive adjust, -consume, opname variance).
+  delta          Int
+  quantityBefore Int
+  quantityAfter  Int
+  reason         String?
+  /// User id of the staff member who recorded the movement.
+  actorId        String
+  createdAt      DateTime          @default(now())
+
+  @@index([itemId])
+  @@map("stock_movements")
+}
