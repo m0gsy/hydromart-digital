@@ -18,6 +18,7 @@ created on first boot by [`infra/postgres/init-databases.sql`](../infra/postgres
 | promo-service | `hydromart_promo` | … |
 | referral-service | `hydromart_referral` | … |
 | crm-service | `hydromart_crm` | … |
+| recommendation-service | `hydromart_recommendation` | `services/recommendation-service/prisma/migrations` |
 | dashboard-service | — (no DB, BFF aggregator) | — |
 | gateway-service | — (no DB, reverse proxy) | — |
 
