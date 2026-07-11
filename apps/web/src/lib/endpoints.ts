@@ -132,5 +132,12 @@ export const endpoints = {
       const qs = p.toString();
       return `/dashboard/api/v1/dashboard/executive${qs ? `?${qs}` : ''}`;
     },
+    franchise: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/dashboard/api/v1/dashboard/franchise${qs ? `?${qs}` : ''}`;
+    },
   },
 } as const;

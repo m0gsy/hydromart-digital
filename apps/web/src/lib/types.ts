@@ -278,6 +278,30 @@ export interface ExecutiveDashboard {
   sources: { order: 'ok' | 'unavailable'; delivery: 'ok' | 'unavailable' };
 }
 
+export interface FranchiseDepotSummary {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  orderCount: number;
+  revenue: number;
+  lowStockCount: number;
+}
+
+export interface FranchiseDashboard {
+  from: string | null;
+  to: string | null;
+  depots: FranchiseDepotSummary[];
+  totals: { depotCount: number; revenue: number; orderCount: number; lowStockCount: number };
+  deliverySla: DeliverySla | null;
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'unavailable';
+    delivery: 'ok' | 'unavailable';
+    inventory: 'ok' | 'unavailable';
+  };
+}
+
 /* ---------- Depot inventory (staff-facing) ---------- */
 
 // Base-stock singletons (AIR/GALON/TUTUP/SEGEL) + per-product lines (PRODUK).

@@ -5,6 +5,7 @@ import {
   canManageDepots,
   canViewCampaigns,
   canViewDashboard,
+  canViewFranchise,
   canViewInventory,
   canWriteInventory,
   isStaff,
@@ -92,5 +93,15 @@ describe('canManageDepots', () => {
     expect(canManageDepots('DEPOT_OPERATOR')).toBe(false);
     expect(canManageDepots('CUSTOMER')).toBe(false);
     expect(canManageDepots(null)).toBe(false);
+  });
+});
+
+describe('canViewFranchise', () => {
+  it('allows franchise owners only', () => {
+    expect(canViewFranchise('FRANCHISE_OWNER')).toBe(true);
+    expect(canViewFranchise('SUPER_ADMIN')).toBe(false);
+    expect(canViewFranchise('DEPOT_MANAGER')).toBe(false);
+    expect(canViewFranchise('CUSTOMER')).toBe(false);
+    expect(canViewFranchise(null)).toBe(false);
   });
 });

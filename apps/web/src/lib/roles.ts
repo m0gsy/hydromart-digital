@@ -53,3 +53,8 @@ const DEPOT_ADMIN = new Set(['DEPOT_MANAGER', 'SUPER_ADMIN']);
 export function canManageDepots(role: string | null | undefined): boolean {
   return role != null && DEPOT_ADMIN.has(role);
 }
+
+/** Whether a role may view the franchise dashboard (mirrors dashboard-service FRANCHISE_OWNER-only). */
+export function canViewFranchise(role: string | null | undefined): boolean {
+  return role === 'FRANCHISE_OWNER';
+}

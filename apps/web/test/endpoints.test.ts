@@ -43,6 +43,13 @@ describe('endpoints', () => {
     );
   });
 
+  it('builds the dashboard franchise path with an optional date range', () => {
+    expect(endpoints.dashboard.franchise()).toBe('/dashboard/api/v1/dashboard/franchise');
+    expect(endpoints.dashboard.franchise({ from: '2026-06-01', to: '2026-07-01' })).toBe(
+      '/dashboard/api/v1/dashboard/franchise?from=2026-06-01&to=2026-07-01',
+    );
+  });
+
   it('builds the depot + inventory staff paths', () => {
     expect(endpoints.depots.browse({ limit: 100 })).toBe('/depots/api/v1/depots?limit=100');
     expect(endpoints.inventory.lines('d1')).toBe('/depots/api/v1/depots/d1/inventory');
