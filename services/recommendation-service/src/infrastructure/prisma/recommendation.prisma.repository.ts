@@ -44,6 +44,12 @@ export class RecommendationPrismaRepository implements RecommendationRepository 
         // Prisma's compound-unique where input requires a non-null depotId, but depotId is
         // nullable here (order not tied to a depot), so upsert-by-compound-key isn't typeable.
         // Find-then-write instead; safe because this all runs inside one interactive $transaction.
+        // ponytail: two CONCURRENT ingests of the same product/day with depotId=null can each
+        // pass findFirst and both create a row (Postgres unique treats NULL != NULL, so the
+        // @@unique doesn't collapse them). This does NOT undercount trending — rankTrending sums
+        // every row per productId, so split rows still total correctly; the only effect is a few
+        // extra rows under rare concurrency. Upgrade path if row-bloat ever matters: a partial
+        // unique index `WHERE depot_id IS NULL` + ON CONFLICT, or a depot sentinel.
         const existingDaily = await tx.productDailySales.findFirst({
           where: { productId: item.productId, depotId: cmd.depotId, day },
         });
