@@ -55,6 +55,7 @@ model ProductRef {
   name      String
   sku       String
   unit      String
+  buyCount  Int    @default(0)
 
   @@map("product_refs")
 }
