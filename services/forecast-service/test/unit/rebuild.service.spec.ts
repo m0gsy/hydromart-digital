@@ -2,7 +2,10 @@ import { ForecastService } from '../../src/application/services/forecast.service
 import { RebuildService } from '../../src/application/services/rebuild.service';
 import { OrderFeedPort } from '../../src/application/ports/order-feed.port';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
+import { ForecastConfigService } from '../../src/config/forecast-config.service';
 import { FakeForecastRepository } from '../support/fakes';
+
+const configStub = { churnWindowDays: 45 } as unknown as ForecastConfigService;
 
 /** In-memory OrderFeedPort: paginates a fixed order list by index cursor (same shape as the HTTP adapter). */
 class FakeOrderFeed implements OrderFeedPort {
@@ -21,7 +24,9 @@ class FakeOrderFeed implements OrderFeedPort {
 function makeIngest(orderId: string): IngestCommand {
   return {
     orderId,
+    customerId: 'cust-1',
     depotId: 'depot-1',
+    total: 85000,
     at: new Date('2026-07-11T10:00:00Z'),
     items: [
       { productId: 'a', productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 2 },
@@ -41,7 +46,7 @@ describe('RebuildService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    forecasts = new ForecastService(repo);
+    forecasts = new ForecastService(repo, configStub);
     feed = new FakeOrderFeed(orders);
     rebuild = new RebuildService(feed, forecasts);
   });

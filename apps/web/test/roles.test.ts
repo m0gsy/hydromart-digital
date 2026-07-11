@@ -5,6 +5,7 @@ import {
   canManageDepots,
   canManagePricing,
   canViewCampaigns,
+  canViewChurn,
   canViewDashboard,
   canViewForecast,
   canViewFranchise,
@@ -122,6 +123,24 @@ describe('canViewForecast', () => {
     expect(canViewForecast(null)).toBe(false);
     expect(canViewForecast(undefined)).toBe(false);
     expect(canViewForecast('')).toBe(false);
+  });
+});
+
+describe('canViewChurn', () => {
+  it('allows the churn roles (marketing, manager, head-office, super-admin)', () => {
+    expect(canViewChurn('MARKETING')).toBe(true);
+    expect(canViewChurn('DEPOT_MANAGER')).toBe(true);
+    expect(canViewChurn('HEAD_OFFICE')).toBe(true);
+    expect(canViewChurn('SUPER_ADMIN')).toBe(true);
+  });
+
+  it('blocks customers, planning-only operators, and unknown/empty roles', () => {
+    expect(canViewChurn('CUSTOMER')).toBe(false);
+    expect(canViewChurn('DEPOT_OPERATOR')).toBe(false);
+    expect(canViewChurn('DRIVER')).toBe(false);
+    expect(canViewChurn(null)).toBe(false);
+    expect(canViewChurn(undefined)).toBe(false);
+    expect(canViewChurn('')).toBe(false);
   });
 });
 

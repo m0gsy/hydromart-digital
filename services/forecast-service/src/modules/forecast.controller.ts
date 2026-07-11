@@ -3,9 +3,21 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
-import { ForecastItem, ForecastResult, ForecastService } from '../application/services/forecast.service';
+import {
+  ChurnItem,
+  ForecastItem,
+  ForecastResult,
+  ForecastService,
+  SalesForecast,
+} from '../application/services/forecast.service';
 import { RebuildService } from '../application/services/rebuild.service';
-import { DemandQueryDto, DepotRollupQueryDto, RebuildQueryDto } from './dto/forecast.dto';
+import {
+  ChurnQueryDto,
+  DemandQueryDto,
+  DepotRollupQueryDto,
+  RebuildQueryDto,
+  SalesQueryDto,
+} from './dto/forecast.dto';
 
 // Planning staff only — never customer-facing. Class-level roles cover the query endpoints;
 // rebuild overrides with SUPER_ADMIN below (RolesGuard uses getAllAndOverride: handler wins).
@@ -52,6 +64,30 @@ export class ForecastController {
       historyDays: query.historyDays,
       horizonDays: query.horizonDays,
       limit: query.limit,
+    });
+  }
+
+  @Get('sales')
+  @ApiOperation({ summary: 'Daily revenue forecast (omit depotId for a global forecast)' })
+  async sales(@Query() query: SalesQueryDto): Promise<SalesForecast> {
+    return this.forecasts.salesForecast({
+      depotId: query.depotId, // omitted -> undefined -> global (all depots)
+      historyDays: query.historyDays,
+      horizonDays: query.horizonDays,
+    });
+  }
+
+  // Churn is CRM-facing (re-engagement) — overrides the class PLANNING_ROLES with CHURN_ROLES
+  // via getAllAndOverride (handler wins). A planning role not in this set (e.g. DEPOT_OPERATOR)
+  // is rejected.
+  @Roles(Role.MARKETING, Role.DEPOT_MANAGER, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('churn')
+  @ApiOperation({ summary: 'At-risk customers ranked by recency-driven churn risk' })
+  async churn(@Query() query: ChurnQueryDto): Promise<{ customers: ChurnItem[] }> {
+    return this.forecasts.churnList({
+      depotId: query.depotId,
+      limit: query.limit,
+      windowDays: query.days,
     });
   }
 

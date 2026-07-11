@@ -63,6 +63,17 @@ describe('endpoints', () => {
     );
   });
 
+  it('builds the forecast sales + churn paths, omitting unset params', () => {
+    expect(endpoints.forecast.sales()).toBe('/forecast/api/v1/forecast/sales');
+    expect(endpoints.forecast.sales({ depotId: 'd1', historyDays: 60, horizonDays: 14 })).toBe(
+      '/forecast/api/v1/forecast/sales?depotId=d1&historyDays=60&horizonDays=14',
+    );
+    expect(endpoints.forecast.churn()).toBe('/forecast/api/v1/forecast/churn');
+    expect(endpoints.forecast.churn({ depotId: 'd1', limit: 100, days: 45 })).toBe(
+      '/forecast/api/v1/forecast/churn?depotId=d1&limit=100&days=45',
+    );
+  });
+
   it('builds the depot + inventory staff paths', () => {
     expect(endpoints.depots.browse({ limit: 100 })).toBe('/depots/api/v1/depots?limit=100');
     expect(endpoints.inventory.lines('d1')).toBe('/depots/api/v1/depots/d1/inventory');

@@ -8,9 +8,26 @@ export interface IngestItem {
 
 export interface IngestCommand {
   orderId: string;
+  customerId: string;
   depotId: string | null;
+  total: number;
   items: IngestItem[];
   at: Date;
+}
+
+/** One daily-revenue cell. `day` = epoch day number (see domain series.ts `toUtcDay`). */
+export interface RevenueRow {
+  depotId: string | null;
+  day: number;
+  revenue: number;
+}
+
+/** One customer's latest activity snapshot (drives the churn query). */
+export interface CustomerActivityRow {
+  customerId: string;
+  depotId: string | null;
+  lastOrderAt: Date;
+  orderCount: number;
 }
 
 /** One daily-demand cell. `day` = epoch day number (see domain series.ts `toUtcDay`). */
@@ -34,8 +51,11 @@ export interface ForecastRepository {
   /**
    * Applies one order's demand into the read model atomically: upserts each ProductRef,
    * increments ProductDailyDemand (quantity += item.quantity, orderCount += 1) at
-   * (productId, depotId, toUtcDay(at)), and inserts the IngestedOrder marker. Idempotent:
-   * if orderId is already ingested it is a no-op (the PK insert is the concurrency backstop).
+   * (productId, depotId, toUtcDay(at)); increments DepotDailyRevenue (revenue += total,
+   * orderCount += 1) at (depotId, toUtcDay(at)); upserts CustomerActivity (orderCount += 1,
+   * lastOrderAt = max(existing, at), depotId = cmd.depotId); and inserts the IngestedOrder
+   * marker. Idempotent: if orderId is already ingested it is a no-op (the PK insert is the
+   * concurrency backstop) — a re-ingested order never double-counts any aggregate.
    */
   applyIngest(cmd: IngestCommand): Promise<void>;
 
@@ -66,4 +86,24 @@ export interface ForecastRepository {
 
   /** ProductRef snapshots for the given ids (missing ids omitted); enriches responses. */
   findRefs(productIds: string[]): Promise<ProductRefRecord[]>;
+
+  /**
+   * Daily-revenue rows within [fromDay, toDay] inclusive. `depotId` mirrors findDemandRows'
+   * three cases: undefined -> ALL depots (caller sums into a global series), null -> only the
+   * null-depot rows, "<id>" -> only that depot.
+   */
+  findRevenueRows(query: {
+    depotId?: string | null;
+    fromDay: number;
+    toDay: number;
+  }): Promise<RevenueRow[]>;
+
+  /**
+   * Customer-activity snapshots, oldest lastOrderAt first (most at-risk first). When depotId is
+   * set, restricted to that depot. Returns up to `limit` rows; the service ranks + slices.
+   */
+  listCustomerActivity(query: {
+    depotId?: string | null;
+    limit: number;
+  }): Promise<CustomerActivityRow[]>;
 }

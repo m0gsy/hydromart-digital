@@ -41,4 +41,8 @@ export class ForecastConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  /** Default recency window (days) for churn risk banding; the query `days` param overrides it. */
+  get churnWindowDays(): number {
+    return Number(this.config.get<number>('CHURN_WINDOW_DAYS', 45));
+  }
 }

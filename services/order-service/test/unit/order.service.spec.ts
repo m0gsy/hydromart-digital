@@ -312,6 +312,8 @@ describe('OrderService', () => {
     // Completion also feeds forecast-service (with per-item quantity for demand history).
     expect(forecast.calls).toHaveLength(1);
     expect(forecast.calls[0].orderId).toBe(order.id);
+    expect(forecast.calls[0].customerId).toBe(customer);
+    expect(forecast.calls[0].total).toBe(order.total);
     expect(forecast.calls[0].items).toEqual(
       order.items.map((i) => ({
         productId: i.productId,

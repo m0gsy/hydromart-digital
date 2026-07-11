@@ -31,6 +31,31 @@ model ProductDailyDemand {
   @@map("product_daily_demand")
 }
 
+model DepotDailyRevenue {
+  id         String   @id @default(uuid()) @db.Uuid
+  depotId    String?  @db.Uuid
+  day        DateTime @db.Date
+  revenue    Int      @default(0)
+  orderCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([depotId, day])
+  @@index([day])
+  @@map("depot_daily_revenue")
+}
+
+model CustomerActivity {
+  customerId  String   @id @db.Uuid
+  depotId     String?  @db.Uuid
+  lastOrderAt DateTime
+  orderCount  Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@index([depotId, lastOrderAt])
+  @@map("customer_activity")
+}
+
 model ProductRef {
   productId String   @id @db.Uuid
   name      String

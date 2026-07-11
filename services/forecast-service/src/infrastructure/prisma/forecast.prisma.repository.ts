@@ -2,10 +2,12 @@ import { Injectable } from '@nestjs/common';
 
 import { toUtcDay } from '../../domain/series';
 import {
+  CustomerActivityRow,
   DemandRow,
   ForecastRepository,
   IngestCommand,
   ProductRefRecord,
+  RevenueRow,
 } from '../../application/ports/forecast.repository';
 import { PrismaService } from './prisma.service';
 
@@ -68,6 +70,29 @@ export class ForecastPrismaRepository implements ForecastRepository {
         }
       }
 
+      // DepotDailyRevenue: same nullable-depot find-then-write pattern + ceiling as demand above.
+      const existingRev = await tx.depotDailyRevenue.findFirst({ where: { depotId: cmd.depotId, day } });
+      if (existingRev) {
+        await tx.depotDailyRevenue.update({
+          where: { id: existingRev.id },
+          data: { revenue: { increment: cmd.total }, orderCount: { increment: 1 } },
+        });
+      } else {
+        await tx.depotDailyRevenue.create({
+          data: { depotId: cmd.depotId, day, revenue: cmd.total, orderCount: 1 },
+        });
+      }
+
+      // CustomerActivity: customerId is the PK so upsert-by-where is typeable; lastOrderAt keeps
+      // the max (rebuilds may replay out of order), depotId reflects this order's depot.
+      const existingCust = await tx.customerActivity.findUnique({ where: { customerId: cmd.customerId } });
+      const lastOrderAt = existingCust && existingCust.lastOrderAt > cmd.at ? existingCust.lastOrderAt : cmd.at;
+      await tx.customerActivity.upsert({
+        where: { customerId: cmd.customerId },
+        create: { customerId: cmd.customerId, depotId: cmd.depotId, lastOrderAt: cmd.at, orderCount: 1 },
+        update: { depotId: cmd.depotId, lastOrderAt, orderCount: { increment: 1 } },
+      });
+
       // P2002 here under concurrency rolls back the whole tx (documented ceiling); not swallowed.
       await tx.ingestedOrder.create({ data: { orderId: cmd.orderId } });
     });
@@ -124,5 +149,39 @@ export class ForecastPrismaRepository implements ForecastRepository {
   async findRefs(productIds: string[]): Promise<ProductRefRecord[]> {
     const rows = await this.prisma.productRef.findMany({ where: { productId: { in: productIds } } });
     return rows.map((r) => ({ productId: r.productId, name: r.name, sku: r.sku, unit: r.unit }));
+  }
+
+  async findRevenueRows(query: {
+    depotId?: string | null;
+    fromDay: number;
+    toDay: number;
+  }): Promise<RevenueRow[]> {
+    const { depotId, fromDay, toDay } = query;
+    const rows = await this.prisma.depotDailyRevenue.findMany({
+      where: {
+        day: { gte: dayToDate(fromDay), lte: dayToDate(toDay) },
+        // undefined -> no filter (all depots); null -> only null-depot; id -> that depot.
+        ...(depotId === undefined ? {} : { depotId }),
+      },
+    });
+    return rows.map((r) => ({ depotId: r.depotId, day: toUtcDay(r.day), revenue: r.revenue }));
+  }
+
+  async listCustomerActivity(query: {
+    depotId?: string | null;
+    limit: number;
+  }): Promise<CustomerActivityRow[]> {
+    const { depotId, limit } = query;
+    const rows = await this.prisma.customerActivity.findMany({
+      where: { ...(depotId === undefined ? {} : { depotId }) },
+      orderBy: { lastOrderAt: 'asc' }, // oldest / most at-risk first
+      take: limit,
+    });
+    return rows.map((r) => ({
+      customerId: r.customerId,
+      depotId: r.depotId,
+      lastOrderAt: r.lastOrderAt,
+      orderCount: r.orderCount,
+    }));
   }
 }

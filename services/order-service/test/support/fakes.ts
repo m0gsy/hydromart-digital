@@ -300,13 +300,17 @@ export class FakeRecommendationCoordination implements RecommendationCoordinatio
 export class FakeForecastCoordination implements ForecastCoordinationPort {
   calls: {
     orderId: string;
+    customerId: string;
     depotId: string | null;
+    total: number;
     items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
   }[] = [];
   async ingestCompletedOrder(order: OrderRecord): Promise<void> {
     this.calls.push({
       orderId: order.id,
+      customerId: order.customerId,
       depotId: order.depotId,
+      total: Math.round(order.total),
       items: order.items.map((i) => ({
         productId: i.productId,
         productName: i.productName,

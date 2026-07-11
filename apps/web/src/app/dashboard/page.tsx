@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Buildings, ChartLineUp, ChatCircleText, ClipboardText, Lock, Package, Tag, Truck } from '@phosphor-icons/react';
+import { Buildings, ChartLineUp, ChatCircleText, ClipboardText, Lock, Package, Tag, Truck, UsersThree } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canManageDepots, canManagePricing, canViewCampaigns, canViewDashboard, canViewForecast } from '@/lib/roles';
+import { canManageDepots, canManagePricing, canViewCampaigns, canViewChurn, canViewDashboard, canViewForecast } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ExecutiveDashboard } from '@/lib/types';
 
@@ -88,6 +88,15 @@ function DashboardBody() {
             >
               <ChatCircleText size={18} weight="fill" />
               Campaigns
+            </Link>
+          )}
+          {canViewChurn(customer?.role) && (
+            <Link
+              href="/dashboard/churn"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
+            >
+              <UsersThree size={18} weight="fill" />
+              Churn risk
             </Link>
           )}
           {canManageDepots(customer?.role) && (

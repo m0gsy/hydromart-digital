@@ -24,7 +24,9 @@ export class IngestController {
     // Live ingest: completion time ≈ now. (Rebuild passes historical `at` via the feed adapter.)
     await this.forecasts.ingest({
       orderId: dto.orderId,
+      customerId: dto.customerId,
       depotId: dto.depotId ?? null,
+      total: dto.total,
       items: dto.items,
       at: new Date(),
     });
