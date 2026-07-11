@@ -1,0 +1,16 @@
+# Keep the Docker build context lean and secret-free. The web image builds with
+# the repo root as context; without this, every service's node_modules, .git, and
+# any local .env would be shipped to the daemon (slow, and a leak risk).
+**/node_modules
+**/dist
+**/.next
+.git
+.github
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/coverage
+**/*.log
+docs
+test
