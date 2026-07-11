@@ -95,12 +95,26 @@ services:
       <<: *shared
       PAYMENT_SERVICE_PORT: 3005
       PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_payment?schema=public
-      PAYMENT_GATEWAY_BASE_URL: ""
-      PAYMENT_GATEWAY_API_KEY: ""
+      PAYMENT_GATEWAY_BASE_URL: http://gateway-stub:9100
+      PAYMENT_GATEWAY_API_KEY: itest-stub-key
       PAYMENT_WEBHOOK_SECRET: itest-webhook-secret-min-16-chars
       ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3005/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Payment-provider stub: makes online charges succeed so the signed-webhook
+  # PAID path is reachable in the integration test (no build, mounts the script).
+  gateway-stub:
+    image: node:20-alpine
+    restart: "no"
+    volumes:
+      - ./test/integration/gateway-stub.mjs:/stub.mjs:ro
+    command: ["node", "/stub.mjs"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:9100/charges',{method:'POST',body:'{}'}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12
