@@ -1,10 +1,12 @@
 import { toUtcDay } from '../../src/domain/series';
 import {
+  CustomerActivityRow,
   DemandRow,
   ForecastRepository,
   IngestCommand,
   IngestItem,
   ProductRefRecord,
+  RevenueRow,
 } from '../../src/application/ports/forecast.repository';
 import { OrderFeedPort } from '../../src/application/ports/order-feed.port';
 
@@ -13,7 +15,16 @@ function cellKey(productId: string, depotId: string | null, day: number): string
   return `${productId}|${depotId ?? '∅'}|${day}`;
 }
 
+/** Revenue cell key: null depot collapses to '∅' (same rule as demand cells). */
+function revenueKey(depotId: string | null, day: number): string {
+  return `${depotId ?? '∅'}|${day}`;
+}
+
 interface DemandCell extends DemandRow {
+  orderCount: number;
+}
+
+interface RevenueCell extends RevenueRow {
   orderCount: number;
 }
 
@@ -26,6 +37,8 @@ interface DemandCell extends DemandRow {
 export class FakeForecastRepository implements ForecastRepository {
   refs = new Map<string, ProductRefRecord>();
   cells = new Map<string, DemandCell>();
+  revenueCells = new Map<string, RevenueCell>();
+  activity = new Map<string, CustomerActivityRow>();
   ingestedOrderIds = new Set<string>();
 
   async hasIngested(orderId: string): Promise<boolean> {
@@ -40,8 +53,31 @@ export class FakeForecastRepository implements ForecastRepository {
       this.upsertRef(item);
       this.incrementCell(item.productId, cmd.depotId, day, item.quantity);
     }
+    this.incrementRevenue(cmd.depotId, day, cmd.total);
+    this.touchCustomer(cmd.customerId, cmd.depotId, cmd.at);
 
     this.ingestedOrderIds.add(cmd.orderId);
+  }
+
+  private incrementRevenue(depotId: string | null, day: number, total: number): void {
+    const key = revenueKey(depotId, day);
+    const cell = this.revenueCells.get(key);
+    if (cell) {
+      cell.revenue += total;
+      cell.orderCount += 1;
+    } else {
+      this.revenueCells.set(key, { depotId, day, revenue: total, orderCount: 1 });
+    }
+  }
+
+  private touchCustomer(customerId: string, depotId: string | null, at: Date): void {
+    const prev = this.activity.get(customerId);
+    this.activity.set(customerId, {
+      customerId,
+      depotId,
+      lastOrderAt: prev && prev.lastOrderAt > at ? prev.lastOrderAt : at,
+      orderCount: (prev?.orderCount ?? 0) + 1,
+    });
   }
 
   private upsertRef(item: IngestItem): void {
@@ -101,6 +137,30 @@ export class FakeForecastRepository implements ForecastRepository {
 
   async findRefs(productIds: string[]): Promise<ProductRefRecord[]> {
     return productIds.map((id) => this.refs.get(id)).filter((r): r is ProductRefRecord => r !== undefined);
+  }
+
+  async findRevenueRows(query: {
+    depotId?: string | null;
+    fromDay: number;
+    toDay: number;
+  }): Promise<RevenueRow[]> {
+    const { depotId, fromDay, toDay } = query;
+    const allDepots = depotId === undefined;
+    return [...this.revenueCells.values()]
+      .filter((c) => c.day >= fromDay && c.day <= toDay && (allDepots || c.depotId === depotId))
+      .map((c) => ({ depotId: c.depotId, day: c.day, revenue: c.revenue }));
+  }
+
+  async listCustomerActivity(query: {
+    depotId?: string | null;
+    limit: number;
+  }): Promise<CustomerActivityRow[]> {
+    const { depotId, limit } = query;
+    return [...this.activity.values()]
+      .filter((a) => depotId === undefined || a.depotId === depotId)
+      .sort((x, y) => x.lastOrderAt.getTime() - y.lastOrderAt.getTime()) // oldest first
+      .slice(0, limit)
+      .map((a) => ({ ...a }));
   }
 }
 

@@ -1,14 +1,19 @@
 import { ForecastService } from '../../src/application/services/forecast.service';
 import { FakeForecastRepository } from '../support/fakes';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
+import { ForecastConfigService } from '../../src/config/forecast-config.service';
 
 const NOW = new Date('2026-07-11T12:00:00Z');
 const AT = new Date('2026-07-11T08:00:00Z'); // same UTC day as NOW → lands on the last history day
 
+const configStub = { churnWindowDays: 45 } as unknown as ForecastConfigService;
+
 function makeIngest(overrides: Partial<IngestCommand> = {}): IngestCommand {
   return {
     orderId: 'order-1',
+    customerId: 'cust-1',
     depotId: null,
+    total: 85000,
     at: AT,
     items: [{ productId: 'a', productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 3 }],
     ...overrides,
@@ -21,7 +26,7 @@ describe('ForecastService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    service = new ForecastService(repo);
+    service = new ForecastService(repo, configStub);
   });
 
   it('ingest sums QUANTITY (not order count) into daily demand', async () => {
@@ -117,5 +122,81 @@ describe('ForecastService', () => {
     const res = await service.demand({ productId: 'unseen', historyDays: 1, now: NOW });
 
     expect(res.history).toHaveLength(7);
+  });
+
+  it('salesForecast sums order totals per depot-day and projects, echoing depotId', async () => {
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'c1', depotId: 'd1', total: 50000 }));
+    await service.ingest(makeIngest({ orderId: 'o2', customerId: 'c2', depotId: 'd1', total: 30000 }));
+
+    const res = await service.salesForecast({ depotId: 'd1', now: NOW });
+
+    expect(res.depotId).toBe('d1');
+    expect(res.history[res.history.length - 1]).toBe(80000); // both totals, same day + depot
+    expect(res.predictedDaily).toHaveLength(7);
+  });
+
+  it('salesForecast global (depotId omitted) sums across depots and echoes null', async () => {
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'c1', depotId: 'd1', total: 50000 }));
+    await service.ingest(makeIngest({ orderId: 'o2', customerId: 'c2', depotId: 'd2', total: 30000 }));
+
+    const res = await service.salesForecast({ now: NOW });
+
+    expect(res.depotId).toBeNull();
+    expect(res.history[res.history.length - 1]).toBe(80000);
+  });
+
+  it('salesForecast depot-scoped filters revenue to one depot', async () => {
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'c1', depotId: 'd1', total: 50000 }));
+    await service.ingest(makeIngest({ orderId: 'o2', customerId: 'c2', depotId: 'd2', total: 30000 }));
+
+    const res = await service.salesForecast({ depotId: 'd1', now: NOW });
+
+    expect(res.history[res.history.length - 1]).toBe(50000);
+  });
+
+  it('salesForecast with no revenue → all-zero forecast', async () => {
+    const res = await service.salesForecast({ depotId: 'none', now: NOW });
+
+    expect(res.history.every((x) => x === 0)).toBe(true);
+    expect(res.predictedTotal).toBe(0);
+  });
+
+  it('churnList ranks by recency (most-stale first) and returns ISO lastOrderAt', async () => {
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'recent', at: new Date('2026-07-10T00:00:00Z') }));
+    await service.ingest(makeIngest({ orderId: 'o2', customerId: 'stale', at: new Date('2026-05-01T00:00:00Z') }));
+
+    const { customers } = await service.churnList({ now: NOW });
+
+    expect(customers.map((c) => c.customerId)).toEqual(['stale', 'recent']);
+    expect(customers[0].riskScore).toBeGreaterThanOrEqual(customers[1].riskScore);
+    expect(customers[0].lastOrderAt).toBe('2026-05-01T00:00:00.000Z');
+  });
+
+  it('churnList empty state → no customers, no throw', async () => {
+    const { customers } = await service.churnList({ now: NOW });
+    expect(customers).toEqual([]);
+  });
+
+  it('churnList windowDays override changes banding vs the config default', async () => {
+    // lastOrderAt 20 days before NOW. default window 45 → 20 < 22.5 → LOW; window 30 → 20 >= 15 → MEDIUM.
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'x', at: new Date('2026-06-21T00:00:00Z') }));
+
+    const def = await service.churnList({ now: NOW });
+    expect(def.customers[0].riskBand).toBe('LOW');
+
+    const over = await service.churnList({ windowDays: 30, now: NOW });
+    expect(over.customers[0].riskBand).toBe('MEDIUM');
+  });
+
+  it('churnList limit clamps below 1 up to 1 and slices', async () => {
+    const day = 86_400_000;
+    for (let i = 0; i < 3; i += 1) {
+      await service.ingest(
+        makeIngest({ orderId: `o${i}`, customerId: `c${i}`, at: new Date(NOW.getTime() - (i + 1) * day) }),
+      );
+    }
+
+    const { customers } = await service.churnList({ limit: 0, now: NOW });
+    expect(customers).toHaveLength(1);
   });
 });

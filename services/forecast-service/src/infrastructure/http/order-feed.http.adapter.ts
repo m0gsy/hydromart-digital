@@ -8,7 +8,9 @@ const TIMEOUT_MS = 5_000;
 
 interface CompletedOrderResponse {
   id: string;
+  customerId: string;
   depotId?: string | null;
+  total?: number;
   completedAt?: string;
   updatedAt?: string;
   items: IngestItem[];
@@ -50,7 +52,9 @@ export class OrderFeedHttpAdapter implements OrderFeedPort {
       return {
         orders: page.orders.map((order) => ({
           orderId: order.id,
+          customerId: order.customerId,
           depotId: order.depotId ?? null,
+          total: order.total ?? 0,
           items: order.items,
           at: new Date(order.completedAt ?? order.updatedAt ?? Date.now()),
         })),

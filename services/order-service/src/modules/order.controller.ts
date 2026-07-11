@@ -145,6 +145,7 @@ export class OrderController {
       customerId: string;
       depotId: string | null;
       completedAt: Date;
+      total: number;
       items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
     }[];
     nextCursor: string | null;
@@ -159,6 +160,7 @@ export class OrderController {
         customerId: o.customerId,
         depotId: o.depotId,
         completedAt: o.updatedAt,
+        total: Math.round(o.total),
         items: o.items.map((i) => ({
           productId: i.productId,
           productName: i.productName,

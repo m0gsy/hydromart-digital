@@ -77,3 +77,12 @@ const PLANNING_ROLES = new Set([
 export function canViewForecast(role: string | null | undefined): boolean {
   return role != null && PLANNING_ROLES.has(role);
 }
+
+// Mirrors forecast-service CHURN_ROLES (churn query endpoint). Marketing-led
+// re-engagement, so broader than planning: MARKETING in, depot operators out.
+const CHURN_ROLES = new Set(['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+
+/** Whether a role may view customer churn insights. */
+export function canViewChurn(role: string | null | undefined): boolean {
+  return role != null && CHURN_ROLES.has(role);
+}

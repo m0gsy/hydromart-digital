@@ -10,15 +10,47 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { trendLabel } from '@/lib/forecast';
+import { formatIDR } from '@/lib/format';
 import { canViewForecast } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Depot, ForecastItem, Page } from '@/lib/types';
+import type { Depot, ForecastItem, Page, SalesForecast } from '@/lib/types';
 
 // Depot-service returns the full record; we only need these fields for the picker.
 type DepotOption = Depot & Record<string, unknown>;
 
 const HORIZON_OPTIONS = [7, 14, 30];
 const HISTORY_OPTIONS = [30, 60, 90];
+
+/** Compact revenue-forecast card for the picked depot. */
+function RevenueCard({ sales, horizonDays }: { sales: ReturnType<typeof useAsync<SalesForecast | null>>; horizonDays: number }) {
+  if (sales.loading) return <Skeleton className="h-24 w-full" />;
+  if (sales.error) return <ErrorState message={sales.error} onRetry={sales.reload} />;
+
+  const data = sales.data;
+  const hasHistory = data != null && data.history.some((v) => v > 0);
+  if (!data || !hasHistory) {
+    return (
+      <Card className="p-5 text-sm text-muted">No revenue history yet for this depot.</Card>
+    );
+  }
+
+  return (
+    <Card className="flex flex-wrap items-end justify-between gap-4 p-5">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Predicted revenue · next {horizonDays} days</p>
+        <p className="mt-1 text-2xl font-bold tabular-nums">{formatIDR(data.predictedTotal)}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Avg / day</p>
+        <p className="mt-1 text-lg font-semibold tabular-nums">{formatIDR(Math.round(data.avgDaily))}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Trend</p>
+        <p className="mt-1 whitespace-nowrap text-lg font-semibold">{trendLabel(data.trendSlope)}</p>
+      </div>
+    </Card>
+  );
+}
 
 function ForecastBody() {
   const [depotId, setDepotId] = useState('');
@@ -40,6 +72,14 @@ function ForecastBody() {
       depotId
         ? api.get(endpoints.forecast.depot(depotId, { historyDays, horizonDays, limit: 50 }), true)
         : Promise.resolve([]),
+    [depotId, historyDays, horizonDays],
+  );
+
+  const sales = useAsync<SalesForecast | null>(
+    () =>
+      depotId
+        ? api.get(endpoints.forecast.sales({ depotId, historyDays, horizonDays }), true)
+        : Promise.resolve(null),
     [depotId, historyDays, horizonDays],
   );
 
@@ -109,6 +149,8 @@ function ForecastBody() {
               </select>
             </Field>
           </div>
+
+          <RevenueCard sales={sales} horizonDays={horizonDays} />
 
           {rows.loading ? (
             <Skeleton className="h-64 w-full" />

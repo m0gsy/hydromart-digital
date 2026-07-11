@@ -165,6 +165,24 @@ export const endpoints = {
       const qs = p.toString();
       return `/forecast/api/v1/forecast/depot/${depotId}${qs ? `?${qs}` : ''}`;
     },
+    // Revenue forecast for one depot (omit depotId for the global sum).
+    sales: (q: { depotId?: string; historyDays?: number; horizonDays?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.historyDays) p.set('historyDays', String(q.historyDays));
+      if (q.horizonDays) p.set('horizonDays', String(q.horizonDays));
+      const qs = p.toString();
+      return `/forecast/api/v1/forecast/sales${qs ? `?${qs}` : ''}`;
+    },
+    // At-risk customers ranked by churn score (depot-scoped when depotId set).
+    churn: (q: { depotId?: string; limit?: number; days?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.days) p.set('days', String(q.days));
+      const qs = p.toString();
+      return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
+    },
   },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {

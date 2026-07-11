@@ -20,7 +20,9 @@ const INTERNAL_KEY = 'test-internal-service-key-01';
 function ingestBody(overrides: Record<string, unknown> = {}) {
   return {
     orderId: randomUUID(),
+    customerId: randomUUID(),
     depotId: randomUUID(),
+    total: 85000,
     items: [
       { productId: randomUUID(), productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 3 },
       { productId: randomUUID(), productName: 'Aqua 600ml', sku: 'AQ06', unit: 'botol', quantity: 5 },
@@ -36,6 +38,8 @@ describe('Forecast HTTP flows (e2e)', () => {
   let managerToken: string;
   let customerToken: string;
   let superAdminToken: string;
+  let marketingToken: string;
+  let operatorToken: string;
 
   beforeAll(async () => {
     // Joi's validationSchema validates raw process.env, not the `load()` factory below —
@@ -93,6 +97,8 @@ describe('Forecast HTTP flows (e2e)', () => {
     managerToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
+    marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
+    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -164,7 +170,9 @@ describe('Forecast HTTP flows (e2e)', () => {
     feed.orders = [
       {
         orderId: randomUUID(),
+        customerId: randomUUID(),
         depotId,
+        total: 40000,
         at: new Date(),
         items: [{ productId, productName: 'Vit 19L', sku: 'VIT19', unit: 'galon', quantity: 2 }],
       },
@@ -182,5 +190,29 @@ describe('Forecast HTTP flows (e2e)', () => {
       .set(auth(superAdminToken))
       .expect(200);
     expect(demand.body.productId).toBe(productId);
+  });
+
+  it('sales forecast is gated to planning staff (200 manager, 403 customer)', async () => {
+    const sales = await request(server())
+      .get('/api/v1/forecast/sales')
+      .set(auth(managerToken))
+      .expect(200);
+    expect(sales.body).toHaveProperty('predictedDaily');
+    expect(sales.body.depotId).toBeNull(); // global when depotId omitted
+
+    await request(server()).get('/api/v1/forecast/sales').set(auth(customerToken)).expect(403);
+  });
+
+  it('churn list is gated to CHURN_ROLES (200 marketing, 403 depot-operator, 403 customer)', async () => {
+    const churn = await request(server())
+      .get('/api/v1/forecast/churn')
+      .set(auth(marketingToken))
+      .expect(200);
+    expect(churn.body).toHaveProperty('customers');
+    expect(Array.isArray(churn.body.customers)).toBe(true);
+
+    // DEPOT_OPERATOR is a planning role but NOT in CHURN_ROLES → rejected by the method override.
+    await request(server()).get('/api/v1/forecast/churn').set(auth(operatorToken)).expect(403);
+    await request(server()).get('/api/v1/forecast/churn').set(auth(customerToken)).expect(403);
   });
 });

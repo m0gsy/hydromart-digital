@@ -36,7 +36,9 @@ export class ForecastCoordinationHttpAdapter implements ForecastCoordinationPort
         headers: { 'content-type': 'application/json', 'x-internal-key': key },
         body: JSON.stringify({
           orderId: order.id,
+          customerId: order.customerId,
           depotId: order.depotId,
+          total: Math.round(order.total),
           items: order.items.map((i) => ({
             productId: i.productId,
             productName: i.productName,

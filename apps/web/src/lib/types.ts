@@ -388,6 +388,28 @@ export interface ForecastResult extends ForecastItem {
   history: number[];
 }
 
+// Depot (or global) revenue forecast in rupiah (mirrors forecast-service sales response).
+export interface SalesForecast {
+  depotId: string | null;
+  avgDaily: number;
+  trendSlope: number;
+  predictedDaily: number[];
+  predictedTotal: number;
+  history: number[];
+}
+
+export type ChurnRiskBand = 'LOW' | 'MEDIUM' | 'HIGH';
+
+// One at-risk customer row (mirrors forecast-service churn response item).
+export interface ChurnCustomer {
+  customerId: string;
+  lastOrderAt: string;
+  orderCount: number;
+  daysSince: number;
+  riskScore: number;
+  riskBand: ChurnRiskBand;
+}
+
 /* ---------- Dynamic pricing (staff-facing) ---------- */
 
 export type PricingAdjustType = 'PERCENT' | 'FIXED';

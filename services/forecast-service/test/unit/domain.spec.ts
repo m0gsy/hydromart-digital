@@ -2,6 +2,11 @@ import { toUtcDay, addDays, denseDailySeries } from '../../src/domain/series';
 import { movingAverage } from '../../src/domain/moving-average';
 import { linearTrend, projectAt } from '../../src/domain/trend';
 import { clampNonNeg, forecastDemand } from '../../src/domain/forecast';
+import { churnRisk } from '../../src/domain/churn';
+
+const DAY = 86_400_000;
+const NOW = new Date('2026-07-11T00:00:00Z');
+const ago = (days: number): Date => new Date(NOW.getTime() - days * DAY);
 
 describe('series', () => {
   it('toUtcDay/addDays are consistent epoch-day math', () => {
@@ -107,5 +112,39 @@ describe('forecastDemand', () => {
   it('clampNonNeg floors at 0', () => {
     expect(clampNonNeg(-3)).toBe(0);
     expect(clampNonNeg(5)).toBe(5);
+  });
+});
+
+describe('churnRisk', () => {
+  it('recent order → LOW, score ~0', () => {
+    const r = churnRisk({ lastOrderAt: ago(0), orderCount: 5 }, NOW, { windowDays: 30 });
+    expect(r.daysSince).toBe(0);
+    expect(r.riskScore).toBe(0);
+    expect(r.riskBand).toBe('LOW');
+  });
+  it('exactly the window → HIGH, score 1', () => {
+    const r = churnRisk({ lastOrderAt: ago(30), orderCount: 2 }, NOW, { windowDays: 30 });
+    expect(r.daysSince).toBe(30);
+    expect(r.riskScore).toBe(1);
+    expect(r.riskBand).toBe('HIGH');
+  });
+  it('half the window → MEDIUM boundary, score 0.5', () => {
+    const r = churnRisk({ lastOrderAt: ago(15), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.daysSince).toBe(15);
+    expect(r.riskScore).toBe(0.5);
+    expect(r.riskBand).toBe('MEDIUM');
+  });
+  it('just under half → LOW', () => {
+    const r = churnRisk({ lastOrderAt: ago(14), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.riskBand).toBe('LOW');
+  });
+  it('ancient order → score clamped to 1.0, HIGH', () => {
+    const r = churnRisk({ lastOrderAt: ago(365), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.riskScore).toBe(1);
+    expect(r.riskBand).toBe('HIGH');
+  });
+  it('floors partial days', () => {
+    const r = churnRisk({ lastOrderAt: new Date(NOW.getTime() - 5.9 * DAY), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.daysSince).toBe(5);
   });
 });

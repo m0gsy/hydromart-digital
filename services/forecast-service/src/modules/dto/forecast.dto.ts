@@ -60,6 +60,52 @@ export class DepotRollupQueryDto {
   limit?: number;
 }
 
+export class SalesQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict to one depot; omit for a global (all-depot) revenue forecast.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
+  @ApiPropertyOptional({ default: 30, minimum: 7, maximum: 365, description: 'History window, in days.' })
+  @IsOptional()
+  @IsInt()
+  @Min(7)
+  @Max(365)
+  @Type(() => Number)
+  historyDays?: number;
+
+  @ApiPropertyOptional({ default: 7, minimum: 1, maximum: 90, description: 'Forecast horizon, in days.' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(90)
+  @Type(() => Number)
+  horizonDays?: number;
+}
+
+export class ChurnQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict to one depot; omit for all depots.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
+  @ApiPropertyOptional({ default: 50, minimum: 1, maximum: 200, description: 'Max customers to return.' })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  @Type(() => Number)
+  limit?: number;
+
+  @ApiPropertyOptional({ default: 45, minimum: 7, maximum: 180, description: 'Recency window (days) overriding CHURN_WINDOW_DAYS.' })
+  @IsOptional()
+  @IsInt()
+  @Min(7)
+  @Max(180)
+  @Type(() => Number)
+  days?: number;
+}
+
 export class RebuildQueryDto {
   @ApiPropertyOptional({ default: 100, minimum: 1, description: 'Max orders to pull per feed page.' })
   @IsOptional()
@@ -99,10 +145,19 @@ export class IngestDto {
   @IsUUID()
   orderId!: string;
 
+  @ApiProperty({ format: 'uuid', description: 'Customer who placed the order (drives churn activity).' })
+  @IsUUID()
+  customerId!: string;
+
   @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'Null/omitted when the order has no depot.' })
   @IsOptional()
   @IsUUID()
   depotId?: string | null;
+
+  @ApiProperty({ minimum: 0, description: 'Order total in whole rupiah (drives the revenue forecast).' })
+  @IsInt()
+  @Min(0)
+  total!: number;
 
   @ApiProperty({ type: [IngestItemDto] })
   @IsArray()
