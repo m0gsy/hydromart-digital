@@ -35,4 +35,7 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  get pricingTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
+  }
 }

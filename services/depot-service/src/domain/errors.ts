@@ -59,3 +59,19 @@ export class InsufficientStockError extends DomainError {
     super(`Insufficient stock at the fulfilling depot: ${detail}.`);
   }
 }
+
+export class PricingRuleNotFoundError extends DomainError {
+  readonly code = 'PRICING_RULE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Pricing rule not found.');
+  }
+}
+
+export class InvalidPricingWindowError extends DomainError {
+  readonly code = 'INVALID_PRICING_WINDOW';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(message = 'Invalid pricing rule window.') {
+    super(message);
+  }
+}
