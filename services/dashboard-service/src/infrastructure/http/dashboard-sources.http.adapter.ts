@@ -5,6 +5,8 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  FranchiseDepot,
+  LowStockLine,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -82,6 +84,18 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const query = params.toString();
     return this.get<DeliverySla>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla${query ? `?${query}` : ''}`,
+      token,
+    );
+  }
+
+  async myDepots(token: string): Promise<FranchiseDepot[] | null> {
+    return this.get<FranchiseDepot[]>(`${this.config.depotServiceUrl}/api/v1/depots/mine`, token);
+  }
+
+  async lowStock(depotId: string, token: string): Promise<LowStockLine[] | null> {
+    const params = new URLSearchParams({ depotId });
+    return this.get<LowStockLine[]>(
+      `${this.config.depotServiceUrl}/api/v1/inventory/low-stock?${params.toString()}`,
       token,
     );
   }

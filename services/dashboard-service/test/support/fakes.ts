@@ -2,6 +2,8 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  FranchiseDepot,
+  LowStockLine,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -24,6 +26,17 @@ const TOP_DEPOTS: TopDepots = {
   from: null,
   to: null,
   items: [{ depotId: 'depot-1', orderCount: 30, revenue: 900_000 }],
+};
+
+// depot-1 is in the top-depots report; depot-2 is not (reads 0 revenue).
+const MY_DEPOTS: FranchiseDepot[] = [
+  { id: 'depot-1', code: 'DPT-1', name: 'Depot One', active: true },
+  { id: 'depot-2', code: 'DPT-2', name: 'Depot Two', active: false },
+];
+
+const LOW_STOCK: Record<string, LowStockLine[]> = {
+  'depot-1': [{ itemId: 'item-1', depotId: 'depot-1' }],
+  'depot-2': [],
 };
 
 const DELIVERY_SLA: DeliverySla = {
@@ -57,5 +70,11 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   }
   async deliverySla(_range: DateRange, _token: string): Promise<DeliverySla | null> {
     return DELIVERY_SLA;
+  }
+  async myDepots(_token: string): Promise<FranchiseDepot[] | null> {
+    return this.orderDown ? null : MY_DEPOTS;
+  }
+  async lowStock(depotId: string, _token: string): Promise<LowStockLine[] | null> {
+    return LOW_STOCK[depotId] ?? [];
   }
 }

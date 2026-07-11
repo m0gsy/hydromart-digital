@@ -27,4 +27,35 @@ describe('DashboardService', () => {
     expect(result.from).toBeNull();
     expect(result.to).toBeNull();
   });
+
+  it('scopes revenue + low-stock to owned depots and rolls up totals', async () => {
+    const service = new DashboardService(new InMemoryDashboardSources());
+    const result = await service.franchise({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
+
+    expect(result.depots).toHaveLength(2);
+    // depot-1 is in the top-depots report → real revenue/count + one low-stock line.
+    const one = result.depots.find((d) => d.depotId === 'depot-1');
+    expect(one).toMatchObject({ code: 'DPT-1', active: true, orderCount: 30, revenue: 900_000, lowStockCount: 1 });
+    // depot-2 is not in the top list → reads 0 revenue, still listed.
+    const two = result.depots.find((d) => d.depotId === 'depot-2');
+    expect(two).toMatchObject({ active: false, orderCount: 0, revenue: 0, lowStockCount: 0 });
+
+    expect(result.totals).toEqual({ depotCount: 2, revenue: 900_000, orderCount: 30, lowStockCount: 1 });
+    expect(result.deliverySla?.slaRate).toBe(0.92);
+    expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok' });
+  });
+
+  it('marks depot + order unavailable and empties depots when the owner directory is down', async () => {
+    const service = new DashboardService(new InMemoryDashboardSources(true));
+    const result = await service.franchise({}, 'Bearer t');
+
+    expect(result.depots).toEqual([]);
+    expect(result.totals).toEqual({ depotCount: 0, revenue: 0, orderCount: 0, lowStockCount: 0 });
+    expect(result.sources).toEqual({
+      depot: 'unavailable',
+      order: 'unavailable',
+      delivery: 'ok',
+      inventory: 'unavailable',
+    });
+  });
 });

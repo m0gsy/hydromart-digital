@@ -35,14 +35,32 @@ export interface DeliverySla {
   failedCount: number;
 }
 
+/** A depot owned by the calling franchise owner (subset of depot-service DepotRecord). */
+export interface FranchiseDepot {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+/** A low-stock line (subset of depot-service ItemView); only the count is consumed. */
+export interface LowStockLine {
+  itemId: string;
+  depotId: string;
+}
+
 /**
- * Reads report data from downstream services (order + delivery). Each method
- * forwards the caller's bearer token and returns `null` on any failure so the
- * dashboard degrades gracefully rather than propagating a downstream blip.
+ * Reads report data from downstream services (order + delivery + depot). Each
+ * method forwards the caller's bearer token and returns `null` on any failure
+ * so the dashboard degrades gracefully rather than propagating a downstream blip.
  */
 export interface DashboardSourcesPort {
   sales(range: DateRange, token: string): Promise<SalesReport | null>;
   topCustomers(range: DateRange, limit: number, token: string): Promise<TopCustomers | null>;
   topDepots(range: DateRange, limit: number, token: string): Promise<TopDepots | null>;
   deliverySla(range: DateRange, token: string): Promise<DeliverySla | null>;
+  /** Depots owned by the calling franchise owner (depot-service GET /depots/mine). */
+  myDepots(token: string): Promise<FranchiseDepot[] | null>;
+  /** Low-stock lines for one depot (depot-service GET /inventory/low-stock?depotId=). */
+  lowStock(depotId: string, token: string): Promise<LowStockLine[] | null>;
 }

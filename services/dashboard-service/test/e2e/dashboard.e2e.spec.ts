@@ -22,6 +22,7 @@ const testEnv: Record<string, string> = {
   JWT_ACCESS_SECRET: SECRET,
   ORDER_SERVICE_URL: 'http://localhost:3004',
   DELIVERY_SERVICE_URL: 'http://localhost:3006',
+  DEPOT_SERVICE_URL: 'http://localhost:3007',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',
@@ -31,6 +32,7 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
   let customerToken: string;
+  let ownerToken: string;
 
   beforeAll(async () => {
     Object.assign(process.env, testEnv);
@@ -61,6 +63,7 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     managerToken = jwt.sign({ sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
+    ownerToken = jwt.sign({ sub: 'o', role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -97,5 +100,28 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
       .get('/api/v1/dashboard/executive?from=not-a-date')
       .set(auth(managerToken))
       .expect(400);
+  });
+
+  it('forbids a depot manager on the franchise route (403 — franchise owner only)', async () => {
+    await request(server())
+      .get('/api/v1/dashboard/franchise')
+      .set(auth(managerToken))
+      .expect(403);
+  });
+
+  it('returns the franchise dashboard for a franchise owner (200)', async () => {
+    const res = await request(server())
+      .get('/api/v1/dashboard/franchise')
+      .set(auth(ownerToken))
+      .expect(200);
+
+    expect(res.body.depots).toHaveLength(2);
+    expect(res.body.totals.revenue).toBe(900_000);
+    expect(res.body.sources).toEqual({
+      depot: 'ok',
+      order: 'ok',
+      delivery: 'ok',
+      inventory: 'ok',
+    });
   });
 });
