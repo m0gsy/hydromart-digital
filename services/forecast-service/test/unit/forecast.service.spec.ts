@@ -178,8 +178,9 @@ describe('ForecastService', () => {
   });
 
   it('churnList windowDays override changes banding vs the config default', async () => {
-    // lastOrderAt 20 days before NOW. default window 45 → 20 < 22.5 → LOW; window 30 → 20 >= 15 → MEDIUM.
-    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'x', at: new Date('2026-06-21T00:00:00Z') }));
+    // One-time buyer (freqWeight 1) 12 days before NOW. Score = recency = daysSince/window,
+    // banded in tertiles: window 45 → 12/45 = 0.27 → LOW; window 30 → 12/30 = 0.40 → MEDIUM.
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'x', at: new Date('2026-06-29T12:00:00Z') }));
 
     const def = await service.churnList({ now: NOW });
     expect(def.customers[0].riskBand).toBe('LOW');
