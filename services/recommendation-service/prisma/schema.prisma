@@ -1,0 +1,68 @@
+// Hydromart recommendation-service data model (Release 3 AI Recommendation slice).
+// Denormalized read model fed by order-service on COMPLETED: per-customer purchase
+// counts (reorder), symmetric co-buy pair counts (bought-together), and per-day
+// per-product sales (trending). ProductRef is a local snapshot so queries never need
+// a cross-service call at read time. IngestedOrder guards ingestion idempotency.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("RECOMMENDATION_DATABASE_URL")
+}
+
+model CustomerProductPurchase {
+  id              String   @id @default(uuid()) @db.Uuid
+  customerId      String   @db.Uuid
+  productId       String   @db.Uuid
+  purchaseCount   Int      @default(0)
+  lastPurchasedAt DateTime
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@map("customer_product_purchases")
+}
+
+model ProductCoBuy {
+  id               String @id @default(uuid()) @db.Uuid
+  productId        String @db.Uuid
+  relatedProductId String @db.Uuid
+  coCount          Int    @default(0)
+
+  @@unique([productId, relatedProductId])
+  @@index([productId])
+  @@map("product_co_buys")
+}
+
+model ProductDailySales {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @db.Uuid
+  depotId   String?  @db.Uuid
+  day       DateTime @db.Date
+  count     Int      @default(0)
+
+  @@unique([productId, depotId, day])
+  @@index([day])
+  @@map("product_daily_sales")
+}
+
+model ProductRef {
+  productId String @id @db.Uuid
+  name      String
+  sku       String
+  unit      String
+  buyCount  Int    @default(0)
+
+  @@map("product_refs")
+}
+
+model IngestedOrder {
+  orderId    String   @id @db.Uuid
+  ingestedAt DateTime @default(now())
+
+  @@map("ingested_orders")
+}

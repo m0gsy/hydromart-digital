@@ -132,6 +132,20 @@ export const endpoints = {
     createCampaign: '/crm/api/v1/campaigns',
     sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,
   },
+  recommendations: {
+    reorder: (limit?: number) =>
+      `/recommendations/api/v1/recommendations/reorder${limit ? `?limit=${limit}` : ''}`,
+    related: (productId: string, limit?: number) =>
+      `/recommendations/api/v1/recommendations/products/${productId}/related${limit ? `?limit=${limit}` : ''}`,
+    trending: (q: { depotId?: string; days?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.days) p.set('days', String(q.days));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/recommendations/api/v1/recommendations/trending${qs ? `?${qs}` : ''}`;
+    },
+  },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

@@ -128,6 +128,48 @@ export class OrderController {
     return this.orders.getAny(id);
   }
 
+  // Service-to-service: recommendation-service pulls completed orders for its rebuild
+  // backfill. No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY.
+  // Declared before `:id` (mirrors `manage`) so it is not captured by that param route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/completed')
+  @ApiOperation({ summary: 'Paged feed of COMPLETED orders (internal service auth)' })
+  async internalCompleted(
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{
+    orders: {
+      id: string;
+      customerId: string;
+      depotId: string | null;
+      completedAt: Date;
+      items: { productId: string; productName: string; sku: string; unit: string }[];
+    }[];
+    nextCursor: string | null;
+  }> {
+    const { orders, nextCursor } = await this.orders.listCompletedPage(
+      cursor ?? null,
+      limit ? Number(limit) : undefined,
+    );
+    return {
+      orders: orders.map((o) => ({
+        id: o.id,
+        customerId: o.customerId,
+        depotId: o.depotId,
+        completedAt: o.updatedAt,
+        items: o.items.map((i) => ({
+          productId: i.productId,
+          productName: i.productName,
+          sku: i.sku,
+          unit: i.unit,
+        })),
+      })),
+      nextCursor,
+    };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's orders" })
   get(

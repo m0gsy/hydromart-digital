@@ -19,6 +19,7 @@ const SEGMENT_ENV: Record<string, string> = {
   vouchers: 'PROMO_SERVICE_URL',
   referrals: 'REFERRAL_SERVICE_URL',
   crm: 'CRM_SERVICE_URL',
+  recommendations: 'RECOMMENDATION_SERVICE_URL',
 };
 
 @Injectable()

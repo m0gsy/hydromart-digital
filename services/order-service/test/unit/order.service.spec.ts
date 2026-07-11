@@ -21,6 +21,7 @@ import {
   FakeDepotPricing,
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
+  FakeRecommendationCoordination,
   FakeMembership,
   FakeNotification,
   FakePromo,
@@ -51,6 +52,7 @@ describe('OrderService', () => {
   let pricing: FakeDepotPricing;
   let loyalty: FakeLoyaltyCoordination;
   let referral: FakeReferralCoordination;
+  let recommendation: FakeRecommendationCoordination;
   let membership: FakeMembership;
   let notification: FakeNotification;
   let promo: FakePromo;
@@ -67,6 +69,7 @@ describe('OrderService', () => {
     pricing = new FakeDepotPricing();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
+    recommendation = new FakeRecommendationCoordination();
     membership = new FakeMembership();
     notification = new FakeNotification();
     promo = new FakePromo();
@@ -86,6 +89,7 @@ describe('OrderService', () => {
       inventory,
       cartService,
       buildTestConfig(),
+      recommendation,
     );
   });
 
@@ -271,6 +275,8 @@ describe('OrderService', () => {
 
     expect(referral.calls).toHaveLength(0); // nothing qualified before completion
 
+    expect(recommendation.calls).toHaveLength(0); // nothing recorded before completion
+
     await service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok');
     expect(loyalty.calls).toHaveLength(1);
     expect(loyalty.calls[0]).toMatchObject({
@@ -286,6 +292,18 @@ describe('OrderService', () => {
       orderId: order.id,
       authorization: 'Bearer tok',
     });
+    // Completion also pushes the order into the recommendation-service read model.
+    expect(recommendation.calls).toHaveLength(1);
+    expect(recommendation.calls[0].orderId).toBe(order.id);
+    expect(recommendation.calls[0].customerId).toBe(customer);
+    expect(recommendation.calls[0].items).toEqual(
+      order.items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        unit: i.unit,
+      })),
+    );
     // FR-093/094: order-received fires at checkout, then notable transitions notify the
     // customer (CONFIRMED, ON_DELIVERY, DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/
     // PICKED_UP are silent.

@@ -35,6 +35,7 @@ import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port
 import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
+import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
@@ -79,6 +80,8 @@ export class OrderService {
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
     private readonly cartService: CartService,
     private readonly config: OrderConfigService,
+    @Inject(ORDER_TOKENS.RecommendationCoordination)
+    private readonly recommendation: RecommendationCoordinationPort,
   ) {}
 
   /**
@@ -210,6 +213,18 @@ export class OrderService {
     return this.search({ ...input, customerId });
   }
 
+  /**
+   * Internal keyset-paginated feed of COMPLETED orders for recommendation-service's
+   * rebuild backfill (service-to-service, `GET /orders/internal/completed`).
+   */
+  async listCompletedPage(
+    cursor: string | null,
+    limit?: number,
+  ): Promise<{ orders: OrderRecord[]; nextCursor: string | null }> {
+    const clamped = Math.min(200, Math.max(1, limit ?? 100));
+    return this.orders.findCompletedPage(cursor, clamped);
+  }
+
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search(input);
@@ -326,6 +341,10 @@ export class OrderService {
           authorization,
         );
       }
+      // Feeds the recommendation-service read model (co-buy/reorder/trending).
+      // Belt-and-suspenders: the adapter is already fail-open, but never let a bug
+      // there escape and block completion.
+      await this.recommendation.recordCompleted(updated).catch(() => {});
     }
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {

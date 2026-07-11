@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Package, CaretRight } from '@phosphor-icons/react';
 
 import { StatusBadge } from '@/components/order-views';
+import { ProductRecRail } from '@/components/product-rec-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -42,6 +43,7 @@ function OrdersInner() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-2xl font-bold">Your orders</h1>
+      <ProductRecRail title="Buy again" endpoint={endpoints.recommendations.reorder()} requiresAuth />
       <ul className="flex flex-col gap-3">
         {data.items.map((order) => (
           <li key={order.id}>

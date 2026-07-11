@@ -53,6 +53,15 @@ export interface Product {
   updatedAt: string;
 }
 
+/** A ranked product suggestion (reorder / related / trending rails). */
+export interface Recommendation {
+  productId: string;
+  name: string;
+  sku: string;
+  unit: string;
+  score: number;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

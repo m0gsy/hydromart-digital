@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { use, useState } from 'react';
 import { ArrowLeft, Check, Drop } from '@phosphor-icons/react';
 
+import { ProductRecRail } from '@/components/product-rec-rail';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { Button, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -109,6 +110,13 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             )}
           </div>
         </div>
+      )}
+
+      {product && (
+        <ProductRecRail
+          title="Frequently bought together"
+          endpoint={endpoints.recommendations.related(id)}
+        />
       )}
     </div>
   );
