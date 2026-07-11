@@ -32,6 +32,10 @@ export class ReferralConfigService {
   get loyaltyServiceUrl(): string {
     return this.config.getOrThrow<string>('LOYALTY_SERVICE_URL');
   }
+  /** Shared secret sent as x-internal-key on the loyalty reward call. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
   /** Points granted to the referrer when a referral qualifies (FR-092). */
   get referrerPoints(): number {
     return this.num('REFERRAL_REFERRER_POINTS');

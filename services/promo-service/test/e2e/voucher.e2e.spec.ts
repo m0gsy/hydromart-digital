@@ -15,6 +15,7 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryVoucherRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'test-internal-service-key-0123456789';
 
 describe('Voucher HTTP flows (e2e)', () => {
   let app: INestApplication;
@@ -22,6 +23,9 @@ describe('Voucher HTTP flows (e2e)', () => {
   let customerToken: string;
 
   beforeAll(async () => {
+    // Joi validationSchema validates process.env and its default('') beats load(), so the
+    // InternalAuthGuard would read a blank key. Seed process.env before ConfigModule compiles.
+    process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -39,6 +43,7 @@ describe('Voucher HTTP flows (e2e)', () => {
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],
         }),
@@ -77,6 +82,7 @@ describe('Voucher HTTP flows (e2e)', () => {
 
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const internal = (k: string) => ({ 'x-internal-key': k });
 
   it('creates a voucher (marketing) and previews it publicly by code', async () => {
     const res = await request(server()).get('/api/v1/vouchers/HEMAT10').expect(200);
@@ -102,10 +108,17 @@ describe('Voucher HTTP flows (e2e)', () => {
     expect(res.body).toMatchObject({ code: 'HEMAT10', discount: 6000, valid: true });
   });
 
-  it('redeems a voucher and returns the applied discount', async () => {
+  it('requires the internal service key to redeem (401 without/wrong key)', async () => {
+    const body = { code: 'HEMAT10', customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 };
+    await request(server()).post('/api/v1/vouchers/redeem').send(body).expect(401);
+    await request(server()).post('/api/v1/vouchers/redeem').set(auth(customerToken)).send(body).expect(401);
+    await request(server()).post('/api/v1/vouchers/redeem').set(internal('wrong-key')).send(body).expect(401);
+  });
+
+  it('redeems a voucher via internal auth and returns the applied discount', async () => {
     const res = await request(server())
       .post('/api/v1/vouchers/redeem')
-      .set(auth(customerToken))
+      .set(internal(INTERNAL_KEY))
       .send({ code: 'HEMAT10', customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 })
       .expect(200);
     expect(res.body).toMatchObject({ discountApplied: 6000 });

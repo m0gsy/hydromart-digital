@@ -15,16 +15,19 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { FakeLoyaltyReward, InMemoryReferralRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'test-internal-service-key-0123456789';
 
 describe('Referral HTTP flows (e2e)', () => {
   let app: INestApplication;
-  let driverToken: string;
   let customerAToken: string;
   let customerBToken: string;
   let customerAId: string;
   let customerBId: string;
 
   beforeAll(async () => {
+    // Joi validationSchema validates process.env and its default('') beats load(), so the
+    // InternalAuthGuard would read a blank key. Seed process.env before ConfigModule compiles.
+    process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -45,6 +48,7 @@ describe('Referral HTTP flows (e2e)', () => {
               LOYALTY_SERVICE_URL: 'http://localhost:3009',
               REFERRAL_REFERRER_POINTS: 500,
               REFERRAL_REFEREE_POINTS: 250,
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],
         }),
@@ -70,7 +74,6 @@ describe('Referral HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     customerAId = randomUUID();
     customerBId = randomUUID();
-    driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
     customerAToken = jwt.sign({ sub: customerAId, role: Role.CUSTOMER, phone: '+62' }, { secret });
     customerBToken = jwt.sign({ sub: customerBId, role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
@@ -81,6 +84,7 @@ describe('Referral HTTP flows (e2e)', () => {
 
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const internal = (k: string) => ({ 'x-internal-key': k });
 
   let sharedCode: string;
 
@@ -120,17 +124,22 @@ describe('Referral HTTP flows (e2e)', () => {
       .expect(409);
   });
 
-  it('restricts qualify to fulfilment roles (401 anon, 403 customer, 200 driver)', async () => {
+  it('requires the internal service key to qualify (401 without/wrong key, 200 with key)', async () => {
     const body = { customerId: customerBId, orderId: randomUUID() };
     await request(server()).post('/api/v1/referrals/qualify').send(body).expect(401);
     await request(server())
       .post('/api/v1/referrals/qualify')
       .set(auth(customerBToken))
       .send(body)
-      .expect(403);
+      .expect(401);
+    await request(server())
+      .post('/api/v1/referrals/qualify')
+      .set(internal('wrong-key'))
+      .send(body)
+      .expect(401);
     const res = await request(server())
       .post('/api/v1/referrals/qualify')
-      .set(auth(driverToken))
+      .set(internal(INTERNAL_KEY))
       .send(body)
       .expect(200);
     expect(res.body).toMatchObject({ qualified: true });

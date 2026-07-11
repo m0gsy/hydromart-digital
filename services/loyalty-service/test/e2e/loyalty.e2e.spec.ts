@@ -15,15 +15,18 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryLoyaltyRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'test-internal-service-key-0123456789';
 
 describe('Loyalty HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
-  let operatorToken: string;
   let customerToken: string;
   let superToken: string;
 
   beforeAll(async () => {
+    // Joi validationSchema validates process.env and its default('') beats load(), so the
+    // InternalAuthGuard would read a blank key. Seed process.env before ConfigModule compiles.
+    process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -43,6 +46,7 @@ describe('Loyalty HTTP flows (e2e)', () => {
               RATE_LIMIT_MAX: 100,
               LOYALTY_EARN_RATE_RUPIAH: 1000,
               LOYALTY_POINT_EXPIRY_MONTHS: 12,
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],
         }),
@@ -65,7 +69,6 @@ describe('Loyalty HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     managerToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
@@ -76,6 +79,7 @@ describe('Loyalty HTTP flows (e2e)', () => {
 
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const internal = (k: string) => ({ 'x-internal-key': k });
 
   it('lists membership tiers publicly', async () => {
     const res = await request(server()).get('/api/v1/loyalty/tiers').expect(200);
@@ -89,17 +93,18 @@ describe('Loyalty HTTP flows (e2e)', () => {
     expect(res.body).toMatchObject({ tier: 'REGULAR', pointsBalance: 0, discountRate: 0 });
   });
 
-  it('restricts earning to fulfilment roles (401 anon, 403 customer)', async () => {
+  it('requires the internal service key to earn (401 without key or with a wrong key)', async () => {
     const body = { customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 };
     await request(server()).post('/api/v1/loyalty/earn').send(body).expect(401);
-    await request(server()).post('/api/v1/loyalty/earn').set(auth(customerToken)).send(body).expect(403);
+    await request(server()).post('/api/v1/loyalty/earn').set(auth(customerToken)).send(body).expect(401);
+    await request(server()).post('/api/v1/loyalty/earn').set(internal('wrong-key')).send(body).expect(401);
   });
 
   it('awards points on earn and reflects them for staff reads (BR-013)', async () => {
     const customerId = randomUUID();
     await request(server())
       .post('/api/v1/loyalty/earn')
-      .set(auth(operatorToken))
+      .set(internal(INTERNAL_KEY))
       .send({ customerId, orderId: randomUUID(), subtotal: 60000 })
       .expect(201);
 
@@ -123,17 +128,16 @@ describe('Loyalty HTTP flows (e2e)', () => {
       .expect(400);
   });
 
-  it('grants a flat reward to fulfilment/system roles (403 customer, 201 operator)', async () => {
+  it('grants a flat reward to internal callers only (401 without key, 201 with key)', async () => {
     const customerId = randomUUID();
     await request(server())
       .post('/api/v1/loyalty/reward')
-      .set(auth(customerToken))
       .send({ customerId, points: 500, reason: 'Referral reward' })
-      .expect(403);
+      .expect(401);
 
     const res = await request(server())
       .post('/api/v1/loyalty/reward')
-      .set(auth(operatorToken))
+      .set(internal(INTERNAL_KEY))
       .send({ customerId, points: 500, reason: 'Referral reward' })
       .expect(201);
     expect(res.body).toMatchObject({ pointsBalance: 500, lifetimePoints: 500 });
@@ -142,7 +146,7 @@ describe('Loyalty HTTP flows (e2e)', () => {
   it('rejects a non-positive reward (validation)', async () => {
     await request(server())
       .post('/api/v1/loyalty/reward')
-      .set(auth(operatorToken))
+      .set(internal(INTERNAL_KEY))
       .send({ customerId: randomUUID(), points: 0, reason: 'x' })
       .expect(400);
   });

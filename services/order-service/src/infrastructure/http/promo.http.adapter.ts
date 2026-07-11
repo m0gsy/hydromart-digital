@@ -6,8 +6,9 @@ import { PromoPort } from '../../application/ports/promo.port';
 
 /**
  * Talks to the promo-service. `quote` fails CLOSED (rejects checkout if the voucher
- * is invalid or the service is down), forwarding the promo-service's own validation
- * message to the customer. `redeem` fails OPEN and is idempotent on the promo side.
+ * is invalid or the service is down), forwarding the customer's token + the promo
+ * message. `redeem` is a system-to-system call authenticated by the shared
+ * INTERNAL_SERVICE_KEY (x-internal-key); it fails OPEN and is idempotent on the promo side.
  */
 @Injectable()
 export class PromoHttpAdapter implements PromoPort {
@@ -53,15 +54,20 @@ export class PromoHttpAdapter implements PromoPort {
     customerId: string,
     orderId: string,
     subtotal: number,
-    authorization: string,
+    _authorization: string,
   ): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      this.logger.warn(`Voucher redeem skipped for order ${orderId}: no internal service key`);
+      return;
+    }
     const url = `${this.config.promoServiceUrl}/api/v1/vouchers/redeem`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PromoHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
         body: JSON.stringify({ code, customerId, orderId, subtotal }),
         signal: controller.signal,
       });

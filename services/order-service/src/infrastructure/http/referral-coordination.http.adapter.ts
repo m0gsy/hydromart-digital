@@ -5,9 +5,10 @@ import { ReferralCoordinationPort } from '../../application/ports/referral-coord
 
 /**
  * Qualifies a referral on the referral-service when an order completes (FR-092).
- * Fails OPEN: any error (referral down, non-2xx, missing token) logs and returns,
- * so completing an order is never blocked. Qualification is idempotent on the
- * referral side (a customer is referred at most once), so retries are safe.
+ * System-to-system call authenticated by the shared INTERNAL_SERVICE_KEY (x-internal-key).
+ * Fails OPEN: any error (referral down, non-2xx, no key) logs and returns, so completing
+ * an order is never blocked. Qualification is idempotent on the referral side (a customer
+ * is referred at most once), so retries are safe.
  */
 @Injectable()
 export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort {
@@ -16,9 +17,10 @@ export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
-    if (!authorization) {
-      this.logger.warn(`No caller token; skipped referral qualify for order ${orderId}`);
+  async qualify(customerId: string, orderId: string, _authorization: string): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      this.logger.warn(`No internal service key; skipped referral qualify for order ${orderId}`);
       return;
     }
     const url = `${this.config.referralServiceUrl}/api/v1/referrals/qualify`;
@@ -27,7 +29,7 @@ export class ReferralCoordinationHttpAdapter implements ReferralCoordinationPort
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
         body: JSON.stringify({ customerId, orderId }),
         signal: controller.signal,
       });
