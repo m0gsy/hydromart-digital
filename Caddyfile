@@ -1,0 +1,18 @@
+# TLS reverse proxy for the Hydromart prod stack (see DEPLOY.md §6).
+# Caddy auto-provisions + renews Let's Encrypt certificates for both hostnames —
+# they must resolve (public DNS A/AAAA records) to this VPS, and ports 80 + 443
+# must be open. Reaches the app containers over the internal docker network, so
+# web:3000 / gateway:8080 need not be published to the host.
+#
+# Set WEB_DOMAIN + API_DOMAIN in .env, and build the web image with
+# PUBLIC_API_URL=https://<API_DOMAIN> so the browser bundle calls the right host.
+
+{$WEB_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy gateway:8080
+}

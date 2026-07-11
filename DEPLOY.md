@@ -135,21 +135,43 @@ real domain, since Next inlines `NEXT_PUBLIC_*` at build).
 
 ---
 
-## 6. TLS / real domain (recommended, not included)
+## 6. TLS / real domain (Caddy — included, opt-in)
 
-This stack serves plain HTTP on `3000`/`8080`. For a real domain with HTTPS,
-put a reverse proxy in front and terminate TLS there — don't expose `3000`/`8080`
-directly. Two easy options:
+Serving auth over plain HTTP on the public internet is not safe (bearer tokens
+travel in cleartext). A **Caddy** reverse proxy is included as an opt-in `tls`
+compose profile — it terminates HTTPS and auto-provisions/renews Let's Encrypt
+certs. Without the profile the stack stays on plain HTTP `:3000`/`:8080`.
 
-- **Caddy** — automatic Let's Encrypt certs. A ~6-line `Caddyfile` reverse-proxies
-  `your-domain.com → web:3000` and `api.your-domain.com → gateway:8080`. Add it as
-  one more service on the compose network and publish only `80`/`443`.
-- **nginx + certbot** — the classic manual route.
+**Setup:**
 
-If you do this, rebuild the `web` image with
-`PUBLIC_API_URL=https://api.your-domain.com` so the browser bundle calls the
-right host, and restrict the `web`/`gateway` port publishing to `127.0.0.1` so
-only the proxy reaches them.
+1. **DNS** — point two records at your VPS's public IP:
+   `app.your-domain.com` (web) and `api.your-domain.com` (gateway). Any names
+   work; they just have to resolve to this host.
+2. **Firewall** — open `80` + `443`, and *close* `3000`/`8080` to the public so
+   visitors only reach Caddy:
+   ```bash
+   ufw allow 80/tcp && ufw allow 443/tcp
+   ufw delete allow 3000/tcp && ufw delete allow 8080/tcp
+   ```
+   (Caddy reaches `web`/`gateway` over the internal docker network, so they need
+   no host ports. Optionally also change their `ports:` to `127.0.0.1:3000:3000`
+   / `127.0.0.1:8080:8080` in the overlay for defence in depth.)
+3. **`.env`** — set the domains and point the baked API URL at the HTTPS gateway:
+   ```
+   WEB_DOMAIN=app.your-domain.com
+   API_DOMAIN=api.your-domain.com
+   PUBLIC_API_URL=https://api.your-domain.com
+   ```
+4. **Build + run with the profile** (the `PUBLIC_API_URL` change means the web
+   image must be rebuilt — it's baked in):
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile tls up -d --build
+   ```
+   Caddy gets certs on first request (ports 80/443 must be reachable from the
+   internet). Then browse `https://app.your-domain.com`.
+
+The `Caddyfile` at the repo root is a plain reverse-proxy config; edit it to add
+routes, headers (HSTS/CSP), rate limits, etc. as needed.
 
 ---
 
