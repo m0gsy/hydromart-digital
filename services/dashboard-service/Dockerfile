@@ -6,12 +6,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
 COPY services/dashboard-service/package.json ./services/dashboard-service/
-RUN npm ci --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+RUN npm ci --include-workspace-root
 COPY services/dashboard-service ./services/dashboard-service
 RUN npm run build -w @hydromart/platform \
   && cd services/dashboard-service && npm run build
+RUN mkdir -p /app/services/dashboard-service/node_modules
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime

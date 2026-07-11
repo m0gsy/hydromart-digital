@@ -6,9 +6,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
 COPY services/referral-service/package.json ./services/referral-service/
-RUN npm ci --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+COPY services/referral-service/prisma ./services/referral-service/prisma
+RUN npm ci --include-workspace-root
 COPY services/referral-service ./services/referral-service
 RUN npm run build -w @hydromart/platform \
   && cd services/referral-service && npx prisma generate && npm run build

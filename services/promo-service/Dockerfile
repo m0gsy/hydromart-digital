@@ -6,9 +6,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
 COPY services/promo-service/package.json ./services/promo-service/
-RUN npm ci --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+COPY services/promo-service/prisma ./services/promo-service/prisma
+RUN npm ci --include-workspace-root
 COPY services/promo-service ./services/promo-service
 RUN npm run build -w @hydromart/platform \
   && cd services/promo-service && npx prisma generate && npm run build
