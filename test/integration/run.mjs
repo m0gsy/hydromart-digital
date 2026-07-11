@@ -11,7 +11,7 @@ if (win) process.env.PATH = `${process.env.PATH};C:\\Program Files\\Docker\\Dock
 const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
 const APP = ['auth', 'customer', 'product', 'order', 'payment', 'delivery', 'depot', 'dashboard',
   'loyalty', 'promo', 'referral', 'crm', 'recommendation', 'forecast', 'gateway'];
-const ALL = [...APP, 'postgres', 'redis'];
+const ALL = [...APP, 'gateway-stub', 'postgres', 'redis'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function run(cmd, args, opts = {}) {
