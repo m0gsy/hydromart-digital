@@ -1,0 +1,2 @@
+# Static assets served by Next.js at the site root. Kept so the prod Dockerfile
+# COPY of this directory succeeds even when there are no assets yet.
