@@ -6,10 +6,15 @@
 FROM node:20-alpine AS builder
 RUN apk add --no-cache openssl
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 # NEXT_PUBLIC_* is inlined into the client bundle at build time, so it must be
-# present BEFORE `next build`. Default points at the gateway on localhost.
-ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+# present BEFORE `next build` — and it is FROZEN into the shipped JS (changing it
+# on the running container does nothing; only a rebuild moves it). REQUIRED, no
+# default: an unset value would silently bake http://localhost:8080 and every
+# remote visitor's browser would call THEIR own machine. Fail the build instead.
+ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "ERROR: build arg NEXT_PUBLIC_API_URL is required (the PUBLIC gateway origin, e.g. https://api.example.com or http://<vps-ip>:8080)." >&2 && false)
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 # Install against the root lockfile (workspaces), then build only @hydromart/web.

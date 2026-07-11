@@ -290,8 +290,11 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        # NEXT_PUBLIC_API_URL is baked into the client bundle at build time.
-        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+        # NEXT_PUBLIC_API_URL is FROZEN into the client bundle at build time — a
+        # wrong value ships a bundle that tells every visitor's browser to call
+        # the wrong host, and only a rebuild fixes it. REQUIRED, no default: an
+        # unset PUBLIC_API_URL fails the build rather than silently baking localhost.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?set PUBLIC_API_URL to the PUBLIC gateway origin (e.g. https://api.example.com or http://<vps-ip>:8080) before building}
         NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     depends_on:
@@ -303,3 +306,4 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+      start_period: 30s
