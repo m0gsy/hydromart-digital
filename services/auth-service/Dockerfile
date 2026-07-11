@@ -3,6 +3,7 @@
 
 # ---- Builder ----
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Install dependencies against the lockfile for reproducible builds.
@@ -21,6 +22,7 @@ RUN npm prune --omit=dev
 
 # ---- Runtime ----
 FROM node:20-alpine AS runtime
+RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app
 

@@ -2,6 +2,7 @@
 # Multi-stage build for the Hydromart referral-service (deploys to Cloud Run).
 
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
@@ -16,6 +17,7 @@ RUN npm run build -w @hydromart/platform \
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
+RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
