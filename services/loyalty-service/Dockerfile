@@ -14,7 +14,7 @@ RUN npm ci --include-workspace-root
 COPY services/loyalty-service ./services/loyalty-service
 RUN npm run build -w @hydromart/platform \
   && cd services/loyalty-service && npx prisma generate && npm run build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev && mkdir -p /app/services/loyalty-service/node_modules
 
 FROM node:20-alpine AS runtime
 RUN apk add --no-cache openssl

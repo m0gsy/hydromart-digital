@@ -14,7 +14,7 @@ RUN npm ci --include-workspace-root
 COPY services/crm-service ./services/crm-service
 RUN npm run build -w @hydromart/platform \
   && cd services/crm-service && npx prisma generate && npm run build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev && mkdir -p /app/services/crm-service/node_modules
 
 FROM node:20-alpine AS runtime
 RUN apk add --no-cache openssl
