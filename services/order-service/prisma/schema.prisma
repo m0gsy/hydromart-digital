@@ -107,7 +107,10 @@ model OrderStatusHistory {
   orderId   String      @db.Uuid
   order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
   status    OrderStatus
-  changedBy String?     @db.Uuid
+  // Actor that made the change: a user id (UUID) OR a system service label
+  // (e.g. 'payment-service' for the settled-payment auto-confirm). Plain text,
+  // not @db.Uuid — a service name is not a UUID and Prisma would reject it.
+  changedBy String?
   note      String?
   createdAt DateTime    @default(now())
 
