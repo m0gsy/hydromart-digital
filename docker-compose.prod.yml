@@ -307,3 +307,33 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+
+  # Opt-in TLS reverse proxy. Enable with `--profile tls`; without the profile the
+  # stack serves plain HTTP on the published :3000/:8080 (fine behind your own proxy
+  # or for a bare-IP test). With it, Caddy terminates HTTPS on 80/443 and reaches
+  # web/gateway over the internal network — firewall off 3000/8080 (or bind them to
+  # 127.0.0.1) so the public only hits Caddy. See DEPLOY.md §6.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    profiles: ["tls"]
+    depends_on:
+      - web
+      - gateway
+    environment:
+      # Empty default (not ${VAR:?}) so the non-tls path still renders — compose
+      # interpolates every service even when this one is profiled out. With the tls
+      # profile you MUST set these in .env (Caddy can't get a cert for an empty host).
+      WEB_DOMAIN: ${WEB_DOMAIN:-}
+      API_DOMAIN: ${API_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
