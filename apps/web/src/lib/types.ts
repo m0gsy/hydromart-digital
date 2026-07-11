@@ -368,6 +368,26 @@ export interface InventoryItem {
   lowStock: boolean;
 }
 
+/* ---------- Demand forecast (staff-facing planning) ---------- */
+
+// Lean per-product row in a depot rollup (mirrors forecast-service ForecastItem).
+export interface ForecastItem {
+  productId: string;
+  name: string | null;
+  sku: string | null;
+  unit: string | null;
+  avgDaily: number;
+  trendSlope: number;
+  predictedTotal: number;
+  reorderSuggestion: number;
+}
+
+// Single-product forecast + its history window (mirrors forecast-service ForecastResult).
+export interface ForecastResult extends ForecastItem {
+  predictedDaily: number[];
+  history: number[];
+}
+
 /* ---------- Dynamic pricing (staff-facing) ---------- */
 
 export type PricingAdjustType = 'PERCENT' | 'FIXED';

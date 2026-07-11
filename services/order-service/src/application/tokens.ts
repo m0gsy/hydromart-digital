@@ -7,6 +7,7 @@ export const ORDER_TOKENS = {
   LoyaltyCoordination: Symbol('LoyaltyCoordination'),
   ReferralCoordination: Symbol('ReferralCoordination'),
   RecommendationCoordination: Symbol('RecommendationCoordination'),
+  ForecastCoordination: Symbol('ForecastCoordination'),
   Membership: Symbol('Membership'),
   Notification: Symbol('Notification'),
   Promo: Symbol('Promo'),

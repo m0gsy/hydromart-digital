@@ -22,6 +22,7 @@ import {
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
   FakeRecommendationCoordination,
+  FakeForecastCoordination,
   FakeMembership,
   FakeNotification,
   FakePromo,
@@ -53,6 +54,7 @@ describe('OrderService', () => {
   let loyalty: FakeLoyaltyCoordination;
   let referral: FakeReferralCoordination;
   let recommendation: FakeRecommendationCoordination;
+  let forecast: FakeForecastCoordination;
   let membership: FakeMembership;
   let notification: FakeNotification;
   let promo: FakePromo;
@@ -70,6 +72,7 @@ describe('OrderService', () => {
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
     recommendation = new FakeRecommendationCoordination();
+    forecast = new FakeForecastCoordination();
     membership = new FakeMembership();
     notification = new FakeNotification();
     promo = new FakePromo();
@@ -90,6 +93,7 @@ describe('OrderService', () => {
       cartService,
       buildTestConfig(),
       recommendation,
+      forecast,
     );
   });
 
@@ -276,6 +280,7 @@ describe('OrderService', () => {
     expect(referral.calls).toHaveLength(0); // nothing qualified before completion
 
     expect(recommendation.calls).toHaveLength(0); // nothing recorded before completion
+    expect(forecast.calls).toHaveLength(0); // forecast also idle before completion
 
     await service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok');
     expect(loyalty.calls).toHaveLength(1);
@@ -302,6 +307,18 @@ describe('OrderService', () => {
         productName: i.productName,
         sku: i.sku,
         unit: i.unit,
+      })),
+    );
+    // Completion also feeds forecast-service (with per-item quantity for demand history).
+    expect(forecast.calls).toHaveLength(1);
+    expect(forecast.calls[0].orderId).toBe(order.id);
+    expect(forecast.calls[0].items).toEqual(
+      order.items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        unit: i.unit,
+        quantity: i.quantity,
       })),
     );
     // FR-093/094: order-received fires at checkout, then notable transitions notify the

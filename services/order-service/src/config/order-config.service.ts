@@ -39,6 +39,9 @@ export class OrderConfigService {
   get recommendationServiceUrl(): string {
     return this.config.get<string>('RECOMMENDATION_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  get forecastServiceUrl(): string {
+    return this.config.get<string>('FORECAST_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }

@@ -63,3 +63,17 @@ export function canViewFranchise(role: string | null | undefined): boolean {
 export function canManagePricing(role: string | null | undefined): boolean {
   return role != null && DEPOT_ADMIN.has(role);
 }
+
+// Mirrors forecast-service PLANNING_ROLES (query endpoints). Security stays server-side.
+const PLANNING_ROLES = new Set([
+  'DEPOT_OPERATOR',
+  'DEPOT_MANAGER',
+  'HEAD_OFFICE',
+  'SUPER_ADMIN',
+  'FRANCHISE_OWNER',
+]);
+
+/** Whether a role may view demand forecasts. */
+export function canViewForecast(role: string | null | undefined): boolean {
+  return role != null && PLANNING_ROLES.has(role);
+}

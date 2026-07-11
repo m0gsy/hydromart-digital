@@ -10,6 +10,7 @@ const UPSTREAMS: Record<string, string> = {
   depots: 'http://localhost:3007',
   dashboard: 'http://localhost:3008',
   recommendations: 'http://localhost:3013',
+  forecast: 'http://localhost:3014',
 };
 
 describe('resolveRoute', () => {

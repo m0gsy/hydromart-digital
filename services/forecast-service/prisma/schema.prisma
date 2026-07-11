@@ -1,0 +1,49 @@
+// Hydromart forecast-service data model (Release 3 Predictive Analytics slice).
+// Denormalized read model fed by order-service on COMPLETED: per-depot per-product
+// per-day unit demand (quantity summed, not just order count) drives the heuristic
+// demand forecast. ProductRef is a local snapshot so queries never need a
+// cross-service call at read time. IngestedOrder guards ingestion idempotency.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("FORECAST_DATABASE_URL")
+}
+
+model ProductDailyDemand {
+  id         String   @id @default(uuid()) @db.Uuid
+  productId  String   @db.Uuid
+  depotId    String?  @db.Uuid
+  day        DateTime @db.Date
+  quantity   Int      @default(0)
+  orderCount Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([productId, depotId, day])
+  @@index([depotId, day])
+  @@index([productId, depotId])
+  @@map("product_daily_demand")
+}
+
+model ProductRef {
+  productId String   @id @db.Uuid
+  name      String
+  sku       String
+  unit      String
+  updatedAt DateTime @updatedAt
+
+  @@map("product_ref")
+}
+
+model IngestedOrder {
+  orderId    String   @id @db.Uuid
+  ingestedAt DateTime @default(now())
+
+  @@map("ingested_order")
+}
