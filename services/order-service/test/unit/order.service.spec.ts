@@ -562,6 +562,22 @@ describe('OrderService', () => {
     expect(order.total).toBe(44000 + 5000);
   });
 
+  it('applies an active depot pricing rule to the unit price at checkout', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    const productId = await addToCart(20000, 2); // catalog base 20000, no sellPrice override
+    pricing.setRule('depot-near', productId, 'PERCENT', -10); // 10% off -> 18000
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
+      'Bearer tok',
+    );
+    expect(order.items[0].unitPrice).toBe(18000);
+    expect(order.subtotal).toBe(36000);
+    expect(order.total).toBe(36000 + 5000);
+  });
+
   it('falls back to the catalog base price when the depot has no override', async () => {
     depots.depots = [
       { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },

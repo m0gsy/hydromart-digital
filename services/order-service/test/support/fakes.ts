@@ -23,7 +23,7 @@ import {
   DepotDirectoryPort,
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
-import { DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
+import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
@@ -194,24 +194,37 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
 }
 
 export class FakeDepotPricing implements DepotPricingPort {
-  /** depotId -> (productId -> override price). Empty = every line uses catalog base. */
-  overrides = new Map<string, Map<string, number>>();
+  /** depotId -> (productId -> resolved price). Empty = every line uses catalog base. */
+  overrides = new Map<string, Map<string, DepotPrice>>();
   /** Records the last lookup so tests can assert it was (not) called. */
   calls: { depotId: string; productIds: string[] }[] = [];
 
-  setPrice(depotId: string, productId: string, price: number): void {
-    const forDepot = this.overrides.get(depotId) ?? new Map<string, number>();
-    forDepot.set(productId, price);
-    this.overrides.set(depotId, forDepot);
+  private forDepot(depotId: string): Map<string, DepotPrice> {
+    let m = this.overrides.get(depotId);
+    if (!m) {
+      m = new Map<string, DepotPrice>();
+      this.overrides.set(depotId, m);
+    }
+    return m;
   }
 
-  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, number>> {
+  setPrice(depotId: string, productId: string, sellPrice: number): void {
+    const row = this.forDepot(depotId).get(productId) ?? {};
+    this.forDepot(depotId).set(productId, { ...row, sellPrice });
+  }
+
+  setRule(depotId: string, productId: string, adjustType: 'PERCENT' | 'FIXED', value: number): void {
+    const row = this.forDepot(depotId).get(productId) ?? {};
+    this.forDepot(depotId).set(productId, { ...row, adjustType, value });
+  }
+
+  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>> {
     this.calls.push({ depotId, productIds });
-    const forDepot = this.overrides.get(depotId) ?? new Map<string, number>();
-    const result = new Map<string, number>();
+    const forDepot = this.overrides.get(depotId) ?? new Map<string, DepotPrice>();
+    const result = new Map<string, DepotPrice>();
     for (const id of productIds) {
-      const price = forDepot.get(id);
-      if (price !== undefined) result.set(id, price);
+      const row = forDepot.get(id);
+      if (row) result.set(id, row);
     }
     return result;
   }

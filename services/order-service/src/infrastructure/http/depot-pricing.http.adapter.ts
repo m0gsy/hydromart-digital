@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { DepotPricingPort } from '../../application/ports/depot-pricing.port';
+import { DepotPrice, DepotPricingPort } from '../../application/ports/depot-pricing.port';
 
 /**
  * Fetches per-depot price overrides from the depot-service public price endpoint.
@@ -15,8 +15,8 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, number>> {
-    const prices = new Map<string, number>();
+  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>> {
+    const prices = new Map<string, DepotPrice>();
     if (productIds.length === 0) {
       return prices;
     }
@@ -29,11 +29,17 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
       if (!res.ok) {
         throw new Error(`depot-service responded ${res.status}`);
       }
-      const body = (await res.json()) as { productId: string; sellPrice: number }[];
+      const body = (await res.json()) as {
+        productId: string;
+        sellPrice?: number;
+        adjustType?: 'PERCENT' | 'FIXED';
+        value?: number;
+      }[];
       for (const row of body) {
-        if (typeof row.sellPrice === 'number') {
-          prices.set(row.productId, row.sellPrice);
-        }
+        prices.set(row.productId, {
+          ...(typeof row.sellPrice === 'number' ? { sellPrice: row.sellPrice } : {}),
+          ...(row.adjustType ? { adjustType: row.adjustType, value: row.value ?? 0 } : {}),
+        });
       }
     } catch (error) {
       this.logger.warn(

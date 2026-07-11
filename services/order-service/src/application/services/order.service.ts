@@ -19,6 +19,7 @@ import {
   notificationEventFor,
 } from '../../domain/order-status';
 import { selectNearestDepot } from '../../domain/geo';
+import { applyAdjustment } from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
@@ -31,7 +32,7 @@ import {
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
-import { DepotPricingPort } from '../ports/depot-pricing.port';
+import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
@@ -103,20 +104,25 @@ export class OrderService {
     // rejected (OutOfServiceAreaError) rather than placed unfulfillable.
     const depot = await this.routeDepot(input.deliveryAddress);
 
-    // Per-depot price overrides (WARALABA depots price independently). Fails OPEN:
-    // an empty map means every line falls back to the catalog base price.
-    const overrides = depot
+    // Per-depot resolved prices: static override + the winning active pricing rule
+    // (WARALABA depots price independently). Fails OPEN — an empty map means every
+    // line falls back to the catalog base price with no adjustment.
+    const prices = depot
       ? await this.depotPricing.getPrices(
           depot.id,
           lines.map((l) => l.productId),
         )
-      : new Map<string, number>();
+      : new Map<string, DepotPrice>();
 
     const items: CreateOrderItemData[] = [];
     for (const line of lines) {
       const product = await this.priced(line.productId);
-      const override = overrides.get(product.id);
-      const unitPrice = money(override ?? product.basePrice);
+      const priceRow = prices.get(product.id);
+      const base = priceRow?.sellPrice ?? product.basePrice;
+      const adj = priceRow?.adjustType
+        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
+        : null;
+      const unitPrice = money(applyAdjustment(base, adj));
       items.push({
         productId: product.id,
         productName: product.name,
