@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 
 import { InventoryItemType } from '../../src/domain/inventory';
+import { PricingRuleRecord } from '../../src/domain/pricing-rule';
 import { DepotConfigService } from '../../src/config/depot-config.service';
+import {
+  CreatePricingRuleData,
+  PricingRuleRepository,
+  UpdatePricingRuleData,
+} from '../../src/application/ports/pricing-rule.repository';
 import {
   CreateDepotData,
   DepotQuery,
@@ -224,6 +230,36 @@ export class FakeLowStockAlert implements LowStockAlertPort {
 
   async emit(alert: LowStockAlert, authorization: string): Promise<void> {
     this.emitted.push({ alert, authorization });
+  }
+}
+
+export class FakePricingRuleRepository implements PricingRuleRepository {
+  rows: PricingRuleRecord[] = [];
+  private seq = 0;
+
+  async create(data: CreatePricingRuleData): Promise<PricingRuleRecord> {
+    const now = new Date('2026-01-01T00:00:00Z');
+    const rule: PricingRuleRecord = { id: `rule-${++this.seq}`, createdAt: now, updatedAt: now, ...data };
+    this.rows.push(rule);
+    return rule;
+  }
+  async findById(id: string): Promise<PricingRuleRecord | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async listForDepot(depotId: string): Promise<PricingRuleRecord[]> {
+    return this.rows.filter((r) => r.depotId === depotId);
+  }
+  async listActiveForDepot(depotId: string): Promise<PricingRuleRecord[]> {
+    return this.rows.filter((r) => r.depotId === depotId && r.active);
+  }
+  async update(id: string, patch: UpdatePricingRuleData): Promise<PricingRuleRecord> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row) throw new Error('not found');
+    Object.assign(row, patch);
+    return row;
+  }
+  async delete(id: string): Promise<void> {
+    this.rows = this.rows.filter((r) => r.id !== id);
   }
 }
 
