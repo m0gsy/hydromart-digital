@@ -14,7 +14,7 @@ RUN npm ci --include-workspace-root
 COPY services/promo-service ./services/promo-service
 RUN npm run build -w @hydromart/platform \
   && cd services/promo-service && npx prisma generate && npm run build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev && mkdir -p /app/services/promo-service/node_modules
 
 FROM node:20-alpine AS runtime
 RUN apk add --no-cache openssl

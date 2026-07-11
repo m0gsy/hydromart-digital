@@ -18,7 +18,7 @@ WORKDIR /app/services/auth-service
 RUN npx prisma generate && npm run build
 
 # Prune dev dependencies for a lean runtime image.
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev && mkdir -p /app/services/auth-service/node_modules
 
 # ---- Runtime ----
 FROM node:20-alpine AS runtime
