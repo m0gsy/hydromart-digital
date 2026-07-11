@@ -155,4 +155,20 @@ describe('churnRisk', () => {
     const r = churnRisk({ lastOrderAt: new Date(NOW.getTime() - 5.9 * DAY), orderCount: 1 }, NOW, { windowDays: 30 });
     expect(r.daysSince).toBe(5);
   });
+  it('monetary dampens risk: a high-spend lapsed buyer scores lower than a low-spend one at the same recency + frequency', () => {
+    const lowSpend = churnRisk({ lastOrderAt: ago(30), orderCount: 1, totalSpent: 0 }, NOW, { windowDays: 30, monetaryRef: 500_000 });
+    const highSpend = churnRisk({ lastOrderAt: ago(30), orderCount: 1, totalSpent: 500_000 }, NOW, { windowDays: 30, monetaryRef: 500_000 });
+    expect(lowSpend.riskScore).toBe(1); // recency 1 * freq 1 * mon 1 (no spend)
+    expect(highSpend.riskScore).toBeCloseTo(0.6); // mon floor 0.6 at/above the ref
+    expect(highSpend.riskBand).toBe('MEDIUM'); // 0.6 lands in the middle tertile, down from HIGH
+    expect(highSpend.riskScore).toBeLessThan(lowSpend.riskScore);
+  });
+  it('spend above the ref clamps the monetary factor at the floor (no over-dampening)', () => {
+    const r = churnRisk({ lastOrderAt: ago(30), orderCount: 1, totalSpent: 5_000_000 }, NOW, { windowDays: 30, monetaryRef: 500_000 });
+    expect(r.riskScore).toBeCloseTo(0.6);
+  });
+  it('monetary factor is off when monetaryRef is unset (recency + frequency only)', () => {
+    const r = churnRisk({ lastOrderAt: ago(30), orderCount: 1, totalSpent: 999_999 }, NOW, { windowDays: 30 });
+    expect(r.riskScore).toBe(1);
+  });
 });

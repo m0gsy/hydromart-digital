@@ -14,4 +14,5 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   CHURN_WINDOW_DAYS: Joi.number().integer().default(45),
+  CHURN_MONETARY_REF_RUPIAH: Joi.number().integer().min(0).default(500000),
 });

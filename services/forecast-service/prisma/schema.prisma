@@ -50,6 +50,7 @@ model CustomerActivity {
   depotId     String?  @db.Uuid
   lastOrderAt DateTime
   orderCount  Int      @default(0)
+  totalSpent  Int      @default(0) // lifetime rupiah (the M in RFM-lite churn)
   updatedAt   DateTime @updatedAt
 
   @@index([depotId, lastOrderAt])

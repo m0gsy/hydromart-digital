@@ -28,6 +28,7 @@ export interface CustomerActivityRow {
   depotId: string | null;
   lastOrderAt: Date;
   orderCount: number;
+  totalSpent: number;
 }
 
 /** One daily-demand cell. `day` = epoch day number (see domain series.ts `toUtcDay`). */

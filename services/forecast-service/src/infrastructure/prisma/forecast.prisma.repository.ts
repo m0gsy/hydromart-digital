@@ -89,8 +89,8 @@ export class ForecastPrismaRepository implements ForecastRepository {
       const lastOrderAt = existingCust && existingCust.lastOrderAt > cmd.at ? existingCust.lastOrderAt : cmd.at;
       await tx.customerActivity.upsert({
         where: { customerId: cmd.customerId },
-        create: { customerId: cmd.customerId, depotId: cmd.depotId, lastOrderAt: cmd.at, orderCount: 1 },
-        update: { depotId: cmd.depotId, lastOrderAt, orderCount: { increment: 1 } },
+        create: { customerId: cmd.customerId, depotId: cmd.depotId, lastOrderAt: cmd.at, orderCount: 1, totalSpent: cmd.total },
+        update: { depotId: cmd.depotId, lastOrderAt, orderCount: { increment: 1 }, totalSpent: { increment: cmd.total } },
       });
 
       // P2002 here under concurrency rolls back the whole tx (documented ceiling); not swallowed.
@@ -182,6 +182,7 @@ export class ForecastPrismaRepository implements ForecastRepository {
       depotId: r.depotId,
       lastOrderAt: r.lastOrderAt,
       orderCount: r.orderCount,
+      totalSpent: r.totalSpent,
     }));
   }
 }

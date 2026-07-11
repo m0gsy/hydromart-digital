@@ -172,6 +172,21 @@ describe('ForecastService', () => {
     expect(customers[0].lastOrderAt).toBe('2026-05-01T00:00:00.000Z');
   });
 
+  it('churnList folds Monetary in: a high-spend customer bands lower than a low-spend one at the same recency', async () => {
+    const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000 } as unknown as ForecastConfigService;
+    const monService = new ForecastService(repo, monConfig);
+    const lapsed = new Date('2026-06-11T12:00:00Z'); // 30 days before NOW → recency 1
+    await monService.ingest(makeIngest({ orderId: 'lo', customerId: 'low', at: lapsed, total: 10_000 }));
+    await monService.ingest(makeIngest({ orderId: 'hi', customerId: 'high', at: lapsed, total: 500_000 }));
+
+    const { customers } = await monService.churnList({ now: NOW });
+    const low = customers.find((c) => c.customerId === 'low')!;
+    const high = customers.find((c) => c.customerId === 'high')!;
+    expect(low.riskBand).toBe('HIGH');
+    expect(high.riskBand).toBe('MEDIUM');
+    expect(high.riskScore).toBeLessThan(low.riskScore);
+  });
+
   it('churnList empty state → no customers, no throw', async () => {
     const { customers } = await service.churnList({ now: NOW });
     expect(customers).toEqual([]);

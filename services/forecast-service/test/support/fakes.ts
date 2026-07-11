@@ -54,7 +54,7 @@ export class FakeForecastRepository implements ForecastRepository {
       this.incrementCell(item.productId, cmd.depotId, day, item.quantity);
     }
     this.incrementRevenue(cmd.depotId, day, cmd.total);
-    this.touchCustomer(cmd.customerId, cmd.depotId, cmd.at);
+    this.touchCustomer(cmd.customerId, cmd.depotId, cmd.at, cmd.total);
 
     this.ingestedOrderIds.add(cmd.orderId);
   }
@@ -70,13 +70,14 @@ export class FakeForecastRepository implements ForecastRepository {
     }
   }
 
-  private touchCustomer(customerId: string, depotId: string | null, at: Date): void {
+  private touchCustomer(customerId: string, depotId: string | null, at: Date, total: number): void {
     const prev = this.activity.get(customerId);
     this.activity.set(customerId, {
       customerId,
       depotId,
       lastOrderAt: prev && prev.lastOrderAt > at ? prev.lastOrderAt : at,
       orderCount: (prev?.orderCount ?? 0) + 1,
+      totalSpent: (prev?.totalSpent ?? 0) + total,
     });
   }
 

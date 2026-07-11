@@ -235,7 +235,11 @@ export class ForecastService {
 
     const customers = rows
       .map((r) => {
-        const risk = churnRisk({ lastOrderAt: r.lastOrderAt, orderCount: r.orderCount }, now, { windowDays });
+        const risk = churnRisk(
+          { lastOrderAt: r.lastOrderAt, orderCount: r.orderCount, totalSpent: r.totalSpent },
+          now,
+          { windowDays, monetaryRef: this.config.churnMonetaryRef },
+        );
         return {
           customerId: r.customerId,
           lastOrderAt: r.lastOrderAt.toISOString(),

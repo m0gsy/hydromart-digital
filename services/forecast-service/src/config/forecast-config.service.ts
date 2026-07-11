@@ -45,4 +45,8 @@ export class ForecastConfigService {
   get churnWindowDays(): number {
     return Number(this.config.get<number>('CHURN_WINDOW_DAYS', 45));
   }
+  /** Lifetime-spend (rupiah) at which the churn Monetary factor reaches full dampening. */
+  get churnMonetaryRef(): number {
+    return Number(this.config.get<number>('CHURN_MONETARY_REF_RUPIAH', 500_000));
+  }
 }
