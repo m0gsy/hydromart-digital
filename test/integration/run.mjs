@@ -21,11 +21,12 @@ function run(cmd, args, opts = {}) {
 const compose = (args, opts) => run('docker', ['compose', ...args], opts);
 
 function healthy() {
-  const r = spawnSync('docker', ['compose', ...COMPOSE, 'ps', '-a', '--format', '{{.Service}} {{.Health}} {{.State}}'],
+  // Comma delimiter (no spaces / no shell metachars) so the format survives shell:true on Windows.
+  const r = spawnSync('docker', ['compose', ...COMPOSE, 'ps', '-a', '--format', '{{.Service}},{{.Health}},{{.State}}'],
     { encoding: 'utf8', shell: win });
   const map = {};
   for (const line of (r.stdout || '').trim().split('\n').filter(Boolean)) {
-    const [svc, health, state] = line.split(' ');
+    const [svc, health, state] = line.split(',');
     map[svc] = { health, state };
   }
   return map;
