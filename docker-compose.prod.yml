@@ -1,0 +1,305 @@
+# Production overlay for a single VPS. Merge on top of the base infra file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Base file (docker-compose.yml) provides postgres (init-databases.sql creates all
+# per-service DBs) + redis. This overlay adds the 15 app services + the web app.
+#
+# All secrets come from the environment (see .env.production.example). ${VAR:?msg}
+# fails the command if VAR is unset — no secret is ever hardcoded here.
+# Only `gateway` (8080) and `web` (3000) are published to the host; every other
+# service is reachable only on the internal docker network.
+
+x-shared: &shared
+  NODE_ENV: production
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (min 32 chars)}
+  INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?set INTERNAL_SERVICE_KEY}
+
+x-svc: &svc
+  restart: unless-stopped
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_healthy }
+
+services:
+  # Override only the postgres password with the prod secret; user, db, volume,
+  # init script AND port publishing all come from the base file (which publishes
+  # 5432/6379). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
+  # port lists across files, so a second entry would double-bind and fail to boot.
+  # Postgres/Redis therefore stay on the host's published 5432/6379 — lock them down
+  # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+
+  auth:
+    <<: *svc
+    build: { context: ., dockerfile: services/auth-service/Dockerfile }
+    environment:
+      <<: *shared
+      AUTH_SERVICE_PORT: 3001
+      AUTH_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET (min 32 chars)}
+      JWT_ACCESS_TTL: 900
+      JWT_REFRESH_TTL: 2592000
+      OTP_TTL_SECONDS: 300
+      OTP_LENGTH: 6
+      OTP_MAX_ATTEMPTS: 5
+      OTP_RESEND_COOLDOWN_SECONDS: 60
+      OTP_DELIVERY_CHANNEL: console
+      OTP_PEPPER: ${OTP_PEPPER:?set OTP_PEPPER}
+      CRM_SERVICE_URL: http://crm:3012
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  customer:
+    <<: *svc
+    build: { context: ., dockerfile: services/customer-service/Dockerfile }
+    environment:
+      <<: *shared
+      CUSTOMER_SERVICE_PORT: 3002
+      CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public
+      MAX_ADDRESSES_PER_CUSTOMER: 20
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      BIRTHDAY_REWARD_POINTS: 250
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  product:
+    <<: *svc
+    build: { context: ., dockerfile: services/product-service/Dockerfile }
+    environment:
+      <<: *shared
+      PRODUCT_SERVICE_PORT: 3003
+      PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  order:
+    <<: *svc
+    build: { context: ., dockerfile: services/order-service/Dockerfile }
+    environment:
+      <<: *shared
+      ORDER_SERVICE_PORT: 3004
+      ORDER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_order?schema=public
+      PRODUCT_SERVICE_URL: http://product:3003
+      DEPOT_SERVICE_URL: http://depot:3007
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      PROMO_SERVICE_URL: http://promo:3010
+      REFERRAL_SERVICE_URL: http://referral:3011
+      CRM_SERVICE_URL: http://crm:3012
+      RECOMMENDATION_SERVICE_URL: http://recommendation:3013
+      FORECAST_SERVICE_URL: http://forecast:3014
+      ORDER_DELIVERY_FEE: 5000
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3004/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  payment:
+    <<: *svc
+    build: { context: ., dockerfile: services/payment-service/Dockerfile }
+    environment:
+      <<: *shared
+      PAYMENT_SERVICE_PORT: 3005
+      PAYMENT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payment?schema=public
+      # Blank in dev/self-hosted = online charges fail closed until a real gateway is wired.
+      PAYMENT_GATEWAY_BASE_URL: ${PAYMENT_GATEWAY_BASE_URL:-}
+      PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET (min 16 chars)}
+      ORDER_SERVICE_URL: http://order:3004
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  delivery:
+    <<: *svc
+    build: { context: ., dockerfile: services/delivery-service/Dockerfile }
+    environment:
+      <<: *shared
+      DELIVERY_SERVICE_PORT: 3006
+      DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public
+      ORDER_SERVICE_URL: http://order:3004
+      MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
+      DELIVERY_SLA_MINUTES: 120
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  depot:
+    <<: *svc
+    build: { context: ., dockerfile: services/depot-service/Dockerfile }
+    environment:
+      <<: *shared
+      DEPOT_SERVICE_PORT: 3007
+      DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
+      CRM_SERVICE_URL: http://crm:3012
+      DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  dashboard:
+    <<: *svc
+    build: { context: ., dockerfile: services/dashboard-service/Dockerfile }
+    environment:
+      <<: *shared
+      DASHBOARD_SERVICE_PORT: 3008
+      ORDER_SERVICE_URL: http://order:3004
+      DELIVERY_SERVICE_URL: http://delivery:3006
+      DEPOT_SERVICE_URL: http://depot:3007
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3008/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  loyalty:
+    <<: *svc
+    build: { context: ., dockerfile: services/loyalty-service/Dockerfile }
+    environment:
+      <<: *shared
+      LOYALTY_SERVICE_PORT: 3009
+      LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public
+      LOYALTY_EARN_RATE_RUPIAH: 1000
+      LOYALTY_POINT_EXPIRY_MONTHS: 12
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3009/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  promo:
+    <<: *svc
+    build: { context: ., dockerfile: services/promo-service/Dockerfile }
+    environment:
+      <<: *shared
+      PROMO_SERVICE_PORT: 3010
+      PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3010/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  referral:
+    <<: *svc
+    build: { context: ., dockerfile: services/referral-service/Dockerfile }
+    environment:
+      <<: *shared
+      REFERRAL_SERVICE_PORT: 3011
+      REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      REFERRAL_REFERRER_POINTS: 500
+      REFERRAL_REFEREE_POINTS: 250
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3011/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  crm:
+    <<: *svc
+    build: { context: ., dockerfile: services/crm-service/Dockerfile }
+    environment:
+      <<: *shared
+      CRM_SERVICE_PORT: 3012
+      CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
+      WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
+      CUSTOMER_SERVICE_URL: http://customer:3002
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3012/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  recommendation:
+    <<: *svc
+    build: { context: ., dockerfile: services/recommendation-service/Dockerfile }
+    environment:
+      <<: *shared
+      RECOMMENDATION_SERVICE_PORT: 3013
+      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_recommendation?schema=public
+      ORDER_SERVICE_URL: http://order:3004
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3013/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  forecast:
+    <<: *svc
+    build: { context: ., dockerfile: services/forecast-service/Dockerfile }
+    environment:
+      <<: *shared
+      FORECAST_SERVICE_PORT: 3014
+      FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public
+      CHURN_WINDOW_DAYS: 45
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3014/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  gateway:
+    <<: *svc
+    build: { context: ., dockerfile: services/gateway-service/Dockerfile }
+    environment:
+      <<: *shared
+      GATEWAY_PORT: 8080
+      AUTH_SERVICE_URL: http://auth:3001
+      CUSTOMER_SERVICE_URL: http://customer:3002
+      PRODUCT_SERVICE_URL: http://product:3003
+      ORDER_SERVICE_URL: http://order:3004
+      PAYMENT_SERVICE_URL: http://payment:3005
+      DELIVERY_SERVICE_URL: http://delivery:3006
+      DEPOT_SERVICE_URL: http://depot:3007
+      DASHBOARD_SERVICE_URL: http://dashboard:3008
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      PROMO_SERVICE_URL: http://promo:3010
+      REFERRAL_SERVICE_URL: http://referral:3011
+      CRM_SERVICE_URL: http://crm:3012
+      RECOMMENDATION_SERVICE_URL: http://recommendation:3013
+      FORECAST_SERVICE_URL: http://forecast:3014
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # NEXT_PUBLIC_API_URL is baked into the client bundle at build time.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
+    restart: unless-stopped
+    depends_on:
+      - gateway
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
