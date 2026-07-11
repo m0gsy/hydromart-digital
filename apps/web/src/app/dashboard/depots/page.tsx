@@ -197,7 +197,12 @@ function DepotsBody() {
       </div>
 
       {editing !== null && (
-        <DepotEditor depot={editing === 'new' ? null : editing} onDone={closeForm} onCancel={() => setEditing(null)} />
+        <DepotEditor
+          key={editing === 'new' ? 'new' : editing.id}
+          depot={editing === 'new' ? null : editing}
+          onDone={closeForm}
+          onCancel={() => setEditing(null)}
+        />
       )}
 
       {list.loading ? (
