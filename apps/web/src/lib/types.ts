@@ -358,3 +358,35 @@ export interface InventoryItem {
   available: number;
   lowStock: boolean;
 }
+
+/* ---------- Dynamic pricing (staff-facing) ---------- */
+
+export type PricingAdjustType = 'PERCENT' | 'FIXED';
+
+export interface PricingRule {
+  id: string;
+  depotId: string;
+  productId: string | null;
+  adjustType: PricingAdjustType;
+  value: number;
+  daysOfWeek: number[];
+  startMinute: number | null;
+  endMinute: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  priority: number;
+  active: boolean;
+}
+
+export interface PricingRulePayload {
+  productId?: string | null;
+  adjustType: PricingAdjustType;
+  value: number;
+  daysOfWeek: number[];
+  startMinute: number | null;
+  endMinute: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  priority: number;
+  active: boolean;
+}

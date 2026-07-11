@@ -58,3 +58,8 @@ export function canManageDepots(role: string | null | undefined): boolean {
 export function canViewFranchise(role: string | null | undefined): boolean {
   return role === 'FRANCHISE_OWNER';
 }
+
+/** Whether a role may manage dynamic pricing rules (mirrors depot-service manager+super-admin). */
+export function canManagePricing(role: string | null | undefined): boolean {
+  return role != null && DEPOT_ADMIN.has(role);
+}

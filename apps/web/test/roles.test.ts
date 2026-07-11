@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canManageCampaigns,
   canManageDepots,
+  canManagePricing,
   canViewCampaigns,
   canViewDashboard,
   canViewFranchise,
@@ -93,6 +94,15 @@ describe('canManageDepots', () => {
     expect(canManageDepots('DEPOT_OPERATOR')).toBe(false);
     expect(canManageDepots('CUSTOMER')).toBe(false);
     expect(canManageDepots(null)).toBe(false);
+  });
+});
+
+describe('canManagePricing', () => {
+  it('allows manager + super-admin only', () => {
+    expect(canManagePricing('DEPOT_MANAGER')).toBe(true);
+    expect(canManagePricing('SUPER_ADMIN')).toBe(true);
+    expect(canManagePricing('CUSTOMER')).toBe(false);
+    expect(canManagePricing(null)).toBe(false);
   });
 });
 

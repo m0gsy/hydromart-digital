@@ -112,6 +112,14 @@ export const endpoints = {
     // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
   },
+  pricing: {
+    // Dynamic pricing rules for one depot (staff). All under the depots segment.
+    rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
+    create: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
+    // PATCH to update, DELETE to remove.
+    detail: (depotId: string, id: string) =>
+      `/depots/api/v1/depots/${depotId}/pricing/rules/${id}`,
+  },
   crm: {
     // Broadcast campaigns (marketing/head-office). List is paginated → { items, ... }.
     campaigns: (q: { page?: number; limit?: number } = {}) => {
