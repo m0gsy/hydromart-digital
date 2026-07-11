@@ -2,17 +2,17 @@ import {
   Body,
   Controller,
   Get,
-  Headers,
   HttpCode,
   HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { ReferralService } from '../application/services/referral.service';
 import {
@@ -24,16 +24,9 @@ import {
   ReferralSummaryDto,
 } from './dto/referral.dto';
 
-// Qualification is triggered when the referee's first order completes. order-service
-// forwards the completing staff member's token, so it is limited to fulfilment roles
-// (matches loyalty EARN roles).
-const QUALIFY_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.SUPER_ADMIN,
-] as const;
-
+// Qualification is triggered when the referee's first order completes. It is a
+// system-to-system call from order-service, authenticated by the shared
+// INTERNAL_SERVICE_KEY, not a JWT.
 const READ_ROLES = [
   Role.DEPOT_MANAGER,
   Role.HEAD_OFFICE,
@@ -77,17 +70,15 @@ export class ReferralController {
     return ReferralDto.from(await this.referrals.redeem(user.sub, dto.code));
   }
 
-  @ApiBearerAuth()
-  @Roles(...QUALIFY_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('qualify')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: "Qualify a referee's referral on order completion (staff/system, idempotent)" })
-  qualify(
-    @Body() dto: QualifyReferralDto,
-    @Headers('authorization') authorization: string,
-  ) {
-    // Forward the caller's token so loyalty rewards are awarded as the acting staff.
-    return this.referrals.qualify(dto.customerId, dto.orderId, authorization);
+  @ApiOperation({ summary: "Qualify a referee's referral on order completion (internal service auth, idempotent)" })
+  qualify(@Body() dto: QualifyReferralDto) {
+    // Reward is awarded via referral's own internal-key call to loyalty (no forwarded token).
+    return this.referrals.qualify(dto.customerId, dto.orderId, '');
   }
 
   @ApiBearerAuth()

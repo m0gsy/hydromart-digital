@@ -8,4 +8,7 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
+  // Shared service-to-service secret guarding /vouchers/redeem (system-triggered by
+  // order-service at checkout). Blank = fail-closed (internal calls rejected).
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
 });

@@ -10,4 +10,7 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   LOYALTY_EARN_RATE_RUPIAH: Joi.number().integer().positive().default(1000),
   LOYALTY_POINT_EXPIRY_MONTHS: Joi.number().integer().positive().default(12),
+  // Shared service-to-service secret guarding /loyalty/earn + /loyalty/reward
+  // (system-triggered). Blank = fail-closed (internal calls rejected).
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
 });

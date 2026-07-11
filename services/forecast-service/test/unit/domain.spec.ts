@@ -116,29 +116,37 @@ describe('forecastDemand', () => {
 });
 
 describe('churnRisk', () => {
-  it('recent order → LOW, score ~0', () => {
+  it('recent order → LOW, score 0', () => {
     const r = churnRisk({ lastOrderAt: ago(0), orderCount: 5 }, NOW, { windowDays: 30 });
     expect(r.daysSince).toBe(0);
     expect(r.riskScore).toBe(0);
     expect(r.riskBand).toBe('LOW');
   });
-  it('exactly the window → HIGH, score 1', () => {
-    const r = churnRisk({ lastOrderAt: ago(30), orderCount: 2 }, NOW, { windowDays: 30 });
+  it('one-time buyer at the window → HIGH, score 1', () => {
+    const r = churnRisk({ lastOrderAt: ago(30), orderCount: 1 }, NOW, { windowDays: 30 });
     expect(r.daysSince).toBe(30);
     expect(r.riskScore).toBe(1);
     expect(r.riskBand).toBe('HIGH');
   });
-  it('half the window → MEDIUM boundary, score 0.5', () => {
-    const r = churnRisk({ lastOrderAt: ago(15), orderCount: 1 }, NOW, { windowDays: 30 });
-    expect(r.daysSince).toBe(15);
-    expect(r.riskScore).toBe(0.5);
+  it('mid-window one-time buyer → MEDIUM tertile', () => {
+    const r = churnRisk({ lastOrderAt: ago(12), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.riskScore).toBeCloseTo(0.4);
     expect(r.riskBand).toBe('MEDIUM');
   });
-  it('just under half → LOW', () => {
-    const r = churnRisk({ lastOrderAt: ago(14), orderCount: 1 }, NOW, { windowDays: 30 });
+  it('recent-ish one-time buyer → LOW tertile', () => {
+    const r = churnRisk({ lastOrderAt: ago(9), orderCount: 1 }, NOW, { windowDays: 30 });
+    expect(r.riskScore).toBeCloseTo(0.3);
     expect(r.riskBand).toBe('LOW');
   });
-  it('ancient order → score clamped to 1.0, HIGH', () => {
+  it('frequency dampens risk: a loyal lapsed buyer scores lower than a one-timer at the same recency', () => {
+    const oneTime = churnRisk({ lastOrderAt: ago(30), orderCount: 1 }, NOW, { windowDays: 30 });
+    const loyal = churnRisk({ lastOrderAt: ago(30), orderCount: 6 }, NOW, { windowDays: 30 });
+    expect(oneTime.riskBand).toBe('HIGH');
+    expect(loyal.riskScore).toBe(0.5); // recency 1 * freqWeight floor 0.5
+    expect(loyal.riskBand).toBe('MEDIUM');
+    expect(loyal.riskScore).toBeLessThan(oneTime.riskScore);
+  });
+  it('ancient order → recency clamped to 1.0, HIGH', () => {
     const r = churnRisk({ lastOrderAt: ago(365), orderCount: 1 }, NOW, { windowDays: 30 });
     expect(r.riskScore).toBe(1);
     expect(r.riskBand).toBe('HIGH');

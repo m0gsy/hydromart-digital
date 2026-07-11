@@ -36,3 +36,50 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
+  # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
+  # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
+  integration:
+    runs-on: ubuntu-latest
+    # Host-side `db:migrate` (run.mjs) applies migrations to the compose Postgres over the
+    # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from process.env.
+    env:
+      AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
+      CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
+      PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_product?schema=public
+      ORDER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_order?schema=public
+      PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payment?schema=public
+      DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_delivery?schema=public
+      DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_depot?schema=public
+      LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_loyalty?schema=public
+      PROMO_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_promo?schema=public
+      REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_referral?schema=public
+      CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
+      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
+      FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Pre-start infra and wait until Postgres accepts connections (initdb creates all 13
+      # databases) so the runner's db:migrate doesn't race a cold Postgres in CI.
+      - name: Start infra + wait for Postgres
+        run: |
+          docker compose up -d postgres redis
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then exit 0; fi
+            sleep 2
+          done
+          echo "Postgres did not become ready in time" >&2
+          exit 1
+
+      - name: Integration test (build + boot all 15 images, drive core loop)
+        run: npm run test:integration

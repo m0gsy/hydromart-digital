@@ -12,4 +12,7 @@ export const envValidationSchema = Joi.object({
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
+  // Shared service-to-service secret authenticating the low-stock alert call to crm's
+  // internal notification endpoint. Blank = alerting disabled (fail-open).
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
 });

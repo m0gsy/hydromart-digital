@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
@@ -14,15 +14,8 @@ import {
   RewardPointsDto,
 } from './dto/loyalty.dto';
 
-// Points are awarded when an order completes (BR-013). order-service forwards the
-// completing staff member's token, so earning is limited to the fulfilment roles.
-const EARN_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.SUPER_ADMIN,
-] as const;
-
+// earn + reward are system-to-system calls (order-service on completion, referral +
+// customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.
 const ADJUST_ROLES = [Role.DEPOT_MANAGER, Role.MARKETING, Role.SUPER_ADMIN] as const;
 const READ_ROLES = [
   Role.DEPOT_MANAGER,
@@ -61,10 +54,11 @@ export class LoyaltyController {
     return { ...page, items: page.items.map((t) => PointsTransactionDto.from(t)) };
   }
 
-  @ApiBearerAuth()
-  @Roles(...EARN_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('earn')
-  @ApiOperation({ summary: 'Award points for a completed order (staff/system, BR-013, idempotent)' })
+  @ApiOperation({ summary: 'Award points for a completed order (internal service auth, BR-013, idempotent)' })
   async earn(@Body() dto: EarnPointsDto): Promise<LoyaltyAccountDto> {
     const result = await this.loyalty.earnForOrder(dto.customerId, dto.orderId, dto.subtotal);
     return LoyaltyAccountDto.from(result.account);
@@ -78,10 +72,11 @@ export class LoyaltyController {
     return LoyaltyAccountDto.from(await this.loyalty.adjust(dto.customerId, dto.points, dto.reason));
   }
 
-  @ApiBearerAuth()
-  @Roles(...EARN_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('reward')
-  @ApiOperation({ summary: 'Grant a flat positive reward (staff/system, e.g. referral bonus)' })
+  @ApiOperation({ summary: 'Grant a flat positive reward (internal service auth, e.g. referral/birthday bonus)' })
   async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(
       await this.loyalty.reward(dto.customerId, dto.points, dto.reason),

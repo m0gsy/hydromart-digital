@@ -35,6 +35,10 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  /** Shared secret sent as x-internal-key on the crm internal notification call. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
   get pricingTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
   }

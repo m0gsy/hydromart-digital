@@ -40,4 +40,8 @@ export class CustomerConfigService {
   get birthdayRewardPoints(): number {
     return this.num('BIRTHDAY_REWARD_POINTS');
   }
+  /** Shared secret sent as x-internal-key on the loyalty reward call. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
 }

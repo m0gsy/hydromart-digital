@@ -10,10 +10,11 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
 import {
@@ -66,14 +67,15 @@ export class VoucherController {
     return this.vouchers.quote(dto.code, user.sub, dto.subtotal);
   }
 
-  // Called by order-service at checkout, forwarding the customer's token. Idempotent
-  // per orderId. Ceiling: a customer could in theory inflate global usage with invented
-  // orderIds; acceptable for MVP — proper fix is service-to-service auth.
-  @ApiBearerAuth()
-  @Roles(Role.CUSTOMER)
+  // System-to-system call from order-service at checkout, authenticated by the shared
+  // INTERNAL_SERVICE_KEY (not a customer token). Idempotent per orderId. Internal auth
+  // closes the prior ceiling where a customer could inflate global usage via the wire.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('redeem')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Redeem a voucher for an order (idempotent per orderId)' })
+  @ApiOperation({ summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)' })
   redeem(@Body() dto: RedeemVoucherDto): Promise<RedeemResult> {
     return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal);
   }
