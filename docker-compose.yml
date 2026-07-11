@@ -11,7 +11,10 @@ services:
       POSTGRES_PASSWORD: hydromart
       POSTGRES_DB: hydromart_auth
     ports:
-      - '5432:5432'
+      # Bind to loopback only — host-side migrations reach it via localhost,
+      # but Docker's iptables rules would otherwise bypass ufw and expose it
+      # to the public internet. Services talk to it over the compose network.
+      - '127.0.0.1:5432:5432'
     volumes:
       - hydromart_pgdata:/var/lib/postgresql/data
       # Creates the per-service databases (each microservice owns its own schema).
@@ -28,7 +31,8 @@ services:
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - '6379:6379'
+      # Loopback only (see postgres above) — never expose Redis to the internet.
+      - '127.0.0.1:6379:6379'
     volumes:
       - hydromart_redisdata:/data
     healthcheck:
