@@ -3,11 +3,13 @@
 
 # ---- Builder ----
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Install dependencies against the lockfile for reproducible builds.
 COPY package.json package-lock.json ./
 COPY services/auth-service/package.json ./services/auth-service/
+COPY services/auth-service/prisma ./services/auth-service/prisma
 RUN npm ci --workspace @hydromart/auth-service --include-workspace-root
 
 COPY tsconfig.base.json ./
@@ -20,6 +22,7 @@ RUN npm prune --omit=dev
 
 # ---- Runtime ----
 FROM node:20-alpine AS runtime
+RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app
 

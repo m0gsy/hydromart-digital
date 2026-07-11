@@ -2,19 +2,22 @@
 # Multi-stage build for the Hydromart loyalty-service (deploys to Cloud Run).
 
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
 COPY services/loyalty-service/package.json ./services/loyalty-service/
-RUN npm ci --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+COPY services/loyalty-service/prisma ./services/loyalty-service/prisma
+RUN npm ci --include-workspace-root
 COPY services/loyalty-service ./services/loyalty-service
 RUN npm run build -w @hydromart/platform \
   && cd services/loyalty-service && npx prisma generate && npm run build
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
+RUN apk add --no-cache openssl
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app

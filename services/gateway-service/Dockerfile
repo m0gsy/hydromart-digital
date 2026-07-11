@@ -6,12 +6,13 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
 COPY services/gateway-service/package.json ./services/gateway-service/
-RUN npm ci --include-workspace-root
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+RUN npm ci --include-workspace-root
 COPY services/gateway-service ./services/gateway-service
 RUN npm run build -w @hydromart/platform \
   && cd services/gateway-service && npm run build
+RUN mkdir -p /app/services/gateway-service/node_modules
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
