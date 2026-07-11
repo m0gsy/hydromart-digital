@@ -146,6 +146,26 @@ export const endpoints = {
       return `/recommendations/api/v1/recommendations/trending${qs ? `?${qs}` : ''}`;
     },
   },
+  forecast: {
+    // Single-product demand forecast (omit depotId for a global forecast).
+    demand: (q: { productId: string; depotId?: string; historyDays?: number; horizonDays?: number }) => {
+      const p = new URLSearchParams();
+      p.set('productId', q.productId);
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.historyDays) p.set('historyDays', String(q.historyDays));
+      if (q.horizonDays) p.set('horizonDays', String(q.horizonDays));
+      return `/forecast/api/v1/forecast/demand?${p.toString()}`;
+    },
+    // Per-depot planning rollup: every product with demand, ranked by predicted total.
+    depot: (depotId: string, q: { historyDays?: number; horizonDays?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.historyDays) p.set('historyDays', String(q.historyDays));
+      if (q.horizonDays) p.set('horizonDays', String(q.horizonDays));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/forecast/api/v1/forecast/depot/${depotId}${qs ? `?${qs}` : ''}`;
+    },
+  },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

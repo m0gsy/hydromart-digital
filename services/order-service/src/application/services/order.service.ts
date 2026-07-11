@@ -36,6 +36,7 @@ import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
+import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
@@ -82,6 +83,8 @@ export class OrderService {
     private readonly config: OrderConfigService,
     @Inject(ORDER_TOKENS.RecommendationCoordination)
     private readonly recommendation: RecommendationCoordinationPort,
+    @Inject(ORDER_TOKENS.ForecastCoordination)
+    private readonly forecastCoordination: ForecastCoordinationPort,
   ) {}
 
   /**
@@ -345,6 +348,9 @@ export class OrderService {
       // Belt-and-suspenders: the adapter is already fail-open, but never let a bug
       // there escape and block completion.
       await this.recommendation.recordCompleted(updated).catch(() => {});
+      // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
+      // guard as above — the adapter never throws, but never let a bug there block completion.
+      await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
     }
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {

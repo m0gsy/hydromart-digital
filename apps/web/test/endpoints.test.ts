@@ -50,6 +50,19 @@ describe('endpoints', () => {
     );
   });
 
+  it('builds the forecast demand + depot rollup paths, omitting unset params', () => {
+    expect(endpoints.forecast.demand({ productId: 'p1' })).toBe(
+      '/forecast/api/v1/forecast/demand?productId=p1',
+    );
+    expect(
+      endpoints.forecast.demand({ productId: 'p1', depotId: 'd1', historyDays: 60, horizonDays: 14 }),
+    ).toBe('/forecast/api/v1/forecast/demand?productId=p1&depotId=d1&historyDays=60&horizonDays=14');
+    expect(endpoints.forecast.depot('d1')).toBe('/forecast/api/v1/forecast/depot/d1');
+    expect(endpoints.forecast.depot('d1', { historyDays: 30, horizonDays: 7, limit: 50 })).toBe(
+      '/forecast/api/v1/forecast/depot/d1?historyDays=30&horizonDays=7&limit=50',
+    );
+  });
+
   it('builds the depot + inventory staff paths', () => {
     expect(endpoints.depots.browse({ limit: 100 })).toBe('/depots/api/v1/depots?limit=100');
     expect(endpoints.inventory.lines('d1')).toBe('/depots/api/v1/depots/d1/inventory');

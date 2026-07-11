@@ -27,6 +27,7 @@ import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
+import { ForecastCoordinationPort } from '../../src/application/ports/forecast-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
@@ -291,6 +292,27 @@ export class FakeRecommendationCoordination implements RecommendationCoordinatio
         productName: i.productName,
         sku: i.sku,
         unit: i.unit,
+      })),
+    });
+  }
+}
+
+export class FakeForecastCoordination implements ForecastCoordinationPort {
+  calls: {
+    orderId: string;
+    depotId: string | null;
+    items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
+  }[] = [];
+  async ingestCompletedOrder(order: OrderRecord): Promise<void> {
+    this.calls.push({
+      orderId: order.id,
+      depotId: order.depotId,
+      items: order.items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        unit: i.unit,
+        quantity: i.quantity,
       })),
     });
   }

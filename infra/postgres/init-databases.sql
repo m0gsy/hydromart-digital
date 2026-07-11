@@ -12,3 +12,4 @@ CREATE DATABASE hydromart_promo;
 CREATE DATABASE hydromart_referral;
 CREATE DATABASE hydromart_crm;
 CREATE DATABASE hydromart_recommendation;
+CREATE DATABASE hydromart_forecast;

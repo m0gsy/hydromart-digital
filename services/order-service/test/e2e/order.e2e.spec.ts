@@ -17,6 +17,7 @@ import {
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
   FakeRecommendationCoordination,
+  FakeForecastCoordination,
   FakeMembership,
   FakeNotification,
   FakePromo,
@@ -97,6 +98,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeReferralCoordination())
       .overrideProvider(ORDER_TOKENS.RecommendationCoordination)
       .useValue(new FakeRecommendationCoordination())
+      .overrideProvider(ORDER_TOKENS.ForecastCoordination)
+      .useValue(new FakeForecastCoordination())
       .overrideProvider(ORDER_TOKENS.Membership)
       .useValue(new FakeMembership())
       .overrideProvider(ORDER_TOKENS.Notification)

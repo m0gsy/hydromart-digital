@@ -6,6 +6,7 @@ import {
   canManagePricing,
   canViewCampaigns,
   canViewDashboard,
+  canViewForecast,
   canViewFranchise,
   canViewInventory,
   canWriteInventory,
@@ -103,6 +104,24 @@ describe('canManagePricing', () => {
     expect(canManagePricing('SUPER_ADMIN')).toBe(true);
     expect(canManagePricing('CUSTOMER')).toBe(false);
     expect(canManagePricing(null)).toBe(false);
+  });
+});
+
+describe('canViewForecast', () => {
+  it('allows the planning roles (operator, manager, head-office, super-admin, franchise owner)', () => {
+    expect(canViewForecast('DEPOT_OPERATOR')).toBe(true);
+    expect(canViewForecast('DEPOT_MANAGER')).toBe(true);
+    expect(canViewForecast('HEAD_OFFICE')).toBe(true);
+    expect(canViewForecast('SUPER_ADMIN')).toBe(true);
+    expect(canViewForecast('FRANCHISE_OWNER')).toBe(true);
+  });
+
+  it('blocks customers, drivers and unknown/empty roles', () => {
+    expect(canViewForecast('CUSTOMER')).toBe(false);
+    expect(canViewForecast('DRIVER')).toBe(false);
+    expect(canViewForecast(null)).toBe(false);
+    expect(canViewForecast(undefined)).toBe(false);
+    expect(canViewForecast('')).toBe(false);
   });
 });
 

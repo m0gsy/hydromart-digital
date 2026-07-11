@@ -145,7 +145,7 @@ export class OrderController {
       customerId: string;
       depotId: string | null;
       completedAt: Date;
-      items: { productId: string; productName: string; sku: string; unit: string }[];
+      items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
     }[];
     nextCursor: string | null;
   }> {
@@ -164,6 +164,7 @@ export class OrderController {
           productName: i.productName,
           sku: i.sku,
           unit: i.unit,
+          quantity: i.quantity,
         })),
       })),
       nextCursor,

@@ -25,6 +25,7 @@ const testEnv: Record<string, string> = {
   REFERRAL_SERVICE_URL: 'http://localhost:3011',
   CRM_SERVICE_URL: 'http://localhost:3012',
   RECOMMENDATION_SERVICE_URL: 'http://localhost:3013',
+  FORECAST_SERVICE_URL: 'http://localhost:3014',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',
