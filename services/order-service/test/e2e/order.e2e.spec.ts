@@ -16,6 +16,7 @@ import {
   FakeDepotDirectory,
   FakeLoyaltyCoordination,
   FakeReferralCoordination,
+  FakeRecommendationCoordination,
   FakeMembership,
   FakeNotification,
   FakePromo,
@@ -94,6 +95,8 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeLoyaltyCoordination())
       .overrideProvider(ORDER_TOKENS.ReferralCoordination)
       .useValue(new FakeReferralCoordination())
+      .overrideProvider(ORDER_TOKENS.RecommendationCoordination)
+      .useValue(new FakeRecommendationCoordination())
       .overrideProvider(ORDER_TOKENS.Membership)
       .useValue(new FakeMembership())
       .overrideProvider(ORDER_TOKENS.Notification)
@@ -217,6 +220,46 @@ describe('Order HTTP flows (e2e)', () => {
       .set('x-internal-key', INTERNAL_KEY)
       .expect(200);
     expect(confirmed.body.status).toBe('CONFIRMED');
+  });
+
+  it('serves the internal completed-orders feed (right key 200, wrong/no key 401)', async () => {
+    await request(server())
+      .post('/api/v1/cart/items')
+      .set(auth(customerToken))
+      .send({ productId, quantity: 3 })
+      .expect(201);
+    const order = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: ADDRESS })
+      .expect(201);
+    const id = order.body.id;
+    const flow = ['CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+    for (const status of flow) {
+      await request(server())
+        .patch(`/api/v1/orders/${id}/status`)
+        .set(auth(staffToken))
+        .send({ status })
+        .expect(200);
+    }
+
+    await request(server()).get('/api/v1/orders/internal/completed').expect(401);
+    await request(server())
+      .get('/api/v1/orders/internal/completed')
+      .set('x-internal-key', 'wrong')
+      .expect(401);
+
+    const page = await request(server())
+      .get('/api/v1/orders/internal/completed')
+      .set('x-internal-key', INTERNAL_KEY)
+      .expect(200);
+    const seeded = page.body.orders.find((o: { id: string }) => o.id === id);
+    expect(seeded).toBeDefined();
+    expect(seeded.customerId).toBeDefined();
+    expect(seeded.items).toEqual([
+      expect.objectContaining({ productId, sku: 'AIR-19L', unit: 'Galon 19L' }),
+    ]);
+    expect('nextCursor' in page.body).toBe(true);
   });
 
   it('validates the checkout body (400 on missing address fields)', async () => {

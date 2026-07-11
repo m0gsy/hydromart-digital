@@ -157,6 +157,41 @@ export class OrderPrismaRepository implements OrderRepository {
     return rows.map((r) => this.toRecord(r));
   }
 
+  async findCompletedPage(
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ orders: OrderRecord[]; nextCursor: string | null }> {
+    let from: { createdAt: Date; id: string } | null = null;
+    if (cursor) {
+      from = await this.prisma.order.findUnique({
+        where: { id: cursor },
+        select: { createdAt: true, id: true },
+      });
+    }
+    const rows = await this.prisma.order.findMany({
+      where: {
+        status: OrderStatus.COMPLETED,
+        ...(from
+          ? {
+              OR: [
+                { createdAt: { gt: from.createdAt } },
+                { createdAt: from.createdAt, id: { gte: from.id } },
+              ],
+            }
+          : {}),
+      },
+      include: INCLUDE,
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: limit + 1,
+    });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    return {
+      orders: page.map((r) => this.toRecord(r)),
+      nextCursor: hasMore ? rows[limit].id : null,
+    };
+  }
+
   async applyStatus(
     id: string,
     status: OrderStatus,

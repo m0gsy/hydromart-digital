@@ -26,6 +26,7 @@ import {
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
+import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
@@ -114,6 +115,23 @@ export class InMemoryOrderRepository implements OrderRepository {
     return this.rows
       .filter((r) => r.status === OrderStatus.CREATED && r.createdAt < before)
       .map((r) => structuredClone(r));
+  }
+
+  async findCompletedPage(
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ orders: OrderRecord[]; nextCursor: string | null }> {
+    const sorted = this.rows
+      .filter((r) => r.status === OrderStatus.COMPLETED)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+    const start = cursor ? Math.max(0, sorted.findIndex((r) => r.id === cursor)) : 0;
+    const slice = sorted.slice(start, start + limit + 1);
+    const hasMore = slice.length > limit;
+    const page = hasMore ? slice.slice(0, limit) : slice;
+    return {
+      orders: page.map((r) => structuredClone(r)),
+      nextCursor: hasMore ? slice[limit].id : null,
+    };
   }
 
   async applyStatus(
@@ -253,6 +271,28 @@ export class FakeReferralCoordination implements ReferralCoordinationPort {
   calls: { customerId: string; orderId: string; authorization: string }[] = [];
   async qualify(customerId: string, orderId: string, authorization: string): Promise<void> {
     this.calls.push({ customerId, orderId, authorization });
+  }
+}
+
+export class FakeRecommendationCoordination implements RecommendationCoordinationPort {
+  calls: {
+    orderId: string;
+    customerId: string;
+    depotId: string | null;
+    items: { productId: string; productName: string; sku: string; unit: string }[];
+  }[] = [];
+  async recordCompleted(order: OrderRecord): Promise<void> {
+    this.calls.push({
+      orderId: order.id,
+      customerId: order.customerId,
+      depotId: order.depotId,
+      items: order.items.map((i) => ({
+        productId: i.productId,
+        productName: i.productName,
+        sku: i.sku,
+        unit: i.unit,
+      })),
+    });
   }
 }
 

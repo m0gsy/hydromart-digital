@@ -107,6 +107,16 @@ export interface OrderRepository {
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
   /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
   findStaleCreated(before: Date): Promise<OrderRecord[]>;
+  /**
+   * Keyset-paginated COMPLETED orders ordered by (createdAt asc, id asc), for the
+   * recommendation-service rebuild feed. `cursor` is opaque (the id of the first
+   * not-yet-returned row from a prior page) — `null` starts from the beginning.
+   * `nextCursor` is the id of the row just past `limit`, or `null` on the last page.
+   */
+  findCompletedPage(
+    cursor: string | null,
+    limit: number,
+  ): Promise<{ orders: OrderRecord[]; nextCursor: string | null }>;
   /** Atomically move the order to `status` and append a history row. */
   applyStatus(
     id: string,
