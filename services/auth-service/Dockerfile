@@ -8,6 +8,7 @@ WORKDIR /app
 # Install dependencies against the lockfile for reproducible builds.
 COPY package.json package-lock.json ./
 COPY services/auth-service/package.json ./services/auth-service/
+COPY services/auth-service/prisma ./services/auth-service/prisma
 RUN npm ci --workspace @hydromart/auth-service --include-workspace-root
 
 COPY tsconfig.base.json ./
