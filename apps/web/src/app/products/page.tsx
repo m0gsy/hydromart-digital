@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { MagnifyingGlass, Drop } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
+import { ProductRecRail } from '@/components/product-rec-rail';
 import { CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -36,6 +37,10 @@ export default function ProductsPage() {
         <h1 className="text-2xl font-bold">Order water</h1>
         <p className="text-sm text-muted">Galon refills and bottled water, delivered from your depot.</p>
       </div>
+
+      {/* `/` redirects straight here, so this doubles as the customer's home screen. */}
+      <ProductRecRail title="Buy again" endpoint={endpoints.recommendations.reorder()} requiresAuth />
+      <ProductRecRail title="Popular now" endpoint={endpoints.recommendations.trending()} />
 
       <form onSubmit={submitSearch} className="relative">
         <MagnifyingGlass
