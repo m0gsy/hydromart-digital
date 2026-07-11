@@ -29,6 +29,7 @@ services:
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
       OTP_DELIVERY_CHANNEL: console
+      OTP_PEPPER: itest-otp-pepper-0123456789
       CRM_SERVICE_URL: http://crm:3012
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
