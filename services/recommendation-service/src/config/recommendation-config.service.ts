@@ -19,7 +19,7 @@ export class RecommendationConfigService {
     return this.num('RECOMMENDATION_SERVICE_PORT');
   }
   get databaseUrl(): string {
-    return this.config.getOrThrow<string>('DATABASE_URL');
+    return this.config.getOrThrow<string>('RECOMMENDATION_DATABASE_URL');
   }
   get jwtAccessSecret(): string {
     return this.config.getOrThrow<string>('JWT_ACCESS_SECRET');
