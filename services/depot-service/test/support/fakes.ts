@@ -235,11 +235,10 @@ export class FakeLowStockAlert implements LowStockAlertPort {
 
 export class FakePricingRuleRepository implements PricingRuleRepository {
   rows: PricingRuleRecord[] = [];
-  private seq = 0;
 
   async create(data: CreatePricingRuleData): Promise<PricingRuleRecord> {
     const now = new Date('2026-01-01T00:00:00Z');
-    const rule: PricingRuleRecord = { id: `rule-${++this.seq}`, createdAt: now, updatedAt: now, ...data };
+    const rule: PricingRuleRecord = { id: randomUUID(), createdAt: now, updatedAt: now, ...data };
     this.rows.push(rule);
     return rule;
   }

@@ -14,7 +14,8 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { InventoryService, ItemView } from '../application/services/inventory.service';
-import { DepotProductPrice, StockMovementRecord } from '../application/ports/inventory.repository';
+import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
+import { StockMovementRecord } from '../application/ports/inventory.repository';
 import {
   AdjustStockDto,
   ConsumeStockDto,
@@ -56,7 +57,10 @@ const INVENTORY_READ_ROLES = [
 @ApiBearerAuth()
 @Controller({ path: 'depots/:depotId/inventory', version: '1' })
 export class DepotInventoryController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly pricing: PricingService,
+  ) {}
 
   @Roles(...INVENTORY_WRITE_ROLES)
   @Post()
@@ -86,16 +90,16 @@ export class DepotInventoryController {
   // auth — like the public product catalog. productIds is a comma-separated list.
   @Public()
   @Get('prices')
-  @ApiOperation({ summary: 'Per-depot price overrides for products (public)' })
+  @ApiOperation({ summary: 'Per-depot resolved prices (override + active rule) for products (public)' })
   prices(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query('productIds') productIds?: string,
-  ): Promise<DepotProductPrice[]> {
+  ): Promise<ResolvedProductPrice[]> {
     const ids = (productIds ?? '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    return this.inventory.pricesForProducts(depotId, ids);
+    return this.pricing.resolvePrices(depotId, ids);
   }
 
   @Roles(...INVENTORY_READ_ROLES)
