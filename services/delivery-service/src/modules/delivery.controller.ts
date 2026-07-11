@@ -31,6 +31,7 @@ export class DeliveryController {
         orderId: dto.orderId,
         orderNumber: dto.orderNumber,
         driverId: dto.driverId,
+        depotId: dto.depotId,
         destinationAddress: dto.destinationAddress,
         destinationLat: dto.destinationLat,
         destinationLng: dto.destinationLng,

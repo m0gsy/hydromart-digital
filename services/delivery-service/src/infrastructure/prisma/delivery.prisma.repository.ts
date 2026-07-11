@@ -36,6 +36,7 @@ interface DeliveryRow {
   orderId: string;
   orderNumber: string;
   driverId: string;
+  depotId: string | null;
   status: string;
   destinationAddress: string;
   destinationLat: number | null;
@@ -74,6 +75,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       orderId: row.orderId,
       orderNumber: row.orderNumber,
       driverId: row.driverId,
+      depotId: row.depotId,
       status: row.status as DeliveryStatus,
       destinationAddress: row.destinationAddress,
       destinationLat: row.destinationLat,
@@ -189,10 +191,16 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
-  async slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats> {
+  async slaStats(
+    range: ReportRange,
+    thresholdMinutes: number,
+    depotIds?: string[],
+  ): Promise<SlaStats> {
+    const scoped = depotIds !== undefined && depotIds.length > 0;
     const conds: Prisma.Sql[] = [Prisma.sql`"deliveredAt" IS NOT NULL`];
     if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
+    if (scoped) conds.push(Prisma.sql`"depotId" = ANY(${depotIds}::uuid[])`);
     const [agg] = await this.prisma.$queryRaw<
       { total: bigint; ontime: bigint; summinutes: number | null }[]
     >(Prisma.sql`
@@ -212,6 +220,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
           ...(range.from ? { gte: range.from } : {}),
           ...(range.to ? { lt: range.to } : {}),
         },
+        ...(scoped ? { depotId: { in: depotIds } } : {}),
       },
     });
     const totalDelivered = Number(agg.total);

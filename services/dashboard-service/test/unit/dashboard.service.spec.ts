@@ -51,10 +51,12 @@ describe('DashboardService', () => {
 
     expect(result.depots).toEqual([]);
     expect(result.totals).toEqual({ depotCount: 0, revenue: 0, orderCount: 0, lowStockCount: 0 });
+    // SLA can't be scoped without the owner's depot ids, so it is skipped too.
+    expect(result.deliverySla).toBeNull();
     expect(result.sources).toEqual({
       depot: 'unavailable',
       order: 'unavailable',
-      delivery: 'ok',
+      delivery: 'unavailable',
       inventory: 'unavailable',
     });
   });

@@ -96,11 +96,18 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return structuredClone(row);
   }
-  async slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats> {
+  async slaStats(
+    range: ReportRange,
+    thresholdMinutes: number,
+    depotIds?: string[],
+  ): Promise<SlaStats> {
     const inRange = (d: Date): boolean =>
       (!range.from || d.getTime() >= range.from.getTime()) &&
       (!range.to || d.getTime() < range.to.getTime());
-    const delivered = this.rows.filter((r) => r.deliveredAt && inRange(r.deliveredAt));
+    const scoped = depotIds !== undefined && depotIds.length > 0;
+    const inScope = (r: DeliveryRecord): boolean =>
+      !scoped || (r.depotId !== null && depotIds!.includes(r.depotId));
+    const delivered = this.rows.filter((r) => r.deliveredAt && inRange(r.deliveredAt) && inScope(r));
     let onTime = 0;
     let sumMinutes = 0;
     for (const r of delivered) {
@@ -113,7 +120,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       onTime,
       breached: delivered.length - onTime,
       sumMinutes,
-      failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt)).length,
+      failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt) && inScope(r)).length,
     };
   }
 }

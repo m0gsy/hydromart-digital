@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsISO8601, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsInt, IsOptional, IsISO8601, IsUUID, Min } from 'class-validator';
 
 export class SlaReportQueryDto {
   @ApiPropertyOptional({ description: 'Inclusive lower bound on deliveredAt/failedAt (ISO 8601).' })
@@ -22,4 +22,16 @@ export class SlaReportQueryDto {
   @IsInt()
   @Min(1)
   thresholdMinutes?: number;
+
+  @ApiPropertyOptional({
+    description: 'Comma-separated depot ids to scope the SLA to (per-franchise). Omit for global.',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+      : value,
+  )
+  @IsUUID('4', { each: true })
+  depotIds?: string[];
 }

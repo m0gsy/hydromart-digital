@@ -22,6 +22,7 @@ export interface DeliveryRecord {
   orderId: string;
   orderNumber: string;
   driverId: string;
+  depotId: string | null;
   status: DeliveryStatus;
   destinationAddress: string;
   destinationLat: number | null;
@@ -42,6 +43,7 @@ export interface CreateDeliveryData {
   orderId: string;
   orderNumber: string;
   driverId: string;
+  depotId: string | null;
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
@@ -98,6 +100,11 @@ export interface DeliveryRepository {
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
   ): Promise<DeliveryRecord>;
-  /** Delivery SLA aggregates over the window: delivered on-time vs breached + failures. */
-  slaStats(range: ReportRange, thresholdMinutes: number): Promise<SlaStats>;
+  /**
+   * Delivery SLA aggregates over the window: delivered on-time vs breached +
+   * failures. When `depotIds` is a non-empty array, only deliveries snapshotted
+   * to one of those depots count (null-depot deliveries excluded) — used for
+   * per-franchise scoping; undefined/empty means all depots (global).
+   */
+  slaStats(range: ReportRange, thresholdMinutes: number, depotIds?: string[]): Promise<SlaStats>;
 }

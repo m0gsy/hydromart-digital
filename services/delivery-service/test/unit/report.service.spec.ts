@@ -14,6 +14,7 @@ function seed(repo: InMemoryDeliveryRepository, over: Partial<DeliveryRecord>): 
     orderId: randomUUID(),
     orderNumber: 'HM-1',
     driverId: randomUUID(),
+    depotId: null,
     status: DeliveryStatus.DELIVERED,
     destinationAddress: 'Jl. Merdeka 10',
     destinationLat: null,
@@ -83,6 +84,24 @@ describe('ReportService.sla', () => {
     expect(r.thresholdMinutes).toBe(60);
     expect(r.onTime).toBe(0);
     expect(r.breached).toBe(1);
+  });
+
+  it('scopes to depotIds when given, excluding other and null-depot deliveries', async () => {
+    const depotA = randomUUID();
+    const depotB = randomUUID();
+    seed(repo, { depotId: depotA, deliveredAt: at(60) }); // in scope, on time
+    seed(repo, { depotId: depotA, deliveredAt: at(181) }); // in scope, breached
+    seed(repo, { depotId: depotB, deliveredAt: at(60) }); // other depot
+    seed(repo, { depotId: null, deliveredAt: at(60) }); // legacy, unattributed
+    seed(repo, { depotId: depotA, status: DeliveryStatus.FAILED, failedAt: at(300) });
+    seed(repo, { depotId: depotB, status: DeliveryStatus.FAILED, failedAt: at(300) });
+
+    const r = await service.sla({}, undefined, [depotA]);
+
+    expect(r.totalDelivered).toBe(2);
+    expect(r.onTime).toBe(1);
+    expect(r.breached).toBe(1);
+    expect(r.failedCount).toBe(1);
   });
 
   it('returns slaRate 0 and avgMinutes null for an empty set', async () => {

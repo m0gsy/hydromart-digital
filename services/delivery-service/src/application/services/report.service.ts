@@ -26,9 +26,13 @@ export class ReportService {
     private readonly config: DeliveryConfigService,
   ) {}
 
-  async sla(range: ReportRange, thresholdMinutes?: number): Promise<SlaReport> {
+  async sla(
+    range: ReportRange,
+    thresholdMinutes?: number,
+    depotIds?: string[],
+  ): Promise<SlaReport> {
     const threshold = thresholdMinutes ?? this.config.slaMinutes;
-    const s = await this.deliveries.slaStats(range, threshold);
+    const s = await this.deliveries.slaStats(range, threshold, depotIds);
     return {
       from: range.from ? range.from.toISOString() : null,
       to: range.to ? range.to.toISOString() : null,

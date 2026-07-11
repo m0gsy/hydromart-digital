@@ -68,7 +68,11 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   async topDepots(_range: DateRange, _limit: number, _token: string): Promise<TopDepots | null> {
     return this.orderDown ? null : TOP_DEPOTS;
   }
-  async deliverySla(_range: DateRange, _token: string): Promise<DeliverySla | null> {
+  async deliverySla(
+    _range: DateRange,
+    _token: string,
+    _depotIds?: string[],
+  ): Promise<DeliverySla | null> {
     return DELIVERY_SLA;
   }
   async myDepots(_token: string): Promise<FranchiseDepot[] | null> {

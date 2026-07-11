@@ -31,6 +31,14 @@ export class AssignDeliveryDto {
   @IsUUID()
   driverId!: string;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: "Depot the order was routed to; snapshotted for per-franchise SLA.",
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
   @ApiProperty({ example: 'Jl. Merdeka No. 10, Bandung' })
   @IsString()
   @IsNotEmpty()

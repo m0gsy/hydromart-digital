@@ -4,6 +4,7 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  LowStockLine,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -95,10 +96,10 @@ export class DashboardService {
    * report exists yet; add a ?depotIds= filter on the SLA report when needed.
    */
   async franchise(range: DateRange, token: string): Promise<FranchiseDashboard> {
-    const [depots, topDepots, deliverySla] = await Promise.all([
+    // Owner's depots + global-ish top-depots first; both feed the per-depot rollup.
+    const [depots, topDepots] = await Promise.all([
       this.sources.myDepots(token),
       this.sources.topDepots(range, DashboardService.FRANCHISE_TOP_LIMIT, token),
-      this.sources.deliverySla(range, token),
     ]);
 
     const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
@@ -106,11 +107,17 @@ export class DashboardService {
       revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
     }
 
-    // Low-stock rollup, one call per owned depot. Null (a failed call) marks the
-    // inventory source unavailable but never fails the whole response.
-    const lowStockLists = depots
-      ? await Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
-      : [];
+    // SLA scoped to the owner's depots + low-stock rollup, once depot ids are known.
+    // SLA needs ≥1 depot to scope (empty depotIds would read as global) — null when
+    // the directory is down or the owner has no depots. Null calls mark their source
+    // 'unavailable' but never fail the whole response.
+    const depotIds = (depots ?? []).map((d) => d.id);
+    const deliverySlaP =
+      depotIds.length > 0 ? this.sources.deliverySla(range, token, depotIds) : Promise.resolve(null);
+    const lowStockP: Promise<(LowStockLine[] | null)[]> = depots
+      ? Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
+      : Promise.resolve([]);
+    const [deliverySla, lowStockLists] = await Promise.all([deliverySlaP, lowStockP]);
     let inventoryOk = depots !== null;
 
     const summaries: FranchiseDepotSummary[] = (depots ?? []).map((d, i) => {

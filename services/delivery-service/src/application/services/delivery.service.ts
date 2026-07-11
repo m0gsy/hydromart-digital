@@ -30,6 +30,7 @@ export interface AssignInput {
   orderId: string;
   orderNumber: string;
   driverId: string;
+  depotId?: string;
   destinationAddress: string;
   destinationLat?: number;
   destinationLng?: number;
@@ -79,6 +80,7 @@ export class DeliveryService {
       orderId: input.orderId,
       orderNumber: input.orderNumber,
       driverId: input.driverId,
+      depotId: input.depotId ?? null,
       destinationAddress: input.destinationAddress,
       destinationLat: input.destinationLat ?? null,
       destinationLng: input.destinationLng ?? null,

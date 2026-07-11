@@ -58,7 +58,8 @@ export interface DashboardSourcesPort {
   sales(range: DateRange, token: string): Promise<SalesReport | null>;
   topCustomers(range: DateRange, limit: number, token: string): Promise<TopCustomers | null>;
   topDepots(range: DateRange, limit: number, token: string): Promise<TopDepots | null>;
-  deliverySla(range: DateRange, token: string): Promise<DeliverySla | null>;
+  /** SLA over the window; `depotIds` scopes it per-franchise (omit for global). */
+  deliverySla(range: DateRange, token: string, depotIds?: string[]): Promise<DeliverySla | null>;
   /** Depots owned by the calling franchise owner (depot-service GET /depots/mine). */
   myDepots(token: string): Promise<FranchiseDepot[] | null>;
   /** Low-stock lines for one depot (depot-service GET /inventory/low-stock?depotId=). */

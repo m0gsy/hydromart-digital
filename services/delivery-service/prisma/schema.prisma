@@ -31,6 +31,10 @@ model Delivery {
   orderId     String         @unique @db.Uuid
   orderNumber String
   driverId    String         @db.Uuid
+  // Depot the order was routed to, snapshotted at assignment. Nullable: legacy
+  // deliveries + assignments made without a known depot are excluded from
+  // depot-scoped SLA (franchise dashboard). See dashboard-service franchise BFF.
+  depotId     String?        @db.Uuid
   status      DeliveryStatus @default(ASSIGNED)
 
   destinationAddress String
@@ -52,6 +56,7 @@ model Delivery {
 
   @@index([driverId])
   @@index([status])
+  @@index([depotId])
   @@map("deliveries")
 }
 

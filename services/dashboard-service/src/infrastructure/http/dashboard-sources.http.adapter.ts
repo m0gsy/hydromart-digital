@@ -78,9 +78,14 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     );
   }
 
-  async deliverySla(range: DateRange, token: string): Promise<DeliverySla | null> {
+  async deliverySla(
+    range: DateRange,
+    token: string,
+    depotIds?: string[],
+  ): Promise<DeliverySla | null> {
     const params = new URLSearchParams();
     this.applyRange(params, range);
+    if (depotIds && depotIds.length > 0) params.set('depotIds', depotIds.join(','));
     const query = params.toString();
     return this.get<DeliverySla>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla${query ? `?${query}` : ''}`,

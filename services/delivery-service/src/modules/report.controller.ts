@@ -26,6 +26,6 @@ export class ReportController {
   @Get('sla')
   @ApiOperation({ summary: 'Delivery SLA: on-time vs breached deliveries and failures (M6)' })
   sla(@Query() q: SlaReportQueryDto) {
-    return this.reports.sla(toRange(q), q.thresholdMinutes);
+    return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
   }
 }
