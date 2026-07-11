@@ -308,6 +308,7 @@ function PricingBody() {
 
           {editing !== null && (
             <RuleEditor
+              key={editing === 'new' ? 'new' : editing.id}
               depotId={depotId}
               rule={editing === 'new' ? null : editing}
               onDone={closeForm}
