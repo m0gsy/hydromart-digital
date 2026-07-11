@@ -7,12 +7,8 @@ import { LoggerModule } from 'nestjs-pino';
 import { AllExceptionsFilter, GlobalValidationPipe } from '@hydromart/platform';
 
 import { envValidationSchema } from './config/env.validation';
-import { RecommendationConfigService } from './config/recommendation-config.service';
-import { PrismaService } from './infrastructure/prisma/prisma.service';
+import { RecommendationModule } from './modules/recommendation.module';
 import { HealthController } from './modules/health.controller';
-
-// ponytail: no feature module yet — domain/application/infrastructure business
-// wiring (ports, services, controllers, JwtAuthGuard/RolesGuard) lands in later tasks.
 
 @Module({
   imports: [
@@ -45,11 +41,10 @@ import { HealthController } from './modules/health.controller';
         },
       ],
     }),
+    RecommendationModule,
   ],
   controllers: [HealthController],
   providers: [
-    RecommendationConfigService,
-    PrismaService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_PIPE, useClass: GlobalValidationPipe },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

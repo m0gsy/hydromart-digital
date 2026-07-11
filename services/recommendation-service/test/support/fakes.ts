@@ -6,6 +6,7 @@ import {
   IngestItem,
   RecommendationRepository,
 } from '../../src/application/ports/recommendation.repository';
+import { OrderFeedPort } from '../../src/application/ports/order-feed.port';
 
 /** Derives the UTC-midnight calendar day used for daily-sales bucketing (mirrors the Prisma adapter). */
 function utcDay(at: Date): Date {
@@ -155,5 +156,17 @@ export class FakeRecommendationRepository implements RecommendationRepository {
       if (idSet.has(r.productId)) map.set(r.productId, { name: r.name, sku: r.sku, unit: r.unit });
     }
     return map;
+  }
+}
+
+/** In-memory stand-in for OrderFeedPort: paginates a fixed list of orders by index cursor. */
+export class FakeOrderFeed implements OrderFeedPort {
+  constructor(public orders: IngestCommand[] = []) {}
+
+  async fetchCompleted(cursor: string | null, limit: number): Promise<{ orders: IngestCommand[]; nextCursor: string | null }> {
+    const start = cursor ? Number(cursor) : 0;
+    const page = this.orders.slice(start, start + limit);
+    const end = start + page.length;
+    return { orders: page, nextCursor: end < this.orders.length ? String(end) : null };
   }
 }
