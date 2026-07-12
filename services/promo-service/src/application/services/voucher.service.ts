@@ -1,7 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DuplicateVoucherCodeError, VoucherNotFoundError } from '../../domain/errors';
-import { DiscountType, computeDiscount, validateVoucher } from '../../domain/voucher';
+import {
+  DiscountType,
+  VoucherStatus,
+  classifyVoucherStatus,
+  computeDiscount,
+  validateVoucher,
+} from '../../domain/voucher';
 import { Page, buildPage } from '../pagination';
 import {
   CreateVoucherData,
@@ -21,6 +27,11 @@ export interface QuoteResult {
 export interface RedeemResult {
   orderId: string;
   discountApplied: number;
+}
+
+export interface WalletVoucher {
+  voucher: VoucherRecord;
+  status: VoucherStatus;
 }
 
 @Injectable()
@@ -106,6 +117,19 @@ export class VoucherService {
       discountApplied: discount,
     });
     return { orderId: redemption.orderId, discountApplied: redemption.discountApplied };
+  }
+
+  /**
+   * The customer's voucher wallet (spec 4a): every active voucher with a
+   * per-customer status (available / used / expired / upcoming / sold-out).
+   */
+  async myVouchers(customerId: string): Promise<WalletVoucher[]> {
+    const now = new Date();
+    const rows = await this.repo.listForCustomer(customerId);
+    return rows.map(({ voucher, customerRedemptions }) => ({
+      voucher,
+      status: classifyVoucherStatus(voucher, now, customerRedemptions),
+    }));
   }
 
   private async getById(id: string): Promise<VoucherRecord> {

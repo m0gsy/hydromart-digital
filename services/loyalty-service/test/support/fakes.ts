@@ -13,6 +13,12 @@ import {
   LoyaltyRepository,
   PointsTransactionRecord,
 } from '../../src/application/ports/loyalty.repository';
+import {
+  RedeemMutation,
+  RewardItemRecord,
+  RewardRedemptionRecord,
+  RewardRepository,
+} from '../../src/application/ports/reward.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -122,6 +128,80 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     const acc = this.accounts.find((x) => x.id === m.accountId)!;
     acc.pointsBalance = m.newBalance;
     acc.updatedAt = nextDate();
+  }
+}
+
+export class InMemoryRewardRepository implements RewardRepository {
+  items: RewardItemRecord[] = [];
+  redemptions: RewardRedemptionRecord[] = [];
+
+  // Shares the loyalty repo so a redeem applies the balance debit + REDEEM ledger
+  // entry atomically alongside the loyalty account, mirroring the Prisma $transaction.
+  constructor(private readonly loyalty: InMemoryLoyaltyRepository) {}
+
+  seedItem(item: Partial<RewardItemRecord> & { id: string; pointsCost: number }): RewardItemRecord {
+    const full: RewardItemRecord = {
+      name: 'Reward',
+      unit: 'unit',
+      imageUrl: null,
+      active: true,
+      stock: null,
+      ...item,
+    };
+    this.items.push(full);
+    return full;
+  }
+
+  async listActiveItems(): Promise<RewardItemRecord[]> {
+    return this.items.filter((i) => i.active).map((i) => ({ ...i }));
+  }
+
+  async findItem(id: string): Promise<RewardItemRecord | null> {
+    const i = this.items.find((x) => x.id === id);
+    return i ? { ...i } : null;
+  }
+
+  async findRedemptionByKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<RewardRedemptionRecord | null> {
+    const r = this.redemptions.find(
+      (x) => x.customerId === customerId && (x as { idempotencyKey?: string }).idempotencyKey === idempotencyKey,
+    );
+    return r ? { ...r } : null;
+  }
+
+  async redeem(m: RedeemMutation): Promise<RewardRedemptionRecord> {
+    const redemption: RewardRedemptionRecord & { idempotencyKey: string } = {
+      id: randomUUID(),
+      rewardItemId: m.rewardItemId,
+      customerId: m.customerId,
+      pointsSpent: m.pointsSpent,
+      idempotencyKey: m.idempotencyKey,
+      createdAt: nextDate(),
+    };
+    this.redemptions.push(redemption);
+    // Mirror the atomic write: negative REDEEM ledger entry + balance debit,
+    // lifetimePoints untouched.
+    this.loyalty.txns.push({
+      id: randomUUID(),
+      customerId: m.customerId,
+      type: PointsTxnType.REDEEM,
+      points: -m.pointsSpent,
+      orderId: null,
+      reason: m.reason,
+      expiresAt: null,
+      expired: false,
+      createdAt: nextDate(),
+    });
+    const acc = this.loyalty.accounts.find((x) => x.id === m.accountId)!;
+    acc.pointsBalance = m.newBalance;
+    acc.updatedAt = nextDate();
+    if (m.decrementStock) {
+      const item = this.items.find((x) => x.id === m.rewardItemId)!;
+      item.stock = (item.stock ?? 0) - 1;
+    }
+    return { ...redemption };
   }
 }
 

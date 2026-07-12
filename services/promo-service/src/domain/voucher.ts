@@ -42,6 +42,29 @@ export function computeDiscount(v: VoucherRules, subtotal: number): number {
   return Math.max(0, raw);
 }
 
+/** Status of a voucher in a customer's wallet (spec 4a "Voucher kamu"). */
+export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOLD_OUT';
+
+/**
+ * Classify an active voucher for a customer's wallet. Pure counterpart to
+ * {@link validateVoucher}: it returns a status instead of throwing, so the
+ * wallet can render every voucher (redeemable or not). Precedence: time window
+ * first, then global sell-out, then the customer's own usage.
+ */
+export function classifyVoucherStatus(
+  v: Pick<VoucherRules, 'validFrom' | 'validUntil' | 'usageLimit' | 'perCustomerLimit'> & {
+    usedCount: number;
+  },
+  now: Date,
+  customerRedemptionCount: number,
+): VoucherStatus {
+  if (v.validUntil !== null && now > v.validUntil) return 'EXPIRED';
+  if (v.validFrom !== null && now < v.validFrom) return 'UPCOMING';
+  if (v.usageLimit !== null && v.usedCount >= v.usageLimit) return 'SOLD_OUT';
+  if (customerRedemptionCount >= v.perCustomerLimit) return 'USED';
+  return 'AVAILABLE';
+}
+
 /**
  * Throws the appropriate domain error when the voucher may not be applied to
  * this order, otherwise returns void. Pure — the caller supplies `now` and the

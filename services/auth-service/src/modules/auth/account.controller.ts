@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -8,6 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UpdateAccountDto } from './dto/update-account.dto';
 import {
   MessageResponseDto,
   PublicCustomerDto,
@@ -28,6 +29,20 @@ export class AccountController {
   @ApiOkResponse({ type: PublicCustomerDto })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<PublicCustomerDto> {
     const profile = await this.account.getProfile(user.sub);
+    return PublicCustomerDto.from(profile);
+  }
+
+  @Patch('auth/me')
+  @ApiOperation({ summary: 'Update the authenticated account (name, email)' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateAccountDto,
+  ): Promise<PublicCustomerDto> {
+    const profile = await this.account.updateProfile(user.sub, {
+      fullName: dto.fullName,
+      email: dto.email,
+    });
     return PublicCustomerDto.from(profile);
   }
 

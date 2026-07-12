@@ -7,6 +7,9 @@ export enum PointsTxnType {
   // Flat system-granted bonus (e.g. referral rewards). Positive, counts toward
   // lifetime/tier like EARN, but is not tied to an order subtotal.
   REWARD = 'REWARD',
+  // Negative spend against the redeem catalog (FR-015). Debits the balance but
+  // must NOT touch lifetimePoints/tier — spending points can't raise a tier.
+  REDEEM = 'REDEEM',
 }
 
 /**

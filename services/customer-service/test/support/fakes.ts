@@ -20,6 +20,12 @@ import {
   NotificationPreferenceRecord,
   NotificationPreferenceRepository,
 } from '../../src/application/ports/notification.repository';
+import {
+  CreatePaymentMethodData,
+  PaymentMethodRecord,
+  PaymentMethodRepository,
+  UpdatePaymentMethodData,
+} from '../../src/application/ports/payment-method.repository';
 import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
 
 let seq = 0;
@@ -144,6 +150,50 @@ export class InMemoryAddressRepository implements AddressRepository {
     this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));
   }
   async findMostRecent(customerId: string, exceptId?: string): Promise<AddressRecord | null> {
+    const list = this.rows
+      .filter((r) => r.customerId === customerId && r.id !== exceptId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return list[0] ?? null;
+  }
+}
+
+export class InMemoryPaymentMethodRepository implements PaymentMethodRepository {
+  rows: PaymentMethodRecord[] = [];
+
+  async listByCustomer(customerId: string): Promise<PaymentMethodRecord[]> {
+    return this.rows
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
+  }
+  async findByIdForCustomer(customerId: string, id: string): Promise<PaymentMethodRecord | null> {
+    return this.rows.find((r) => r.id === id && r.customerId === customerId) ?? null;
+  }
+  async create(data: CreatePaymentMethodData): Promise<PaymentMethodRecord> {
+    const now = nextDate();
+    const rec: PaymentMethodRecord = { ...data, id: randomUUID(), createdAt: now, updatedAt: now };
+    this.rows.push(rec);
+    return { ...rec };
+  }
+  async update(
+    customerId: string,
+    id: string,
+    patch: UpdatePaymentMethodData,
+  ): Promise<PaymentMethodRecord> {
+    const rec = this.rows.find((r) => r.id === id && r.customerId === customerId)!;
+    Object.assign(rec, patch, { updatedAt: nextDate() });
+    return { ...rec };
+  }
+  async unsetDefault(customerId: string): Promise<void> {
+    this.rows.filter((r) => r.customerId === customerId).forEach((r) => (r.isDefault = false));
+  }
+  async markDefault(customerId: string, id: string): Promise<void> {
+    const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
+    if (rec) rec.isDefault = true;
+  }
+  async delete(customerId: string, id: string): Promise<void> {
+    this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));
+  }
+  async findMostRecent(customerId: string, exceptId?: string): Promise<PaymentMethodRecord | null> {
     const list = this.rows
       .filter((r) => r.customerId === customerId && r.id !== exceptId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

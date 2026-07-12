@@ -93,6 +93,19 @@ export class Customer {
     this.props.phoneVerifiedAt = this.props.phoneVerifiedAt ?? now;
   }
 
+  /**
+   * Self-service profile update (FR-009). `undefined` leaves a field untouched;
+   * an explicit value (incl. `null` to clear email) replaces it.
+   */
+  updateProfile(fullName?: string | null, email?: string | null): void {
+    if (fullName !== undefined) {
+      this.props.fullName = fullName;
+    }
+    if (email !== undefined) {
+      this.props.email = email;
+    }
+  }
+
   /** Link a Google identity to this account (FR-006). */
   linkGoogle(googleSub: string, email: string | null, fullName: string | null): void {
     this.props.googleSub = googleSub;

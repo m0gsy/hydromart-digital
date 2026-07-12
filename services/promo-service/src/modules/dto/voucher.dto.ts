@@ -15,7 +15,8 @@ import {
   Min,
 } from 'class-validator';
 
-import { DiscountType } from '../../domain/voucher';
+import { DiscountType, VoucherStatus } from '../../domain/voucher';
+import { WalletVoucher } from '../../application/services/voucher.service';
 
 /* ---------- Requests ---------- */
 
@@ -120,6 +121,41 @@ export class RedeemVoucherDto {
   @IsInt()
   @IsPositive()
   subtotal!: number;
+}
+
+/* ---------- Responses ---------- */
+
+/** One voucher in the customer's wallet (spec 4a "Voucher kamu"). */
+export class MyVoucherDto {
+  @ApiProperty({ example: 'HEMAT10' })
+  code!: string;
+  @ApiPropertyOptional({ nullable: true, example: '10% off your refill order.' })
+  description!: string | null;
+  @ApiProperty({ enum: DiscountType })
+  discountType!: DiscountType;
+  @ApiProperty({ example: 10 })
+  value!: number;
+  @ApiProperty({ example: 50000 })
+  minSpend!: number;
+  @ApiPropertyOptional({ nullable: true, example: 20000 })
+  maxDiscount!: number | null;
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  validUntil!: Date | null;
+  @ApiProperty({ enum: ['AVAILABLE', 'USED', 'EXPIRED', 'UPCOMING', 'SOLD_OUT'] })
+  status!: VoucherStatus;
+
+  static from(w: WalletVoucher): MyVoucherDto {
+    return {
+      code: w.voucher.code,
+      description: w.voucher.description,
+      discountType: w.voucher.discountType,
+      value: w.voucher.value,
+      minSpend: w.voucher.minSpend,
+      maxDiscount: w.voucher.maxDiscount,
+      validUntil: w.voucher.validUntil,
+      status: w.status,
+    };
+  }
 }
 
 export class BrowseQueryDto {
