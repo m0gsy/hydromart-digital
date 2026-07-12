@@ -7,6 +7,12 @@
 # Set WEB_DOMAIN + API_DOMAIN in .env, and build the web image with
 # PUBLIC_API_URL=https://<API_DOMAIN> so the browser bundle calls the right host.
 
+# Redirect www → apex (Caddy auto-provisions a cert for www too; the www DNS
+# record must resolve to this VPS).
+www.{$WEB_DOMAIN} {
+	redir https://{$WEB_DOMAIN}{uri} permanent
+}
+
 {$WEB_DOMAIN} {
 	encode zstd gzip
 	reverse_proxy web:3000
