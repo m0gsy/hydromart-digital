@@ -22,23 +22,26 @@ export default function GlobalError({
           margin: 0,
         }}
       >
-        <main style={{ textAlign: 'center', padding: '1.5rem' }}>
-          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>Something went wrong</h1>
-          <p style={{ color: '#64748b', marginBottom: '1rem' }}>
-            The app failed to load. Please try again.
+        <main style={{ textAlign: 'center', padding: '1.5rem', color: '#16282e' }}>
+          <h1 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', fontWeight: 800 }}>
+            Ada yang tidak beres
+          </h1>
+          <p style={{ color: '#64757c', marginBottom: '1rem' }}>
+            Aplikasi gagal dimuat. Silakan coba lagi.
           </p>
           <button
             onClick={reset}
             style={{
-              background: '#2563eb',
+              background: '#0c97ac',
               color: '#fff',
               border: 0,
-              borderRadius: 8,
-              padding: '0.5rem 1rem',
+              borderRadius: 999,
+              padding: '0.625rem 1.25rem',
+              fontWeight: 700,
               cursor: 'pointer',
             }}
           >
-            Try again
+            Coba lagi
           </button>
         </main>
       </body>
