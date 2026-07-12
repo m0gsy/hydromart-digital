@@ -86,8 +86,14 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
     setError(null);
     try {
       const payload = toPayload(form);
-      if (promo) await api.patch(endpoints.promotions.detail(promo.id), payload, true);
-      else await api.post(endpoints.promotions.create, payload, true);
+      if (promo) {
+        await api.patch(endpoints.promotions.detail(promo.id), payload, true);
+      } else {
+        // Create defaults to active; visibility is toggled via edit (backend
+        // CreatePromotionDto has no `active` field, so sending it 400s).
+        delete payload.active;
+        await api.post(endpoints.promotions.create, payload, true);
+      }
       onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal menyimpan promo.');
@@ -121,16 +127,18 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
         <Field label="Urutan">
           <Input type="number" value={form.sortOrder} onChange={set('sortOrder')} />
         </Field>
-        <Field label="Aktif">
-          <label className="flex items-center gap-2 py-2 text-sm">
-            <input
-              type="checkbox"
-              checked={form.active}
-              onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-            />
-            Tampilkan promo
-          </label>
-        </Field>
+        {promo && (
+          <Field label="Aktif" hint="Nonaktifkan untuk menyembunyikan dari beranda">
+            <label className="flex items-center gap-2 py-2 text-sm">
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+              />
+              Tampilkan promo
+            </label>
+          </Field>
+        )}
         <Field label="Mulai" hint="Kosongkan untuk langsung aktif">
           <Input type="date" value={form.startsAt} onChange={set('startsAt')} />
         </Field>
