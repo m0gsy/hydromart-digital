@@ -90,7 +90,7 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
                 className={`relative flex h-10 w-10 items-center justify-center rounded-full ${
                   state === 'upcoming'
                     ? 'bg-[color:var(--surface-soft)] text-muted'
-                    : 'bg-brand-600 text-white'
+                    : 'bg-brand-600 text-on-brand'
                 } ${state === 'active' ? 'ring-4 ring-brand-50' : ''}`}
               >
                 <Ico size={17} weight={state === 'upcoming' ? 'regular' : 'fill'} />
