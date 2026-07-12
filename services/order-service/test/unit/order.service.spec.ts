@@ -103,15 +103,15 @@ describe('OrderService', () => {
     return p.id;
   };
 
-  it('checks out, snapshotting prices and applying the flat delivery fee', async () => {
+  it('checks out, snapshotting prices and charging delivery per galon', async () => {
     await addToCart(20000, 2);
     await addToCart(6000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
 
     expect(order.status).toBe(OrderStatus.CREATED);
     expect(order.subtotal).toBe(46000);
-    expect(order.deliveryFee).toBe(5000);
-    expect(order.total).toBe(51000);
+    expect(order.deliveryFee).toBe(5000 * 3); // Rp 5000/galon × 3 galons
+    expect(order.total).toBe(46000 + 5000 * 3);
     expect(order.items).toHaveLength(2);
     expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6}$/);
     expect(order.recipientName).toBe('Budi');
@@ -213,7 +213,7 @@ describe('OrderService', () => {
       'Bearer tok',
     );
     expect(order.discount).toBe(6000);
-    expect(order.total).toBe(60000 + 5000 - 6000);
+    expect(order.total).toBe(60000 + 5000 * 3 - 6000);
     expect(promo.redeemCalls).toHaveLength(1);
     expect(promo.redeemCalls[0]).toMatchObject({ code: 'HEMAT10', orderId: order.id });
   });
@@ -238,7 +238,7 @@ describe('OrderService', () => {
     membership.rate = 0.05; // SILVER
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(3000);
-    expect(order.total).toBe(60000 + 5000 - 3000);
+    expect(order.total).toBe(60000 + 5000 * 3 - 3000);
   });
 
   it('stacks the membership discount with a voucher, capped at the subtotal', async () => {
@@ -251,7 +251,7 @@ describe('OrderService', () => {
       'Bearer tok',
     );
     expect(order.discount).toBe(9000); // 3000 + 6000
-    expect(order.total).toBe(60000 + 5000 - 9000);
+    expect(order.total).toBe(60000 + 5000 * 3 - 9000);
   });
 
   it('fails open on membership discount — no discount when loyalty is unavailable', async () => {
@@ -596,7 +596,7 @@ describe('OrderService', () => {
     );
     expect(order.items[0].unitPrice).toBe(22000);
     expect(order.subtotal).toBe(44000);
-    expect(order.total).toBe(44000 + 5000);
+    expect(order.total).toBe(44000 + 5000 * 2); // 2 galons
   });
 
   it('applies an active depot pricing rule to the unit price at checkout', async () => {
@@ -612,7 +612,7 @@ describe('OrderService', () => {
     );
     expect(order.items[0].unitPrice).toBe(18000);
     expect(order.subtotal).toBe(36000);
-    expect(order.total).toBe(36000 + 5000);
+    expect(order.total).toBe(36000 + 5000 * 2); // 2 galons
   });
 
   it('falls back to the catalog base price when the depot has no override', async () => {

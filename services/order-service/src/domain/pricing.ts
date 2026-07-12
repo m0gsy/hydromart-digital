@@ -15,3 +15,17 @@ export function applyAdjustment(base: number, adj: PriceAdjustment | null): numb
   const raw = adj.adjustType === 'PERCENT' ? base * (1 + adj.value / 100) : base + adj.value;
   return Math.max(0, raw);
 }
+
+/**
+ * Delivery is charged per galon delivered (Rp perUnitFee × number of galons).
+ * Galon lines are detected by the catalog's unit label ("Galon 19L", "Galon 15L",
+ * …); non-galon lines (bottled dus, accessories) add nothing to the delivery fee.
+ * ponytail: unit-string heuristic — switch to a real product/item-type flag if
+ * the catalog's unit labels ever drift away from the "Galon…" prefix.
+ */
+export function galonQuantity(items: { unit: string; quantity: number }[]): number {
+  return items.reduce(
+    (total, item) => (item.unit.trim().toLowerCase().startsWith('galon') ? total + item.quantity : total),
+    0,
+  );
+}

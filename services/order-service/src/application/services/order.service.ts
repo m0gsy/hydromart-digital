@@ -19,7 +19,7 @@ import {
   notificationEventFor,
 } from '../../domain/order-status';
 import { selectNearestDepot } from '../../domain/geo';
-import { applyAdjustment } from '../../domain/pricing';
+import { applyAdjustment, galonQuantity } from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
@@ -145,7 +145,10 @@ export class OrderService {
     if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }
-    const deliveryFee = money(depot ? depot.deliveryFee : this.config.deliveryFee);
+    // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
+    // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const deliveryFee = money(perUnitFee * galonQuantity(items));
 
     // FR-032: the customer's membership tier gives an always-on discount on the
     // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
