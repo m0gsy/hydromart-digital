@@ -6,6 +6,7 @@ import { Nav } from '@/components/nav';
 import { Footer } from '@/components/footer';
 import { BottomNav } from '@/components/bottom-nav';
 import { PageTransition } from '@/components/page-transition';
+import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { CartProvider } from '@/lib/cart-context';
 import { LocaleProvider } from '@/lib/locale-context';
@@ -37,12 +38,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <CartProvider>
               <LocationProvider>
-                <Nav />
-                <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-24 sm:px-6 sm:pb-10">
-                  <PageTransition>{children}</PageTransition>
-                </main>
-                <Footer />
-                <BottomNav />
+                <ToastProvider>
+                  <Nav />
+                  <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-24 sm:px-6 sm:pb-10">
+                    <PageTransition>{children}</PageTransition>
+                  </main>
+                  <Footer />
+                  <BottomNav />
+                </ToastProvider>
               </LocationProvider>
             </CartProvider>
           </AuthProvider>

@@ -1,17 +1,44 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import {
+  ArrowLeft,
+  Bank,
+  Check,
+  CheckCircle,
+  Money as MoneyIcon,
+  QrCode,
+  ShieldCheck,
+  Wallet,
+} from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import { Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
-import type { Address, Cart, LoyaltyAccount, Order, PaymentMethod, VoucherQuote } from '@/lib/types';
+import type {
+  Address,
+  Cart,
+  LoyaltyAccount,
+  NearbyDepot,
+  Order,
+  PaymentMethod,
+  VoucherQuote,
+} from '@/lib/types';
+
+const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
+  CASH: MoneyIcon,
+  TRANSFER: Bank,
+  QRIS: QrCode,
+  EWALLET: Wallet,
+  VA: Bank,
+};
 
 function CheckoutInner() {
   const router = useRouter();
@@ -57,6 +84,20 @@ function CheckoutInner() {
     latitude: null,
     longitude: null,
   });
+
+  // Advisory delivery-fee preview: when the selected address carries coords, look up the
+  // nearest depot to show an estimated ongkir. Fail-soft — errors are ignored and no fee is
+  // added; this is display-only and never sent to the API or used in placeOrder.
+  const { data: nearbyDepots } = useAsync<NearbyDepot[]>(
+    () =>
+      coords.latitude != null && coords.longitude != null
+        ? api.get(
+            endpoints.depots.nearby({ lat: coords.latitude, lng: coords.longitude, limit: 1 }),
+            true,
+          )
+        : Promise.resolve([]),
+    [coords.latitude, coords.longitude],
+  );
 
   // Preselect the primary saved address (else the first) the first time the book loads.
   useEffect(() => {
@@ -108,7 +149,9 @@ function CheckoutInner() {
       );
       setQuote(result);
     } catch (err) {
-      setVoucherError(err instanceof ApiError ? err.message : 'That voucher could not be applied.');
+      setVoucherError(
+        err instanceof ApiError ? err.message : 'Voucher itu tidak bisa dipakai.',
+      );
     } finally {
       setQuoting(false);
     }
@@ -172,7 +215,7 @@ function CheckoutInner() {
       }
       router.replace(`/orders/${order.id}`);
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : 'Could not place your order.');
+      setSubmitError(err instanceof ApiError ? err.message : 'Tidak bisa membuat pesanan.');
       setSubmitting(false);
     }
   }
@@ -180,7 +223,7 @@ function CheckoutInner() {
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!cart || cart.items.length === 0) {
-    return <ErrorState message="Your cart is empty. Add products before checking out." />;
+    return <ErrorState message="Keranjangmu kosong. Tambahkan produk sebelum checkout." />;
   }
 
   const isSavedSelection = savedAddresses?.some((a) => a.id === selection) ?? false;
@@ -192,210 +235,278 @@ function CheckoutInner() {
   const totalDiscount = Math.min(cart.subtotal, membershipDiscount + voucherDiscount);
   const estimatedTotal = cart.subtotal - totalDiscount;
 
+  // Advisory only: display-only ongkir estimate, never part of the API payload.
+  const depot = nearbyDepots?.[0] ?? null;
+  const deliveryFee = depot?.deliveryFee ?? 0;
+  const displayedTotal = estimatedTotal + deliveryFee;
+
   return (
-    <form onSubmit={placeOrder} className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold">Checkout</h1>
+    <form onSubmit={placeOrder} className="flex flex-col gap-6">
+      {/* Progress stepper */}
+      <div className="flex items-center gap-4">
+        <Link
+          href="/cart"
+          className="inline-flex items-center gap-1.5 text-sm font-bold text-muted transition-colors hover:text-[color:var(--text)]"
+        >
+          <ArrowLeft size={15} weight="bold" />
+          Kembali
+        </Link>
+        <div className="mx-auto flex items-center gap-2.5 text-[13px] font-bold">
+          <span className="flex items-center gap-2 text-brand-800">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white">
+              <Check size={12} weight="bold" />
+            </span>
+            Keranjang
+          </span>
+          <span className="h-[1.5px] w-8 bg-brand-600" />
+          <span className="flex items-center gap-2 text-brand-800">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
+              2
+            </span>
+            Checkout
+          </span>
+          <span className="h-[1.5px] w-8 bg-[color:var(--border)]" />
+          <span className="flex items-center gap-2 text-muted">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--surface-muted)] text-[11.5px] text-muted">
+              3
+            </span>
+            Selesai
+          </span>
+        </div>
+      </div>
 
-      {savedAddresses && savedAddresses.length > 0 && (
-        <Card className="flex flex-col gap-2 p-4">
-          <h2 className="font-semibold">Deliver to</h2>
-          <div className="flex flex-col gap-2">
-            {savedAddresses.map((a) => (
-              <label
-                key={a.id}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
-                  selection === a.id ? 'border-brand-600 bg-brand-50' : 'border-app'
-                }`}
+      <h1 className="text-[30px] font-extrabold tracking-tight">Checkout</h1>
+
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* LEFT column */}
+        <div className="flex flex-col gap-4">
+          {/* Delivery address */}
+          <Card className="flex flex-col gap-4 p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-extrabold">Alamat pengiriman</h2>
+              <button
+                type="button"
+                onClick={chooseNew}
+                className="text-sm font-bold text-brand-700 hover:text-brand-800"
               >
-                <input
-                  type="radio"
-                  name="address"
-                  checked={selection === a.id}
-                  onChange={() => chooseSaved(a)}
-                  className="mt-1 accent-brand-600"
-                />
-                <span>
-                  <span className="block text-sm font-semibold">
-                    {a.label}
-                    {a.isPrimary && <span className="text-muted"> · Primary</span>}
-                  </span>
-                  <span className="block text-xs text-muted">
-                    {a.recipientName} — {a.addressLine}, {a.city}
-                  </span>
-                </span>
-              </label>
-            ))}
-            <label
-              className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 ${
-                selection === 'new' ? 'border-brand-600 bg-brand-50' : 'border-app'
-              }`}
-            >
-              <input
-                type="radio"
-                name="address"
-                checked={selection === 'new'}
-                onChange={chooseNew}
-                className="accent-brand-600"
-              />
-              <span className="text-sm font-semibold">Use a new address</span>
-            </label>
-          </div>
-        </Card>
-      )}
+                + Alamat baru
+              </button>
+            </div>
 
-      <Card className="flex flex-col gap-4 p-4">
-        <h2 className="font-semibold">Delivery address</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Recipient name" htmlFor="recipientName">
-            <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
-          </Field>
-          <Field label="Phone" htmlFor="phone">
-            <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
-          </Field>
-        </div>
-        <Field label="Address" htmlFor="addressLine">
-          <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder="Street, number, RT/RW" />
-        </Field>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="City" htmlFor="city">
-            <Input id="city" required value={form.city} onChange={set('city')} />
-          </Field>
-          <Field label="Province" htmlFor="province">
-            <Input id="province" required value={form.province} onChange={set('province')} />
-          </Field>
-          <Field label="Postal code" htmlFor="postalCode" hint="Optional">
-            <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
-          </Field>
-        </div>
-        <Field label="Notes for the driver" htmlFor="notes" hint="Optional">
-          <Input id="notes" value={form.notes} onChange={set('notes')} placeholder="e.g. leave with the guard" />
-        </Field>
-        {!isSavedSelection && (
-          <div className="flex flex-col gap-2 border-t border-app pt-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={saveToBook}
-                onChange={(e) => setSaveToBook(e.target.checked)}
-                className="accent-brand-600"
-              />
-              Save this address to my address book
-            </label>
-            {saveToBook && (
-              <Field label="Address label" htmlFor="saveLabel" hint="e.g. Home, Office">
-                <Input
-                  id="saveLabel"
-                  value={saveLabel}
-                  onChange={(e) => setSaveLabel(e.target.value)}
-                  placeholder="Rumah"
-                  maxLength={50}
-                />
+            {savedAddresses && savedAddresses.length > 0 && (
+              <div className="flex flex-col gap-2.5">
+                {savedAddresses.map((a) => {
+                  const on = selection === a.id;
+                  return (
+                    <RadioCard key={a.id} selected={on} onSelect={() => chooseSaved(a)}>
+                      <span
+                        className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
+                          on ? 'bg-brand-600 text-white' : 'border-2 border-app'
+                        }`}
+                      >
+                        {on && <Check size={11} weight="bold" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2 text-sm font-extrabold">
+                          {a.label}
+                          {a.isPrimary && <Chip tone="tint">Utama</Chip>}
+                        </span>
+                        <span className="mt-0.5 block text-[13px] text-muted">{a.recipientName}</span>
+                        <span className="block text-[13px] text-muted">
+                          {a.addressLine}, {a.city}
+                        </span>
+                      </span>
+                    </RadioCard>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Manual entry */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nama penerima" htmlFor="recipientName">
+                <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
               </Field>
+              <Field label="Telepon" htmlFor="phone">
+                <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
+              </Field>
+            </div>
+            <Field label="Alamat" htmlFor="addressLine">
+              <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder="Jalan, nomor, RT/RW" />
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Kota" htmlFor="city">
+                <Input id="city" required value={form.city} onChange={set('city')} />
+              </Field>
+              <Field label="Provinsi" htmlFor="province">
+                <Input id="province" required value={form.province} onChange={set('province')} />
+              </Field>
+              <Field label="Kode pos" htmlFor="postalCode" hint="Opsional">
+                <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
+              </Field>
+            </div>
+            <Field label="Catatan untuk kurir" htmlFor="notes" hint="Opsional">
+              <Input id="notes" value={form.notes} onChange={set('notes')} placeholder="mis. titip ke satpam" />
+            </Field>
+            {!isSavedSelection && (
+              <div className="flex flex-col gap-2 border-t border-app pt-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={saveToBook}
+                    onChange={(e) => setSaveToBook(e.target.checked)}
+                    className="accent-brand-600"
+                  />
+                  Simpan alamat ini ke buku alamat
+                </label>
+                {saveToBook && (
+                  <Field label="Label alamat" htmlFor="saveLabel" hint="mis. Rumah, Kantor">
+                    <Input
+                      id="saveLabel"
+                      value={saveLabel}
+                      onChange={(e) => setSaveLabel(e.target.value)}
+                      placeholder="Rumah"
+                      maxLength={50}
+                    />
+                  </Field>
+                )}
+              </div>
+            )}
+          </Card>
+
+          {/* Payment method */}
+          <Card className="flex flex-col gap-4 p-5">
+            <h2 className="text-base font-extrabold">Metode pembayaran</h2>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {PAYMENT_METHODS.map((m) => {
+                const Icon = PAY_ICONS[m.value];
+                const on = method === m.value;
+                return (
+                  <RadioCard key={m.value} selected={on} onSelect={() => setMethod(m.value)} className="items-center">
+                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                      <Icon size={18} className="text-brand-600" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-extrabold">{m.label}</span>
+                      <span className="block text-xs text-muted">{m.hint}</span>
+                    </span>
+                  </RadioCard>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Voucher */}
+          <Card className="flex flex-col gap-3 p-5">
+            <h2 className="text-base font-extrabold">Voucher</h2>
+            <div className="flex items-center gap-2.5">
+              <Input
+                aria-label="Kode voucher"
+                value={voucherCode}
+                onChange={(e) => {
+                  setVoucherCode(e.target.value.toUpperCase());
+                  setQuote(null);
+                  setVoucherError(null);
+                }}
+                placeholder="mis. HEMAT10"
+                autoCapitalize="characters"
+                className="rounded-full tracking-widest"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={applyVoucher}
+                loading={quoting}
+                disabled={!voucherCode.trim()}
+                className="rounded-full border-[color:var(--text)] px-6"
+              >
+                Terapkan
+              </Button>
+            </div>
+            {quote && (
+              <p
+                className="flex items-center gap-1.5 text-sm font-bold text-[color:var(--success)]"
+                role="status"
+              >
+                <CheckCircle size={16} weight="fill" />
+                Voucher {quote.code} — hemat <Money amount={quote.discount} />
+              </p>
+            )}
+            {voucherError && (
+              <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+                {voucherError}
+              </p>
+            )}
+          </Card>
+        </div>
+
+        {/* RIGHT summary */}
+        <Card className="flex flex-col gap-3.5 p-6 lg:sticky lg:top-20">
+          <h2 className="text-[17px] font-extrabold">Ringkasan pesanan</h2>
+
+          {cart.items.map((l) => (
+            <div key={l.productId} className="flex items-center gap-3">
+              <div className="h-11 w-11 flex-shrink-0 rounded-[10px] bg-[color:var(--surface-muted)]" />
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-bold">{l.productName}</div>
+                <div className="text-xs text-muted">×{l.quantity}</div>
+              </div>
+              <Money amount={l.lineTotal} className="text-[13px] font-bold" />
+            </div>
+          ))}
+
+          <div className="flex flex-col gap-2.5 border-t border-app pt-3.5 text-[13.5px]">
+            <div className="flex justify-between">
+              <span className="text-muted">Subtotal</span>
+              <Money amount={cart.subtotal} className="font-bold" />
+            </div>
+            {membershipDiscount > 0 && (
+              <div className="flex justify-between text-[color:var(--success)]">
+                <span>Diskon member ({Math.round(membershipRate * 100)}%)</span>
+                <span className="font-bold">
+                  −<Money amount={membershipDiscount} />
+                </span>
+              </div>
+            )}
+            {voucherDiscount > 0 && (
+              <div className="flex justify-between text-[color:var(--success)]">
+                <span>Voucher {quote?.code}</span>
+                <span className="font-bold">
+                  −<Money amount={voucherDiscount} />
+                </span>
+              </div>
+            )}
+            {depot ? (
+              <div className="flex justify-between">
+                <span className="text-muted">Ongkir (est.) — {depot.name}</span>
+                <Money amount={deliveryFee} className="font-bold" />
+              </div>
+            ) : (
+              <p className="text-xs text-muted">Ongkir dihitung saat depot ditentukan.</p>
             )}
           </div>
-        )}
-      </Card>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="font-semibold">Payment method</h2>
-        <div className="flex flex-col gap-2">
-          {PAYMENT_METHODS.map((m) => (
-            <label
-              key={m.value}
-              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
-                method === m.value ? 'border-brand-600 bg-brand-50' : 'border-app'
-              }`}
-            >
-              <input
-                type="radio"
-                name="method"
-                value={m.value}
-                checked={method === m.value}
-                onChange={() => setMethod(m.value)}
-                className="mt-1 accent-brand-600"
-              />
-              <span>
-                <span className="block text-sm font-semibold">{m.label}</span>
-                <span className="block text-xs text-muted">{m.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </Card>
+          <div className="flex justify-between border-t border-app pt-3.5 text-[17px] font-extrabold">
+            <span>Total</span>
+            <Money amount={displayedTotal} />
+          </div>
 
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="font-semibold">Voucher</h2>
-        <div className="flex items-center gap-2">
-          <Input
-            aria-label="Voucher code"
-            value={voucherCode}
-            onChange={(e) => {
-              setVoucherCode(e.target.value.toUpperCase());
-              setQuote(null);
-              setVoucherError(null);
-            }}
-            placeholder="e.g. HEMAT10"
-            autoCapitalize="characters"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={applyVoucher}
-            loading={quoting}
-            disabled={!voucherCode.trim()}
-          >
-            Apply
+          {submitError && (
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              {submitError}
+            </p>
+          )}
+
+          <Button type="submit" loading={submitting} className="h-14 rounded-full text-[15px]">
+            Buat pesanan — <Money amount={displayedTotal} />
           </Button>
-        </div>
-        {quote && (
-          <p className="text-sm font-medium text-green-700" role="status">
-            Voucher {quote.code} applied — <Money amount={quote.discount} /> off.
+
+          <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
+            <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />
+            Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih.
           </p>
-        )}
-        {voucherError && (
-          <p className="text-sm font-medium text-red-600" role="alert">
-            {voucherError}
-          </p>
-        )}
-      </Card>
-
-      <Card className="flex flex-col gap-2 p-4">
-        <div className="flex justify-between text-sm">
-          <span className="text-muted">Subtotal</span>
-          <Money amount={cart.subtotal} />
-        </div>
-        {membershipDiscount > 0 && (
-          <div className="flex justify-between text-sm text-green-700">
-            <span>Member discount ({Math.round(membershipRate * 100)}%)</span>
-            <span>
-              −<Money amount={membershipDiscount} />
-            </span>
-          </div>
-        )}
-        {voucherDiscount > 0 && (
-          <div className="flex justify-between text-sm text-green-700">
-            <span>Voucher {quote?.code}</span>
-            <span>
-              −<Money amount={voucherDiscount} />
-            </span>
-          </div>
-        )}
-        <div className="flex justify-between border-t border-app pt-2 font-semibold">
-          <span>Estimated total</span>
-          <Money amount={estimatedTotal} />
-        </div>
-        <p className="text-xs text-muted">Delivery fee is added to the total once your depot is assigned.</p>
-      </Card>
-
-      {submitError && (
-        <p className="text-sm font-medium text-red-600" role="alert">
-          {submitError}
-        </p>
-      )}
-
-      <Button type="submit" loading={submitting} className="w-full">
-        Place order
-      </Button>
+        </Card>
+      </div>
     </form>
   );
 }

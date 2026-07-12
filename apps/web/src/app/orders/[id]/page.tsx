@@ -2,18 +2,20 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { use, useState } from 'react';
-import { ArrowLeft } from '@phosphor-icons/react';
+import { use, useEffect, useRef, useState } from 'react';
+import { ArrowsClockwise, CaretRight, Money as MoneyIcon } from '@phosphor-icons/react';
 
-import { OrderProgress, OrderTimeline, StatusBadge } from '@/components/order-views';
+import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { useToast } from '@/components/toast';
+import { Badge, Button, Card, ErrorState, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { isCancellable } from '@/lib/order-status';
+import { formatDateTime } from '@/lib/format';
+import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Payment, PaymentMethod } from '@/lib/types';
+import type { Order, OrderStatus, Page, Payment, PaymentMethod } from '@/lib/types';
 
 const PAYMENT_TONE = {
   PENDING: 'warning',
@@ -23,8 +25,34 @@ const PAYMENT_TONE = {
   REFUNDED: 'neutral',
 } as const;
 
+// Bahasa status labels for the header chip (statusLabel() is English).
+const STATUS_ID: Record<OrderStatus, string> = {
+  CREATED: 'Dipesan',
+  CONFIRMED: 'Dikonfirmasi',
+  PREPARING: 'Disiapkan',
+  DRIVER_ASSIGNED: 'Kurir ditugaskan',
+  PICKED_UP: 'Diambil kurir',
+  ON_DELIVERY: 'Dalam perjalanan',
+  DELIVERED: 'Tiba',
+  COMPLETED: 'Selesai',
+  CANCELLED: 'Dibatalkan',
+};
+
+const CHIP_TONE = {
+  active: 'bg-brand-50 text-brand-800',
+  done: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
+  cancelled: 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]',
+} as const;
+
+const CHIP_DOT = {
+  active: 'bg-brand-600',
+  done: 'bg-[color:var(--success)]',
+  cancelled: 'bg-[color:var(--danger)]',
+} as const;
+
 function OrderDetailInner({ id }: { id: string }) {
   const router = useRouter();
+  const { toast } = useToast();
   const { data: order, error, loading, reload } = useAsync<Order>(
     () => api.get(endpoints.orders.get(id), true),
     [id],
@@ -38,6 +66,22 @@ function OrderDetailInner({ id }: { id: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
 
+  // Auto-poll while the order is still in flight. Refs keep the latest reloaders
+  // without churning the interval; clearInterval on unmount guards state writes.
+  const reloadRef = useRef(reload);
+  const reloadPaymentsRef = useRef(reloadPayments);
+  reloadRef.current = reload;
+  reloadPaymentsRef.current = reloadPayments;
+  const status = order?.status;
+  useEffect(() => {
+    if (!status || tone(status) !== 'active') return;
+    const t = setInterval(() => {
+      reloadRef.current();
+      reloadPaymentsRef.current();
+    }, 15000);
+    return () => clearInterval(t);
+  }, [status]);
+
   async function pay() {
     if (!order) return;
     setAction('pay');
@@ -50,7 +94,7 @@ function OrderDetailInner({ id }: { id: string }) {
       );
       reloadPayments();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Could not start the payment.');
+      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa memulai pembayaran.');
     } finally {
       setAction(null);
     }
@@ -62,8 +106,9 @@ function OrderDetailInner({ id }: { id: string }) {
     try {
       await api.post(endpoints.orders.cancel(id), {}, true);
       reload();
+      toast('Pesanan dibatalkan');
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Could not cancel the order.');
+      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa membatalkan pesanan.');
     } finally {
       setAction(null);
     }
@@ -74,150 +119,204 @@ function OrderDetailInner({ id }: { id: string }) {
     setActionError(null);
     try {
       await api.post(endpoints.orders.repeat(id), {}, true);
+      toast('Item ditambahkan ke keranjang');
       router.push('/cart');
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Could not re-add these items.');
+      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa menambahkan item ini lagi.');
       setAction(null);
     }
   }
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (error || !order) return <ErrorState message={error ?? 'Order not found.'} onRetry={reload} />;
+  if (error || !order) return <ErrorState message={error ?? 'Pesanan tidak ditemukan.'} onRetry={reload} />;
 
   const payment = payments?.items[0];
+  const t = tone(order.status);
 
   return (
     <div className="flex flex-col gap-5">
-      <Link href="/orders" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
-        <ArrowLeft size={16} /> All orders
-      </Link>
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">{order.orderNumber}</h1>
-          <p className="text-sm text-muted">Total <Money amount={order.total} className="font-semibold" /></p>
-        </div>
-        <StatusBadge status={order.status} />
+      {/* breadcrumb */}
+      <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
+        <Link href="/orders" className="transition-colors hover:text-brand-600">
+          Pesanan
+        </Link>
+        <CaretRight size={11} />
+        <span className="text-[color:var(--text)]">#{order.orderNumber}</span>
       </div>
 
-      <Card className="p-4">
+      {/* header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-[30px] font-extrabold tracking-tight">#{order.orderNumber}</h1>
+          <p className="mt-1 text-sm text-muted">
+            Dipesan {formatDateTime(order.createdAt)} · {order.items.length} item · Total{' '}
+            <Money amount={order.total} className="font-bold text-[color:var(--text)]" />
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold ${CHIP_TONE[t]}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${CHIP_DOT[t]}`} />
+          {STATUS_ID[order.status]}
+        </span>
+      </div>
+
+      {/* tracker */}
+      <Card className="p-6">
         <OrderProgress status={order.status} />
       </Card>
 
-      {payment && (
-        <Card className="flex items-center justify-between p-4">
-          <div>
-            <p className="text-sm font-semibold">Payment · {payment.method}</p>
-            {payment.instruction && <p className="text-xs text-muted">{payment.instruction}</p>}
-          </div>
-          <Badge tone={PAYMENT_TONE[payment.status]}>{payment.status}</Badge>
-        </Card>
-      )}
-
-      {needsPayment(order, payment) && (
-        <Card className="flex flex-col gap-3 p-4">
-          <div>
-            <h2 className="font-semibold">
-              {payment ? 'Retry payment' : 'Pay for this order'}
-            </h2>
-            <p className="text-sm text-muted">
-              Choose how you&apos;d like to pay <Money amount={order.total} className="font-semibold" />.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2">
-            {PAYMENT_METHODS.map((m) => (
-              <label
-                key={m.value}
-                className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
-                  payMethod === m.value ? 'border-brand-600 bg-brand-50' : 'border-app'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="payMethod"
-                  value={m.value}
-                  checked={payMethod === m.value}
-                  onChange={() => setPayMethod(m.value)}
-                  className="mt-1 accent-brand-600"
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        {/* LEFT */}
+        <div className="flex flex-col gap-4">
+          {/* items */}
+          <Card className="flex flex-col gap-3 p-6">
+            <h2 className="text-base font-extrabold">Item</h2>
+            {order.items.map((item) => (
+              <div key={item.id} className="flex items-center gap-3">
+                <div
+                  className="h-[52px] w-[52px] shrink-0 rounded-xl"
+                  style={{
+                    background:
+                      'repeating-linear-gradient(45deg,var(--surface-soft),var(--surface-soft) 8px,var(--surface-muted) 8px,var(--surface-muted) 16px)',
+                  }}
                 />
-                <span>
-                  <span className="block text-sm font-semibold">{m.label}</span>
-                  <span className="block text-xs text-muted">{m.hint}</span>
-                </span>
-              </label>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">
+                    {item.quantity}× {item.productName}
+                  </p>
+                  <p className="text-[12.5px] text-muted">{item.unit}</p>
+                </div>
+                <Money amount={item.lineTotal} className="text-sm font-bold" />
+              </div>
             ))}
-          </div>
-          <Button onClick={pay} loading={action === 'pay'}>
-            Pay now
-          </Button>
-        </Card>
-      )}
-
-      <Card className="flex flex-col gap-3 p-4">
-        <h2 className="font-semibold">Items</h2>
-        {order.items.map((item) => (
-          <div key={item.id} className="flex justify-between text-sm">
-            <span>
-              {item.quantity}× {item.productName}
-              <span className="text-muted"> · {item.unit}</span>
-            </span>
-            <Money amount={item.lineTotal} />
-          </div>
-        ))}
-        <div className="mt-1 border-t border-app pt-3 text-sm">
-          <div className="flex justify-between text-muted">
-            <span>Subtotal</span>
-            <Money amount={order.subtotal} />
-          </div>
-          <div className="flex justify-between text-muted">
-            <span>Delivery fee</span>
-            <Money amount={order.deliveryFee} />
-          </div>
-          {order.discount > 0 && (
-            <div className="flex justify-between text-muted">
-              <span>Discount</span>
-              <span>
-                -<Money amount={order.discount} />
-              </span>
+            <div className="mt-1 flex flex-col gap-2 border-t border-app pt-3 text-[13.5px]">
+              <div className="flex justify-between">
+                <span className="text-muted">Subtotal</span>
+                <Money amount={order.subtotal} className="font-bold" />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted">Ongkir</span>
+                <Money amount={order.deliveryFee} className="font-bold" />
+              </div>
+              {order.discount > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted">Diskon</span>
+                  <span className="font-bold text-[color:var(--success)]">
+                    −<Money amount={order.discount} />
+                  </span>
+                </div>
+              )}
+              <div className="mt-1 flex justify-between border-t border-app pt-3 text-base font-extrabold">
+                <span>Total</span>
+                <Money amount={order.total} />
+              </div>
             </div>
+          </Card>
+
+          {/* payment status */}
+          {payment && (
+            <Card className="flex items-center gap-3 p-6">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                <MoneyIcon size={18} weight="fill" className="text-brand-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold">Pembayaran · {payment.method}</p>
+                {payment.instruction && (
+                  <p className="text-[12.5px] text-muted">{payment.instruction}</p>
+                )}
+              </div>
+              <Badge tone={PAYMENT_TONE[payment.status]}>{payment.status}</Badge>
+            </Card>
           )}
-          <div className="mt-1 flex justify-between text-base font-bold">
-            <span>Total</span>
-            <Money amount={order.total} />
+
+          {/* pay form */}
+          {needsPayment(order, payment) && (
+            <Card className="flex flex-col gap-3 p-6">
+              <div>
+                <h2 className="text-base font-extrabold">
+                  {payment ? 'Coba bayar lagi' : 'Bayar pesanan ini'}
+                </h2>
+                <p className="text-sm text-muted">
+                  Pilih metode pembayaran untuk{' '}
+                  <Money amount={order.total} className="font-bold text-[color:var(--text)]" />.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2">
+                {PAYMENT_METHODS.map((m) => (
+                  <RadioCard
+                    key={m.value}
+                    selected={payMethod === m.value}
+                    onSelect={() => setPayMethod(m.value)}
+                    className="gap-3 p-3.5"
+                  >
+                    <span
+                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 ${
+                        payMethod === m.value ? 'border-brand-600' : 'border-app'
+                      }`}
+                    >
+                      {payMethod === m.value && <span className="h-2 w-2 rounded-full bg-brand-600" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold">{m.label}</span>
+                      <span className="block text-[12.5px] text-muted">{m.hint}</span>
+                    </span>
+                  </RadioCard>
+                ))}
+              </div>
+              <Button onClick={pay} loading={action === 'pay'} className="rounded-full">
+                Bayar sekarang
+              </Button>
+            </Card>
+          )}
+
+          {/* address */}
+          <Card className="flex flex-col gap-1.5 p-6 text-sm">
+            <h2 className="text-base font-extrabold">Alamat pengiriman</h2>
+            <p className="font-bold">
+              {order.recipientName} · {order.phone}
+            </p>
+            <p className="leading-relaxed text-muted">
+              {order.addressLine}, {order.city}, {order.province}
+              {order.postalCode ? ` ${order.postalCode}` : ''}
+            </p>
+            {order.notes && (
+              <p className="text-[12.5px] text-muted">
+                Catatan: <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
+              </p>
+            )}
+          </Card>
+
+          {actionError && (
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              {actionError}
+            </p>
+          )}
+
+          {/* actions */}
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={repeat} loading={action === 'repeat'} className="rounded-full">
+              <ArrowsClockwise size={17} weight="bold" />
+              Pesan lagi
+            </Button>
+            {isCancellable(order.status) && (
+              <Button
+                variant="secondary"
+                onClick={cancel}
+                loading={action === 'cancel'}
+                className="rounded-full hover:border-[color:var(--danger)] hover:text-[color:var(--danger)]"
+              >
+                Batalkan pesanan
+              </Button>
+            )}
           </div>
         </div>
-      </Card>
 
-      <Card className="flex flex-col gap-1 p-4 text-sm">
-        <h2 className="font-semibold">Delivery to</h2>
-        <p>{order.recipientName} · {order.phone}</p>
-        <p className="text-muted">
-          {order.addressLine}, {order.city}, {order.province}
-          {order.postalCode ? ` ${order.postalCode}` : ''}
-        </p>
-        {order.notes && <p className="text-muted">Note: {order.notes}</p>}
-      </Card>
-
-      <Card className="p-4">
-        <h2 className="mb-3 font-semibold">Timeline</h2>
-        <OrderTimeline history={order.history} />
-      </Card>
-
-      {actionError && (
-        <p className="text-sm font-medium text-red-600" role="alert">
-          {actionError}
-        </p>
-      )}
-
-      <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={repeat} loading={action === 'repeat'}>
-          Order again
-        </Button>
-        {isCancellable(order.status) && (
-          <Button variant="danger" onClick={cancel} loading={action === 'cancel'}>
-            Cancel order
-          </Button>
-        )}
+        {/* RIGHT */}
+        <Card className="p-6">
+          <h2 className="mb-4 text-base font-extrabold">Riwayat</h2>
+          <OrderTimeline history={order.history} />
+        </Card>
       </div>
     </div>
   );
