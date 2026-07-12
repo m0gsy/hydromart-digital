@@ -8,29 +8,35 @@ import { Check, Drop, Plus } from '@phosphor-icons/react';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useCart } from '@/lib/cart-context';
 import { useAsync } from '@/lib/use-async';
+import { SectionHeader } from '@/components/ui';
 import type { Recommendation } from '@/lib/types';
 
+// 1c rec card: Recommendation carries no price, so this drops the price/member
+// chip the catalog ProductCard shows — name, unit, and a round teal add button.
 function RailCard({ item }: { item: Recommendation }) {
   const router = useRouter();
   const { customer } = useAuth();
+  const { bump, refresh } = useCart();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
-  // ponytail: same add-to-cart call as the product detail page; no shared cart
-  // hook exists yet to extract into, so this mirrors it inline (2 call sites).
   async function addToCart(e: React.MouseEvent) {
     e.preventDefault();
+    e.stopPropagation();
     if (!customer) {
       router.push(`/login?next=${encodeURIComponent(`/products/${item.productId}`)}`);
       return;
     }
     setAdding(true);
+    bump(1); // optimistic badge; refresh reconciles
     try {
       await api.post(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true);
       setAdded(true);
+      await refresh();
     } catch {
-      // non-blocking discovery surface: swallow, user can retry from the product page
+      bump(-1); // roll the badge back on failure
     } finally {
       setAdding(false);
     }
@@ -39,23 +45,24 @@ function RailCard({ item }: { item: Recommendation }) {
   return (
     <Link
       href={`/products/${item.productId}`}
-      className="surface flex w-36 shrink-0 flex-col overflow-hidden rounded-xl border border-app transition-shadow hover:shadow-md"
+      className="surface group flex w-44 shrink-0 snap-start flex-col overflow-hidden rounded-2xl shadow-card transition-[box-shadow,transform] hover:-translate-y-[3px] hover:shadow-lift"
     >
-      <div className="flex aspect-square items-center justify-center bg-[color:var(--surface-muted)]">
-        <Drop size={40} weight="thin" className="text-brand-300" />
+      <div className="flex aspect-square items-center justify-center bg-[color:var(--surface-soft)]">
+        <Drop size={48} weight="thin" className="text-brand-300" />
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-2.5">
-        <h3 className="line-clamp-2 text-xs font-semibold">{item.name}</h3>
-        <p className="text-[11px] text-muted">{item.unit}</p>
-        <button
-          onClick={addToCart}
-          disabled={adding}
-          aria-label={`Add ${item.name} to cart`}
-          className="mt-auto flex items-center justify-center gap-1 rounded-lg bg-brand-50 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50"
-        >
-          {added ? <Check size={14} /> : <Plus size={14} />}
-          {added ? 'Added' : 'Add'}
-        </button>
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="line-clamp-2 text-[15px] font-bold leading-snug">{item.name}</h3>
+        <p className="mt-0.5 text-[13px] text-muted">{item.unit}</p>
+        <div className="mt-3 flex items-center justify-end">
+          <button
+            onClick={addToCart}
+            disabled={adding}
+            aria-label={`Tambah ${item.name} ke keranjang`}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
+          >
+            {added ? <Check size={18} weight="bold" /> : <Plus size={18} weight="bold" />}
+          </button>
+        </div>
       </div>
     </Link>
   );
@@ -87,9 +94,9 @@ export function ProductRecRail({
   if (loading || error || !data || data.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-lg font-bold">{title}</h2>
-      <div className="flex gap-3 overflow-x-auto pb-1">
+    <section>
+      <SectionHeader title={title} />
+      <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-1">
         {data.map((item) => (
           <RailCard key={item.productId} item={item} />
         ))}

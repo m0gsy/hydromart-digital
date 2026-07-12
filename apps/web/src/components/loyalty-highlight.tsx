@@ -1,12 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { Trophy } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
-import { Badge, Card, LinkButton } from '@/components/ui';
+import { Card, Chip, LinkButton } from '@/components/ui';
 import type { LoyaltyAccount, TierBenefit } from '@/lib/types';
 
 // Loyalty surface on Home. Signed-in: live points + tier + progress to the next
@@ -36,51 +37,60 @@ export function LoyaltyHighlight() {
       ? Math.min(100, Math.round((account.lifetimePoints / next.threshold) * 100))
       : 100;
     return (
-      <Card className="flex flex-col gap-3 p-5">
+      <Card className="flex flex-col gap-4 p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 text-lg font-bold">
-            <Trophy size={20} weight="fill" className="text-brand-600" /> Poin & membership
+          <h2 className="flex items-center gap-2.5 text-lg font-extrabold">
+            <Trophy size={22} weight="fill" className="text-amber-600" /> Membership
           </h2>
-          <Badge tone="brand">{account.tier}</Badge>
+          <Chip tone="amber">{account.tier}</Chip>
         </div>
-        <p className="text-sm text-muted">
-          <span className="text-2xl font-bold tabular-nums text-[color:var(--text)]">
+        <p>
+          <span className="text-[32px] font-extrabold tabular-nums tracking-tight text-[color:var(--text)]">
             {account.pointsBalance.toLocaleString('id-ID')}
-          </span>{' '}
-          poin · diskon member {Math.round(account.discountRate * 100)}%
+          </span>
+          <span className="text-sm text-muted">
+            {' '}
+            poin · diskon member {Math.round(account.discountRate * 100)}%
+          </span>
         </p>
-        <div className="h-2 rounded-full bg-[color:var(--surface-muted)]">
-          <div className="h-2 rounded-full bg-brand-600" style={{ width: `${pct}%` }} />
+        <div className="h-2 rounded-full bg-[color:var(--surface-soft)]">
+          <div className="h-2 rounded-full bg-amber-600" style={{ width: `${pct}%` }} />
         </div>
         <p className="text-sm text-muted">
-          {next
-            ? `${(next.threshold - account.lifetimePoints).toLocaleString('id-ID')} poin lagi menuju ${next.tier}.`
-            : 'Anda sudah di tier tertinggi. Terima kasih!'}
+          {next ? (
+            <>
+              {(next.threshold - account.lifetimePoints).toLocaleString('id-ID')} poin lagi menuju{' '}
+              <span className="font-extrabold text-[color:var(--text)]">{next.tier}</span> — diskon
+              naik ke {Math.round(next.discountRate * 100)}%
+            </>
+          ) : (
+            'Anda sudah di tier tertinggi. Terima kasih!'
+          )}
         </p>
-        <LinkButton href="/rewards" variant="secondary" className="self-start">
+        <Link
+          href="/rewards"
+          className="inline-flex self-start rounded-full border-2 border-[color:var(--text)] px-5 py-2.5 text-sm font-extrabold text-[color:var(--text)] transition-colors hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
+        >
           Lihat rewards
-        </LinkButton>
+        </Link>
       </Card>
     );
   }
 
   // Guest teaser.
   return (
-    <Card className="flex flex-col gap-3 p-5">
-      <h2 className="flex items-center gap-2 text-lg font-bold">
-        <Trophy size={20} weight="fill" className="text-brand-600" /> Kumpulkan poin tiap pesan
+    <Card className="flex flex-col gap-4 p-6">
+      <h2 className="flex items-center gap-2.5 text-lg font-extrabold">
+        <Trophy size={22} weight="fill" className="text-amber-600" /> Kumpulkan poin tiap pesan
       </h2>
       <p className="text-sm text-muted">
         Jadi member dan dapatkan diskon makin besar seiring naik tier.
       </p>
       <div className="flex flex-wrap gap-2">
         {sorted.map((t) => (
-          <span
-            key={t.tier}
-            className="rounded-lg border border-app px-3 py-1.5 text-sm font-semibold"
-          >
+          <Chip key={t.tier} tone="outline">
             {t.tier} · {Math.round(t.discountRate * 100)}%
-          </span>
+          </Chip>
         ))}
       </div>
       <LinkButton href="/register" className="self-start">

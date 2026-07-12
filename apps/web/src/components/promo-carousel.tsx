@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { Tag } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -10,33 +9,57 @@ import type { Promotion } from '@/lib/types';
 
 // Marketing banners on the Home page (public promo feed). A discovery surface:
 // renders nothing while loading, on error, or when empty — never blocks the page.
+// Cards alternate treatment by index: even = deep-teal, odd = amber.
 
-function Banner({ promo }: { promo: Promotion }) {
+function Banner({ promo, index }: { promo: Promotion; index: number }) {
+  const teal = index % 2 === 0;
   const inner = (
     <div
-      className="relative flex min-h-32 w-72 shrink-0 flex-col justify-between overflow-hidden rounded-xl bg-brand-600 bg-cover bg-center p-4 text-white sm:w-80"
-      // ponytail: decorative background via CSS (arbitrary promo-supplied URL); no image pipeline yet.
-      style={promo.imageUrl ? { backgroundImage: `linear-gradient(rgba(31,122,224,0.75),rgba(31,122,224,0.75)), url(${JSON.stringify(promo.imageUrl)})` } : undefined}
+      className={
+        teal
+          ? 'flex h-full flex-col justify-between gap-5 rounded-2xl bg-brand-800 p-7 text-white shadow-card'
+          : 'flex h-full flex-col justify-between gap-5 rounded-2xl bg-amber-50 p-7 text-amber-900 shadow-card'
+      }
     >
-      <div className="relative flex flex-col gap-1">
-        <h3 className="text-base font-bold">{promo.title}</h3>
-        {promo.subtitle && <p className="text-sm text-white/90">{promo.subtitle}</p>}
-      </div>
-      <div className="relative flex items-center gap-2">
-        {promo.voucherCode && (
-          <span className="rounded-md bg-white/20 px-2 py-0.5 text-xs font-bold tracking-wide">
-            {promo.voucherCode}
-          </span>
-        )}
-        {promo.ctaLabel && (
-          <span className="text-sm font-semibold underline underline-offset-2">{promo.ctaLabel}</span>
+      <div>
+        <h3 className="text-[22px] font-extrabold tracking-tight">{promo.title}</h3>
+        {promo.subtitle && (
+          <p className={teal ? 'mt-1.5 text-sm text-white/75' : 'mt-1.5 text-sm text-amber-800'}>
+            {promo.subtitle}
+          </p>
         )}
       </div>
+      {(promo.voucherCode || promo.ctaLabel) && (
+        <div className="flex items-center gap-3">
+          {promo.voucherCode && (
+            <span
+              className={
+                teal
+                  ? 'rounded-[10px] border-[1.5px] border-dashed border-white/45 px-3.5 py-1.5 font-mono text-[13px] font-bold tracking-[0.08em]'
+                  : 'rounded-[10px] border-[1.5px] border-dashed border-amber-900/40 px-3.5 py-1.5 font-mono text-[13px] font-bold tracking-[0.08em]'
+              }
+            >
+              {promo.voucherCode}
+            </span>
+          )}
+          {promo.ctaLabel && (
+            <span
+              className={
+                teal
+                  ? 'inline-flex rounded-full bg-white px-4 py-2 text-[13.5px] font-extrabold text-brand-800'
+                  : 'inline-flex rounded-full bg-amber-600 px-4 py-2 text-[13.5px] font-extrabold text-white'
+              }
+            >
+              {promo.ctaLabel}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 
   return promo.ctaHref ? (
-    <Link href={promo.ctaHref} className="transition-transform hover:-translate-y-0.5">
+    <Link href={promo.ctaHref} className="block h-full transition-transform hover:-translate-y-0.5">
       {inner}
     </Link>
   ) : (
@@ -53,15 +76,10 @@ export function PromoCarousel() {
   if (loading || error || !data || data.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-2" aria-label="Promo">
-      <h2 className="flex items-center gap-1.5 text-lg font-bold">
-        <Tag size={20} weight="fill" className="text-brand-600" /> Promo untukmu
-      </h2>
-      <div className="flex gap-3 overflow-x-auto pb-1">
-        {data.map((promo) => (
-          <Banner key={promo.id} promo={promo} />
-        ))}
-      </div>
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label="Promo">
+      {data.map((promo, i) => (
+        <Banner key={promo.id} promo={promo} index={i} />
+      ))}
     </section>
   );
 }
