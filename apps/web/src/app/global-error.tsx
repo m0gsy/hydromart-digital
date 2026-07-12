@@ -4,7 +4,7 @@
 // Tailwind/layout chrome may be unavailable — so it renders its own <html>/<body>
 // with inline styles. Keep it dependency-free.
 export default function GlobalError({
-  error,
+  error: _error,
   reset,
 }: {
   error: Error & { digest?: string };
