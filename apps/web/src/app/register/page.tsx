@@ -9,6 +9,7 @@ import { Button, Card, Field, Input, Skeleton } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import type { OtpChallenge } from '@/lib/types';
 
 function BrandMark() {
@@ -23,6 +24,7 @@ function BrandMark() {
 }
 
 function RegisterForm() {
+  const { t } = useT();
   const router = useRouter();
   const next = useSearchParams().get('next') ?? '/products';
   const [form, setForm] = useState({ phone: '', fullName: '', email: '' });
@@ -45,14 +47,14 @@ function RegisterForm() {
       const params = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Tidak bisa memulai pendaftaran.');
+      setError(err instanceof ApiError ? err.message : t('auth.register.error'));
       setLoading(false);
     }
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Nomor telepon" htmlFor="phone" hint="Nomor HP Indonesia, mis. 081234567890">
+      <Field label={t('auth.register.phoneLabel')} htmlFor="phone" hint={t('auth.register.phoneHint')}>
         <Input
           id="phone"
           required
@@ -63,10 +65,10 @@ function RegisterForm() {
           className="rounded-xl"
         />
       </Field>
-      <Field label="Nama lengkap" htmlFor="fullName" hint="Opsional">
+      <Field label={t('auth.register.nameLabel')} htmlFor="fullName" hint={t('auth.register.nameHint')}>
         <Input id="fullName" value={form.fullName} onChange={set('fullName')} placeholder="Budi Santoso" className="rounded-xl" />
       </Field>
-      <Field label="Email" htmlFor="email" hint="Opsional">
+      <Field label={t('auth.register.emailLabel')} htmlFor="email" hint={t('auth.register.emailHint')}>
         <Input id="email" type="email" value={form.email} onChange={set('email')} placeholder="budi@example.com" className="rounded-xl" />
       </Field>
       {error && (
@@ -75,35 +77,36 @@ function RegisterForm() {
         </p>
       )}
       <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
-        Kirim kode verifikasi
+        {t('auth.register.submit')}
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
       <GoogleSignInButton next={next} />
       <p className="text-center text-xs leading-relaxed text-muted">
-        Dengan mendaftar, kamu menyetujui Ketentuan Layanan dan Kebijakan Privasi Hydromart.
+        {t('auth.register.terms')}
       </p>
     </form>
   );
 }
 
 export default function RegisterPage() {
+  const { t } = useT();
   return (
     <div className="flex min-h-[70vh] items-center justify-center py-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <BrandMark />
         <Card className="p-6 sm:p-8">
           <div className="mb-6 flex flex-col gap-1.5 text-center">
-            <h1 className="text-2xl font-extrabold tracking-tight">Buat akun baru</h1>
-            <p className="text-sm text-muted">Kami kirim kode sekali pakai untuk verifikasi nomormu.</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{t('auth.register.heading')}</h1>
+            <p className="text-sm text-muted">{t('auth.register.subtitle')}</p>
           </div>
           <Suspense fallback={<Skeleton className="h-72 w-full rounded-xl" />}>
             <RegisterForm />
           </Suspense>
         </Card>
         <p className="text-center text-sm text-muted">
-          Sudah punya akun?{' '}
+          {t('auth.register.haveAccount')}{' '}
           <Link href="/login" className="font-bold text-brand-700 transition-colors hover:text-brand-800">
-            Masuk
+            {t('auth.register.loginCta')}
           </Link>
         </p>
       </div>

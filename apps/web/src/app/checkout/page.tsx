@@ -21,6 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
   Address,
@@ -41,6 +42,7 @@ const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
 };
 
 function CheckoutInner() {
+  const { t } = useT();
   const router = useRouter();
   const { customer } = useAuth();
   const { data: cart, error, loading, reload } = useAsync<Cart>(() =>
@@ -150,7 +152,7 @@ function CheckoutInner() {
       setQuote(result);
     } catch (err) {
       setVoucherError(
-        err instanceof ApiError ? err.message : 'Voucher itu tidak bisa dipakai.',
+        err instanceof ApiError ? err.message : t('order.checkout.voucherInvalid'),
       );
     } finally {
       setQuoting(false);
@@ -215,7 +217,7 @@ function CheckoutInner() {
       }
       router.replace(`/orders/${order.id}`);
     } catch (err) {
-      setSubmitError(err instanceof ApiError ? err.message : 'Tidak bisa membuat pesanan.');
+      setSubmitError(err instanceof ApiError ? err.message : t('order.checkout.placeOrderError'));
       setSubmitting(false);
     }
   }
@@ -223,7 +225,7 @@ function CheckoutInner() {
   if (loading) return <Skeleton className="h-96 w-full" />;
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!cart || cart.items.length === 0) {
-    return <ErrorState message="Keranjangmu kosong. Tambahkan produk sebelum checkout." />;
+    return <ErrorState message={t('order.checkout.emptyCart')} />;
   }
 
   const isSavedSelection = savedAddresses?.some((a) => a.id === selection) ?? false;
@@ -249,33 +251,33 @@ function CheckoutInner() {
           className="inline-flex items-center gap-1.5 text-sm font-bold text-muted transition-colors hover:text-[color:var(--text)]"
         >
           <ArrowLeft size={15} weight="bold" />
-          Kembali
+          {t('common.back')}
         </Link>
         <div className="mx-auto flex items-center gap-2.5 text-[13px] font-bold">
           <span className="flex items-center gap-2 text-brand-800">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white">
               <Check size={12} weight="bold" />
             </span>
-            Keranjang
+            {t('order.checkout.stepCart')}
           </span>
           <span className="h-[1.5px] w-8 bg-brand-600" />
           <span className="flex items-center gap-2 text-brand-800">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
               2
             </span>
-            Checkout
+            {t('order.checkout.stepCheckout')}
           </span>
           <span className="h-[1.5px] w-8 bg-[color:var(--border)]" />
           <span className="flex items-center gap-2 text-muted">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--surface-muted)] text-[11.5px] text-muted">
               3
             </span>
-            Selesai
+            {t('order.checkout.stepDone')}
           </span>
         </div>
       </div>
 
-      <h1 className="text-[30px] font-extrabold tracking-tight">Checkout</h1>
+      <h1 className="text-[30px] font-extrabold tracking-tight">{t('order.checkout.title')}</h1>
 
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
         {/* LEFT column */}
@@ -283,13 +285,13 @@ function CheckoutInner() {
           {/* Delivery address */}
           <Card className="flex flex-col gap-4 p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-extrabold">Alamat pengiriman</h2>
+              <h2 className="text-base font-extrabold">{t('order.checkout.deliveryAddress')}</h2>
               <button
                 type="button"
                 onClick={chooseNew}
                 className="text-sm font-bold text-brand-700 hover:text-brand-800"
               >
-                + Alamat baru
+                {t('order.checkout.newAddress')}
               </button>
             </div>
 
@@ -309,7 +311,7 @@ function CheckoutInner() {
                       <span className="min-w-0">
                         <span className="flex items-center gap-2 text-sm font-extrabold">
                           {a.label}
-                          {a.isPrimary && <Chip tone="tint">Utama</Chip>}
+                          {a.isPrimary && <Chip tone="tint">{t('order.checkout.primary')}</Chip>}
                         </span>
                         <span className="mt-0.5 block text-[13px] text-muted">{a.recipientName}</span>
                         <span className="block text-[13px] text-muted">
@@ -324,29 +326,29 @@ function CheckoutInner() {
 
             {/* Manual entry */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nama penerima" htmlFor="recipientName">
+              <Field label={t('order.checkout.recipientName')} htmlFor="recipientName">
                 <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
               </Field>
-              <Field label="Telepon" htmlFor="phone">
+              <Field label={t('order.checkout.phone')} htmlFor="phone">
                 <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
               </Field>
             </div>
-            <Field label="Alamat" htmlFor="addressLine">
-              <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder="Jalan, nomor, RT/RW" />
+            <Field label={t('order.checkout.address')} htmlFor="addressLine">
+              <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder={t('order.checkout.addressPlaceholder')} />
             </Field>
             <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Kota" htmlFor="city">
+              <Field label={t('order.checkout.city')} htmlFor="city">
                 <Input id="city" required value={form.city} onChange={set('city')} />
               </Field>
-              <Field label="Provinsi" htmlFor="province">
+              <Field label={t('order.checkout.province')} htmlFor="province">
                 <Input id="province" required value={form.province} onChange={set('province')} />
               </Field>
-              <Field label="Kode pos" htmlFor="postalCode" hint="Opsional">
+              <Field label={t('order.checkout.postalCode')} htmlFor="postalCode" hint={t('order.checkout.optional')}>
                 <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
               </Field>
             </div>
-            <Field label="Catatan untuk kurir" htmlFor="notes" hint="Opsional">
-              <Input id="notes" value={form.notes} onChange={set('notes')} placeholder="mis. titip ke satpam" />
+            <Field label={t('order.checkout.courierNotes')} htmlFor="notes" hint={t('order.checkout.optional')}>
+              <Input id="notes" value={form.notes} onChange={set('notes')} placeholder={t('order.checkout.courierNotesPlaceholder')} />
             </Field>
             {!isSavedSelection && (
               <div className="flex flex-col gap-2 border-t border-app pt-3">
@@ -357,15 +359,15 @@ function CheckoutInner() {
                     onChange={(e) => setSaveToBook(e.target.checked)}
                     className="accent-brand-600"
                   />
-                  Simpan alamat ini ke buku alamat
+                  {t('order.checkout.saveAddress')}
                 </label>
                 {saveToBook && (
-                  <Field label="Label alamat" htmlFor="saveLabel" hint="mis. Rumah, Kantor">
+                  <Field label={t('order.checkout.addressLabel')} htmlFor="saveLabel" hint={t('order.checkout.addressLabelHint')}>
                     <Input
                       id="saveLabel"
                       value={saveLabel}
                       onChange={(e) => setSaveLabel(e.target.value)}
-                      placeholder="Rumah"
+                      placeholder={t('order.checkout.addressLabelPlaceholder')}
                       maxLength={50}
                     />
                   </Field>
@@ -376,7 +378,7 @@ function CheckoutInner() {
 
           {/* Payment method */}
           <Card className="flex flex-col gap-4 p-5">
-            <h2 className="text-base font-extrabold">Metode pembayaran</h2>
+            <h2 className="text-base font-extrabold">{t('order.checkout.paymentMethod')}</h2>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {PAYMENT_METHODS.map((m) => {
                 const Icon = PAY_ICONS[m.value];
@@ -398,17 +400,17 @@ function CheckoutInner() {
 
           {/* Voucher */}
           <Card className="flex flex-col gap-3 p-5">
-            <h2 className="text-base font-extrabold">Voucher</h2>
+            <h2 className="text-base font-extrabold">{t('order.checkout.voucher')}</h2>
             <div className="flex items-center gap-2.5">
               <Input
-                aria-label="Kode voucher"
+                aria-label={t('order.checkout.voucherCode')}
                 value={voucherCode}
                 onChange={(e) => {
                   setVoucherCode(e.target.value.toUpperCase());
                   setQuote(null);
                   setVoucherError(null);
                 }}
-                placeholder="mis. HEMAT10"
+                placeholder={t('order.checkout.voucherPlaceholder')}
                 autoCapitalize="characters"
                 className="rounded-full tracking-widest"
               />
@@ -420,7 +422,7 @@ function CheckoutInner() {
                 disabled={!voucherCode.trim()}
                 className="rounded-full border-[color:var(--text)] px-6"
               >
-                Terapkan
+                {t('order.checkout.apply')}
               </Button>
             </div>
             {quote && (
@@ -429,7 +431,8 @@ function CheckoutInner() {
                 role="status"
               >
                 <CheckCircle size={16} weight="fill" />
-                Voucher {quote.code} — hemat <Money amount={quote.discount} />
+                {t('order.checkout.voucherApplied', { code: quote.code })}{' '}
+                <Money amount={quote.discount} />
               </p>
             )}
             {voucherError && (
@@ -442,7 +445,7 @@ function CheckoutInner() {
 
         {/* RIGHT summary */}
         <Card className="flex flex-col gap-3.5 p-6 lg:sticky lg:top-20">
-          <h2 className="text-[17px] font-extrabold">Ringkasan pesanan</h2>
+          <h2 className="text-[17px] font-extrabold">{t('order.checkout.orderSummary')}</h2>
 
           {cart.items.map((l) => (
             <div key={l.productId} className="flex items-center gap-3">
@@ -457,12 +460,12 @@ function CheckoutInner() {
 
           <div className="flex flex-col gap-2.5 border-t border-app pt-3.5 text-[13.5px]">
             <div className="flex justify-between">
-              <span className="text-muted">Subtotal</span>
+              <span className="text-muted">{t('order.checkout.subtotal')}</span>
               <Money amount={cart.subtotal} className="font-bold" />
             </div>
             {membershipDiscount > 0 && (
               <div className="flex justify-between text-[color:var(--success)]">
-                <span>Diskon member ({Math.round(membershipRate * 100)}%)</span>
+                <span>{t('order.checkout.memberDiscount', { pct: Math.round(membershipRate * 100) })}</span>
                 <span className="font-bold">
                   −<Money amount={membershipDiscount} />
                 </span>
@@ -470,7 +473,7 @@ function CheckoutInner() {
             )}
             {voucherDiscount > 0 && (
               <div className="flex justify-between text-[color:var(--success)]">
-                <span>Voucher {quote?.code}</span>
+                <span>{t('order.checkout.voucherLabel', { code: quote?.code ?? '' })}</span>
                 <span className="font-bold">
                   −<Money amount={voucherDiscount} />
                 </span>
@@ -478,16 +481,16 @@ function CheckoutInner() {
             )}
             {depot ? (
               <div className="flex justify-between">
-                <span className="text-muted">Ongkir (est.) — {depot.name}</span>
+                <span className="text-muted">{t('order.checkout.deliveryEst', { name: depot.name })}</span>
                 <Money amount={deliveryFee} className="font-bold" />
               </div>
             ) : (
-              <p className="text-xs text-muted">Ongkir dihitung saat depot ditentukan.</p>
+              <p className="text-xs text-muted">{t('order.checkout.deliveryNote')}</p>
             )}
           </div>
 
           <div className="flex justify-between border-t border-app pt-3.5 text-[17px] font-extrabold">
-            <span>Total</span>
+            <span>{t('order.checkout.total')}</span>
             <Money amount={displayedTotal} />
           </div>
 
@@ -498,12 +501,12 @@ function CheckoutInner() {
           )}
 
           <Button type="submit" loading={submitting} className="h-14 rounded-full text-[15px]">
-            Buat pesanan — <Money amount={displayedTotal} />
+            {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
           </Button>
 
           <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
             <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />
-            Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih.
+            {t('order.checkout.priceVerified')}
           </p>
         </Card>
       </div>

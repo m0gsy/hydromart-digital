@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { Drop } from '@phosphor-icons/react';
 
+import { useT } from '@/lib/locale-context';
+
 // Site footer, rendered once in the root layout below <main>. Deep-teal band
 // (1c Fresh Flow) spanning full width with a centered inner container. Items
 // with an href render as real links; the rest are plain text (no dead ends).
@@ -10,35 +12,37 @@ import { Drop } from '@phosphor-icons/react';
 
 type FooterLink = { label: string; href?: string };
 
-const COLUMNS: { heading: string; links: FooterLink[] }[] = [
-  {
-    heading: 'Belanja',
-    links: [
-      { label: 'Semua produk', href: '/products' },
-      { label: 'Galon & isi ulang', href: '/products' },
-      { label: 'Air botol', href: '/products' },
-    ],
-  },
-  {
-    heading: 'Akun',
-    links: [
-      { label: 'Pesanan saya', href: '/orders' },
-      { label: 'Rewards & poin', href: '/rewards' },
-      { label: 'Alamat', href: '/addresses' },
-      { label: 'Akun saya', href: '/account' },
-    ],
-  },
-  {
-    heading: 'Bantuan',
-    links: [
-      { label: 'Cara pesan' },
-      { label: 'Jadi mitra depot' },
-      { label: 'hello@hydromart-digital.com', href: 'mailto:hello@hydromart-digital.com' },
-    ],
-  },
-];
-
 export function Footer() {
+  const { t } = useT();
+
+  const COLUMNS: { heading: string; links: FooterLink[] }[] = [
+    {
+      heading: t('auth.footer.shop'),
+      links: [
+        { label: t('auth.footer.allProducts'), href: '/products' },
+        { label: t('auth.footer.gallonRefill'), href: '/products' },
+        { label: t('auth.footer.bottled'), href: '/products' },
+      ],
+    },
+    {
+      heading: t('auth.footer.account'),
+      links: [
+        { label: t('auth.footer.myOrders'), href: '/orders' },
+        { label: t('auth.footer.rewards'), href: '/rewards' },
+        { label: t('auth.footer.address'), href: '/addresses' },
+        { label: t('auth.footer.myAccount'), href: '/account' },
+      ],
+    },
+    {
+      heading: t('auth.footer.help'),
+      links: [
+        { label: t('auth.footer.howToOrder') },
+        { label: t('auth.footer.becomePartner') },
+        { label: 'hello@hydromart-digital.com', href: 'mailto:hello@hydromart-digital.com' },
+      ],
+    },
+  ];
+
   return (
     <footer className="mt-10 bg-brand-800 text-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-11 sm:px-8">
@@ -51,7 +55,7 @@ export function Footer() {
               <span className="text-base font-extrabold">hydromart</span>
             </div>
             <p className="max-w-[280px] text-sm leading-relaxed text-white/65">
-              Galon isi ulang & air minum kemasan, diantar dari depot resmi terdekat ke rumahmu.
+              {t('auth.footer.tagline')}
             </p>
           </div>
 
@@ -74,7 +78,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/55">
-          © 2026 Hydromart · Melayani pengiriman air minum di Indonesia
+          {t('auth.footer.copyright')}
         </div>
       </div>
     </footer>

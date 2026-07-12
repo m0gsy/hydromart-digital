@@ -16,6 +16,7 @@ import { Button, Card, Chip, ErrorState, Field, Input, SectionHeader, Skeleton }
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 import { tierProgress } from '@/lib/loyalty';
 import { useAsync } from '@/lib/use-async';
 import type {
@@ -23,7 +24,6 @@ import type {
   MembershipTier,
   Page,
   PointsTransaction,
-  PointsTxnType,
   ReferralSummary,
   TierBenefit,
 } from '@/lib/types';
@@ -70,15 +70,9 @@ const TIER_ACCENT: Record<MembershipTier, TierAccent> = {
   },
 };
 
-const TXN_LABEL: Record<PointsTxnType, string> = {
-  EARN: 'Poin masuk',
-  REWARD: 'Tukar reward',
-  ADJUST: 'Penyesuaian',
-  EXPIRE: 'Poin hangus',
-};
-
 /** Hero (aspirational tier card) + perks ladder — one account + tiers fetch feeds both. */
 function LoyaltySection() {
+  const { t } = useT();
   const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers));
 
@@ -102,7 +96,7 @@ function LoyaltySection() {
               <span className="surface flex h-10 w-10 items-center justify-center rounded-full shadow-card">
                 <HeroIcon size={22} weight="fill" className={accent.icon_color} />
               </span>
-              Keanggotaan
+              {t('profile.rewards.hero.membership')}
             </span>
             <Chip tone={accent.chip}>{acc.tier}</Chip>
           </div>
@@ -112,11 +106,11 @@ function LoyaltySection() {
               {acc.pointsBalance.toLocaleString('id-ID')}
             </p>
             <p className="mt-2 text-sm text-muted">
-              {acc.lifetimePoints.toLocaleString('id-ID')} poin seumur hidup
+              {t('profile.rewards.hero.lifetime', { n: acc.lifetimePoints.toLocaleString('id-ID') })}
               {acc.discountRate > 0 && (
                 <>
                   {' · '}
-                  diskon member{' '}
+                  {t('profile.rewards.hero.memberDiscount')}{' '}
                   <span className="font-bold text-[color:var(--text)]">
                     {Math.round(acc.discountRate * 100)}%
                   </span>
@@ -134,13 +128,13 @@ function LoyaltySection() {
                 />
               </div>
               <p className="text-sm text-muted">
-                {progress.pointsToNext.toLocaleString('id-ID')} poin lagi menuju{' '}
+                {t('profile.rewards.hero.toNext', { n: progress.pointsToNext.toLocaleString('id-ID') })}{' '}
                 <span className="font-extrabold text-[color:var(--text)]">{progress.next.tier}</span>
               </p>
             </div>
           ) : (
             <p className="flex items-center gap-1.5 text-sm font-bold text-brand-700">
-              <Crown size={18} weight="fill" /> Anda di tier tertinggi. Terima kasih!
+              <Crown size={18} weight="fill" /> {t('profile.rewards.hero.topTier')}
             </p>
           )}
         </div>
@@ -149,31 +143,31 @@ function LoyaltySection() {
       {/* --- Perks ladder --- */}
       {ladder.length > 0 && (
         <section>
-          <SectionHeader title="Keuntungan tiap tier" subtitle="Naik tier, diskon makin besar." />
+          <SectionHeader title={t('profile.rewards.perks.title')} subtitle={t('profile.rewards.perks.subtitle')} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {ladder.map((t) => {
-              const isCurrent = t.tier === acc.tier;
-              const a = TIER_ACCENT[t.tier] ?? TIER_ACCENT.REGULAR;
+            {ladder.map((tier) => {
+              const isCurrent = tier.tier === acc.tier;
+              const a = TIER_ACCENT[tier.tier] ?? TIER_ACCENT.REGULAR;
               const PerkIcon = a.icon;
               return (
                 <div
-                  key={t.tier}
+                  key={tier.tier}
                   className={`flex flex-col gap-2 rounded-2xl border-2 p-4 transition-colors ${
                     isCurrent ? 'border-brand-600 bg-brand-50' : 'border-app surface'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <PerkIcon size={20} weight="fill" className={a.icon_color} />
-                    {isCurrent && <Chip tone="tint">Tier Anda</Chip>}
+                    {isCurrent && <Chip tone="tint">{t('profile.rewards.perks.yourTier')}</Chip>}
                   </div>
                   <p className="text-sm font-extrabold tracking-tight text-[color:var(--text)]">
-                    {t.tier}
+                    {tier.tier}
                   </p>
                   <p className="text-2xl font-extrabold tabular-nums tracking-tight text-[color:var(--text)]">
-                    Diskon {Math.round(t.discountRate * 100)}%
+                    {t('profile.rewards.perks.discount', { pct: Math.round(tier.discountRate * 100) })}
                   </p>
                   <p className="text-xs text-muted">
-                    tiap checkout · mulai {t.threshold.toLocaleString('id-ID')} poin
+                    {t('profile.rewards.perks.meta', { n: tier.threshold.toLocaleString('id-ID') })}
                   </p>
                 </div>
               );
@@ -187,6 +181,7 @@ function LoyaltySection() {
 
 /** Points ledger — demoted behind a collapse toggle so the hero leads. */
 function LedgerCard() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<Page<PointsTransaction>>(() =>
     api.get(endpoints.loyalty.transactions({ limit: 10 }), true),
   );
@@ -204,7 +199,7 @@ function LedgerCard() {
         aria-expanded={open}
         className="flex items-center justify-between gap-2 rounded-lg text-left font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
       >
-        {open ? 'Sembunyikan aktivitas poin' : 'Lihat aktivitas poin'}
+        {open ? t('profile.rewards.ledger.hide') : t('profile.rewards.ledger.show')}
         <CaretDown
           size={18}
           weight="bold"
@@ -215,23 +210,23 @@ function LedgerCard() {
       {open &&
         (items.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">
-            Belum ada aktivitas. Selesaikan pesanan untuk mulai mengumpulkan poin.
+            {t('profile.rewards.ledger.empty')}
           </p>
         ) : (
           <ul className="mt-3 divide-y divide-[color:var(--border)]">
-            {items.map((t) => (
-              <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
+            {items.map((txn) => (
+              <li key={txn.id} className="flex items-center justify-between py-2.5 text-sm">
                 <span>
-                  <span className="block font-semibold">{TXN_LABEL[t.type]}</span>
-                  <span className="block text-xs text-muted">{formatDateTime(t.createdAt)}</span>
+                  <span className="block font-semibold">{t(`profile.rewards.txn.${txn.type}`)}</span>
+                  <span className="block text-xs text-muted">{formatDateTime(txn.createdAt)}</span>
                 </span>
                 <span
                   className={`font-extrabold tabular-nums ${
-                    t.points < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'
+                    txn.points < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'
                   }`}
                 >
-                  {t.points > 0 ? '+' : ''}
-                  {t.points.toLocaleString('id-ID')}
+                  {txn.points > 0 ? '+' : ''}
+                  {txn.points.toLocaleString('id-ID')}
                 </span>
               </li>
             ))}
@@ -243,6 +238,7 @@ function LedgerCard() {
 
 /** Referral card — code chip + Copy, stat trio, and a redeem form. */
 function ReferralCard() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<ReferralSummary>(() =>
     api.get(endpoints.referrals.me, true),
   );
@@ -272,7 +268,7 @@ function ReferralCard() {
       setRedeemed(true);
       setCode('');
     } catch (err) {
-      setRedeemError(err instanceof ApiError ? err.message : 'Kode tidak dapat digunakan.');
+      setRedeemError(err instanceof ApiError ? err.message : t('profile.rewards.referral.redeemError'));
     } finally {
       setRedeeming(false);
     }
@@ -283,31 +279,31 @@ function ReferralCard() {
   if (!data) return null;
 
   const stats: { label: string; value: string }[] = [
-    { label: 'Diajak', value: data.referredCount.toLocaleString('id-ID') },
-    { label: 'Memenuhi', value: data.qualifiedCount.toLocaleString('id-ID') },
-    { label: 'Poin', value: data.pointsEarned.toLocaleString('id-ID') },
+    { label: t('profile.rewards.referral.statReferred'), value: data.referredCount.toLocaleString('id-ID') },
+    { label: t('profile.rewards.referral.statQualified'), value: data.qualifiedCount.toLocaleString('id-ID') },
+    { label: t('profile.rewards.referral.statPoints'), value: data.pointsEarned.toLocaleString('id-ID') },
   ];
 
   return (
     <Card className="flex flex-col gap-5 p-5">
       <span className="flex items-center gap-2 font-bold">
         <Gift size={20} weight="fill" className="text-brand-600" />
-        Ajak teman
+        {t('profile.rewards.referral.title')}
       </span>
 
       <div>
-        <p className="mb-1.5 text-sm text-muted">Kode referral Anda</p>
+        <p className="mb-1.5 text-sm text-muted">{t('profile.rewards.referral.codeLabel')}</p>
         <div className="flex items-center gap-2">
           <code className="flex-1 rounded-xl border-2 border-dashed border-brand-300 bg-brand-50 px-4 py-3 text-center text-lg font-extrabold tracking-[0.2em] text-brand-800">
             {data.code.code}
           </code>
-          <Button variant="secondary" onClick={copy} type="button" aria-label="Salin kode">
+          <Button variant="secondary" onClick={copy} type="button" aria-label={t('profile.rewards.referral.copyAria')}>
             {copied ? <CheckCircle size={18} weight="fill" /> : <Copy size={18} weight="bold" />}
-            {copied ? 'Tersalin' : 'Salin'}
+            {copied ? t('profile.rewards.referral.copied') : t('profile.rewards.referral.copy')}
           </Button>
         </div>
         <p className="mt-2 text-xs text-muted">
-          Teman memasukkan kode ini, dan kalian berdua dapat poin saat pesanan pertamanya selesai.
+          {t('profile.rewards.referral.hint')}
         </p>
       </div>
 
@@ -321,7 +317,7 @@ function ReferralCard() {
       </div>
 
       <form onSubmit={redeem} className="flex flex-col gap-2 border-t border-app pt-4">
-        <Field label="Punya kode teman?" htmlFor="referralCode">
+        <Field label={t('profile.rewards.referral.haveCode')} htmlFor="referralCode">
           <div className="flex items-center gap-2">
             <Input
               id="referralCode"
@@ -332,7 +328,7 @@ function ReferralCard() {
               disabled={redeemed}
             />
             <Button type="submit" loading={redeeming} disabled={!code.trim() || redeemed}>
-              Pakai
+              {t('profile.rewards.referral.use')}
             </Button>
           </div>
         </Field>
@@ -342,7 +338,7 @@ function ReferralCard() {
             role="status"
           >
             <CheckCircle size={16} weight="fill" />
-            Kode dipakai — poin masuk saat pesanan pertama Anda selesai.
+            {t('profile.rewards.referral.redeemed')}
           </p>
         )}
         {redeemError && (
@@ -356,11 +352,12 @@ function ReferralCard() {
 }
 
 function RewardsInner() {
+  const { t } = useT();
   return (
     <div className="flex flex-col gap-8">
       <h1 className="flex items-center gap-2.5 text-[30px] font-extrabold tracking-tight">
         <Sparkle size={28} weight="fill" className="text-brand-600" />
-        Rewards &amp; poin
+        {t('profile.rewards.title')}
       </h1>
 
       <LoyaltySection />

@@ -21,10 +21,12 @@ import { CenterState, ErrorState, IconButton, LinkButton, Money, Skeleton } from
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types';
 
 function CartInner() {
+  const { t } = useT();
   const { toast } = useToast();
   const { refresh, bump } = useCart();
 
@@ -120,10 +122,10 @@ function CartInner() {
       const fresh = await api.get<Cart>(endpoints.cart.view, true);
       setLines(fresh.items);
       await refresh();
-      toast('Ditambahkan ke keranjang');
+      toast(t('order.toast.added'));
     } catch {
       bump(-1);
-      toast('Gagal menambahkan', 'error');
+      toast(t('order.toast.addFailed'), 'error');
     }
   }
 
@@ -141,10 +143,10 @@ function CartInner() {
     return (
       <CenterState
         icon={<ShoppingCart size={48} weight="thin" />}
-        title="Keranjang masih kosong"
-        action={<LinkButton href="/products">Mulai belanja</LinkButton>}
+        title={t('order.cart.emptyTitle')}
+        action={<LinkButton href="/products">{t('order.cart.startShopping')}</LinkButton>}
       >
-        Tambahkan galon atau air kemasan untuk memulai.
+        {t('order.cart.emptyBody')}
       </CenterState>
     );
   }
@@ -154,8 +156,10 @@ function CartInner() {
   return (
     <div className="flex flex-col gap-5">
       <h1 className="text-[30px] font-extrabold tracking-tight">
-        Keranjang{' '}
-        <span className="text-[15px] font-bold text-muted">— {totalQty} item</span>
+        {t('order.cart.title')}{' '}
+        <span className="text-[15px] font-bold text-muted">
+          {t('order.cart.itemCount', { n: totalQty })}
+        </span>
       </h1>
 
       <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -184,7 +188,7 @@ function CartInner() {
                 <Money amount={line.lineTotal} />
               </div>
               <IconButton
-                aria-label={`Hapus ${line.productName}`}
+                aria-label={t('order.cart.removeAria', { name: line.productName })}
                 onClick={() => remove(line.productId)}
                 disabled={busy === line.productId}
                 className="text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
@@ -200,14 +204,14 @@ function CartInner() {
               className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-muted transition-colors hover:text-[color:var(--danger)]"
             >
               <Trash size={15} />
-              Kosongkan keranjang
+              {t('order.cart.clear')}
             </button>
             <Link
               href="/products"
               className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-brand-600 transition-colors hover:text-brand-700"
             >
               <ArrowLeft size={15} />
-              Lanjut belanja
+              {t('order.cart.continueShopping')}
             </Link>
           </div>
 
@@ -215,7 +219,7 @@ function CartInner() {
           {recItems.length > 0 && (
             <div className="mt-4">
               <h2 className="mb-3 text-[17px] font-extrabold tracking-tight">
-                Sekalian, biar sekali antar
+                {t('order.cart.addOnTitle')}
               </h2>
               <div className="grid grid-cols-2 gap-3">
                 {recItems.map((rec) => (
@@ -237,7 +241,7 @@ function CartInner() {
                     </Link>
                     <button
                       onClick={() => addOn(rec.productId)}
-                      aria-label={`Tambah ${rec.name} ke keranjang`}
+                      aria-label={t('order.cart.addOnAria', { name: rec.name })}
                       className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-colors hover:bg-brand-600 hover:text-white"
                     >
                       <Plus size={14} weight="bold" />
@@ -251,46 +255,48 @@ function CartInner() {
 
         {/* summary */}
         <div className="surface flex flex-col gap-3.5 rounded-2xl p-6 shadow-card lg:sticky lg:top-20">
-          <h2 className="text-[17px] font-extrabold">Ringkasan</h2>
+          <h2 className="text-[17px] font-extrabold">{t('order.cart.summary')}</h2>
           <div className="flex justify-between text-sm">
-            <span className="text-muted">Subtotal</span>
+            <span className="text-muted">{t('order.cart.subtotal')}</span>
             <Money amount={subtotal} className="font-bold" />
           </div>
           {rate > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Diskon member ({Math.round(rate * 100)}%)</span>
+              <span className="text-muted">
+                {t('order.cart.memberDiscount', { pct: Math.round(rate * 100) })}
+              </span>
               <span className="font-bold text-[color:var(--success)]">
                 −<Money amount={discount} />
               </span>
             </div>
           )}
           <div className="flex justify-between border-t border-app pt-3.5 text-base font-extrabold">
-            <span>Estimasi total</span>
+            <span>{t('order.cart.estTotal')}</span>
             <Money amount={total} />
           </div>
           <p className="text-[12.5px] leading-relaxed text-muted">
-            Ongkir dihitung saat checkout, setelah depot ditentukan.
+            {t('order.cart.shippingNote')}
           </p>
           <LinkButton href="/checkout" className="h-13 w-full rounded-full text-[15px] font-extrabold">
-            Checkout
+            {t('order.cart.checkout')}
             <ArrowRight size={17} />
           </LinkButton>
           <div className="flex items-center gap-2 rounded-xl bg-[color:var(--warning-bg)] px-3.5 py-2.5 text-[12.5px] text-[color:var(--warning)]">
             <Tag size={16} weight="fill" className="flex-shrink-0" />
-            Punya kode voucher? Masukkan saat checkout.
+            {t('order.cart.voucherHint')}
           </div>
           <div className="flex justify-center gap-4 pt-1 text-[11.5px] font-bold text-muted">
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck size={14} weight="fill" className="text-brand-600" />
-              Bayar aman
+              {t('order.cart.trustSecure')}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Clock size={14} weight="fill" className="text-brand-600" />
-              Antar ±30 mnt
+              {t('order.cart.trustFast')}
             </span>
             <span className="inline-flex items-center gap-1.5">
               <Drop size={14} weight="fill" className="text-brand-600" />
-              Tersegel
+              {t('order.cart.trustSealed')}
             </span>
           </div>
         </div>

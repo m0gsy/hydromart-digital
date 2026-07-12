@@ -12,7 +12,8 @@ import {
 
 import { Badge } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
-import { ORDER_FLOW, statusLabel, tone } from '@/lib/order-status';
+import { useT } from '@/lib/locale-context';
+import { ORDER_FLOW, tone } from '@/lib/order-status';
 import type { OrderStatus, OrderStatusEvent } from '@/lib/types';
 
 const TONE_TO_BADGE = {
@@ -22,32 +23,21 @@ const TONE_TO_BADGE = {
 } as const;
 
 export function StatusBadge({ status }: { status: OrderStatus }) {
-  return <Badge tone={TONE_TO_BADGE[tone(status)]}>{statusLabel(status)}</Badge>;
+  const { t } = useT();
+  return <Badge tone={TONE_TO_BADGE[tone(status)]}>{t(`order.status.${status}`)}</Badge>;
 }
 
 /* ---------- Node progress tracker ---------- */
 
 // Five display milestones mapped onto ORDER_FLOW indices. Statuses between two
 // nodes (CONFIRMED, DRIVER_ASSIGNED) fold into the node just before them.
-const MILESTONES: { label: string; status: OrderStatus; icon: Icon }[] = [
-  { label: 'Dipesan', status: 'CREATED', icon: Receipt },
-  { label: 'Disiapkan', status: 'PREPARING', icon: Package },
-  { label: 'Diambil', status: 'PICKED_UP', icon: HandDeposit },
-  { label: 'Diantar', status: 'ON_DELIVERY', icon: Truck },
-  { label: 'Tiba', status: 'DELIVERED', icon: House },
+const MILESTONES: { labelKey: string; status: OrderStatus; icon: Icon }[] = [
+  { labelKey: 'order.progress.placed', status: 'CREATED', icon: Receipt },
+  { labelKey: 'order.progress.prepared', status: 'PREPARING', icon: Package },
+  { labelKey: 'order.progress.pickedUp', status: 'PICKED_UP', icon: HandDeposit },
+  { labelKey: 'order.progress.onWay', status: 'ON_DELIVERY', icon: Truck },
+  { labelKey: 'order.progress.arrived', status: 'DELIVERED', icon: House },
 ];
-
-// Generic, name/time-free status line for the banner.
-const BANNER_TEXT: Record<Exclude<OrderStatus, 'CANCELLED'>, string> = {
-  CREATED: 'Pesananmu sedang diproses',
-  CONFIRMED: 'Pesananmu sedang diproses',
-  PREPARING: 'Pesananmu sedang disiapkan di depot',
-  DRIVER_ASSIGNED: 'Kurir sedang menuju depot',
-  PICKED_UP: 'Pesananmu sudah diambil kurir',
-  ON_DELIVERY: 'Pesananmu sedang dalam perjalanan',
-  DELIVERED: 'Pesananmu sudah tiba',
-  COMPLETED: 'Pesanan selesai — terima kasih!',
-};
 
 function bannerIcon(status: OrderStatus): Icon {
   if (status === 'DELIVERED' || status === 'COMPLETED') return CheckCircle;
@@ -59,11 +49,14 @@ function bannerIcon(status: OrderStatus): Icon {
 
 /** Stepped node tracker through the fulfilment flow, with a status banner. */
 export function OrderProgress({ status }: { status: OrderStatus }) {
+  const { t } = useT();
   if (status === 'CANCELLED') {
     return (
       <div className="flex items-center gap-2.5 rounded-xl bg-[color:var(--danger-bg)] px-4 py-3">
         <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--danger)]" />
-        <span className="text-sm font-bold text-[color:var(--danger)]">Pesanan dibatalkan</span>
+        <span className="text-sm font-bold text-[color:var(--danger)]">
+          {t('order.banner.CANCELLED')}
+        </span>
       </div>
     );
   }
@@ -107,7 +100,7 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
                   state === 'upcoming' ? 'text-muted' : 'font-bold'
                 }`}
               >
-                {m.label}
+                {t(m.labelKey)}
               </span>
             </div>
           );
@@ -116,7 +109,7 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
 
       <div className="flex items-center gap-2.5 rounded-xl bg-[color:#f2fafb] px-4 py-3.5 dark:bg-brand-50">
         <BannerIcon size={20} weight="fill" className="shrink-0 text-brand-600" />
-        <span className="text-sm font-bold">{BANNER_TEXT[status]}</span>
+        <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
       </div>
     </div>
   );
@@ -126,6 +119,7 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
 
 /** Vertical, append-only status history in the 1c dot-and-line style. */
 export function OrderTimeline({ history }: { history: OrderStatusEvent[] }) {
+  const { t } = useT();
   const events = [...history].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
@@ -145,7 +139,7 @@ export function OrderTimeline({ history }: { history: OrderStatusEvent[] }) {
           </div>
           <div className="pb-4">
             <p className={`text-sm ${i === 0 ? 'font-bold' : 'font-semibold'}`}>
-              {statusLabel(event.status)}
+              {t(`order.status.${event.status}`)}
             </p>
             <p className="mt-0.5 text-xs text-muted">{formatDateTime(event.createdAt)}</p>
             {event.note && <p className="mt-0.5 text-xs font-semibold text-brand-700">{event.note}</p>}

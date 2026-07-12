@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Promotion } from '@/lib/types';
 
 // Marketing banners on the Home page (public promo feed). A discovery surface:
@@ -68,6 +69,7 @@ function Banner({ promo, index }: { promo: Promotion; index: number }) {
 }
 
 export function PromoCarousel() {
+  const { t } = useT();
   const { data, loading, error } = useAsync<Promotion[]>(
     () => api.get<Promotion[]>(endpoints.promotions.list),
     [],
@@ -76,7 +78,7 @@ export function PromoCarousel() {
   if (loading || error || !data || data.length === 0) return null;
 
   return (
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label="Promo">
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label={t('home.promo.aria')}>
       {data.map((promo, i) => (
         <Banner key={promo.id} promo={promo} index={i} />
       ))}

@@ -7,6 +7,7 @@ import type { Icon } from '@phosphor-icons/react';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import { SectionHeader } from '@/components/ui';
 import { MotionSection, MotionItem, pressable } from '@/components/motion';
 import type { Category } from '@/lib/types';
@@ -25,6 +26,7 @@ function iconFor(name: string): Icon {
 }
 
 export function CategoryGrid() {
+  const { t } = useT();
   const { data, loading, error } = useAsync<Category[]>(
     () => api.get<Category[]>(endpoints.products.categories),
     [],
@@ -33,8 +35,8 @@ export function CategoryGrid() {
   if (loading || error || !data || data.length === 0) return null;
 
   return (
-    <section aria-label="Kategori">
-      <SectionHeader title="Kategori" />
+    <section aria-label={t('home.category.aria')}>
+      <SectionHeader title={t('home.category.title')} />
       <MotionSection className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {data.map((cat) => {
           const CatIcon = iconFor(cat.name);

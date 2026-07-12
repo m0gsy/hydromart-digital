@@ -9,6 +9,7 @@ import { Button, Card, Field, Input, Skeleton } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import type { OtpChallenge } from '@/lib/types';
 
 function BrandMark() {
@@ -23,6 +24,7 @@ function BrandMark() {
 }
 
 function LoginForm() {
+  const { t } = useT();
   const router = useRouter();
   const next = useSearchParams().get('next') ?? '/products';
   const [phone, setPhone] = useState('');
@@ -38,14 +40,14 @@ function LoginForm() {
       const params = new URLSearchParams({ phone, purpose: 'LOGIN', next });
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Tidak bisa memulai proses masuk.');
+      setError(err instanceof ApiError ? err.message : t('auth.login.error'));
       setLoading(false);
     }
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Nomor telepon" htmlFor="phone" hint="Nomor yang kamu daftarkan">
+      <Field label={t('auth.login.phoneLabel')} htmlFor="phone" hint={t('auth.login.phoneHint')}>
         <Input
           id="phone"
           required
@@ -62,7 +64,7 @@ function LoginForm() {
         </p>
       )}
       <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
-        Kirim kode
+        {t('auth.login.submit')}
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
       <GoogleSignInButton next={next} />
@@ -71,23 +73,24 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  const { t } = useT();
   return (
     <div className="flex min-h-[70vh] items-center justify-center py-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <BrandMark />
         <Card className="p-6 sm:p-8">
           <div className="mb-6 flex flex-col gap-1.5 text-center">
-            <h1 className="text-2xl font-extrabold tracking-tight">Selamat datang kembali</h1>
-            <p className="text-sm text-muted">Masuk dengan nomor teleponmu — kami kirim kode sekali pakai.</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{t('auth.login.heading')}</h1>
+            <p className="text-sm text-muted">{t('auth.login.subtitle')}</p>
           </div>
           <Suspense fallback={<Skeleton className="h-40 w-full rounded-xl" />}>
             <LoginForm />
           </Suspense>
         </Card>
         <p className="text-center text-sm text-muted">
-          Belum punya akun?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Link href="/register" className="font-bold text-brand-700 transition-colors hover:text-brand-800">
-            Daftar sekarang
+            {t('auth.login.registerCta')}
           </Link>
         </p>
       </div>

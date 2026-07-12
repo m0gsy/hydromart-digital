@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
+import { useT } from '@/lib/locale-context';
 import { Card, Chip, Money, Skeleton } from '@/components/ui';
 import { LocationSelector } from '@/components/location-selector';
 import type { NearbyDepot } from '@/lib/types';
@@ -16,6 +17,7 @@ import type { NearbyDepot } from '@/lib/types';
 
 export function NearbyDepots() {
   const { location, ready } = useLocation();
+  const { t } = useT();
 
   const { data, loading } = useAsync<NearbyDepot[]>(
     () =>
@@ -28,17 +30,17 @@ export function NearbyDepots() {
   if (!ready) return null;
 
   return (
-    <section aria-label="Depot terdekat">
+    <section aria-label={t('home.depots.aria')}>
       <Card className="flex flex-col gap-3 p-6">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-extrabold">Depot terdekat</h2>
+          <h2 className="text-lg font-extrabold">{t('home.depots.title')}</h2>
           {location && <LocationSelector compact />}
         </div>
 
         {!location ? (
           <div className="flex flex-col items-start gap-3">
             <p className="text-sm text-muted">
-              Atur lokasi untuk melihat depot terdekat dan cek apakah kami mengantar ke area Anda.
+              {t('home.depots.setLocation')}
             </p>
             <LocationSelector />
           </div>
@@ -49,7 +51,7 @@ export function NearbyDepots() {
             ))}
           </div>
         ) : !data || data.length === 0 ? (
-          <p className="text-sm text-muted">Belum ada depot di sekitar lokasi ini.</p>
+          <p className="text-sm text-muted">{t('home.depots.empty')}</p>
         ) : (
           <>
             {data.map((d) => (
@@ -66,10 +68,10 @@ export function NearbyDepots() {
                     {d.city} ·{' '}
                     {d.withinService ? (
                       <>
-                        ongkir <Money amount={d.deliveryFee} />
+                        {t('home.depots.deliveryFee')} <Money amount={d.deliveryFee} />
                       </>
                     ) : (
-                      'Di luar area antar'
+                      t('home.depots.outOfArea')
                     )}
                   </div>
                 </div>
@@ -80,10 +82,10 @@ export function NearbyDepots() {
             ))}
             <div className="mt-1.5 flex flex-wrap gap-x-5 gap-y-2 border-t border-app pt-3.5">
               <span className="flex items-center gap-1.5 text-xs font-bold text-muted">
-                <Clock size={16} weight="fill" className="text-brand-600" /> Antar ±30 mnt
+                <Clock size={16} weight="fill" className="text-brand-600" /> {t('home.depots.eta')}
               </span>
               <span className="flex items-center gap-1.5 text-xs font-bold text-muted">
-                <ShieldCheck size={16} weight="fill" className="text-brand-600" /> Tersegel &amp; resmi
+                <ShieldCheck size={16} weight="fill" className="text-brand-600" /> {t('home.depots.sealed')}
               </span>
               <span className="flex items-center gap-1.5 text-xs font-bold text-muted">
                 <Wallet size={16} weight="fill" className="text-brand-600" /> COD / QRIS / e-wallet

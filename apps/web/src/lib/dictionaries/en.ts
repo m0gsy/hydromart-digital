@@ -1,4 +1,9 @@
 import type { Dictionary } from './id';
+import { home } from './en/home';
+import { shop } from './en/shop';
+import { order } from './en/order';
+import { profile } from './en/profile';
+import { auth } from './en/auth';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
 export const en: Dictionary = {
@@ -29,4 +34,9 @@ export const en: Dictionary = {
     loading: 'Loading…',
     somethingWrong: 'Something went wrong',
   },
+  home,
+  shop,
+  order,
+  profile,
+  auth,
 };

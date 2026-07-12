@@ -14,8 +14,9 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Order, OrderStatus, Page, Payment, PaymentMethod } from '@/lib/types';
+import type { Order, Page, Payment, PaymentMethod } from '@/lib/types';
 
 const PAYMENT_TONE = {
   PENDING: 'warning',
@@ -24,19 +25,6 @@ const PAYMENT_TONE = {
   CANCELLED: 'neutral',
   REFUNDED: 'neutral',
 } as const;
-
-// Bahasa status labels for the header chip (statusLabel() is English).
-const STATUS_ID: Record<OrderStatus, string> = {
-  CREATED: 'Dipesan',
-  CONFIRMED: 'Dikonfirmasi',
-  PREPARING: 'Disiapkan',
-  DRIVER_ASSIGNED: 'Kurir ditugaskan',
-  PICKED_UP: 'Diambil kurir',
-  ON_DELIVERY: 'Dalam perjalanan',
-  DELIVERED: 'Tiba',
-  COMPLETED: 'Selesai',
-  CANCELLED: 'Dibatalkan',
-};
 
 const CHIP_TONE = {
   active: 'bg-brand-50 text-brand-800',
@@ -51,6 +39,7 @@ const CHIP_DOT = {
 } as const;
 
 function OrderDetailInner({ id }: { id: string }) {
+  const { t } = useT();
   const router = useRouter();
   const { toast } = useToast();
   const { data: order, error, loading, reload } = useAsync<Order>(
@@ -94,7 +83,7 @@ function OrderDetailInner({ id }: { id: string }) {
       );
       reloadPayments();
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa memulai pembayaran.');
+      setActionError(e instanceof ApiError ? e.message : t('order.detail.payError'));
     } finally {
       setAction(null);
     }
@@ -106,9 +95,9 @@ function OrderDetailInner({ id }: { id: string }) {
     try {
       await api.post(endpoints.orders.cancel(id), {}, true);
       reload();
-      toast('Pesanan dibatalkan');
+      toast(t('order.toast.cancelled'));
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa membatalkan pesanan.');
+      setActionError(e instanceof ApiError ? e.message : t('order.detail.cancelError'));
     } finally {
       setAction(null);
     }
@@ -119,26 +108,26 @@ function OrderDetailInner({ id }: { id: string }) {
     setActionError(null);
     try {
       await api.post(endpoints.orders.repeat(id), {}, true);
-      toast('Item ditambahkan ke keranjang');
+      toast(t('order.toast.itemsAdded'));
       router.push('/cart');
     } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : 'Tidak bisa menambahkan item ini lagi.');
+      setActionError(e instanceof ApiError ? e.message : t('order.detail.repeatError'));
       setAction(null);
     }
   }
 
   if (loading) return <Skeleton className="h-96 w-full" />;
-  if (error || !order) return <ErrorState message={error ?? 'Pesanan tidak ditemukan.'} onRetry={reload} />;
+  if (error || !order) return <ErrorState message={error ?? t('order.detail.notFound')} onRetry={reload} />;
 
   const payment = payments?.items[0];
-  const t = tone(order.status);
+  const toneKey = tone(order.status);
 
   return (
     <div className="flex flex-col gap-5">
       {/* breadcrumb */}
       <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
         <Link href="/orders" className="transition-colors hover:text-brand-600">
-          Pesanan
+          {t('nav.orders')}
         </Link>
         <CaretRight size={11} />
         <span className="text-[color:var(--text)]">#{order.orderNumber}</span>
@@ -149,15 +138,18 @@ function OrderDetailInner({ id }: { id: string }) {
         <div className="min-w-0">
           <h1 className="text-[30px] font-extrabold tracking-tight">#{order.orderNumber}</h1>
           <p className="mt-1 text-sm text-muted">
-            Dipesan {formatDateTime(order.createdAt)} · {order.items.length} item · Total{' '}
+            {t('order.detail.placedMeta', {
+              date: formatDateTime(order.createdAt),
+              n: order.items.length,
+            })}{' '}
             <Money amount={order.total} className="font-bold text-[color:var(--text)]" />
           </p>
         </div>
         <span
-          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold ${CHIP_TONE[t]}`}
+          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold ${CHIP_TONE[toneKey]}`}
         >
-          <span className={`h-2 w-2 rounded-full ${CHIP_DOT[t]}`} />
-          {STATUS_ID[order.status]}
+          <span className={`h-2 w-2 rounded-full ${CHIP_DOT[toneKey]}`} />
+          {t(`order.status.${order.status}`)}
         </span>
       </div>
 
@@ -171,7 +163,7 @@ function OrderDetailInner({ id }: { id: string }) {
         <div className="flex flex-col gap-4">
           {/* items */}
           <Card className="flex flex-col gap-3 p-6">
-            <h2 className="text-base font-extrabold">Item</h2>
+            <h2 className="text-base font-extrabold">{t('order.detail.items')}</h2>
             {order.items.map((item) => (
               <div key={item.id} className="flex items-center gap-3">
                 <div
@@ -192,23 +184,23 @@ function OrderDetailInner({ id }: { id: string }) {
             ))}
             <div className="mt-1 flex flex-col gap-2 border-t border-app pt-3 text-[13.5px]">
               <div className="flex justify-between">
-                <span className="text-muted">Subtotal</span>
+                <span className="text-muted">{t('order.detail.subtotal')}</span>
                 <Money amount={order.subtotal} className="font-bold" />
               </div>
               <div className="flex justify-between">
-                <span className="text-muted">Ongkir</span>
+                <span className="text-muted">{t('order.detail.delivery')}</span>
                 <Money amount={order.deliveryFee} className="font-bold" />
               </div>
               {order.discount > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-muted">Diskon</span>
+                  <span className="text-muted">{t('order.detail.discount')}</span>
                   <span className="font-bold text-[color:var(--success)]">
                     −<Money amount={order.discount} />
                   </span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t border-app pt-3 text-base font-extrabold">
-                <span>Total</span>
+                <span>{t('order.detail.total')}</span>
                 <Money amount={order.total} />
               </div>
             </div>
@@ -221,7 +213,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 <MoneyIcon size={18} weight="fill" className="text-brand-600" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">Pembayaran · {payment.method}</p>
+                <p className="text-sm font-bold">{t('order.detail.payment')} · {payment.method}</p>
                 {payment.instruction && (
                   <p className="text-[12.5px] text-muted">{payment.instruction}</p>
                 )}
@@ -235,10 +227,10 @@ function OrderDetailInner({ id }: { id: string }) {
             <Card className="flex flex-col gap-3 p-6">
               <div>
                 <h2 className="text-base font-extrabold">
-                  {payment ? 'Coba bayar lagi' : 'Bayar pesanan ini'}
+                  {payment ? t('order.detail.payRetry') : t('order.detail.payTitle')}
                 </h2>
                 <p className="text-sm text-muted">
-                  Pilih metode pembayaran untuk{' '}
+                  {t('order.detail.choosePayment')}{' '}
                   <Money amount={order.total} className="font-bold text-[color:var(--text)]" />.
                 </p>
               </div>
@@ -265,14 +257,14 @@ function OrderDetailInner({ id }: { id: string }) {
                 ))}
               </div>
               <Button onClick={pay} loading={action === 'pay'} className="rounded-full">
-                Bayar sekarang
+                {t('order.detail.payNow')}
               </Button>
             </Card>
           )}
 
           {/* address */}
           <Card className="flex flex-col gap-1.5 p-6 text-sm">
-            <h2 className="text-base font-extrabold">Alamat pengiriman</h2>
+            <h2 className="text-base font-extrabold">{t('order.detail.deliveryAddress')}</h2>
             <p className="font-bold">
               {order.recipientName} · {order.phone}
             </p>
@@ -282,7 +274,7 @@ function OrderDetailInner({ id }: { id: string }) {
             </p>
             {order.notes && (
               <p className="text-[12.5px] text-muted">
-                Catatan: <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
+                {t('order.detail.notes')}: <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
               </p>
             )}
           </Card>
@@ -297,7 +289,7 @@ function OrderDetailInner({ id }: { id: string }) {
           <div className="flex flex-wrap gap-3">
             <Button onClick={repeat} loading={action === 'repeat'} className="rounded-full">
               <ArrowsClockwise size={17} weight="bold" />
-              Pesan lagi
+              {t('order.detail.reorder')}
             </Button>
             {isCancellable(order.status) && (
               <Button
@@ -306,7 +298,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 loading={action === 'cancel'}
                 className="rounded-full hover:border-[color:var(--danger)] hover:text-[color:var(--danger)]"
               >
-                Batalkan pesanan
+                {t('order.detail.cancel')}
               </Button>
             )}
           </div>
@@ -314,7 +306,7 @@ function OrderDetailInner({ id }: { id: string }) {
 
         {/* RIGHT */}
         <Card className="p-6">
-          <h2 className="mb-4 text-base font-extrabold">Riwayat</h2>
+          <h2 className="mb-4 text-base font-extrabold">{t('order.detail.history')}</h2>
           <OrderTimeline history={order.history} />
         </Card>
       </div>

@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
+import { useT } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
 import { Hero } from '@/components/hero';
 import { PromoCarousel } from '@/components/promo-carousel';
@@ -21,6 +22,7 @@ import { ProductRecRail } from '@/components/product-rec-rail';
 export default function HomePage() {
   const { customer } = useAuth();
   const { location } = useLocation();
+  const { t } = useT();
 
   // Depot-scope best-sellers to the chosen location when known.
   const trending = endpoints.recommendations.trending(
@@ -34,10 +36,10 @@ export default function HomePage() {
       {customer ? (
         <>
           <ActiveOrderCard />
-          <ProductRecRail title="Beli lagi" endpoint={endpoints.recommendations.reorder()} requiresAuth />
+          <ProductRecRail title={t('home.rail.reorder')} endpoint={endpoints.recommendations.reorder()} requiresAuth />
           <PromoCarousel />
           <CategoryGrid />
-          <ProductRecRail title="Terlaris" endpoint={trending} />
+          <ProductRecRail title={t('home.rail.trending')} endpoint={trending} />
           <LoyaltyHighlight />
           <NearbyDepots />
           <TrustIndicators />
@@ -46,7 +48,7 @@ export default function HomePage() {
         <>
           <PromoCarousel />
           <CategoryGrid />
-          <ProductRecRail title="Terlaris" endpoint={trending} />
+          <ProductRecRail title={t('home.rail.trending')} endpoint={trending} />
           <TrustIndicators />
           <LoyaltyHighlight />
           <NearbyDepots />

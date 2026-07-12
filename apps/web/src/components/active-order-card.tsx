@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import { Money } from '@/components/ui';
 import type { Order, OrderStatus, Page } from '@/lib/types';
 
@@ -17,6 +18,7 @@ const CLOSED: OrderStatus[] = ['COMPLETED', 'CANCELLED'];
 
 export function ActiveOrderCard() {
   const { customer } = useAuth();
+  const { t } = useT();
 
   const { data } = useAsync<Page<Order>>(
     () => (customer ? api.get(endpoints.orders.list, true) : Promise.resolve(null as never)),
@@ -36,13 +38,13 @@ export function ActiveOrderCard() {
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[color:var(--success)]" />
       </span>
       <span className="text-sm font-bold text-[color:var(--text)]">
-        Pesanan #{active.orderNumber} sedang diantar
+        {t('home.activeOrder.status', { orderNumber: active.orderNumber })}
       </span>
       <span className="text-[13.5px] text-muted">
-        {active.items.length} item · <Money amount={active.total} />
+        {active.items.length} {t('home.activeOrder.item')} · <Money amount={active.total} />
       </span>
       <span className="ml-auto flex items-center gap-1.5 text-sm font-bold text-brand-600">
-        Lacak kurir
+        {t('home.activeOrder.track')}
         <ArrowRight size={15} />
       </span>
     </Link>

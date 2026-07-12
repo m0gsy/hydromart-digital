@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import { SectionHeader } from '@/components/ui';
 import type { Recommendation } from '@/lib/types';
 
@@ -17,6 +18,7 @@ import type { Recommendation } from '@/lib/types';
 // chip the catalog ProductCard shows — name, unit, and a round teal add button.
 function RailCard({ item }: { item: Recommendation }) {
   const router = useRouter();
+  const { t } = useT();
   const { customer } = useAuth();
   const { bump, refresh } = useCart();
   const [adding, setAdding] = useState(false);
@@ -57,7 +59,7 @@ function RailCard({ item }: { item: Recommendation }) {
           <button
             onClick={addToCart}
             disabled={adding}
-            aria-label={`Tambah ${item.name} ke keranjang`}
+            aria-label={t('home.rail.addAria', { name: item.name })}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
           >
             {added ? <Check size={18} weight="bold" /> : <Plus size={18} weight="bold" />}

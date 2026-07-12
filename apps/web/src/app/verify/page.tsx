@@ -10,6 +10,7 @@ import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
 const RESEND_SECONDS = 30;
@@ -26,6 +27,7 @@ function BrandMark() {
 }
 
 function VerifyForm() {
+  const { t } = useT();
   const router = useRouter();
   const { signIn } = useAuth();
   const params = useSearchParams();
@@ -56,7 +58,7 @@ function VerifyForm() {
       signIn(session);
       router.replace(next);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Verifikasi gagal.');
+      setError(err instanceof ApiError ? err.message : t('auth.verify.error'));
       setLoading(false);
     }
   }
@@ -67,17 +69,17 @@ function VerifyForm() {
     setResent(null);
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.resendOtp, { phone, purpose });
-      setResent(`Kode baru dikirim ke ${challenge.phoneMasked}.`);
+      setResent(t('auth.verify.sentTo', { phone: challenge.phoneMasked }));
       setCooldown(RESEND_SECONDS);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Tidak bisa mengirim ulang kode.');
+      setError(err instanceof ApiError ? err.message : t('auth.verify.resendError'));
     }
   }
 
   if (!phone) {
     return (
       <p className="text-center text-sm text-muted">
-        Nomor telepon tidak ditemukan. Silakan mulai lagi dari halaman masuk.
+        {t('auth.verify.noPhone')}
       </p>
     );
   }
@@ -85,7 +87,7 @@ function VerifyForm() {
   return (
     <form onSubmit={(e) => { e.preventDefault(); verify(code); }} className="flex flex-col gap-5">
       <p className="text-center text-sm text-muted">
-        {purpose === 'REGISTRATION' ? 'Selesaikan pendaftaran.' : 'Masuk ke akunmu.'} Masukkan kode yang kami kirim ke{' '}
+        {purpose === 'REGISTRATION' ? t('auth.verify.introReg') : t('auth.verify.introLogin')} {t('auth.verify.enterCode')}{' '}
         <span className="font-bold text-[color:var(--text)]">{phone}</span>.
       </p>
 
@@ -106,18 +108,18 @@ function VerifyForm() {
       )}
 
       <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
-        Verifikasi & lanjut
+        {t('auth.verify.submit')}
       </Button>
 
       <div className="text-center text-sm text-muted">
-        Tidak menerima kode?{' '}
+        {t('auth.verify.notReceived')}{' '}
         <button
           type="button"
           onClick={resend}
           disabled={counting}
           className="font-bold text-brand-700 transition-colors hover:text-brand-800 disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
         >
-          {counting ? `Kirim ulang dalam ${cooldown}d` : 'Kirim ulang kode'}
+          {counting ? t('auth.verify.resendIn', { n: cooldown }) : t('auth.verify.resend')}
         </button>
       </div>
     </form>
@@ -125,14 +127,15 @@ function VerifyForm() {
 }
 
 export default function VerifyPage() {
+  const { t } = useT();
   return (
     <div className="flex min-h-[70vh] items-center justify-center py-10">
       <div className="flex w-full max-w-sm flex-col gap-6">
         <BrandMark />
         <Card className="p-6 sm:p-8">
           <div className="mb-6 flex flex-col gap-1.5 text-center">
-            <h1 className="text-2xl font-extrabold tracking-tight">Verifikasi nomormu</h1>
-            <p className="text-sm text-muted">Kode 6 digit berlaku beberapa menit.</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">{t('auth.verify.heading')}</h1>
+            <p className="text-sm text-muted">{t('auth.verify.subtitle')}</p>
           </div>
           <Suspense fallback={<Skeleton className="h-48 w-full rounded-xl" />}>
             <VerifyForm />
@@ -143,7 +146,7 @@ export default function VerifyPage() {
           className="inline-flex items-center justify-center gap-1.5 text-center text-sm font-bold text-brand-700 transition-colors hover:text-brand-800"
         >
           <ArrowLeft size={15} weight="bold" />
-          Kembali ke masuk
+          {t('auth.verify.back')}
         </Link>
       </div>
     </div>

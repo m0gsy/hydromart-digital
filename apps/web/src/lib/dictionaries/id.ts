@@ -1,5 +1,12 @@
-// Bahasa Indonesia — default locale. Keys are dot-addressed (e.g. t('nav.shop')).
-// Add keys per screen as it's rebuilt; en.ts must mirror this shape.
+// Bahasa Indonesia — default locale + source of truth for the key shape.
+// Shared chrome (nav/account/common) lives inline; each screen area is a
+// fragment under ./id/*. en.ts mirrors this exact shape (type Dictionary).
+import { home } from './id/home';
+import { shop } from './id/shop';
+import { order } from './id/order';
+import { profile } from './id/profile';
+import { auth } from './id/auth';
+
 export const id = {
   nav: {
     home: 'Beranda',
@@ -28,6 +35,11 @@ export const id = {
     loading: 'Memuat…',
     somethingWrong: 'Ada yang tidak beres',
   },
+  home,
+  shop,
+  order,
+  profile,
+  auth,
 };
 
 export type Dictionary = typeof id;

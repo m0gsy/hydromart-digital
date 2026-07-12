@@ -6,19 +6,21 @@ import { useRouter } from 'next/navigation';
 import { ArrowsClockwise, Drop, MagnifyingGlass } from '@phosphor-icons/react';
 
 import { LocationSelector } from '@/components/location-selector';
+import { useT } from '@/lib/locale-context';
 
 // Home hero (1c Fresh Flow): teal-tint rounded panel with a big greeting, a
 // rounded-full search pill, quick-search chips, the delivery-location control,
 // and a designed image slot with a floating "beli lagi" affordance.
 
 const QUICK = [
-  { label: 'Isi ulang galon', q: 'galon' },
-  { label: 'Air botol', q: 'botol' },
-  { label: 'Dispenser', q: 'dispenser' },
+  { label: 'home.hero.quick.refill', q: 'galon' },
+  { label: 'home.hero.quick.bottled', q: 'botol' },
+  { label: 'home.hero.quick.dispenser', q: 'dispenser' },
 ];
 
 export function Hero({ greetingName }: { greetingName?: string | null }) {
   const router = useRouter();
+  const { t } = useT();
   const [term, setTerm] = useState('');
 
   function submit(e: React.FormEvent) {
@@ -30,16 +32,16 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
   const first = greetingName ? greetingName.split(' ')[0] : null;
 
   return (
-    <section aria-label="Beranda" className="relative overflow-hidden rounded-3xl bg-brand-50 p-7 sm:p-10">
+    <section aria-label={t('home.hero.aria')} className="relative overflow-hidden rounded-3xl bg-brand-50 p-7 sm:p-10">
       <div className="grid items-center gap-8 lg:grid-cols-[1fr_minmax(0,420px)]">
         <div className="flex flex-col gap-4">
           <h1 className="text-3xl font-extrabold leading-[1.08] tracking-tight text-[color:var(--text)] sm:text-[42px]">
-            {first ? `Halo, ${first}.` : 'Air minum,'}
+            {first ? t('home.hero.greeting', { name: first }) : t('home.hero.titleGuest1')}
             <br />
-            <span className="text-brand-800">{first ? 'Stok galonmu aman?' : 'diantar ke rumah.'}</span>
+            <span className="text-brand-800">{first ? t('home.hero.titleUser2') : t('home.hero.titleGuest2')}</span>
           </h1>
           <p className="max-w-md text-[15px] leading-relaxed text-muted sm:text-base">
-            Galon isi ulang dan air botol dari depot terdekat. Pesan sekarang, kurir antar hari ini juga.
+            {t('home.hero.subtitle')}
           </p>
 
           <form onSubmit={submit} className="relative max-w-xl">
@@ -50,15 +52,15 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
             <input
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              placeholder="Cari galon, botol, dispenser…"
-              aria-label="Cari produk"
+              placeholder={t('home.hero.searchPlaceholder')}
+              aria-label={t('home.hero.searchAria')}
               className="h-[58px] w-full rounded-full bg-[color:var(--surface)] pl-12 pr-[120px] text-[15px] text-[color:var(--text)] shadow-card outline-none placeholder:text-muted focus:ring-2 focus:ring-brand-300"
             />
             <button
               type="submit"
               className="absolute right-[7px] top-1/2 flex h-11 -translate-y-1/2 items-center rounded-full bg-brand-600 px-6 text-sm font-bold text-white transition-colors hover:bg-brand-700"
             >
-              Cari
+              {t('home.hero.searchButton')}
             </button>
           </form>
 
@@ -70,7 +72,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
                 href={`/products?search=${c.q}`}
                 className="rounded-full bg-white/75 px-4 py-2 text-[13px] font-bold text-brand-800 transition-colors hover:bg-white"
               >
-                {c.label}
+                {t(c.label)}
               </Link>
             ))}
           </div>
@@ -85,8 +87,8 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
               <ArrowsClockwise size={19} weight="fill" className="text-brand-600" />
             </span>
             <div>
-              <div className="text-[13.5px] font-extrabold text-[color:var(--text)]">Beli lagi</div>
-              <div className="text-[12.5px] text-muted">Ulangi pesanan · 1 ketuk</div>
+              <div className="text-[13.5px] font-extrabold text-[color:var(--text)]">{t('home.hero.reorderTitle')}</div>
+              <div className="text-[12.5px] text-muted">{t('home.hero.reorderSub')}</div>
             </div>
           </div>
         </div>

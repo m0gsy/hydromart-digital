@@ -10,10 +10,12 @@ import { Card, CenterState, ErrorState, LinkButton, Money, Skeleton } from '@/co
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Order, Page } from '@/lib/types';
 
 function OrdersInner() {
+  const { t } = useT();
   const { data, error, loading, reload } = useAsync<Page<Order>>(() =>
     api.get(endpoints.orders.list, true),
   );
@@ -32,18 +34,18 @@ function OrdersInner() {
     return (
       <CenterState
         icon={<Package size={48} weight="thin" />}
-        title="No orders yet"
-        action={<LinkButton href="/products">Start an order</LinkButton>}
+        title={t('order.list.emptyTitle')}
+        action={<LinkButton href="/products">{t('order.list.startOrder')}</LinkButton>}
       >
-        Your orders and their delivery status will show up here.
+        {t('order.list.emptyBody')}
       </CenterState>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold">Your orders</h1>
-      <ProductRecRail title="Buy again" endpoint={endpoints.recommendations.reorder()} requiresAuth />
+      <h1 className="text-2xl font-bold">{t('order.list.title')}</h1>
+      <ProductRecRail title={t('order.list.buyAgain')} endpoint={endpoints.recommendations.reorder()} requiresAuth />
       <ul className="flex flex-col gap-3">
         {data.items.map((order) => (
           <li key={order.id}>
@@ -56,7 +58,12 @@ function OrdersInner() {
                   </div>
                   <p className="text-xs text-muted">{formatDateTime(order.createdAt)}</p>
                   <p className="text-xs text-muted">
-                    {order.items.length} item{order.items.length === 1 ? '' : 's'}
+                    {t(
+                      order.items.length === 1
+                        ? 'order.list.itemCountOne'
+                        : 'order.list.itemCountOther',
+                      { n: order.items.length },
+                    )}
                   </p>
                 </div>
                 <div className="text-right font-bold">

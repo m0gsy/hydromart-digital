@@ -14,10 +14,12 @@ import {
   addressToBookForm,
   toAddressPayload,
 } from '@/lib/addresses';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Address } from '@/lib/types';
 
 function AddressesInner() {
+  const { t } = useT();
   const { data: addresses, error, loading, reload } = useAsync<Address[]>(() =>
     api.get(endpoints.addresses.list, true),
   );
@@ -67,7 +69,7 @@ function AddressesInner() {
       setEditing(null);
       reload();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Gagal menyimpan alamat.');
+      setFormError(err instanceof ApiError ? err.message : t('profile.addresses.list.saveError'));
     } finally {
       setSaving(false);
     }
@@ -103,16 +105,16 @@ function AddressesInner() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-[30px] font-extrabold tracking-tight">Alamat saya</h1>
+        <h1 className="text-[30px] font-extrabold tracking-tight">{t('profile.addresses.list.title')}</h1>
         <Button type="button" onClick={openCreate} className="rounded-full">
           <Plus size={17} weight="bold" />
-          Tambah alamat
+          {t('profile.addresses.list.add')}
         </Button>
       </div>
 
       {list.length === 0 ? (
         <Card className="p-6 text-sm text-muted">
-          Belum ada alamat tersimpan. Tambahkan satu agar checkout berikutnya lebih cepat.
+          {t('profile.addresses.list.empty')}
         </Card>
       ) : (
         <div className="flex flex-col gap-3">
@@ -126,13 +128,13 @@ function AddressesInner() {
                   {a.isPrimary && (
                     <Chip tone="tint">
                       <Star size={12} weight="fill" />
-                      Utama
+                      {t('profile.addresses.list.primary')}
                     </Chip>
                   )}
                   {pinned && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted">
                       <MapPin size={13} weight="fill" className="text-brand-500" />
-                      Tersemat
+                      {t('profile.addresses.list.pinned')}
                     </span>
                   )}
                 </div>
@@ -153,7 +155,7 @@ function AddressesInner() {
                       className="rounded-full px-3.5 py-1.5 text-[13px]"
                     >
                       <Star size={14} />
-                      Jadikan utama
+                      {t('profile.addresses.list.makePrimary')}
                     </Button>
                   )}
                   <Button
@@ -163,7 +165,7 @@ function AddressesInner() {
                     className="rounded-full px-3.5 py-1.5 text-[13px]"
                   >
                     <PencilSimple size={14} />
-                    Ubah
+                    {t('profile.addresses.list.edit')}
                   </Button>
                   <Button
                     type="button"
@@ -173,7 +175,7 @@ function AddressesInner() {
                     className="rounded-full px-3.5 py-1.5 text-[13px] text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
                   >
                     <Trash size={14} />
-                    Hapus
+                    {t('profile.addresses.list.delete')}
                   </Button>
                 </div>
               </div>
@@ -185,7 +187,7 @@ function AddressesInner() {
       <Sheet
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing === 'new' ? 'Alamat baru' : 'Ubah alamat'}
+        title={editing === 'new' ? t('profile.addresses.sheet.newTitle') : t('profile.addresses.sheet.editTitle')}
       >
         <AddressForm
           form={form}
@@ -201,13 +203,13 @@ function AddressesInner() {
 
       <ConfirmDialog
         open={pendingDelete !== null}
-        title="Hapus alamat?"
+        title={t('profile.addresses.confirm.title')}
         message={
           pendingDelete
-            ? `Alamat "${pendingDelete.label}" akan dihapus permanen.`
+            ? t('profile.addresses.confirm.message', { label: pendingDelete.label })
             : ''
         }
-        confirmLabel="Hapus"
+        confirmLabel={t('profile.addresses.confirm.confirmLabel')}
         tone="danger"
         loading={pendingDelete ? busyId === pendingDelete.id : false}
         onConfirm={confirmDelete}
@@ -236,6 +238,7 @@ function AddressForm({
   saving: boolean;
   error: string | null;
 }) {
+  const { t } = useT();
   const [locating, setLocating] = useState(false);
   const [geoHint, setGeoHint] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -244,7 +247,7 @@ function AddressForm({
 
   function locate() {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-      setGeoHint('Perangkat ini tidak mendukung lokasi otomatis. Masukkan koordinat manual.');
+      setGeoHint(t('profile.addresses.pin.unsupported'));
       return;
     }
     setGeoHint(null);
@@ -255,7 +258,7 @@ function AddressForm({
         setLocating(false);
       },
       () => {
-        setGeoHint('Tidak bisa mengambil lokasi. Izinkan akses lokasi atau isi manual.');
+        setGeoHint(t('profile.addresses.pin.failed'));
         setLocating(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
@@ -265,33 +268,33 @@ function AddressForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Label" htmlFor="label" hint="mis. Rumah, Kantor">
+        <Field label={t('profile.addresses.form.label')} htmlFor="label" hint={t('profile.addresses.form.labelHint')}>
           <Input id="label" required value={form.label} onChange={set('label')} maxLength={50} />
         </Field>
-        <Field label="Nama penerima" htmlFor="recipientName">
+        <Field label={t('profile.addresses.form.recipient')} htmlFor="recipientName">
           <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
         </Field>
       </div>
-      <Field label="Nomor telepon" htmlFor="phone">
+      <Field label={t('profile.addresses.form.phone')} htmlFor="phone">
         <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
       </Field>
-      <Field label="Alamat" htmlFor="addressLine">
+      <Field label={t('profile.addresses.form.address')} htmlFor="addressLine">
         <Input
           id="addressLine"
           required
           value={form.addressLine}
           onChange={set('addressLine')}
-          placeholder="Jalan, nomor, RT/RW"
+          placeholder={t('profile.addresses.form.addressPlaceholder')}
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Kota" htmlFor="city">
+        <Field label={t('profile.addresses.form.city')} htmlFor="city">
           <Input id="city" required value={form.city} onChange={set('city')} />
         </Field>
-        <Field label="Provinsi" htmlFor="province">
+        <Field label={t('profile.addresses.form.province')} htmlFor="province">
           <Input id="province" required value={form.province} onChange={set('province')} />
         </Field>
-        <Field label="Kode pos" htmlFor="postalCode" hint="Opsional">
+        <Field label={t('profile.addresses.form.postalCode')} htmlFor="postalCode" hint={t('profile.addresses.form.postalHint')}>
           <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
         </Field>
       </div>
@@ -300,13 +303,13 @@ function AddressForm({
       <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MapPin size={16} weight="fill" className="text-brand-600" />
-          Titik lokasi antar
-          <span className="text-xs font-normal text-muted">(opsional)</span>
+          {t('profile.addresses.pin.title')}
+          <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.optional')}</span>
         </div>
         {pinned ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--success)]">
-              Lokasi tersemat ✓
+              {t('profile.addresses.pin.pinned')}
               <span className="font-mono text-xs text-muted">
                 ({Number(form.latitude).toFixed(5)}, {Number(form.longitude).toFixed(5)})
               </span>
@@ -318,7 +321,7 @@ function AddressForm({
               className="rounded-full px-3 py-1.5 text-[13px]"
             >
               <X size={14} />
-              Hapus pin
+              {t('profile.addresses.pin.clear')}
             </Button>
           </div>
         ) : (
@@ -330,7 +333,7 @@ function AddressForm({
             className="w-full rounded-full sm:w-auto"
           >
             <Crosshair size={16} />
-            Gunakan lokasi saya
+            {t('profile.addresses.pin.useLocation')}
           </Button>
         )}
         {geoHint && <p className="text-xs text-muted">{geoHint}</p>}
@@ -340,14 +343,14 @@ function AddressForm({
           onClick={() => setShowAdvanced((v) => !v)}
           className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
         >
-          {showAdvanced ? 'Sembunyikan koordinat manual' : 'Masukkan koordinat manual'}
+          {showAdvanced ? t('profile.addresses.pin.hideManual') : t('profile.addresses.pin.showManual')}
         </button>
         {showAdvanced && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Latitude" htmlFor="latitude" hint="-90 s/d 90">
+            <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
               <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
             </Field>
-            <Field label="Longitude" htmlFor="longitude" hint="-180 s/d 180">
+            <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
               <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
             </Field>
           </div>
@@ -361,10 +364,10 @@ function AddressForm({
       )}
       <div className="flex gap-2">
         <Button type="submit" loading={saving} className="rounded-full">
-          Simpan
+          {t('profile.addresses.form.save')}
         </Button>
         <Button type="button" variant="secondary" onClick={onCancel} className="rounded-full">
-          Batal
+          {t('profile.addresses.form.cancel')}
         </Button>
       </div>
     </form>

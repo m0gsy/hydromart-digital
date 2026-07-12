@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import { Card, Chip, LinkButton } from '@/components/ui';
 import type { LoyaltyAccount, TierBenefit } from '@/lib/types';
 
@@ -16,6 +17,7 @@ import type { LoyaltyAccount, TierBenefit } from '@/lib/types';
 
 export function LoyaltyHighlight() {
   const { customer } = useAuth();
+  const { t } = useT();
 
   const { data: tiers } = useAsync<TierBenefit[]>(
     () => api.get<TierBenefit[]>(endpoints.loyalty.tiers),
@@ -40,7 +42,7 @@ export function LoyaltyHighlight() {
       <Card className="flex flex-col gap-4 p-6">
         <div className="flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2.5 text-lg font-extrabold">
-            <Trophy size={22} weight="fill" className="text-amber-600" /> Membership
+            <Trophy size={22} weight="fill" className="text-amber-600" /> {t('home.loyalty.membership')}
           </h2>
           <Chip tone="amber">{account.tier}</Chip>
         </div>
@@ -50,7 +52,7 @@ export function LoyaltyHighlight() {
           </span>
           <span className="text-sm text-muted">
             {' '}
-            poin · diskon member {Math.round(account.discountRate * 100)}%
+            {t('home.loyalty.balanceMeta', { n: Math.round(account.discountRate * 100) })}
           </span>
         </p>
         <div className="h-2 rounded-full bg-[color:var(--surface-soft)]">
@@ -59,19 +61,21 @@ export function LoyaltyHighlight() {
         <p className="text-sm text-muted">
           {next ? (
             <>
-              {(next.threshold - account.lifetimePoints).toLocaleString('id-ID')} poin lagi menuju{' '}
-              <span className="font-extrabold text-[color:var(--text)]">{next.tier}</span> — diskon
-              naik ke {Math.round(next.discountRate * 100)}%
+              {t('home.loyalty.toNextPre', {
+                points: (next.threshold - account.lifetimePoints).toLocaleString('id-ID'),
+              })}
+              <span className="font-extrabold text-[color:var(--text)]">{next.tier}</span>
+              {t('home.loyalty.toNextPost', { n: Math.round(next.discountRate * 100) })}
             </>
           ) : (
-            'Anda sudah di tier tertinggi. Terima kasih!'
+            t('home.loyalty.maxTier')
           )}
         </p>
         <Link
           href="/rewards"
           className="inline-flex self-start rounded-full border-2 border-[color:var(--text)] px-5 py-2.5 text-sm font-extrabold text-[color:var(--text)] transition-colors hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
         >
-          Lihat rewards
+          {t('home.loyalty.viewRewards')}
         </Link>
       </Card>
     );
@@ -81,10 +85,10 @@ export function LoyaltyHighlight() {
   return (
     <Card className="flex flex-col gap-4 p-6">
       <h2 className="flex items-center gap-2.5 text-lg font-extrabold">
-        <Trophy size={22} weight="fill" className="text-amber-600" /> Kumpulkan poin tiap pesan
+        <Trophy size={22} weight="fill" className="text-amber-600" /> {t('home.loyalty.guestTitle')}
       </h2>
       <p className="text-sm text-muted">
-        Jadi member dan dapatkan diskon makin besar seiring naik tier.
+        {t('home.loyalty.guestBody')}
       </p>
       <div className="flex flex-wrap gap-2">
         {sorted.map((t) => (
@@ -94,7 +98,7 @@ export function LoyaltyHighlight() {
         ))}
       </div>
       <LinkButton href="/register" className="self-start">
-        Daftar gratis
+        {t('home.loyalty.register')}
       </LinkButton>
     </Card>
   );

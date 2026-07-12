@@ -22,6 +22,7 @@ import { useCart } from '@/lib/cart-context';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
+import { useT } from '@/lib/locale-context';
 import { memberPrice, useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
 import type { NearbyDepot, Product } from '@/lib/types';
@@ -33,6 +34,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const { bump, refresh } = useCart();
   const rate = useMemberRate();
   const { location } = useLocation();
+  const { t } = useT();
 
   const { data: product, error, loading, reload } = useAsync<Product>(
     () => api.get(endpoints.products.get(id)),
@@ -71,7 +73,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       bump(qty);
       await refresh();
     } catch (e) {
-      setAddError(e instanceof ApiError ? e.message : 'Gagal menambah ke keranjang.');
+      setAddError(e instanceof ApiError ? e.message : t('shop.pdp.addError'));
     } finally {
       setAdding(false);
     }
@@ -82,7 +84,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
       {/* breadcrumb / back */}
       <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
         <Link href="/products" className="inline-flex items-center gap-1.5 hover:text-brand-700">
-          <ArrowLeft size={15} /> Kembali ke katalog
+          <ArrowLeft size={15} /> {t('shop.pdp.backToCatalog')}
         </Link>
         {product && (
           <>
@@ -102,7 +104,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
       ) : error || !product ? (
-        <ErrorState message={error ?? 'Produk tidak ditemukan.'} onRetry={reload} />
+        <ErrorState message={error ?? t('shop.pdp.notFound')} onRetry={reload} />
       ) : (
         <div className="grid items-start gap-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-12">
           {/* gallery */}
@@ -121,7 +123,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 {product.name}
               </h1>
               <p className="text-sm text-muted">
-                per {product.unit} · SKU {product.sku}
+                {t('shop.pdp.unitSku', { unit: product.unit, sku: product.sku })}
               </p>
             </div>
 
@@ -136,7 +138,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             {rate > 0 && (
               <div className="flex items-center gap-2 rounded-xl bg-[color:var(--warning-bg)] px-3.5 py-2.5 text-[13px] font-medium text-[color:var(--warning)]">
                 <Trophy size={16} weight="fill" />
-                Diskon member {Math.round(rate * 100)}% otomatis dipotong saat checkout.
+                {t('shop.pdp.memberDiscount', { percent: Math.round(rate * 100) })}
               </div>
             )}
 
@@ -149,17 +151,17 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       <Storefront size={18} weight="fill" className="text-brand-600" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold">Dikirim dari {depot.name}</p>
+                      <p className="text-sm font-bold">{t('shop.pdp.deliveredFrom', { depot: depot.name })}</p>
                       <p className="text-[12.5px] text-muted">
-                        {depot.distanceKm.toFixed(1).replace('.', ',')} km · ongkir{' '}
+                        {t('shop.pdp.deliveryMeta', { km: depot.distanceKm.toFixed(1).replace('.', ',') })}{' '}
                         <Money amount={depot.deliveryFee} />
                       </p>
                     </div>
-                    <Chip tone="success">Buka</Chip>
+                    <Chip tone="success">{t('shop.pdp.open')}</Chip>
                   </div>
                   <div className="flex items-center gap-2 border-t border-app pt-3 text-[13px] font-bold text-[color:var(--text-muted)]">
                     <Clock size={16} weight="fill" className="text-brand-600" />
-                    Pesan sebelum 16.00 — tiba hari ini, ±30 menit
+                    {t('shop.pdp.cutoff')}
                   </div>
                 </>
               ) : (
@@ -168,7 +170,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     <Storefront size={18} weight="fill" className="text-brand-600" />
                   </span>
                   <p className="text-sm font-semibold text-muted">
-                    Atur lokasi untuk lihat estimasi pengiriman
+                    {t('shop.pdp.setLocation')}
                   </p>
                 </div>
               )}
@@ -184,11 +186,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
               >
                 {added ? (
                   <>
-                    <Check size={19} weight="bold" /> Ditambahkan
+                    <Check size={19} weight="bold" /> {t('shop.pdp.added')}
                   </>
                 ) : (
                   <>
-                    <ShoppingCartSimple size={19} weight="fill" /> Tambah ke keranjang —{' '}
+                    <ShoppingCartSimple size={19} weight="fill" /> {t('shop.pdp.addToCart')}{' '}
                     <Money amount={qty * product.basePrice} />
                   </>
                 )}
@@ -197,7 +199,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
             {added && (
               <Link href="/cart" className="text-sm font-semibold text-brand-700">
-                Ke keranjang →
+                {t('shop.pdp.toCart')}
               </Link>
             )}
             {addError && (
@@ -215,7 +217,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
       {product && (
         <ProductRecRail
-          title="Sering dibeli bersama"
+          title={t('shop.pdp.related')}
           endpoint={endpoints.recommendations.related(id)}
         />
       )}

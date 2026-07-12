@@ -10,21 +10,31 @@ export type Locale = 'id' | 'en';
 const DICTS: Record<Locale, Dictionary> = { id, en };
 const STORAGE_KEY = 'hydromart.locale';
 
+export type TVars = Record<string, string | number>;
+
 interface LocaleValue {
   locale: Locale;
   setLocale: (l: Locale) => void;
   toggle: () => void;
-  /** dot-addressed lookup, e.g. t('nav.shop'); falls back to the key if missing */
-  t: (key: string) => string;
+  /**
+   * Dot-addressed lookup, e.g. t('nav.shop'); falls back to the key if missing.
+   * `{token}` placeholders in the value are filled from `vars`, e.g.
+   * t('rewards.toNext', { n: 750, tier: 'GOLD' }).
+   */
+  t: (key: string, vars?: TVars) => string;
 }
 
 const LocaleContext = createContext<LocaleValue | null>(null);
 
-function resolve(dict: Dictionary, key: string): string {
+function resolve(dict: Dictionary, key: string, vars?: TVars): string {
   const value = key
     .split('.')
     .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], dict);
-  return typeof value === 'string' ? value : key;
+  if (typeof value !== 'string') return key;
+  if (!vars) return value;
+  return value.replace(/\{(\w+)\}/g, (m, name) =>
+    name in vars ? String(vars[name]) : m,
+  );
 }
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
@@ -41,7 +51,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = l;
   }, []);
 
-  const t = useCallback((key: string) => resolve(DICTS[locale], key), [locale]);
+  const t = useCallback((key: string, vars?: TVars) => resolve(DICTS[locale], key, vars), [locale]);
 
   const value = useMemo<LocaleValue>(
     () => ({ locale, setLocale, toggle: () => setLocale(locale === 'id' ? 'en' : 'id'), t }),

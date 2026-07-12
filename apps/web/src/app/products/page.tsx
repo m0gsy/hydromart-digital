@@ -9,6 +9,7 @@ import { ProductCard } from '@/components/product-card';
 import { ProductRecRail } from '@/components/product-rec-rail';
 import { Button, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/locale-context';
 import { useMemberRate } from '@/lib/member';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -19,6 +20,7 @@ const LIMIT = 12;
 function ProductsCatalog() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t } = useT();
 
   // URL is the source of truth so searches/category filters are shareable and
   // deep-linkable (the Home hero + category tiles navigate here with params).
@@ -74,9 +76,9 @@ function ProductsCatalog() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1.5">
           <h1 className="text-[30px] font-extrabold leading-none tracking-tight text-[color:var(--text)]">
-            {activeCategory ? activeCategory.name : 'Pesan air'}
+            {activeCategory ? activeCategory.name : t('shop.catalog.title')}
           </h1>
-          <p className="text-sm text-muted">Galon isi ulang dan air botol, diantar dari depot Anda.</p>
+          <p className="text-sm text-muted">{t('shop.catalog.subtitle')}</p>
         </div>
         <form onSubmit={submitSearch} className="relative w-full sm:w-[380px]">
           <MagnifyingGlass
@@ -86,8 +88,8 @@ function ProductsCatalog() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari produk…"
-            aria-label="Cari produk"
+            placeholder={t('shop.catalog.searchPlaceholder')}
+            aria-label={t('shop.catalog.searchLabel')}
             className="surface h-12 !rounded-full border-app pl-11 pr-5"
           />
         </form>
@@ -104,7 +106,7 @@ function ProductsCatalog() {
                 : 'bg-[color:var(--text)] text-[color:var(--surface)]'
             }`}
           >
-            Semua
+            {t('shop.catalog.all')}
           </Link>
           {categories.data!.map((c) => (
             <Link
@@ -144,19 +146,19 @@ function ProductsCatalog() {
               <PageButton
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                aria-label="Halaman sebelumnya"
+                aria-label={t('shop.catalog.prevPage')}
               >
                 <CaretLeft size={15} weight="bold" />
               </PageButton>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                <PageButton key={n} onClick={() => setPage(n)} active={n === page} aria-label={`Halaman ${n}`}>
+                <PageButton key={n} onClick={() => setPage(n)} active={n === page} aria-label={t('shop.catalog.pageN', { n })}>
                   {n}
                 </PageButton>
               ))}
               <PageButton
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                aria-label="Halaman berikutnya"
+                aria-label={t('shop.catalog.nextPage')}
               >
                 <CaretRight size={15} weight="bold" />
               </PageButton>
@@ -192,18 +194,19 @@ function PageButton({
 // `category`: name string when a category filter is active, '' when the
 // filtered category is unknown, null when no category filter.
 function EmptyState({ query, category }: { query: string; category: string | null }) {
+  const { t } = useT();
   if (query) {
     return (
       <div className="flex flex-col gap-4">
         <CenterState
           icon={<Drop size={48} weight="thin" />}
-          title={`Tidak ada hasil untuk “${query}”`}
-          action={<LinkButtonHome />}
+          title={t('shop.empty.searchTitle', { query })}
+          action={<LinkButtonHome label={t('shop.empty.clearSearch')} />}
         >
-          Coba kata kunci lain, atau lihat produk terlaris di bawah.
+          {t('shop.empty.searchBody')}
         </CenterState>
         {/* Fallback discovery surface so the search dead-end still offers a path forward. */}
-        <ProductRecRail title="Terlaris" endpoint={endpoints.recommendations.trending()} />
+        <ProductRecRail title={t('shop.catalog.trending')} endpoint={endpoints.recommendations.trending()} />
       </div>
     );
   }
@@ -211,25 +214,25 @@ function EmptyState({ query, category }: { query: string; category: string | nul
     return (
       <CenterState
         icon={<Drop size={48} weight="thin" />}
-        title={category ? `Belum ada produk di “${category}”` : 'Belum ada produk di kategori ini'}
-        action={<LinkButtonHome label="Lihat semua produk" href="/products" />}
+        title={category ? t('shop.empty.categoryTitle', { category }) : t('shop.empty.categoryTitleUnknown')}
+        action={<LinkButtonHome label={t('shop.empty.viewAll')} href="/products" />}
       >
-        Stok kategori ini sedang disiapkan. Coba kategori lain.
+        {t('shop.empty.categoryBody')}
       </CenterState>
     );
   }
   return (
     <CenterState
       icon={<Drop size={48} weight="thin" />}
-      title="Katalog sedang diisi"
-      action={<LinkButtonHome label="Kembali ke beranda" href="/" />}
+      title={t('shop.empty.catalogTitle')}
+      action={<LinkButtonHome label={t('shop.empty.backHome')} href="/" />}
     >
-      Produk akan segera tersedia. Kembali lagi sebentar lagi.
+      {t('shop.empty.catalogBody')}
     </CenterState>
   );
 }
 
-function LinkButtonHome({ label = 'Bersihkan pencarian', href = '/products' }: { label?: string; href?: string }) {
+function LinkButtonHome({ label, href = '/products' }: { label: string; href?: string }) {
   return (
     <Link href={href}>
       <Button variant="secondary">{label}</Button>
