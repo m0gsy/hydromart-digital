@@ -23,6 +23,32 @@ env:
   CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
   RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
   FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+  # e2e specs call ConfigModule.forRoot({ validationSchema }), which validates
+  # process.env (their `load` block feeds the app, but Joi still checks env).
+  # Dummy-but-valid values only — app + tests both read the same ConfigService,
+  # so there is no secret mismatch. NOT real secrets.
+  JWT_ACCESS_SECRET: ci-jwt-access-secret-that-is-long-enough-0123456789
+  JWT_REFRESH_SECRET: ci-jwt-refresh-secret-that-is-long-enough-0123456789
+  OTP_PEPPER: ci-otp-pepper-value
+  PAYMENT_WEBHOOK_SECRET: ci-payment-webhook-secret-16plus
+  WHATSAPP_API_BASE_URL: https://wa.example.com
+  WHATSAPP_API_TOKEN: ci-whatsapp-token
+  SMS_API_BASE_URL: https://sms.example.com
+  SMS_API_TOKEN: ci-sms-token
+  AUTH_SERVICE_URL: https://auth.example.com
+  CUSTOMER_SERVICE_URL: https://customer.example.com
+  PRODUCT_SERVICE_URL: https://product.example.com
+  ORDER_SERVICE_URL: https://order.example.com
+  PAYMENT_SERVICE_URL: https://payment.example.com
+  DELIVERY_SERVICE_URL: https://delivery.example.com
+  DEPOT_SERVICE_URL: https://depot.example.com
+  LOYALTY_SERVICE_URL: https://loyalty.example.com
+  PROMO_SERVICE_URL: https://promo.example.com
+  REFERRAL_SERVICE_URL: https://referral.example.com
+  CRM_SERVICE_URL: https://crm.example.com
+  RECOMMENDATION_SERVICE_URL: https://recommendation.example.com
+  FORECAST_SERVICE_URL: https://forecast.example.com
+  DASHBOARD_SERVICE_URL: https://dashboard.example.com
 
 jobs:
   verify:
