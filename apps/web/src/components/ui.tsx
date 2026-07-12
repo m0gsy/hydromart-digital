@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 
 import { formatIDR } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 
 function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -331,13 +332,14 @@ export function CenterState({
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <CenterState
-      title="Something went wrong"
+      title={t('common.somethingWrong')}
       action={
         onRetry ? (
           <Button variant="secondary" onClick={onRetry}>
-            Try again
+            {t('common.retry')}
           </Button>
         ) : undefined
       }
