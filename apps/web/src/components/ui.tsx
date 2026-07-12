@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react';
 
 import { formatIDR } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 
 function cx(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
@@ -116,9 +117,142 @@ export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputEleme
 }
 
 /* ---------- Card ---------- */
-export function Card({ className, children }: { className?: string; children: ReactNode }) {
+export function Card({
+  className,
+  children,
+  elevated = true,
+}: {
+  className?: string;
+  children: ReactNode;
+  elevated?: boolean;
+}) {
   return (
-    <div className={cx('surface rounded-xl border border-app', className)}>{children}</div>
+    <div
+      className={cx(
+        'surface rounded-2xl border border-app',
+        elevated && 'shadow-card',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ---------- Chip / Pill ---------- */
+type ChipTone = 'tint' | 'ink' | 'outline' | 'amber' | 'success';
+
+const CHIP_STYLES: Record<ChipTone, string> = {
+  tint: 'bg-brand-50 text-brand-800',
+  ink: 'bg-[color:var(--text)] text-[color:var(--surface)]',
+  outline: 'border border-app text-muted',
+  amber: 'bg-[color:var(--warning-bg)] text-[color:var(--warning)]',
+  success: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
+};
+
+export function Chip({
+  tone = 'tint',
+  className,
+  children,
+}: {
+  tone?: ChipTone;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      className={cx(
+        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold',
+        CHIP_STYLES[tone],
+        className,
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ---------- IconButton ---------- */
+export function IconButton({
+  className,
+  children,
+  ...rest
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...rest}
+      className={cx(
+        'inline-flex h-10 w-10 items-center justify-center rounded-full transition-[background,transform]',
+        'hover:bg-brand-50 active:scale-90 disabled:opacity-50',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ---------- SectionHeader ---------- */
+export function SectionHeader({
+  title,
+  subtitle,
+  action,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cx('mb-4 flex items-baseline justify-between gap-4', className)}>
+      <div>
+        <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/* ---------- RadioCard ---------- (selectable option — checkout address/payment) */
+export function RadioCard({
+  selected,
+  onSelect,
+  className,
+  children,
+}: {
+  selected: boolean;
+  onSelect?: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cx(
+        'flex w-full items-start gap-3 rounded-2xl border-2 p-4 text-left transition-colors',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+        selected
+          ? 'border-brand-600 bg-brand-50'
+          : 'border-app hover:border-brand-400',
+        className,
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ---------- MemberPrice ---------- (teal member-price chip on cards / PDP) */
+export function MemberPrice({ amount, className }: { amount: number; className?: string }) {
+  return (
+    <Chip tone="tint" className={cx('whitespace-nowrap', className)}>
+      Member {formatIDR(amount)}
+    </Chip>
   );
 }
 
@@ -198,13 +332,14 @@ export function CenterState({
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  const { t } = useT();
   return (
     <CenterState
-      title="Something went wrong"
+      title={t('common.somethingWrong')}
       action={
         onRetry ? (
           <Button variant="secondary" onClick={onRetry}>
-            Try again
+            {t('common.retry')}
           </Button>
         ) : undefined
       }

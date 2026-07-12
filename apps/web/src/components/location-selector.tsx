@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useLocation } from '@/lib/location-context';
+import { useT } from '@/lib/locale-context';
 import type { DepotAdmin, NearbyDepot, Page } from '@/lib/types';
 
 // Delivery-location control for the Home hero. Two ways to set a location:
@@ -16,6 +17,7 @@ import type { DepotAdmin, NearbyDepot, Page } from '@/lib/types';
 
 export function LocationSelector({ compact }: { compact?: boolean }) {
   const { location, setLocation } = useLocation();
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [geoBusy, setGeoBusy] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -29,7 +31,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
   async function useMyLocation() {
     setGeoError(null);
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeoError('Perangkat tidak mendukung lokasi.');
+      setGeoError(t('home.location.unsupported'));
       return;
     }
     setGeoBusy(true);
@@ -38,12 +40,14 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         const { latitude: lat, longitude: lng } = pos.coords;
         // Resolve the nearest depot so we can label the pin and scope trending.
         let depotId: string | undefined;
-        let label = 'Lokasi saya';
+        let label = t('home.location.myLocation');
         try {
           const near = await api.get<NearbyDepot[]>(endpoints.depots.nearby({ lat, lng, limit: 1 }));
           if (near[0]) {
             depotId = near[0].id;
-            label = near[0].withinService ? `Dekat ${near[0].city}` : 'Lokasi saya';
+            label = near[0].withinService
+              ? t('home.location.near', { city: near[0].city })
+              : t('home.location.myLocation');
           }
         } catch {
           /* nearby is best-effort; still set the raw coords */
@@ -53,7 +57,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         setOpen(false);
       },
       () => {
-        setGeoError('Tidak bisa mengakses lokasi. Izinkan akses atau pilih kota.');
+        setGeoError(t('home.location.denied'));
         setGeoBusy(false);
       },
       { enableHighAccuracy: true, timeout: 10000 },
@@ -78,7 +82,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
       >
         <MapPin size={18} weight="fill" className="text-brand-600" />
         <span className="max-w-[10rem] truncate">
-          {location ? location.label : 'Pilih lokasi pengiriman'}
+          {location ? location.label : t('home.location.placeholder')}
         </span>
         <CaretDown size={14} className="text-muted" />
       </button>
@@ -91,12 +95,12 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-brand-50 disabled:opacity-50"
           >
             <Crosshair size={18} className="text-brand-600" />
-            {geoBusy ? 'Mencari lokasi…' : 'Gunakan lokasi saya'}
+            {geoBusy ? t('home.location.searching') : t('home.location.useMyLocation')}
           </button>
           {geoError && <p className="px-3 py-1 text-xs text-red-600">{geoError}</p>}
 
           <div className="mt-1 border-t border-app pt-1">
-            <p className="px-3 py-1 text-xs font-semibold text-muted">Atau pilih kota depot</p>
+            <p className="px-3 py-1 text-xs font-semibold text-muted">{t('home.location.orPickCity')}</p>
             <ul className="max-h-56 overflow-y-auto">
               {(depots?.items ?? []).map((d) => (
                 <li key={d.id}>
@@ -112,7 +116,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
                 </li>
               ))}
               {depots && depots.items.length === 0 && (
-                <li className="px-3 py-2 text-sm text-muted">Belum ada depot terdaftar.</li>
+                <li className="px-3 py-2 text-sm text-muted">{t('home.location.noDepots')}</li>
               )}
             </ul>
           </div>

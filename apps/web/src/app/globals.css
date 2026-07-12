@@ -1,21 +1,31 @@
 @import 'tailwindcss';
 
-/* Design tokens. One locked accent (brand blue — the product is water), slate
-   neutrals, one radius scale. Light + dark, driven by prefers-color-scheme. */
+/* Design tokens — "Fresh Flow" (1c): teal accent on warm cream, ink text.
+   The brand-* ramp keeps its utility names (bg-brand-600, text-brand-700, …)
+   but now holds the teal scale, so the whole app re-skins from here. Both the
+   ramp and the semantic surfaces are overridden under dark. */
 @theme {
-  --color-brand-50: #eff8ff;
-  --color-brand-100: #dbeefe;
-  --color-brand-200: #bfe3fe;
-  --color-brand-300: #92d0fd;
-  --color-brand-400: #5fb4fa;
-  --color-brand-500: #3897f0;
-  --color-brand-600: #1f7ae0;
-  --color-brand-700: #1b62be;
-  --color-brand-800: #1c519a;
-  --color-brand-900: #1c477d;
+  /* teal ramp — light values (dark overridden in the media query below) */
+  --color-brand-50: #e4f5f7;
+  --color-brand-100: #d3edf1;
+  --color-brand-200: #b3e1e8;
+  --color-brand-300: #7fccd7;
+  --color-brand-400: #45b1c1;
+  --color-brand-500: #1ba2b5;
+  --color-brand-600: #0c97ac;
+  --color-brand-700: #0a7f92;
+  --color-brand-800: #0b4d57;
+  --color-brand-900: #0b3b43;
+
+  /* amber — membership / promo accent */
+  --color-amber-50: #faf1de;
+  --color-amber-500: #d09415;
+  --color-amber-600: #b97d10;
+  --color-amber-900: #8a6a1f;
 
   --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
 
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
@@ -24,21 +34,66 @@
 
 :root {
   --surface: #ffffff;
-  --surface-muted: #f6f8fa;
+  --surface-muted: #faf9f5; /* warm cream page ground */
   --surface-elevated: #ffffff;
-  --border: #e3e8ee;
-  --text: #101828;
-  --text-muted: #667085;
+  --surface-soft: #f0eee6; /* softer cream for insets / tracks */
+  --border: #e9e7df;
+  --border-soft: #f0eee6;
+  --text: #16282e; /* ink */
+  --text-muted: #64757c;
+
+  /* semantic status (separate from the teal accent) */
+  --success: #18734a;
+  --success-bg: #e2f5e9;
+  --warning: #b97d10;
+  --warning-bg: #faf1de;
+  --danger: #b3261e;
+  --danger-bg: #fdeceb;
+
+  /* elevation */
+  --shadow-card: 0 1px 3px rgba(22, 40, 46, 0.05);
+  --shadow-lift: 0 14px 30px rgba(22, 40, 46, 0.1);
+  --shadow-float: 0 10px 28px rgba(11, 77, 87, 0.14);
+
+  /* motion */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 0.15s;
+  --dur-base: 0.25s;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface: #0b1220;
-    --surface-muted: #111a2b;
-    --surface-elevated: #131d2f;
-    --border: #22304a;
-    --text: #e8edf5;
-    --text-muted: #91a0b8;
+    /* teal brightens on dark ground */
+    --color-brand-50: #12303a;
+    --color-brand-100: #143a44;
+    --color-brand-200: #1a4d59;
+    --color-brand-300: #2b8496;
+    --color-brand-400: #33bbd1;
+    --color-brand-500: #45c6d9;
+    --color-brand-600: #33bbd1;
+    --color-brand-700: #5ccbdd;
+    --color-brand-800: #bfe9f0;
+    --color-brand-900: #d5f0f5;
+
+    --surface: #132025;
+    --surface-muted: #0c1518;
+    --surface-elevated: #172736;
+    --surface-soft: #16262c;
+    --border: #24363c;
+    --border-soft: #1c2b31;
+    --text: #ecf3f4;
+    --text-muted: #8fa3a9;
+
+    --success: #34d399;
+    --success-bg: rgba(52, 211, 153, 0.14);
+    --warning: #e0b64a;
+    --warning-bg: rgba(224, 182, 74, 0.14);
+    --danger: #f87171;
+    --danger-bg: rgba(248, 113, 113, 0.14);
+
+    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.5);
+    --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.55);
   }
 }
 
@@ -49,7 +104,7 @@ html {
 body {
   background: var(--surface-muted);
   color: var(--text);
-  font-family: var(--font-sans);
+  font-family: var(--font-jakarta), var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -60,11 +115,37 @@ body {
 .surface-elevated {
   background: var(--surface-elevated);
 }
+.surface-soft {
+  background: var(--surface-soft);
+}
 .text-muted {
   color: var(--text-muted);
 }
 .border-app {
   border-color: var(--border);
+}
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+.shadow-lift {
+  box-shadow: var(--shadow-lift);
+}
+/* Deep-teal panel (footer, promo cards) — a fixed dark surface for white text.
+   Constant across themes: the brand-* ramp inverts under dark, so bg-brand-800
+   would flip to a pale teal and hide the white text. */
+.bg-deep-teal {
+  background: #0b4d57;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,86 @@
+import { home as base } from '../id/home';
+
+// Home area — English. Mirrors the shape of id/home.ts (the source of truth).
+export const home: typeof base = {
+  hero: {
+    aria: 'Home',
+    greeting: 'Hi, {name}.',
+    titleGuest1: 'Drinking water,',
+    titleGuest2: 'delivered to your door.',
+    titleUser2: 'Is your gallon stock OK?',
+    subtitle:
+      'Refill gallons and bottled water from the nearest depot. Order now, courier delivers today.',
+    searchPlaceholder: 'Search gallons, bottles, dispensers…',
+    searchAria: 'Search products',
+    searchButton: 'Search',
+    reorderTitle: 'Buy again',
+    reorderSub: 'Reorder · 1 tap',
+    quick: {
+      refill: 'Refill gallon',
+      bottled: 'Bottled water',
+      dispenser: 'Dispenser',
+    },
+  },
+  category: {
+    aria: 'Categories',
+    title: 'Categories',
+  },
+  activeOrder: {
+    status: 'Order #{orderNumber} is on the way',
+    item: 'items',
+    track: 'Track courier',
+  },
+  rail: {
+    reorder: 'Buy again',
+    trending: 'Best sellers',
+    addAria: 'Add {name} to cart',
+  },
+  promo: {
+    aria: 'Promo',
+  },
+  loyalty: {
+    membership: 'Membership',
+    balanceMeta: 'points · member discount {n}%',
+    toNextPre: '{points} points to go to ',
+    toNextPost: ' — discount rises to {n}%',
+    maxTier: "You're at the top tier. Thank you!",
+    viewRewards: 'View rewards',
+    guestTitle: 'Earn points on every order',
+    guestBody: 'Become a member and get bigger discounts as you climb tiers.',
+    register: 'Sign up free',
+  },
+  depots: {
+    aria: 'Nearby depots',
+    title: 'Nearby depots',
+    setLocation:
+      'Set your location to see nearby depots and check whether we deliver to your area.',
+    empty: 'No depots around this location yet.',
+    deliveryFee: 'delivery',
+    outOfArea: 'Outside delivery area',
+    eta: 'Delivery ±30 min',
+    sealed: 'Sealed & official',
+  },
+  location: {
+    unsupported: 'Your device does not support location.',
+    myLocation: 'My location',
+    near: 'Near {city}',
+    denied: 'Cannot access location. Allow access or pick a city.',
+    placeholder: 'Choose delivery location',
+    searching: 'Finding location…',
+    useMyLocation: 'Use my location',
+    orPickCity: 'Or pick a depot city',
+    noDepots: 'No registered depots yet.',
+  },
+  trust: {
+    aria: 'Why Hydromart',
+    title: 'Why order from Hydromart',
+    fastTitle: 'Fast delivery from the nearest depot',
+    fastBody: 'Your order is routed to the nearest depot for faster delivery.',
+    sealedTitle: 'Guaranteed & sealed water',
+    sealedBody: 'Gallons and bottles sealed, from official drinking-water depots.',
+    payTitle: 'Pay securely',
+    payBody: 'Payment confirmed before your order is processed.',
+    methodsTitle: 'Many payment methods',
+    methodsBody: 'Cash (COD), transfer, QRIS, e-wallet, and virtual account.',
+  },
+};

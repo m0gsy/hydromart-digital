@@ -3,12 +3,14 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MagnifyingGlass, Drop } from '@phosphor-icons/react';
+import { MagnifyingGlass, Drop, CaretLeft, CaretRight } from '@phosphor-icons/react';
 
 import { ProductCard } from '@/components/product-card';
 import { ProductRecRail } from '@/components/product-rec-rail';
 import { Button, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/locale-context';
+import { useMemberRate } from '@/lib/member';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import type { Category, Page, Product } from '@/lib/types';
@@ -18,6 +20,7 @@ const LIMIT = 12;
 function ProductsCatalog() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t } = useT();
 
   // URL is the source of truth so searches/category filters are shareable and
   // deep-linkable (the Home hero + category tiles navigate here with params).
@@ -26,6 +29,9 @@ function ProductsCatalog() {
 
   const [search, setSearch] = useState(query);
   const [page, setPage] = useState(1);
+
+  // One loyalty fetch for the whole grid; passed to every card.
+  const memberRate = useMemberRate();
 
   // Reset paging + sync the input when the URL filters change.
   useEffect(() => {
@@ -66,30 +72,50 @@ function ProductsCatalog() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold">{activeCategory ? activeCategory.name : 'Pesan air'}</h1>
-        <p className="text-sm text-muted">Galon isi ulang dan air botol, diantar dari depot Anda.</p>
+      {/* Header + search pill — one row on desktop, stacked on mobile. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-[30px] font-extrabold leading-none tracking-tight text-[color:var(--text)]">
+            {activeCategory ? activeCategory.name : t('shop.catalog.title')}
+          </h1>
+          <p className="text-sm text-muted">{t('shop.catalog.subtitle')}</p>
+        </div>
+        <form onSubmit={submitSearch} className="relative w-full sm:w-[380px]">
+          <MagnifyingGlass
+            size={18}
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand-600"
+          />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('shop.catalog.searchPlaceholder')}
+            aria-label={t('shop.catalog.searchLabel')}
+            className="surface h-12 !rounded-full border-app pl-11 pr-5"
+          />
+        </form>
       </div>
 
-      {/* Category chips — quick filter + a way out of a zero-result state. */}
+      {/* Category pills — quick filter + a way out of a zero-result state. */}
       {(categories.data?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5">
           <Link
             href="/products"
-            className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
-              categoryId ? 'border-app hover:bg-brand-50' : 'border-brand-600 bg-brand-50 text-brand-700'
+            className={`rounded-full px-[18px] py-2 text-sm font-bold transition-colors ${
+              categoryId
+                ? 'surface border border-app text-muted hover:border-brand-600'
+                : 'bg-[color:var(--text)] text-[color:var(--surface)]'
             }`}
           >
-            Semua
+            {t('shop.catalog.all')}
           </Link>
           {categories.data!.map((c) => (
             <Link
               key={c.id}
               href={`/products?category=${c.id}`}
-              className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${
+              className={`rounded-full px-[18px] py-2 text-sm font-bold transition-colors ${
                 c.id === categoryId
-                  ? 'border-brand-600 bg-brand-50 text-brand-700'
-                  : 'border-app hover:bg-brand-50'
+                  ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                  : 'surface border border-app text-muted hover:border-brand-600'
               }`}
             >
               {c.name}
@@ -98,24 +124,10 @@ function ProductsCatalog() {
         </div>
       )}
 
-      <form onSubmit={submitSearch} className="relative">
-        <MagnifyingGlass
-          size={18}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-        />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari produk…"
-          aria-label="Cari produk"
-          className="pl-10"
-        />
-      </form>
-
       {loading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-[3/4]" />
+            <Skeleton key={i} className="aspect-square rounded-2xl" />
           ))}
         </div>
       ) : error ? (
@@ -124,30 +136,32 @@ function ProductsCatalog() {
         <EmptyState query={query} category={activeCategory?.name ?? (categoryId ? '' : null)} />
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {data.items.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} memberRate={memberRate} />
             ))}
           </div>
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 pt-2 text-sm">
-              <button
+            <div className="flex items-center justify-center gap-2 pt-2">
+              <PageButton
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="rounded-lg px-3 py-1.5 font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-40"
+                aria-label={t('shop.catalog.prevPage')}
               >
-                Sebelumnya
-              </button>
-              <span className="text-muted">
-                Halaman {page} dari {totalPages}
-              </span>
-              <button
+                <CaretLeft size={15} weight="bold" />
+              </PageButton>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                <PageButton key={n} onClick={() => setPage(n)} active={n === page} aria-label={t('shop.catalog.pageN', { n })}>
+                  {n}
+                </PageButton>
+              ))}
+              <PageButton
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="rounded-lg px-3 py-1.5 font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-40"
+                aria-label={t('shop.catalog.nextPage')}
               >
-                Berikutnya
-              </button>
+                <CaretRight size={15} weight="bold" />
+              </PageButton>
             </div>
           )}
         </>
@@ -156,22 +170,43 @@ function ProductsCatalog() {
   );
 }
 
+// Round 38px pagination control — filled ink when active, bordered otherwise.
+function PageButton({
+  active = false,
+  children,
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
+  return (
+    <button
+      {...rest}
+      className={`flex h-[38px] w-[38px] items-center justify-center rounded-full text-[13.5px] font-bold transition-colors disabled:opacity-40 ${
+        active
+          ? 'bg-[color:var(--text)] font-extrabold text-[color:var(--surface)]'
+          : 'surface border border-app text-muted hover:border-brand-600 disabled:hover:border-app'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 // Meaningful empty states with a clear next action — never a dead end.
 // `category`: name string when a category filter is active, '' when the
 // filtered category is unknown, null when no category filter.
 function EmptyState({ query, category }: { query: string; category: string | null }) {
+  const { t } = useT();
   if (query) {
     return (
       <div className="flex flex-col gap-4">
         <CenterState
           icon={<Drop size={48} weight="thin" />}
-          title={`Tidak ada hasil untuk “${query}”`}
-          action={<LinkButtonHome />}
+          title={t('shop.empty.searchTitle', { query })}
+          action={<LinkButtonHome label={t('shop.empty.clearSearch')} />}
         >
-          Coba kata kunci lain, atau lihat produk terlaris di bawah.
+          {t('shop.empty.searchBody')}
         </CenterState>
         {/* Fallback discovery surface so the search dead-end still offers a path forward. */}
-        <ProductRecRail title="Terlaris" endpoint={endpoints.recommendations.trending()} />
+        <ProductRecRail title={t('shop.catalog.trending')} endpoint={endpoints.recommendations.trending()} />
       </div>
     );
   }
@@ -179,25 +214,25 @@ function EmptyState({ query, category }: { query: string; category: string | nul
     return (
       <CenterState
         icon={<Drop size={48} weight="thin" />}
-        title={category ? `Belum ada produk di “${category}”` : 'Belum ada produk di kategori ini'}
-        action={<LinkButtonHome label="Lihat semua produk" href="/products" />}
+        title={category ? t('shop.empty.categoryTitle', { category }) : t('shop.empty.categoryTitleUnknown')}
+        action={<LinkButtonHome label={t('shop.empty.viewAll')} href="/products" />}
       >
-        Stok kategori ini sedang disiapkan. Coba kategori lain.
+        {t('shop.empty.categoryBody')}
       </CenterState>
     );
   }
   return (
     <CenterState
       icon={<Drop size={48} weight="thin" />}
-      title="Katalog sedang diisi"
-      action={<LinkButtonHome label="Kembali ke beranda" href="/" />}
+      title={t('shop.empty.catalogTitle')}
+      action={<LinkButtonHome label={t('shop.empty.backHome')} href="/" />}
     >
-      Produk akan segera tersedia. Kembali lagi sebentar lagi.
+      {t('shop.empty.catalogBody')}
     </CenterState>
   );
 }
 
-function LinkButtonHome({ label = 'Bersihkan pencarian', href = '/products' }: { label?: string; href?: string }) {
+function LinkButtonHome({ label, href = '/products' }: { label: string; href?: string }) {
   return (
     <Link href={href}>
       <Button variant="secondary">{label}</Button>

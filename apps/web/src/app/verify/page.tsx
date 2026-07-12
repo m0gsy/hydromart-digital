@@ -1,16 +1,33 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { Drop } from '@phosphor-icons/react';
+import { Suspense, useEffect, useState } from 'react';
+import { ArrowLeft, Drop } from '@phosphor-icons/react';
 
-import { Button, Field, Input } from '@/components/ui';
+import { Button, Card, Skeleton } from '@/components/ui';
+import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
+const RESEND_SECONDS = 30;
+
+function BrandMark() {
+  return (
+    <Link href="/" className="flex items-center justify-center gap-2.5">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 shadow-card">
+        <Drop size={24} weight="fill" className="text-white" />
+      </span>
+      <span className="text-2xl font-extrabold tracking-tight text-[color:var(--text)]">hydromart</span>
+    </Link>
+  );
+}
+
 function VerifyForm() {
+  const { t } = useT();
   const router = useRouter();
   const { signIn } = useAuth();
   const params = useSearchParams();
@@ -22,81 +39,116 @@ function VerifyForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resent, setResent] = useState<string | null>(null);
+  // A code was already sent on the previous screen, so start the cooldown on mount.
+  const [cooldown, setCooldown] = useState(RESEND_SECONDS);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  const counting = cooldown > 0;
+  useEffect(() => {
+    if (!counting) return;
+    const id = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(id);
+  }, [counting]);
+
+  async function verify(value: string) {
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
-      const session = await api.post<Session>(endpoints.auth.verifyOtp, { phone, code, purpose });
+      const session = await api.post<Session>(endpoints.auth.verifyOtp, { phone, code: value, purpose });
       signIn(session);
       router.replace(next);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Verification failed.');
+      setError(err instanceof ApiError ? err.message : t('auth.verify.error'));
       setLoading(false);
     }
   }
 
   async function resend() {
+    if (counting) return;
     setError(null);
     setResent(null);
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.resendOtp, { phone, purpose });
-      setResent(`A new code was sent to ${challenge.phoneMasked}.`);
+      setResent(t('auth.verify.sentTo', { phone: challenge.phoneMasked }));
+      setCooldown(RESEND_SECONDS);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not resend the code.');
+      setError(err instanceof ApiError ? err.message : t('auth.verify.resendError'));
     }
   }
 
   if (!phone) {
     return (
       <p className="text-center text-sm text-muted">
-        Missing phone number. Please start again from sign-in.
+        {t('auth.verify.noPhone')}
       </p>
     );
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Verification code" htmlFor="code" hint="Enter the code we sent to your phone">
-        <Input
-          id="code"
-          required
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={8}
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-          placeholder="123456"
-          className="text-center text-lg tracking-[0.3em]"
-        />
-      </Field>
-      {resent && <p className="text-sm text-brand-700">{resent}</p>}
+    <form onSubmit={(e) => { e.preventDefault(); verify(code); }} className="flex flex-col gap-5">
+      <p className="text-center text-sm text-muted">
+        {purpose === 'REGISTRATION' ? t('auth.verify.introReg') : t('auth.verify.introLogin')} {t('auth.verify.enterCode')}{' '}
+        <span className="font-bold text-[color:var(--text)]">{phone}</span>.
+      </p>
+
+      <OtpInput
+        value={code}
+        onChange={setCode}
+        length={6}
+        disabled={loading}
+        autoFocus
+        onComplete={verify}
+      />
+
+      {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
-      <Button type="submit" loading={loading} className="w-full">
-        Verify and continue
+
+      <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
+        {t('auth.verify.submit')}
       </Button>
-      <button type="button" onClick={resend} className="text-sm font-semibold text-brand-700">
-        Resend code
-      </button>
+
+      <div className="text-center text-sm text-muted">
+        {t('auth.verify.notReceived')}{' '}
+        <button
+          type="button"
+          onClick={resend}
+          disabled={counting}
+          className="font-bold text-brand-700 transition-colors hover:text-brand-800 disabled:cursor-not-allowed disabled:text-muted disabled:no-underline"
+        >
+          {counting ? t('auth.verify.resendIn', { n: cooldown }) : t('auth.verify.resend')}
+        </button>
+      </div>
     </form>
   );
 }
 
 export default function VerifyPage() {
+  const { t } = useT();
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6 py-6">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <Drop size={40} weight="fill" className="text-brand-600" />
-        <h1 className="text-2xl font-bold">Verify your number</h1>
+    <div className="flex min-h-[70vh] items-center justify-center py-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <BrandMark />
+        <Card className="p-6 sm:p-8">
+          <div className="mb-6 flex flex-col gap-1.5 text-center">
+            <h1 className="text-2xl font-extrabold tracking-tight">{t('auth.verify.heading')}</h1>
+            <p className="text-sm text-muted">{t('auth.verify.subtitle')}</p>
+          </div>
+          <Suspense fallback={<Skeleton className="h-48 w-full rounded-xl" />}>
+            <VerifyForm />
+          </Suspense>
+        </Card>
+        <Link
+          href="/login"
+          className="inline-flex items-center justify-center gap-1.5 text-center text-sm font-bold text-brand-700 transition-colors hover:text-brand-800"
+        >
+          <ArrowLeft size={15} weight="bold" />
+          {t('auth.verify.back')}
+        </Link>
       </div>
-      <Suspense fallback={null}>
-        <VerifyForm />
-      </Suspense>
     </div>
   );
 }
