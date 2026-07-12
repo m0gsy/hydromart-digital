@@ -7,22 +7,27 @@ import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
 import { PromoConfigService } from '../config/promo-config.service';
 import { PROMO_TOKENS } from '../application/tokens';
 import { VoucherService } from '../application/services/voucher.service';
+import { PromotionService } from '../application/services/promotion.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { VoucherPrismaRepository } from '../infrastructure/prisma/voucher.prisma.repository';
+import { PromotionPrismaRepository } from '../infrastructure/prisma/promotion.prisma.repository';
 import { VoucherController } from './voucher.controller';
+import { PromotionController } from './promotion.controller';
 
 const providers: Provider[] = [
   PrismaService,
   PromoConfigService,
   VoucherService,
+  PromotionService,
   { provide: PROMO_TOKENS.VoucherRepository, useClass: VoucherPrismaRepository },
+  { provide: PROMO_TOKENS.PromotionRepository, useClass: PromotionPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [VoucherController],
+  controllers: [VoucherController, PromotionController],
   providers,
   exports: [PrismaService, PromoConfigService],
 })

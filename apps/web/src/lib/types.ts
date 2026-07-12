@@ -62,6 +62,62 @@ export interface Recommendation {
   score: number;
 }
 
+/** A catalog category (public /products/categories). */
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  sortOrder: number;
+  active: boolean;
+}
+
+/** A marketing banner shown on the customer Home (public /vouchers/promotions). */
+export interface Promotion {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  ctaLabel: string | null;
+  ctaHref: string | null;
+  voucherCode: string | null;
+  sortOrder: number;
+  active: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+}
+
+export interface PromotionPayload {
+  title: string;
+  subtitle?: string | null;
+  imageUrl?: string | null;
+  ctaLabel?: string | null;
+  ctaHref?: string | null;
+  voucherCode?: string | null;
+  sortOrder?: number;
+  active?: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+}
+
+/** A depot annotated with distance from the user's location (public /depots/nearby). */
+export interface NearbyDepot {
+  id: string;
+  code: string;
+  name: string;
+  address: string;
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+  serviceRadiusKm: number;
+  deliveryFee: number;
+  minOrderAmount: number | null;
+  /** Great-circle km from the queried point, nearest first. */
+  distanceKm: number;
+  /** True when distanceKm <= serviceRadiusKm (depot delivers to the point). */
+  withinService: boolean;
+}
+
 export interface Page<T> {
   items: T[];
   total: number;

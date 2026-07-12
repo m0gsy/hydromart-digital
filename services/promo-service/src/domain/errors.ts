@@ -16,6 +16,14 @@ export class DuplicateVoucherCodeError extends DomainError {
   }
 }
 
+export class PromotionNotFoundError extends DomainError {
+  readonly code = 'PROMOTION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Promotion not found.');
+  }
+}
+
 export class VoucherInactiveError extends DomainError {
   readonly code = 'VOUCHER_INACTIVE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

@@ -21,15 +21,18 @@ export const endpoints = {
     primary: (id: string) => `/customers/api/v1/addresses/${id}/primary`,
   },
   products: {
-    browse: (q: { page?: number; limit?: number; search?: string }) => {
+    browse: (q: { page?: number; limit?: number; search?: string; categoryId?: string }) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.search) p.set('search', q.search);
+      if (q.categoryId) p.set('categoryId', q.categoryId);
       const qs = p.toString();
       return `/products/api/v1/products${qs ? `?${qs}` : ''}`;
     },
     get: (id: string) => `/products/api/v1/products/${id}`,
+    // Public active-category list (no pagination) → Category[].
+    categories: '/products/api/v1/categories',
   },
   cart: {
     view: '/orders/api/v1/cart',
@@ -72,6 +75,15 @@ export const endpoints = {
   vouchers: {
     quote: '/vouchers/api/v1/vouchers/quote',
   },
+  promotions: {
+    // Public active-banner feed (active + within date window, sorted) → Promotion[].
+    list: '/vouchers/api/v1/promotions',
+    // Admin authoring (marketing/head-office). Admin list includes inactive.
+    manage: '/vouchers/api/v1/promotions/admin',
+    create: '/vouchers/api/v1/promotions',
+    // PATCH to edit, DELETE to remove.
+    detail: (id: string) => `/vouchers/api/v1/promotions/${id}`,
+  },
   referrals: {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
@@ -84,6 +96,14 @@ export const endpoints = {
       if (q.limit) p.set('limit', String(q.limit));
       const qs = p.toString();
       return `/depots/api/v1/depots${qs ? `?${qs}` : ''}`;
+    },
+    // Public "depots near me": active depots sorted by distance → NearbyDepot[].
+    nearby: (q: { lat: number; lng: number; limit?: number }) => {
+      const p = new URLSearchParams();
+      p.set('lat', String(q.lat));
+      p.set('lng', String(q.lng));
+      if (q.limit) p.set('limit', String(q.limit));
+      return `/depots/api/v1/depots/nearby?${p.toString()}`;
     },
     // Admin listing incl. inactive depots (create/update/deactivate target these).
     manage: (q: { page?: number; limit?: number; search?: string } = {}) => {

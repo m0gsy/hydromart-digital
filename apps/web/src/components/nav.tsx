@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Buildings, ChartLineUp, ChatCircleText, Drop, Gift, MapPin, ShoppingCart, User } from '@phosphor-icons/react';
+import { Buildings, ChartLineUp, ChatCircleText, Drop, Gift, MapPin, Megaphone, Package, ShoppingCart, User } from '@phosphor-icons/react';
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -36,12 +36,19 @@ export function Nav() {
   return (
     <header className="surface sticky top-0 z-30 border-b border-app">
       <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link href="/products" className="flex items-center gap-2 font-bold">
+        <Link href="/" className="flex items-center gap-2 font-bold">
           <Drop size={26} weight="fill" className="text-brand-600" />
           <span>Hydromart</span>
         </Link>
 
         <div className="flex items-center gap-1">
+          <Link
+            href="/products"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+          >
+            <Package size={20} />
+            <span className="hidden sm:inline">Shop</span>
+          </Link>
           <Link
             href="/cart"
             aria-label="Cart"
@@ -78,14 +85,24 @@ export function Nav() {
                 )
               )}
               {canViewCampaigns(customer.role) && (
-                <Link
-                  href="/dashboard/campaigns"
-                  aria-label="Campaigns"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                >
-                  <ChatCircleText size={20} />
-                  <span className="hidden sm:inline">Campaigns</span>
-                </Link>
+                <>
+                  <Link
+                    href="/dashboard/campaigns"
+                    aria-label="Campaigns"
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+                  >
+                    <ChatCircleText size={20} />
+                    <span className="hidden sm:inline">Campaigns</span>
+                  </Link>
+                  <Link
+                    href="/dashboard/promotions"
+                    aria-label="Promotions"
+                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
+                  >
+                    <Megaphone size={20} />
+                    <span className="hidden sm:inline">Promos</span>
+                  </Link>
+                </>
               )}
               {canViewFranchise(customer.role) && (
                 <Link

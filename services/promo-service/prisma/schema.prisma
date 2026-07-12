@@ -49,6 +49,27 @@ model Voucher {
   @@map("vouchers")
 }
 
+/// A marketing banner shown on the customer Home page (distinct from Voucher, a
+/// discount rule). `voucherCode` optionally links a banner to a voucher to apply.
+model Promotion {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String
+  subtitle    String?
+  imageUrl    String?
+  ctaLabel    String?
+  ctaHref     String?
+  voucherCode String?
+  sortOrder   Int       @default(0)
+  active      Boolean   @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([active])
+  @@map("promotions")
+}
+
 /// One row per voucher redemption. Unique per order makes redeem idempotent.
 model VoucherRedemption {
   id              String   @id @default(uuid())

@@ -48,6 +48,26 @@ export class BrowseDepotsQueryDto {
   search?: string;
 }
 
+export class NearbyDepotsQueryDto {
+  @ApiProperty({ example: -6.1944, description: 'Caller latitude.' })
+  @Type(() => Number)
+  @IsLatitude()
+  lat!: number;
+
+  @ApiProperty({ example: 106.8412, description: 'Caller longitude.' })
+  @Type(() => Number)
+  @IsLongitude()
+  lng!: number;
+
+  @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
+}
+
 export class CreateDepotDto {
   @ApiProperty({ example: 'JKT-01' })
   @IsString()

@@ -2,7 +2,9 @@ import type { Metadata, Viewport } from 'next';
 
 import './globals.css';
 import { Nav } from '@/components/nav';
+import { Footer } from '@/components/footer';
 import { AuthProvider } from '@/lib/auth-context';
+import { LocationProvider } from '@/lib/location-context';
 
 export const metadata: Metadata = {
   title: 'Hydromart — Order drinking water',
@@ -20,8 +22,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-[100dvh]">
         <AuthProvider>
-          <Nav />
-          <main className="mx-auto w-full max-w-5xl px-4 py-6">{children}</main>
+          <LocationProvider>
+            <Nav />
+            <main className="mx-auto w-full max-w-5xl px-4 py-6">{children}</main>
+            <Footer />
+          </LocationProvider>
         </AuthProvider>
       </body>
     </html>

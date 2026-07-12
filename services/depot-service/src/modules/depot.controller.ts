@@ -15,10 +15,15 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 
-import { DepotService } from '../application/services/depot.service';
+import { DepotService, NearbyDepot } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
-import { BrowseDepotsQueryDto, CreateDepotDto, UpdateDepotDto } from './dto/depot.dto';
+import {
+  BrowseDepotsQueryDto,
+  CreateDepotDto,
+  NearbyDepotsQueryDto,
+  UpdateDepotDto,
+} from './dto/depot.dto';
 
 const DEPOT_ADMIN_ROLES = [Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 
@@ -32,6 +37,14 @@ export class DepotController {
   @ApiOperation({ summary: 'Browse depots (paginated, active only)' })
   browse(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
     return this.depots.browse(query, true);
+  }
+
+  // Static `nearby` segment declared before `:id` so it is not swallowed by the param route.
+  @Public()
+  @Get('nearby')
+  @ApiOperation({ summary: 'Find active depots near a coordinate (nearest first)' })
+  nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepot[]> {
+    return this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
   }
 
   // Admin listing includes inactive depots (public browse is active-only), so a
