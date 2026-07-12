@@ -6,6 +6,24 @@ on:
   pull_request:
     branches: [main]
 
+# Prisma 5.x evaluates env("<SVC>_DATABASE_URL") at `prisma validate`/`migrate`
+# time, so both jobs need these defined. verify only needs them to parse (no
+# connection); integration actually migrates against the compose Postgres.
+env:
+  AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
+  CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
+  PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_product?schema=public
+  ORDER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_order?schema=public
+  PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payment?schema=public
+  DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_delivery?schema=public
+  DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_depot?schema=public
+  LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_loyalty?schema=public
+  PROMO_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_promo?schema=public
+  REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_referral?schema=public
+  CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
+  RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
+  FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -43,21 +61,8 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     # Host-side `db:migrate` (run.mjs) applies migrations to the compose Postgres over the
-    # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from process.env.
-    env:
-      AUTH_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_auth?schema=public
-      CUSTOMER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_customer?schema=public
-      PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_product?schema=public
-      ORDER_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_order?schema=public
-      PAYMENT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payment?schema=public
-      DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_delivery?schema=public
-      DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_depot?schema=public
-      LOYALTY_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_loyalty?schema=public
-      PROMO_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_promo?schema=public
-      REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_referral?schema=public
-      CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
-      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
-      FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+    # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from the
+    # workflow-level env above.
     steps:
       - uses: actions/checkout@v4
 
