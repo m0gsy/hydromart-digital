@@ -18,7 +18,7 @@ function Banner({ promo, index }: { promo: Promotion; index: number }) {
     <div
       className={
         teal
-          ? 'flex h-full flex-col justify-between gap-5 rounded-2xl bg-brand-800 p-7 text-white shadow-card'
+          ? 'bg-deep-teal flex h-full flex-col justify-between gap-5 rounded-2xl p-7 text-white shadow-card'
           : 'flex h-full flex-col justify-between gap-5 rounded-2xl bg-amber-50 p-7 text-amber-900 shadow-card'
       }
     >

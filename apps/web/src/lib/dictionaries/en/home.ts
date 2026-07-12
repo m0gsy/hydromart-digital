@@ -71,4 +71,16 @@ export const home: typeof base = {
     orPickCity: 'Or pick a depot city',
     noDepots: 'No registered depots yet.',
   },
+  trust: {
+    aria: 'Why Hydromart',
+    title: 'Why order from Hydromart',
+    fastTitle: 'Fast delivery from the nearest depot',
+    fastBody: 'Your order is routed to the nearest depot for faster delivery.',
+    sealedTitle: 'Guaranteed & sealed water',
+    sealedBody: 'Gallons and bottles sealed, from official drinking-water depots.',
+    payTitle: 'Pay securely',
+    payBody: 'Payment confirmed before your order is processed.',
+    methodsTitle: 'Many payment methods',
+    methodsBody: 'Cash (COD), transfer, QRIS, e-wallet, and virtual account.',
+  },
 };

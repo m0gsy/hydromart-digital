@@ -69,4 +69,16 @@ export const home = {
     orPickCity: 'Atau pilih kota depot',
     noDepots: 'Belum ada depot terdaftar.',
   },
+  trust: {
+    aria: 'Kenapa Hydromart',
+    title: 'Kenapa pesan di Hydromart',
+    fastTitle: 'Antar cepat dari depot terdekat',
+    fastBody: 'Pesanan diteruskan ke depot terdekat untuk pengiriman yang lebih cepat.',
+    sealedTitle: 'Air terjamin & tersegel',
+    sealedBody: 'Galon dan botol tersegel, dari depot air minum resmi.',
+    payTitle: 'Bayar aman',
+    payBody: 'Konfirmasi pembayaran sebelum pesanan diproses.',
+    methodsTitle: 'Banyak metode bayar',
+    methodsBody: 'Tunai (COD), transfer, QRIS, e-wallet, dan virtual account.',
+  },
 };

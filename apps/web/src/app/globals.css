@@ -130,6 +130,12 @@ body {
 .shadow-lift {
   box-shadow: var(--shadow-lift);
 }
+/* Deep-teal panel (footer, promo cards) — a fixed dark surface for white text.
+   Constant across themes: the brand-* ramp inverts under dark, so bg-brand-800
+   would flip to a pale teal and hide the white text. */
+.bg-deep-teal {
+  background: #0b4d57;
+}
 
 @keyframes fadeUp {
   from {
