@@ -95,8 +95,12 @@ function ProductsCatalog() {
         </form>
       </div>
 
-      {/* Category pills — quick filter + a way out of a zero-result state. */}
-      {(categories.data?.length ?? 0) > 0 && (
+      {/* Category pills — quick filter + a way out of a zero-result state.
+          Reserve the row height while categories load so the grid below doesn't
+          shift down when the pills appear (min-h ≈ one pill row). */}
+      {categories.loading && !categories.data ? (
+        <div className="min-h-[38px]" />
+      ) : (categories.data?.length ?? 0) > 0 ? (
         <div className="flex flex-wrap gap-2.5">
           <Link
             href="/products"
@@ -122,12 +126,24 @@ function ProductsCatalog() {
             </Link>
           ))}
         </div>
-      )}
+      ) : null}
+
+      {/* sr-only h2 keeps heading order valid (page h1 → list h2 → card h3). */}
+      <h2 className="sr-only">{t('shop.catalog.title')}</h2>
 
       {loading ? (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-2xl" />
+            // Card-shaped skeleton (square image + content block) so its height
+            // matches the real ProductCard and the swap doesn't shift layout.
+            <div key={i} className="surface flex flex-col overflow-hidden rounded-2xl shadow-card">
+              <Skeleton className="aspect-square !rounded-none" />
+              <div className="flex flex-col gap-2 p-4">
+                <Skeleton className="h-4 w-3/4 rounded" />
+                <Skeleton className="h-3 w-1/3 rounded" />
+                <Skeleton className="mt-3 h-5 w-1/2 rounded" />
+              </div>
+            </div>
           ))}
         </div>
       ) : error ? (

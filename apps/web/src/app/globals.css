@@ -17,6 +17,11 @@
   --color-brand-800: #0b4d57;
   --color-brand-900: #0b3b43;
 
+  /* Foreground for text/icons sitting ON a bg-brand-600 fill. White in light
+     (teal is dark enough); flips to deep ink under dark, where brand-600
+     brightens to #33bbd1 and white text would fail WCAG AA contrast. */
+  --color-on-brand: #ffffff;
+
   /* amber — membership / promo accent */
   --color-amber-50: #faf1de;
   --color-amber-500: #d09415;
@@ -74,6 +79,7 @@
     --color-brand-700: #5ccbdd;
     --color-brand-800: #bfe9f0;
     --color-brand-900: #d5f0f5;
+    --color-on-brand: #06232a; /* deep ink for text on the brightened teal fill */
 
     --surface: #132025;
     --surface-muted: #0c1518;
@@ -135,6 +141,12 @@ body {
    would flip to a pale teal and hide the white text. */
 .bg-deep-teal {
   background: #0b4d57;
+}
+/* Deep-teal text, constant across themes — for dark text on an always-light
+   surface (e.g. the frosted bg-white/75 hero pills), where text-brand-800 would
+   flip pale under dark and vanish. */
+.text-deep-teal {
+  color: #0b4d57;
 }
 
 @keyframes fadeUp {

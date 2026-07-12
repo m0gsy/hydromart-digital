@@ -93,7 +93,7 @@ export function ProductCard({
             onClick={addToCart}
             disabled={adding}
             aria-label={t('shop.card.addAria', { name: product.name })}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
           >
             {added ? <Check size={18} weight="bold" /> : <Plus size={18} weight="bold" />}
           </button>

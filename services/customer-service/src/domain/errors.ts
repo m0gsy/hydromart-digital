@@ -17,6 +17,14 @@ export class AddressLimitError extends DomainError {
   }
 }
 
+export class PaymentMethodNotFoundError extends DomainError {
+  readonly code = 'CUSTOMER_PAYMENT_METHOD_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Payment method not found.');
+  }
+}
+
 export class ProfileNotFoundError extends DomainError {
   readonly code = 'CUSTOMER_PROFILE_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

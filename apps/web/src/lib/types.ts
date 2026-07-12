@@ -217,7 +217,7 @@ export interface Payment {
 /* ---------- Release 2: loyalty, vouchers, referrals ---------- */
 
 export type MembershipTier = 'REGULAR' | 'SILVER' | 'GOLD' | 'PLATINUM';
-export type PointsTxnType = 'EARN' | 'EXPIRE' | 'ADJUST' | 'REWARD';
+export type PointsTxnType = 'EARN' | 'EXPIRE' | 'ADJUST' | 'REWARD' | 'REDEEM';
 
 export interface LoyaltyAccount {
   customerId: string;
@@ -248,6 +248,73 @@ export interface VoucherQuote {
   discountType: 'PERCENTAGE' | 'FIXED';
   discount: number;
   valid: true;
+}
+
+/** A redeemable reward in the points catalog (loyalty /rewards/catalog). */
+export interface RewardItem {
+  id: string;
+  name: string;
+  unit: string;
+  pointsCost: number;
+  imageUrl: string | null;
+  /** Remaining stock; null = unlimited. */
+  stock: number | null;
+}
+
+/** Result of redeeming points for a reward (loyalty /rewards/redeem). */
+export interface RewardRedemption {
+  redemptionId: string;
+  rewardItemId: string;
+  pointsSpent: number;
+  /** Spendable balance after the debit. */
+  pointsBalance: number;
+}
+
+export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOLD_OUT';
+
+/** A voucher in the customer's wallet (vouchers /vouchers/me). */
+export interface MyVoucher {
+  code: string;
+  description: string | null;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  value: number;
+  minSpend: number;
+  maxDiscount: number | null;
+  validUntil: string | null;
+  status: VoucherStatus;
+}
+
+export type SavedPaymentType = 'CASH' | 'TRANSFER' | 'QRIS' | 'EWALLET' | 'VA';
+
+/** A saved payment instrument (customers /payment-methods). */
+export interface SavedPaymentMethod {
+  id: string;
+  type: SavedPaymentType;
+  label: string;
+  maskedIdentifier: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedPaymentMethodPayload {
+  type: SavedPaymentType;
+  label: string;
+  maskedIdentifier?: string;
+  isDefault?: boolean;
+}
+
+/** Notification channel preferences (customers /profile/notifications). */
+export interface NotificationPreferences {
+  customerId: string;
+  push: boolean;
+  email: boolean;
+  whatsapp: boolean;
+}
+
+export interface ProfileUpdatePayload {
+  fullName?: string;
+  email?: string;
 }
 
 export interface ReferralCode {

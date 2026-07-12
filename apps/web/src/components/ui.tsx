@@ -14,7 +14,7 @@ function cx(...parts: (string | false | null | undefined)[]): string {
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_STYLES: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-300',
+  primary: 'bg-brand-600 text-on-brand hover:bg-brand-700 disabled:bg-brand-300',
   secondary: 'surface-elevated border border-app hover:bg-brand-50 disabled:opacity-60',
   ghost: 'text-brand-700 hover:bg-brand-50 disabled:opacity-60',
   danger: 'bg-red-600 text-white hover:bg-red-700 disabled:opacity-60',

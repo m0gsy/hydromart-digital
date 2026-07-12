@@ -26,6 +26,7 @@ import { UpdateVoucherData, VoucherRecord } from '../application/ports/voucher.r
 import {
   BrowseQueryDto,
   CreateVoucherDto,
+  MyVoucherDto,
   QuoteVoucherDto,
   RedeemVoucherDto,
   UpdateVoucherDto,
@@ -53,6 +54,16 @@ export class VoucherController {
   @ApiOperation({ summary: 'List all vouchers (admin, includes inactive)' })
   browse(@Query() query: BrowseQueryDto): Promise<Page<VoucherRecord>> {
     return this.vouchers.browse(query.page, query.limit, false);
+  }
+
+  // Declared before the `@Get(':code')` route below so "me" is not captured as a code.
+  @ApiBearerAuth()
+  @Roles(Role.CUSTOMER)
+  @Get('me')
+  @ApiOperation({ summary: "The current customer's voucher wallet (spec 4a)" })
+  async myVouchers(@CurrentUser() user: AuthenticatedUser): Promise<MyVoucherDto[]> {
+    const wallet = await this.vouchers.myVouchers(user.sub);
+    return wallet.map((w) => MyVoucherDto.from(w));
   }
 
   @ApiBearerAuth()

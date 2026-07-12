@@ -58,7 +58,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
             />
             <button
               type="submit"
-              className="absolute right-[7px] top-1/2 flex h-11 -translate-y-1/2 items-center rounded-full bg-brand-600 px-6 text-sm font-bold text-white transition-colors hover:bg-brand-700"
+              className="absolute right-[7px] top-1/2 flex h-11 -translate-y-1/2 items-center rounded-full bg-brand-600 px-6 text-sm font-bold text-on-brand transition-colors hover:bg-brand-700"
             >
               {t('home.hero.searchButton')}
             </button>
@@ -70,7 +70,7 @@ export function Hero({ greetingName }: { greetingName?: string | null }) {
               <Link
                 key={c.q}
                 href={`/products?search=${c.q}`}
-                className="rounded-full bg-white/75 px-4 py-2 text-[13px] font-bold text-brand-800 transition-colors hover:bg-white"
+                className="text-deep-teal rounded-full bg-white/75 px-4 py-2 text-[13px] font-bold transition-colors hover:bg-white"
               >
                 {t(c.label)}
               </Link>

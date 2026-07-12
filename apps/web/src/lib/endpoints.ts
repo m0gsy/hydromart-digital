@@ -10,7 +10,21 @@ export const endpoints = {
     google: '/auth/api/v1/auth/google',
     refresh: '/auth/api/v1/auth/token/refresh',
     me: '/auth/api/v1/auth/me',
+    // PATCH: update own name/email.
+    updateProfile: '/auth/api/v1/auth/me',
     logout: '/auth/api/v1/auth/logout',
+  },
+  // Notification channel preferences (GET to read, PATCH to update).
+  preferences: {
+    notifications: '/customers/api/v1/profile/notifications',
+  },
+  // Saved payment instruments (customer-service). Management-only.
+  paymentMethods: {
+    list: '/customers/api/v1/payment-methods',
+    create: '/customers/api/v1/payment-methods',
+    // PATCH to edit, DELETE to remove.
+    detail: (id: string) => `/customers/api/v1/payment-methods/${id}`,
+    default: (id: string) => `/customers/api/v1/payment-methods/${id}/default`,
   },
   addresses: {
     // Saved delivery addresses (customer-service, via the `customers` gateway segment).
@@ -74,6 +88,13 @@ export const endpoints = {
   },
   vouchers: {
     quote: '/vouchers/api/v1/vouchers/quote',
+    // The current customer's voucher wallet (active vouchers + per-customer status).
+    me: '/vouchers/api/v1/vouchers/me',
+  },
+  // Points-redeem catalog (loyalty-service).
+  rewards: {
+    catalog: '/loyalty/api/v1/rewards/catalog',
+    redeem: '/loyalty/api/v1/rewards/redeem',
   },
   promotions: {
     // Public active-banner feed (active + within date window, sorted) → Promotion[].

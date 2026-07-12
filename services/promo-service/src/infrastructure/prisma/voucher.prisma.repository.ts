@@ -97,6 +97,25 @@ export class VoucherPrismaRepository implements VoucherRepository {
     });
   }
 
+  async listForCustomer(
+    customerId: string,
+  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]> {
+    const [rows, redemptions] = await this.prisma.$transaction([
+      this.prisma.voucher.findMany({ where: { active: true }, orderBy: { validUntil: 'asc' } }),
+      // A customer has few redemptions (perCustomerLimit is small), so tallying in
+      // memory is cheaper and simpler than a typed groupBy.
+      this.prisma.voucherRedemption.findMany({ where: { customerId }, select: { voucherId: true } }),
+    ]);
+    const byVoucher = new Map<string, number>();
+    for (const r of redemptions) {
+      byVoucher.set(r.voucherId, (byVoucher.get(r.voucherId) ?? 0) + 1);
+    }
+    return rows.map((r) => ({
+      voucher: this.toVoucher(r),
+      customerRedemptions: byVoucher.get(r.id) ?? 0,
+    }));
+  }
+
   async findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null> {
     const row = await this.prisma.voucherRedemption.findUnique({ where: { orderId } });
     return row ? this.toRedemption(row) : null;

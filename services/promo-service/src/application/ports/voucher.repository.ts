@@ -80,6 +80,14 @@ export interface VoucherRepository {
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
 
+  /**
+   * Active vouchers paired with this customer's redemption count for each, for
+   * the wallet view. One query per side (no N+1).
+   */
+  listForCustomer(
+    customerId: string,
+  ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]>;
+
   /** Atomic: insert redemption + increment usedCount, returns the redemption. */
   recordRedemption(mutation: RedemptionMutation): Promise<VoucherRedemptionRecord>;
 }

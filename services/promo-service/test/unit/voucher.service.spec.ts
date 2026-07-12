@@ -87,4 +87,53 @@ describe('VoucherService', () => {
       service.redeem('HEMAT10', customerId, randomUUID(), 60000),
     ).rejects.toBeInstanceOf(VoucherCustomerLimitReachedError);
   });
+
+  describe('myVouchers (wallet)', () => {
+    const future = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+    const past = new Date('2000-01-01T00:00:00.000Z');
+    const cust = randomUUID();
+
+    const statusOf = async (code: string): Promise<string> => {
+      const wallet = await service.myVouchers(cust);
+      return wallet.find((w) => w.voucher.code === code)!.status;
+    };
+
+    it('marks a fresh, in-window voucher AVAILABLE', async () => {
+      await service.create(baseVoucher({ code: 'AVAIL', validUntil: future }));
+      expect(await statusOf('AVAIL')).toBe('AVAILABLE');
+    });
+
+    it('marks an expired voucher EXPIRED', async () => {
+      await service.create(baseVoucher({ code: 'OLD', validUntil: past }));
+      expect(await statusOf('OLD')).toBe('EXPIRED');
+    });
+
+    it('marks a not-yet-started voucher UPCOMING', async () => {
+      await service.create(baseVoucher({ code: 'SOON', validFrom: future }));
+      expect(await statusOf('SOON')).toBe('UPCOMING');
+    });
+
+    it('marks a voucher the customer already used USED', async () => {
+      await service.create(
+        baseVoucher({ code: 'USED1', discountType: DiscountType.FIXED, value: 5000, perCustomerLimit: 1 }),
+      );
+      await service.redeem('USED1', cust, randomUUID(), 60000);
+      expect(await statusOf('USED1')).toBe('USED');
+    });
+
+    it('marks a globally exhausted voucher SOLD_OUT', async () => {
+      await service.create(
+        baseVoucher({ code: 'GONE', discountType: DiscountType.FIXED, value: 5000, usageLimit: 1 }),
+      );
+      await service.redeem('GONE', randomUUID(), randomUUID(), 60000); // someone else used the last one
+      expect(await statusOf('GONE')).toBe('SOLD_OUT');
+    });
+
+    it('omits inactive vouchers from the wallet', async () => {
+      const v = await service.create(baseVoucher({ code: 'HIDDEN' }));
+      await service.deactivate(v.id);
+      const wallet = await service.myVouchers(cust);
+      expect(wallet.find((w) => w.voucher.code === 'HIDDEN')).toBeUndefined();
+    });
+  });
 });

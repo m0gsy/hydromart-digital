@@ -242,7 +242,7 @@ function CartInner() {
                     <button
                       onClick={() => addOn(rec.productId)}
                       aria-label={t('order.cart.addOnAria', { name: rec.name })}
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-colors hover:bg-brand-600 hover:text-white"
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-colors hover:bg-brand-600 hover:text-on-brand"
                     >
                       <Plus size={14} weight="bold" />
                     </button>

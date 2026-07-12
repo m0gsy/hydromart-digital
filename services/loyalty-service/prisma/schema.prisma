@@ -23,13 +23,15 @@ enum MembershipTier {
 }
 
 /// Ledger entry kinds. EARN is positive; EXPIRE is negative; ADJUST is a signed
-/// manual correction; REWARD is a positive system grant (e.g. referral bonus).
+/// manual correction; REWARD is a positive system grant (e.g. referral bonus);
+/// REDEEM is a negative spend against the catalog (does NOT touch lifetime/tier).
 /// Balance = sum(points) across a customer's entries.
 enum PointsTxnType {
   EARN
   EXPIRE
   ADJUST
   REWARD
+  REDEEM
 }
 
 /// One loyalty account per customer (lazy-initialised on first read/earn).
@@ -71,4 +73,40 @@ model PointsTransaction {
   @@index([customerId, createdAt])
   @@index([type, expired, expiresAt])
   @@map("points_transactions")
+}
+
+/// A reward the customer can redeem points for (FR-015 redeem catalog). Config
+/// data seeded by the depot/marketing team, not fabricated per-customer.
+model RewardItem {
+  id         String  @id @default(uuid())
+  name       String
+  /// Human unit label, e.g. "gratis 1 galon" / "potongan belanja".
+  unit       String
+  pointsCost Int
+  imageUrl   String?
+  active     Boolean @default(true)
+  /// Remaining redeemable stock; null = unlimited.
+  stock      Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  redemptions RewardRedemption[]
+
+  @@map("reward_items")
+}
+
+/// One successful points-for-reward redemption. `idempotencyKey` makes a repeated
+/// client submit a no-op (returns the prior redemption).
+model RewardRedemption {
+  id             String     @id @default(uuid())
+  reward         RewardItem @relation(fields: [rewardItemId], references: [id])
+  rewardItemId   String
+  customerId     String
+  pointsSpent    Int
+  idempotencyKey String
+  createdAt      DateTime   @default(now())
+
+  @@unique([customerId, idempotencyKey])
+  @@index([customerId, createdAt])
+  @@map("reward_redemptions")
 }

@@ -20,6 +20,16 @@ enum MembershipTier {
   GOLD
 }
 
+/// Mirrors payment-service's PaymentMethod enum (duplicated per-service, as with
+/// MembershipTier). Type of a saved, reusable payment instrument.
+enum SavedPaymentType {
+  CASH
+  TRANSFER
+  QRIS
+  EWALLET
+  VA
+}
+
 /// Profile extension for a customer. One row per identity, lazily created.
 model CustomerProfile {
   customerId     String         @id @db.Uuid
@@ -55,6 +65,25 @@ model Address {
 
   @@index([customerId])
   @@map("addresses")
+}
+
+/// A saved, reusable payment instrument (spec 4f Account → Metode pembayaran).
+/// Management-only — checkout still selects a per-transaction method. Exactly one
+/// default per customer; the first saved becomes the default.
+model SavedPaymentMethod {
+  id               String           @id @default(uuid()) @db.Uuid
+  customerId       String           @db.Uuid
+  type             SavedPaymentType
+  /// Display label, e.g. "Cash on delivery" / "GoPay".
+  label            String
+  /// Masked instrument tail, e.g. "••••4821"; null for cash.
+  maskedIdentifier String?
+  isDefault        Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([customerId])
+  @@map("saved_payment_methods")
 }
 
 /// Per-customer notification channel preferences (PRD §27).

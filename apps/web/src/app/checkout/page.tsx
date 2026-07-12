@@ -255,7 +255,7 @@ function CheckoutInner() {
         </Link>
         <div className="mx-auto flex items-center gap-2.5 text-[13px] font-bold">
           <span className="flex items-center gap-2 text-brand-800">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-on-brand">
               <Check size={12} weight="bold" />
             </span>
             {t('order.checkout.stepCart')}
@@ -303,7 +303,7 @@ function CheckoutInner() {
                     <RadioCard key={a.id} selected={on} onSelect={() => chooseSaved(a)}>
                       <span
                         className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full ${
-                          on ? 'bg-brand-600 text-white' : 'border-2 border-app'
+                          on ? 'bg-brand-600 text-on-brand' : 'border-2 border-app'
                         }`}
                       >
                         {on && <Check size={11} weight="bold" />}

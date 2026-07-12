@@ -50,7 +50,7 @@ export function Footer() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
-                <Drop size={18} weight="fill" className="text-brand-800" />
+                <Drop size={18} weight="fill" className="text-deep-teal" />
               </span>
               <span className="text-base font-extrabold">hydromart</span>
             </div>
@@ -77,7 +77,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/55">
+        <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/70">
           {t('auth.footer.copyright')}
         </div>
       </div>

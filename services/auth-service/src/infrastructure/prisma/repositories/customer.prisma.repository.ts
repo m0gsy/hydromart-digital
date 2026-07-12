@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { Customer } from '../../../domain/customer/customer.entity';
 import {
   CreateCustomerData,
   CustomerRepository,
 } from '../../../application/ports/customer.repository';
+import { EmailAlreadyRegisteredError } from '../../../domain/errors/auth.errors';
 import { PrismaService } from '../prisma.service';
 import { toCustomerEntity, toPrismaRole, toPrismaStatus } from '../mappers';
 
@@ -46,17 +48,29 @@ export class CustomerPrismaRepository implements CustomerRepository {
 
   async save(customer: Customer): Promise<Customer> {
     const props = customer.toProps();
-    const row = await this.prisma.customer.update({
-      where: { id: props.id },
-      data: {
-        email: props.email,
-        fullName: props.fullName,
-        status: toPrismaStatus(props.status),
-        googleSub: props.googleSub,
-        phoneVerifiedAt: props.phoneVerifiedAt,
-        lastLoginAt: props.lastLoginAt,
-      },
-    });
-    return toCustomerEntity(row);
+    try {
+      const row = await this.prisma.customer.update({
+        where: { id: props.id },
+        data: {
+          email: props.email,
+          fullName: props.fullName,
+          status: toPrismaStatus(props.status),
+          googleSub: props.googleSub,
+          phoneVerifiedAt: props.phoneVerifiedAt,
+          lastLoginAt: props.lastLoginAt,
+        },
+      });
+      return toCustomerEntity(row);
+    } catch (err) {
+      // Backstop the email-uniqueness race the service pre-check can't close.
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002' &&
+        (err.meta?.target as string[] | undefined)?.includes('email')
+      ) {
+        throw new EmailAlreadyRegisteredError();
+      }
+      throw err;
+    }
   }
 }
