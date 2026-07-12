@@ -2,148 +2,85 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Buildings, ChartLineUp, ChatCircleText, Drop, Gift, MapPin, Megaphone, Package, ShoppingCart, User } from '@phosphor-icons/react';
+import { Drop, ShoppingCartSimple, User } from '@phosphor-icons/react';
 
-import { api } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canViewCampaigns, canViewDashboard, canViewFranchise, isStaff } from '@/lib/roles';
-import type { Cart } from '@/lib/types';
+import { useCart } from '@/lib/cart-context';
+import { useT } from '@/lib/locale-context';
+import { canViewDashboard, isStaff } from '@/lib/roles';
 
 export function Nav() {
   const { customer, ready } = useAuth();
+  const { count } = useCart();
+  const { t } = useT();
   const pathname = usePathname();
-  const [count, setCount] = useState(0);
 
-  // ponytail: cheap re-fetch of the cart count on navigation instead of a global
-  // cart store. Upgrade to shared state if the badge needs to update mid-page.
-  useEffect(() => {
-    if (!customer) {
-      setCount(0);
-      return;
-    }
-    let alive = true;
-    api
-      .get<Cart>(endpoints.cart.view, true)
-      .then((cart) => alive && setCount(cart.items.reduce((n, i) => n + i.quantity, 0)))
-      .catch(() => alive && setCount(0));
-    return () => {
-      alive = false;
-    };
-  }, [customer, pathname]);
+  const active = (href: string) =>
+    href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+  const pill = (href: string, label: string) => (
+    <Link
+      href={href}
+      className={
+        'rounded-full px-4 py-2 text-sm font-bold transition-colors ' +
+        (active(href) ? 'bg-brand-50 text-brand-800' : 'text-muted hover:bg-brand-50')
+      }
+    >
+      {label}
+    </Link>
+  );
 
   return (
     <header className="surface sticky top-0 z-30 border-b border-app">
-      <nav className="mx-auto flex h-16 max-w-5xl items-center justify-between gap-4 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold">
-          <Drop size={26} weight="fill" className="text-brand-600" />
-          <span>Hydromart</span>
+      <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+        <Link href="/" className="flex items-center gap-2.5 font-extrabold tracking-tight">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600">
+            <Drop size={19} weight="fill" className="text-white" />
+          </span>
+          <span className="text-lg">hydromart</span>
         </Link>
 
-        <div className="flex items-center gap-1">
-          <Link
-            href="/products"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-          >
-            <Package size={20} />
-            <span className="hidden sm:inline">Shop</span>
-          </Link>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* primary links — desktop only; mobile uses the bottom tab bar */}
+          <div className="hidden items-center gap-1.5 sm:flex">
+            {pill('/products', t('nav.shop'))}
+            {ready && customer && pill('/orders', t('nav.orders'))}
+            {ready && customer && canViewDashboard(customer.role) && pill('/dashboard', t('nav.ops'))}
+            {ready && customer && !canViewDashboard(customer.role) && isStaff(customer.role) &&
+              pill('/dashboard/orders', t('nav.ops'))}
+          </div>
+
+          {/* cart — ink button with teal badge (1c signature) */}
           <Link
             href="/cart"
-            aria-label="Cart"
-            className="relative rounded-lg p-2.5 hover:bg-brand-50"
+            aria-label={t('nav.cart')}
+            className="relative flex items-center justify-center rounded-full bg-[color:var(--text)] p-2.5 text-[color:var(--surface)] transition-transform active:scale-95"
           >
-            <ShoppingCart size={22} />
+            <ShoppingCartSimple size={20} weight="fill" />
             {count > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-bold text-white">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1 text-[11px] font-extrabold text-white">
                 {count}
               </span>
             )}
           </Link>
+
           {ready && customer ? (
-            <>
-              {canViewDashboard(customer.role) ? (
-                <Link
-                  href="/dashboard"
-                  aria-label="Operations dashboard"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                >
-                  <ChartLineUp size={20} />
-                  <span className="hidden sm:inline">Ops</span>
-                </Link>
-              ) : (
-                isStaff(customer.role) && (
-                  <Link
-                    href="/dashboard/orders"
-                    aria-label="Order queue"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                  >
-                    <ChartLineUp size={20} />
-                    <span className="hidden sm:inline">Queue</span>
-                  </Link>
-                )
-              )}
-              {canViewCampaigns(customer.role) && (
-                <>
-                  <Link
-                    href="/dashboard/campaigns"
-                    aria-label="Campaigns"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                  >
-                    <ChatCircleText size={20} />
-                    <span className="hidden sm:inline">Campaigns</span>
-                  </Link>
-                  <Link
-                    href="/dashboard/promotions"
-                    aria-label="Promotions"
-                    className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                  >
-                    <Megaphone size={20} />
-                    <span className="hidden sm:inline">Promos</span>
-                  </Link>
-                </>
-              )}
-              {canViewFranchise(customer.role) && (
-                <Link
-                  href="/dashboard/franchise"
-                  aria-label="My franchise"
-                  className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-                >
-                  <Buildings size={20} />
-                  <span className="hidden sm:inline">Franchise</span>
-                </Link>
-              )}
-              <Link
-                href="/rewards"
-                aria-label="Rewards"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-              >
-                <Gift size={20} />
-                <span className="hidden sm:inline">Rewards</span>
-              </Link>
-              <Link
-                href="/addresses"
-                aria-label="Addresses"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-              >
-                <MapPin size={20} />
-                <span className="hidden sm:inline">Addresses</span>
-              </Link>
-              <Link
-                href="/orders"
-                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold hover:bg-brand-50"
-              >
-                <User size={20} />
-                <span className="hidden sm:inline">Orders</span>
-              </Link>
-            </>
+            <Link
+              href="/account"
+              aria-label={t('nav.account')}
+              className={
+                'flex h-9 w-9 items-center justify-center rounded-full border border-app text-sm font-extrabold transition-colors ' +
+                (active('/account') ? 'bg-brand-50 text-brand-800' : 'hover:bg-brand-50')
+              }
+            >
+              {customer.fullName?.trim()?.[0]?.toUpperCase() ?? <User size={18} />}
+            </Link>
           ) : (
             <Link
               href="/login"
-              className="rounded-lg px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+              className="rounded-full px-4 py-2 text-sm font-bold text-brand-700 hover:bg-brand-50"
             >
-              Sign in
+              {t('nav.signIn')}
             </Link>
           )}
         </div>
