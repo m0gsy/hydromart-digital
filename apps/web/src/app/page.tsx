@@ -8,7 +8,6 @@ import { Hero } from '@/components/hero';
 import { PromoCarousel } from '@/components/promo-carousel';
 import { CategoryGrid } from '@/components/category-grid';
 import { NearbyDepots } from '@/components/nearby-depots';
-import { TrustIndicators } from '@/components/trust-indicators';
 import { LoyaltyHighlight } from '@/components/loyalty-highlight';
 import { ActiveOrderCard } from '@/components/active-order-card';
 import { ProductRecRail } from '@/components/product-rec-rail';
@@ -17,7 +16,8 @@ import { ProductRecRail } from '@/components/product-rec-rail';
 // returning users lead with reorder + live order status (habitual repurchase is
 // the #1 lever); guests lead with the value prop + coverage answer, then
 // discovery. Every data section hides when empty (see the child components), so
-// the page degrades gracefully before the catalog/orders are populated.
+// the page degrades gracefully before the catalog/orders are populated. The
+// depot card carries the trust row for both branches.
 
 export default function HomePage() {
   const { customer } = useAuth();
@@ -29,29 +29,39 @@ export default function HomePage() {
     location?.depotId ? { depotId: location.depotId } : {},
   );
 
-  return (
-    <div className="flex flex-col gap-8">
-      <Hero greetingName={customer?.fullName} />
+  const membershipAndDepot = (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <LoyaltyHighlight />
+      <NearbyDepots />
+    </div>
+  );
 
+  return (
+    <div className="flex flex-col gap-[46px]">
       {customer ? (
         <>
-          <ActiveOrderCard />
-          <ProductRecRail title={t('home.rail.reorder')} endpoint={endpoints.recommendations.reorder()} requiresAuth />
+          <div className="flex flex-col gap-3.5">
+            <Hero greetingName={customer.fullName} />
+            <ActiveOrderCard />
+          </div>
+          <ProductRecRail
+            title={t('home.rail.reorder')}
+            subtitle={t('home.rail.reorderSub')}
+            endpoint={endpoints.recommendations.reorder()}
+            requiresAuth
+          />
           <PromoCarousel />
           <CategoryGrid />
           <ProductRecRail title={t('home.rail.trending')} endpoint={trending} />
-          <LoyaltyHighlight />
-          <NearbyDepots />
-          <TrustIndicators />
+          {membershipAndDepot}
         </>
       ) : (
         <>
+          <Hero />
           <PromoCarousel />
           <CategoryGrid />
           <ProductRecRail title={t('home.rail.trending')} endpoint={trending} />
-          <TrustIndicators />
-          <LoyaltyHighlight />
-          <NearbyDepots />
+          {membershipAndDepot}
         </>
       )}
     </div>

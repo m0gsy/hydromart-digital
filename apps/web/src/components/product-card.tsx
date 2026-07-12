@@ -58,7 +58,7 @@ export function ProductCard({
   return (
     <Link
       href={`/products/${product.id}`}
-      className="surface group flex flex-col overflow-hidden rounded-2xl shadow-card transition-[box-shadow,transform] hover:-translate-y-[3px] hover:shadow-lift"
+      className="surface group flex flex-col overflow-hidden rounded-[20px] shadow-card transition-[box-shadow,transform] duration-[180ms] hover:-translate-y-[3px] hover:shadow-lift"
     >
       <div className="relative flex aspect-square items-center justify-center bg-[color:var(--surface-soft)]">
         {product.imageUrl ? (
@@ -74,19 +74,19 @@ export function ProductCard({
           <Drop size={56} weight="thin" className="text-brand-300" />
         )}
         {badge && (
-          <span className="absolute left-2.5 top-2.5 rounded-full bg-[color:var(--text)] px-2.5 py-1 text-[11px] font-bold text-[color:var(--surface)]">
+          <span className="absolute left-2.5 top-2.5 rounded-full bg-[color:var(--text)] px-[11px] py-1 text-[11px] font-bold text-[color:var(--surface)]">
             {badge}
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-0.5 p-4">
-        <h3 className="line-clamp-2 text-[15px] font-bold leading-snug">{product.name}</h3>
+      <div className="flex flex-1 flex-col gap-[3px] p-4">
+        <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.3]">{product.name}</h3>
         <p className="text-[13px] text-muted">{product.unit}</p>
-        <div className="mt-3 flex items-end justify-between gap-2">
+        <div className="mt-3 flex items-center justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <Money amount={product.basePrice} className="text-[17px] font-extrabold tracking-tight" />
+            <Money amount={product.basePrice} className="text-[17px] font-extrabold tracking-[-0.01em]" />
             {memberRate > 0 && (
-              <MemberPrice amount={memberPrice(product.basePrice, memberRate)} className="px-2 py-0.5 text-[11.5px]" />
+              <MemberPrice amount={memberPrice(product.basePrice, memberRate)} className="px-[9px] py-0.5 text-[11.5px]" />
             )}
           </div>
           <button

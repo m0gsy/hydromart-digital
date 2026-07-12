@@ -8,7 +8,7 @@ import { ArrowsClockwise, CaretRight, Money as MoneyIcon } from '@phosphor-icons
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Button, ErrorState, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -16,27 +16,28 @@ import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Payment, PaymentMethod } from '@/lib/types';
+import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
-const PAYMENT_TONE = {
-  PENDING: 'warning',
-  PAID: 'success',
-  FAILED: 'danger',
-  CANCELLED: 'neutral',
-  REFUNDED: 'neutral',
-} as const;
+// White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
+// keeps it theme-aware (white in light, elevated dark surface in dark).
+const PANEL = 'surface rounded-[22px] shadow-card';
 
-const CHIP_TONE = {
-  active: 'bg-brand-50 text-brand-800',
-  done: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
-  cancelled: 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]',
-} as const;
-
-const CHIP_DOT = {
+// Status pill dot colour, keyed off the fulfilment tone.
+const DOT = {
   active: 'bg-brand-600',
   done: 'bg-[color:var(--success)]',
   cancelled: 'bg-[color:var(--danger)]',
 } as const;
+
+// Payment status badge — PENDING amber per spec (#faf1de / #8a6a1f), the rest
+// reuse semantic tokens.
+const PAY_BADGE: Record<PaymentStatus, string> = {
+  PENDING: 'bg-amber-50 text-amber-900',
+  PAID: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
+  FAILED: 'bg-[color:var(--danger-bg)] text-[color:var(--danger)]',
+  CANCELLED: 'bg-[color:var(--surface-soft)] text-muted',
+  REFUNDED: 'bg-[color:var(--surface-soft)] text-muted',
+};
 
 function OrderDetailInner({ id }: { id: string }) {
   const { t } = useT();
@@ -123,20 +124,22 @@ function OrderDetailInner({ id }: { id: string }) {
   const toneKey = tone(order.status);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="mx-auto flex w-full max-w-[1216px] flex-col gap-4">
       {/* breadcrumb */}
       <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
         <Link href="/orders" className="transition-colors hover:text-brand-600">
           {t('nav.orders')}
         </Link>
-        <CaretRight size={11} />
+        <CaretRight size={11} weight="bold" />
         <span className="text-[color:var(--text)]">#{order.orderNumber}</span>
       </div>
 
       {/* header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-[30px] font-extrabold tracking-tight">#{order.orderNumber}</h1>
+          <h1 className="text-[30px] font-extrabold" style={{ letterSpacing: '-0.03em' }}>
+            #{order.orderNumber}
+          </h1>
           <p className="mt-1 text-sm text-muted">
             {t('order.detail.placedMeta', {
               date: formatDateTime(order.createdAt),
@@ -145,33 +148,28 @@ function OrderDetailInner({ id }: { id: string }) {
             <Money amount={order.total} className="font-bold text-[color:var(--text)]" />
           </p>
         </div>
-        <span
-          className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13.5px] font-bold ${CHIP_TONE[toneKey]}`}
-        >
-          <span className={`h-2 w-2 rounded-full ${CHIP_DOT[toneKey]}`} />
+        <span className="inline-flex items-center gap-2 rounded-full bg-brand-50 px-[18px] py-[9px] text-[13.5px] font-extrabold text-brand-800">
+          <span className={`h-2 w-2 rounded-full ${DOT[toneKey]}`} />
           {t(`order.status.${order.status}`)}
         </span>
       </div>
 
-      {/* tracker */}
-      <Card className="p-6">
+      {/* progress stepper */}
+      <div className={`${PANEL} px-[30px] py-[26px]`}>
         <OrderProgress status={order.status} />
-      </Card>
+      </div>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* LEFT */}
         <div className="flex flex-col gap-4">
           {/* items */}
-          <Card className="flex flex-col gap-3 p-6">
+          <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
             <h2 className="text-base font-extrabold">{t('order.detail.items')}</h2>
             {order.items.map((item) => (
               <div key={item.id} className="flex items-center gap-3">
                 <div
                   className="h-[52px] w-[52px] shrink-0 rounded-xl"
-                  style={{
-                    background:
-                      'repeating-linear-gradient(45deg,var(--surface-soft),var(--surface-soft) 8px,var(--surface-muted) 8px,var(--surface-muted) 16px)',
-                  }}
+                  style={{ background: 'var(--surface-muted)' }}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold">
@@ -182,7 +180,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 <Money amount={item.lineTotal} className="text-sm font-bold" />
               </div>
             ))}
-            <div className="mt-1 flex flex-col gap-2 border-t border-app pt-3 text-[13.5px]">
+            <div className="mt-1 flex flex-col gap-2 border-t border-[color:var(--border-soft)] pt-3 text-[13.5px]">
               <div className="flex justify-between">
                 <span className="text-muted">{t('order.detail.subtotal')}</span>
                 <Money amount={order.subtotal} className="font-bold" />
@@ -199,32 +197,59 @@ function OrderDetailInner({ id }: { id: string }) {
                   </span>
                 </div>
               )}
-              <div className="mt-1 flex justify-between border-t border-app pt-3 text-base font-extrabold">
+              <div className="mt-1 flex justify-between border-t border-[color:var(--border-soft)] pt-3 text-[15.5px] font-extrabold">
                 <span>{t('order.detail.total')}</span>
                 <Money amount={order.total} />
               </div>
             </div>
-          </Card>
+          </div>
 
-          {/* payment status */}
-          {payment && (
-            <Card className="flex items-center gap-3 p-6">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                <MoneyIcon size={18} weight="fill" className="text-brand-600" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold">{t('order.detail.payment')} · {payment.method}</p>
-                {payment.instruction && (
-                  <p className="text-[12.5px] text-muted">{payment.instruction}</p>
-                )}
+          {/* payment + delivery */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {payment && (
+              <div className={`${PANEL} flex items-start gap-3 p-[22px]`}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                  <MoneyIcon size={18} weight="fill" className="text-brand-600" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold">
+                    {t('order.detail.payment')} · {payment.method}
+                  </p>
+                  {payment.instruction && (
+                    <p className="mt-0.5 text-[12.5px] text-muted">{payment.instruction}</p>
+                  )}
+                  <span
+                    className={`mt-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${PAY_BADGE[payment.status]}`}
+                  >
+                    {payment.status}
+                  </span>
+                </div>
               </div>
-              <Badge tone={PAYMENT_TONE[payment.status]}>{payment.status}</Badge>
-            </Card>
-          )}
+            )}
 
-          {/* pay form */}
+            {/* delivery-to */}
+            <div className={`${PANEL} flex flex-col gap-1.5 p-[22px] text-sm ${payment ? '' : 'sm:col-span-2'}`}>
+              <h2 className="text-base font-extrabold">{t('order.detail.deliveryAddress')}</h2>
+              <p className="text-sm font-bold">
+                {order.recipientName} · {order.phone}
+              </p>
+              <p className="leading-relaxed text-muted">
+                {order.addressLine}, {order.city}, {order.province}
+                {order.postalCode ? ` ${order.postalCode}` : ''}
+              </p>
+              {order.notes && (
+                <p className="text-[12.5px] text-muted">
+                  {t('order.detail.notes')}:{' '}
+                  <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* pay form — kept so a still-unpaid order can be settled (spec omits it,
+              but dropping it would regress the payment flow). */}
           {needsPayment(order, payment) && (
-            <Card className="flex flex-col gap-3 p-6">
+            <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
               <div>
                 <h2 className="text-base font-extrabold">
                   {payment ? t('order.detail.payRetry') : t('order.detail.payTitle')}
@@ -259,25 +284,8 @@ function OrderDetailInner({ id }: { id: string }) {
               <Button onClick={pay} loading={action === 'pay'} className="rounded-full">
                 {t('order.detail.payNow')}
               </Button>
-            </Card>
+            </div>
           )}
-
-          {/* address */}
-          <Card className="flex flex-col gap-1.5 p-6 text-sm">
-            <h2 className="text-base font-extrabold">{t('order.detail.deliveryAddress')}</h2>
-            <p className="font-bold">
-              {order.recipientName} · {order.phone}
-            </p>
-            <p className="leading-relaxed text-muted">
-              {order.addressLine}, {order.city}, {order.province}
-              {order.postalCode ? ` ${order.postalCode}` : ''}
-            </p>
-            {order.notes && (
-              <p className="text-[12.5px] text-muted">
-                {t('order.detail.notes')}: <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
-              </p>
-            )}
-          </Card>
 
           {actionError && (
             <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
@@ -288,7 +296,7 @@ function OrderDetailInner({ id }: { id: string }) {
           {/* actions */}
           <div className="flex flex-wrap gap-3">
             <Button onClick={repeat} loading={action === 'repeat'} className="rounded-full">
-              <ArrowsClockwise size={17} weight="bold" />
+              <ArrowsClockwise size={17} weight="fill" />
               {t('order.detail.reorder')}
             </Button>
             {isCancellable(order.status) && (
@@ -304,11 +312,11 @@ function OrderDetailInner({ id }: { id: string }) {
           </div>
         </div>
 
-        {/* RIGHT */}
-        <Card className="p-6">
-          <h2 className="mb-4 text-base font-extrabold">{t('order.detail.history')}</h2>
+        {/* RIGHT — timeline */}
+        <div className={`${PANEL} flex flex-col gap-3.5 p-[22px]`}>
+          <h2 className="text-base font-extrabold">{t('order.detail.history')}</h2>
           <OrderTimeline history={order.history} />
-        </Card>
+        </div>
       </div>
     </div>
   );

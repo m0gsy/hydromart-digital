@@ -1,17 +1,17 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  ArrowLeft,
   Bank,
   Check,
   CheckCircle,
+  DeviceMobile,
+  Hash,
   Money as MoneyIcon,
+  NotePencil,
   QrCode,
   ShieldCheck,
-  Wallet,
 } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -37,8 +37,8 @@ const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
   CASH: MoneyIcon,
   TRANSFER: Bank,
   QRIS: QrCode,
-  EWALLET: Wallet,
-  VA: Bank,
+  EWALLET: DeviceMobile,
+  VA: Hash,
 };
 
 function CheckoutInner() {
@@ -75,6 +75,7 @@ function CheckoutInner() {
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [editingNote, setEditingNote] = useState(false);
 
   // `null` = a fresh manually-typed address (no saved coordinates). Selecting a saved
   // address stashes its lat/lng, which lets order-service route the order to a depot
@@ -243,53 +244,46 @@ function CheckoutInner() {
   const displayedTotal = estimatedTotal + deliveryFee;
 
   return (
-    <form onSubmit={placeOrder} className="flex flex-col gap-6">
-      {/* Progress stepper */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/cart"
-          className="inline-flex items-center gap-1.5 text-sm font-bold text-muted transition-colors hover:text-[color:var(--text)]"
-        >
-          <ArrowLeft size={15} weight="bold" />
-          {t('common.back')}
-        </Link>
-        <div className="mx-auto flex items-center gap-2.5 text-[13px] font-bold">
-          <span className="flex items-center gap-2 text-brand-800">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-on-brand">
-              <Check size={12} weight="bold" />
-            </span>
-            {t('order.checkout.stepCart')}
+    <form onSubmit={placeOrder} className="flex flex-col">
+      {/* Progress stepper — centered in-page row */}
+      <div className="mb-7 flex items-center justify-center gap-2.5 text-[13px] font-bold">
+        <span className="flex items-center gap-2 text-brand-800">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+            <Check size={12} weight="bold" />
           </span>
-          <span className="h-[1.5px] w-8 bg-brand-600" />
-          <span className="flex items-center gap-2 text-brand-800">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
-              2
-            </span>
-            {t('order.checkout.stepCheckout')}
+          {t('order.checkout.stepCart')}
+        </span>
+        <span className="h-[1.5px] w-[34px] bg-brand-600" />
+        <span className="flex items-center gap-2 text-brand-800">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
+            2
           </span>
-          <span className="h-[1.5px] w-8 bg-[color:var(--border)]" />
-          <span className="flex items-center gap-2 text-muted">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--surface-muted)] text-[11.5px] text-muted">
-              3
-            </span>
-            {t('order.checkout.stepDone')}
+          {t('order.checkout.stepCheckout')}
+        </span>
+        <span className="h-[1.5px] w-[34px] bg-[color:var(--border)]" />
+        <span className="flex items-center gap-2 text-muted">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11.5px] text-muted">
+            3
           </span>
-        </div>
+          {t('order.checkout.stepDone')}
+        </span>
       </div>
 
-      <h1 className="text-[30px] font-extrabold tracking-tight">{t('order.checkout.title')}</h1>
+      <h1 className="mb-5 text-[30px] font-extrabold tracking-[-0.03em]">
+        {t('order.checkout.title')}
+      </h1>
 
-      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* LEFT column */}
         <div className="flex flex-col gap-4">
-          {/* Delivery address */}
-          <Card className="flex flex-col gap-4 p-5">
+          {/* Deliver to */}
+          <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-extrabold">{t('order.checkout.deliveryAddress')}</h2>
               <button
                 type="button"
                 onClick={chooseNew}
-                className="text-sm font-bold text-brand-700 hover:text-brand-800"
+                className="text-[13px] font-bold text-brand-700 hover:text-brand-800"
               >
                 {t('order.checkout.newAddress')}
               </button>
@@ -313,7 +307,9 @@ function CheckoutInner() {
                           {a.label}
                           {a.isPrimary && <Chip tone="tint">{t('order.checkout.primary')}</Chip>}
                         </span>
-                        <span className="mt-0.5 block text-[13px] text-muted">{a.recipientName}</span>
+                        <span className="mt-0.5 block text-[13px] text-muted">
+                          {a.recipientName} · {a.phone}
+                        </span>
                         <span className="block text-[13px] text-muted">
                           {a.addressLine}, {a.city}
                         </span>
@@ -324,60 +320,89 @@ function CheckoutInner() {
               </div>
             )}
 
-            {/* Manual entry */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('order.checkout.recipientName')} htmlFor="recipientName">
-                <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
-              </Field>
-              <Field label={t('order.checkout.phone')} htmlFor="phone">
-                <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
-              </Field>
-            </div>
-            <Field label={t('order.checkout.address')} htmlFor="addressLine">
-              <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder={t('order.checkout.addressPlaceholder')} />
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label={t('order.checkout.city')} htmlFor="city">
-                <Input id="city" required value={form.city} onChange={set('city')} />
-              </Field>
-              <Field label={t('order.checkout.province')} htmlFor="province">
-                <Input id="province" required value={form.province} onChange={set('province')} />
-              </Field>
-              <Field label={t('order.checkout.postalCode')} htmlFor="postalCode" hint={t('order.checkout.optional')}>
-                <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
-              </Field>
-            </div>
-            <Field label={t('order.checkout.courierNotes')} htmlFor="notes" hint={t('order.checkout.optional')}>
-              <Input id="notes" value={form.notes} onChange={set('notes')} placeholder={t('order.checkout.courierNotesPlaceholder')} />
-            </Field>
+            {/* Manual entry — the "new address" flow (hidden when a saved address is picked) */}
             {!isSavedSelection && (
-              <div className="flex flex-col gap-2 border-t border-app pt-3">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={saveToBook}
-                    onChange={(e) => setSaveToBook(e.target.checked)}
-                    className="accent-brand-600"
-                  />
-                  {t('order.checkout.saveAddress')}
-                </label>
-                {saveToBook && (
-                  <Field label={t('order.checkout.addressLabel')} htmlFor="saveLabel" hint={t('order.checkout.addressLabelHint')}>
-                    <Input
-                      id="saveLabel"
-                      value={saveLabel}
-                      onChange={(e) => setSaveLabel(e.target.value)}
-                      placeholder={t('order.checkout.addressLabelPlaceholder')}
-                      maxLength={50}
-                    />
+              <div className="flex flex-col gap-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t('order.checkout.recipientName')} htmlFor="recipientName">
+                    <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
                   </Field>
-                )}
+                  <Field label={t('order.checkout.phone')} htmlFor="phone">
+                    <Input id="phone" required value={form.phone} onChange={set('phone')} inputMode="tel" />
+                  </Field>
+                </div>
+                <Field label={t('order.checkout.address')} htmlFor="addressLine">
+                  <Input id="addressLine" required value={form.addressLine} onChange={set('addressLine')} placeholder={t('order.checkout.addressPlaceholder')} />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label={t('order.checkout.city')} htmlFor="city">
+                    <Input id="city" required value={form.city} onChange={set('city')} />
+                  </Field>
+                  <Field label={t('order.checkout.province')} htmlFor="province">
+                    <Input id="province" required value={form.province} onChange={set('province')} />
+                  </Field>
+                  <Field label={t('order.checkout.postalCode')} htmlFor="postalCode" hint={t('order.checkout.optional')}>
+                    <Input id="postalCode" value={form.postalCode} onChange={set('postalCode')} inputMode="numeric" />
+                  </Field>
+                </div>
+                <div className="flex flex-col gap-2 border-t border-app pt-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={saveToBook}
+                      onChange={(e) => setSaveToBook(e.target.checked)}
+                      className="accent-brand-600"
+                    />
+                    {t('order.checkout.saveAddress')}
+                  </label>
+                  {saveToBook && (
+                    <Field label={t('order.checkout.addressLabel')} htmlFor="saveLabel" hint={t('order.checkout.addressLabelHint')}>
+                      <Input
+                        id="saveLabel"
+                        value={saveLabel}
+                        onChange={(e) => setSaveLabel(e.target.value)}
+                        placeholder={t('order.checkout.addressLabelPlaceholder')}
+                        maxLength={50}
+                      />
+                    </Field>
+                  )}
+                </div>
               </div>
             )}
+
+            {/* Driver note row */}
+            <div className="flex items-center gap-2.5 rounded-[14px] bg-[color:var(--surface-muted)] px-3.5 py-3 text-[12.5px]">
+              <NotePencil size={16} weight="fill" className="flex-shrink-0 text-brand-600" />
+              {editingNote ? (
+                <input
+                  autoFocus
+                  value={form.notes}
+                  onChange={set('notes')}
+                  onBlur={() => setEditingNote(false)}
+                  placeholder={t('order.checkout.courierNotesPlaceholder')}
+                  aria-label={t('order.checkout.courierNotes')}
+                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-[color:var(--text-muted)]"
+                />
+              ) : (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-muted">
+                    {t('order.checkout.courierNotes')}:{' '}
+                    {form.notes || t('order.checkout.courierNotesPlaceholder')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingNote(true)}
+                    className="flex-shrink-0 font-bold text-brand-700 hover:text-brand-800"
+                  >
+                    {t('account.profileCard.edit')}
+                  </button>
+                </>
+              )}
+            </div>
           </Card>
 
           {/* Payment method */}
-          <Card className="flex flex-col gap-4 p-5">
+          <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
             <h2 className="text-base font-extrabold">{t('order.checkout.paymentMethod')}</h2>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {PAYMENT_METHODS.map((m) => {
@@ -385,11 +410,11 @@ function CheckoutInner() {
                 const on = method === m.value;
                 return (
                   <RadioCard key={m.value} selected={on} onSelect={() => setMethod(m.value)} className="items-center">
-                    <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                      <Icon size={18} className="text-brand-600" />
+                    <span className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">
+                      <Icon size={18} weight="fill" className="text-brand-600" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-extrabold">{m.label}</span>
+                      <span className="block text-[13.5px] font-extrabold">{m.label}</span>
                       <span className="block text-xs text-muted">{m.hint}</span>
                     </span>
                   </RadioCard>
@@ -399,7 +424,7 @@ function CheckoutInner() {
           </Card>
 
           {/* Voucher */}
-          <Card className="flex flex-col gap-3 p-5">
+          <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
             <h2 className="text-base font-extrabold">{t('order.checkout.voucher')}</h2>
             <div className="flex items-center gap-2.5">
               <Input
@@ -412,7 +437,7 @@ function CheckoutInner() {
                 }}
                 placeholder={t('order.checkout.voucherPlaceholder')}
                 autoCapitalize="characters"
-                className="rounded-full tracking-widest"
+                className="h-12 flex-1 rounded-full border-brand-600 px-[18px] font-mono font-bold tracking-[0.08em]"
               />
               <Button
                 type="button"
@@ -420,7 +445,7 @@ function CheckoutInner() {
                 onClick={applyVoucher}
                 loading={quoting}
                 disabled={!voucherCode.trim()}
-                className="rounded-full border-[color:var(--text)] px-6"
+                className="h-12 rounded-full border-[1.5px] border-[color:var(--text)] px-[22px] font-extrabold hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
               >
                 {t('order.checkout.apply')}
               </Button>
@@ -444,7 +469,7 @@ function CheckoutInner() {
         </div>
 
         {/* RIGHT summary */}
-        <Card className="flex flex-col gap-3.5 p-6 lg:sticky lg:top-20">
+        <Card className="flex flex-col gap-3.5 rounded-[22px] p-6 lg:sticky lg:top-20">
           <h2 className="text-[17px] font-extrabold">{t('order.checkout.orderSummary')}</h2>
 
           {cart.items.map((l) => (
@@ -500,7 +525,7 @@ function CheckoutInner() {
             </p>
           )}
 
-          <Button type="submit" loading={submitting} className="h-14 rounded-full text-[15px]">
+          <Button type="submit" loading={submitting} className="h-[54px] rounded-full text-[15px] font-extrabold">
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
           </Button>
 

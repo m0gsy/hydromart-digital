@@ -32,11 +32,16 @@ export const home: typeof base = {
   },
   rail: {
     reorder: 'Buy again',
-    trending: 'Best sellers',
+    reorderSub: 'From your recent orders',
+    trending: 'Best sellers this week',
+    viewAll: 'All products',
     addAria: 'Add {name} to cart',
   },
   promo: {
     aria: 'Promo',
+    copyCode: 'Copy code',
+    copied: 'Copied',
+    shopNow: 'Shop now',
   },
   loyalty: {
     membership: 'Membership',

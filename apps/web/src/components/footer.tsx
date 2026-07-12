@@ -30,7 +30,6 @@ export function Footer() {
         { label: t('auth.footer.myOrders'), href: '/orders' },
         { label: t('auth.footer.rewards'), href: '/rewards' },
         { label: t('auth.footer.address'), href: '/addresses' },
-        { label: t('auth.footer.myAccount'), href: '/account' },
       ],
     },
     {
@@ -45,23 +44,23 @@ export function Footer() {
 
   return (
     <footer className="bg-deep-teal mt-10 text-white">
-      <div className="mx-auto w-full max-w-6xl px-4 py-11 sm:px-8">
+      <div className="mx-auto w-full max-w-[1216px] px-5 pb-[30px] pt-11 sm:px-8">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white">
+              <span className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-white">
                 <Drop size={18} weight="fill" className="text-deep-teal" />
               </span>
               <span className="text-base font-extrabold">hydromart</span>
             </div>
-            <p className="max-w-[280px] text-sm leading-relaxed text-white/65">
+            <p className="max-w-[280px] text-[13.5px] leading-[1.55] text-white/65">
               {t('auth.footer.tagline')}
             </p>
           </div>
 
           {COLUMNS.map((col) => (
-            <nav key={col.heading} aria-label={col.heading} className="flex flex-col gap-2.5 text-sm">
-              <h2 className="font-extrabold">{col.heading}</h2>
+            <nav key={col.heading} aria-label={col.heading} className="flex flex-col gap-2.5 text-[13.5px]">
+              <h2 className="text-[13.5px] font-extrabold">{col.heading}</h2>
               {col.links.map((link) =>
                 link.href ? (
                   <Link key={link.label} href={link.href} className="text-white/65 hover:text-white">
@@ -77,7 +76,7 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/70">
+        <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/55">
           {t('auth.footer.copyright')}
         </div>
       </div>

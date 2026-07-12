@@ -2,7 +2,8 @@
 export const shop = {
   catalog: {
     title: 'Pesan air',
-    subtitle: 'Galon isi ulang dan air botol, diantar dari depot Anda.',
+    subtitle: 'Galon isi ulang dan air botol, diantar dari depot terdekat.',
+    subtitleDepot: 'Galon isi ulang dan air botol, diantar dari {depot} — {dist} km.',
     searchPlaceholder: 'Cari produk…',
     searchLabel: 'Cari produk',
     all: 'Semua',

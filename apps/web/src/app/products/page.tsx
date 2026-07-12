@@ -10,10 +10,11 @@ import { ProductRecRail } from '@/components/product-rec-rail';
 import { Button, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/locale-context';
+import { useLocation } from '@/lib/location-context';
 import { useMemberRate } from '@/lib/member';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { Category, Page, Product } from '@/lib/types';
+import type { Category, NearbyDepot, Page, Product } from '@/lib/types';
 
 const LIMIT = 12;
 
@@ -21,6 +22,7 @@ function ProductsCatalog() {
   const router = useRouter();
   const params = useSearchParams();
   const { t } = useT();
+  const { location } = useLocation();
 
   // URL is the source of truth so searches/category filters are shareable and
   // deep-linkable (the Home hero + category tiles navigate here with params).
@@ -43,6 +45,18 @@ function ProductsCatalog() {
   const activeCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId) ?? null,
     [categories.data, categoryId],
+  );
+
+  // Best-effort nearest depot for the subtitle "diantar dari {depot} — {dist} km".
+  // Mirrors the PDP pattern; resolves to null (→ generic subtitle) with no location.
+  const { data: depot } = useAsync<NearbyDepot | null>(
+    () =>
+      location
+        ? api
+            .get<NearbyDepot[]>(endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 1 }))
+            .then((d) => d[0] ?? null)
+        : Promise.resolve(null),
+    [location?.lat, location?.lng],
   );
 
   const { data, error, loading, reload } = useAsync<Page<Product>>(
@@ -70,27 +84,35 @@ function ProductsCatalog() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / LIMIT)) : 1;
   const empty = !data || data.items.length === 0;
 
+  const subtitle = depot
+    ? t('shop.catalog.subtitleDepot', {
+        depot: depot.name,
+        dist: depot.distanceKm.toFixed(1).replace('.', ','),
+      })
+    : t('shop.catalog.subtitle');
+
   return (
-    <div className="flex flex-col gap-5">
-      {/* Header + search pill — one row on desktop, stacked on mobile. */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col">
+      {/* Header + search pill — one row (flex-end, space-between, 24px gap) on
+          desktop, stacked on mobile. */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
         <div className="flex flex-col gap-1.5">
-          <h1 className="text-[30px] font-extrabold leading-none tracking-tight text-[color:var(--text)]">
-            {activeCategory ? activeCategory.name : t('shop.catalog.title')}
+          <h1 className="text-[30px] font-extrabold leading-none tracking-[-0.03em] text-[color:var(--text)]">
+            {t('shop.catalog.title')}
           </h1>
-          <p className="text-sm text-muted">{t('shop.catalog.subtitle')}</p>
+          <p className="text-[14.5px] text-muted">{subtitle}</p>
         </div>
         <form onSubmit={submitSearch} className="relative w-full sm:w-[380px]">
           <MagnifyingGlass
             size={18}
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-brand-600"
+            className="pointer-events-none absolute left-[18px] top-1/2 -translate-y-1/2 text-brand-600"
           />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('shop.catalog.searchPlaceholder')}
             aria-label={t('shop.catalog.searchLabel')}
-            className="surface h-12 !rounded-full border-app pl-11 pr-5"
+            className="surface h-12 !rounded-full border-app pl-[44px] pr-[18px]"
           />
         </form>
       </div>
@@ -99,12 +121,12 @@ function ProductsCatalog() {
           Reserve the row height while categories load so the grid below doesn't
           shift down when the pills appear (min-h ≈ one pill row). */}
       {categories.loading && !categories.data ? (
-        <div className="min-h-[38px]" />
+        <div className="mt-5 min-h-[38px]" />
       ) : (categories.data?.length ?? 0) > 0 ? (
-        <div className="flex flex-wrap gap-2.5">
+        <div className="mt-5 flex flex-wrap gap-[9px]">
           <Link
             href="/products"
-            className={`rounded-full px-[18px] py-2 text-sm font-bold transition-colors ${
+            className={`rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
               categoryId
                 ? 'surface border border-app text-muted hover:border-brand-600'
                 : 'bg-[color:var(--text)] text-[color:var(--surface)]'
@@ -116,7 +138,7 @@ function ProductsCatalog() {
             <Link
               key={c.id}
               href={`/products?category=${c.id}`}
-              className={`rounded-full px-[18px] py-2 text-sm font-bold transition-colors ${
+              className={`rounded-full px-[18px] py-[9px] text-[13.5px] font-bold transition-colors ${
                 c.id === categoryId
                   ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
                   : 'surface border border-app text-muted hover:border-brand-600'
@@ -132,7 +154,7 @@ function ProductsCatalog() {
       <h2 className="sr-only">{t('shop.catalog.title')}</h2>
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 pt-6 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             // Card-shaped skeleton (square image + content block) so its height
             // matches the real ProductCard and the swap doesn't shift layout.
@@ -147,18 +169,22 @@ function ProductsCatalog() {
           ))}
         </div>
       ) : error ? (
-        <ErrorState message={error} onRetry={reload} />
+        <div className="pt-6">
+          <ErrorState message={error} onRetry={reload} />
+        </div>
       ) : empty ? (
-        <EmptyState query={query} category={activeCategory?.name ?? (categoryId ? '' : null)} />
+        <div className="pt-6">
+          <EmptyState query={query} category={activeCategory?.name ?? (categoryId ? '' : null)} />
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 pb-2 pt-6 sm:grid-cols-3 lg:grid-cols-4">
             {data.items.map((product) => (
               <ProductCard key={product.id} product={product} memberRate={memberRate} />
             ))}
           </div>
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
+            <div className="flex items-center justify-center gap-2 pb-10 pt-[22px]">
               <PageButton
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}

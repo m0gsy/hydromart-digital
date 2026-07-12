@@ -4,7 +4,8 @@ import { shop as base } from '../id/shop';
 export const shop: typeof base = {
   catalog: {
     title: 'Order water',
-    subtitle: 'Refill gallons and bottled water, delivered from your depot.',
+    subtitle: 'Refill gallons and bottled water, delivered from the nearest depot.',
+    subtitleDepot: 'Refill gallons and bottled water, delivered from {depot} — {dist} km.',
     searchPlaceholder: 'Search products…',
     searchLabel: 'Search products',
     all: 'All',

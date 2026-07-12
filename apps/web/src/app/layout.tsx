@@ -40,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <LocationProvider>
                 <ToastProvider>
                   <Nav />
-                  <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-24 sm:px-6 sm:pb-10">
+                  <main className="mx-auto w-full max-w-[1216px] px-4 pt-6 pb-24 sm:px-8 sm:pb-10">
                     <PageTransition>{children}</PageTransition>
                   </main>
                   <Footer />

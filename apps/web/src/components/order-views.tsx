@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  CheckCircle,
+  Check,
   HandDeposit,
   House,
   Package,
@@ -22,6 +22,7 @@ const TONE_TO_BADGE = {
   cancelled: 'danger',
 } as const;
 
+/** Compact status badge — consumed by the orders LIST (keep name + props stable). */
 export function StatusBadge({ status }: { status: OrderStatus }) {
   const { t } = useT();
   return <Badge tone={TONE_TO_BADGE[tone(status)]}>{t(`order.status.${status}`)}</Badge>;
@@ -39,20 +40,12 @@ const MILESTONES: { labelKey: string; status: OrderStatus; icon: Icon }[] = [
   { labelKey: 'order.progress.arrived', status: 'DELIVERED', icon: House },
 ];
 
-function bannerIcon(status: OrderStatus): Icon {
-  if (status === 'DELIVERED' || status === 'COMPLETED') return CheckCircle;
-  if (status === 'DRIVER_ASSIGNED' || status === 'PICKED_UP' || status === 'ON_DELIVERY') {
-    return Truck;
-  }
-  return Package;
-}
-
-/** Stepped node tracker through the fulfilment flow, with a status banner. */
+/** Stepped node tracker through the fulfilment flow, with a status band. */
 export function OrderProgress({ status }: { status: OrderStatus }) {
   const { t } = useT();
   if (status === 'CANCELLED') {
     return (
-      <div className="flex items-center gap-2.5 rounded-xl bg-[color:var(--danger-bg)] px-4 py-3">
+      <div className="flex items-center gap-2.5 rounded-2xl bg-[color:var(--danger-bg)] px-[18px] py-[14px]">
         <span className="h-2.5 w-2.5 rounded-full bg-[color:var(--danger)]" />
         <span className="text-sm font-bold text-[color:var(--danger)]">
           {t('order.banner.CANCELLED')}
@@ -68,36 +61,39 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
     (acc, m, i) => (ORDER_FLOW.indexOf(m.status) <= currentIdx ? i : acc),
     0,
   );
-  const BannerIcon = bannerIcon(status);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div>
       <div className="flex items-start">
         {MILESTONES.map((m, i) => {
-          const state = completed || i < activePos ? 'done' : i === activePos ? 'active' : 'upcoming';
-          const reached = completed || i <= activePos;
-          const Ico = m.icon;
+          const isDone = completed || i < activePos;
+          const isCurrent = !completed && i === activePos;
+          // Connector above node i is teal once the previous node is done.
+          const prevDone = completed || i - 1 < activePos;
+          const Ico = isDone ? Check : m.icon;
           return (
             <div key={m.status} className="relative flex flex-1 flex-col items-center gap-2">
               {i > 0 && (
                 <span
-                  className={`absolute left-[-50%] right-1/2 top-[19px] h-[3px] ${
-                    reached ? 'bg-brand-600' : 'bg-[color:var(--border-soft)]'
+                  className={`absolute left-[-50%] right-1/2 top-[19px] h-[2px] ${
+                    prevDone ? 'bg-brand-600' : 'bg-[color:var(--border)]'
                   }`}
                 />
               )}
               <span
                 className={`relative flex h-10 w-10 items-center justify-center rounded-full ${
-                  state === 'upcoming'
-                    ? 'bg-[color:var(--surface-soft)] text-muted'
-                    : 'bg-brand-600 text-on-brand'
-                } ${state === 'active' ? 'ring-4 ring-brand-50' : ''}`}
+                  isDone
+                    ? 'bg-brand-600 text-on-brand'
+                    : isCurrent
+                      ? 'bg-[color:var(--text)] text-[color:var(--surface)]'
+                      : 'surface border-[1.5px] border-[color:var(--border)] text-muted'
+                }`}
               >
-                <Ico size={17} weight={state === 'upcoming' ? 'regular' : 'fill'} />
+                <Ico size={18} weight={isDone || isCurrent ? 'fill' : 'regular'} />
               </span>
               <span
                 className={`px-0.5 text-center text-[11px] leading-tight sm:text-[12.5px] ${
-                  state === 'upcoming' ? 'text-muted' : 'font-bold'
+                  isDone || isCurrent ? 'font-bold' : 'text-muted'
                 }`}
               >
                 {t(m.labelKey)}
@@ -107,8 +103,10 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
         })}
       </div>
 
-      <div className="flex items-center gap-2.5 rounded-xl bg-[color:#f2fafb] px-4 py-3.5 dark:bg-brand-50">
-        <BannerIcon size={20} weight="fill" className="shrink-0 text-brand-600" />
+      {/* Courier / status band. No courier name/ETA/phone exists in the order
+          payload, so we always show the generic localized status line. */}
+      <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
+        <Truck size={20} weight="fill" className="shrink-0 text-brand-600" />
         <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
       </div>
     </div>
@@ -117,7 +115,7 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
 
 /* ---------- Status history ---------- */
 
-/** Vertical, append-only status history in the 1c dot-and-line style. */
+/** Vertical, append-only status history in the 2e dot-and-line style. */
 export function OrderTimeline({ history }: { history: OrderStatusEvent[] }) {
   const { t } = useT();
   const events = [...history].sort(
@@ -131,18 +129,21 @@ export function OrderTimeline({ history }: { history: OrderStatusEvent[] }) {
             {i === 0 ? (
               <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-brand-600 ring-4 ring-brand-50" />
             ) : (
-              <span className="mt-1.5 h-[9px] w-[9px] shrink-0 rounded-full bg-[color:var(--border)]" />
+              <span className="mt-1.5 h-[9px] w-[9px] shrink-0 rounded-full bg-[#d8d4c8] dark:bg-[color:var(--border)]" />
             )}
             {i < events.length - 1 && (
-              <span className="w-[1.5px] flex-1 bg-[color:var(--border-soft)]" style={{ minHeight: 18 }} />
+              <span
+                className="w-[1.5px] flex-1 bg-[#efece4] dark:bg-[color:var(--border-soft)]"
+                style={{ minHeight: 18 }}
+              />
             )}
           </div>
           <div className="pb-4">
-            <p className={`text-sm ${i === 0 ? 'font-bold' : 'font-semibold'}`}>
+            <p className={`text-[13.5px] ${i === 0 ? 'font-bold' : 'font-semibold'}`}>
               {t(`order.status.${event.status}`)}
             </p>
-            <p className="mt-0.5 text-xs text-muted">{formatDateTime(event.createdAt)}</p>
-            {event.note && <p className="mt-0.5 text-xs font-semibold text-brand-700">{event.note}</p>}
+            <p className="mt-0.5 text-[12px] text-muted">{formatDateTime(event.createdAt)}</p>
+            {event.note && <p className="mt-0.5 text-[12px] font-semibold text-deep-teal">{event.note}</p>}
           </div>
         </li>
       ))}

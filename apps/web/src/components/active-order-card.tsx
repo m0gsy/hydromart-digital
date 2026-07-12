@@ -31,7 +31,7 @@ export function ActiveOrderCard() {
   return (
     <Link
       href={`/orders/${active.id}`}
-      className="surface flex flex-wrap items-center gap-x-3 gap-y-1 rounded-full border border-app px-5 py-3 transition-shadow hover:shadow-card"
+      className="surface flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-full border border-app px-[22px] py-[13px] transition-shadow hover:shadow-card"
     >
       <span className="relative flex h-2.5 w-2.5 shrink-0">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[color:var(--success)] opacity-60" />
@@ -41,7 +41,8 @@ export function ActiveOrderCard() {
         {t('home.activeOrder.status', { orderNumber: active.orderNumber })}
       </span>
       <span className="text-[13.5px] text-muted">
-        {active.items.length} {t('home.activeOrder.item')} · <Money amount={active.total} />
+        {t(`order.status.${active.status}`)} · {active.items.length} {t('home.activeOrder.item')} ·{' '}
+        <Money amount={active.total} />
       </span>
       <span className="ml-auto flex items-center gap-1.5 text-sm font-bold text-brand-600">
         {t('home.activeOrder.track')}

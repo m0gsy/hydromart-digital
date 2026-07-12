@@ -71,28 +71,36 @@ export function OtpInput({
   }
 
   return (
-    <div role="group" aria-label="Kode verifikasi" className="flex justify-between gap-2">
-      {Array.from({ length }).map((_, i) => (
-        <input
-          key={i}
-          ref={(el) => {
-            refs.current[i] = el;
-          }}
-          type="text"
-          inputMode="numeric"
-          autoComplete={i === 0 ? 'one-time-code' : 'off'}
-          autoFocus={autoFocus && i === 0}
-          disabled={disabled}
-          maxLength={1}
-          aria-label={`Digit ${i + 1}`}
-          value={value[i] ?? ''}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          onPaste={handlePaste}
-          onFocus={(e) => e.target.select()}
-          className="surface-elevated h-12 w-11 rounded-xl border border-app text-center text-lg font-bold tabular-nums focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600 disabled:opacity-60 sm:w-12"
-        />
-      ))}
+    <div role="group" aria-label="Kode verifikasi" className="flex gap-2">
+      {Array.from({ length }).map((_, i) => {
+        // Filled or focused cells get the 2px teal border; empty cells a 1.5px hairline.
+        const filled = Boolean(value[i]);
+        return (
+          <input
+            key={i}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
+            type="text"
+            inputMode="numeric"
+            autoComplete={i === 0 ? 'one-time-code' : 'off'}
+            autoFocus={autoFocus && i === 0}
+            disabled={disabled}
+            maxLength={1}
+            aria-label={`Digit ${i + 1}`}
+            value={value[i] ?? ''}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            onPaste={handlePaste}
+            onFocus={(e) => e.target.select()}
+            style={{ height: 60 }}
+            className={
+              'min-w-0 flex-1 rounded-[14px] bg-[color:var(--surface-elevated)] text-center text-[24px] font-extrabold tabular-nums caret-brand-600 outline-none focus:border-2 focus:border-brand-600 disabled:opacity-60 ' +
+              (filled ? 'border-2 border-brand-600' : 'border-[1.5px] border-app')
+            }
+          />
+        );
+      })}
     </div>
   );
 }

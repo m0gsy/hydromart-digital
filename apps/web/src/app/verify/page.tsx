@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { ArrowLeft, Drop } from '@phosphor-icons/react';
+import { ArrowLeft, ChatCircleDots } from '@phosphor-icons/react';
 
-import { Button, Card, Skeleton } from '@/components/ui';
+import { Button, Skeleton } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -14,17 +14,7 @@ import { useT } from '@/lib/locale-context';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
 const RESEND_SECONDS = 30;
-
-function BrandMark() {
-  return (
-    <Link href="/" className="flex items-center justify-center gap-2.5">
-      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 shadow-card">
-        <Drop size={24} weight="fill" className="text-white" />
-      </span>
-      <span className="text-2xl font-extrabold tracking-tight text-[color:var(--text)]">hydromart</span>
-    </Link>
-  );
-}
+const OTP_LENGTH = 6;
 
 function VerifyForm() {
   const { t } = useT();
@@ -77,41 +67,61 @@ function VerifyForm() {
   }
 
   if (!phone) {
-    return (
-      <p className="text-center text-sm text-muted">
-        {t('auth.verify.noPhone')}
-      </p>
-    );
+    return <p className="text-center text-sm text-muted">{t('auth.verify.noPhone')}</p>;
   }
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); verify(code); }} className="flex flex-col gap-5">
-      <p className="text-center text-sm text-muted">
-        {purpose === 'REGISTRATION' ? t('auth.verify.introReg') : t('auth.verify.introLogin')} {t('auth.verify.enterCode')}{' '}
-        <span className="font-bold text-[color:var(--text)]">{phone}</span>.
-      </p>
+    <div className="flex flex-col gap-5">
+      <Link
+        href="/login"
+        aria-label={t('auth.verify.back')}
+        className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app text-[color:var(--text)] transition-colors hover:bg-brand-50"
+      >
+        <ArrowLeft size={18} weight="bold" />
+      </Link>
 
-      <OtpInput
-        value={code}
-        onChange={setCode}
-        length={6}
-        disabled={loading}
-        autoFocus
-        onComplete={verify}
-      />
+      <div className="flex flex-col gap-3">
+        <span
+          className="flex items-center justify-center rounded-[16px] bg-brand-50"
+          style={{ width: 56, height: 56 }}
+        >
+          <ChatCircleDots size={28} weight="fill" className="text-brand-600" />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <h1 className="text-[23px] font-extrabold tracking-tight">{t('auth.verify.heading')}</h1>
+          <p className="text-[13px] leading-relaxed text-muted">
+            {purpose === 'REGISTRATION' ? t('auth.verify.introReg') : t('auth.verify.introLogin')}{' '}
+            {t('auth.verify.enterCode')}{' '}
+            <span className="font-bold text-[color:var(--text)]">{phone}</span>.{' '}
+            <Link href="/login" className="font-bold text-brand-700 transition-colors hover:text-brand-800">
+              {t('auth.verify.back')}
+            </Link>
+          </p>
+        </div>
+      </div>
 
-      {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
-      {error && (
-        <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="alert">
-          {error}
-        </p>
-      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          verify(code);
+        }}
+        className="flex flex-col gap-4"
+      >
+        <OtpInput value={code} onChange={setCode} length={OTP_LENGTH} disabled={loading} autoFocus onComplete={verify} />
 
-      <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
-        {t('auth.verify.submit')}
-      </Button>
+        {resent && <p className="text-center text-sm font-medium text-brand-700">{resent}</p>}
+        {error && (
+          <p className="text-center text-sm font-medium text-[color:var(--danger)]" role="alert">
+            {error}
+          </p>
+        )}
 
-      <div className="text-center text-sm text-muted">
+        <Button type="submit" loading={loading} className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold">
+          {t('auth.verify.submit')}
+        </Button>
+      </form>
+
+      <div className="text-center text-[12.5px] text-muted">
         {t('auth.verify.notReceived')}{' '}
         <button
           type="button"
@@ -122,32 +132,17 @@ function VerifyForm() {
           {counting ? t('auth.verify.resendIn', { n: cooldown }) : t('auth.verify.resend')}
         </button>
       </div>
-    </form>
+    </div>
   );
 }
 
 export default function VerifyPage() {
-  const { t } = useT();
   return (
-    <div className="flex min-h-[70vh] items-center justify-center py-10">
-      <div className="flex w-full max-w-sm flex-col gap-6">
-        <BrandMark />
-        <Card className="p-6 sm:p-8">
-          <div className="mb-6 flex flex-col gap-1.5 text-center">
-            <h1 className="text-2xl font-extrabold tracking-tight">{t('auth.verify.heading')}</h1>
-            <p className="text-sm text-muted">{t('auth.verify.subtitle')}</p>
-          </div>
-          <Suspense fallback={<Skeleton className="h-48 w-full rounded-xl" />}>
-            <VerifyForm />
-          </Suspense>
-        </Card>
-        <Link
-          href="/login"
-          className="inline-flex items-center justify-center gap-1.5 text-center text-sm font-bold text-brand-700 transition-colors hover:text-brand-800"
-        >
-          <ArrowLeft size={15} weight="bold" />
-          {t('auth.verify.back')}
-        </Link>
+    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+      <div className="w-full max-w-[390px] rounded-[24px] border border-app bg-[color:var(--surface-muted)] p-7 shadow-card">
+        <Suspense fallback={<Skeleton className="h-72 w-full rounded-[14px]" />}>
+          <VerifyForm />
+        </Suspense>
       </div>
     </div>
   );

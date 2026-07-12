@@ -30,11 +30,16 @@ export const home = {
   },
   rail: {
     reorder: 'Beli lagi',
-    trending: 'Terlaris',
+    reorderSub: 'Dari pesanan-pesanan terakhirmu',
+    trending: 'Terlaris minggu ini',
+    viewAll: 'Semua produk',
     addAria: 'Tambah {name} ke keranjang',
   },
   promo: {
     aria: 'Promo',
+    copyCode: 'Salin kode',
+    copied: 'Tersalin',
+    shopNow: 'Belanja sekarang',
   },
   loyalty: {
     membership: 'Membership',

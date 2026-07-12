@@ -17,7 +17,7 @@ import {
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { CenterState, ErrorState, IconButton, LinkButton, Money, Skeleton } from '@/components/ui';
+import { ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
@@ -141,13 +141,17 @@ function CartInner() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (lines.length === 0) {
     return (
-      <CenterState
-        icon={<ShoppingCart size={48} weight="thin" />}
-        title={t('order.cart.emptyTitle')}
-        action={<LinkButton href="/products">{t('order.cart.startShopping')}</LinkButton>}
-      >
-        {t('order.cart.emptyBody')}
-      </CenterState>
+      <div className="mx-auto mt-6 flex max-w-sm flex-col items-center gap-3 rounded-[20px] border border-app surface px-6 py-[34px] text-center shadow-card">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+          <ShoppingCart size={28} weight="fill" />
+        </div>
+        <h2 className="text-[16px] font-extrabold">{t('order.cart.emptyTitle')}</h2>
+        <p className="text-[13.5px] leading-relaxed text-muted">{t('order.cart.emptyBody')}</p>
+        <LinkButton href="/products" className="mt-1 rounded-full">
+          {t('order.cart.startShopping')}
+          <ArrowRight size={16} />
+        </LinkButton>
+      </div>
     );
   }
 
@@ -155,22 +159,22 @@ function CartInner() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-[30px] font-extrabold tracking-tight">
+      <h1 className="text-[30px] font-extrabold tracking-[-0.03em]">
         {t('order.cart.title')}{' '}
         <span className="text-[15px] font-bold text-muted">
           {t('order.cart.itemCount', { n: totalQty })}
         </span>
       </h1>
 
-      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_380px]">
         {/* lines */}
         <div className="flex flex-col gap-3">
           {lines.map((line) => (
             <div
               key={line.productId}
-              className="surface flex items-center gap-4 rounded-2xl p-4 shadow-card"
+              className="surface flex items-center gap-4 rounded-[20px] p-4 shadow-card"
             >
-              <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-xl bg-[color:var(--surface-soft)]">
+              <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[14px] bg-[color:var(--surface-soft)]">
                 <Drop size={30} weight="thin" className="text-brand-300" />
               </div>
               <div className="min-w-0 flex-1">
@@ -178,23 +182,29 @@ function CartInner() {
                 <p className="mt-0.5 text-[13px] text-muted">
                   <Money amount={line.unitPrice} /> · {line.unit}
                 </p>
+                {/* ponytail: cart lines carry no depot, so the label is fixed. Add an
+                    i18n key + real depot label when the cart exposes stock-by-depot. */}
+                <span className="mt-1.5 inline-flex rounded-full bg-brand-50 px-[9px] py-0.5 text-[11px] font-bold text-brand-800">
+                  Stok tersedia
+                </span>
               </div>
               <QuantityStepper
                 value={line.quantity}
                 onChange={(q) => setQuantity(line.productId, q)}
                 disabled={busy === line.productId}
               />
-              <div className="w-24 text-right text-[15.5px] font-extrabold">
+              <div className="w-[92px] text-right text-[15.5px] font-extrabold tabular-nums">
                 <Money amount={line.lineTotal} />
               </div>
-              <IconButton
+              <button
+                type="button"
                 aria-label={t('order.cart.removeAria', { name: line.productName })}
                 onClick={() => remove(line.productId)}
                 disabled={busy === line.productId}
-                className="text-[color:var(--danger)] hover:bg-[color:var(--danger-bg)]"
+                className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] active:scale-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
               >
                 <Trash size={18} />
-              </IconButton>
+              </button>
             </div>
           ))}
 
@@ -225,7 +235,7 @@ function CartInner() {
                 {recItems.map((rec) => (
                   <div
                     key={rec.productId}
-                    className="surface flex items-center gap-3 rounded-xl p-3 shadow-card"
+                    className="surface flex items-center gap-3 rounded-[16px] p-[11px] shadow-card"
                   >
                     <Link
                       href={`/products/${rec.productId}`}
@@ -254,14 +264,14 @@ function CartInner() {
         </div>
 
         {/* summary */}
-        <div className="surface flex flex-col gap-3.5 rounded-2xl p-6 shadow-card lg:sticky lg:top-20">
+        <div className="surface flex flex-col gap-3.5 rounded-[22px] p-6 shadow-card lg:sticky lg:top-20">
           <h2 className="text-[17px] font-extrabold">{t('order.cart.summary')}</h2>
-          <div className="flex justify-between text-sm">
+          <div className="flex justify-between text-[14px]">
             <span className="text-muted">{t('order.cart.subtotal')}</span>
             <Money amount={subtotal} className="font-bold" />
           </div>
           {rate > 0 && (
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-[14px]">
               <span className="text-muted">
                 {t('order.cart.memberDiscount', { pct: Math.round(rate * 100) })}
               </span>
@@ -270,7 +280,7 @@ function CartInner() {
               </span>
             </div>
           )}
-          <div className="flex justify-between border-t border-app pt-3.5 text-base font-extrabold">
+          <div className="flex justify-between border-t border-[color:var(--border-soft)] pt-3.5 text-[16px] font-extrabold">
             <span>{t('order.cart.estTotal')}</span>
             <Money amount={total} />
           </div>
@@ -281,8 +291,8 @@ function CartInner() {
             {t('order.cart.checkout')}
             <ArrowRight size={17} />
           </LinkButton>
-          <div className="flex items-center gap-2 rounded-xl bg-[color:var(--warning-bg)] px-3.5 py-2.5 text-[12.5px] text-[color:var(--warning)]">
-            <Tag size={16} weight="fill" className="flex-shrink-0" />
+          <div className="flex items-center gap-2 rounded-[14px] bg-amber-50 px-3.5 py-[11px] text-[12.5px] text-amber-900">
+            <Tag size={16} weight="fill" className="flex-shrink-0 text-amber-600" />
             {t('order.cart.voucherHint')}
           </div>
           <div className="flex justify-center gap-4 pt-1 text-[11.5px] font-bold text-muted">
