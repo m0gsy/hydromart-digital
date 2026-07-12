@@ -3,13 +3,24 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { Drop } from '@phosphor-icons/react';
+import { ArrowRight, Drop } from '@phosphor-icons/react';
 
-import { Button, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, Skeleton } from '@/components/ui';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import type { OtpChallenge } from '@/lib/types';
+
+function BrandMark() {
+  return (
+    <Link href="/" className="flex items-center justify-center gap-2.5">
+      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-600 shadow-card">
+        <Drop size={24} weight="fill" className="text-white" />
+      </span>
+      <span className="text-2xl font-extrabold tracking-tight text-[color:var(--text)]">hydromart</span>
+    </Link>
+  );
+}
 
 function RegisterForm() {
   const router = useRouter();
@@ -34,36 +45,42 @@ function RegisterForm() {
       const params = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not start registration.');
+      setError(err instanceof ApiError ? err.message : 'Tidak bisa memulai pendaftaran.');
       setLoading(false);
     }
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Phone number" htmlFor="phone" hint="Indonesian mobile number, e.g. 081234567890">
-        <Input id="phone" required inputMode="tel" value={form.phone} onChange={set('phone')} placeholder="081234567890" />
+      <Field label="Nomor telepon" htmlFor="phone" hint="Nomor HP Indonesia, mis. 081234567890">
+        <Input
+          id="phone"
+          required
+          inputMode="tel"
+          value={form.phone}
+          onChange={set('phone')}
+          placeholder="081234567890"
+          className="rounded-xl"
+        />
       </Field>
-      <Field label="Full name" htmlFor="fullName" hint="Optional">
-        <Input id="fullName" value={form.fullName} onChange={set('fullName')} placeholder="Budi Santoso" />
+      <Field label="Nama lengkap" htmlFor="fullName" hint="Opsional">
+        <Input id="fullName" value={form.fullName} onChange={set('fullName')} placeholder="Budi Santoso" className="rounded-xl" />
       </Field>
-      <Field label="Email" htmlFor="email" hint="Optional">
-        <Input id="email" type="email" value={form.email} onChange={set('email')} placeholder="budi@example.com" />
+      <Field label="Email" htmlFor="email" hint="Opsional">
+        <Input id="email" type="email" value={form.email} onChange={set('email')} placeholder="budi@example.com" className="rounded-xl" />
       </Field>
       {error && (
-        <p className="text-sm font-medium text-red-600" role="alert">
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
         </p>
       )}
-      <Button type="submit" loading={loading} className="w-full">
-        Send verification code
+      <Button type="submit" loading={loading} className="h-12 w-full rounded-full text-[15px] font-bold">
+        Kirim kode verifikasi
+        {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
       <GoogleSignInButton next={next} />
-      <p className="text-center text-sm text-muted">
-        Already have an account?{' '}
-        <Link href="/login" className="font-semibold text-brand-700">
-          Sign in
-        </Link>
+      <p className="text-center text-xs leading-relaxed text-muted">
+        Dengan mendaftar, kamu menyetujui Ketentuan Layanan dan Kebijakan Privasi Hydromart.
       </p>
     </form>
   );
@@ -71,15 +88,25 @@ function RegisterForm() {
 
 export default function RegisterPage() {
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6 py-6">
-      <div className="flex flex-col items-center gap-2 text-center">
-        <Drop size={40} weight="fill" className="text-brand-600" />
-        <h1 className="text-2xl font-bold">Create your account</h1>
-        <p className="text-sm text-muted">We&apos;ll text you a one-time code to verify your number.</p>
+    <div className="flex min-h-[70vh] items-center justify-center py-10">
+      <div className="flex w-full max-w-sm flex-col gap-6">
+        <BrandMark />
+        <Card className="p-6 sm:p-8">
+          <div className="mb-6 flex flex-col gap-1.5 text-center">
+            <h1 className="text-2xl font-extrabold tracking-tight">Buat akun baru</h1>
+            <p className="text-sm text-muted">Kami kirim kode sekali pakai untuk verifikasi nomormu.</p>
+          </div>
+          <Suspense fallback={<Skeleton className="h-72 w-full rounded-xl" />}>
+            <RegisterForm />
+          </Suspense>
+        </Card>
+        <p className="text-center text-sm text-muted">
+          Sudah punya akun?{' '}
+          <Link href="/login" className="font-bold text-brand-700 transition-colors hover:text-brand-800">
+            Masuk
+          </Link>
+        </p>
       </div>
-      <Suspense fallback={null}>
-        <RegisterForm />
-      </Suspense>
     </div>
   );
 }
