@@ -1,3 +1,4 @@
+import { INTERNAL_KEY_HEADER } from '@hydromart/platform';
 import { INestApplication } from '@nestjs/common';
 import type { Express, RequestHandler } from 'express';
 import helmet from 'helmet';
@@ -38,6 +39,11 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   });
 
   instance.use((req, res, next) => {
+    // Defense-in-depth: the internal service key authenticates trusted service-to-service
+    // calls as a SUPER_ADMIN system principal (platform JwtAuthGuard). Those calls go
+    // direct via *_SERVICE_URL and never transit the gateway, so strip any client-supplied
+    // header here — a browser must never be able to inject it and escalate.
+    delete req.headers[INTERNAL_KEY_HEADER];
     const route = resolveRoute(req.path, upstreams);
     const proxy = route ? proxies.get(route.segment) : undefined;
     if (!proxy) {

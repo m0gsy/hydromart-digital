@@ -4,7 +4,8 @@ import { Role } from '../domain/role.enum';
 export interface AuthenticatedUser {
   sub: string;
   role: Role;
-  phone: string;
+  /** Null for the internal system principal (service-to-service calls have no phone). */
+  phone: string | null;
 }
 
 /** Caller metadata for audit logs and records. */

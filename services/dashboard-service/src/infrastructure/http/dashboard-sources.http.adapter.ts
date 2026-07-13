@@ -30,12 +30,12 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     if (range.to) params.set('to', range.to);
   }
 
-  private async get<T>(url: string, token: string): Promise<T | null> {
+  private async fetchJson<T>(url: string, headers: Record<string, string>): Promise<T | null> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DashboardSourcesHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
-        headers: { authorization: token, accept: 'application/json' },
+        headers: { ...headers, accept: 'application/json' },
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -51,45 +51,61 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     }
   }
 
-  async sales(range: DateRange, token: string): Promise<SalesReport | null> {
+  /** Fetch forwarding the caller's user JWT (used only for owner-scoped /depots/mine). */
+  private get<T>(url: string, token: string): Promise<T | null> {
+    return this.fetchJson<T>(url, { authorization: token });
+  }
+
+  /**
+   * Fetch as the trusted system principal via the shared internal key (NO user JWT).
+   * Global report endpoints are admin-only for USER tokens, so a franchise owner's
+   * token would 403; this BFF is trusted to fetch them and then intersect to the
+   * owner's depots. Never use for /depots/mine — that must resolve the real user.
+   */
+  private getInternal<T>(url: string): Promise<T | null> {
+    return this.fetchJson<T>(url, { 'x-internal-key': this.config.internalServiceKey });
+  }
+
+  // Report/data fan-out authenticates as the trusted system principal (internal key),
+  // NOT the owner's JWT — the `token` params are unused here and kept only to satisfy
+  // the DashboardSourcesPort contract. Results are intersected to the owner's depots
+  // upstream in DashboardService.
+
+  async sales(range: DateRange, _token: string): Promise<SalesReport | null> {
     const params = new URLSearchParams({ granularity: 'monthly' });
     this.applyRange(params, range);
-    return this.get<SalesReport>(
+    return this.getInternal<SalesReport>(
       `${this.config.orderServiceUrl}/api/v1/reports/sales?${params.toString()}`,
-      token,
     );
   }
 
-  async topCustomers(range: DateRange, limit: number, token: string): Promise<TopCustomers | null> {
+  async topCustomers(range: DateRange, limit: number, _token: string): Promise<TopCustomers | null> {
     const params = new URLSearchParams({ limit: String(limit) });
     this.applyRange(params, range);
-    return this.get<TopCustomers>(
+    return this.getInternal<TopCustomers>(
       `${this.config.orderServiceUrl}/api/v1/reports/top-customers?${params.toString()}`,
-      token,
     );
   }
 
-  async topDepots(range: DateRange, limit: number, token: string): Promise<TopDepots | null> {
+  async topDepots(range: DateRange, limit: number, _token: string): Promise<TopDepots | null> {
     const params = new URLSearchParams({ limit: String(limit) });
     this.applyRange(params, range);
-    return this.get<TopDepots>(
+    return this.getInternal<TopDepots>(
       `${this.config.orderServiceUrl}/api/v1/reports/top-depots?${params.toString()}`,
-      token,
     );
   }
 
   async deliverySla(
     range: DateRange,
-    token: string,
+    _token: string,
     depotIds?: string[],
   ): Promise<DeliverySla | null> {
     const params = new URLSearchParams();
     this.applyRange(params, range);
     if (depotIds && depotIds.length > 0) params.set('depotIds', depotIds.join(','));
     const query = params.toString();
-    return this.get<DeliverySla>(
+    return this.getInternal<DeliverySla>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla${query ? `?${query}` : ''}`,
-      token,
     );
   }
 
@@ -97,11 +113,10 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     return this.get<FranchiseDepot[]>(`${this.config.depotServiceUrl}/api/v1/depots/mine`, token);
   }
 
-  async lowStock(depotId: string, token: string): Promise<LowStockLine[] | null> {
+  async lowStock(depotId: string, _token: string): Promise<LowStockLine[] | null> {
     const params = new URLSearchParams({ depotId });
-    return this.get<LowStockLine[]>(
+    return this.getInternal<LowStockLine[]>(
       `${this.config.depotServiceUrl}/api/v1/inventory/low-stock?${params.toString()}`,
-      token,
     );
   }
 }

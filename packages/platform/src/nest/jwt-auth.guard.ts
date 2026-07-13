@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'crypto';
+
 import {
   CanActivate,
   ExecutionContext,
@@ -9,8 +11,10 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
+import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { IS_PUBLIC_KEY } from './decorators';
+import { INTERNAL_KEY_HEADER } from './internal-auth.guard';
 
 /**
  * Global guard: verifies the Bearer access token (signed by auth-service) and
@@ -36,6 +40,22 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest<Request>();
+
+    // Trusted system principal: a caller presenting the shared internal service key
+    // (used by trusted BFFs/service-to-service calls) is authenticated as SUPER_ADMIN
+    // without a user JWT. Length-checked + timing-safe compare; fails closed when the
+    // key is unconfigured. Only honored when a real key is set — never for a blank one.
+    const configuredKey = this.config.get<string>('INTERNAL_SERVICE_KEY') ?? '';
+    const providedKey = request.headers[INTERNAL_KEY_HEADER];
+    if (
+      configuredKey.length > 0 &&
+      typeof providedKey === 'string' &&
+      JwtAuthGuard.safeEqual(providedKey, configuredKey)
+    ) {
+      request.user = { sub: 'system', role: Role.SUPER_ADMIN, phone: null };
+      return true;
+    }
+
     const token = JwtAuthGuard.extractToken(request);
     if (!token) {
       throw new UnauthorizedException('Missing bearer token.');
@@ -50,6 +70,12 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid or expired access token.');
     }
+  }
+
+  private static safeEqual(a: string, b: string): boolean {
+    const ab = Buffer.from(a);
+    const bb = Buffer.from(b);
+    return ab.length === bb.length && timingSafeEqual(ab, bb);
   }
 
   private static extractToken(request: Request): string | null {

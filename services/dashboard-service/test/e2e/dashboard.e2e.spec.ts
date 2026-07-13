@@ -20,6 +20,7 @@ const testEnv: Record<string, string> = {
   NODE_ENV: 'test',
   DASHBOARD_SERVICE_PORT: '3008',
   JWT_ACCESS_SECRET: SECRET,
+  INTERNAL_SERVICE_KEY: 'test-internal-service-key',
   ORDER_SERVICE_URL: 'http://localhost:3004',
   DELIVERY_SERVICE_URL: 'http://localhost:3006',
   DEPOT_SERVICE_URL: 'http://localhost:3007',

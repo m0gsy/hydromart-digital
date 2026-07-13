@@ -7,6 +7,10 @@ export const envValidationSchema = Joi.object({
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
   JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  // Shared service-to-service secret. The platform JwtAuthGuard treats a caller
+  // presenting this (x-internal-key) as a trusted system principal — the dashboard BFF
+  // uses it to read the global SLA report. Blank = internal-key auth stays fail-closed.
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   MAX_ACTIVE_DELIVERIES_PER_DRIVER: Joi.number().integer().positive().default(1),
   DELIVERY_SLA_MINUTES: Joi.number().integer().positive().default(120),

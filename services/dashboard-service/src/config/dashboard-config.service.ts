@@ -27,6 +27,9 @@ export class DashboardConfigService {
   get depotServiceUrl(): string {
     return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
   }
+  get internalServiceKey(): string {
+    return this.config.getOrThrow<string>('INTERNAL_SERVICE_KEY');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')
