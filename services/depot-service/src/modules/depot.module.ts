@@ -10,16 +10,19 @@ import { DepotService } from '../application/services/depot.service';
 import { InventoryService } from '../application/services/inventory.service';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
+import { GallonIssueService } from '../application/services/gallon-issue.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
 import { PricingRulePrismaRepository } from '../infrastructure/prisma/pricing-rule.prisma.repository';
 import { GallonReturnPrismaRepository } from '../infrastructure/prisma/gallon-return.prisma.repository';
+import { GallonIssuePrismaRepository } from '../infrastructure/prisma/gallon-issue.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
 import { PricingController } from './pricing.controller';
 import { GallonReturnController } from './gallon-return.controller';
+import { GallonIssueController } from './gallon-issue.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -28,10 +31,12 @@ const providers: Provider[] = [
   InventoryService,
   PricingService,
   GallonReturnService,
+  GallonIssueService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
   { provide: DEPOT_TOKENS.GallonReturnRepository, useClass: GallonReturnPrismaRepository },
+  { provide: DEPOT_TOKENS.GallonIssueRepository, useClass: GallonIssuePrismaRepository },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -45,6 +50,7 @@ const providers: Provider[] = [
     InventoryController,
     PricingController,
     GallonReturnController,
+    GallonIssueController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],

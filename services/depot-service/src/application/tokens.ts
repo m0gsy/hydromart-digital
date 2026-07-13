@@ -4,4 +4,5 @@ export const DEPOT_TOKENS = {
   LowStockAlert: Symbol('LowStockAlert'),
   PricingRuleRepository: Symbol('PricingRuleRepository'),
   GallonReturnRepository: Symbol('GallonReturnRepository'),
+  GallonIssueRepository: Symbol('GallonIssueRepository'),
 } as const;

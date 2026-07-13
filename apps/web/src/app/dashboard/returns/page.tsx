@@ -11,7 +11,13 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canViewReturns, canWriteReturns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { GallonCondition, GallonReturn, GallonReturnSummary, Page } from '@/lib/types';
+import type {
+  GallonCondition,
+  GallonIssueSummary,
+  GallonReturn,
+  GallonReturnSummary,
+  Page,
+} from '@/lib/types';
 
 function num(v: string): number | null {
   const n = Number(v);
@@ -134,37 +140,137 @@ function RecordForm({ depotId, onSaved }: { depotId: string; onSaved: () => void
   );
 }
 
-function SummaryTiles({ s }: { s: GallonReturnSummary }) {
-  const tiles: { label: string; value: string }[] = [
-    { label: 'Total retur', value: String(s.returns) },
-    { label: 'Galon kembali', value: String(s.gallons) },
-    { label: 'Rusak', value: String(s.damaged) },
-  ];
+// Design KPIs (11c): computed from the issue ledger (galon keluar) minus the
+// return ledger (galon kembali). Outstanding = at customers = not yet returned.
+/** Inline "record gallon issued on deposit" form (galon keluar). Reloads on success. */
+function IssueForm({ depotId, onSaved }: { depotId: string; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [quantity, setQuantity] = useState('');
+  const [deposit, setDeposit] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function reset() {
+    setQuantity('');
+    setDeposit('');
+    setNote('');
+    setError(null);
+  }
+
+  async function submit() {
+    const qty = num(quantity);
+    if (qty === null || qty <= 0) {
+      setError('Masukkan jumlah galon (lebih dari 0).');
+      return;
+    }
+    const dep = deposit.trim() === '' ? 0 : num(deposit);
+    if (dep === null || dep < 0) {
+      setError('Deposit harus 0 atau lebih.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        endpoints.gallonIssues.create(depotId),
+        { quantity: qty, depositHeld: dep, note: note || undefined },
+        true,
+      );
+      reset();
+      setOpen(false);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan galon keluar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Plus size={16} weight="bold" className="mr-1.5" />
+        Catat galon keluar
+      </Button>
+    );
+  }
+
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {tiles.map((t) => (
-        <Card key={t.label} className="p-3.5">
-          <p className="text-xs text-muted">{t.label}</p>
-          <p className="mt-1 text-xl font-bold tabular-nums">{t.value}</p>
-        </Card>
-      ))}
-      <Card className="p-3.5">
-        <p className="text-xs text-muted">Deposit dikembalikan</p>
-        <Money amount={s.depositRefunded} className="mt-1 block text-xl font-bold" />
-      </Card>
-    </div>
+    <Card className="flex flex-col gap-3 p-4">
+      <p className="font-semibold">Catat galon keluar (deposit)</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Jumlah galon" htmlFor="iss-qty">
+          <Input
+            id="iss-qty"
+            inputMode="numeric"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="mis. 3"
+            autoFocus
+          />
+        </Field>
+        <Field label="Deposit ditahan (IDR)" htmlFor="iss-dep" hint="Kosong = tanpa deposit.">
+          <Input
+            id="iss-dep"
+            inputMode="numeric"
+            value={deposit}
+            onChange={(e) => setDeposit(e.target.value)}
+            placeholder="mis. 15000"
+          />
+        </Field>
+      </div>
+      <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Catatan (opsional)" />
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setOpen(false);
+            reset();
+          }}
+          disabled={busy}
+        >
+          Batal
+        </Button>
+        <Button onClick={submit} loading={busy}>
+          Simpan
+        </Button>
+      </div>
+    </Card>
   );
 }
 
-// ponytail: the design also asks for "galon di pelanggan / belum kembali / deposit
-// tertahan" (outstanding). Those need an issued-gallon deposit ledger; the current
-// module is a returns-only ledger, so we surface the returned side truthfully rather
-// than fabricate outstanding numbers. Drop this note once outstanding is tracked.
-function OutstandingNote() {
+function KpiTiles({ issue, ret }: { issue: GallonIssueSummary; ret: GallonReturnSummary }) {
+  const outstanding = Math.max(0, issue.gallons - ret.gallons);
+  const depositHeld = Math.max(0, issue.depositHeld - ret.depositRefunded);
   return (
-    <p className="text-xs text-muted">
-      Galon di pelanggan / belum kembali / deposit tertahan belum dilacak — butuh buku besar deposit galon keluar.
-    </p>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <Card className="p-3.5">
+        <p className="text-xs text-muted">Galon di pelanggan</p>
+        <p className="mt-1 text-xl font-bold tabular-nums">{outstanding}</p>
+        <p className="text-[11px] text-muted">belum kembali</p>
+      </Card>
+      <Card className="p-3.5">
+        <p className="text-xs text-muted">Galon keluar</p>
+        <p className="mt-1 text-xl font-bold tabular-nums">{issue.gallons}</p>
+        <p className="text-[11px] text-muted">total dikeluarkan</p>
+      </Card>
+      <Card className="p-3.5">
+        <p className="text-xs text-muted">Galon kembali</p>
+        <p className="mt-1 text-xl font-bold tabular-nums">{ret.gallons}</p>
+        <p className="text-[11px] text-muted">{ret.damaged} rusak</p>
+      </Card>
+      <Card className="p-3.5">
+        <p className="text-xs text-muted">Deposit tertahan</p>
+        <Money amount={depositHeld} className="mt-1 block text-xl font-bold" />
+        <p className="text-[11px] text-muted">masih di pelanggan</p>
+      </Card>
+    </div>
   );
 }
 
@@ -199,6 +305,10 @@ function ReturnsBody() {
     () => (scopedId ? api.get(endpoints.returns.summary(scopedId), true) : Promise.resolve(null)),
     [scopedId],
   );
+  const issueSummary = useAsync<GallonIssueSummary | null>(
+    () => (scopedId ? api.get(endpoints.gallonIssues.summary(scopedId), true) : Promise.resolve(null)),
+    [scopedId],
+  );
   const list = useAsync<Page<GallonReturn> | null>(
     () => (scopedId ? api.get(endpoints.returns.list(scopedId, { limit: 50 }), true) : Promise.resolve(null)),
     [scopedId],
@@ -206,6 +316,7 @@ function ReturnsBody() {
 
   function reload() {
     summary.reload();
+    issueSummary.reload();
     list.reload();
   }
 
@@ -218,7 +329,12 @@ function ReturnsBody() {
           <Recycle size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">Retur galon</h1>
         </div>
-        {canWrite && scopedId && <RecordForm depotId={scopedId} onSaved={reload} />}
+        {canWrite && scopedId && (
+          <div className="flex flex-wrap gap-2">
+            <IssueForm depotId={scopedId} onSaved={reload} />
+            <RecordForm depotId={scopedId} onSaved={reload} />
+          </div>
+        )}
       </div>
 
       {scopedDepot && (
@@ -241,13 +357,10 @@ function ReturnsBody() {
         </CenterState>
       ) : (
         <>
-          {summary.loading ? (
+          {summary.loading || issueSummary.loading ? (
             <Skeleton className="h-20 w-full" />
-          ) : summary.data ? (
-            <div className="flex flex-col gap-2">
-              <SummaryTiles s={summary.data} />
-              <OutstandingNote />
-            </div>
+          ) : summary.data && issueSummary.data ? (
+            <KpiTiles issue={issueSummary.data} ret={summary.data} />
           ) : null}
 
           {list.loading ? (

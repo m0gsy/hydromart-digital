@@ -691,6 +691,24 @@ export interface GallonReturnSummary {
   depositRefunded: number;
 }
 
+// Empty gallon issued to a customer on deposit (depot-service GallonIssue, 11c).
+export interface GallonIssue {
+  id: string;
+  depotId: string;
+  customerId: string | null;
+  quantity: number;
+  depositHeld: number;
+  note: string | null;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface GallonIssueSummary {
+  issues: number;
+  gallons: number;
+  depositHeld: number;
+}
+
 // Mirrors depot-service ItemView: the stock record plus derived available/low-stock.
 export interface InventoryItem {
   id: string;

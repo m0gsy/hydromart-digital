@@ -73,6 +73,7 @@ model Depot {
 
   inventory      InventoryItem[]
   gallonReturns  GallonReturn[]
+  gallonIssues   GallonIssue[]
 
   @@index([active])
   @@index([ownershipType])
@@ -107,6 +108,29 @@ model GallonReturn {
 
   @@index([depotId, createdAt])
   @@map("gallon_returns")
+}
+
+/// Empty-gallon issue / deposit-held ledger (PRD Module 11c — mirror of retur galon).
+/// One append-only row per issue event at a depot: empties handed out on deposit.
+/// "Galon di pelanggan / belum kembali" = SUM(issued.quantity) − SUM(returned.quantity).
+/// Manual ledger — auto-ingest from an order-completed event is a future follow-up.
+model GallonIssue {
+  id          String   @id @default(uuid()) @db.Uuid
+  depotId     String   @db.Uuid
+  depot       Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  /// Customer who took the empties (optional — walk-ins may be anonymous).
+  customerId  String?  @db.Uuid
+  /// Number of empty gallons issued.
+  quantity    Int
+  /// Deposit held from the customer in whole IDR (0 = no deposit).
+  depositHeld Int      @default(0)
+  note        String?
+  /// Staff member who recorded the issue.
+  actorId     String
+  createdAt   DateTime @default(now())
+
+  @@index([depotId, createdAt])
+  @@map("gallon_issues")
 }
 
 model InventoryItem {

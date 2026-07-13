@@ -222,6 +222,19 @@ export const endpoints = {
     summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/returns/summary`,
     create: (depotId: string) => `/depots/api/v1/depots/${depotId}/returns`,
   },
+  // Empty-gallon ISSUES on deposit (galon keluar). Paired with returns to compute
+  // outstanding-at-customer + deposit held (11c). Under the depots segment.
+  gallonIssues: {
+    list: (depotId: string, q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/depots/api/v1/depots/${depotId}/gallon-issues${qs ? `?${qs}` : ''}`;
+    },
+    summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/summary`,
+    create: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues`,
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
