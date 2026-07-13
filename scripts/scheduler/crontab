@@ -1,0 +1,7 @@
+# Hydromart internal sweeps (busybox crond). Times are the container's TZ (UTC by
+# default — set TZ on the scheduler service to shift). Logs go to the container.
+#
+# Place orders for all due recurring subscriptions — hourly.
+0 * * * * sh /scripts/sweep.sh subscriptions/process-due
+# "Time to refill" reorder reminders — daily at 08:00.
+0 8 * * * sh /scripts/sweep.sh orders/reminders/reorder

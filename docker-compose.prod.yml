@@ -315,6 +315,24 @@ services:
       retries: 12
       start_period: 30s
 
+  # Cron sidecar that drives the internal sweep endpoints on order-service (nothing
+  # else calls them). Hourly: place due subscription orders. Daily 08:00: refill
+  # reminders. Auths with the shared INTERNAL_SERVICE_KEY over the internal network;
+  # alpine's busybox crond, no extra image build. Disable with `docker compose ...
+  # up -d --scale scheduler=0`. Shift schedule times by setting TZ (e.g. TZ: Asia/Jakarta).
+  scheduler:
+    <<: *svc
+    image: alpine:3.20
+    environment:
+      <<: *shared
+      TZ: ${SCHEDULER_TZ:-UTC}
+    depends_on:
+      order: { condition: service_healthy }
+    volumes:
+      - ./scripts/scheduler/crontab:/etc/crontabs/root:ro
+      - ./scripts/scheduler:/scripts:ro
+    command: ["sh", "/scripts/entrypoint.sh"]
+
   # Opt-in TLS reverse proxy. Enable with `--profile tls`; without the profile the
   # stack serves plain HTTP on the published :3000/:8080 (fine behind your own proxy
   # or for a bare-IP test). With it, Caddy terminates HTTPS on 80/443 and reaches

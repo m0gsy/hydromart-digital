@@ -12,6 +12,9 @@ export const endpoints = {
     me: '/auth/api/v1/auth/me',
     // PATCH: update own name/email.
     updateProfile: '/auth/api/v1/auth/me',
+    // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
+    customerLookup: (phone: string) =>
+      `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
     logout: '/auth/api/v1/auth/logout',
   },
   // Notification channel preferences (GET to read, PATCH to update).
@@ -106,6 +109,11 @@ export const endpoints = {
     me: '/vouchers/api/v1/vouchers/me',
     // Grant a voucher to a customer's wallet (marketing/admin) → fires VOUCHER_GRANTED.
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
+    // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.
+    browse: (page = 1, limit = 50) => `/vouchers/api/v1/vouchers?page=${page}&limit=${limit}`,
+    create: '/vouchers/api/v1/vouchers',
+    // PATCH to edit, DELETE to deactivate.
+    detail: (id: string) => `/vouchers/api/v1/vouchers/${id}`,
   },
   // Points-redeem catalog (loyalty-service).
   rewards: {

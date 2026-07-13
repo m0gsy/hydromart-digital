@@ -4,6 +4,7 @@ import {
   CustomerNotFoundError,
   EmailAlreadyRegisteredError,
 } from '../../domain/errors/auth.errors';
+import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
@@ -21,6 +22,20 @@ export class AccountService {
 
   async getProfile(customerId: string): Promise<PublicCustomer> {
     const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    return toPublicCustomer(customer);
+  }
+
+  /**
+   * Staff lookup of a customer by exact phone (for voucher grant). Normalizes the
+   * input to the same E.164 form registration stores, so `0812…`/`+62…`/`62…` all
+   * resolve. Throws CustomerNotFoundError (404) when no account matches.
+   */
+  async lookupByPhone(rawPhone: string): Promise<PublicCustomer> {
+    const phone = PhoneNumber.create(rawPhone).value;
+    const customer = await this.customers.findByPhone(phone);
     if (!customer) {
       throw new CustomerNotFoundError();
     }

@@ -76,41 +76,26 @@ published on `127.0.0.1:5432`. Each Prisma schema reads its own
 
 ```bash
 # from the repo root, with .env already filled in:
-set -a; . ./.env; set +a          # load POSTGRES_PASSWORD into the shell
-
-export AUTH_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_auth?schema=public"
-export CUSTOMER_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_customer?schema=public"
-export PRODUCT_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_product?schema=public"
-export ORDER_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_order?schema=public"
-export PAYMENT_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_payment?schema=public"
-export DELIVERY_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_delivery?schema=public"
-export DEPOT_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_depot?schema=public"
-export LOYALTY_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_loyalty?schema=public"
-export PROMO_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_promo?schema=public"
-export REFERRAL_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_referral?schema=public"
-export CRM_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_crm?schema=public"
-export RECOMMENDATION_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_recommendation?schema=public"
-export FORECAST_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@localhost:5432/hydromart_forecast?schema=public"
-
-npm ci                 # installs workspaces + generates Prisma clients (postinstall)
-npm run db:migrate     # runs `prisma migrate deploy` in every service workspace
+npm ci                    # installs workspaces + generates Prisma clients (postinstall)
+npm run db:migrate:prod   # derives all 13 *_DATABASE_URL from POSTGRES_PASSWORD, then migrates
 ```
 
-`npm run db:migrate` fans out `prisma migrate deploy` across all service
-workspaces (`--if-present`); the web app has no schema and is skipped.
-Re-running it is safe — already-applied migrations are no-ops.
+`db:migrate:prod` ([`scripts/migrate-prod.sh`](scripts/migrate-prod.sh)) loads
+`.env`, builds every `<SVC>_DATABASE_URL` from `POSTGRES_PASSWORD` in a loop
+(no more 13 manual `export` lines — that's the whole point), then fans out
+`prisma migrate deploy` across all service workspaces (`--if-present`); the web
+app has no schema and is skipped. Re-running it is safe — already-applied
+migrations are no-ops.
 
-> Alternative (no Node on the host): run migrations from a throwaway container
-> on the compose network, pointing the URLs at `postgres:5432` instead of
-> `localhost:5432`:
+> Alternative (no Node on the host): run the same script inside a throwaway
+> container on the compose network — `MIGRATE_DB_HOST=postgres` swaps the host:
 >
 > ```bash
 > docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm \
->   -e AUTH_DATABASE_URL="postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public" \
->   auth npx prisma migrate deploy
+>   -e MIGRATE_DB_HOST=postgres auth bash scripts/migrate-prod.sh
 > ```
 >
-> (repeat per service, or script the loop). The host-side path above is simpler.
+> The host-side path above is simpler.
 
 After migrating, restart the app tier so anything that bailed on empty tables
 comes up clean:
@@ -118,6 +103,13 @@ comes up clean:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml restart
 ```
+
+The `scheduler` sidecar comes up with the stack and drives the internal sweeps
+that nothing else calls: hourly it places due subscription orders
+(`subscriptions/process-due`), daily at 08:00 it sends refill reminders
+(`orders/reminders/reorder`). Times are UTC — set `SCHEDULER_TZ=Asia/Jakarta`
+in `.env` to shift. Watch it with `docker compose logs -f scheduler`; disable
+with `... up -d --scale scheduler=0`.
 
 ---
 

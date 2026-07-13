@@ -302,6 +302,42 @@ export interface RewardRedemption {
   pointsBalance: number;
 }
 
+export type DiscountType = 'PERCENTAGE' | 'FIXED';
+
+/** An admin voucher record (vouchers GET /vouchers; admin list includes inactive). */
+export interface Voucher {
+  id: string;
+  code: string;
+  description: string | null;
+  discountType: DiscountType;
+  value: number;
+  minSpend: number;
+  maxDiscount: number | null;
+  validFrom: string | null;
+  validUntil: string | null;
+  usageLimit: number | null;
+  perCustomerLimit: number;
+  usedCount: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Create/patch payload for a voucher (vouchers POST/PATCH). `code` is create-only. */
+export interface VoucherPayload {
+  code?: string;
+  description?: string | null;
+  discountType?: DiscountType;
+  value?: number;
+  minSpend?: number;
+  maxDiscount?: number | null;
+  validFrom?: string | null;
+  validUntil?: string | null;
+  usageLimit?: number | null;
+  perCustomerLimit?: number;
+  active?: boolean;
+}
+
 export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOLD_OUT';
 
 /** A voucher in the customer's wallet (vouchers /vouchers/me). */

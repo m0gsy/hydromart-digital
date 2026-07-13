@@ -1,12 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role } from '../../domain/customer/role.enum';
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
+import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
 import {
@@ -44,6 +47,17 @@ export class AccountController {
       email: dto.email,
     });
     return PublicCustomerDto.from(profile);
+  }
+
+  // Staff-only: resolve a phone to a customer id for voucher grant. Mirrors the
+  // promo-service voucher-write roles (marketing / depot-manager / super-admin).
+  @Roles(Role.MARKETING, Role.DEPOT_MANAGER, Role.SUPER_ADMIN)
+  @Get('auth/customers/lookup')
+  @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async lookupByPhone(@Query() query: CustomerLookupDto): Promise<PublicCustomerDto> {
+    const customer = await this.account.lookupByPhone(query.phone);
+    return PublicCustomerDto.from(customer);
   }
 
   @Get('sessions')

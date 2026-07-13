@@ -46,6 +46,21 @@ export function canManageCampaigns(role: string | null | undefined): boolean {
   return role != null && CAMPAIGN_WRITE.has(role);
 }
 
+// Voucher roles mirror promo-service voucher.controller: READ adds HEAD_OFFICE for
+// oversight; WRITE (create/edit/grant) is marketing + depot-manager + super-admin.
+const VOUCHER_READ = new Set(['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+const VOUCHER_WRITE = new Set(['MARKETING', 'DEPOT_MANAGER', 'SUPER_ADMIN']);
+
+/** Whether a role may view the voucher admin (includes inactive). */
+export function canViewVouchers(role: string | null | undefined): boolean {
+  return role != null && VOUCHER_READ.has(role);
+}
+
+/** Whether a role may create, edit, grant, or deactivate vouchers. */
+export function canManageVouchers(role: string | null | undefined): boolean {
+  return role != null && VOUCHER_WRITE.has(role);
+}
+
 // Depot admin mirrors depot-service DEPOT_ADMIN_ROLES (manager + super-admin).
 const DEPOT_ADMIN = new Set(['DEPOT_MANAGER', 'SUPER_ADMIN']);
 
