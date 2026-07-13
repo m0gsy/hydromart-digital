@@ -11,6 +11,7 @@ import { notifications } from './id/notifications';
 import { onboarding } from './id/onboarding';
 import { review } from './id/review';
 import { subscriptions } from './id/subscriptions';
+import { ops } from './id/ops';
 
 export const id = {
   nav: {
@@ -103,6 +104,7 @@ export const id = {
   onboarding,
   review,
   subscriptions,
+  ops,
 };
 
 export type Dictionary = typeof id;

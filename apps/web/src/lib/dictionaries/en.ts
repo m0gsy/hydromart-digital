@@ -9,6 +9,7 @@ import { notifications } from './en/notifications';
 import { onboarding } from './en/onboarding';
 import { review } from './en/review';
 import { subscriptions } from './en/subscriptions';
+import { ops } from './en/ops';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
 export const en: Dictionary = {
@@ -102,4 +103,5 @@ export const en: Dictionary = {
   onboarding,
   review,
   subscriptions,
+  ops,
 };
