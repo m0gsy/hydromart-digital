@@ -8,6 +8,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
+import { printReceipt } from '@/lib/receipt';
 import type { Order } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
@@ -165,6 +166,19 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           </dl>
         </div>
 
+        {order.status === 'CANCELLED' && (
+          // ponytail: a real per-refund status timeline (9a) needs a staff-readable
+          // payment-by-order endpoint (payment reads are customer-scoped today).
+          // Surface the cancellation + the refund rule honestly instead of faking it.
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-950/20">
+            <p className="font-semibold text-red-700">Pesanan dibatalkan</p>
+            <p className="text-red-700/80">
+              Pesanan berbayar online wajib direfund oleh finance/manajer. Status refund dikelola di payment-service
+              (belum tersambung ke antrean ini).
+            </p>
+          </div>
+        )}
+
         {order.history.length > 0 && (
           <div>
             <p className="mb-1.5 text-sm font-semibold">Riwayat status</p>
@@ -189,11 +203,16 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
           </p>
         )}
 
-        {canAdvance && (
-          <Button onClick={advance} loading={advancing}>
-            Lanjut ke {statusLabel(next)}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={() => printReceipt(order)}>
+            Cetak struk
           </Button>
-        )}
+          {canAdvance && (
+            <Button onClick={advance} loading={advancing}>
+              Lanjut ke {statusLabel(next)}
+            </Button>
+          )}
+        </div>
         {canAssign && <AssignCourier order={order} onDone={done} />}
       </div>
     </Sheet>
