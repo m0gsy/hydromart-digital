@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Buildings, Clock, Lock } from '@phosphor-icons/react';
 
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
+import { DepotDetail } from '@/components/dashboard/depot-detail';
+import { DepotMap } from '@/components/dashboard/depot-map';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -121,11 +123,13 @@ function DepotCard({
   depot,
   onEdit,
   onHours,
+  onDetail,
   onChanged,
 }: {
   depot: DepotAdmin;
   onEdit: () => void;
   onHours: () => void;
+  onDetail: () => void;
   onChanged: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -176,6 +180,9 @@ function DepotCard({
         </p>
       )}
       <div className="flex flex-wrap justify-end gap-2 border-t border-app pt-2">
+        <Button variant="ghost" onClick={onDetail} disabled={busy}>
+          Detail
+        </Button>
         <Button variant="ghost" onClick={onHours} disabled={busy}>
           <Clock size={16} weight="fill" />
           Jam &amp; libur
@@ -194,6 +201,8 @@ function DepotCard({
 function DepotsBody() {
   const [editing, setEditing] = useState<DepotAdmin | null | 'new'>(null);
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
+  const [detail, setDetail] = useState<DepotAdmin | null>(null);
+  const [view, setView] = useState<'list' | 'map'>('list');
   const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];
 
@@ -213,7 +222,23 @@ function DepotsBody() {
           <Buildings size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">Depots</h1>
         </div>
-        {editing === null && <Button onClick={() => setEditing('new')}>New depot</Button>}
+        <div className="flex gap-2">
+          <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
+            {(['list', 'map'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 transition-colors ${
+                  view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
+                }`}
+              >
+                {v === 'list' ? 'Daftar' : 'Peta'}
+              </button>
+            ))}
+          </div>
+          {editing === null && <Button onClick={() => setEditing('new')}>New depot</Button>}
+        </div>
       </div>
 
       {editing !== null && (
@@ -242,6 +267,8 @@ function DepotsBody() {
         <CenterState title="No depots yet" icon={<Buildings size={40} weight="fill" />}>
           Create the first depot to start serving orders.
         </CenterState>
+      ) : view === 'map' ? (
+        <DepotMap depots={items} onSelect={setDetail} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((d) => (
@@ -250,11 +277,14 @@ function DepotsBody() {
               depot={d}
               onEdit={() => setEditing(d)}
               onHours={() => setHoursDepot(d)}
+              onDetail={() => setDetail(d)}
               onChanged={list.reload}
             />
           ))}
         </div>
       )}
+
+      {detail && <DepotDetail depot={detail} onClose={() => setDetail(null)} />}
     </div>
   );
 }
