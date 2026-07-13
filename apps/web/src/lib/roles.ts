@@ -31,6 +31,26 @@ export function canWriteInventory(role: string | null | undefined): boolean {
   return role != null && INVENTORY_WRITE.has(role);
 }
 
+// Retur galon mirrors depot-service: READ adds head-office + franchise owner
+// oversight; WRITE (record a return) is depot floor + super-admin. Server-authoritative.
+const RETURN_READ = new Set([
+  'DEPOT_OPERATOR',
+  'DEPOT_MANAGER',
+  'HEAD_OFFICE',
+  'FRANCHISE_OWNER',
+  'SUPER_ADMIN',
+]);
+
+/** Whether a role may view a depot's gallon-return ledger. */
+export function canViewReturns(role: string | null | undefined): boolean {
+  return role != null && RETURN_READ.has(role);
+}
+
+/** Whether a role may record an empty-gallon return (mirrors inventory write). */
+export function canWriteReturns(role: string | null | undefined): boolean {
+  return role != null && INVENTORY_WRITE.has(role);
+}
+
 // Campaign roles mirror crm-service: READ (view) adds HEAD_OFFICE for oversight;
 // WRITE (create/send) is marketing + super-admin. Security stays server-side.
 const CAMPAIGN_READ = new Set(['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN']);

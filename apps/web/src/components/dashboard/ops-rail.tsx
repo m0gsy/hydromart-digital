@@ -12,6 +12,7 @@ import {
   ClipboardText,
   Megaphone,
   Package,
+  Recycle,
   ShieldCheck,
   Storefront,
   Tag,
@@ -34,6 +35,7 @@ import {
   canViewFranchise,
   canViewInventory,
   canViewPayout,
+  canViewReturns,
   canViewVouchers,
   isStaff,
 } from '@/lib/roles';
@@ -66,6 +68,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/orders', label: 'Antrean pesanan', icon: ClipboardText, show: isStaff },
       { href: '/dashboard/inventory', label: 'Inventori', icon: Package, show: canViewInventory },
+      { href: '/dashboard/returns', label: 'Retur galon', icon: Recycle, show: canViewReturns },
       { href: '/dashboard/forecast', label: 'Perkiraan', icon: TrendUp, show: canViewForecast },
     ],
   },

@@ -177,6 +177,18 @@ export const endpoints = {
     // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
   },
+  // Empty-gallon returns / deposit refunds for one depot (staff). Under depots segment.
+  returns: {
+    list: (depotId: string, q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/depots/api/v1/depots/${depotId}/returns${qs ? `?${qs}` : ''}`;
+    },
+    summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/returns/summary`,
+    create: (depotId: string) => `/depots/api/v1/depots/${depotId}/returns`,
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,

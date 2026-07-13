@@ -618,6 +618,28 @@ export interface DepotPayload {
   serviceRadiusKm?: number;
 }
 
+// Retur galon (depot-service GallonReturn). Empties handed back + deposit refunded.
+export type GallonCondition = 'GOOD' | 'DAMAGED';
+
+export interface GallonReturn {
+  id: string;
+  depotId: string;
+  customerId: string | null;
+  quantity: number;
+  condition: GallonCondition;
+  depositRefunded: number;
+  note: string | null;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface GallonReturnSummary {
+  returns: number;
+  gallons: number;
+  damaged: number;
+  depositRefunded: number;
+}
+
 // Mirrors depot-service ItemView: the stock record plus derived available/low-stock.
 export interface InventoryItem {
   id: string;

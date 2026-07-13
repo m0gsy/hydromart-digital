@@ -72,11 +72,41 @@ model Depot {
   updatedAt      DateTime      @updatedAt
 
   inventory      InventoryItem[]
+  gallonReturns  GallonReturn[]
 
   @@index([active])
   @@index([ownershipType])
   @@index([ownerId])
   @@map("depots")
+}
+
+/// Condition of returned empty gallons: reusable stock vs. damaged/retired.
+enum GallonCondition {
+  GOOD
+  DAMAGED
+}
+
+/// Empty-gallon return / deposit refund ledger (PRD Module 11 retur galon).
+/// One append-only row per return event at a depot: empties handed back and the
+/// deposit refunded. Standalone ledger — not yet wired into GALON stock counts.
+model GallonReturn {
+  id              String          @id @default(uuid()) @db.Uuid
+  depotId         String          @db.Uuid
+  depot           Depot           @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  /// Customer who returned the empties (optional — walk-ins may be anonymous).
+  customerId      String?         @db.Uuid
+  /// Number of empty gallons handed back.
+  quantity        Int
+  condition       GallonCondition @default(GOOD)
+  /// Deposit refunded to the customer in IDR (0 = no deposit / store credit).
+  depositRefunded Decimal         @db.Decimal(12, 2) @default(0)
+  note            String?
+  /// Staff member who recorded the return.
+  actorId         String
+  createdAt       DateTime        @default(now())
+
+  @@index([depotId, createdAt])
+  @@map("gallon_returns")
 }
 
 model InventoryItem {
