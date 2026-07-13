@@ -7,15 +7,55 @@ import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { InventoryItem } from '@/lib/types';
+import type { InventoryItem, StockMovement, StockMovementType } from '@/lib/types';
 
 function num(v: string): number | null {
   const n = Number(v);
   return v.trim() !== '' && Number.isFinite(n) ? n : null;
+}
+
+const MOVEMENT_LABEL: Record<StockMovementType, string> = {
+  RECEIPT: 'Stok masuk',
+  ADJUSTMENT: 'Penyesuaian',
+  OPNAME: 'Opname',
+  SALE: 'Terjual',
+};
+
+/** Read-only movement ledger for one line — opname/adjust/sale/restock history (10b). */
+function MovementLog({ item }: { item: InventoryItem }) {
+  const log = useAsync<StockMovement[]>(() => api.get(endpoints.inventory.movements(item.id), true), [item.id]);
+
+  if (log.loading) return <Skeleton className="h-24 w-full" />;
+  if (log.error) return <ErrorState message={log.error} onRetry={log.reload} />;
+  if (!log.data || log.data.length === 0)
+    return <p className="py-2 text-sm text-muted">Belum ada pergerakan stok.</p>;
+
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {log.data.map((m) => (
+        <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
+          <div className="min-w-0">
+            <span className="font-medium">{MOVEMENT_LABEL[m.type] ?? m.type}</span>
+            {m.reason && <span className="text-muted"> · {m.reason}</span>}
+            <p className="text-xs text-muted">{formatDateTime(m.createdAt)}</p>
+          </div>
+          <div className="shrink-0 text-right tabular-nums">
+            <span className={`font-semibold ${m.delta < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+              {m.delta > 0 ? `+${m.delta}` : m.delta}
+            </span>
+            <p className="text-xs text-muted">
+              {m.quantityBefore} → {m.quantityAfter}
+            </p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 type ActionMode = 'none' | 'adjust' | 'opname' | 'price';
@@ -170,6 +210,7 @@ function LineActions({ item, onChanged }: { item: InventoryItem; onChanged: () =
 }
 
 function LineCard({ item, canWrite, onChanged }: { item: InventoryItem; canWrite: boolean; onChanged: () => void }) {
+  const [showLog, setShowLog] = useState(false);
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -215,6 +256,21 @@ function LineCard({ item, canWrite, onChanged }: { item: InventoryItem; canWrite
         </p>
       )}
       {canWrite && <LineActions item={item} onChanged={onChanged} />}
+      <div className="border-t border-app pt-2">
+        <button
+          type="button"
+          onClick={() => setShowLog((v) => !v)}
+          className="text-sm font-medium text-brand-600 hover:underline"
+          aria-expanded={showLog}
+        >
+          {showLog ? 'Sembunyikan riwayat' : 'Riwayat stok'}
+        </button>
+        {showLog && (
+          <div className="mt-2">
+            <MovementLog item={item} />
+          </div>
+        )}
+      </div>
     </Card>
   );
 }

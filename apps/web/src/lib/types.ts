@@ -688,6 +688,31 @@ export interface InventoryItem {
   lowStock: boolean;
 }
 
+// One row in a stock line's append-only movement ledger (10b).
+export type StockMovementType = 'RECEIPT' | 'ADJUSTMENT' | 'OPNAME' | 'SALE';
+
+export interface StockMovement {
+  id: string;
+  itemId: string;
+  type: StockMovementType;
+  delta: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  reason: string | null;
+  actorId: string;
+  orderId: string | null;
+  createdAt: string;
+}
+
+// Per-depot resolved price for one product (depot-service resolvePrices, 11a).
+// Both fields optional: override-only, rule-only, or both. Neither = catalog base.
+export interface ResolvedPrice {
+  productId: string;
+  sellPrice?: number;
+  adjustType?: PricingAdjustType;
+  value?: number;
+}
+
 /* ---------- Demand forecast (staff-facing planning) ---------- */
 
 // Lean per-product row in a depot rollup (mirrors forecast-service ForecastItem).

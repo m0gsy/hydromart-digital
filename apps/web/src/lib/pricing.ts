@@ -1,7 +1,7 @@
 // Pure helpers for the dynamic-pricing console. Covered by test/pricing.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
-import type { PricingAdjustType, PricingRulePayload } from './types';
+import type { PricingAdjustType, PricingRulePayload, ResolvedPrice } from './types';
 
 export interface RuleForm {
   productId: string; // blank = depot-wide
@@ -28,6 +28,33 @@ export const EMPTY_RULE_FORM: RuleForm = {
   priority: '',
   active: true,
 };
+
+export interface EffectivePrice {
+  base: number;
+  override: number | null;
+  adjustType: PricingAdjustType | null;
+  adjustValue: number | null;
+  effective: number;
+}
+
+/**
+ * Resolve a product's effective per-depot price for the preview (11a). Mirrors
+ * order-service checkout math exactly: start from the override (falling back to the
+ * catalog base), apply the winning active rule, floor at 0, round to whole rupiah.
+ */
+export function computeEffective(base: number, resolved?: ResolvedPrice): EffectivePrice {
+  const override = resolved?.sellPrice ?? null;
+  const start = override ?? base;
+  const adjustType = resolved?.adjustType ?? null;
+  const adjustValue = adjustType ? resolved?.value ?? 0 : null;
+  const raw =
+    adjustType === 'PERCENT'
+      ? start * (1 + (adjustValue ?? 0) / 100)
+      : adjustType === 'FIXED'
+        ? start + (adjustValue ?? 0)
+        : start;
+  return { base, override, adjustType, adjustValue, effective: Math.round(Math.max(0, raw)) };
+}
 
 function toMinutes(hhmm: string): number | null {
   if (hhmm.trim() === '') return null;

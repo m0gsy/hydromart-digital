@@ -4,16 +4,16 @@ import { useState } from 'react';
 import { Lock, Tag } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canManagePricing } from '@/lib/roles';
-import { EMPTY_RULE_FORM, toRulePayload, type RuleForm } from '@/lib/pricing';
+import { EMPTY_RULE_FORM, computeEffective, toRulePayload, type RuleForm } from '@/lib/pricing';
 import { useAsync } from '@/lib/use-async';
-import type { PricingRule } from '@/lib/types';
+import type { Page, PricingRule, Product, ResolvedPrice } from '@/lib/types';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -243,10 +243,79 @@ function RuleCard({
   );
 }
 
+const adjustNote = (r: ResolvedPrice): string => {
+  if (!r.adjustType) return '—';
+  const v = r.value ?? 0;
+  return r.adjustType === 'PERCENT' ? `${v > 0 ? '+' : ''}${v}%` : `${v > 0 ? '+' : ''}${formatIDR(v)}`;
+};
+
+/**
+ * Effective-price preview (11a): every catalog product's resolved price at this depot
+ * — override + winning active rule — so staff see the final price a customer pays now.
+ */
+function EffectivePreview({ depotId }: { depotId: string }) {
+  const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 })), [depotId]);
+  const ids = (catalog.data?.items ?? []).map((p) => p.id);
+  const resolved = useAsync<ResolvedPrice[]>(
+    () => (ids.length ? api.get(endpoints.inventory.prices(depotId, ids)) : Promise.resolve([])),
+    [depotId, ids.join(',')],
+  );
+
+  if (catalog.loading) return <Skeleton className="h-48 w-full" />;
+  if (catalog.error) return <ErrorState message={catalog.error} onRetry={catalog.reload} />;
+  const products = catalog.data?.items ?? [];
+  if (products.length === 0)
+    return <p className="text-sm text-muted">Belum ada produk di katalog.</p>;
+
+  const byId = new Map((resolved.data ?? []).map((r) => [r.productId, r]));
+
+  return (
+    <Card className="overflow-x-auto p-0">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-app text-left text-xs text-muted">
+            <th className="px-4 py-2.5 font-medium">Produk</th>
+            <th className="px-4 py-2.5 text-right font-medium">Base</th>
+            <th className="px-4 py-2.5 text-right font-medium">Override</th>
+            <th className="px-4 py-2.5 text-right font-medium">Aturan</th>
+            <th className="px-4 py-2.5 text-right font-medium">Harga efektif</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((p) => {
+            const r = byId.get(p.id);
+            const eff = computeEffective(p.basePrice, r);
+            const changed = eff.effective !== p.basePrice;
+            return (
+              <tr key={p.id} className="border-b border-app last:border-0">
+                <td className="px-4 py-2.5">
+                  <p className="font-medium">{p.name}</p>
+                  <p className="text-xs text-muted">{p.sku}</p>
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-muted">
+                  <Money amount={p.basePrice} />
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">
+                  {eff.override != null ? <Money amount={eff.override} /> : '—'}
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums">{r ? adjustNote(r) : '—'}</td>
+                <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${changed ? 'text-brand-700' : ''}`}>
+                  <Money amount={eff.effective} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
 function PricingBody() {
   const { scopedId, selected, depots, ready } = useDepot();
   const depotId = scopedId ?? '';
   const [editing, setEditing] = useState<PricingRule | null | 'new'>(null);
+  const [preview, setPreview] = useState(false);
 
   const rules = useAsync<PricingRule[]>(
     () => (depotId ? api.get(endpoints.pricing.rules(depotId), true) : Promise.resolve([])),
@@ -267,8 +336,17 @@ function PricingBody() {
           <Tag size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">Dynamic pricing</h1>
         </div>
-        {depotId && editing === null && <Button onClick={() => setEditing('new')}>New rule</Button>}
+        {depotId && editing === null && (
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setPreview((v) => !v)}>
+              {preview ? 'Tutup preview' : 'Preview harga'}
+            </Button>
+            <Button onClick={() => setEditing('new')}>New rule</Button>
+          </div>
+        )}
       </div>
+
+      {preview && depotId && <EffectivePreview depotId={depotId} />}
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">

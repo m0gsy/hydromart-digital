@@ -199,6 +199,11 @@ export const endpoints = {
     opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,
     // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
+    // Append-only stock movement history for one line (opname/adjust/sale/restock).
+    movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    // Per-depot resolved prices (override + winning active rule) for products.
+    prices: (depotId: string, productIds: string[]) =>
+      `/depots/api/v1/depots/${depotId}/inventory/prices?productIds=${encodeURIComponent(productIds.join(','))}`,
   },
   // Empty-gallon returns / deposit refunds for one depot (staff). Under depots segment.
   returns: {

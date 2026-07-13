@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_RULE_FORM, toRulePayload } from '../src/lib/pricing';
+import { EMPTY_RULE_FORM, computeEffective, toRulePayload } from '../src/lib/pricing';
+
+describe('computeEffective', () => {
+  it('returns the base when there is no override or rule', () => {
+    expect(computeEffective(20000).effective).toBe(20000);
+  });
+
+  it('uses the override as the starting price', () => {
+    expect(computeEffective(20000, { productId: 'p', sellPrice: 18000 }).effective).toBe(18000);
+  });
+
+  it('applies a percent rule to the override, floors at 0, rounds', () => {
+    // start 18000, -10% => 16200
+    const e = computeEffective(20000, { productId: 'p', sellPrice: 18000, adjustType: 'PERCENT', value: -10 });
+    expect(e.effective).toBe(16200);
+  });
+
+  it('applies a fixed rule to the base and never goes below 0', () => {
+    expect(computeEffective(5000, { productId: 'p', adjustType: 'FIXED', value: -9000 }).effective).toBe(0);
+  });
+});
 
 describe('toRulePayload', () => {
   it('builds a minimal depot-wide percentage rule', () => {
