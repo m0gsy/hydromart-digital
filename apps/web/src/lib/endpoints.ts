@@ -249,6 +249,18 @@ export const endpoints = {
       return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
     },
   },
+  // Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).
+  payout: {
+    summary: '/payout/api/v1/payout/summary',
+    ledger: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payout/api/v1/payout/ledger${qs ? `?${qs}` : ''}`;
+    },
+    withdrawals: '/payout/api/v1/payout/withdrawals',
+  },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();

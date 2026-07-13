@@ -1,14 +1,15 @@
 'use client';
 
-import Link from 'next/link';
-import { Buildings, ChartLineUp, ChatCircleText, ClipboardText, Lock, Package, Tag, Ticket, Truck, UsersThree } from '@phosphor-icons/react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { ChartLineUp, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Money, Skeleton, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canManageDepots, canManagePricing, canViewCampaigns, canViewChurn, canViewDashboard, canViewForecast, canViewVouchers } from '@/lib/roles';
+import { canViewDashboard, canViewFranchise } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ExecutiveDashboard } from '@/lib/types';
 
@@ -34,7 +35,6 @@ function shortId(id: string): string {
 }
 
 function DashboardBody() {
-  const { customer } = useAuth();
   const range = defaultRange();
   const { data, error, loading, reload } = useAsync<ExecutiveDashboard>(() =>
     api.get(endpoints.dashboard.executive(range), true),
@@ -57,76 +57,6 @@ function DashboardBody() {
           <h1 className="text-2xl font-bold">Operations</h1>
         </div>
         <p className="mt-1 text-sm text-muted">Last 30 days across sales and delivery.</p>
-        <div className="mt-3 flex flex-wrap gap-4">
-          <Link
-            href="/dashboard/orders"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-          >
-            <ClipboardText size={18} weight="fill" />
-            Manage order queue
-          </Link>
-          <Link
-            href="/dashboard/inventory"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-          >
-            <Package size={18} weight="fill" />
-            Inventory
-          </Link>
-          {canViewForecast(customer?.role) && (
-            <Link
-              href="/dashboard/forecast"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <ChartLineUp size={18} weight="fill" />
-              Demand forecast
-            </Link>
-          )}
-          {canViewCampaigns(customer?.role) && (
-            <Link
-              href="/dashboard/campaigns"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <ChatCircleText size={18} weight="fill" />
-              Campaigns
-            </Link>
-          )}
-          {canViewVouchers(customer?.role) && (
-            <Link
-              href="/dashboard/vouchers"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <Ticket size={18} weight="fill" />
-              Voucher
-            </Link>
-          )}
-          {canViewChurn(customer?.role) && (
-            <Link
-              href="/dashboard/churn"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <UsersThree size={18} weight="fill" />
-              Churn risk
-            </Link>
-          )}
-          {canManageDepots(customer?.role) && (
-            <Link
-              href="/dashboard/depots"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <Buildings size={18} weight="fill" />
-              Depots
-            </Link>
-          )}
-          {canManagePricing(customer?.role) && (
-            <Link
-              href="/dashboard/pricing"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              <Tag size={18} weight="fill" />
-              Dynamic pricing
-            </Link>
-          )}
-        </div>
       </div>
 
       {/* Headline stats */}
@@ -229,6 +159,21 @@ function DashboardBody() {
 
 function Gate() {
   const { customer } = useAuth();
+  const router = useRouter();
+
+  // Role-aware landing: franchise owners get their own overview, not the exec one.
+  const toFranchise = canViewFranchise(customer?.role) && !canViewDashboard(customer?.role);
+  useEffect(() => {
+    if (toFranchise) router.replace('/dashboard/franchise');
+  }, [toFranchise, router]);
+
+  if (toFranchise) {
+    return (
+      <div className="flex justify-center py-24 text-brand-500">
+        <Spinner size={28} />
+      </div>
+    );
+  }
   if (!canViewDashboard(customer?.role)) {
     return (
       <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>

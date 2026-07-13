@@ -16,6 +16,9 @@ export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
 
+  // The ops console has its own mobile tab bar (OpsBottomNav in dashboard/layout).
+  if (pathname.startsWith('/dashboard')) return null;
+
   const active = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
 

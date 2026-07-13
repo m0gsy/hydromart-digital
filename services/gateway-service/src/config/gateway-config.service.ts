@@ -21,6 +21,7 @@ const SEGMENT_ENV: Record<string, string> = {
   crm: 'CRM_SERVICE_URL',
   recommendations: 'RECOMMENDATION_SERVICE_URL',
   forecast: 'FORECAST_SERVICE_URL',
+  payout: 'PAYOUT_SERVICE_URL',
 };
 
 @Injectable()

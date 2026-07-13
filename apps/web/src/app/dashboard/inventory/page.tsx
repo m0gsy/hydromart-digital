@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Lock, Package, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -9,12 +8,10 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skel
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Depot, InventoryItem, Page } from '@/lib/types';
-
-// Depot-service returns the full record; we only need these fields for the picker.
-type DepotOption = Depot & Record<string, unknown>;
+import type { InventoryItem } from '@/lib/types';
 
 function num(v: string): number | null {
   const n = Number(v);
@@ -225,23 +222,16 @@ function LineCard({ item, canWrite, onChanged }: { item: InventoryItem; canWrite
 function InventoryBody() {
   const { customer } = useAuth();
   const canWrite = canWriteInventory(customer?.role);
-  const [depotId, setDepotId] = useState('');
+  const { scopedId, selected, depots, ready } = useDepot();
   const [lowOnly, setLowOnly] = useState(false);
 
-  const depots = useAsync<Page<DepotOption>>(() => api.get(endpoints.depots.browse({ limit: 100 }), true));
-  const options = depots.data?.items ?? [];
-
-  // Default to the first depot once the list loads. Keyed on the stable loaded
-  // data (not the per-render `options` array) to avoid re-running every render.
-  useEffect(() => {
-    const first = depots.data?.items?.[0];
-    if (!depotId && first) setDepotId(first.id);
-  }, [depotId, depots.data]);
-
   const lines = useAsync<InventoryItem[]>(
-    () => (depotId ? api.get(endpoints.inventory.lines(depotId, { lowStockOnly: lowOnly }), true) : Promise.resolve([])),
-    [depotId, lowOnly],
+    () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: lowOnly }), true) : Promise.resolve([])),
+    [scopedId, lowOnly],
   );
+
+  // The depot label — the selected depot, or the first when "All" is active.
+  const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -250,58 +240,40 @@ function InventoryBody() {
           <Package size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">Inventory</h1>
         </div>
-        <Link href="/dashboard/orders" className="text-sm font-semibold text-brand-700 hover:underline">
-          Order queue →
-        </Link>
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-muted">
+          <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
+          Low stock only
+        </label>
       </div>
 
-      {depots.loading ? (
-        <Skeleton className="h-11 w-full" />
-      ) : depots.error ? (
-        <ErrorState message={depots.error} onRetry={depots.reload} />
-      ) : options.length === 0 ? (
+      {scopedDepot && (
+        <p className="text-[12.5px] text-muted">
+          Menampilkan stok untuk{' '}
+          <strong className="text-[color:var(--text)]">
+            {scopedDepot.name} · {scopedDepot.code}
+          </strong>{' '}
+          (dari switcher).
+        </p>
+      )}
+
+      {ready && depots.length === 0 ? (
         <CenterState title="No depots" icon={<Package size={40} weight="fill" />}>
           No depots are configured yet.
         </CenterState>
+      ) : lines.loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : lines.error ? (
+        <ErrorState message={lines.error} onRetry={lines.reload} />
+      ) : !lines.data || lines.data.length === 0 ? (
+        <CenterState title="No stock lines" icon={<Package size={40} weight="fill" />}>
+          {lowOnly ? 'Nothing is below its minimum here.' : 'This depot has no stock lines yet.'}
+        </CenterState>
       ) : (
-        <>
-          <div className="flex flex-wrap items-end gap-3">
-            <Field label="Depot" htmlFor="depot">
-              <select
-                id="depot"
-                value={depotId}
-                onChange={(e) => setDepotId(e.target.value)}
-                className="surface-elevated w-full min-w-56 rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
-              >
-                {options.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {d.city}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <label className="flex cursor-pointer items-center gap-2 py-2.5 text-sm font-medium">
-              <input type="checkbox" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />
-              Low stock only
-            </label>
-          </div>
-
-          {lines.loading ? (
-            <Skeleton className="h-64 w-full" />
-          ) : lines.error ? (
-            <ErrorState message={lines.error} onRetry={lines.reload} />
-          ) : !lines.data || lines.data.length === 0 ? (
-            <CenterState title="No stock lines" icon={<Package size={40} weight="fill" />}>
-              {lowOnly ? 'Nothing is below its minimum here.' : 'This depot has no stock lines yet.'}
-            </CenterState>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {lines.data.map((item) => (
-                <LineCard key={item.id} item={item} canWrite={canWrite} onChanged={lines.reload} />
-              ))}
-            </div>
-          )}
-        </>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {lines.data.map((item) => (
+            <LineCard key={item.id} item={item} canWrite={canWrite} onChanged={lines.reload} />
+          ))}
+        </div>
       )}
     </div>
   );

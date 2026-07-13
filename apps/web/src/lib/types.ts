@@ -540,6 +540,46 @@ export interface Depot {
   city: string;
 }
 
+// ---- Payout / komisi (payout-service, "Keuangan · usulan") ----
+export type LedgerEntryType =
+  | 'SALE_SETTLEMENT'
+  | 'COMMISSION'
+  | 'STOCK_PURCHASE'
+  | 'WITHDRAWAL'
+  | 'ADJUSTMENT';
+export type WithdrawalStatus = 'PROCESSING' | 'PAID' | 'FAILED';
+
+export interface LedgerEntry {
+  id: string;
+  franchiseOwnerId: string;
+  depotId: string | null;
+  type: LedgerEntryType;
+  amount: number;
+  description: string;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface Withdrawal {
+  id: string;
+  franchiseOwnerId: string;
+  amount: number;
+  bankAccountRef: string;
+  status: WithdrawalStatus;
+  reference: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayoutSummary {
+  availableBalance: number;
+  monthRevenue: number;
+  monthCommission: number;
+  nextPayoutDate: string;
+  recentEntries: LedgerEntry[];
+  recentWithdrawals: Withdrawal[];
+}
+
 // Full admin record (from GET /depots/manage) + the create/update payload shape.
 export interface DepotAdmin extends Depot {
   ownershipType: string;
@@ -551,6 +591,17 @@ export interface DepotAdmin extends Depot {
   deliveryFee: number;
   minOrderAmount: number | null;
   active: boolean;
+  operatingHours?: Record<string, DepotHours>;
+  holidays?: DepotHoliday[];
+}
+
+export interface DepotHours {
+  open: string;
+  close: string;
+}
+export interface DepotHoliday {
+  date: string;
+  label?: string;
 }
 
 export interface DepotPayload {

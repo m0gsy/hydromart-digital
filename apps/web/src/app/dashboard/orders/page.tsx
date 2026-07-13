@@ -1,8 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useState } from 'react';
-import { ClipboardText, Lock, Package } from '@phosphor-icons/react';
+import { ClipboardText, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
@@ -10,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
-import { canViewInventory, isStaff } from '@/lib/roles';
+import { isStaff } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
 import type { Order, OrderStatus, Page } from '@/lib/types';
@@ -79,7 +78,6 @@ function OrderRow({ order, onChanged }: { order: Order; onChanged: () => void })
 }
 
 function QueueBody() {
-  const { customer } = useAuth();
   const [status, setStatus] = useState('');
   const { data, error, loading, reload } = useAsync<Page<Order>>(
     () => api.get(endpoints.orders.manage({ status: status || undefined, limit: 50 }), true),
@@ -88,20 +86,9 @@ function QueueBody() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ClipboardText size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Order queue</h1>
-        </div>
-        {canViewInventory(customer?.role) && (
-          <Link
-            href="/dashboard/inventory"
-            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-700 hover:underline"
-          >
-            <Package size={18} weight="fill" />
-            Inventory
-          </Link>
-        )}
+      <div className="flex items-center gap-2">
+        <ClipboardText size={24} weight="fill" className="text-brand-500" />
+        <h1 className="text-2xl font-bold">Order queue</h1>
       </div>
 
       <div className="flex flex-wrap gap-2">

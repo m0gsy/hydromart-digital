@@ -19,7 +19,7 @@ HOST="${MIGRATE_DB_HOST:-localhost}"
 
 # Each service owns DB hydromart_<svc>; the env var is <SVC>_DATABASE_URL.
 for svc in auth customer product order payment delivery depot loyalty \
-           promo referral crm recommendation forecast; do
+           promo referral crm recommendation forecast payout; do
   var="$(echo "$svc" | tr '[:lower:]' '[:upper:]')_DATABASE_URL"
   export "$var=postgresql://hydromart:${POSTGRES_PASSWORD}@${HOST}:5432/hydromart_${svc}?schema=public"
 done

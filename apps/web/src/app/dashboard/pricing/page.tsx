@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Lock, Tag } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -9,13 +9,11 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { canManagePricing } from '@/lib/roles';
 import { EMPTY_RULE_FORM, toRulePayload, type RuleForm } from '@/lib/pricing';
 import { useAsync } from '@/lib/use-async';
-import type { Depot, Page, PricingRule } from '@/lib/types';
-
-// Depot-service returns the full record; we only need these fields for the picker.
-type DepotOption = Depot & Record<string, unknown>;
+import type { PricingRule } from '@/lib/types';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -246,22 +244,16 @@ function RuleCard({
 }
 
 function PricingBody() {
-  const [depotId, setDepotId] = useState('');
+  const { scopedId, selected, depots, ready } = useDepot();
+  const depotId = scopedId ?? '';
   const [editing, setEditing] = useState<PricingRule | null | 'new'>(null);
-
-  const depots = useAsync<Page<DepotOption>>(() => api.get(endpoints.depots.browse({ limit: 100 }), true));
-  const options = depots.data?.items ?? [];
-
-  // Default to the first depot once the list loads.
-  useEffect(() => {
-    const first = depots.data?.items?.[0];
-    if (!depotId && first) setDepotId(first.id);
-  }, [depotId, depots.data]);
 
   const rules = useAsync<PricingRule[]>(
     () => (depotId ? api.get(endpoints.pricing.rules(depotId), true) : Promise.resolve([])),
     [depotId],
   );
+
+  const scopedDepot = selected ?? depots.find((d) => d.id === depotId) ?? null;
 
   function closeForm() {
     setEditing(null);
@@ -278,35 +270,23 @@ function PricingBody() {
         {depotId && editing === null && <Button onClick={() => setEditing('new')}>New rule</Button>}
       </div>
 
-      {depots.loading ? (
-        <Skeleton className="h-11 w-full" />
-      ) : depots.error ? (
-        <ErrorState message={depots.error} onRetry={depots.reload} />
-      ) : options.length === 0 ? (
+      {scopedDepot && (
+        <p className="text-[12.5px] text-muted">
+          Aturan untuk{' '}
+          <strong className="text-[color:var(--text)]">
+            {scopedDepot.name} · {scopedDepot.code}
+          </strong>
+          . Prioritas lebih tinggi menang saat tumpang tindih.
+        </p>
+      )}
+
+      {ready && depots.length === 0 ? (
         <CenterState title="No depots" icon={<Tag size={40} weight="fill" />}>
           No depots are configured yet.
         </CenterState>
       ) : (
         <>
-          <Field label="Depot" htmlFor="depot">
-            <select
-              id="depot"
-              value={depotId}
-              onChange={(e) => {
-                setDepotId(e.target.value);
-                setEditing(null);
-              }}
-              className="surface-elevated w-full min-w-56 rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
-            >
-              {options.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} · {d.city}
-                </option>
-              ))}
-            </select>
-          </Field>
-
-          {editing !== null && (
+          {editing !== null && depotId && (
             <RuleEditor
               key={editing === 'new' ? 'new' : editing.id}
               depotId={depotId}

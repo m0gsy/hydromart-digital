@@ -1,0 +1,67 @@
+// Hydromart payout-service data model (design "Keuangan · usulan": Payout & komisi).
+// Owns a per-franchise-owner cash ledger (sales settlements, HQ commission, stock
+// purchases, withdrawals) and withdrawal requests. Balance = sum of signed ledger
+// amounts. Append-only ledger; withdrawals also post a matching debit entry.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PAYOUT_DATABASE_URL")
+}
+
+/// Ledger entry kind. Credits (positive amount): SALE_SETTLEMENT. Debits (negative):
+/// COMMISSION (HQ share), STOCK_PURCHASE, WITHDRAWAL. ADJUSTMENT may be either sign.
+enum LedgerEntryType {
+  SALE_SETTLEMENT
+  COMMISSION
+  STOCK_PURCHASE
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
+/// Withdrawal lifecycle. PROCESSING on request; PAID once the bank transfer clears;
+/// FAILED if the transfer is rejected (a compensating credit re-posts to the ledger).
+enum WithdrawalStatus {
+  PROCESSING
+  PAID
+  FAILED
+}
+
+/// Append-only cash-book entry for one franchise owner (optionally attributed to a depot).
+model LedgerEntry {
+  id               String          @id @default(uuid()) @db.Uuid
+  franchiseOwnerId String          @db.Uuid
+  depotId          String?         @db.Uuid
+  type             LedgerEntryType
+  /// Signed IDR amount: positive = credit (balance up), negative = debit.
+  amount           Decimal         @db.Decimal(14, 2)
+  description      String
+  occurredAt       DateTime        @default(now())
+  createdAt        DateTime        @default(now())
+
+  @@index([franchiseOwnerId, occurredAt])
+  @@map("ledger_entries")
+}
+
+/// A franchise owner's request to cash out available balance to their bank account.
+model Withdrawal {
+  id               String           @id @default(uuid()) @db.Uuid
+  franchiseOwnerId String           @db.Uuid
+  /// Positive IDR amount requested.
+  amount           Decimal          @db.Decimal(14, 2)
+  /// Masked destination shown in the UI, e.g. "BCA ···· 4821".
+  bankAccountRef   String
+  status           WithdrawalStatus @default(PROCESSING)
+  /// Human-facing reference, e.g. "WD-20260710-4821". Unique.
+  reference        String           @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([franchiseOwnerId, createdAt])
+  @@map("withdrawals")
+}

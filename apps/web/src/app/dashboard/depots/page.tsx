@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Buildings, Lock } from '@phosphor-icons/react';
+import { Buildings, Clock, Lock } from '@phosphor-icons/react';
 
+import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -116,7 +117,17 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
   );
 }
 
-function DepotCard({ depot, onEdit, onChanged }: { depot: DepotAdmin; onEdit: () => void; onChanged: () => void }) {
+function DepotCard({
+  depot,
+  onEdit,
+  onHours,
+  onChanged,
+}: {
+  depot: DepotAdmin;
+  onEdit: () => void;
+  onHours: () => void;
+  onChanged: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,7 +175,11 @@ function DepotCard({ depot, onEdit, onChanged }: { depot: DepotAdmin; onEdit: ()
           {error}
         </p>
       )}
-      <div className="flex justify-end gap-2 border-t border-app pt-2">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-app pt-2">
+        <Button variant="ghost" onClick={onHours} disabled={busy}>
+          <Clock size={16} weight="fill" />
+          Jam &amp; libur
+        </Button>
         <Button variant="secondary" onClick={onEdit} disabled={busy}>
           Edit
         </Button>
@@ -178,11 +193,16 @@ function DepotCard({ depot, onEdit, onChanged }: { depot: DepotAdmin; onEdit: ()
 
 function DepotsBody() {
   const [editing, setEditing] = useState<DepotAdmin | null | 'new'>(null);
+  const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];
 
   function closeForm() {
     setEditing(null);
+    list.reload();
+  }
+  function closeHours() {
+    setHoursDepot(null);
     list.reload();
   }
 
@@ -205,6 +225,15 @@ function DepotsBody() {
         />
       )}
 
+      {hoursDepot && (
+        <DepotHoursEditor
+          key={`hours-${hoursDepot.id}`}
+          depot={hoursDepot}
+          onDone={closeHours}
+          onCancel={() => setHoursDepot(null)}
+        />
+      )}
+
       {list.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
@@ -216,7 +245,13 @@ function DepotsBody() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((d) => (
-            <DepotCard key={d.id} depot={d} onEdit={() => setEditing(d)} onChanged={list.reload} />
+            <DepotCard
+              key={d.id}
+              depot={d}
+              onEdit={() => setEditing(d)}
+              onHours={() => setHoursDepot(d)}
+              onChanged={list.reload}
+            />
           ))}
         </div>
       )}

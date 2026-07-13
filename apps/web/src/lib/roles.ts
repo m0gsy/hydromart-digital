@@ -101,3 +101,8 @@ const CHURN_ROLES = new Set(['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER
 export function canViewChurn(role: string | null | undefined): boolean {
   return role != null && CHURN_ROLES.has(role);
 }
+
+/** Whether a role may view the franchise payout/komisi ledger (mirrors payout-service FRANCHISE_OWNER-only). */
+export function canViewPayout(role: string | null | undefined): boolean {
+  return role === 'FRANCHISE_OWNER';
+}

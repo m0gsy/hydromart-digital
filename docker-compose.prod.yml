@@ -261,6 +261,20 @@ services:
       timeout: 5s
       retries: 12
 
+  payout:
+    <<: *svc
+    build: { context: ., dockerfile: services/payout-service/Dockerfile }
+    environment:
+      <<: *shared
+      PAYOUT_SERVICE_PORT: 3016
+      PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public
+      PAYOUT_COMMISSION_RATE: ${PAYOUT_COMMISSION_RATE:-0.05}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3016/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     <<: *svc
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
@@ -284,6 +298,7 @@ services:
       CRM_SERVICE_URL: http://crm:3012
       RECOMMENDATION_SERVICE_URL: http://recommendation:3013
       FORECAST_SERVICE_URL: http://forecast:3014
+      PAYOUT_SERVICE_URL: http://payout:3016
     ports:
       - "8080:8080"
     healthcheck:
