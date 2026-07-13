@@ -1,4 +1,3 @@
-import { INTERNAL_KEY_HEADER } from '@hydromart/platform';
 import { INestApplication } from '@nestjs/common';
 import type { Express, RequestHandler } from 'express';
 import helmet from 'helmet';
@@ -6,6 +5,11 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { GatewayConfigService } from './config/gateway-config.service';
 import { resolveRoute } from './routing/route-table';
+
+// Kept in sync with @hydromart/platform's INTERNAL_KEY_HEADER. Inlined so the
+// gateway (a pure proxy) doesn't import the platform barrel, which transitively
+// pulls the JWT guard + @nestjs/jwt the gateway has no reason to depend on.
+const INTERNAL_KEY_HEADER = 'x-internal-key';
 
 /**
  * Wires the gateway's request pipeline onto the underlying Express instance:
