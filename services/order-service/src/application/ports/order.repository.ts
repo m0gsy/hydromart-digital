@@ -96,6 +96,7 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
 export interface OrderQuery {
   customerId?: string;
   status?: OrderStatus;
+  depotId?: string;
   page: number;
   limit: number;
 }

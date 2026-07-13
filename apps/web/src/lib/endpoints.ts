@@ -26,6 +26,8 @@ export const endpoints = {
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },
     inviteStaff: '/auth/api/v1/auth/staff/invite',
+    // Active DRIVER roster for dispatch (courier assignment). Array of Customer.
+    drivers: '/auth/api/v1/auth/drivers',
   },
   // Notification channel preferences (GET to read, PATCH to update).
   preferences: {
@@ -82,12 +84,13 @@ export const endpoints = {
     // GET → existing review (null if unrated), POST → submit (spec 7c).
     review: (id: string) => `/orders/api/v1/orders/${id}/review`,
     status: (id: string) => `/orders/api/v1/orders/${id}/status`,
-    // Staff queue across all customers.
-    manage: (q: { page?: number; limit?: number; status?: string } = {}) => {
+    // Staff queue across all customers; depotId scopes to one depot (switcher).
+    manage: (q: { page?: number; limit?: number; status?: string; depotId?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.status) p.set('status', q.status);
+      if (q.depotId) p.set('depotId', q.depotId);
       const qs = p.toString();
       return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
     },

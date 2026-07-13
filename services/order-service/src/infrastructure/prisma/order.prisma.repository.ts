@@ -200,6 +200,7 @@ export class OrderPrismaRepository implements OrderRepository {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
+      ...(query.depotId ? { depotId: query.depotId } : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({

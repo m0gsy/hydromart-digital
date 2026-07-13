@@ -562,6 +562,30 @@ describe('OrderService', () => {
     expect(others.total).toBe(0);
   });
 
+  it('filters the staff queue by depotId, and returns all depots when omitted (6a)', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null }, // ~Bandung
+      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 9000, minOrderAmount: null }, // ~Jakarta
+    ];
+    await addToCart(20000, 1);
+    const near = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+    });
+    await addToCart(20000, 1);
+    const far = await service.checkout(customer, {
+      deliveryAddress: { ...address, latitude: -6.21, longitude: 106.81 },
+    });
+    expect(near.depotId).toBe('depot-near');
+    expect(far.depotId).toBe('depot-far');
+
+    const all = await service.listAll({});
+    expect(all.total).toBe(2);
+
+    const onlyNear = await service.listAll({ depotId: 'depot-near' });
+    expect(onlyNear.total).toBe(1);
+    expect(onlyNear.items[0].id).toBe(near.id);
+  });
+
   it('routes an order to the nearest in-range depot at checkout', async () => {
     depots.depots = [
       { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null }, // ~Bandung

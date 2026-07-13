@@ -76,6 +76,18 @@ export class AccountController {
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 
+  // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the
+  // staff directory above (head-office / super-admin only), dispatchers must be
+  // able to read this, so it also allows the depot dispatch roles.
+  @Roles(Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('auth/drivers')
+  @ApiOperation({ summary: 'List active drivers (couriers) for dispatch' })
+  @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
+  async listDrivers(): Promise<PublicCustomerDto[]> {
+    const drivers = await this.account.listDrivers();
+    return drivers.map(PublicCustomerDto.from);
+  }
+
   @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })

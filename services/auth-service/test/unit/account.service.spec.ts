@@ -4,6 +4,7 @@ import {
   InvalidStaffRoleError,
 } from '../../src/domain/errors/auth.errors';
 import { Role } from '../../src/domain/customer/role.enum';
+import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { AccountService } from '../../src/application/services/account.service';
 import { AuditAction, AuditService } from '../../src/application/services/audit.service';
 import { SessionService } from '../../src/application/services/session.service';
@@ -128,6 +129,28 @@ describe('AccountService', () => {
     const staff = await service.listStaff(1, 20);
     expect(staff.total).toBe(2);
     expect(staff.items.every((s) => s.role !== Role.CUSTOMER)).toBe(true);
+  });
+
+  it('lists only active DRIVER accounts for dispatch', async () => {
+    customers.seed(
+      makeCustomer({ phone: '+628990007777', role: Role.DRIVER, status: CustomerStatus.ACTIVE, fullName: 'Andi' }),
+    );
+    // A DRIVER who is not yet active must be excluded.
+    customers.seed(
+      makeCustomer({ phone: '+628990008888', role: Role.DRIVER, status: CustomerStatus.PENDING_VERIFICATION }),
+    );
+    // Active non-drivers and customers must be excluded.
+    customers.seed(
+      makeCustomer({ phone: '+628990009999', role: Role.DEPOT_OPERATOR, status: CustomerStatus.ACTIVE }),
+    );
+    customers.seed(
+      makeCustomer({ phone: '+628990001010', role: Role.CUSTOMER, status: CustomerStatus.ACTIVE }),
+    );
+
+    const drivers = await service.listDrivers();
+    expect(drivers).toHaveLength(1);
+    expect(drivers[0]).toMatchObject({ fullName: 'Andi', role: Role.DRIVER, status: CustomerStatus.ACTIVE });
+    expect(drivers.every((d) => d.role === Role.DRIVER && d.status === CustomerStatus.ACTIVE)).toBe(true);
   });
 
   it('lists active sessions and logs out everywhere', async () => {

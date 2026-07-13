@@ -12,6 +12,7 @@ import { formatDateTime } from '@/lib/format';
 import { statusLabel, tone } from '@/lib/order-status';
 import { isStaff } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { useAsync } from '@/lib/use-async';
 import type { Order, Page } from '@/lib/types';
 
@@ -53,9 +54,11 @@ function OrderRow({ order, onOpen }: { order: Order; onOpen: () => void }) {
 function QueueBody() {
   const [status, setStatus] = useState('');
   const [selected, setSelected] = useState<Order | null>(null);
+  const { scopedId, selected: scopedDepot } = useDepot();
   const { data, error, loading, reload } = useAsync<Page<Order>>(
-    () => api.get(endpoints.orders.manage({ status: status || undefined, limit: 50 }), true),
-    [status],
+    () =>
+      api.get(endpoints.orders.manage({ status: status || undefined, depotId: scopedId ?? undefined, limit: 50 }), true),
+    [status, scopedId],
   );
 
   return (
@@ -64,6 +67,20 @@ function QueueBody() {
         <ClipboardText size={24} weight="fill" className="text-brand-500" />
         <h1 className="text-2xl font-bold">Order queue</h1>
       </div>
+
+      <p className="text-[12.5px] text-muted">
+        {scopedDepot ? (
+          <>
+            Antrean untuk{' '}
+            <strong className="text-[color:var(--text)]">
+              {scopedDepot.name} · {scopedDepot.code}
+            </strong>{' '}
+            (dari switcher).
+          </>
+        ) : (
+          'Semua depot. Pilih satu depot dari switcher untuk memfilter.'
+        )}
+      </p>
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (

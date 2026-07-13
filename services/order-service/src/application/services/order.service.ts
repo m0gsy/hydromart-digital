@@ -57,6 +57,7 @@ export interface ListOrdersInput {
   page?: number;
   limit?: number;
   status?: OrderStatus;
+  depotId?: string;
 }
 
 /** Rounds to 2 decimals (IDR minor units) to keep money arithmetic exact. */
@@ -594,7 +595,13 @@ export class OrderService {
   ): Promise<Page<OrderRecord>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(OrderService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
-    const query: OrderQuery = { page, limit, customerId: input.customerId, status: input.status };
+    const query: OrderQuery = {
+      page,
+      limit,
+      customerId: input.customerId,
+      status: input.status,
+      depotId: input.depotId,
+    };
     const { items, total } = await this.orders.search(query);
     return buildPage(items, total, page, limit);
   }

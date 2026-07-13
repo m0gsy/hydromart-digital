@@ -6,6 +6,7 @@ import {
   InvalidStaffRoleError,
 } from '../../domain/errors/auth.errors';
 import { Role } from '../../domain/customer/role.enum';
+import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
@@ -80,6 +81,17 @@ export class AccountService {
   ): Promise<{ items: PublicCustomer[]; total: number; page: number; limit: number }> {
     const { items, total } = await this.customers.listStaff(page, limit, role);
     return { items: items.map(toPublicCustomer), total, page, limit };
+  }
+
+  /**
+   * Driver roster for dispatch (feature 9b): active couriers only, so staff can
+   * pick one by name. Reuses the staff-directory query with a DRIVER filter and
+   * keeps only ACTIVE accounts. Non-paginated — a depot has few drivers.
+   * ponytail: single generous page; add real pagination if a depot ever runs 500+ drivers.
+   */
+  async listDrivers(): Promise<PublicCustomer[]> {
+    const { items } = await this.customers.listStaff(1, 500, Role.DRIVER);
+    return items.map(toPublicCustomer).filter((c) => c.status === CustomerStatus.ACTIVE);
   }
 
   /**

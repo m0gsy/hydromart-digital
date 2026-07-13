@@ -3,33 +3,34 @@
 import { useState } from 'react';
 
 import { Sheet } from '@/components/overlay';
-import { Badge, Button, Field, Input, Money } from '@/components/ui';
+import { Badge, Button, Field, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
-import type { Order } from '@/lib/types';
+import { useAsync } from '@/lib/use-async';
+import type { Customer, Order } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
 /**
  * Assign a courier to a PREPARING order (9b). POST /deliveries advances the order
- * to DRIVER_ASSIGNED. ponytail: driverId is entered by hand — there is no
- * dispatch-accessible driver roster endpoint (the staff directory is head-office
- * gated). Add a driver-picker dropdown once such an endpoint exists.
+ * to DRIVER_ASSIGNED. Picks the courier from the active-driver roster
+ * (GET /auth/drivers, dispatch-accessible).
  */
 function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) {
+  const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
   const [driverId, setDriverId] = useState('');
-  const [driverName, setDriverName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
-    if (driverId.trim() === '') {
-      setError('Masukkan ID kurir.');
+    if (driverId === '') {
+      setError('Pilih kurir.');
       return;
     }
+    const driver = drivers.data?.find((d) => d.id === driverId);
     setBusy(true);
     setError(null);
     try {
@@ -38,8 +39,8 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
         {
           orderId: order.id,
           orderNumber: order.orderNumber,
-          driverId: driverId.trim(),
-          driverName: driverName.trim() || undefined,
+          driverId,
+          driverName: driver?.fullName || undefined,
           depotId: order.depotId ?? undefined,
           destinationAddress: `${order.addressLine}, ${order.city}`,
           destinationLat: order.latitude ?? undefined,
@@ -58,19 +59,36 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   return (
     <div className="flex flex-col gap-2 border-t border-app pt-3">
       <p className="text-sm font-semibold">Tugaskan kurir</p>
-      <Field label="ID kurir" htmlFor="d-id">
-        <Input id="d-id" value={driverId} onChange={(e) => setDriverId(e.target.value)} placeholder="UUID kurir" />
-      </Field>
-      <Field label="Nama kurir (opsional)" htmlFor="d-name">
-        <Input id="d-name" value={driverName} onChange={(e) => setDriverName(e.target.value)} placeholder="mis. Budi" />
-      </Field>
+      {drivers.loading ? (
+        <p className="text-sm text-muted">Memuat kurir…</p>
+      ) : drivers.error ? (
+        <p className="text-sm font-medium text-red-600">{drivers.error}</p>
+      ) : !drivers.data || drivers.data.length === 0 ? (
+        <p className="text-sm text-muted">Belum ada kurir aktif. Undang kurir di menu Staf &amp; peran.</p>
+      ) : (
+        <Field label="Kurir" htmlFor="d-id">
+          <select
+            id="d-id"
+            value={driverId}
+            onChange={(e) => setDriverId(e.target.value)}
+            className="w-full rounded-xl border border-app bg-transparent px-3 py-2.5 text-sm font-medium"
+          >
+            <option value="">Pilih kurir…</option>
+            {drivers.data.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.fullName || d.phone}
+              </option>
+            ))}
+          </select>
+        </Field>
+      )}
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}
         </p>
       )}
       <div className="flex justify-end">
-        <Button onClick={submit} loading={busy}>
+        <Button onClick={submit} loading={busy} disabled={!drivers.data || drivers.data.length === 0}>
           Tugaskan &amp; kirim
         </Button>
       </div>

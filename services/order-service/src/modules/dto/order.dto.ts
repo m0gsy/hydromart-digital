@@ -109,6 +109,11 @@ export class ListOrdersQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict the staff queue to one depot (6a).' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }
 
 export class CancelOrderDto {
