@@ -60,7 +60,7 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         setGeoError(t('home.location.denied'));
         setGeoBusy(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
     );
   }
 
@@ -88,7 +88,15 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
       </button>
 
       {open && (
-        <div className="surface absolute left-0 z-20 mt-2 w-72 rounded-xl border border-app p-2 shadow-lg">
+        <div
+          className={
+            'surface absolute z-20 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-app p-2 shadow-lg ' +
+            // compact instance sits on the right of the depot-card header; anchor
+            // the panel to that edge so its 288px width opens inward, not past the
+            // viewport. left-anchored otherwise (full-width empty-state button).
+            (compact ? 'right-0' : 'left-0')
+          }
+        >
           <button
             onClick={useMyLocation}
             disabled={geoBusy}

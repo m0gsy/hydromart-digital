@@ -246,23 +246,23 @@ function CheckoutInner() {
   return (
     <form onSubmit={placeOrder} className="flex flex-col">
       {/* Progress stepper — centered in-page row */}
-      <div className="mb-7 flex items-center justify-center gap-2.5 text-[13px] font-bold">
-        <span className="flex items-center gap-2 text-brand-800">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+      <div className="mb-7 flex items-center justify-center gap-1.5 text-[11px] font-bold sm:gap-2.5 sm:text-[13px]">
+        <span className="flex items-center gap-1.5 text-brand-800 sm:gap-2">
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand">
             <Check size={12} weight="bold" />
           </span>
           {t('order.checkout.stepCart')}
         </span>
-        <span className="h-[1.5px] w-[34px] bg-brand-600" />
-        <span className="flex items-center gap-2 text-brand-800">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
+        <span className="h-[1.5px] w-4 flex-shrink bg-brand-600 sm:w-[34px]" />
+        <span className="flex items-center gap-1.5 text-brand-800 sm:gap-2">
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--text)] text-[11.5px] text-[color:var(--surface)]">
             2
           </span>
           {t('order.checkout.stepCheckout')}
         </span>
-        <span className="h-[1.5px] w-[34px] bg-[color:var(--border)]" />
-        <span className="flex items-center gap-2 text-muted">
-          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11.5px] text-muted">
+        <span className="h-[1.5px] w-4 flex-shrink bg-[color:var(--border)] sm:w-[34px]" />
+        <span className="flex items-center gap-1.5 text-muted sm:gap-2">
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[color:var(--surface-soft)] text-[11.5px] text-muted">
             3
           </span>
           {t('order.checkout.stepDone')}

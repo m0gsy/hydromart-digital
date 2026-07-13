@@ -172,7 +172,7 @@ function CartInner() {
           {lines.map((line) => (
             <div
               key={line.productId}
-              className="surface flex items-center gap-4 rounded-[20px] p-4 shadow-card"
+              className="surface flex flex-wrap items-center gap-4 rounded-[20px] p-4 shadow-card"
             >
               <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[14px] bg-[color:var(--surface-soft)]">
                 <Drop size={30} weight="thin" className="text-brand-300" />
@@ -188,23 +188,25 @@ function CartInner() {
                   Stok tersedia
                 </span>
               </div>
-              <QuantityStepper
-                value={line.quantity}
-                onChange={(q) => setQuantity(line.productId, q)}
-                disabled={busy === line.productId}
-              />
-              <div className="w-[92px] text-right text-[15.5px] font-extrabold tabular-nums">
-                <Money amount={line.lineTotal} />
+              <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-start">
+                <QuantityStepper
+                  value={line.quantity}
+                  onChange={(q) => setQuantity(line.productId, q)}
+                  disabled={busy === line.productId}
+                />
+                <div className="w-[92px] text-right text-[15.5px] font-extrabold tabular-nums">
+                  <Money amount={line.lineTotal} />
+                </div>
+                <button
+                  type="button"
+                  aria-label={t('order.cart.removeAria', { name: line.productName })}
+                  onClick={() => remove(line.productId)}
+                  disabled={busy === line.productId}
+                  className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] active:scale-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                >
+                  <Trash size={18} />
+                </button>
               </div>
-              <button
-                type="button"
-                aria-label={t('order.cart.removeAria', { name: line.productName })}
-                onClick={() => remove(line.productId)}
-                disabled={busy === line.productId}
-                className="flex h-[38px] w-[38px] flex-shrink-0 items-center justify-center rounded-full text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] active:scale-90 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
-              >
-                <Trash size={18} />
-              </button>
             </div>
           ))}
 

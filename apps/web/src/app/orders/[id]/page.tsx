@@ -155,7 +155,7 @@ function OrderDetailInner({ id }: { id: string }) {
       </div>
 
       {/* progress stepper */}
-      <div className={`${PANEL} px-[30px] py-[26px]`}>
+      <div className={`${PANEL} px-4 py-5 sm:px-[30px] sm:py-[26px]`}>
         <OrderProgress status={order.status} />
       </div>
 
