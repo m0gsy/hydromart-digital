@@ -618,6 +618,25 @@ export interface DepotPayload {
   serviceRadiusKm?: number;
 }
 
+// Delivery (delivery-service). Live-tracking slice consumed by the ops console.
+export type DeliveryStatus = 'ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED' | 'FAILED';
+
+export interface Delivery {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  driverId: string;
+  depotId: string | null;
+  status: DeliveryStatus;
+  destinationAddress: string;
+  destinationLat: number | null;
+  destinationLng: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+  lastLocationAt: string | null;
+  assignedAt: string;
+}
+
 // Ops notification (crm-service). Operational alert feed for staff.
 export interface OpsNotification {
   id: string;

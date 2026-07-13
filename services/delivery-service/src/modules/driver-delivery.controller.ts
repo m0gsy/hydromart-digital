@@ -16,7 +16,12 @@ import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
-import { FailDeliveryDto, ListDeliveriesQueryDto, ProofOfDeliveryDto } from './dto/delivery.dto';
+import {
+  FailDeliveryDto,
+  ListDeliveriesQueryDto,
+  ProofOfDeliveryDto,
+  ReportLocationDto,
+} from './dto/delivery.dto';
 
 /** Driver-facing view: a driver only ever sees and acts on their own deliveries. */
 @ApiTags('Driver Deliveries')
@@ -85,6 +90,16 @@ export class DriverDeliveryController {
       },
       authorization,
     );
+  }
+
+  @Post(':id/location')
+  @ApiOperation({ summary: 'Report current GPS position (live tracking, while en route)' })
+  reportLocation(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReportLocationDto,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.reportLocation(user.sub, id, dto.lat, dto.lng);
   }
 
   @Patch(':id/fail')

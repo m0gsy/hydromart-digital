@@ -41,6 +41,12 @@ model Delivery {
   destinationLat     Float?
   destinationLng     Float?
 
+  // Latest reported driver position (live tracking, PRD 10a). Overwritten on each
+  // ping while en route; no history kept (MVP — "where is the driver now").
+  lastLat        Float?
+  lastLng        Float?
+  lastLocationAt DateTime?
+
   assignedAt    DateTime  @default(now())
   pickedUpAt    DateTime?
   startedAt     DateTime?

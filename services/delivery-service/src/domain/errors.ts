@@ -45,6 +45,15 @@ export class NotAssignedDriverError extends DomainError {
   }
 }
 
+/** A location ping was sent for a delivery that is already delivered or failed. */
+export class DeliveryNotActiveError extends DomainError {
+  readonly code = 'DELIVERY_NOT_ACTIVE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Location can only be reported while a delivery is in progress.');
+  }
+}
+
 /** Advancing the order on order-service failed (rejected transition or unreachable). */
 export class OrderCoordinationError extends DomainError {
   readonly code = 'DELIVERY_ORDER_SYNC_FAILED';

@@ -112,6 +112,15 @@ export function canViewOpsNotifications(role: string | null | undefined): boolea
   return role != null && OPS_NOTIF_READ.has(role);
 }
 
+// Live tracking mirrors delivery-service DISPATCH_ROLES exactly (the staff /deliveries
+// list is dispatch-only; head office uses the executive dashboard). Server-authoritative.
+const TRACKING_READ = new Set(['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN']);
+
+/** Whether a role may view live delivery tracking. */
+export function canViewTracking(role: string | null | undefined): boolean {
+  return role != null && TRACKING_READ.has(role);
+}
+
 /** Whether a role may manage dynamic pricing rules (mirrors depot-service manager+super-admin). */
 export function canManagePricing(role: string | null | undefined): boolean {
   return role != null && DEPOT_ADMIN.has(role);

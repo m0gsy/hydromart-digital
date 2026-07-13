@@ -12,6 +12,7 @@ import {
   CheckCircle,
   ClipboardText,
   MagnifyingGlass,
+  MapPin,
   Megaphone,
   Package,
   Recycle,
@@ -41,6 +42,7 @@ import {
   canViewOpsNotifications,
   canViewPayout,
   canViewReturns,
+  canViewTracking,
   canViewVouchers,
   isStaff,
 } from '@/lib/roles';
@@ -73,6 +75,7 @@ const GROUPS: RailGroup[] = [
     head: 'Operasi harian',
     items: [
       { href: '/dashboard/orders', label: 'Antrean pesanan', icon: ClipboardText, show: isStaff },
+      { href: '/dashboard/tracking', label: 'Live tracking', icon: MapPin, show: canViewTracking },
       { href: '/dashboard/inventory', label: 'Inventori', icon: Package, show: canViewInventory },
       { href: '/dashboard/returns', label: 'Retur galon', icon: Recycle, show: canViewReturns },
       { href: '/dashboard/notifications', label: 'Notifikasi ops', icon: Bell, show: canViewOpsNotifications },

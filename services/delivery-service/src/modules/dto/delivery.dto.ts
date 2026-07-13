@@ -16,6 +16,18 @@ import {
 
 import { DeliveryStatus } from '../../domain/delivery-status';
 
+export class ReportLocationDto {
+  @ApiProperty({ example: -6.2088, description: "Driver's current latitude." })
+  @Type(() => Number)
+  @IsLatitude()
+  lat!: number;
+
+  @ApiProperty({ example: 106.8456, description: "Driver's current longitude." })
+  @Type(() => Number)
+  @IsLongitude()
+  lng!: number;
+}
+
 export class AssignDeliveryDto {
   @ApiProperty({ format: 'uuid', description: 'Order to deliver.' })
   @IsUUID()

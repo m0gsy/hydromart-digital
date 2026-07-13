@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import {
   DeliveryAlreadyExistsError,
+  DeliveryNotActiveError,
   DeliveryNotFoundError,
   DriverBusyError,
   InvalidDeliveryTransitionError,
@@ -12,6 +13,7 @@ import {
   DeliveryStatus,
   OrderFulfilmentStatus,
   canTransition,
+  isActive,
   orderStatusFor,
 } from '../../domain/delivery-status';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
@@ -138,6 +140,20 @@ export class DeliveryService {
       driverId,
       reason,
     );
+  }
+
+  /**
+   * Records the driver's latest position for live tracking (PRD 10a). Only the
+   * assigned driver may ping, and only while the delivery is still in progress
+   * (a delivered/failed delivery no longer moves). Latest position overwrites the
+   * previous one — no track history is kept in the MVP.
+   */
+  async reportLocation(driverId: string, id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+    const delivery = await this.ownedByDriver(driverId, id);
+    if (!isActive(delivery.status)) {
+      throw new DeliveryNotActiveError();
+    }
+    return this.deliveries.updateLocation(id, lat, lng);
   }
 
   async getForDriver(driverId: string, id: string): Promise<DeliveryRecord> {

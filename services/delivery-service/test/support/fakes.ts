@@ -34,6 +34,9 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       ...data,
       id: randomUUID(),
       status: DeliveryStatus.ASSIGNED,
+      lastLat: null,
+      lastLng: null,
+      lastLocationAt: null,
       assignedAt: now,
       pickedUpAt: null,
       startedAt: null,
@@ -69,6 +72,11 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       items: all.slice(start, start + query.limit).map((r) => structuredClone(r)),
       total: all.length,
     };
+  }
+  async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, { lastLat: lat, lastLng: lng, lastLocationAt: nextDate(), updatedAt: nextDate() });
+    return structuredClone(row);
   }
   async applyStatus(
     id: string,

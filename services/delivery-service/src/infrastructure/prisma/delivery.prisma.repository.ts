@@ -41,6 +41,9 @@ interface DeliveryRow {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+  lastLocationAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -80,6 +83,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       destinationAddress: row.destinationAddress,
       destinationLat: row.destinationLat,
       destinationLng: row.destinationLng,
+      lastLat: row.lastLat,
+      lastLng: row.lastLng,
+      lastLocationAt: row.lastLocationAt,
       assignedAt: row.assignedAt,
       pickedUpAt: row.pickedUpAt,
       startedAt: row.startedAt,
@@ -152,6 +158,15 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       this.prisma.delivery.count({ where }),
     ]);
     return { items: rows.map((r) => this.toRecord(r)), total };
+  }
+
+  async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+    const row = await this.prisma.delivery.update({
+      where: { id },
+      data: { lastLat: lat, lastLng: lng, lastLocationAt: new Date() },
+      include: INCLUDE,
+    });
+    return this.toRecord(row);
   }
 
   async applyStatus(

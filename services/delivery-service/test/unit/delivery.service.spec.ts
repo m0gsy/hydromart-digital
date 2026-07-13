@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DeliveryService } from '../../src/application/services/delivery.service';
 import {
   DeliveryAlreadyExistsError,
+  DeliveryNotActiveError,
   DeliveryNotFoundError,
   DriverBusyError,
   InvalidDeliveryTransitionError,
@@ -61,6 +62,21 @@ describe('DeliveryService', () => {
   it('enforces one active delivery per driver (BR)', async () => {
     await assign(driver);
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverBusyError);
+  });
+
+  it('records the driver location while active and rejects it after delivery', async () => {
+    const d = await assign();
+    const pinged = await service.reportLocation(driver, d.id, -6.2, 106.8);
+    expect(pinged).toMatchObject({ lastLat: -6.2, lastLng: 106.8 });
+    expect(pinged.lastLocationAt).toBeInstanceOf(Date);
+
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    await service.complete(driver, d.id, PROOF, AUTH);
+
+    await expect(service.reportLocation(driver, d.id, -6.3, 106.9)).rejects.toBeInstanceOf(
+      DeliveryNotActiveError,
+    );
   });
 
   it('lets the driver run pickup → start → complete, syncing the order each step', async () => {

@@ -27,6 +27,9 @@ export interface DeliveryRecord {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+  lastLocationAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -86,6 +89,8 @@ export interface DeliveryRepository {
   findByOrder(orderId: string): Promise<DeliveryRecord | null>;
   countActiveByDriver(driverId: string): Promise<number>;
   search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }>;
+  /** Overwrite the delivery's latest reported driver position (live tracking). */
+  updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord>;
   /** Move the delivery to `status`, set the matching timestamp, append history. */
   applyStatus(
     id: string,
