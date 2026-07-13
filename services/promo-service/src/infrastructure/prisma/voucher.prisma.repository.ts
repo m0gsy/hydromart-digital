@@ -139,4 +139,13 @@ export class VoucherPrismaRepository implements VoucherRepository {
     ]);
     return this.toRedemption(redemption);
   }
+
+  async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
+    const existing = await this.prisma.voucherGrant.findUnique({
+      where: { voucherId_customerId: { voucherId, customerId } },
+    });
+    if (existing) return false;
+    await this.prisma.voucherGrant.create({ data: { voucherId, customerId } });
+    return true;
+  }
 }

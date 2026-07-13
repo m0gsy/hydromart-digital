@@ -17,6 +17,12 @@ export enum NotificationEvent {
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
   CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
+  // Loyalty: fired by order-service on completion. Tokens: {{name}}, {{points}}, {{orderNumber}}.
+  POINTS_EARNED = 'POINTS_EARNED',
+  // Rewards/referral: fired when a voucher is granted. Tokens: {{name}}, {{code}}, {{description}}.
+  VOUCHER_GRANTED = 'VOUCHER_GRANTED',
+  // Retention nudge: "time to refill". Token: {{name}}.
+  REORDER_REMINDER = 'REORDER_REMINDER',
 }
 
 // WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
@@ -38,6 +44,12 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
+  [NotificationEvent.POINTS_EARNED]:
+    'Mantap, {{name}}! Kamu dapat +{{points}} poin dari pesanan {{orderNumber}}. Kumpulkan poin untuk tukar voucher & naik tier di aplikasi.',
+  [NotificationEvent.VOUCHER_GRANTED]:
+    'Ada voucher baru untukmu, {{name}}! Kode {{code}} — {{description}}. Pakai saat checkout sebelum masa berlaku habis 🎟️',
+  [NotificationEvent.REORDER_REMINDER]:
+    'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
 };
 
 export function templateFor(event: NotificationEvent): string {

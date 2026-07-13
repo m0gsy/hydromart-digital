@@ -7,8 +7,10 @@ import {
   CatalogUnavailableError,
   EmptyCartError,
   InvalidStatusTransitionError,
+  OrderAlreadyReviewedError,
   OrderNotCancellableError,
   OrderNotFoundError,
+  OrderNotReviewableError,
   OutOfServiceAreaError,
   ProductUnavailableError,
 } from '../../domain/errors';
@@ -29,6 +31,7 @@ import {
   OrderQuery,
   OrderRecord,
   OrderRepository,
+  OrderReviewRecord,
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
@@ -215,6 +218,103 @@ export class OrderService {
     return order;
   }
 
+  /**
+   * Place an order for explicit lines (no cart), for scheduled subscription deliveries
+   * (spec 7b). ponytail: the pricing/routing/stock/create block is duplicated from
+   * checkout() rather than shared — deliberately, to keep the interactive money-path
+   * untouched. Unify into one assembler if a third caller appears. No voucher; no
+   * membership discount (a scheduled run carries no customer token → fail-open 0 rate).
+   */
+  async placeScheduled(
+    customerId: string,
+    lines: { productId: string; quantity: number }[],
+    address: DeliveryAddressSnapshot,
+    discountRate = 0,
+  ): Promise<OrderRecord> {
+    if (lines.length === 0) throw new EmptyCartError();
+    const depot = await this.routeDepot(address);
+    const prices = depot
+      ? await this.depotPricing.getPrices(depot.id, lines.map((l) => l.productId))
+      : new Map<string, DepotPrice>();
+
+    const items: CreateOrderItemData[] = [];
+    for (const line of lines) {
+      const product = await this.priced(line.productId);
+      const priceRow = prices.get(product.id);
+      const base = priceRow?.sellPrice ?? product.basePrice;
+      const adj = priceRow?.adjustType
+        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
+        : null;
+      const unitPrice = money(applyAdjustment(base, adj));
+      items.push({
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        unit: product.unit,
+        unitPrice,
+        quantity: line.quantity,
+        lineTotal: money(unitPrice * line.quantity),
+      });
+    }
+
+    const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const deliveryFee = money(perUnitFee * galonQuantity(items));
+    const discount = money(Math.min(subtotal, subtotal * discountRate));
+    const total = money(subtotal + deliveryFee - discount);
+
+    const orderId = randomUUID();
+    if (depot) {
+      await this.inventory.reserve(
+        depot.id,
+        orderId,
+        items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        '',
+      );
+    }
+
+    const order = await this.orders.create({
+      id: orderId,
+      orderNumber: OrderService.newOrderNumber(),
+      customerId,
+      depotId: depot?.id ?? null,
+      subtotal,
+      deliveryFee,
+      discount,
+      total,
+      ...address,
+      items,
+    });
+
+    await this.notification.notify(
+      'ORDER_RECEIVED',
+      order.phone,
+      { name: order.recipientName, orderNumber: order.orderNumber },
+      order.customerId,
+      '',
+    );
+    return order;
+  }
+
+  /**
+   * "Time to refill" nudge sweep (spec 5h): notify customers whose most-recent order
+   * predates `days` ago. Ops/scheduler-triggered (mirrors expireAbandoned) — this repo
+   * has no cron daemon. Each notification is fail-open (never throws).
+   */
+  async remindStaleCustomers(now: Date, days = 14, limit = 500): Promise<{ reminded: number }> {
+    const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+    const targets = await this.orders.findReorderReminderTargets(cutoff, limit);
+    let reminded = 0;
+    for (const target of targets) {
+      const ok = await this.notification
+        .notify('REORDER_REMINDER', target.phone, { name: target.recipientName }, target.customerId, '')
+        .then(() => true)
+        .catch(() => false);
+      if (ok) reminded += 1;
+    }
+    return { reminded };
+  }
+
   async listForCustomer(customerId: string, input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search({ ...input, customerId });
   }
@@ -243,6 +343,35 @@ export class OrderService {
       throw new OrderNotFoundError();
     }
     return order;
+  }
+
+  /** Spec 7c: rate a delivered/completed order (once). */
+  async reviewOrder(
+    customerId: string,
+    orderId: string,
+    input: { rating: number; aspects: string[]; comment?: string; tipAmount?: number },
+  ): Promise<OrderReviewRecord> {
+    const order = await this.getForCustomer(customerId, orderId);
+    if (order.status !== OrderStatus.DELIVERED && order.status !== OrderStatus.COMPLETED) {
+      throw new OrderNotReviewableError(order.status);
+    }
+    if (await this.orders.findReviewByOrderId(order.id)) {
+      throw new OrderAlreadyReviewedError();
+    }
+    return this.orders.createReview({
+      orderId: order.id,
+      customerId,
+      rating: input.rating,
+      aspects: input.aspects,
+      comment: input.comment?.trim() || null,
+      tipAmount: input.tipAmount ?? 0,
+    });
+  }
+
+  /** The customer's own review for an order, or null if not yet rated. */
+  async getReview(customerId: string, orderId: string): Promise<OrderReviewRecord | null> {
+    await this.getForCustomer(customerId, orderId); // ownership/404 guard
+    return this.orders.findReviewByOrderId(orderId);
   }
 
   async getAny(orderId: string): Promise<OrderRecord> {
@@ -319,12 +448,19 @@ export class OrderService {
     changedBy: string,
     note?: string,
     authorization = '',
+    driverName?: string,
   ): Promise<OrderRecord> {
     const order = await this.getAny(orderId);
     if (!canTransition(order.status, to)) {
       throw new InvalidStatusTransitionError(order.status, to);
     }
-    const updated = await this.orders.applyStatus(order.id, to, changedBy, note ?? null);
+    const updated = await this.orders.applyStatus(
+      order.id,
+      to,
+      changedBy,
+      note ?? null,
+      to === OrderStatus.DRIVER_ASSIGNED ? driverName ?? null : undefined,
+    );
     // Post-completion coordination (both fail-open — a downstream outage never
     // blocks completion, and both are idempotent on the downstream side).
     if (to === OrderStatus.COMPLETED) {
@@ -335,6 +471,21 @@ export class OrderService {
         updated.subtotal,
         authorization,
       );
+      // Notify the customer of the points they just earned (spec 5h feed). Points mirror
+      // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
+      // message copy — loyalty-service remains the source of truth for the balance.
+      const pointsEarned = Math.floor(updated.subtotal / 1000);
+      if (pointsEarned > 0) {
+        await this.notification
+          .notify(
+            'POINTS_EARNED',
+            updated.phone,
+            { name: updated.recipientName, points: String(pointsEarned), orderNumber: updated.orderNumber },
+            updated.customerId,
+            authorization,
+          )
+          .catch(() => {});
+      }
       // FR-092: qualify a pending referral for this customer (rewards both parties).
       await this.referral.qualify(updated.customerId, updated.id, authorization);
       // FR-067..074: deduct sold quantities from the fulfilling depot's stock.

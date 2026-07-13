@@ -9,7 +9,7 @@ import {
 import { DiscountType } from '../../src/domain/voucher';
 import { CreateVoucherData } from '../../src/application/ports/voucher.repository';
 import { VoucherService } from '../../src/application/services/voucher.service';
-import { InMemoryVoucherRepository } from '../support/fakes';
+import { FakeCustomerLookup, FakeNotification, InMemoryVoucherRepository } from '../support/fakes';
 
 const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherData => ({
   code: 'HEMAT10',
@@ -27,11 +27,33 @@ const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherD
 
 describe('VoucherService', () => {
   let repo: InMemoryVoucherRepository;
+  let customers: FakeCustomerLookup;
+  let notifications: FakeNotification;
   let service: VoucherService;
 
   beforeEach(() => {
     repo = new InMemoryVoucherRepository();
-    service = new VoucherService(repo);
+    customers = new FakeCustomerLookup();
+    notifications = new FakeNotification();
+    service = new VoucherService(repo, customers, notifications);
+  });
+
+  it('grants a voucher once and fires VOUCHER_GRANTED; a repeat grant is a silent no-op', async () => {
+    const v = await service.create(baseVoucher({ code: 'GRATISKIRIM' }));
+
+    const first = await service.grant(v.id, 'cust-1', 'Bearer tok');
+    expect(first.granted).toBe(true);
+    expect(notifications.calls).toHaveLength(1);
+    expect(notifications.calls[0]).toMatchObject({
+      event: 'VOUCHER_GRANTED',
+      phone: '+6281234567890',
+      customerId: 'cust-1',
+    });
+    expect(notifications.calls[0].vars).toMatchObject({ code: 'GRATISKIRIM', name: 'Budi' });
+
+    const second = await service.grant(v.id, 'cust-1', 'Bearer tok');
+    expect(second.granted).toBe(false);
+    expect(notifications.calls).toHaveLength(1); // not re-sent
   });
 
   it('stores the code uppercased and rejects a duplicate code', async () => {

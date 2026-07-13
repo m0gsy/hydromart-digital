@@ -41,4 +41,9 @@ export class NotificationService {
       error: result.ok ? null : result.error ?? 'unknown error',
     });
   }
+
+  /** A customer's own notification inbox, newest first. */
+  async listForCustomer(customerId: string, limit = 30): Promise<NotificationRecord[]> {
+    return this.repo.listForCustomer(customerId, Math.min(Math.max(limit, 1), 100));
+  }
 }

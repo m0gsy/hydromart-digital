@@ -8,8 +8,10 @@ import {
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
+  OrderAlreadyReviewedError,
   OrderNotCancellableError,
   OrderNotFoundError,
+  OrderNotReviewableError,
   OutOfServiceAreaError,
   ProductUnavailableError,
   VoucherRejectedError,
@@ -204,6 +206,58 @@ describe('OrderService', () => {
     );
   });
 
+  it('reviews a delivered order once, then rejects a second review (spec 7c)', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+
+    // Not reviewable while still in flight.
+    await expect(service.reviewOrder(customer, order.id, { rating: 5, aspects: [] })).rejects.toBeInstanceOf(
+      OrderNotReviewableError,
+    );
+
+    for (const s of [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+    ]) {
+      await service.updateStatus(order.id, s, 'staff');
+    }
+
+    const rev = await service.reviewOrder(customer, order.id, {
+      rating: 4,
+      aspects: ['speed', 'condition'],
+      comment: '  mantap  ',
+      tipAmount: 2000,
+    });
+    expect(rev.rating).toBe(4);
+    expect(rev.comment).toBe('mantap'); // trimmed
+    expect((await service.getForCustomer(customer, order.id)).reviewed).toBe(true);
+
+    await expect(service.reviewOrder(customer, order.id, { rating: 3, aspects: [] })).rejects.toBeInstanceOf(
+      OrderAlreadyReviewedError,
+    );
+  });
+
+  it('reminds only customers whose last order is older than the window (spec 5h)', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    notification.calls.length = 0;
+
+    // A "now" 30 days after the order, with a 14-day window → the order is stale.
+    const future = new Date(order.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const res = await service.remindStaleCustomers(future, 14);
+    expect(res.reminded).toBe(1);
+    expect(notification.calls.map((c) => c.event)).toContain('REORDER_REMINDER');
+
+    // Within the window → no reminder.
+    notification.calls.length = 0;
+    const soon = new Date(order.createdAt.getTime() + 24 * 60 * 60 * 1000);
+    expect((await service.remindStaleCustomers(soon, 14)).reminded).toBe(0);
+  });
+
   it('applies a valid voucher discount and records the redemption', async () => {
     await addToCart(20000, 3); // subtotal 60000
     promo.quoteDiscount = 6000;
@@ -325,12 +379,14 @@ describe('OrderService', () => {
     );
     // FR-093/094: order-received fires at checkout, then notable transitions notify the
     // customer (CONFIRMED, ON_DELIVERY, DELIVERED, COMPLETED); PREPARING/DRIVER_ASSIGNED/
-    // PICKED_UP are silent.
+    // PICKED_UP are silent. On COMPLETED, POINTS_EARNED (spec 5h) fires just before the
+    // generic ORDER_COMPLETED.
     expect(notification.calls.map((c) => c.event)).toEqual([
       'ORDER_RECEIVED',
       'ORDER_CONFIRMED',
       'ORDER_ON_DELIVERY',
       'ORDER_DELIVERED',
+      'POINTS_EARNED',
       'ORDER_COMPLETED',
     ]);
     const confirmed = notification.calls[1];

@@ -35,7 +35,7 @@ export function Footer() {
     {
       heading: t('auth.footer.help'),
       links: [
-        { label: t('auth.footer.howToOrder') },
+        { label: t('auth.footer.howToOrder'), href: '/help' },
         { label: t('auth.footer.becomePartner') },
         { label: 'hello@hydromart-digital.com', href: 'mailto:hello@hydromart-digital.com' },
       ],

@@ -30,6 +30,7 @@ export interface AssignInput {
   orderId: string;
   orderNumber: string;
   driverId: string;
+  driverName?: string;
   depotId?: string;
   destinationAddress: string;
   destinationLat?: number;
@@ -74,7 +75,7 @@ export class DeliveryService {
       throw new DriverBusyError();
     }
 
-    await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization);
+    await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization, input.driverName);
 
     const data: CreateDeliveryData = {
       orderId: input.orderId,
@@ -201,9 +202,10 @@ export class DeliveryService {
     orderId: string,
     status: OrderFulfilmentStatus,
     authorization: string,
+    driverName?: string,
   ): Promise<void> {
     try {
-      await this.orders.advanceStatus(orderId, status, authorization);
+      await this.orders.advanceStatus(orderId, status, authorization, driverName);
     } catch (error) {
       this.logger.error(
         `Order sync to ${status} failed for order ${orderId}: ${(error as Error).message}`,

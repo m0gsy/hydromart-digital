@@ -28,4 +28,13 @@ export class PromoConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '');
+  }
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
+  }
 }

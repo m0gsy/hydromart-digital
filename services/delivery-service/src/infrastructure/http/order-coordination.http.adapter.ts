@@ -20,6 +20,7 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     orderId: string,
     status: OrderFulfilmentStatus,
     authorization: string,
+    driverName?: string,
   ): Promise<void> {
     if (!authorization) {
       throw new Error('missing caller authorization for order coordination');
@@ -34,7 +35,7 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
           'content-type': 'application/json',
           authorization,
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, ...(driverName ? { driverName } : {}) }),
         signal: controller.signal,
       });
       if (!res.ok) {

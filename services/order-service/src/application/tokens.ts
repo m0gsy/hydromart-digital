@@ -1,6 +1,7 @@
 export const ORDER_TOKENS = {
   CartRepository: Symbol('CartRepository'),
   OrderRepository: Symbol('OrderRepository'),
+  SubscriptionRepository: Symbol('SubscriptionRepository'),
   ProductCatalog: Symbol('ProductCatalog'),
   DepotDirectory: Symbol('DepotDirectory'),
   DepotPricing: Symbol('DepotPricing'),

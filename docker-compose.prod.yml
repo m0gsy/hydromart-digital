@@ -191,6 +191,10 @@ services:
       <<: *shared
       PROMO_SERVICE_PORT: 3010
       PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public
+      # Outbound for the "voucher baru" grant notification (spec 5h). INTERNAL_SERVICE_KEY
+      # comes from *shared; blank URLs → grant succeeds, notification is skipped (fail-open).
+      CRM_SERVICE_URL: http://crm:3012
+      CUSTOMER_SERVICE_URL: http://customer:3002
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3010/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

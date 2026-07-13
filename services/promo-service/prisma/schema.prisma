@@ -45,8 +45,24 @@ model Voucher {
   updatedAt   DateTime     @updatedAt
 
   redemptions VoucherRedemption[]
+  grants      VoucherGrant[]
 
   @@map("vouchers")
+}
+
+/// A voucher granted to a specific customer's wallet (spec 5h "voucher baru"). The
+/// voucher itself stays code-based/usable per its own rules; a grant is the record that
+/// this customer was given it — unique per (voucher, customer) so notifications fire once.
+model VoucherGrant {
+  id         String   @id @default(uuid())
+  voucher    Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  voucherId  String
+  customerId String
+  createdAt  DateTime @default(now())
+
+  @@unique([voucherId, customerId])
+  @@index([customerId])
+  @@map("voucher_grants")
 }
 
 /// A marketing banner shown on the customer Home page (distinct from Voucher, a

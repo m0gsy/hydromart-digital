@@ -7,14 +7,22 @@ import { OrderStatus } from '../../src/domain/order-status';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
   CreateOrderData,
+  CreateReviewData,
   CustomerSales,
   DepotSales,
   OrderQuery,
   OrderRecord,
   OrderRepository,
+  OrderReviewRecord,
   ReportRange,
   SalesBucket,
 } from '../../src/application/ports/order.repository';
+import {
+  CreateSubscriptionData,
+  SubscriptionRecord,
+  SubscriptionRepository,
+  SubscriptionStatus,
+} from '../../src/application/ports/subscription.repository';
 import {
   CatalogProduct,
   ProductCatalogPort,
@@ -81,6 +89,34 @@ export class InMemoryCartRepository implements CartRepository {
 
 export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
+  reviews: OrderReviewRecord[] = [];
+
+  async findReorderReminderTargets(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
+    const latestByCustomer = new Map<string, OrderRecord>();
+    for (const r of this.rows) {
+      const cur = latestByCustomer.get(r.customerId);
+      if (!cur || r.createdAt > cur.createdAt) latestByCustomer.set(r.customerId, r);
+    }
+    return [...latestByCustomer.values()]
+      .filter((r) => r.createdAt < cutoff)
+      .slice(0, limit)
+      .map((r) => ({ customerId: r.customerId, phone: r.phone, recipientName: r.recipientName }));
+  }
+
+  async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
+    const rec: OrderReviewRecord = { ...data, id: randomUUID(), createdAt: nextDate() };
+    this.reviews.push(rec);
+    const row = this.rows.find((r) => r.id === data.orderId);
+    if (row) row.reviewed = true;
+    return structuredClone(rec);
+  }
+  async findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null> {
+    const r = this.reviews.find((x) => x.orderId === orderId);
+    return r ? structuredClone(r) : null;
+  }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
     const { items, ...rest } = data;
@@ -91,6 +127,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       status: OrderStatus.CREATED,
       items: items.map((i) => ({ ...i, id: randomUUID() })),
       history: [{ status: OrderStatus.CREATED, changedBy: null, note: null, createdAt: now }],
+      driverName: null,
+      reviewed: false,
       createdAt: now,
       updatedAt: now,
     };
@@ -140,9 +178,11 @@ export class InMemoryOrderRepository implements OrderRepository {
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
+    driverName?: string | null,
   ): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     row.status = status;
+    if (driverName != null) row.driverName = driverName;
     row.updatedAt = nextDate();
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return structuredClone(row);
@@ -200,6 +240,41 @@ export class InMemoryOrderRepository implements OrderRepository {
       .map(([depotId, v]) => ({ depotId, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
+  }
+}
+
+export class InMemorySubscriptionRepository implements SubscriptionRepository {
+  rows: SubscriptionRecord[] = [];
+
+  async create(data: CreateSubscriptionData): Promise<SubscriptionRecord> {
+    const now = nextDate();
+    const rec: SubscriptionRecord = { ...data, id: randomUUID(), status: 'ACTIVE', createdAt: now, updatedAt: now };
+    this.rows.push(rec);
+    return structuredClone(rec);
+  }
+  async findById(id: string): Promise<SubscriptionRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? structuredClone(r) : null;
+  }
+  async listByCustomer(customerId: string): Promise<SubscriptionRecord[]> {
+    return this.rows.filter((r) => r.customerId === customerId).map((r) => structuredClone(r));
+  }
+  async findDue(now: Date): Promise<SubscriptionRecord[]> {
+    return this.rows
+      .filter((r) => r.status === 'ACTIVE' && r.nextDeliveryAt.getTime() <= now.getTime())
+      .map((r) => structuredClone(r));
+  }
+  async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
+    const r = this.rows.find((x) => x.id === id)!;
+    r.status = status;
+    r.updatedAt = nextDate();
+    return structuredClone(r);
+  }
+  async advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
+    const r = this.rows.find((x) => x.id === id)!;
+    r.nextDeliveryAt = nextDeliveryAt;
+    r.updatedAt = nextDate();
+    return structuredClone(r);
   }
 }
 

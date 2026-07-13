@@ -11,4 +11,8 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret guarding /vouchers/redeem (system-triggered by
   // order-service at checkout). Blank = fail-closed (internal calls rejected).
   INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
+  // Outbound targets for the voucher-grant notification (spec 7b/5h). Blank = grant
+  // still succeeds; the "voucher baru" notification is skipped (fail-open).
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
 });

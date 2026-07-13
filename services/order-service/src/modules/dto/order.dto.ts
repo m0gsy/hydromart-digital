@@ -1,13 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -117,6 +122,59 @@ export class CancelOrderDto {
   reason?: string;
 }
 
+/** Spec 7b: set up a recurring galon delivery. */
+export class CreateSubscriptionDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ minimum: 1, description: 'Units delivered each cycle.' })
+  @IsInt()
+  @Min(1)
+  quantity!: number;
+
+  @ApiProperty({ enum: ['WEEKLY', 'BIWEEKLY', 'MONTHLY'] })
+  @IsIn(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
+  frequency!: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
+  @ApiProperty({ format: 'date-time', description: 'First scheduled delivery.' })
+  @IsDateString()
+  firstDeliveryAt!: string;
+
+  @ApiProperty({ type: DeliveryAddressDto })
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress!: DeliveryAddressDto;
+}
+
+/** Spec 7c: rate a delivered/completed order. */
+export class CreateReviewDto {
+  @ApiProperty({ minimum: 1, maximum: 5, description: 'Star rating.' })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
+
+  @ApiPropertyOptional({ type: [String], description: 'Positive aspects tapped by the customer.' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  aspects?: string[];
+
+  @ApiPropertyOptional({ description: 'Free-text comment.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  comment?: string;
+
+  @ApiPropertyOptional({ minimum: 0, description: 'Optional courier tip in IDR.' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  tipAmount?: number;
+}
+
 export class UpdateOrderStatusDto {
   @ApiProperty({ enum: OrderStatus, description: 'Target status (must be a legal next state).' })
   @IsEnum(OrderStatus)
@@ -127,4 +185,10 @@ export class UpdateOrderStatusDto {
   @IsString()
   @MaxLength(255)
   note?: string;
+
+  @ApiPropertyOptional({ description: 'Courier display name (set on DRIVER_ASSIGNED).' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  driverName?: string;
 }

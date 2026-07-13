@@ -23,4 +23,7 @@ export interface RecordNotificationData {
 export interface NotificationRepository {
   /** Append a notification audit row. */
   record(data: RecordNotificationData): Promise<NotificationRecord>;
+
+  /** A customer's own notification feed, newest first (backed by @@index([customerId, createdAt])). */
+  listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]>;
 }

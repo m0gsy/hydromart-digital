@@ -4,6 +4,11 @@ import { shop } from './en/shop';
 import { order } from './en/order';
 import { profile } from './en/profile';
 import { auth } from './en/auth';
+import { help } from './en/help';
+import { notifications } from './en/notifications';
+import { onboarding } from './en/onboarding';
+import { review } from './en/review';
+import { subscriptions } from './en/subscriptions';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
 export const en: Dictionary = {
@@ -92,4 +97,9 @@ export const en: Dictionary = {
   order,
   profile,
   auth,
+  help,
+  notifications,
+  onboarding,
+  review,
+  subscriptions,
 };

@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
-import { ArrowsClockwise, CaretRight, Money as MoneyIcon } from '@phosphor-icons/react';
+import { ArrowsClockwise, CaretRight, Money as MoneyIcon, Star } from '@phosphor-icons/react';
 
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
-import { Button, ErrorState, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -299,6 +299,12 @@ function OrderDetailInner({ id }: { id: string }) {
               <ArrowsClockwise size={17} weight="fill" />
               {t('order.detail.reorder')}
             </Button>
+            {(order.status === 'DELIVERED' || order.status === 'COMPLETED') && !order.reviewed && (
+              <LinkButton href={`/orders/${order.id}/review`} variant="secondary" className="rounded-full">
+                <Star size={17} weight="fill" />
+                {t('review.rateCta')}
+              </LinkButton>
+            )}
             {isCancellable(order.status) && (
               <Button
                 variant="secondary"

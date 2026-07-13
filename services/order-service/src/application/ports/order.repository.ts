@@ -40,10 +40,34 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   deliveryFee: number;
   discount: number;
   total: number;
+  /** Display name of the assigned courier (null until DRIVER_ASSIGNED). */
+  driverName: string | null;
   items: OrderItemRecord[];
   history: OrderStatusHistoryRecord[];
+  /** Whether the customer has already rated this order (spec 7c). */
+  reviewed: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface OrderReviewRecord {
+  id: string;
+  orderId: string;
+  customerId: string;
+  rating: number;
+  aspects: string[];
+  comment: string | null;
+  tipAmount: number;
+  createdAt: Date;
+}
+
+export interface CreateReviewData {
+  orderId: string;
+  customerId: string;
+  rating: number;
+  aspects: string[];
+  comment: string | null;
+  tipAmount: number;
 }
 
 export interface CreateOrderItemData {
@@ -117,12 +141,25 @@ export interface OrderRepository {
     cursor: string | null,
     limit: number,
   ): Promise<{ orders: OrderRecord[]; nextCursor: string | null }>;
-  /** Atomically move the order to `status` and append a history row. */
+  /**
+   * Customers whose most-recent order predates `cutoff` (candidates for a "time to
+   * refill" nudge, spec 5h). One row per customer — the latest order's phone + name.
+   */
+  findReorderReminderTargets(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]>;
+  /** Persist a customer's review of an order (one per order). */
+  createReview(data: CreateReviewData): Promise<OrderReviewRecord>;
+  /** The review for an order, or null if not yet rated. */
+  findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null>;
+  /** Atomically move the order to `status` and append a history row. Sets driverName when given. */
   applyStatus(
     id: string,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
+    driverName?: string | null,
   ): Promise<OrderRecord>;
   /** Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096. */
   salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]>;

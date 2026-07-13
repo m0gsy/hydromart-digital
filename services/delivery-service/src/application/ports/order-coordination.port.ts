@@ -10,5 +10,6 @@ export interface OrderCoordinationPort {
     orderId: string,
     status: OrderFulfilmentStatus,
     authorization: string,
+    driverName?: string,
   ): Promise<void>;
 }

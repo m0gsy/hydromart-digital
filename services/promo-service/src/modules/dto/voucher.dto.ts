@@ -102,6 +102,13 @@ export class QuoteVoucherDto {
   subtotal!: number;
 }
 
+/** Spec 5h: grant a voucher to a specific customer's wallet. */
+export class GrantVoucherDto {
+  @ApiProperty({ format: 'uuid', description: 'Customer to grant the voucher to.' })
+  @IsUUID()
+  customerId!: string;
+}
+
 export class RedeemVoucherDto {
   @ApiProperty({ example: 'HEMAT10' })
   @IsString()

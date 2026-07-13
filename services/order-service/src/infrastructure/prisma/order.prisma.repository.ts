@@ -4,11 +4,13 @@ import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/
 import { OrderStatus } from '../../domain/order-status';
 import {
   CreateOrderData,
+  CreateReviewData,
   CustomerSales,
   DepotSales,
   OrderQuery,
   OrderRecord,
   OrderRepository,
+  OrderReviewRecord,
   ReportRange,
   SalesBucket,
 } from '../../application/ports/order.repository';
@@ -36,6 +38,17 @@ interface HistoryRow {
   createdAt: Date;
 }
 
+interface ReviewRow {
+  id: string;
+  orderId: string;
+  customerId: string;
+  rating: number;
+  aspects: string[];
+  comment: string | null;
+  tipAmount: number;
+  createdAt: Date;
+}
+
 interface OrderRow {
   id: string;
   orderNumber: string;
@@ -55,8 +68,10 @@ interface OrderRow {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  driverName: string | null;
   items: ItemRow[];
   history: HistoryRow[];
+  review: ReviewRow | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,6 +79,7 @@ interface OrderRow {
 const INCLUDE = {
   items: true,
   history: { orderBy: { createdAt: 'asc' as const } },
+  review: true,
 };
 
 @Injectable()
@@ -90,6 +106,7 @@ export class OrderPrismaRepository implements OrderRepository {
       latitude: row.latitude,
       longitude: row.longitude,
       notes: row.notes,
+      driverName: row.driverName,
       items: row.items.map((i) => ({
         id: i.id,
         productId: i.productId,
@@ -106,9 +123,57 @@ export class OrderPrismaRepository implements OrderRepository {
         note: h.note,
         createdAt: h.createdAt,
       })),
+      reviewed: row.review != null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+  }
+
+  private toReview(row: ReviewRow): OrderReviewRecord {
+    return {
+      id: row.id,
+      orderId: row.orderId,
+      customerId: row.customerId,
+      rating: row.rating,
+      aspects: row.aspects,
+      comment: row.comment,
+      tipAmount: row.tipAmount,
+      createdAt: row.createdAt,
+    };
+  }
+
+  async findReorderReminderTargets(
+    cutoff: Date,
+    limit: number,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
+    // Customers whose LATEST order is older than the cutoff = no order since.
+    const grouped = await this.prisma.order.groupBy({
+      by: ['customerId'],
+      _max: { createdAt: true },
+    });
+    const dueIds = grouped
+      .filter((g) => g._max.createdAt != null && g._max.createdAt < cutoff)
+      .map((g) => g.customerId)
+      .slice(0, limit);
+    if (dueIds.length === 0) return [];
+    // One latest order per due customer (distinct + desc) for the phone/name snapshot.
+    const rows = await this.prisma.order.findMany({
+      where: { customerId: { in: dueIds } },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['customerId'],
+      select: { customerId: true, phone: true, recipientName: true },
+    });
+    return rows;
+  }
+
+  async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
+    const row = await this.prisma.orderReview.create({ data });
+    return this.toReview(row);
+  }
+
+  async findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null> {
+    const row = await this.prisma.orderReview.findUnique({ where: { orderId } });
+    return row ? this.toReview(row) : null;
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
@@ -197,11 +262,13 @@ export class OrderPrismaRepository implements OrderRepository {
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
+    driverName?: string | null,
   ): Promise<OrderRecord> {
     const row = await this.prisma.order.update({
       where: { id },
       data: {
         status,
+        ...(driverName != null ? { driverName } : {}),
         history: { create: { status, changedBy, note } },
       },
       include: INCLUDE,

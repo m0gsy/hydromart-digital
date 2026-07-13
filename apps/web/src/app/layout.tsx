@@ -5,6 +5,7 @@ import './globals.css';
 import { Nav } from '@/components/nav';
 import { Footer } from '@/components/footer';
 import { BottomNav } from '@/components/bottom-nav';
+import { OnboardingTour } from '@/components/onboarding-tour';
 import { PageTransition } from '@/components/page-transition';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </main>
                   <Footer />
                   <BottomNav />
+                  <OnboardingTour />
                 </ToastProvider>
               </LocationProvider>
             </CartProvider>

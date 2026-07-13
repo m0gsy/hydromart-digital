@@ -9,6 +9,8 @@ import {
   validateVoucher,
 } from '../../domain/voucher';
 import { Page, buildPage } from '../pagination';
+import { CustomerLookupPort } from '../ports/customer-lookup.port';
+import { NotificationPort } from '../ports/notification.port';
 import {
   CreateVoucherData,
   UpdateVoucherData,
@@ -40,7 +42,37 @@ export class VoucherService {
 
   constructor(
     @Inject(PROMO_TOKENS.VoucherRepository) private readonly repo: VoucherRepository,
+    @Inject(PROMO_TOKENS.CustomerLookup) private readonly customers: CustomerLookupPort,
+    @Inject(PROMO_TOKENS.Notification) private readonly notifications: NotificationPort,
   ) {}
+
+  /**
+   * Grant an existing voucher to a specific customer's wallet (spec 5h "voucher baru").
+   * Idempotent per (voucher, customer) — a repeat grant is a no-op and re-sends nothing.
+   * On the first grant, fires VOUCHER_GRANTED via crm (fail-open: notification never
+   * blocks the grant). Requires the acting staff token to resolve the customer's contact.
+   */
+  async grant(
+    voucherId: string,
+    customerId: string,
+    authorization: string,
+  ): Promise<{ voucher: VoucherRecord; granted: boolean }> {
+    const voucher = await this.repo.findById(voucherId);
+    if (!voucher || !voucher.active) throw new VoucherNotFoundError();
+
+    const granted = await this.repo.grantVoucher(voucherId, customerId);
+    if (granted) {
+      const contact = await this.customers.resolve(customerId, authorization);
+      if (contact) {
+        await this.notifications.notify('VOUCHER_GRANTED', contact.phone, customerId, {
+          name: contact.name,
+          code: voucher.code,
+          description: voucher.description ?? 'voucher hemat',
+        });
+      }
+    }
+    return { voucher, granted };
+  }
 
   /** Create a voucher (admin). Code is stored UPPERCASE and must be unique. */
   async create(input: CreateVoucherData): Promise<VoucherRecord> {

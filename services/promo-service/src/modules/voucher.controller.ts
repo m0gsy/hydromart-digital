@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -26,6 +27,7 @@ import { UpdateVoucherData, VoucherRecord } from '../application/ports/voucher.r
 import {
   BrowseQueryDto,
   CreateVoucherDto,
+  GrantVoucherDto,
   MyVoucherDto,
   QuoteVoucherDto,
   RedeemVoucherDto,
@@ -108,6 +110,18 @@ export class VoucherController {
       usageLimit: dto.usageLimit ?? null,
       perCustomerLimit: dto.perCustomerLimit ?? 1,
     });
+  }
+
+  @ApiBearerAuth()
+  @Roles(...ADMIN_ROLES)
+  @Post(':id/grant')
+  @ApiOperation({ summary: "Grant a voucher to a customer's wallet (admin, spec 5h)" })
+  grant(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: GrantVoucherDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ voucher: VoucherRecord; granted: boolean }> {
+    return this.vouchers.grant(id, dto.customerId, authorization ?? '');
   }
 
   @ApiBearerAuth()

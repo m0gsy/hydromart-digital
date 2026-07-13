@@ -71,8 +71,12 @@ model Order {
   longitude     Float?
   notes         String?
 
+  /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
+  driverName    String?
+
   items   OrderItem[]
   history OrderStatusHistory[]
+  review  OrderReview?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,4 +120,63 @@ model OrderStatusHistory {
 
   @@index([orderId])
   @@map("order_status_history")
+}
+
+enum SubscriptionFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+/// Recurring galon delivery (spec 7b). A due ACTIVE subscription auto-places an
+/// order for its single line, then advances nextDeliveryAt by the frequency.
+model Subscription {
+  id         String                @id @default(uuid()) @db.Uuid
+  customerId String                @db.Uuid
+  productId  String                @db.Uuid
+  productName String
+  unit       String
+  quantity   Int
+  frequency  SubscriptionFrequency
+  status     SubscriptionStatus    @default(ACTIVE)
+  nextDeliveryAt DateTime
+
+  // Delivery address snapshot used for every scheduled order.
+  recipientName String
+  phone         String
+  addressLine   String
+  city          String
+  province      String
+  postalCode    String?
+  latitude      Float?
+  longitude     Float?
+  notes         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([status, nextDeliveryAt])
+  @@map("subscriptions")
+}
+
+/// Customer rating of a completed order (spec 7c). One review per order.
+model OrderReview {
+  id         String   @id @default(uuid()) @db.Uuid
+  orderId    String   @unique @db.Uuid
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId String   @db.Uuid
+  rating     Int
+  aspects    String[]
+  comment    String?
+  tipAmount  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@map("order_reviews")
 }

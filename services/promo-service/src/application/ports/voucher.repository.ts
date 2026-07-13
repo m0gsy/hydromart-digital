@@ -90,4 +90,8 @@ export interface VoucherRepository {
 
   /** Atomic: insert redemption + increment usedCount, returns the redemption. */
   recordRedemption(mutation: RedemptionMutation): Promise<VoucherRedemptionRecord>;
+
+  /** Record a grant of the voucher to a customer. Returns true only when newly created
+   *  (idempotent per voucher+customer) so the notification fires once. */
+  grantVoucher(voucherId: string, customerId: string): Promise<boolean>;
 }

@@ -1,7 +1,14 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { NotificationService } from '../application/services/notification.service';
 import { NotificationDto, SendNotificationDto } from './dto/notification.dto';
@@ -22,6 +29,16 @@ const TRIGGER_ROLES = [
 @Controller({ path: 'notifications', version: '1' })
 export class NotificationController {
   constructor(private readonly notifications: NotificationService) {}
+
+  // Customer-facing inbox: the caller's own notification feed, newest first.
+  @Roles(Role.CUSTOMER)
+  @Get('me')
+  @ApiOperation({ summary: "List the current customer's notifications" })
+  @ApiOkResponse({ type: NotificationDto, isArray: true })
+  async listMine(@CurrentUser() user: AuthenticatedUser): Promise<NotificationDto[]> {
+    const records = await this.notifications.listForCustomer(user.sub);
+    return records.map((record) => NotificationDto.from(record));
+  }
 
   @Roles(...TRIGGER_ROLES)
   @Post()

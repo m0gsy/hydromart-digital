@@ -46,4 +46,18 @@ describe('NotificationService', () => {
     }
     expect(repo.records).toHaveLength(Object.values(NotificationEvent).length);
   });
+
+  it('listForCustomer returns only the caller rows, newest first, clamped', async () => {
+    await service.notify(NotificationEvent.ORDER_RECEIVED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-2' }, 'cust-1');
+    await service.notify(NotificationEvent.ORDER_RECEIVED, '+62801', { name: 'B', orderNumber: 'HM-3' }, 'cust-2');
+
+    const feed = await service.listForCustomer('cust-1');
+    expect(feed).toHaveLength(2);
+    expect(feed.every((n) => n.customerId === 'cust-1')).toBe(true);
+    expect(feed[0].createdAt.getTime()).toBeGreaterThanOrEqual(feed[1].createdAt.getTime());
+
+    // clamp: limit floors at 1 even when asked for 0.
+    expect(await service.listForCustomer('cust-1', 0)).toHaveLength(1);
+  });
 });

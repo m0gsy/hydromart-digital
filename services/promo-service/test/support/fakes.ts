@@ -114,6 +114,31 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     voucher.usedCount += 1;
     return { ...redemption };
   }
+
+  grants: { voucherId: string; customerId: string }[] = [];
+  async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {
+    if (this.grants.some((g) => g.voucherId === voucherId && g.customerId === customerId)) {
+      return false;
+    }
+    this.grants.push({ voucherId, customerId });
+    return true;
+  }
+}
+
+export class FakeCustomerLookup {
+  contact: { name: string; phone: string } | null = { name: 'Budi', phone: '+6281234567890' };
+  calls: { customerId: string; authorization: string }[] = [];
+  async resolve(customerId: string, authorization: string) {
+    this.calls.push({ customerId, authorization });
+    return this.contact;
+  }
+}
+
+export class FakeNotification {
+  calls: { event: string; phone: string; customerId: string; vars: Record<string, string> }[] = [];
+  async notify(event: string, phone: string, customerId: string, vars: Record<string, string>) {
+    this.calls.push({ event, phone, customerId, vars });
+  }
 }
 
 export function buildTestConfig(overrides: Record<string, string> = {}): PromoConfigService {

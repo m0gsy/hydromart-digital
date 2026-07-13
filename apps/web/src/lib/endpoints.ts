@@ -18,6 +18,10 @@ export const endpoints = {
   preferences: {
     notifications: '/customers/api/v1/profile/notifications',
   },
+  // Customer's notification inbox feed (crm-service, newest first).
+  notifications: {
+    me: '/crm/api/v1/notifications/me',
+  },
   // Saved payment instruments (customer-service). Management-only.
   paymentMethods: {
     list: '/customers/api/v1/payment-methods',
@@ -60,6 +64,8 @@ export const endpoints = {
     get: (id: string) => `/orders/api/v1/orders/${id}`,
     cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,
     repeat: (id: string) => `/orders/api/v1/orders/${id}/repeat`,
+    // GET → existing review (null if unrated), POST → submit (spec 7c).
+    review: (id: string) => `/orders/api/v1/orders/${id}/review`,
     status: (id: string) => `/orders/api/v1/orders/${id}/status`,
     // Staff queue across all customers.
     manage: (q: { page?: number; limit?: number; status?: string } = {}) => {
@@ -74,6 +80,14 @@ export const endpoints = {
   payments: {
     initiate: '/payments/api/v1/payments',
     forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
+  },
+  // Recurring galon subscriptions (order-service, spec 7b).
+  subscriptions: {
+    list: '/orders/api/v1/subscriptions',
+    create: '/orders/api/v1/subscriptions',
+    pause: (id: string) => `/orders/api/v1/subscriptions/${id}/pause`,
+    resume: (id: string) => `/orders/api/v1/subscriptions/${id}/resume`,
+    cancel: (id: string) => `/orders/api/v1/subscriptions/${id}/cancel`,
   },
   loyalty: {
     tiers: '/loyalty/api/v1/loyalty/tiers',
@@ -90,6 +104,8 @@ export const endpoints = {
     quote: '/vouchers/api/v1/vouchers/quote',
     // The current customer's voucher wallet (active vouchers + per-customer status).
     me: '/vouchers/api/v1/vouchers/me',
+    // Grant a voucher to a customer's wallet (marketing/admin) → fires VOUCHER_GRANTED.
+    grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
   },
   // Points-redeem catalog (loyalty-service).
   rewards: {

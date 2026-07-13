@@ -197,8 +197,40 @@ export interface Order extends DeliveryAddress {
   total: number;
   items: OrderItem[];
   history: OrderStatusEvent[];
+  reviewed: boolean;
+  driverName: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type SubscriptionFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+export type SubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+
+// Recurring galon subscription (spec 7b).
+export interface Subscription {
+  id: string;
+  customerId: string;
+  productId: string;
+  productName: string;
+  unit: string;
+  quantity: number;
+  frequency: SubscriptionFrequency;
+  status: SubscriptionStatus;
+  nextDeliveryAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Customer's rating of an order (spec 7c).
+export interface OrderReview {
+  id: string;
+  orderId: string;
+  customerId: string;
+  rating: number;
+  aspects: string[];
+  comment: string | null;
+  tipAmount: number;
+  createdAt: string;
 }
 
 export interface Payment {
@@ -310,6 +342,31 @@ export interface NotificationPreferences {
   push: boolean;
   email: boolean;
   whatsapp: boolean;
+}
+
+export type NotificationEvent =
+  | 'ORDER_RECEIVED'
+  | 'ORDER_CONFIRMED'
+  | 'ORDER_ON_DELIVERY'
+  | 'ORDER_DELIVERED'
+  | 'ORDER_COMPLETED'
+  | 'ORDER_CANCELLED'
+  | 'CUSTOMER_REGISTERED'
+  | 'STOCK_LOW'
+  | 'POINTS_EARNED'
+  | 'VOUCHER_GRANTED'
+  | 'REORDER_REMINDER';
+
+// A row from the customer's notification feed (crm-service audit trail).
+export interface Notification {
+  id: string;
+  event: NotificationEvent;
+  customerId: string | null;
+  phone: string;
+  message: string;
+  status: 'SENT' | 'FAILED';
+  error: string | null;
+  createdAt: string;
 }
 
 export interface ProfileUpdatePayload {

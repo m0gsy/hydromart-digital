@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CaretDown, Drop, MapPin, ShoppingCartSimple, User } from '@phosphor-icons/react';
+import { Bell, CaretDown, Drop, MapPin, ShoppingCartSimple, User } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
@@ -87,6 +87,16 @@ export function Nav() {
               </span>
             )}
           </Link>
+
+          {ready && customer && (
+            <Link
+              href="/notifications"
+              aria-label={t('notifications.title')}
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-brand-50 text-brand-800 transition-transform hover:scale-[1.04]"
+            >
+              <Bell size={18} weight="fill" />
+            </Link>
+          )}
 
           {ready && customer ? (
             <Link

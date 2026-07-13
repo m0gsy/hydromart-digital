@@ -1,0 +1,31 @@
+// Rate & review (spec 7c): nilai pesanan selesai.
+export const review = {
+  title: 'Nilai pesanan',
+  heading: 'Bagaimana pesananmu?',
+  headingCourier: 'Bagaimana antaran {name}?',
+  tipBodyCourier: 'Opsional · langsung ke {name}',
+  ratingHint: {
+    1: 'Buruk',
+    2: 'Kurang',
+    3: 'Cukup',
+    4: 'Bagus!',
+    5: 'Luar biasa!',
+  },
+  aspectsTitle: 'Apa yang bagus?',
+  aspects: {
+    speed: 'Kecepatan antar',
+    condition: 'Kondisi galon',
+    courtesy: 'Keramahan kurir',
+    accuracy: 'Akurasi pesanan',
+  },
+  commentPlaceholder: 'Tulis komentar (opsional)…',
+  tipTitle: 'Beri tip kurir?',
+  tipBody: 'Opsional · langsung ke kurir',
+  submit: 'Kirim ulasan',
+  submitted: 'Terima kasih atas ulasanmu!',
+  submitError: 'Gagal mengirim ulasan.',
+  needRating: 'Pilih rating bintang dulu.',
+  alreadyReviewed: 'Pesanan ini sudah dinilai.',
+  notEligible: 'Pesanan bisa dinilai setelah selesai.',
+  rateCta: 'Nilai pesanan',
+};

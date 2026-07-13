@@ -6,6 +6,11 @@ import { shop } from './id/shop';
 import { order } from './id/order';
 import { profile } from './id/profile';
 import { auth } from './id/auth';
+import { help } from './id/help';
+import { notifications } from './id/notifications';
+import { onboarding } from './id/onboarding';
+import { review } from './id/review';
+import { subscriptions } from './id/subscriptions';
 
 export const id = {
   nav: {
@@ -93,6 +98,11 @@ export const id = {
   order,
   profile,
   auth,
+  help,
+  notifications,
+  onboarding,
+  review,
+  subscriptions,
 };
 
 export type Dictionary = typeof id;

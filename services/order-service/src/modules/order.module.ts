@@ -9,9 +9,11 @@ import { ORDER_TOKENS } from '../application/tokens';
 import { CartService } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
 import { ReportService } from '../application/services/report.service';
+import { SubscriptionService } from '../application/services/subscription.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { CartPrismaRepository } from '../infrastructure/prisma/cart.prisma.repository';
 import { OrderPrismaRepository } from '../infrastructure/prisma/order.prisma.repository';
+import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
 import { DepotPricingHttpAdapter } from '../infrastructure/http/depot-pricing.http.adapter';
@@ -26,6 +28,7 @@ import { InventoryHttpAdapter } from '../infrastructure/http/inventory.http.adap
 import { CartController } from './cart.controller';
 import { OrderController } from './order.controller';
 import { ReportController } from './report.controller';
+import { SubscriptionController } from './subscription.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -33,8 +36,10 @@ const providers: Provider[] = [
   CartService,
   OrderService,
   ReportService,
+  SubscriptionService,
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
+  { provide: ORDER_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: ORDER_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   { provide: ORDER_TOKENS.DepotDirectory, useClass: DepotDirectoryHttpAdapter },
   { provide: ORDER_TOKENS.DepotPricing, useClass: DepotPricingHttpAdapter },
@@ -55,7 +60,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [CartController, OrderController, ReportController],
+  controllers: [CartController, OrderController, ReportController, SubscriptionController],
   providers,
   exports: [PrismaService, OrderConfigService],
 })

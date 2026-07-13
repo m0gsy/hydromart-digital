@@ -85,6 +85,42 @@ export class OrderNotCancellableError extends DomainError {
   }
 }
 
+/** Spec 7b: subscription not found (or not owned by the caller). */
+export class SubscriptionNotFoundError extends DomainError {
+  readonly code = 'SUBSCRIPTION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Subscription not found.');
+  }
+}
+
+/** Spec 7b: the requested action is not valid for a cancelled subscription. */
+export class SubscriptionNotActionableError extends DomainError {
+  readonly code = 'SUBSCRIPTION_NOT_ACTIONABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('A cancelled subscription can no longer be changed.');
+  }
+}
+
+/** Spec 7c: an order can only be reviewed once it has been delivered/completed. */
+export class OrderNotReviewableError extends DomainError {
+  readonly code = 'ORDER_NOT_REVIEWABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(status: OrderStatus) {
+    super(`An order in status ${status} cannot be reviewed yet.`);
+  }
+}
+
+/** Spec 7c: one review per order. */
+export class OrderAlreadyReviewedError extends DomainError {
+  readonly code = 'ORDER_ALREADY_REVIEWED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This order has already been reviewed.');
+  }
+}
+
 /** BR-012: the requested status transition is not legal from the current status. */
 export class InvalidStatusTransitionError extends DomainError {
   readonly code = 'ORDER_INVALID_STATUS_TRANSITION';

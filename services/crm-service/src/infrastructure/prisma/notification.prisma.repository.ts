@@ -43,4 +43,13 @@ export class NotificationPrismaRepository implements NotificationRepository {
     });
     return this.toRecord(row);
   }
+
+  async listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]> {
+    const rows = await this.prisma.notification.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
 }

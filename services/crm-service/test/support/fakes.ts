@@ -136,6 +136,14 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     this.records.push(rec);
     return { ...rec };
   }
+
+  async listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]> {
+    return this.records
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
 }
 
 /** Directory fake: returns a seeded audience, filtered by tier/city. Throws if `down`. */

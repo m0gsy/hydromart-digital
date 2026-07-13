@@ -1,0 +1,31 @@
+// Rate & review (spec 7c). Mirrors id/review.ts.
+export const review = {
+  title: 'Rate order',
+  heading: 'How was your order?',
+  headingCourier: "How was {name}'s delivery?",
+  tipBodyCourier: 'Optional · goes straight to {name}',
+  ratingHint: {
+    1: 'Bad',
+    2: 'Poor',
+    3: 'Okay',
+    4: 'Good!',
+    5: 'Excellent!',
+  },
+  aspectsTitle: 'What was good?',
+  aspects: {
+    speed: 'Delivery speed',
+    condition: 'Gallon condition',
+    courtesy: 'Courier courtesy',
+    accuracy: 'Order accuracy',
+  },
+  commentPlaceholder: 'Write a comment (optional)…',
+  tipTitle: 'Tip the courier?',
+  tipBody: 'Optional · goes straight to the courier',
+  submit: 'Submit review',
+  submitted: 'Thanks for your review!',
+  submitError: 'Failed to submit review.',
+  needRating: 'Pick a star rating first.',
+  alreadyReviewed: 'This order is already rated.',
+  notEligible: 'Orders can be rated once completed.',
+  rateCta: 'Rate order',
+};

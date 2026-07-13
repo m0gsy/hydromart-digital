@@ -26,11 +26,16 @@ import {
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
-import { OrderRecord, OrderStatusHistoryRecord } from '../application/ports/order.repository';
+import {
+  OrderRecord,
+  OrderReviewRecord,
+  OrderStatusHistoryRecord,
+} from '../application/ports/order.repository';
 import { Page } from '../application/pagination';
 import {
   CancelOrderDto,
   CheckoutDto,
+  CreateReviewDto,
   ListOrdersQueryDto,
   UpdateOrderStatusDto,
 } from './dto/order.dto';
@@ -173,6 +178,24 @@ export class OrderController {
     };
   }
 
+  // Ops/scheduler-triggered "time to refill" sweep (internal service auth, spec 5h).
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('reminders/reorder')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Notify customers with a stale last order (internal service auth)' })
+  remindStale(
+    @Query('days') days?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ reminded: number }> {
+    return this.orders.remindStaleCustomers(
+      new Date(),
+      days ? Number(days) : undefined,
+      limit ? Number(limit) : undefined,
+    );
+  }
+
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's orders" })
   get(
@@ -212,6 +235,30 @@ export class OrderController {
     return this.orders.repeat(user.sub, id);
   }
 
+  @Get(':id/review')
+  @ApiOperation({ summary: "Get the customer's review of an order (null if unrated)" })
+  getReview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderReviewRecord | null> {
+    return this.orders.getReview(user.sub, id);
+  }
+
+  @Post(':id/review')
+  @ApiOperation({ summary: 'Rate a delivered/completed order (spec 7c, one per order)' })
+  review(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateReviewDto,
+  ): Promise<OrderReviewRecord> {
+    return this.orders.reviewOrder(user.sub, id, {
+      rating: dto.rating,
+      aspects: dto.aspects ?? [],
+      comment: dto.comment,
+      tipAmount: dto.tipAmount,
+    });
+  }
+
   // Service-to-service: payment-service confirms an order once its payment settles PAID.
   // No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY. @Public() skips
   // the global JWT guard; InternalAuthGuard is then the sole (fail-closed) auth.
@@ -239,6 +286,6 @@ export class OrderController {
   ): Promise<OrderRecord> {
     // Forward the caller's token so order-service can award loyalty points on
     // completion (BR-013); loyalty-service enforces its own RBAC on the earn.
-    return this.orders.updateStatus(id, dto.status, user.sub, dto.note, authorization);
+    return this.orders.updateStatus(id, dto.status, user.sub, dto.note, authorization, dto.driverName);
   }
 }

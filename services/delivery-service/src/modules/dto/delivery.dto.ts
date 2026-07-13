@@ -31,6 +31,12 @@ export class AssignDeliveryDto {
   @IsUUID()
   driverId!: string;
 
+  @ApiPropertyOptional({ example: 'Budi', description: 'Courier display name, snapshotted onto the order.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  driverName?: string;
+
   @ApiPropertyOptional({
     format: 'uuid',
     description: "Depot the order was routed to; snapshotted for per-franchise SLA.",
