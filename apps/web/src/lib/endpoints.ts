@@ -34,6 +34,8 @@ export const endpoints = {
   // Customer's notification inbox feed (crm-service, newest first).
   notifications: {
     me: '/crm/api/v1/notifications/me',
+    // Staff operational feed: recent ops alerts (low stock, …).
+    ops: '/crm/api/v1/notifications/ops',
   },
   // Saved payment instruments (customer-service). Management-only.
   paymentMethods: {

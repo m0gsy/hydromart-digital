@@ -52,6 +52,11 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
 };
 
+// Operational (staff-facing) events surfaced in the ops notification center (PRD 10d),
+// as opposed to the customer inbox. STOCK_LOW is the operational alert today; add more
+// staff-targeted events here as they are introduced.
+export const OPS_EVENTS: NotificationEvent[] = [NotificationEvent.STOCK_LOW];
+
 export function templateFor(event: NotificationEvent): string {
   return NOTIFICATION_TEMPLATES[event];
 }

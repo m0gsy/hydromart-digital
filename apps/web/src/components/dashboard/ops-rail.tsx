@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
+  Bell,
   Buildings,
   CaretUpDown,
   ChartLineUp,
@@ -36,6 +37,7 @@ import {
   canViewForecast,
   canViewFranchise,
   canViewInventory,
+  canViewOpsNotifications,
   canViewPayout,
   canViewReturns,
   canViewVouchers,
@@ -71,6 +73,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/orders', label: 'Antrean pesanan', icon: ClipboardText, show: isStaff },
       { href: '/dashboard/inventory', label: 'Inventori', icon: Package, show: canViewInventory },
       { href: '/dashboard/returns', label: 'Retur galon', icon: Recycle, show: canViewReturns },
+      { href: '/dashboard/notifications', label: 'Notifikasi ops', icon: Bell, show: canViewOpsNotifications },
       { href: '/dashboard/forecast', label: 'Perkiraan', icon: TrendUp, show: canViewForecast },
     ],
   },

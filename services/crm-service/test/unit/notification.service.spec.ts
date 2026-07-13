@@ -60,4 +60,18 @@ describe('NotificationService', () => {
     // clamp: limit floors at 1 even when asked for 0.
     expect(await service.listForCustomer('cust-1', 0)).toHaveLength(1);
   });
+
+  it('listOpsFeed returns only operational events (STOCK_LOW), not customer messages', async () => {
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', {
+      depot: 'JKT-01',
+      item: 'Galon 19L',
+      quantity: '3',
+      minimum: '10',
+    });
+    await service.notify(NotificationEvent.ORDER_RECEIVED, '+62801', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+
+    const feed = await service.listOpsFeed();
+    expect(feed).toHaveLength(1);
+    expect(feed[0].event).toBe(NotificationEvent.STOCK_LOW);
+  });
 });

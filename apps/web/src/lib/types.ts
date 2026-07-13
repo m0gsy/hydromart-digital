@@ -618,6 +618,18 @@ export interface DepotPayload {
   serviceRadiusKm?: number;
 }
 
+// Ops notification (crm-service). Operational alert feed for staff.
+export interface OpsNotification {
+  id: string;
+  event: string;
+  customerId: string | null;
+  phone: string;
+  message: string;
+  status: 'SENT' | 'FAILED';
+  error: string | null;
+  createdAt: string;
+}
+
 // Retur galon (depot-service GallonReturn). Empties handed back + deposit refunded.
 export type GallonCondition = 'GOOD' | 'DAMAGED';
 

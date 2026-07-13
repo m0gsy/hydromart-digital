@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { NotificationEvent, renderMessage, templateFor } from '../../domain/notification-event';
+import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
 import { NotificationRecord, NotificationRepository } from '../ports/notification.repository';
 import { WhatsappBroadcastPort } from '../ports/whatsapp-broadcast.port';
@@ -45,5 +45,10 @@ export class NotificationService {
   /** A customer's own notification inbox, newest first. */
   async listForCustomer(customerId: string, limit = 30): Promise<NotificationRecord[]> {
     return this.repo.listForCustomer(customerId, Math.min(Math.max(limit, 1), 100));
+  }
+
+  /** Staff operational feed (PRD 10d): recent notifications for operational events. */
+  async listOpsFeed(limit = 50): Promise<NotificationRecord[]> {
+    return this.repo.listByEvents(OPS_EVENTS, Math.min(Math.max(limit, 1), 100));
   }
 }

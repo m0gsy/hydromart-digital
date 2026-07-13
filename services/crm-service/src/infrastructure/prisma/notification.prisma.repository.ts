@@ -52,4 +52,13 @@ export class NotificationPrismaRepository implements NotificationRepository {
     });
     return rows.map((row) => this.toRecord(row));
   }
+
+  async listByEvents(events: string[], limit: number): Promise<NotificationRecord[]> {
+    const rows = await this.prisma.notification.findMany({
+      where: { event: { in: events } },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
 }

@@ -40,6 +40,16 @@ export class NotificationController {
     return records.map((record) => NotificationDto.from(record));
   }
 
+  // Staff operational feed (PRD 10d): recent operational alerts (low stock, …).
+  @Roles(Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('ops')
+  @ApiOperation({ summary: 'List recent operational notifications (staff ops center)' })
+  @ApiOkResponse({ type: NotificationDto, isArray: true })
+  async listOps(): Promise<NotificationDto[]> {
+    const records = await this.notifications.listOpsFeed();
+    return records.map((record) => NotificationDto.from(record));
+  }
+
   @Roles(...TRIGGER_ROLES)
   @Post()
   @HttpCode(HttpStatus.OK)

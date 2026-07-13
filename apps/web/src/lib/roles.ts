@@ -103,6 +103,15 @@ export function canManageStaff(role: string | null | undefined): boolean {
   return role != null && STAFF_ADMIN.has(role);
 }
 
+// Ops notification center mirrors crm-service (depot staff + head-office see
+// operational alerts). Security stays server-side.
+const OPS_NOTIF_READ = new Set(['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+
+/** Whether a role may view the operational notification feed. */
+export function canViewOpsNotifications(role: string | null | undefined): boolean {
+  return role != null && OPS_NOTIF_READ.has(role);
+}
+
 /** Whether a role may manage dynamic pricing rules (mirrors depot-service manager+super-admin). */
 export function canManagePricing(role: string | null | undefined): boolean {
   return role != null && DEPOT_ADMIN.has(role);

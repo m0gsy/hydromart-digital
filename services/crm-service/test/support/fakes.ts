@@ -144,6 +144,14 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
+
+  async listByEvents(events: string[], limit: number): Promise<NotificationRecord[]> {
+    return this.records
+      .filter((r) => events.includes(r.event))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
 }
 
 /** Directory fake: returns a seeded audience, filtered by tier/city. Throws if `down`. */

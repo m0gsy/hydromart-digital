@@ -26,4 +26,7 @@ export interface NotificationRepository {
 
   /** A customer's own notification feed, newest first (backed by @@index([customerId, createdAt])). */
   listForCustomer(customerId: string, limit: number): Promise<NotificationRecord[]>;
+
+  /** Operational feed: notifications for the given events, newest first (staff ops center). */
+  listByEvents(events: string[], limit: number): Promise<NotificationRecord[]>;
 }
