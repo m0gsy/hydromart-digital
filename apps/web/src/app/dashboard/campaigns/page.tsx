@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChatCircleText, Lock, PaperPlaneTilt } from '@phosphor-icons/react';
 
+import { CampaignReport } from '@/components/dashboard/campaign-report';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -171,7 +172,17 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   );
 }
 
-function CampaignCard({ campaign, canManage, onChanged }: { campaign: Campaign; canManage: boolean; onChanged: () => void }) {
+function CampaignCard({
+  campaign,
+  canManage,
+  onReport,
+  onChanged,
+}: {
+  campaign: Campaign;
+  canManage: boolean;
+  onReport: () => void;
+  onChanged: () => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -223,14 +234,17 @@ function CampaignCard({ campaign, canManage, onChanged }: { campaign: Campaign; 
           {error}
         </p>
       )}
-      {canManage && campaign.status === 'DRAFT' && (
-        <div className="flex justify-end border-t border-app pt-2">
+      <div className="flex justify-end gap-2 border-t border-app pt-2">
+        <Button variant="ghost" onClick={onReport} disabled={busy}>
+          Lihat laporan
+        </Button>
+        {canManage && campaign.status === 'DRAFT' && (
           <Button onClick={send} loading={busy}>
             <PaperPlaneTilt size={16} weight="fill" />
             Send now
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 }
@@ -238,6 +252,7 @@ function CampaignCard({ campaign, canManage, onChanged }: { campaign: Campaign; 
 function CampaignsBody() {
   const { customer } = useAuth();
   const canManage = canManageCampaigns(customer?.role);
+  const [reportId, setReportId] = useState<string | null>(null);
   const list = useAsync<Page<Campaign>>(() => api.get(endpoints.crm.campaigns({ limit: 50 }), true));
   const items = list.data?.items ?? [];
 
@@ -262,10 +277,18 @@ function CampaignsBody() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {items.map((c) => (
-            <CampaignCard key={c.id} campaign={c} canManage={canManage} onChanged={list.reload} />
+            <CampaignCard
+              key={c.id}
+              campaign={c}
+              canManage={canManage}
+              onReport={() => setReportId(c.id)}
+              onChanged={list.reload}
+            />
           ))}
         </div>
       )}
+
+      {reportId && <CampaignReport campaignId={reportId} onClose={() => setReportId(null)} />}
     </div>
   );
 }

@@ -156,6 +156,18 @@ function SummaryTiles({ s }: { s: GallonReturnSummary }) {
   );
 }
 
+// ponytail: the design also asks for "galon di pelanggan / belum kembali / deposit
+// tertahan" (outstanding). Those need an issued-gallon deposit ledger; the current
+// module is a returns-only ledger, so we surface the returned side truthfully rather
+// than fabricate outstanding numbers. Drop this note once outstanding is tracked.
+function OutstandingNote() {
+  return (
+    <p className="text-xs text-muted">
+      Galon di pelanggan / belum kembali / deposit tertahan belum dilacak — butuh buku besar deposit galon keluar.
+    </p>
+  );
+}
+
 function ReturnRow({ r }: { r: GallonReturn }) {
   return (
     <Card className="flex items-center justify-between gap-3 p-3.5">
@@ -232,7 +244,10 @@ function ReturnsBody() {
           {summary.loading ? (
             <Skeleton className="h-20 w-full" />
           ) : summary.data ? (
-            <SummaryTiles s={summary.data} />
+            <div className="flex flex-col gap-2">
+              <SummaryTiles s={summary.data} />
+              <OutstandingNote />
+            </div>
           ) : null}
 
           {list.loading ? (

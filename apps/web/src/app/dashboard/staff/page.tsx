@@ -116,6 +116,56 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
   );
 }
 
+// Reference matrix "Peran & hak akses" (7b). Mirrors the server-side role sets in
+// lib/roles.ts + each service's guards; display-only, the server stays authority.
+const ACCESS_MATRIX: { area: string; roles: string[] }[] = [
+  { area: 'Antrean pesanan', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'HEAD_OFFICE', 'SUPER_ADMIN'] },
+  { area: 'Inventory (ubah)', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Retur galon (catat)', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Harga dinamis', roles: ['DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Kelola depot', roles: ['DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Tugaskan kurir / tracking', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Kampanye (kirim)', roles: ['MARKETING', 'SUPER_ADMIN'] },
+  { area: 'Voucher (kelola)', roles: ['MARKETING', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+  { area: 'Notifikasi ops', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'] },
+  { area: 'Staf & peran', roles: ['HEAD_OFFICE', 'SUPER_ADMIN'] },
+  { area: 'Payout / komisi', roles: ['FRANCHISE_OWNER'] },
+  { area: 'Dashboard eksekutif', roles: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+];
+
+function AccessMatrix() {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between text-left"
+        aria-expanded={open}
+      >
+        <span className="font-semibold">Peran &amp; hak akses</span>
+        <span className="text-sm font-medium text-brand-600">{open ? 'Tutup' : 'Lihat matriks'}</span>
+      </button>
+      {open && (
+        <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+          {ACCESS_MATRIX.map((row) => (
+            <li key={row.area} className="flex flex-wrap items-center gap-2 py-2">
+              <span className="min-w-44 text-sm font-medium">{row.area}</span>
+              <span className="flex flex-wrap gap-1.5">
+                {row.roles.map((r) => (
+                  <Badge key={r} tone="neutral">
+                    {ROLE_LABELS[r] ?? r}
+                  </Badge>
+                ))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function StaffRow({ s }: { s: Customer }) {
   return (
     <Card className="flex items-center justify-between gap-3 p-3.5">
@@ -147,6 +197,8 @@ function StaffBody() {
         </div>
         <InviteForm onSaved={list.reload} />
       </div>
+
+      <AccessMatrix />
 
       <div className="flex items-center gap-2">
         <label htmlFor="st-filter" className="text-sm font-medium text-muted">

@@ -237,6 +237,8 @@ export const endpoints = {
       return `/crm/api/v1/campaigns${qs ? `?${qs}` : ''}`;
     },
     createCampaign: '/crm/api/v1/campaigns',
+    // Campaign with its per-recipient delivery report (status/error/sentAt).
+    campaign: (id: string) => `/crm/api/v1/campaigns/${id}`,
     sendCampaign: (id: string) => `/crm/api/v1/campaigns/${id}/send`,
   },
   recommendations: {

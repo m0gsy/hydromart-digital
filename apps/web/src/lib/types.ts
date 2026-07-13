@@ -446,6 +446,26 @@ export interface CampaignSegment {
   city?: string;
 }
 
+export type RecipientStatus = 'PENDING' | 'SENT' | 'FAILED';
+
+// One recipient's delivery outcome (crm campaign detail GET).
+export interface CampaignRecipient {
+  id: string;
+  customerId: string | null;
+  phone: string;
+  name: string | null;
+  status: RecipientStatus;
+  error: string | null;
+  sentAt: string | null;
+}
+
+// Full campaign incl. message body + per-recipient report (detail GET).
+export interface CampaignDetail extends Campaign {
+  messageTemplate: string;
+  updatedAt: string;
+  recipients: CampaignRecipient[];
+}
+
 // List-item shape (no message body / recipients — those come from the detail GET).
 export interface Campaign {
   id: string;
