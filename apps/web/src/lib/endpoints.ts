@@ -102,6 +102,8 @@ export const endpoints = {
       const qs = p.toString();
       return `/deliveries/api/v1/deliveries${qs ? `?${qs}` : ''}`;
     },
+    // Assign a courier to an order (dispatch); advances the order to DRIVER_ASSIGNED.
+    assign: '/deliveries/api/v1/deliveries',
   },
   payments: {
     initiate: '/payments/api/v1/payments',
