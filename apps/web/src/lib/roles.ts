@@ -94,6 +94,15 @@ export function canViewFranchise(role: string | null | undefined): boolean {
   return role === 'FRANCHISE_OWNER';
 }
 
+// Staff & roles directory mirrors auth-service account.controller (head-office +
+// super-admin manage who holds which role). Security stays server-side.
+const STAFF_ADMIN = new Set(['HEAD_OFFICE', 'SUPER_ADMIN']);
+
+/** Whether a role may view and manage the staff directory (list + invite/promote). */
+export function canManageStaff(role: string | null | undefined): boolean {
+  return role != null && STAFF_ADMIN.has(role);
+}
+
 /** Whether a role may manage dynamic pricing rules (mirrors depot-service manager+super-admin). */
 export function canManagePricing(role: string | null | undefined): boolean {
   return role != null && DEPOT_ADMIN.has(role);

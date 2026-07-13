@@ -3,7 +3,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   CustomerNotFoundError,
   EmailAlreadyRegisteredError,
+  InvalidStaffRoleError,
 } from '../../domain/errors/auth.errors';
+import { Role } from '../../domain/customer/role.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
@@ -68,6 +70,45 @@ export class AccountService {
     customer.updateProfile(changes.fullName, email);
     const saved = await this.customers.save(customer);
     return toPublicCustomer(saved);
+  }
+
+  /** Staff directory (PRD Module 7): non-customer accounts, paginated, optional role filter. */
+  async listStaff(
+    page: number,
+    limit: number,
+    role?: Role,
+  ): Promise<{ items: PublicCustomer[]; total: number; page: number; limit: number }> {
+    const { items, total } = await this.customers.listStaff(page, limit, role);
+    return { items: items.map(toPublicCustomer), total, page, limit };
+  }
+
+  /**
+   * Invite a staff member by phone (PRD Module 7). Promotes an existing account to
+   * the given staff role, or creates a new pre-activated account if the phone is
+   * unknown (they sign in by phone OTP). The role must not be CUSTOMER.
+   */
+  async inviteStaff(rawPhone: string, role: Role, fullName?: string | null): Promise<PublicCustomer> {
+    if (role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    const phone = PhoneNumber.create(rawPhone).value;
+    const existing = await this.customers.findByPhone(phone);
+    if (existing) {
+      existing.promoteToStaff(role);
+      if (fullName !== undefined && fullName !== null && fullName !== '') {
+        existing.updateProfile(fullName, undefined);
+      }
+      return toPublicCustomer(await this.customers.save(existing));
+    }
+    const created = await this.customers.create({
+      phone,
+      email: null,
+      fullName: fullName ?? null,
+      role,
+    });
+    // create() defaults the account to PENDING; activate it so the invitee can sign in.
+    created.promoteToStaff(role);
+    return toPublicCustomer(await this.customers.save(created));
   }
 
   async listSessions(customerId: string): Promise<SessionInfo[]> {

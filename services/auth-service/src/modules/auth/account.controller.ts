@@ -12,6 +12,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
+import { InviteStaffDto, ListStaffQueryDto } from './dto/staff.dto';
 import {
   MessageResponseDto,
   PublicCustomerDto,
@@ -58,6 +59,30 @@ export class AccountController {
   async lookupByPhone(@Query() query: CustomerLookupDto): Promise<PublicCustomerDto> {
     const customer = await this.account.lookupByPhone(query.phone);
     return PublicCustomerDto.from(customer);
+  }
+
+  // Staff & roles directory (PRD Module 7). Managing who has which role is a
+  // head-office / super-admin responsibility; mirrored client-side in roles.ts.
+  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('auth/staff')
+  @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
+  async listStaff(@Query() query: ListStaffQueryDto): Promise<{
+    items: PublicCustomerDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role);
+    return { ...result, items: result.items.map(PublicCustomerDto.from) };
+  }
+
+  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Post('auth/staff/invite')
+  @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName);
+    return PublicCustomerDto.from(staff);
   }
 
   @Get('sessions')

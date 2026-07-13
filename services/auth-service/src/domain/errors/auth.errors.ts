@@ -44,6 +44,15 @@ export class CustomerNotFoundError extends DomainError {
   }
 }
 
+/** A staff invite/role change must target a non-customer role (PRD Module 7). */
+export class InvalidStaffRoleError extends DomainError {
+  readonly code = 'AUTH_INVALID_STAFF_ROLE';
+  readonly status = HTTP.BAD_REQUEST;
+  constructor() {
+    super('A staff role is required (CUSTOMER cannot be assigned here).');
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

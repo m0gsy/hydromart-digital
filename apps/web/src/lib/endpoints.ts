@@ -16,6 +16,16 @@ export const endpoints = {
     customerLookup: (phone: string) =>
       `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
     logout: '/auth/api/v1/auth/logout',
+    // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
+    staff: (q: { page?: number; limit?: number; role?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.role) p.set('role', q.role);
+      const qs = p.toString();
+      return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
+    },
+    inviteStaff: '/auth/api/v1/auth/staff/invite',
   },
   // Notification channel preferences (GET to read, PATCH to update).
   preferences: {

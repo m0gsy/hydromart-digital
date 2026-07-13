@@ -167,6 +167,20 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     this.rows.set(customer.id, customer.toProps());
     return customer;
   }
+  async listStaff(
+    page: number,
+    limit: number,
+    role?: Role,
+  ): Promise<{ items: Customer[]; total: number }> {
+    const all = [...this.rows.values()]
+      .filter((p) => p.status !== CustomerStatus.DELETED)
+      .filter((p) => (role ? p.role === role : p.role !== Role.CUSTOMER))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const items = all
+      .slice((page - 1) * limit, page * limit)
+      .map((p) => Customer.fromPersistence({ ...p }));
+    return { items, total: all.length };
+  }
 }
 
 export class InMemoryOtpTokenRepository implements OtpTokenRepository {

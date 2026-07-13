@@ -20,4 +20,9 @@ export interface CustomerRepository {
   create(data: CreateCustomerData): Promise<Customer>;
   /** Persist mutations made to an existing aggregate. */
   save(customer: Customer): Promise<Customer>;
+  /**
+   * Staff directory (PRD Module 7): non-customer accounts, newest first, paginated.
+   * Excludes DELETED accounts; filters to one role when given.
+   */
+  listStaff(page: number, limit: number, role?: Role): Promise<{ items: Customer[]; total: number }>;
 }

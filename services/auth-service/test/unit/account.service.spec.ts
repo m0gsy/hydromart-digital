@@ -1,7 +1,9 @@
 import {
   CustomerNotFoundError,
   EmailAlreadyRegisteredError,
+  InvalidStaffRoleError,
 } from '../../src/domain/errors/auth.errors';
+import { Role } from '../../src/domain/customer/role.enum';
 import { AccountService } from '../../src/application/services/account.service';
 import { AuditAction, AuditService } from '../../src/application/services/audit.service';
 import { SessionService } from '../../src/application/services/session.service';
@@ -96,6 +98,36 @@ describe('AccountService', () => {
 
     const updated = await service.updateProfile(customer.id, { email: 'me@x.com' });
     expect(updated.email).toBe('me@x.com');
+  });
+
+  it('invites a new phone as a pre-activated staff account', async () => {
+    const staff = await service.inviteStaff('+628990001111', Role.DEPOT_OPERATOR, 'Sari');
+    expect(staff).toMatchObject({ role: Role.DEPOT_OPERATOR, status: 'ACTIVE', fullName: 'Sari' });
+  });
+
+  it('promotes an existing customer to a staff role', async () => {
+    const customer = makeCustomer({ phone: '+628990002222', role: Role.CUSTOMER });
+    customers.seed(customer);
+
+    const promoted = await service.inviteStaff('+628990002222', Role.DEPOT_MANAGER);
+    expect(promoted.id).toBe(customer.id);
+    expect(promoted.role).toBe(Role.DEPOT_MANAGER);
+  });
+
+  it('rejects assigning the CUSTOMER role via invite', async () => {
+    await expect(service.inviteStaff('+628990003333', Role.CUSTOMER)).rejects.toBeInstanceOf(
+      InvalidStaffRoleError,
+    );
+  });
+
+  it('lists only non-customer accounts', async () => {
+    customers.seed(makeCustomer({ phone: '+628990004444', role: Role.CUSTOMER }));
+    customers.seed(makeCustomer({ phone: '+628990005555', role: Role.DEPOT_OPERATOR }));
+    customers.seed(makeCustomer({ phone: '+628990006666', role: Role.HEAD_OFFICE }));
+
+    const staff = await service.listStaff(1, 20);
+    expect(staff.total).toBe(2);
+    expect(staff.items.every((s) => s.role !== Role.CUSTOMER)).toBe(true);
   });
 
   it('lists active sessions and logs out everywhere', async () => {

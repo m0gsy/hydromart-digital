@@ -15,6 +15,7 @@ import {
   Recycle,
   ShieldCheck,
   Storefront,
+  UserGear,
   Tag,
   Ticket,
   TrendUp,
@@ -28,6 +29,7 @@ import { useDepot } from '@/lib/depot-context';
 import {
   canManageDepots,
   canManagePricing,
+  canManageStaff,
   canViewCampaigns,
   canViewChurn,
   canViewDashboard,
@@ -77,6 +79,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/depots', label: 'Depot', icon: Storefront, show: canManageDepots },
       { href: '/dashboard/pricing', label: 'Harga dinamis', icon: Tag, show: canManagePricing },
+      { href: '/dashboard/staff', label: 'Staf & peran', icon: UserGear, show: canManageStaff },
     ],
   },
   {

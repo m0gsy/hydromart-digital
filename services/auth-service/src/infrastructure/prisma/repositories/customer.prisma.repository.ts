@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { Customer } from '../../../domain/customer/customer.entity';
+import { Role } from '../../../domain/customer/role.enum';
+import { CustomerStatus } from '../../../domain/customer/customer-status.enum';
 import {
   CreateCustomerData,
   CustomerRepository,
@@ -46,6 +48,27 @@ export class CustomerPrismaRepository implements CustomerRepository {
     return toCustomerEntity(row);
   }
 
+  async listStaff(
+    page: number,
+    limit: number,
+    role?: Role,
+  ): Promise<{ items: Customer[]; total: number }> {
+    const where = {
+      status: { not: toPrismaStatus(CustomerStatus.DELETED) },
+      role: role ? toPrismaRole(role) : { not: toPrismaRole(Role.CUSTOMER) },
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.customer.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.customer.count({ where }),
+    ]);
+    return { items: rows.map(toCustomerEntity), total };
+  }
+
   async save(customer: Customer): Promise<Customer> {
     const props = customer.toProps();
     try {
@@ -54,6 +77,7 @@ export class CustomerPrismaRepository implements CustomerRepository {
         data: {
           email: props.email,
           fullName: props.fullName,
+          role: toPrismaRole(props.role),
           status: toPrismaStatus(props.status),
           googleSub: props.googleSub,
           phoneVerifiedAt: props.phoneVerifiedAt,

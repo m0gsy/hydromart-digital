@@ -106,6 +106,18 @@ export class Customer {
     }
   }
 
+  /**
+   * Admin action (staff & roles, PRD Module 7): assign a staff role to this account.
+   * An invited/promoted staff member is pre-trusted, so a still-pending account is
+   * activated immediately (they sign in by phone OTP; no self-verification needed).
+   */
+  promoteToStaff(role: Role): void {
+    this.props.role = role;
+    if (this.props.status === CustomerStatus.PENDING_VERIFICATION) {
+      this.props.status = CustomerStatus.ACTIVE;
+    }
+  }
+
   /** Link a Google identity to this account (FR-006). */
   linkGoogle(googleSub: string, email: string | null, fullName: string | null): void {
     this.props.googleSub = googleSub;
