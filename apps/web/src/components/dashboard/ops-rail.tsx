@@ -11,6 +11,7 @@ import {
   ChatCircleText,
   CheckCircle,
   ClipboardText,
+  MagnifyingGlass,
   Megaphone,
   Package,
   Recycle,
@@ -65,6 +66,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/franchise', label: 'My Franchise', icon: Buildings, show: canViewFranchise },
       { href: '/dashboard', label: 'Operations', icon: ChartLineUp, show: canViewDashboard },
+      { href: '/dashboard/search', label: 'Pencarian', icon: MagnifyingGlass, show: isStaff },
     ],
   },
   {
