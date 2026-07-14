@@ -22,8 +22,10 @@ ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY packages/access/package.json ./packages/access/
 COPY apps/web/package.json ./apps/web/
-RUN npm ci --include-workspace-root
+# Access source must land BEFORE `npm ci` — @hydromart/access has a `prepare`
+# (tsc) that npm runs during install, and it needs its tsconfig + source present.
 COPY packages/access ./packages/access
+RUN npm ci --include-workspace-root
 RUN npm run build -w @hydromart/access
 COPY apps/web ./apps/web
 RUN npm run build -w @hydromart/web
