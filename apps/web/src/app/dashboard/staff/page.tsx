@@ -8,7 +8,7 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } 
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canManageStaff } from '@/lib/roles';
+import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Page } from '@/lib/types';
 
@@ -116,21 +116,23 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-// Reference matrix "Peran & hak akses" (7b). Mirrors the server-side role sets in
-// lib/roles.ts + each service's guards; display-only, the server stays authority.
-const ACCESS_MATRIX: { area: string; roles: string[] }[] = [
-  { area: 'Antrean pesanan', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'HEAD_OFFICE', 'SUPER_ADMIN'] },
-  { area: 'Inventory (ubah)', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Retur galon (catat)', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Harga dinamis', roles: ['DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Kelola depot', roles: ['DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Tugaskan kurir / tracking', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Kampanye (kirim)', roles: ['MARKETING', 'SUPER_ADMIN'] },
-  { area: 'Voucher (kelola)', roles: ['MARKETING', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
-  { area: 'Notifikasi ops', roles: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'] },
-  { area: 'Staf & peran', roles: ['HEAD_OFFICE', 'SUPER_ADMIN'] },
-  { area: 'Payout / komisi', roles: ['FRANCHISE_OWNER'] },
-  { area: 'Dashboard eksekutif', roles: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'] },
+// Reference matrix "Peran & hak akses" (7b). Rows are just (label -> capability):
+// the actual role lists are read from CAPABILITIES in lib/roles.ts — the SAME map
+// that gates every route — so this can never drift from what the app enforces.
+// Display-only; the server stays authority.
+const ACCESS_MATRIX: { area: string; cap: Capability }[] = [
+  { area: 'Antrean pesanan', cap: 'orderQueue' },
+  { area: 'Inventory (ubah)', cap: 'inventoryWrite' },
+  { area: 'Retur galon (catat)', cap: 'returnsWrite' },
+  { area: 'Harga dinamis', cap: 'depotAdmin' },
+  { area: 'Kelola depot', cap: 'depotAdmin' },
+  { area: 'Tugaskan kurir / tracking', cap: 'tracking' },
+  { area: 'Kampanye (kirim)', cap: 'campaignWrite' },
+  { area: 'Voucher (kelola)', cap: 'voucherWrite' },
+  { area: 'Notifikasi ops', cap: 'opsNotif' },
+  { area: 'Staf & peran', cap: 'staffAdmin' },
+  { area: 'Payout / komisi', cap: 'payout' },
+  { area: 'Dashboard eksekutif', cap: 'dashboard' },
 ];
 
 function AccessMatrix() {
@@ -152,7 +154,7 @@ function AccessMatrix() {
             <li key={row.area} className="flex flex-wrap items-center gap-2 py-2">
               <span className="min-w-44 text-sm font-medium">{row.area}</span>
               <span className="flex flex-wrap gap-1.5">
-                {row.roles.map((r) => (
+                {CAPABILITIES[row.cap].map((r) => (
                   <Badge key={r} tone="neutral">
                     {ROLE_LABELS[r] ?? r}
                   </Badge>
