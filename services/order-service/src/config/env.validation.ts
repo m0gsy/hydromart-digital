@@ -1,3 +1,4 @@
+import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -6,7 +7,7 @@ export const envValidationSchema = Joi.object({
   ORDER_DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
-  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
+  JWT_ACCESS_SECRET: requiredSecret(32),
   PRODUCT_SERVICE_URL: Joi.string().uri().required(),
   DEPOT_SERVICE_URL: Joi.string().uri().required(),
   LOYALTY_SERVICE_URL: Joi.string().uri().required(),
@@ -21,7 +22,7 @@ export const envValidationSchema = Joi.object({
   FORECAST_SERVICE_URL: Joi.string().allow('').default(''),
   // Shared service-to-service secret. Notifications to crm and the payment→order
   // confirm callback authenticate with this (not a user JWT). Blank = fail-closed.
-  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
+  INTERNAL_SERVICE_KEY: optionalSecret(16),
   ORDER_DELIVERY_FEE: Joi.number().min(0).default(5000),
   // Age (minutes) after which an unconfirmed CREATED order is treated as abandoned
   // and can be auto-cancelled (releasing its stock hold). Company policy default.

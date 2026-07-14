@@ -20,6 +20,9 @@
     "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.spec.json" }] },
     "testEnvironment": "node"
   },
+  "dependencies": {
+    "joi": "^17.13.3"
+  },
   "peerDependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.0.0",

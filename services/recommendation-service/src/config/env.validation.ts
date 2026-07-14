@@ -1,3 +1,4 @@
+import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
@@ -6,8 +7,8 @@ export const envValidationSchema = Joi.object({
   RECOMMENDATION_DATABASE_URL: Joi.string()
     .uri({ scheme: ['postgres', 'postgresql'] })
     .required(),
-  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
-  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
+  JWT_ACCESS_SECRET: requiredSecret(32),
+  INTERNAL_SERVICE_KEY: optionalSecret(16),
   // order-service base URL; used later for the completed-orders rebuild feed.
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),

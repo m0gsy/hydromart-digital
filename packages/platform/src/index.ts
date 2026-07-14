@@ -14,3 +14,4 @@ export { RolesGuard } from './nest/roles.guard';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { GlobalValidationPipe } from './nest/validation.pipe';
+export { requiredSecret, optionalSecret } from './config/env-secret';

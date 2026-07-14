@@ -1,3 +1,4 @@
+import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 /**
@@ -10,8 +11,8 @@ export const envValidationSchema = Joi.object({
 
   AUTH_DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
 
-  JWT_ACCESS_SECRET: Joi.string().min(32).required(),
-  JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  JWT_ACCESS_SECRET: requiredSecret(32),
+  JWT_REFRESH_SECRET: requiredSecret(32),
   JWT_ACCESS_TTL: Joi.number().integer().positive().default(900),
   JWT_REFRESH_TTL: Joi.number().integer().positive().default(2592000),
 
@@ -20,7 +21,7 @@ export const envValidationSchema = Joi.object({
   OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
   OTP_RESEND_COOLDOWN_SECONDS: Joi.number().integer().positive().default(60),
   OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'whatsapp', 'sms').default('console'),
-  OTP_PEPPER: Joi.string().min(16).required(),
+  OTP_PEPPER: requiredSecret(16),
 
   WHATSAPP_API_BASE_URL: Joi.string().uri().allow('').optional(),
   WHATSAPP_API_TOKEN: Joi.string().allow('').optional(),
@@ -28,7 +29,7 @@ export const envValidationSchema = Joi.object({
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
+  INTERNAL_SERVICE_KEY: optionalSecret(16),
 
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),
   SMS_API_TOKEN: Joi.string().allow('').optional(),
