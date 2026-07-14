@@ -86,6 +86,9 @@ service; the reusable unit is the port, not the route.
 ## Out of scope (flagged)
 
 - Product-image upload — later, same port pattern, own admin-guarded endpoint.
-- Cloud adapter — swap the one provider line when a bucket is provisioned (GCS,
-  matching the GCP stack).
+- Cloud adapter — when a bucket is provisioned, add one `S3StorageAdapter` using
+  `@aws-sdk/client-s3` and swap the one `useClass` line. Target: **Cloudflare R2**
+  (existing CF account, free egress, S3-compatible). The same adapter also covers
+  BiznetGio NEO Object Storage / AWS / MinIO — provider is chosen purely by
+  `endpoint` + credentials env, no code change.
 - Driver frontend capture UI — verify it exists in `apps/web`; may be a separate task.
