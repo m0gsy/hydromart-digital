@@ -6,6 +6,7 @@ import { Camera, Eraser, PencilLine } from '@phosphor-icons/react';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { compressImage } from '@/lib/image';
 
 /** Ask the browser for the current position (required by the PoD proof). */
 function currentPosition(): Promise<GeolocationPosition> {
@@ -145,8 +146,12 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       const signatureBlob = await canvasToBlob(canvas);
       if (!signatureBlob) throw new Error('Gagal menyiapkan tanda tangan.');
 
-      // Two upload calls: photo, then signature.
-      const { url: photoUrl } = await uploadFile(endpoints.deliveries.driver.upload, photo);
+      // Two upload calls: photo (downscaled), then signature.
+      const photoBlob = await compressImage(photo);
+      const { url: photoUrl } = await uploadFile(
+        endpoints.deliveries.driver.upload,
+        new File([photoBlob], 'photo.jpg', { type: photoBlob.type || 'image/jpeg' }),
+      );
       const { url: signatureUrl } = await uploadFile(
         endpoints.deliveries.driver.upload,
         new File([signatureBlob], 'signature.png', { type: 'image/png' }),
