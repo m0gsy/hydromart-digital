@@ -11,9 +11,11 @@ import { ReportService } from '../application/services/report.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../infrastructure/prisma/delivery.prisma.repository';
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
+import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
 import { ReportController } from './report.controller';
+import { UploadController } from './upload.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -22,13 +24,15 @@ const providers: Provider[] = [
   ReportService,
   { provide: DELIVERY_TOKENS.DeliveryRepository, useClass: DeliveryPrismaRepository },
   { provide: DELIVERY_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
+  LocalDiskStorageAdapter,
+  { provide: DELIVERY_TOKENS.Storage, useClass: LocalDiskStorageAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DeliveryController, DriverDeliveryController, ReportController],
+  controllers: [DeliveryController, DriverDeliveryController, ReportController, UploadController],
   providers,
   exports: [PrismaService, DeliveryConfigService],
 })
