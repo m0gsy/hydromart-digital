@@ -27,7 +27,8 @@
     "db:generate": "npm run prisma:generate --workspaces --if-present",
     "auth:dev": "npm run start:dev --workspace @hydromart/auth-service",
     "auth:migrate": "npm run prisma:migrate --workspace @hydromart/auth-service",
-    "test:integration": "node test/integration/run.mjs"
+    "test:integration": "node test/integration/run.mjs",
+    "db:seed": "node scripts/seed.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3.3"
