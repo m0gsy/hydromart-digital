@@ -32,3 +32,4 @@ export const canViewOpsNotifications = (role: string | null | undefined) => can(
 export const canViewTracking = (role: string | null | undefined) => can('tracking', role);
 export const canViewForecast = (role: string | null | undefined) => can('forecast', role);
 export const canViewChurn = (role: string | null | undefined) => can('churn', role);
+export const canConfirmPayment = (role: string | null | undefined) => can('paymentSettle', role);

@@ -111,6 +111,10 @@ export const endpoints = {
   payments: {
     initiate: '/payments/api/v1/payments',
     forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
+    // Staff: an order's payments (for settlement) — not customer-scoped.
+    forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,
+    // Staff: confirm a payment as received (cash/transfer/QRIS).
+    confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
   },
   // Recurring galon subscriptions (order-service, spec 7b).
   subscriptions: {

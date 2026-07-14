@@ -55,6 +55,9 @@ export const CAPABILITIES = {
   forecast: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN', 'FRANCHISE_OWNER'],
   // forecast-service — churn (marketing-led re-engagement).
   churn: ['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // payment-service — settle a payment (confirm cash/transfer/QRIS received). Mirrors
+  // the settlement roles; DRIVER can confirm cash-on-delivery, FINANCE for the office.
+  paymentSettle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'FINANCE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

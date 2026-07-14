@@ -9,10 +9,57 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
+import { useAuth } from '@/lib/auth-context';
+import { canConfirmPayment } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, Order } from '@/lib/types';
+import type { Customer, Order, Page, Payment } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
+
+/** Payment status + staff "confirm received" for cash/transfer/QRIS (settlement). */
+function PaymentSettle({ order }: { order: Order }) {
+  const { customer } = useAuth();
+  const canConfirm = canConfirmPayment(customer?.role);
+  const { data, reload } = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(order.id), true), [order.id]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const payment = data?.items[0];
+
+  async function confirm() {
+    if (!payment) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(endpoints.payments.confirm(payment.id), undefined, true);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal konfirmasi pembayaran.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!payment) return null;
+  const pending = payment.status === 'PENDING';
+  return (
+    <div className="flex flex-col gap-2 rounded-2xl border border-app p-3 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium">Pembayaran · {payment.method}</span>
+        <Badge tone={payment.status === 'PAID' ? 'success' : pending ? 'warning' : 'neutral'}>{payment.status}</Badge>
+      </div>
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      {canConfirm && pending && (
+        <Button onClick={confirm} loading={busy}>
+          Konfirmasi lunas
+        </Button>
+      )}
+    </div>
+  );
+}
 
 /**
  * Assign a courier to a PREPARING order (9b). POST /deliveries advances the order
@@ -183,6 +230,8 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
             </div>
           </dl>
         </div>
+
+        <PaymentSettle order={order} />
 
         {order.status === 'CANCELLED' && (
           // ponytail: a real per-refund status timeline (9a) needs a staff-readable

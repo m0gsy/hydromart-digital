@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { PaymentService } from '../application/services/payment.service';
 import { PaymentRecord } from '../application/ports/payment.repository';
@@ -23,16 +24,8 @@ import {
   RefundPaymentDto,
 } from './dto/payment.dto';
 
-// Staff who can settle/fail a payment (e.g. confirm cash on delivery).
-const SETTLEMENT_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.FINANCE,
-  Role.SUPER_ADMIN,
-] as const;
-
-// Refunds are a finance/manager action.
+// Settlement roles (confirm/fail/read-by-order) come from the shared capability map.
+// Refunds stay a narrower finance/manager action.
 const REFUND_ROLES = [Role.FINANCE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Payments')
@@ -59,6 +52,15 @@ export class PaymentController {
     return this.payments.listForCustomer(user.sub, query);
   }
 
+  // Staff: read an order's payments to confirm receipt. Declared before ':id' so the
+  // static 'for-order' segment wins. Not customer-scoped (staff act across customers).
+  @Get('for-order/:orderId')
+  @Roles(...CAPABILITIES.paymentSettle)
+  @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
+  listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
+    return this.payments.listAll({ orderId, limit: 20 });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's payments" })
   get(
@@ -69,7 +71,7 @@ export class PaymentController {
   }
 
   @Post(':id/confirm')
-  @Roles(...SETTLEMENT_ROLES)
+  @Roles(...CAPABILITIES.paymentSettle)
   @ApiOperation({ summary: 'Confirm a payment as settled (staff, e.g. cash received)' })
   confirm(
     @CurrentUser() user: AuthenticatedUser,
@@ -79,7 +81,7 @@ export class PaymentController {
   }
 
   @Post(':id/fail')
-  @Roles(...SETTLEMENT_ROLES)
+  @Roles(...CAPABILITIES.paymentSettle)
   @ApiOperation({ summary: 'Mark a pending payment as failed (staff)' })
   fail(
     @CurrentUser() user: AuthenticatedUser,
