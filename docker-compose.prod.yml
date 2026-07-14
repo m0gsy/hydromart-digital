@@ -77,6 +77,15 @@ services:
       <<: *shared
       PRODUCT_SERVICE_PORT: 3003
       PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public
+      # Object storage for product images. BiznetGio NEO (S3-compatible); per-bucket
+      # keys, so product uses its own bucket/creds (see PRODUCT_STORAGE_* in .env).
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:?set STORAGE_S3_ENDPOINT (e.g. https://nos.jkt-1.neo.id)}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-jkt-1}
+      STORAGE_S3_BUCKET: ${PRODUCT_STORAGE_S3_BUCKET:?set PRODUCT_STORAGE_S3_BUCKET}
+      STORAGE_S3_ACCESS_KEY_ID: ${PRODUCT_STORAGE_S3_ACCESS_KEY_ID:?set PRODUCT_STORAGE_S3_ACCESS_KEY_ID}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY:?set PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY}
+      STORAGE_PUBLIC_BASE_URL: ${PRODUCT_STORAGE_PUBLIC_BASE_URL:?set PRODUCT_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-products)}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -133,6 +142,15 @@ services:
       ORDER_SERVICE_URL: http://order:3004
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       DELIVERY_SLA_MINUTES: 120
+      # Object storage for PoD photo + signature. BiznetGio NEO (S3-compatible);
+      # per-bucket keys, so delivery uses its own bucket/creds (see DELIVERY_STORAGE_* in .env).
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:?set STORAGE_S3_ENDPOINT (e.g. https://nos.jkt-1.neo.id)}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-jkt-1}
+      STORAGE_S3_BUCKET: ${DELIVERY_STORAGE_S3_BUCKET:?set DELIVERY_STORAGE_S3_BUCKET}
+      STORAGE_S3_ACCESS_KEY_ID: ${DELIVERY_STORAGE_S3_ACCESS_KEY_ID:?set DELIVERY_STORAGE_S3_ACCESS_KEY_ID}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY:?set DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY}
+      STORAGE_PUBLIC_BASE_URL: ${DELIVERY_STORAGE_PUBLIC_BASE_URL:?set DELIVERY_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-pod)}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
