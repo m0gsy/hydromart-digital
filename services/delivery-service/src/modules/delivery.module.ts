@@ -12,6 +12,8 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../infrastructure/prisma/delivery.prisma.repository';
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
+import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
+import { StoragePort } from '../application/ports/storage.port';
 import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
 import { ReportController } from './report.controller';
@@ -24,8 +26,14 @@ const providers: Provider[] = [
   ReportService,
   { provide: DELIVERY_TOKENS.DeliveryRepository, useClass: DeliveryPrismaRepository },
   { provide: DELIVERY_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
-  LocalDiskStorageAdapter,
-  { provide: DELIVERY_TOKENS.Storage, useClass: LocalDiskStorageAdapter },
+  {
+    provide: DELIVERY_TOKENS.Storage,
+    inject: [DeliveryConfigService],
+    useFactory: (config: DeliveryConfigService): StoragePort =>
+      config.storageDriver === 's3'
+        ? new S3StorageAdapter(config)
+        : new LocalDiskStorageAdapter(config),
+  },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

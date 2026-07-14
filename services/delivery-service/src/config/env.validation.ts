@@ -29,6 +29,25 @@ export const envValidationSchema = Joi.object({
       then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
       otherwise: Joi.string().uri().default('http://localhost:3006'),
     }),
+  // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (Cloudflare R2
+  // / any S3-compatible endpoint, prod). The five STORAGE_S3_* keys below are
+  // required only when this is 's3'.
+  STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  // R2: endpoint = https://<account>.r2.cloudflarestorage.com, region = 'auto', and
+  // STORAGE_PUBLIC_BASE_URL = the bucket's public URL (r2.dev or a bound domain).
+  STORAGE_S3_ENDPOINT: Joi.string()
+    .uri()
+    .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_REGION: Joi.string().default('auto'),
+  STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
+  STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

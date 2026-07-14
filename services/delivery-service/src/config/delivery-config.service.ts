@@ -45,4 +45,22 @@ export class DeliveryConfigService {
       .get<string>('STORAGE_PUBLIC_BASE_URL', 'http://localhost:3006')
       .replace(/\/+$/, '');
   }
+  get storageDriver(): 'local' | 's3' {
+    return this.config.get<string>('STORAGE_DRIVER', 'local') === 's3' ? 's3' : 'local';
+  }
+  get s3(): {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  } {
+    return {
+      endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      bucket: this.config.getOrThrow<string>('STORAGE_S3_BUCKET'),
+      accessKeyId: this.config.getOrThrow<string>('STORAGE_S3_ACCESS_KEY_ID'),
+      secretAccessKey: this.config.getOrThrow<string>('STORAGE_S3_SECRET_ACCESS_KEY'),
+    };
+  }
 }
