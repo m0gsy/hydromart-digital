@@ -5,12 +5,15 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
+COPY packages/access/package.json ./packages/access/
 COPY services/dashboard-service/package.json ./services/dashboard-service/
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+COPY packages/access ./packages/access
 RUN npm ci --include-workspace-root
 COPY services/dashboard-service ./services/dashboard-service
 RUN npm run build -w @hydromart/platform \
+  && npm run build -w @hydromart/access \
   && cd services/dashboard-service && npm run build
 RUN mkdir -p /app/services/dashboard-service/node_modules
 RUN npm prune --omit=dev && mkdir -p /app/services/dashboard-service/node_modules

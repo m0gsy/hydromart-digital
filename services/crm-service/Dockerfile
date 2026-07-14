@@ -6,13 +6,16 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/platform/package.json ./packages/platform/
+COPY packages/access/package.json ./packages/access/
 COPY services/crm-service/package.json ./services/crm-service/
 COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
+COPY packages/access ./packages/access
 COPY services/crm-service/prisma ./services/crm-service/prisma
 RUN npm ci --include-workspace-root
 COPY services/crm-service ./services/crm-service
 RUN npm run build -w @hydromart/platform \
+  && npm run build -w @hydromart/access \
   && cd services/crm-service && npx prisma generate && npm run build
 RUN npm prune --omit=dev && mkdir -p /app/services/crm-service/node_modules
 

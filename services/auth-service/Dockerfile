@@ -8,14 +8,19 @@ WORKDIR /app
 
 # Install dependencies against the lockfile for reproducible builds.
 COPY package.json package-lock.json ./
+COPY packages/platform/package.json ./packages/platform/
+COPY packages/access/package.json ./packages/access/
 COPY services/auth-service/package.json ./services/auth-service/
-COPY services/auth-service/prisma ./services/auth-service/prisma
-RUN npm ci --workspace @hydromart/auth-service --include-workspace-root
-
 COPY tsconfig.base.json ./
+COPY packages/platform ./packages/platform
+COPY packages/access ./packages/access
+COPY services/auth-service/prisma ./services/auth-service/prisma
+RUN npm ci --include-workspace-root
+
 COPY services/auth-service ./services/auth-service
-WORKDIR /app/services/auth-service
-RUN npx prisma generate && npm run build
+RUN npm run build -w @hydromart/platform \
+  && npm run build -w @hydromart/access \
+  && cd services/auth-service && npx prisma generate && npm run build
 
 # Prune dev dependencies for a lean runtime image.
 RUN npm prune --omit=dev && mkdir -p /app/services/auth-service/node_modules
@@ -30,6 +35,7 @@ WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
+COPY --from=builder --chown=app:app /app/packages ./packages
 COPY --from=builder --chown=app:app /app/services/auth-service/node_modules ./services/auth-service/node_modules
 COPY --from=builder --chown=app:app /app/services/auth-service/dist ./services/auth-service/dist
 COPY --from=builder --chown=app:app /app/services/auth-service/prisma ./services/auth-service/prisma
