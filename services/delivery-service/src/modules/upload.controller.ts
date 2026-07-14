@@ -5,6 +5,7 @@ import {
   PayloadTooLargeException,
   Post,
   UploadedFile,
+  UseFilters,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -14,6 +15,7 @@ import { Role, Roles } from '@hydromart/platform';
 
 import { DELIVERY_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
+import { MulterExceptionFilter } from './multer-exception.filter';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED: Record<string, string> = {
@@ -26,6 +28,7 @@ const ALLOWED: Record<string, string> = {
 @ApiTags('Driver Deliveries')
 @ApiBearerAuth()
 @Roles(Role.DRIVER)
+@UseFilters(MulterExceptionFilter)
 @Controller({ path: 'driver/deliveries', version: '1' })
 export class UploadController {
   constructor(@Inject(DELIVERY_TOKENS.Storage) private readonly storage: StoragePort) {}
@@ -33,7 +36,7 @@ export class UploadController {
   @Post('uploads')
   @ApiOperation({ summary: 'Upload a PoD photo or signature; returns its URL' })
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BYTES } }))
   async upload(@UploadedFile() file?: Express.Multer.File): Promise<{ url: string }> {
     if (!file) {
       throw new BadRequestException('file is required');

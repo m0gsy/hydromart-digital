@@ -12,6 +12,8 @@ import { StoragePort, StoragePutInput, StoragePutResult } from '../../applicatio
  * served statically by the app (see main.ts useStaticAssets). Swap the provider
  * binding for a cloud adapter (R2) in production.
  */
+// ponytail: local-disk adapter never deletes files (no GC/quota) — dev only;
+// the prod upgrade path is a cloud adapter (R2) with a bucket lifecycle policy.
 @Injectable()
 export class LocalDiskStorageAdapter implements StoragePort {
   constructor(private readonly config: DeliveryConfigService) {}

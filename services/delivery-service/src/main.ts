@@ -19,12 +19,13 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(DeliveryConfigService);
 
+  app.use(helmet());
+
   const uploadsRoot = isAbsolute(config.storageLocalDir)
     ? config.storageLocalDir
     : join(process.cwd(), config.storageLocalDir);
   app.useStaticAssets(uploadsRoot, { prefix: '/uploads' });
 
-  app.use(helmet());
   app.enableCors({ origin: config.corsOrigins, credentials: true });
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });

@@ -19,9 +19,16 @@ export const envValidationSchema = Joi.object({
   // once a cloud storage adapter is wired.
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
   // Public base URL uploaded files are reachable at; returned URLs are
-  // `${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`. Dev default = this service direct.
-  // Prod (behind the gateway) or R2 sets this to the real public origin.
-  STORAGE_PUBLIC_BASE_URL: Joi.string().uri().default('http://localhost:3006'),
+  // `${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`. In production it MUST be set to a
+  // real public origin (a localhost value would bake unreachable URLs into
+  // BR-mandatory PoD records); dev falls back to this service direct.
+  STORAGE_PUBLIC_BASE_URL: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
+      otherwise: Joi.string().uri().default('http://localhost:3006'),
+    }),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
