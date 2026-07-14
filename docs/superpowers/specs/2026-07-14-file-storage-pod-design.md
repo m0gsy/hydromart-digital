@@ -2,127 +2,90 @@
 
 **Date:** 2026-07-14
 **Status:** Approved (design)
-**Scope:** Backend upload flow for Proof-of-Delivery photo + signature.
+**Scope:** Backend upload flow for Proof-of-Delivery photo + signature. Kept simple.
 
 ## Problem
 
 Proof of Delivery is BR-mandatory (photo + GPS + timestamp + signature). Today the
 API only stores URL **strings** (`ProofOfDeliveryDto.photoUrl`, `.signatureUrl`) —
-there is no way to actually upload the bytes. The client is expected to already
-hold a URL, which no flow produces. Same gap exists for product `imageUrl`, out of
-scope here.
+nothing uploads the bytes. The client is expected to already hold a URL that no
+flow produces.
 
-## Goals
+## Approach
 
-- A storage abstraction usable across services, swappable dev ↔ cloud (mirrors the
-  OTP delivery port/adapter pattern).
-- A working local-disk adapter for development.
-- An authenticated upload endpoint the driver app calls to turn captured
-  photo/signature bytes into a URL.
-- Leave `/complete` untouched — it keeps taking `photoUrl` + `signatureUrl`
-  strings, now populated with real uploaded URLs.
+One thin port + one local-disk adapter, **inside delivery-service**. No shared
+package, no driver-switch factory, no dynamic module. Cloud later = swap one
+provider line.
 
-## Non-Goals (flagged for follow-up)
+### Storage port + adapter
 
-- **Product-image upload** — later; reuses the same `StoragePort` via its own
-  admin-guarded endpoint in product-service.
-- **Cloud adapter** — documented stub only; no cloud creds to test against yet.
-  Prod provider (GCS, matching the GCP stack) implemented when the bucket is
-  provisioned.
-- **Driver frontend capture UI** — verify whether it exists in `apps/web`; capture
-  wiring (camera + signature canvas → upload call) may be a separate task.
-
-## Architecture
-
-### Shared: `StorageModule` in `@hydromart/platform`
-
-Lives at `packages/platform/src/storage/`. Cross-service, unlike the auth-local OTP
-port.
-
-**Port**
+`services/delivery-service/src/infrastructure/storage/`
 
 ```ts
-export interface StoragePutInput {
-  body: Buffer;
-  contentType: string;
-  prefix: string;   // logical bucket/folder, e.g. 'pod'
-  ext: string;      // file extension without dot, e.g. 'jpg'
-}
-export interface StoragePutResult {
-  url: string;      // publicly renderable in <img src>
-  key: string;      // storage key, e.g. 'pod/<uuid>.jpg'
-}
 export interface StoragePort {
-  put(input: StoragePutInput): Promise<StoragePutResult>;
+  // returns a publicly renderable URL for <img src>
+  put(input: { body: Buffer; contentType: string; ext: string }): Promise<{ url: string }>;
 }
 ```
 
-**`LocalDiskStorageAdapter`** (dev)
+`LocalDiskStorageAdapter`:
+- key = `pod/<uuid>.<ext>` (random UUID → POD photos not enumerable)
+- writes `STORAGE_LOCAL_DIR/<key>` (mkdir the `pod/` dir)
+- returns `url = ${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`
 
-- Key = `<prefix>/<uuid>.<ext>` — random UUID so POD photos are not enumerable.
-- Writes to `STORAGE_LOCAL_DIR/<key>` (mkdir -p the prefix dir).
-- Returns `url = ${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`.
+Bound in the module: `{ provide: STORAGE_PORT, useClass: LocalDiskStorageAdapter }`.
+Cloud swap is that one line.
 
-**Cloud** — `// TODO GCSStorageAdapter` documented stub. Same port; returns the
-provider's public/signed URL.
-
-**Selection** — `useFactory` switch on `STORAGE_DRIVER` env (`local` default),
-identical shape to the OTP `OtpDeliveryPort` factory in `auth.module.ts`.
-
-**Config (env)**
+**Config** — two vars added to the existing `DeliveryConfigService`:
 
 | Var | Default | Meaning |
 |-----|---------|---------|
-| `STORAGE_DRIVER` | `local` | `local` \| (future) `gcs` |
-| `STORAGE_LOCAL_DIR` | `./var/uploads` | disk root for local adapter |
+| `STORAGE_LOCAL_DIR` | `./var/uploads` | disk root |
 | `STORAGE_PUBLIC_BASE_URL` | service base URL | prefix for returned URLs |
 
-Production env validation should reject `STORAGE_DRIVER=local` (same posture as the
-OTP console channel), when the cloud adapter lands.
+### Upload endpoint
 
-### delivery-service wiring
-
-- `main.ts`: create app as `NestExpressApplication`. When driver is `local`,
-  `app.useStaticAssets(STORAGE_LOCAL_DIR, { prefix: '/uploads' })` so stored URLs
-  render in a plain `<img>`. (Auth-gated streaming is rejected: an `<img src>`
-  cannot send a bearer token; cloud prod uses public/signed URLs the same way.)
+- `main.ts`: create app as `NestExpressApplication`;
+  `app.useStaticAssets(STORAGE_LOCAL_DIR, { prefix: '/uploads' })` so URLs render in
+  a plain `<img>`. (No auth-gated streaming — `<img src>` can't send a bearer token;
+  cloud prod serves public/signed URLs the same way.)
 - New `UploadController`:
-  - `POST /driver/deliveries/uploads`, `@Roles(Role.DRIVER)`.
-  - `FileInterceptor('file')` — multer ships with `@nestjs/platform-express`, no new
-    dependency.
-  - Validate: `contentType` in `{image/jpeg, image/png, image/webp}`; size ≤ 5 MB.
-  - `StoragePort.put({ prefix: 'pod', ... })` → returns `{ url }`.
-- `/complete` unchanged.
+  - `POST /driver/deliveries/uploads`, `@Roles(Role.DRIVER)`
+  - `FileInterceptor('file')` — multer ships with `@nestjs/platform-express`, no new dep
+  - validate: contentType in `{image/jpeg, image/png, image/webp}`, size ≤ 5 MB
+  - call `StoragePort.put(...)` → return `{ url }`
+- `/complete` unchanged — still takes `photoUrl` + `signatureUrl` strings, now real
+  uploaded URLs.
 
-Driver-scoped, not a neutral `/uploads`: product images live in a **different
-service**, so the shared unit is `StoragePort`, not the route. A neutral route here
-would leak driver-auth onto something pretending to be generic.
+Driver-scoped route (not neutral `/uploads`): product images live in a different
+service; the reusable unit is the port, not the route.
 
 ## Data Flow
 
 1. Driver app captures photo + signature-canvas PNG client-side.
-2. `POST /driver/deliveries/uploads` (multipart `file`) → `{ url }`. Called twice
-   (photo, then signature).
-3. `POST /driver/deliveries/:id/complete` with the two URLs → existing PoD flow,
-   untouched.
+2. `POST /driver/deliveries/uploads` (multipart `file`) → `{ url }`. Twice (photo,
+   signature).
+3. `POST /driver/deliveries/:id/complete` with the two URLs → existing flow.
 
-## Error Handling
+## Errors
 
 | Case | Response |
 |------|----------|
-| Non-image `contentType` | 400 Bad Request |
-| Size > 5 MB | 413 Payload Too Large |
+| Non-image contentType | 400 |
+| Size > 5 MB | 413 |
 | Missing file | 400 |
-| Disk/provider write failure | 500 via existing `AllExceptionsFilter` |
+| Disk write failure | 500 via existing `AllExceptionsFilter` |
 
 ## Testing
 
-- Unit: `LocalDiskStorageAdapter.put` writes the file to `STORAGE_LOCAL_DIR/<key>`
-  and returns `url === ${STORAGE_PUBLIC_BASE_URL}/uploads/<key>` with the right
-  extension.
-- Unit/e2e: upload endpoint rejects non-image mime (400) and oversize (413);
-  accepts a valid PNG and returns a `{ url }` that resolves under `/uploads`.
+- Unit: `LocalDiskStorageAdapter.put` writes the file and returns the expected
+  `/uploads/pod/<uuid>.<ext>` URL.
+- e2e: upload rejects non-image (400) and oversize (413); accepts a PNG and returns
+  a `{ url }` resolving under `/uploads`.
 
-## Open Question (resolved)
+## Out of scope (flagged)
 
-Endpoint naming → driver-scoped `POST /driver/deliveries/uploads` (see wiring).
+- Product-image upload — later, same port pattern, own admin-guarded endpoint.
+- Cloud adapter — swap the one provider line when a bucket is provisioned (GCS,
+  matching the GCP stack).
+- Driver frontend capture UI — verify it exists in `apps/web`; may be a separate task.
