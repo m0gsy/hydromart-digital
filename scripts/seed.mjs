@@ -77,19 +77,19 @@ const DEPOTS = [
   {
     code: 'JKT-01', name: 'Depot Cikini', ownershipType: 'HKP',
     address: 'Jl. Cikini Raya No. 1', city: 'Jakarta Pusat', province: 'DKI Jakarta',
-    lat: -6.1944, lng: 106.8412, serviceRadiusKm: 7, deliveryFee: 5000, minOrderAmount: 15000,
+    lat: -6.1944, lng: 106.8412, serviceRadiusKm: 7, deliveryFee: 1000, minOrderAmount: 15000,
     paymentBankName: 'BCA', paymentBankAccountNumber: '1234567890', paymentBankAccountHolder: 'PT Hydromart Cikini',
   },
   {
     code: 'BDG-01', name: 'Depot Dago', ownershipType: 'WARALABA',
     address: 'Jl. Ir. H. Djuanda No. 100', city: 'Bandung', province: 'Jawa Barat',
-    lat: -6.8895, lng: 107.6131, serviceRadiusKm: 6, deliveryFee: 6000, minOrderAmount: 15000,
+    lat: -6.8895, lng: 107.6131, serviceRadiusKm: 6, deliveryFee: 1000, minOrderAmount: 15000,
     paymentBankName: 'Mandiri', paymentBankAccountNumber: '2345678901', paymentBankAccountHolder: 'Waralaba Dago Sejahtera',
   },
   {
     code: 'SBY-01', name: 'Depot Gubeng', ownershipType: 'WARALABA',
     address: 'Jl. Raya Gubeng No. 25', city: 'Surabaya', province: 'Jawa Timur',
-    lat: -7.2657, lng: 112.7521, serviceRadiusKm: 6, deliveryFee: 6000, minOrderAmount: 15000,
+    lat: -7.2657, lng: 112.7521, serviceRadiusKm: 6, deliveryFee: 1000, minOrderAmount: 15000,
     paymentBankName: 'BRI', paymentBankAccountNumber: '3456789012', paymentBankAccountHolder: 'Waralaba Gubeng Jaya',
   },
 ];
