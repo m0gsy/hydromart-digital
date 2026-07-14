@@ -32,5 +32,23 @@ if [ "$SIZE" -lt 1000 ]; then
 fi
 echo "backup OK: $FILE ($(du -h "$FILE" | cut -f1))"
 
-# Retention: keep the newest $KEEP, delete older.
+# Offsite copy to NEO (optional but recommended — if the VPS disk/box dies the
+# local backups die with it). Enable by setting BACKUP_S3_BUCKET (+ creds) in the
+# cron env; unset = local-only. Uses a separate bucket/key from app uploads.
+if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
+  REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+  if S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}" \
+     S3_REGION="${BACKUP_S3_REGION:-jkt-1}" \
+     S3_BUCKET="$BACKUP_S3_BUCKET" \
+     S3_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID:?set BACKUP_S3_ACCESS_KEY_ID}" \
+     S3_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY:?set BACKUP_S3_SECRET_ACCESS_KEY}" \
+     node "$REPO_DIR/scripts/upload-to-s3.mjs" "$FILE" "db/$(basename "$FILE")"; then
+    echo "offsite OK -> $BACKUP_S3_BUCKET/db/$(basename "$FILE")"
+  else
+    echo "WARN: offsite upload to NEO failed — kept local copy" >&2
+  fi
+fi
+
+# Local retention: keep the newest $KEEP, delete older. (NEO retention = set a
+# bucket lifecycle/expiry rule in the console; this script doesn't prune remote.)
 ls -1t "$BACKUP_DIR"/hydromart-*.sql.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs -r rm -f
