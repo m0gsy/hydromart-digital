@@ -19,6 +19,22 @@ import { OrderCoordinationPort } from '../../src/application/ports/order-coordin
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 
+// Realm-safe deep clone. `structuredClone` is a Node builtin whose Dates carry the
+// outer-realm Date prototype, so inside Jest's vm sandbox `toBeInstanceOf(Date)`
+// fails ("Expected Date, Received Date"). Rebuilding Dates with the sandbox's own
+// `new Date` keeps `instanceof` honest. ponytail: handles only Date/array/plain-object
+// (all these records ever hold); widen if a Map/Set/etc. ever appears.
+function clone<T>(value: T): T {
+  if (value instanceof Date) return new Date(value.getTime()) as unknown as T;
+  if (Array.isArray(value)) return value.map((v) => clone(v)) as unknown as T;
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, clone(v)]),
+    ) as T;
+  }
+  return value;
+}
+
 const ACTIVE: DeliveryStatus[] = [
   DeliveryStatus.ASSIGNED,
   DeliveryStatus.PICKED_UP,
@@ -49,15 +65,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       updatedAt: now,
     };
     this.rows.push(rec);
-    return structuredClone(rec);
+    return clone(rec);
   }
   async findById(id: string): Promise<DeliveryRecord | null> {
     const row = this.rows.find((r) => r.id === id);
-    return row ? structuredClone(row) : null;
+    return row ? clone(row) : null;
   }
   async findByOrder(orderId: string): Promise<DeliveryRecord | null> {
     const row = this.rows.find((r) => r.orderId === orderId);
-    return row ? structuredClone(row) : null;
+    return row ? clone(row) : null;
   }
   async countActiveByDriver(driverId: string): Promise<number> {
     return this.rows.filter((r) => r.driverId === driverId && ACTIVE.includes(r.status)).length;
@@ -69,14 +85,14 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
     const start = (query.page - 1) * query.limit;
     return {
-      items: all.slice(start, start + query.limit).map((r) => structuredClone(r)),
+      items: all.slice(start, start + query.limit).map((r) => clone(r)),
       total: all.length,
     };
   }
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, { lastLat: lat, lastLng: lng, lastLocationAt: nextDate(), updatedAt: nextDate() });
-    return structuredClone(row);
+    return clone(row);
   }
   async applyStatus(
     id: string,
@@ -88,7 +104,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, timestamps, { status, updatedAt: nextDate() });
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
-    return structuredClone(row);
+    return clone(row);
   }
   async completeWithProof(
     id: string,
@@ -102,7 +118,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.updatedAt = now;
     row.proof = { ...proof, capturedAt: now };
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
-    return structuredClone(row);
+    return clone(row);
   }
   async slaStats(
     range: ReportRange,

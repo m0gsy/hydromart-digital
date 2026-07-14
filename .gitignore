@@ -45,3 +45,7 @@ temp/
 
 # Stray unrelated file (flagged for user review — not part of this project)
 .claude/Create a single integrated CSV name.txt
+
+# Local-disk storage adapter upload scratch (dev only)
+var/
+**/var/uploads/
