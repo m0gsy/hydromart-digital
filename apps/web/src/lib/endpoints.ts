@@ -66,6 +66,12 @@ export const endpoints = {
       return `/products/api/v1/products${qs ? `?${qs}` : ''}`;
     },
     get: (id: string) => `/products/api/v1/products/${id}`,
+    // Admin CRUD (DEPOT_MANAGER / SUPER_ADMIN).
+    create: '/products/api/v1/products',
+    update: (id: string) => `/products/api/v1/products/${id}`,
+    remove: (id: string) => `/products/api/v1/products/${id}`,
+    // Multipart product-image upload (admin); returns { url } to store as imageUrl.
+    uploadImage: '/products/api/v1/products/images',
     // Public active-category list (no pagination) → Category[].
     categories: '/products/api/v1/categories',
   },
