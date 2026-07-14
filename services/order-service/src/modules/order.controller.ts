@@ -22,6 +22,7 @@ import {
   Role,
   Roles,
 } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -45,16 +46,6 @@ const FULFILMENT_ROLES = [
   Role.DEPOT_OPERATOR,
   Role.DEPOT_MANAGER,
   Role.DRIVER,
-  Role.SUPER_ADMIN,
-] as const;
-
-// Staff roles permitted to read the cross-customer order queue (adds head-office
-// oversight to the fulfilment roles).
-const STAFF_READ_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.HEAD_OFFICE,
   Role.SUPER_ADMIN,
 ] as const;
 
@@ -120,14 +111,14 @@ export class OrderController {
 
   // Static `manage` routes are declared before `:id` so they are not captured by it.
   @Get('manage')
-  @Roles(...STAFF_READ_ROLES)
+  @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
   listManaged(@Query() query: ListOrdersQueryDto): Promise<Page<OrderRecord>> {
     return this.orders.listAll(query);
   }
 
   @Get('manage/:id')
-  @Roles(...STAFF_READ_ROLES)
+  @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff: read any order by id' })
   getManaged(@Param('id', ParseUUIDPipe) id: string): Promise<OrderRecord> {
     return this.orders.getAny(id);

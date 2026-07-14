@@ -9,6 +9,7 @@ import {
   Role,
   Roles,
 } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { NotificationService } from '../application/services/notification.service';
 import { NotificationDto, SendNotificationDto } from './dto/notification.dto';
@@ -41,7 +42,7 @@ export class NotificationController {
   }
 
   // Staff operational feed (PRD 10d): recent operational alerts (low stock, …).
-  @Roles(Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Roles(...CAPABILITIES.opsNotif)
   @Get('ops')
   @ApiOperation({ summary: 'List recent operational notifications (staff ops center)' })
   @ApiOkResponse({ type: NotificationDto, isArray: true })

@@ -16,6 +16,7 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
+    "@hydromart/access": "*",
     "@hydromart/platform": "*",
     "@nestjs/common": "^10.4.4",
     "@nestjs/config": "^3.2.3",

@@ -1,19 +1,17 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
 
-// Depot staff who assign drivers and oversee deliveries.
-const DISPATCH_ROLES = [Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
-
 @ApiTags('Deliveries (staff)')
 @ApiBearerAuth()
-@Roles(...DISPATCH_ROLES)
+@Roles(...CAPABILITIES.tracking)
 @Controller({ path: 'deliveries', version: '1' })
 export class DeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}

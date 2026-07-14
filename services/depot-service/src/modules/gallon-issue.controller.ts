@@ -1,23 +1,13 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
 import { GallonIssueRecord, GallonIssueSummary } from '../application/ports/gallon-issue.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto';
-
-// Recording an issue is a depot-floor action (operators + managers). Viewing adds
-// head-office oversight and the franchise owner (their own depots). Server-authoritative.
-const ISSUE_WRITE_ROLES = [Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
-const ISSUE_READ_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.HEAD_OFFICE,
-  Role.FRANCHISE_OWNER,
-  Role.SUPER_ADMIN,
-] as const;
 
 /** Empty-gallon issues / deposit held nested under a depot (PRD Module 11c). */
 @ApiTags('Gallon issues')
@@ -26,7 +16,7 @@ const ISSUE_READ_ROLES = [
 export class GallonIssueController {
   constructor(private readonly issues: GallonIssueService) {}
 
-  @Roles(...ISSUE_WRITE_ROLES)
+  @Roles(...CAPABILITIES.returnsWrite)
   @Post()
   @ApiOperation({ summary: 'Record an empty-gallon issue (staff)' })
   record(
@@ -47,14 +37,14 @@ export class GallonIssueController {
   }
 
   // Static `summary` segment declared before the paginated list so the route is unambiguous.
-  @Roles(...ISSUE_READ_ROLES)
+  @Roles(...CAPABILITIES.returnsRead)
   @Get('summary')
   @ApiOperation({ summary: "A depot's issue totals (count, gallons, deposit held)" })
   summary(@Param('depotId', ParseUUIDPipe) depotId: string): Promise<GallonIssueSummary> {
     return this.issues.summary(depotId);
   }
 
-  @Roles(...ISSUE_READ_ROLES)
+  @Roles(...CAPABILITIES.returnsRead)
   @Get()
   @ApiOperation({ summary: "List a depot's gallon issues (paginated, newest first)" })
   list(

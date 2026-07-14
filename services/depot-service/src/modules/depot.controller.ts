@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
@@ -24,8 +25,6 @@ import {
   NearbyDepotsQueryDto,
   UpdateDepotDto,
 } from './dto/depot.dto';
-
-const DEPOT_ADMIN_ROLES = [Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Depots')
 @Controller({ path: 'depots', version: '1' })
@@ -50,7 +49,7 @@ export class DepotController {
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
   @ApiBearerAuth()
-  @Roles(...DEPOT_ADMIN_ROLES)
+  @Roles(...CAPABILITIES.depotAdmin)
   @Get('manage')
   @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
   manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
@@ -75,7 +74,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...DEPOT_ADMIN_ROLES)
+  @Roles(...CAPABILITIES.depotAdmin)
   @Post()
   @ApiOperation({ summary: 'Create a depot (admin)' })
   create(@Body() dto: CreateDepotDto): Promise<DepotRecord> {
@@ -98,7 +97,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...DEPOT_ADMIN_ROLES)
+  @Roles(...CAPABILITIES.depotAdmin)
   @Patch(':id')
   @ApiOperation({ summary: 'Update a depot: hours, delivery zone/fee, holidays (admin)' })
   update(
@@ -109,7 +108,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...DEPOT_ADMIN_ROLES)
+  @Roles(...CAPABILITIES.depotAdmin)
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a depot (soft delete, admin)' })

@@ -12,6 +12,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { InventoryService, ItemView } from '../application/services/inventory.service';
 import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
@@ -25,7 +26,6 @@ import {
   UpdateInventoryItemDto,
 } from './dto/inventory.dto';
 
-const INVENTORY_WRITE_ROLES = [Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 // Stock consumption is triggered by order completion, which a driver can perform,
 // so the forwarded completing-staff token may be a DRIVER.
 const INVENTORY_CONSUME_ROLES = [
@@ -45,12 +45,6 @@ const INVENTORY_RESERVE_ROLES = [
   Role.DRIVER,
   Role.SUPER_ADMIN,
 ] as const;
-const INVENTORY_READ_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.HEAD_OFFICE,
-  Role.SUPER_ADMIN,
-] as const;
 
 /** Stock lines nested under a depot (create + list). */
 @ApiTags('Inventory')
@@ -62,7 +56,7 @@ export class DepotInventoryController {
     private readonly pricing: PricingService,
   ) {}
 
-  @Roles(...INVENTORY_WRITE_ROLES)
+  @Roles(...CAPABILITIES.inventoryWrite)
   @Post()
   @ApiOperation({ summary: 'Add a stock line to a depot (staff)' })
   create(
@@ -102,7 +96,7 @@ export class DepotInventoryController {
     return this.pricing.resolvePrices(depotId, ids);
   }
 
-  @Roles(...INVENTORY_READ_ROLES)
+  @Roles(...CAPABILITIES.inventoryRead)
   @Get()
   @ApiOperation({ summary: "List a depot's stock lines (staff)" })
   list(
@@ -158,21 +152,21 @@ export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
 
   // Declared before ':itemId' so the static segment wins the route match.
-  @Roles(...INVENTORY_READ_ROLES)
+  @Roles(...CAPABILITIES.inventoryRead)
   @Get('low-stock')
   @ApiOperation({ summary: 'List low-stock lines, optionally for one depot (FR-074)' })
   lowStock(@Query('depotId') depotId?: string): Promise<ItemView[]> {
     return this.inventory.listLowStock(depotId);
   }
 
-  @Roles(...INVENTORY_READ_ROLES)
+  @Roles(...CAPABILITIES.inventoryRead)
   @Get(':itemId')
   @ApiOperation({ summary: 'Get a stock line by id (staff)' })
   get(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<ItemView> {
     return this.inventory.get(itemId);
   }
 
-  @Roles(...INVENTORY_WRITE_ROLES)
+  @Roles(...CAPABILITIES.inventoryWrite)
   @Patch(':itemId')
   @ApiOperation({ summary: 'Update a stock line label/unit/minimum (staff)' })
   update(
@@ -182,7 +176,7 @@ export class InventoryController {
     return this.inventory.updateMeta(itemId, dto);
   }
 
-  @Roles(...INVENTORY_WRITE_ROLES)
+  @Roles(...CAPABILITIES.inventoryWrite)
   @Post(':itemId/adjust')
   @ApiOperation({ summary: 'Adjust stock by a signed delta (FR-072, staff)' })
   adjust(
@@ -194,7 +188,7 @@ export class InventoryController {
     return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub, authorization);
   }
 
-  @Roles(...INVENTORY_WRITE_ROLES)
+  @Roles(...CAPABILITIES.inventoryWrite)
   @Post(':itemId/opname')
   @ApiOperation({ summary: 'Reconcile stock to a physical count (FR-073, staff)' })
   opname(
@@ -206,7 +200,7 @@ export class InventoryController {
     return this.inventory.opname(itemId, dto.countedQuantity, dto.reason ?? null, user.sub, authorization);
   }
 
-  @Roles(...INVENTORY_READ_ROLES)
+  @Roles(...CAPABILITIES.inventoryRead)
   @Get(':itemId/movements')
   @ApiOperation({ summary: 'Stock movement history for a line (staff)' })
   movements(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<StockMovementRecord[]> {

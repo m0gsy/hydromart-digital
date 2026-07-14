@@ -3,7 +3,6 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
-import { Role } from '../domain/role.enum';
 import { ROLES_KEY } from './decorators';
 
 /** Enforces @Roles(...). No decorator ⇒ no restriction. Runs after JwtAuthGuard. */
@@ -12,7 +11,7 @@ export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const required = this.reflector.getAllAndOverride<Role[] | undefined>(ROLES_KEY, [
+    const required = this.reflector.getAllAndOverride<readonly string[] | undefined>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);

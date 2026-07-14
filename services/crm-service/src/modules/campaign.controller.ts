@@ -12,7 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
 import { CampaignService } from '../application/services/campaign.service';
 import {
@@ -22,18 +23,13 @@ import {
   CreateCampaignDto,
 } from './dto/campaign.dto';
 
-// Marketing owns broadcast campaigns; SUPER_ADMIN can act everywhere. HEAD_OFFICE gets
-// read-only visibility for oversight.
-const WRITE_ROLES = [Role.MARKETING, Role.SUPER_ADMIN] as const;
-const READ_ROLES = [Role.MARKETING, Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
-
 @ApiTags('Campaigns')
 @ApiBearerAuth()
 @Controller({ path: 'campaigns', version: '1' })
 export class CampaignController {
   constructor(private readonly campaigns: CampaignService) {}
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...CAPABILITIES.campaignWrite)
   @Post()
   @ApiOperation({ summary: 'Create a draft broadcast campaign — explicit list or segment (FR-087/088/094)' })
   async create(
@@ -52,21 +48,21 @@ export class CampaignController {
     return CampaignDto.from(campaign);
   }
 
-  @Roles(...READ_ROLES)
+  @Roles(...CAPABILITIES.campaignRead)
   @Get()
   @ApiOperation({ summary: 'List broadcast campaigns (paginated)' })
   async list(@Query() query: CampaignPageQueryDto): Promise<CampaignListDto> {
     return CampaignListDto.from(await this.campaigns.list(query.page, query.limit));
   }
 
-  @Roles(...READ_ROLES)
+  @Roles(...CAPABILITIES.campaignRead)
   @Get(':id')
   @ApiOperation({ summary: 'Get a campaign with its recipients' })
   async get(@Param('id', ParseUUIDPipe) id: string): Promise<CampaignDto> {
     return CampaignDto.from(await this.campaigns.get(id));
   }
 
-  @Roles(...WRITE_ROLES)
+  @Roles(...CAPABILITIES.campaignWrite)
   @Post(':id/send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dispatch a draft campaign to all recipients (FR-094)' })
