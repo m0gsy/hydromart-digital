@@ -15,6 +15,13 @@ export const envValidationSchema = Joi.object({
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   MAX_ACTIVE_DELIVERIES_PER_DRIVER: Joi.number().integer().positive().default(1),
   DELIVERY_SLA_MINUTES: Joi.number().integer().positive().default(120),
+  // Root dir the local-disk storage adapter writes uploads under (dev). Ignored
+  // once a cloud storage adapter is wired.
+  STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
+  // Public base URL uploaded files are reachable at; returned URLs are
+  // `${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`. Dev default = this service direct.
+  // Prod (behind the gateway) or R2 sets this to the real public origin.
+  STORAGE_PUBLIC_BASE_URL: Joi.string().uri().default('http://localhost:3006'),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

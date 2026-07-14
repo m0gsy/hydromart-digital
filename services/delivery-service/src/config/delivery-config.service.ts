@@ -37,4 +37,12 @@ export class DeliveryConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  get storageLocalDir(): string {
+    return this.config.get<string>('STORAGE_LOCAL_DIR', './var/uploads');
+  }
+  get storagePublicBaseUrl(): string {
+    return this.config
+      .get<string>('STORAGE_PUBLIC_BASE_URL', 'http://localhost:3006')
+      .replace(/\/+$/, '');
+  }
 }
