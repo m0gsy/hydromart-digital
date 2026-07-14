@@ -16,7 +16,7 @@ import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
+import type { DepotAdmin, Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
 // White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
 // keeps it theme-aware (white in light, elevated dark surface in dark).
@@ -50,6 +50,13 @@ function OrderDetailInner({ id }: { id: string }) {
   const { data: payments, reload: reloadPayments } = useAsync<Page<Payment>>(
     () => api.get(endpoints.payments.forOrder(id), true),
     [id],
+  );
+  // The routed depot's payment destination (bank / static QRIS), shown when a
+  // transfer/QRIS payment is still pending. Public GET, fail-soft (null on error).
+  const depotId = order?.depotId ?? null;
+  const { data: depot } = useAsync<DepotAdmin | null>(
+    () => (depotId ? api.get(endpoints.depots.detail(depotId)) : Promise.resolve(null)),
+    [depotId],
   );
 
   const [action, setAction] = useState<string | null>(null);
@@ -245,6 +252,52 @@ function OrderDetailInner({ id }: { id: string }) {
               )}
             </div>
           </div>
+
+          {/* Direct-to-depot payment instructions: bank transfer / static QRIS, shown
+              while the payment is pending. Money goes to the depot; staff confirm manually. */}
+          {payment &&
+            payment.status === 'PENDING' &&
+            (payment.method === 'TRANSFER' || payment.method === 'QRIS') &&
+            depot && (
+              <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
+                <h2 className="text-base font-extrabold">
+                  {payment.method === 'QRIS' ? 'Bayar via QRIS' : 'Bayar via transfer'}
+                </h2>
+                {payment.method === 'TRANSFER' &&
+                  (depot.paymentBankAccountNumber ? (
+                    <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
+                      <p className="text-muted">{depot.paymentBankName ?? 'Bank'}</p>
+                      <p className="font-mono text-lg font-bold tracking-wide">{depot.paymentBankAccountNumber}</p>
+                      {depot.paymentBankAccountHolder && (
+                        <p className="text-muted">a.n. {depot.paymentBankAccountHolder}</p>
+                      )}
+                      <p className="mt-1 font-bold">
+                        Nominal: <Money amount={order.total} />
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted">Depot belum mengatur rekening. Hubungi depot.</p>
+                  ))}
+                {payment.method === 'QRIS' &&
+                  (depot.paymentQrisImageUrl ? (
+                    <div className="flex flex-col items-center gap-2 rounded-2xl border border-app p-4">
+                      <img
+                        src={depot.paymentQrisImageUrl}
+                        alt={`QRIS ${depot.name}`}
+                        className="h-56 w-56 rounded-xl object-contain"
+                      />
+                      <p className="text-sm font-bold">
+                        Nominal: <Money amount={order.total} />
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted">Depot belum mengatur QRIS. Hubungi depot.</p>
+                  ))}
+                <p className="text-[12.5px] text-muted">
+                  Pembayaran masuk langsung ke {depot.name}. Status berubah menjadi lunas setelah staf mengonfirmasi.
+                </p>
+              </div>
+            )}
 
           {/* pay form — kept so a still-unpaid order can be settled (spec omits it,
               but dropping it would regress the payment flow). */}

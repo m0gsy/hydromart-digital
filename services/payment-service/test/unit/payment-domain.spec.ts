@@ -8,11 +8,12 @@ import {
 
 describe('Payment domain', () => {
   it('classifies online vs offline methods', () => {
-    expect(isOnlineMethod(PaymentMethod.QRIS)).toBe(true);
     expect(isOnlineMethod(PaymentMethod.EWALLET)).toBe(true);
     expect(isOnlineMethod(PaymentMethod.VA)).toBe(true);
     expect(isOnlineMethod(PaymentMethod.CASH)).toBe(false);
     expect(isOnlineMethod(PaymentMethod.TRANSFER)).toBe(false);
+    // QRIS is a direct-to-depot manual method (static QRIS confirmed by staff), not gateway.
+    expect(isOnlineMethod(PaymentMethod.QRIS)).toBe(false);
   });
 
   it('allows only legal status transitions', () => {

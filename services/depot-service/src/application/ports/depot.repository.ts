@@ -26,6 +26,10 @@ export interface DepotRecord {
   deliveryFee: number;
   minOrderAmount: number | null;
   ownerId: string | null;
+  paymentBankName: string | null;
+  paymentBankAccountNumber: string | null;
+  paymentBankAccountHolder: string | null;
+  paymentQrisImageUrl: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
   active: boolean;
@@ -55,6 +59,10 @@ export interface CreateDepotData {
   deliveryFee: number;
   minOrderAmount: number | null;
   ownerId: string | null;
+  paymentBankName?: string | null;
+  paymentBankAccountNumber?: string | null;
+  paymentBankAccountHolder?: string | null;
+  paymentQrisImageUrl?: string | null;
   operatingHours: OperatingHours;
   holidays: Holiday[];
 }

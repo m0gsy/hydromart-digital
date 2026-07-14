@@ -242,6 +242,10 @@ export class PaymentService {
         return 'Pay with cash to the driver on delivery.';
       case PaymentMethod.TRANSFER:
         return 'Transfer to the depot bank account and keep your receipt.';
+      case PaymentMethod.QRIS:
+        // Static QRIS displayed at the depot, paid directly to the depot and
+        // confirmed by staff — no gateway, settles manually like TRANSFER.
+        return 'Scan the depot QRIS and show the payment proof to staff.';
       default:
         return 'Follow the payment instructions from your provider.';
     }

@@ -43,10 +43,19 @@ describe('PaymentService', () => {
   });
 
   it('initiates an online payment with a gateway charge and reference', async () => {
-    const payment = await initiate(PaymentMethod.QRIS);
+    const payment = await initiate(PaymentMethod.VA);
     expect(payment.status).toBe(PaymentStatus.PENDING);
     expect(payment.reference).toMatch(/^REF-/);
     expect(gateway.charges).toHaveLength(1);
+  });
+
+  // QRIS is a manual/direct-to-depot method: depots use their own static QRIS
+  // paid directly to the depot and settled by staff via confirm — no gateway.
+  it('initiates a QRIS payment as PENDING with no gateway call', async () => {
+    const payment = await initiate(PaymentMethod.QRIS);
+    expect(payment.status).toBe(PaymentStatus.PENDING);
+    expect(payment.reference).toBeNull();
+    expect(gateway.charges).toHaveLength(0);
   });
 
   it('fails closed and marks the payment FAILED when the gateway errors', async () => {
@@ -73,7 +82,7 @@ describe('PaymentService', () => {
   });
 
   it('refunds a paid online payment via the gateway (BR: online-paid cancel needs refund)', async () => {
-    const payment = await initiate(PaymentMethod.QRIS);
+    const payment = await initiate(PaymentMethod.VA);
     await service.confirm(payment.id, 'staff');
     const refunded = await service.refund(payment.id, 'finance', 'order cancelled');
     expect(refunded.status).toBe(PaymentStatus.REFUNDED);
@@ -96,7 +105,7 @@ describe('PaymentService', () => {
   });
 
   it('settles a payment from a validly-signed webhook', async () => {
-    const payment = await initiate(PaymentMethod.QRIS);
+    const payment = await initiate(PaymentMethod.VA);
     const reference = payment.reference!;
     const signature = createHmac('sha256', WEBHOOK_SECRET)
       .update(`${reference}.PAID`)
@@ -109,7 +118,7 @@ describe('PaymentService', () => {
   });
 
   it('does not confirm the order when a webhook settles FAILED', async () => {
-    const payment = await initiate(PaymentMethod.QRIS);
+    const payment = await initiate(PaymentMethod.VA);
     const reference = payment.reference!;
     const signature = createHmac('sha256', WEBHOOK_SECRET)
       .update(`${reference}.FAILED`)
@@ -121,7 +130,7 @@ describe('PaymentService', () => {
   });
 
   it('rejects a webhook with a bad signature', async () => {
-    const payment = await initiate(PaymentMethod.QRIS);
+    const payment = await initiate(PaymentMethod.VA);
     await expect(
       service.handleWebhook({
         reference: payment.reference!,

@@ -120,7 +120,7 @@ describe('Payment HTTP flows (e2e)', () => {
     const created = await request(server())
       .post('/api/v1/payments')
       .set(auth(customerToken))
-      .send({ orderId: randomUUID(), method: 'QRIS', amount: 30000 })
+      .send({ orderId: randomUUID(), method: 'VA', amount: 30000 })
       .expect(201);
     const reference = created.body.reference as string;
     const signature = createHmac('sha256', webhookSecret).update(`${reference}.PAID`).digest('hex');

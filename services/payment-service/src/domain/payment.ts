@@ -18,9 +18,12 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
 }
 
-/** Methods settled through the payment gateway (need a charge + reference). */
+/**
+ * Methods settled through the payment gateway (need a charge + reference).
+ * QRIS is NOT online: depots use their own static QRIS paid directly to the
+ * depot and confirmed by staff, so it settles manually like TRANSFER.
+ */
 const ONLINE_METHODS: readonly PaymentMethod[] = [
-  PaymentMethod.QRIS,
   PaymentMethod.EWALLET,
   PaymentMethod.VA,
 ];

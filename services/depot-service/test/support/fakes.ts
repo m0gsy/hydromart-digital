@@ -73,7 +73,17 @@ export class InMemoryDepotRepository implements DepotRepository {
   }
   async create(data: CreateDepotData): Promise<DepotRecord> {
     const now = nextDate();
-    const rec: DepotRecord = { ...data, id: randomUUID(), active: true, createdAt: now, updatedAt: now };
+    const rec: DepotRecord = {
+      ...data,
+      paymentBankName: data.paymentBankName ?? null,
+      paymentBankAccountNumber: data.paymentBankAccountNumber ?? null,
+      paymentBankAccountHolder: data.paymentBankAccountHolder ?? null,
+      paymentQrisImageUrl: data.paymentQrisImageUrl ?? null,
+      id: randomUUID(),
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.rows.push(rec);
     return { ...rec };
   }

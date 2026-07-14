@@ -63,6 +63,13 @@ model Depot {
   minOrderAmount Decimal?      @db.Decimal(12, 2)
   /// Franchise owner (account id) who manages this depot. Null = unassigned / company-run.
   ownerId        String?       @db.Uuid
+  /// Per-depot payment destination shown to a paying customer (franchise model: money goes
+  /// direct to each depot, manually confirmed, no gateway). All optional until an owner sets them.
+  paymentBankName          String?
+  paymentBankAccountNumber String?
+  paymentBankAccountHolder String?
+  /// URL of the depot's static QRIS image.
+  paymentQrisImageUrl      String?
   /// Weekly operating hours (FR-076): { mon: {open,close}, ... }.
   operatingHours Json          @default("{}")
   /// Closure dates (FR-080): [{ date: "2026-08-17", label?: "..." }].

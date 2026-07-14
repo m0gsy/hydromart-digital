@@ -27,6 +27,10 @@ interface DepotRow {
   deliveryFee: { toNumber(): number };
   minOrderAmount: { toNumber(): number } | null;
   ownerId: string | null;
+  paymentBankName: string | null;
+  paymentBankAccountNumber: string | null;
+  paymentBankAccountHolder: string | null;
+  paymentQrisImageUrl: string | null;
   operatingHours: unknown;
   holidays: unknown;
   active: boolean;

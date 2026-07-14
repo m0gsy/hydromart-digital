@@ -32,6 +32,10 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     serviceRadiusKm: String(d.serviceRadiusKm),
     deliveryFee: String(d.deliveryFee),
     minOrderAmount: d.minOrderAmount == null ? '' : String(d.minOrderAmount),
+    paymentBankName: d.paymentBankName ?? '',
+    paymentBankAccountNumber: d.paymentBankAccountNumber ?? '',
+    paymentBankAccountHolder: d.paymentBankAccountHolder ?? '',
+    paymentQrisImageUrl: d.paymentQrisImageUrl ?? '',
   };
 }
 
@@ -101,6 +105,27 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
         <Field label="Min order (IDR)" htmlFor="d-min" hint="Blank = no minimum">
           <Input id="d-min" inputMode="numeric" value={form.minOrderAmount} onChange={set('minOrderAmount')} placeholder="20000" />
         </Field>
+      </div>
+
+      <div className="border-t border-app pt-3">
+        <p className="mb-1 text-sm font-semibold">Info pembayaran depot</p>
+        <p className="mb-3 text-xs text-muted">
+          Ditampilkan ke pelanggan saat bayar transfer/QRIS. Uang masuk langsung ke depot; staf konfirmasi manual.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Nama bank" htmlFor="d-bank" hint="mis. BCA">
+            <Input id="d-bank" value={form.paymentBankName} onChange={set('paymentBankName')} placeholder="BCA" />
+          </Field>
+          <Field label="Nomor rekening" htmlFor="d-acc">
+            <Input id="d-acc" inputMode="numeric" value={form.paymentBankAccountNumber} onChange={set('paymentBankAccountNumber')} placeholder="1234567890" />
+          </Field>
+          <Field label="Atas nama" htmlFor="d-holder">
+            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder="Depot Cikini" />
+          </Field>
+          <Field label="URL gambar QRIS" htmlFor="d-qris" hint="Link gambar QRIS statik depot">
+            <Input id="d-qris" value={form.paymentQrisImageUrl} onChange={set('paymentQrisImageUrl')} placeholder="https://…/qris.png" />
+          </Field>
+        </div>
       </div>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">

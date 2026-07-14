@@ -15,6 +15,10 @@ export interface DepotForm {
   serviceRadiusKm: string;
   deliveryFee: string;
   minOrderAmount: string;
+  paymentBankName: string;
+  paymentBankAccountNumber: string;
+  paymentBankAccountHolder: string;
+  paymentQrisImageUrl: string;
 }
 
 export const EMPTY_DEPOT_FORM: DepotForm = {
@@ -29,6 +33,10 @@ export const EMPTY_DEPOT_FORM: DepotForm = {
   serviceRadiusKm: '',
   deliveryFee: '',
   minOrderAmount: '',
+  paymentBankName: '',
+  paymentBankAccountNumber: '',
+  paymentBankAccountHolder: '',
+  paymentQrisImageUrl: '',
 };
 
 function numOrNull(v: string): number | null {
@@ -70,6 +78,11 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
     lng,
     deliveryFee,
     minOrderAmount: numOrNull(form.minOrderAmount),
+    // Blank → null clears the field (empties allowed; payment info is optional).
+    paymentBankName: form.paymentBankName.trim() || null,
+    paymentBankAccountNumber: form.paymentBankAccountNumber.trim() || null,
+    paymentBankAccountHolder: form.paymentBankAccountHolder.trim() || null,
+    paymentQrisImageUrl: form.paymentQrisImageUrl.trim() || null,
   };
   const radius = numOrNull(form.serviceRadiusKm);
   if (form.serviceRadiusKm.trim() !== '') {

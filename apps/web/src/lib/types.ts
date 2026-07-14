@@ -600,8 +600,17 @@ export interface PayoutSummary {
   recentWithdrawals: Withdrawal[];
 }
 
+// Per-depot payment destination (franchise: money goes direct to each depot).
+// Static QRIS + bank account shown to the customer at pay time; confirmed by staff.
+export interface DepotPaymentInfo {
+  paymentBankName: string | null;
+  paymentBankAccountNumber: string | null;
+  paymentBankAccountHolder: string | null;
+  paymentQrisImageUrl: string | null;
+}
+
 // Full admin record (from GET /depots/manage) + the create/update payload shape.
-export interface DepotAdmin extends Depot {
+export interface DepotAdmin extends Depot, DepotPaymentInfo {
   ownershipType: string;
   address: string;
   province: string;
@@ -636,6 +645,10 @@ export interface DepotPayload {
   deliveryFee: number;
   minOrderAmount: number | null;
   serviceRadiusKm?: number;
+  paymentBankName?: string | null;
+  paymentBankAccountNumber?: string | null;
+  paymentBankAccountHolder?: string | null;
+  paymentQrisImageUrl?: string | null;
 }
 
 // Delivery (delivery-service). Live-tracking slice consumed by the ops console.

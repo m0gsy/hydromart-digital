@@ -17,6 +17,10 @@ const base = (over: Partial<CreateDepotData> = {}): CreateDepotData => ({
   deliveryFee: 5000,
   minOrderAmount: null,
   ownerId: over.ownerId ?? null,
+  paymentBankName: over.paymentBankName,
+  paymentBankAccountNumber: over.paymentBankAccountNumber,
+  paymentBankAccountHolder: over.paymentBankAccountHolder,
+  paymentQrisImageUrl: over.paymentQrisImageUrl,
   operatingHours: {},
   holidays: [],
 });
@@ -78,6 +82,34 @@ describe('DepotService', () => {
     const next = '22222222-2222-4222-8222-222222222222';
     const updated = await service.update(d.id, { ownerId: next });
     expect(updated.ownerId).toBe(next);
+  });
+
+  it('round-trips per-depot payment destination fields through create and read', async () => {
+    const d = await service.create(
+      base({
+        paymentBankName: 'BCA',
+        paymentBankAccountNumber: '1234567890',
+        paymentBankAccountHolder: 'PT Air Segar',
+        paymentQrisImageUrl: 'https://cdn.example/qris/jkt-01.png',
+      }),
+    );
+    expect(d.paymentBankName).toBe('BCA');
+    expect(d.paymentBankAccountNumber).toBe('1234567890');
+    expect(d.paymentBankAccountHolder).toBe('PT Air Segar');
+    expect(d.paymentQrisImageUrl).toBe('https://cdn.example/qris/jkt-01.png');
+
+    // Public get (activeOnly) must expose them — the customer pays this depot directly.
+    const publicGet = await service.get(d.id, true);
+    expect(publicGet.paymentBankName).toBe('BCA');
+    expect(publicGet.paymentQrisImageUrl).toBe('https://cdn.example/qris/jkt-01.png');
+
+    const updated = await service.update(d.id, { paymentBankName: 'Mandiri' });
+    expect(updated.paymentBankName).toBe('Mandiri');
+
+    // Unset fields default to null, not undefined.
+    const bare = await service.create(base({ code: 'BARE-1' }));
+    expect(bare.paymentBankName).toBeNull();
+    expect(bare.paymentQrisImageUrl).toBeNull();
   });
 
   it('listMine returns only the owner\'s depots (active and inactive), excluding others', async () => {

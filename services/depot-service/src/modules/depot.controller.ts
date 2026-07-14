@@ -91,6 +91,10 @@ export class DepotController {
       deliveryFee: dto.deliveryFee,
       minOrderAmount: dto.minOrderAmount ?? null,
       ownerId: dto.ownerId ?? null,
+      paymentBankName: dto.paymentBankName ?? null,
+      paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,
+      paymentBankAccountHolder: dto.paymentBankAccountHolder ?? null,
+      paymentQrisImageUrl: dto.paymentQrisImageUrl ?? null,
       operatingHours: dto.operatingHours ?? {},
       holidays: dto.holidays ?? [],
     });

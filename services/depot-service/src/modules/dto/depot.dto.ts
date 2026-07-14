@@ -132,6 +132,30 @@ export class CreateDepotDto {
   @IsUUID()
   ownerId?: string;
 
+  @ApiPropertyOptional({ description: "Depot's bank name for direct payment.", example: 'BCA' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentBankName?: string;
+
+  @ApiPropertyOptional({ description: "Depot's bank account number.", example: '1234567890' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentBankAccountNumber?: string;
+
+  @ApiPropertyOptional({ description: "Depot's bank account holder name." })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  paymentBankAccountHolder?: string;
+
+  @ApiPropertyOptional({ description: "URL of the depot's static QRIS image." })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  paymentQrisImageUrl?: string;
+
   // ponytail: JSON blobs validated shallowly (shape documented in schema.prisma); tighten to
   // nested DTOs if operators start submitting malformed hours/holidays.
   @ApiPropertyOptional({
