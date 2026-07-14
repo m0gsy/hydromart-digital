@@ -103,6 +103,34 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 }
 
+/**
+ * Multipart upload (always authenticated). The JSON `api` helpers force a JSON
+ * Content-Type, so file uploads need this path: it lets the browser set the
+ * multipart boundary and attaches the bearer token. No 401 refresh-retry — the
+ * caller loads its data with `api` first, so the token is already fresh.
+ */
+export async function uploadFile(path: string, file: File | Blob): Promise<{ url: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  const token = getSession()?.accessToken;
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+  } catch {
+    throw new ApiError(0, messageFrom(0, null));
+  }
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : undefined;
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  return data as { url: string };
+}
+
 export const api = {
   get: <T>(path: string, auth = false) => request<T>(path, { auth }),
   post: <T>(path: string, body?: unknown, auth = false) =>

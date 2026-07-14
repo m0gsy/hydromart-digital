@@ -107,6 +107,18 @@ export const endpoints = {
     },
     // Assign a courier to an order (dispatch); advances the order to DRIVER_ASSIGNED.
     assign: '/deliveries/api/v1/deliveries',
+    // Driver-facing: a driver only ever sees and acts on their own deliveries.
+    driver: {
+      list: (status?: string) => {
+        const base = '/deliveries/api/v1/driver/deliveries';
+        return status ? `${base}?status=${status}` : base;
+      },
+      pickup: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/pickup`,
+      start: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/start`,
+      complete: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/complete`,
+      // Multipart PoD upload (photo + signature); returns { url }.
+      upload: '/deliveries/api/v1/driver/deliveries/uploads',
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',
