@@ -33,8 +33,11 @@ export const envValidationSchema = Joi.object({
   // / any S3-compatible endpoint, prod). The five STORAGE_S3_* keys below are
   // required only when this is 's3'.
   STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
-  // R2: endpoint = https://<account>.r2.cloudflarestorage.com, region = 'auto', and
-  // STORAGE_PUBLIC_BASE_URL = the bucket's public URL (r2.dev or a bound domain).
+  // BiznetGio NEO (primary): endpoint = https://nos.jkt-1.neo.id, bucket =
+  // hydromart-pod, region = jkt-1, STORAGE_PUBLIC_BASE_URL =
+  // https://nos.jkt-1.neo.id/hydromart-pod (bucket must be public-read).
+  // Cloudflare R2 alt: endpoint = https://<account>.r2.cloudflarestorage.com,
+  // region = auto, STORAGE_PUBLIC_BASE_URL = the r2.dev / bound-domain URL.
   STORAGE_S3_ENDPOINT: Joi.string()
     .uri()
     .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),

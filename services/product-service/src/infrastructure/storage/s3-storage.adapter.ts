@@ -7,10 +7,11 @@ import { ProductConfigService } from '../../config/product-config.service';
 import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
 
 /**
- * Production storage: Cloudflare R2 (S3-compatible) via @aws-sdk/client-s3. Same
+ * Production storage: S3-compatible object storage via @aws-sdk/client-s3. Same
  * StoragePort as the local-disk dev adapter — the app never knows which is bound.
- * Path-style addressing keeps it working against any S3-compatible endpoint
- * (R2, BiznetGio NEO, MinIO) without per-bucket DNS. The returned URL is the
+ * Primary target is BiznetGio NEO (Ceph RGW, endpoint https://nos.jkt-1.neo.id);
+ * Cloudflare R2 and MinIO work through the same code. Path-style addressing keeps
+ * it working against any of them without per-bucket DNS. The returned URL is the
  * object's public URL (`${STORAGE_PUBLIC_BASE_URL}/<key>`), so the bucket (or its
  * bound public domain) must serve `products/*` publicly.
  */

@@ -19,8 +19,10 @@ export const envValidationSchema = Joi.object({
       then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
       otherwise: Joi.string().uri().default('http://localhost:3003'),
     }),
-  // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (Cloudflare R2
+  // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (BiznetGio NEO
   // / any S3-compatible endpoint, prod). The STORAGE_S3_* keys are required when 's3'.
+  // NEO (primary): endpoint = https://nos.jkt-1.neo.id, bucket = hydromart-products,
+  // region = jkt-1, STORAGE_PUBLIC_BASE_URL = https://nos.jkt-1.neo.id/hydromart-products.
   STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
   STORAGE_S3_ENDPOINT: Joi.string()
     .uri()
