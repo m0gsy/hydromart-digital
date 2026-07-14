@@ -17,10 +17,14 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "ERROR: build arg NEXT_PUBLIC_API_URL is required (the PUBLIC gateway origin, e.g. https://api.example.com or http://<vps-ip>:8080)." >&2 && false)
 ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID=
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
-# Install against the root lockfile (workspaces), then build only @hydromart/web.
-COPY package.json package-lock.json ./
+# Install against the root lockfile (workspaces), then build the shared RBAC
+# package (roles.ts imports @hydromart/access) and only @hydromart/web.
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY packages/access/package.json ./packages/access/
 COPY apps/web/package.json ./apps/web/
 RUN npm ci --include-workspace-root
+COPY packages/access ./packages/access
+RUN npm run build -w @hydromart/access
 COPY apps/web ./apps/web
 RUN npm run build -w @hydromart/web
 
