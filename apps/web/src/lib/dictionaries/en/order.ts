@@ -96,6 +96,29 @@ export const order: typeof base = {
     payError: 'Could not start payment.',
     cancelError: 'Could not cancel the order.',
     repeatError: 'Could not add these items again.',
+    // Payment instruction sheets (spec 5e)
+    copy: 'Copy',
+    copied: 'Copied',
+    nominal: 'Amount',
+    vaTitle: 'Virtual account',
+    ewalletTitle: 'E-wallet',
+    transferAck: 'Already transferred? The status turns to paid once depot staff confirm.',
+    // Order-success banner (spec 5b)
+    successTitle: 'Order placed!',
+    successBody: 'The depot is preparing your order. We’ll let you know when the driver leaves.',
+    eta: 'Estimated arrival',
+    etaValue: '±30–45 min',
+    // Cancel-with-reason (spec 10b)
+    cancelTitle: 'Cancel this order?',
+    cancelIntro: 'Still cancellable — the depot hasn’t prepared it yet. Any amount already paid will be refunded.',
+    cancelReasonLabel: 'Reason',
+    cancelConfirm: 'Cancel order',
+    cancelReasons: {
+      wrongOrder: 'Wrong address / order',
+      changedMind: 'Changed my mind',
+      tooSlow: 'Taking too long',
+      other: 'Other',
+    },
   },
   status: {
     CREATED: 'Order placed',

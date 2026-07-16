@@ -12,6 +12,8 @@ export const endpoints = {
     me: '/auth/api/v1/auth/me',
     // PATCH: update own name/email.
     updateProfile: '/auth/api/v1/auth/me',
+    // Multipart avatar-photo upload (self); returns the updated customer.
+    uploadAvatar: '/auth/api/v1/auth/me/avatar',
     // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
     customerLookup: (phone: string) =>
       `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,

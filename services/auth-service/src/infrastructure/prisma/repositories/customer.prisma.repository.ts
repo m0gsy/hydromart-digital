@@ -80,6 +80,7 @@ export class CustomerPrismaRepository implements CustomerRepository {
           role: toPrismaRole(props.role),
           status: toPrismaStatus(props.status),
           googleSub: props.googleSub,
+          avatarUrl: props.avatarUrl,
           phoneVerifiedAt: props.phoneVerifiedAt,
           lastLoginAt: props.lastLoginAt,
         },

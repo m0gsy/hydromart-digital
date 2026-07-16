@@ -86,36 +86,9 @@ function CardHead({ id, title, action }: { id?: string; title: string; action?: 
   );
 }
 
-/* ---------- Profile ---------- */
+/* ---------- Profile (read-only; full editing incl. photo lives at /account/edit) ---------- */
 function ProfileSection({ customer }: { customer: Customer }) {
   const { t, locale } = useT();
-  const { session, signIn } = useAuth();
-  const { toast } = useToast();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(customer.fullName ?? '');
-  const [email, setEmail] = useState(customer.email ?? '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const updated = await api.patch<Customer>(
-        endpoints.auth.updateProfile,
-        { fullName: name.trim(), email: email.trim() || undefined },
-        true,
-      );
-      if (session) signIn({ ...session, customer: updated });
-      toast(t('account.profileCard.saved'), 'success');
-      setEditing(false);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('account.profileCard.saveError'));
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const memberSince = new Date(customer.createdAt).toLocaleDateString(
     locale === 'en' ? 'en-US' : 'id-ID',
@@ -135,44 +108,24 @@ function ProfileSection({ customer }: { customer: Customer }) {
         id="profile"
         title={t('account.profileCard.title')}
         action={
-          !editing ? (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 rounded-full border border-app px-4 py-1.5 text-xs font-extrabold transition-colors hover:border-brand-600 hover:text-brand-700"
-            >
-              <PencilSimple size={14} weight="bold" />
-              {t('account.profileCard.edit')}
-            </button>
-          ) : undefined
+          <Link
+            href="/account/edit"
+            className="flex items-center gap-1.5 rounded-full border border-app px-4 py-1.5 text-xs font-extrabold transition-colors hover:border-brand-600 hover:text-brand-700"
+          >
+            <PencilSimple size={14} weight="bold" />
+            {t('account.profileCard.edit')}
+          </Link>
         }
       />
 
-      {editing ? (
-        <form onSubmit={save} className="flex flex-col gap-4">
-          <Field label={t('account.profileCard.name')} htmlFor="acc-name">
-            <Input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-          </Field>
-          <Field label={`${t('account.profileCard.email')} ${t('account.profileCard.emailOptional')}`} htmlFor="acc-email" error={error ?? undefined}>
-            <Input id="acc-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="nama@email.com" />
-          </Field>
-          <div className="flex gap-2">
-            <Button type="submit" loading={saving}>{t('account.profileCard.save')}</Button>
-            <Button type="button" variant="secondary" onClick={() => { setEditing(false); setError(null); }} disabled={saving}>
-              {t('account.profileCard.cancel')}
-            </Button>
+      <div className="grid grid-cols-2 gap-x-7 gap-y-[18px]">
+        {rows.map((r) => (
+          <div key={r.label} className="min-w-0">
+            <div className="text-xs font-bold uppercase tracking-wide text-muted">{r.label}</div>
+            <div className="mt-1 truncate text-[14.5px] font-bold">{r.value}</div>
           </div>
-        </form>
-      ) : (
-        <div className="grid grid-cols-2 gap-x-7 gap-y-[18px]">
-          {rows.map((r) => (
-            <div key={r.label} className="min-w-0">
-              <div className="text-xs font-bold uppercase tracking-wide text-muted">{r.label}</div>
-              <div className="mt-1 truncate text-[14.5px] font-bold">{r.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
+        ))}
+      </div>
     </section>
   );
 }
@@ -565,6 +518,10 @@ export default function AccountPage() {
             <Link href="/rewards" className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-extrabold text-brand-300">
               <Medal size={14} weight="fill" />
               {t('account.nav.rewards')}
+            </Link>
+            <Link href="/vouchers" className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-extrabold text-brand-300">
+              <Gift size={14} weight="fill" />
+              {t('profile.rewards.wallet.title')}
             </Link>
           </div>
 

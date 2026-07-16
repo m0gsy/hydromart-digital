@@ -27,8 +27,12 @@ import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/con
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
 import { WhatsappOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/whatsapp-otp-delivery.adapter';
 import { CustomerNotificationHttpAdapter } from '../../infrastructure/notification/customer-notification.http.adapter';
+import { LocalDiskStorageAdapter } from '../../infrastructure/storage/local-disk-storage.adapter';
+import { S3StorageAdapter } from '../../infrastructure/storage/s3-storage.adapter';
+import { StoragePort } from '../../application/ports/storage.port';
 import { AccountController } from './account.controller';
 import { AuthController } from './auth.controller';
+import { AvatarController } from './avatar.controller';
 
 /** Binds each application port to its infrastructure adapter (dependency inversion). */
 const adapterProviders: Provider[] = [
@@ -46,6 +50,14 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
   { provide: AUTH_TOKENS.GoogleVerifierPort, useClass: GoogleVerifier },
   { provide: AUTH_TOKENS.CustomerNotificationPort, useClass: CustomerNotificationHttpAdapter },
+  {
+    provide: AUTH_TOKENS.Storage,
+    inject: [AuthConfigService],
+    useFactory: (config: AuthConfigService): StoragePort =>
+      config.storageDriver === 's3'
+        ? new S3StorageAdapter(config)
+        : new LocalDiskStorageAdapter(config),
+  },
   {
     provide: AUTH_TOKENS.OtpDeliveryPort,
     inject: [
@@ -90,7 +102,7 @@ const globalGuards: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController, AccountController],
+  controllers: [AuthController, AccountController, AvatarController],
   providers: [...adapterProviders, ...applicationServices, ...globalGuards],
   exports: [PrismaService, AuthConfigService],
 })

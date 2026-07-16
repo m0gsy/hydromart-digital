@@ -10,6 +10,7 @@ export interface CustomerProps {
   role: Role;
   status: CustomerStatus;
   googleSub: string | null;
+  avatarUrl: string | null;
   phoneVerifiedAt: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -49,6 +50,9 @@ export class Customer {
   }
   get googleSub(): string | null {
     return this.props.googleSub;
+  }
+  get avatarUrl(): string | null {
+    return this.props.avatarUrl;
   }
   get phoneVerifiedAt(): Date | null {
     return this.props.phoneVerifiedAt;
@@ -131,6 +135,11 @@ export class Customer {
 
   recordLogin(now: Date): void {
     this.props.lastLoginAt = now;
+  }
+
+  /** Set the customer's avatar to a freshly uploaded image URL (FR-009). */
+  setAvatar(url: string): void {
+    this.props.avatarUrl = url;
   }
 
   /** Snapshot for persistence mapping. */

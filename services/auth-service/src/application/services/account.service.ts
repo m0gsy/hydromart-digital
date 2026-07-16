@@ -123,6 +123,21 @@ export class AccountService {
     return toPublicCustomer(await this.customers.save(created));
   }
 
+  /**
+   * Set the caller's avatar to a freshly uploaded image URL (FR-009). The upload
+   * itself is handled by the storage port at the controller edge; this only
+   * persists the resulting public URL onto the account.
+   */
+  async setAvatar(customerId: string, url: string): Promise<PublicCustomer> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    customer.setAvatar(url);
+    const saved = await this.customers.save(customer);
+    return toPublicCustomer(saved);
+  }
+
   async listSessions(customerId: string): Promise<SessionInfo[]> {
     return this.sessions.listActive(customerId);
   }

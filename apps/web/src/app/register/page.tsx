@@ -16,8 +16,9 @@ function RegisterForm() {
   const router = useRouter();
   const next = useSearchParams().get('next') ?? '/products';
   const [form, setForm] = useState({ phone: '', fullName: '', email: '' });
-  // ponytail: referral is visual-only — the register endpoint accepts phone/name/email
-  // only, and referral redemption is a separate authenticated call. Not submitted here.
+  // The register endpoint takes phone/name/email only; referral redemption is a
+  // separate authenticated call, so the code rides the OTP flow and is redeemed
+  // on /verify once the new account is signed in.
   const [referral, setReferral] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ function RegisterForm() {
         email: form.email || undefined,
       });
       const params = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
+      if (referral.trim()) params.set('ref', referral.trim());
       router.push(`/verify?${params.toString()}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.register.error'));
@@ -143,7 +145,7 @@ function RegisterForm() {
           />
         </div>
 
-        {/* Referral (optional) — visual only, see state note above. */}
+        {/* Referral (optional) — code is carried to /verify and redeemed post-signup. */}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="referral" className="text-[12.5px] font-bold">
             Kode referral (opsional)

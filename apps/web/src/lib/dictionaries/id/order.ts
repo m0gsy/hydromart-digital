@@ -95,6 +95,29 @@ export const order = {
     payError: 'Tidak bisa memulai pembayaran.',
     cancelError: 'Tidak bisa membatalkan pesanan.',
     repeatError: 'Tidak bisa menambahkan item ini lagi.',
+    // Payment instruction sheets (spec 5e)
+    copy: 'Salin',
+    copied: 'Disalin',
+    nominal: 'Nominal',
+    vaTitle: 'Virtual account',
+    ewalletTitle: 'E-wallet',
+    transferAck: 'Sudah transfer? Status berubah menjadi lunas setelah staf depot mengonfirmasi.',
+    // Order-success banner (spec 5b)
+    successTitle: 'Pesanan berhasil dibuat!',
+    successBody: 'Depot sedang menyiapkan pesananmu. Kami kabari saat kurir berangkat.',
+    eta: 'Estimasi tiba',
+    etaValue: '±30–45 menit',
+    // Cancel-with-reason (spec 10b)
+    cancelTitle: 'Batalkan pesanan?',
+    cancelIntro: 'Masih bisa dibatalkan karena depot belum menyiapkan pesanan. Dana yang sudah dibayar akan direfund.',
+    cancelReasonLabel: 'Alasan',
+    cancelConfirm: 'Batalkan pesanan',
+    cancelReasons: {
+      wrongOrder: 'Salah alamat / pesanan',
+      changedMind: 'Berubah pikiran',
+      tooSlow: 'Terlalu lama',
+      other: 'Lainnya',
+    },
   },
   status: {
     CREATED: 'Dipesan',

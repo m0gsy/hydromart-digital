@@ -1,11 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { use, useEffect, useRef, useState } from 'react';
-import { ArrowsClockwise, CaretRight, Money as MoneyIcon, Star } from '@phosphor-icons/react';
+import {
+  ArrowsClockwise,
+  CaretRight,
+  CheckCircle,
+  Copy,
+  Money as MoneyIcon,
+  Star,
+} from '@phosphor-icons/react';
 
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
+import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton } from '@/components/ui';
@@ -39,6 +47,29 @@ const PAY_BADGE: Record<PaymentStatus, string> = {
   REFUNDED: 'bg-[color:var(--surface-soft)] text-muted',
 };
 
+// Copy-to-clipboard chip for payment references (VA number, bank account). Tiny
+// local helper — the only place the app needs a copy affordance so far.
+function CopyButton({
+  value,
+  onCopy,
+  label,
+}: {
+  value: string;
+  onCopy: (text: string) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onCopy(value)}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-[12px] font-bold text-brand-800 transition-colors hover:bg-brand-100"
+    >
+      <Copy size={13} weight="bold" />
+      {label}
+    </button>
+  );
+}
+
 function OrderDetailInner({ id }: { id: string }) {
   const { t } = useT();
   const router = useRouter();
@@ -62,6 +93,21 @@ function OrderDetailInner({ id }: { id: string }) {
   const [action, setAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
+  // Cancel-with-reason (spec 10b): open the reason sheet, then submit the chosen reason.
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  // One-time success banner right after checkout (spec 5b): gone on any reload
+  // without the ?placed=1 flag, so it never re-shows on a revisit.
+  const placed = useSearchParams().get('placed') === '1';
+
+  async function copy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t('order.detail.copied'));
+    } catch {
+      /* clipboard unavailable (insecure context / denied) — no-op, value is still visible */
+    }
+  }
 
   // Auto-poll while the order is still in flight. Refs keep the latest reloaders
   // without churning the interval; clearInterval on unmount guards state writes.
@@ -101,7 +147,9 @@ function OrderDetailInner({ id }: { id: string }) {
     setAction('cancel');
     setActionError(null);
     try {
-      await api.post(endpoints.orders.cancel(id), {}, true);
+      // Backend CancelOrderDto.reason is optional; send the chosen reason when set.
+      await api.post(endpoints.orders.cancel(id), cancelReason ? { reason: cancelReason } : {}, true);
+      setCancelOpen(false);
       reload();
       toast(t('order.toast.cancelled'));
     } catch (e) {
@@ -132,6 +180,24 @@ function OrderDetailInner({ id }: { id: string }) {
 
   return (
     <div className="mx-auto flex w-full max-w-[1216px] flex-col gap-4">
+      {/* Success banner (spec 5b) — one-time, shown only when arriving from checkout. */}
+      {placed && (
+        <div className={`${PANEL} flex items-center gap-3.5 p-[22px]`} role="status">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[color:var(--success-bg)]">
+            <CheckCircle size={28} weight="fill" className="text-[color:var(--success)]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-extrabold">{t('order.detail.successTitle')}</p>
+            <p className="mt-0.5 text-[13px] text-muted">{t('order.detail.successBody')}</p>
+          </div>
+          <div className="hidden shrink-0 text-right sm:block">
+            <p className="text-[11px] font-bold text-muted">{t('order.detail.eta')}</p>
+            {/* ponytail: static ETA, wire real value when order-service exposes one. */}
+            <p className="text-sm font-extrabold">{t('order.detail.etaValue')}</p>
+          </div>
+        </div>
+      )}
+
       {/* breadcrumb */}
       <div className="flex items-center gap-2 text-[13px] font-semibold text-muted">
         <Link href="/orders" className="transition-colors hover:text-brand-600">
@@ -267,12 +333,15 @@ function OrderDetailInner({ id }: { id: string }) {
                   (depot.paymentBankAccountNumber ? (
                     <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
                       <p className="text-muted">{depot.paymentBankName ?? 'Bank'}</p>
-                      <p className="font-mono text-lg font-bold tracking-wide">{depot.paymentBankAccountNumber}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-mono text-lg font-bold tracking-wide">{depot.paymentBankAccountNumber}</p>
+                        <CopyButton value={depot.paymentBankAccountNumber} onCopy={copy} label={t('order.detail.copy')} />
+                      </div>
                       {depot.paymentBankAccountHolder && (
                         <p className="text-muted">a.n. {depot.paymentBankAccountHolder}</p>
                       )}
                       <p className="mt-1 font-bold">
-                        Nominal: <Money amount={order.total} />
+                        {t('order.detail.nominal')}: <Money amount={order.total} />
                       </p>
                     </div>
                   ) : (
@@ -294,8 +363,35 @@ function OrderDetailInner({ id }: { id: string }) {
                     <p className="text-sm text-muted">Depot belum mengatur QRIS. Hubungi depot.</p>
                   ))}
                 <p className="text-[12.5px] text-muted">
-                  Pembayaran masuk langsung ke {depot.name}. Status berubah menjadi lunas setelah staf mengonfirmasi.
+                  Pembayaran masuk langsung ke {depot.name}. {t('order.detail.transferAck')}
                 </p>
+              </div>
+            )}
+
+          {/* Gateway payment instructions: VA number / e-wallet reference (spec 5e).
+              payment.reference + instruction come from the gateway charge; no depot needed.
+              ponytail: e-wallet is provider-generic (no GoPay/OVO/DANA sub-screen) — the
+              gateway returns one reference/instruction, so a provider chooser would be a no-op. */}
+          {payment &&
+            payment.status === 'PENDING' &&
+            (payment.method === 'VA' || payment.method === 'EWALLET') &&
+            payment.reference && (
+              <div className={`${PANEL} flex flex-col gap-3 p-[22px]`}>
+                <h2 className="text-base font-extrabold">
+                  {payment.method === 'VA' ? t('order.detail.vaTitle') : t('order.detail.ewalletTitle')}
+                </h2>
+                <div className="flex flex-col gap-1 rounded-2xl border border-app p-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-lg font-bold tracking-wide">{payment.reference}</p>
+                    <CopyButton value={payment.reference} onCopy={copy} label={t('order.detail.copy')} />
+                  </div>
+                  <p className="mt-1 font-bold">
+                    {t('order.detail.nominal')}: <Money amount={order.total} />
+                  </p>
+                </div>
+                {payment.instruction && (
+                  <p className="text-[12.5px] text-muted">{payment.instruction}</p>
+                )}
               </div>
             )}
 
@@ -361,8 +457,7 @@ function OrderDetailInner({ id }: { id: string }) {
             {isCancellable(order.status) && (
               <Button
                 variant="secondary"
-                onClick={cancel}
-                loading={action === 'cancel'}
+                onClick={() => setCancelOpen(true)}
                 className="rounded-full hover:border-[color:var(--danger)] hover:text-[color:var(--danger)]"
               >
                 {t('order.detail.cancel')}
@@ -377,6 +472,48 @@ function OrderDetailInner({ id }: { id: string }) {
           <OrderTimeline history={order.history} />
         </div>
       </div>
+
+      {/* Cancel-with-reason sheet (spec 10b) — Sheet (not ConfirmDialog) so it can
+          host the reason radios; the reason rides along in the cancel POST. */}
+      <Sheet open={cancelOpen} onClose={() => setCancelOpen(false)} title={t('order.detail.cancelTitle')}>
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted">{t('order.detail.cancelIntro')}</p>
+          <div className="flex flex-col gap-2">
+            <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted">
+              {t('order.detail.cancelReasonLabel')}
+            </p>
+            {(['wrongOrder', 'changedMind', 'tooSlow', 'other'] as const).map((key) => {
+              const label = t(`order.detail.cancelReasons.${key}`);
+              const on = cancelReason === label;
+              return (
+                <RadioCard key={key} selected={on} onSelect={() => setCancelReason(label)} className="items-center gap-3 p-3.5">
+                  <span
+                    className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
+                      on ? 'border-brand-600' : 'border-app'
+                    }`}
+                  >
+                    {on && <span className="h-2 w-2 rounded-full bg-brand-600" />}
+                  </span>
+                  <span className="text-sm font-semibold">{label}</span>
+                </RadioCard>
+              );
+            })}
+          </div>
+          {actionError && (
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              {actionError}
+            </p>
+          )}
+          <Button
+            variant="danger"
+            onClick={cancel}
+            loading={action === 'cancel'}
+            className="h-12 rounded-2xl"
+          >
+            {t('order.detail.cancelConfirm')}
+          </Button>
+        </div>
+      </Sheet>
     </div>
   );
 }

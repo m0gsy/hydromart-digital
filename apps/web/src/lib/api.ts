@@ -109,7 +109,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
  * multipart boundary and attaches the bearer token. No 401 refresh-retry — the
  * caller loads its data with `api` first, so the token is already fresh.
  */
-export async function uploadFile(path: string, file: File | Blob): Promise<{ url: string }> {
+export async function uploadFile<T = { url: string }>(path: string, file: File | Blob): Promise<T> {
   const form = new FormData();
   form.append('file', file);
   const token = getSession()?.accessToken;
@@ -128,7 +128,7 @@ export async function uploadFile(path: string, file: File | Blob): Promise<{ url
   const text = await res.text();
   const data = text ? JSON.parse(text) : undefined;
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
-  return data as { url: string };
+  return data as T;
 }
 
 export const api = {

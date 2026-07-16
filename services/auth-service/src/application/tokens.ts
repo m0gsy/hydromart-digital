@@ -13,4 +13,5 @@ export const AUTH_TOKENS = {
   GoogleVerifierPort: Symbol('GoogleVerifierPort'),
   ClockPort: Symbol('ClockPort'),
   CustomerNotificationPort: Symbol('CustomerNotificationPort'),
+  Storage: Symbol('Storage'),
 } as const;

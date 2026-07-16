@@ -24,6 +24,8 @@ function VerifyForm() {
   const phone = params.get('phone') ?? '';
   const purpose = (params.get('purpose') as OtpPurpose) ?? 'LOGIN';
   const next = params.get('next') ?? '/products';
+  // Referral code carried from /register (spec 5c). Redeemed once, post-signup.
+  const referral = params.get('ref')?.trim() ?? '';
 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,6 +48,15 @@ function VerifyForm() {
     try {
       const session = await api.post<Session>(endpoints.auth.verifyOtp, { phone, code: value, purpose });
       signIn(session);
+      // Redeem a referral code carried from registration. Fail-soft: an invalid or
+      // already-used code must never block completing signup.
+      if (referral && purpose === 'REGISTRATION') {
+        try {
+          await api.post(endpoints.referrals.redeem, { code: referral }, true);
+        } catch {
+          /* bad/duplicate code — signup still succeeds */
+        }
+      }
       router.replace(next);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('auth.verify.error'));

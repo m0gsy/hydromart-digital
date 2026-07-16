@@ -23,6 +23,7 @@ export interface Customer {
   fullName: string | null;
   role: string;
   status: string;
+  avatarUrl: string | null;
   createdAt: string;
 }
 

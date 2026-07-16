@@ -16,6 +16,7 @@ const customerRow = () => ({
   role: 'CUSTOMER',
   status: 'ACTIVE',
   googleSub: null,
+  avatarUrl: null,
   phoneVerifiedAt: new Date('2026-01-01'),
   lastLoginAt: null,
   createdAt: new Date('2026-01-01'),

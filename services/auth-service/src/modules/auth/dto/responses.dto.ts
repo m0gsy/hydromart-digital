@@ -36,6 +36,9 @@ export class PublicCustomerDto {
   @ApiProperty({ enum: CustomerStatus })
   status!: CustomerStatus;
 
+  @ApiProperty({ nullable: true })
+  avatarUrl!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 

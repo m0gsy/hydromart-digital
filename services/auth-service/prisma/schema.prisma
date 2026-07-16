@@ -50,6 +50,8 @@ model Customer {
   status       CustomerStatus @default(PENDING_VERIFICATION)
   /// Google account subject id, set when a customer links Google Sign-In (FR-006).
   googleSub    String?        @unique
+  /// Public URL of the customer's uploaded avatar image (null = default avatar).
+  avatarUrl    String?
   phoneVerifiedAt DateTime?
   lastLoginAt  DateTime?
   createdAt    DateTime       @default(now())
