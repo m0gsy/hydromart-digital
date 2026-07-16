@@ -14,3 +14,4 @@ CREATE DATABASE hydromart_crm;
 CREATE DATABASE hydromart_recommendation;
 CREATE DATABASE hydromart_forecast;
 CREATE DATABASE hydromart_payout;
+CREATE DATABASE hydromart_admin;

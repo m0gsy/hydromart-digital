@@ -4,52 +4,81 @@ import { useState } from 'react';
 import { Flag } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card } from '@/components/ui';
+import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { FEATURE_FLAGS_STUB, PLATFORM_SETTINGS_STUB, type FeatureFlagRow, type FlagState } from '@/lib/hq/stubs';
+import { api, ApiError } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { useAsync } from '@/lib/use-async';
+import type { FeatureFlag, FlagState, SystemSettings } from '@/lib/types';
 
-// Design 8b — feature flags + platform settings. No config service, so toggling a flag
-// is local state + a toast.
-const STATES: FlagState[] = ['ROLLOUT', 'AKTIF', 'BETA', 'MATI'];
+// Design 8b — feature flags + platform settings. Real admin-service track: flags load from
+// GET /feature-flags and a state change PATCHes /feature-flags/:key; platform settings load
+// from GET /system-settings (read-only here — editing is a later screen).
+const STATES: FlagState[] = ['ROLLOUT', 'ACTIVE', 'BETA', 'OFF'];
 
 const STATE_STYLE: Record<FlagState, string> = {
   ROLLOUT: 'bg-brand-600 text-on-brand',
-  AKTIF: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
+  ACTIVE: 'bg-[color:var(--success-bg)] text-[color:var(--success)]',
   BETA: 'bg-[color:var(--warning-bg)] text-[color:var(--warning)]',
-  MATI: 'bg-[color:var(--surface-soft)] text-muted',
+  OFF: 'bg-[color:var(--surface-soft)] text-muted',
 };
 
 export default function HqFlagsPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const [flags, setFlags] = useState<FeatureFlagRow[]>(FEATURE_FLAGS_STUB);
+  const flagsQuery = useAsync<FeatureFlag[]>(() => api.get(endpoints.admin.flags, true));
+  const settingsQuery = useAsync<SystemSettings>(() => api.get(endpoints.admin.settings, true));
+  const [flags, setFlags] = useState<FeatureFlag[] | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  function setState(row: FeatureFlagRow, state: FlagState) {
-    // STUB: no feature-flag service — Milestone D. Local state + toast only.
-    setFlags((prev) => prev.map((f) => (f.id === row.id ? { ...f, state } : f)));
-    toast(t('hq.flags.changed', { name: row.name, state: t(`hq.flags.states.${state}`) }), 'success');
+  if (flagsQuery.loading) return <Skeleton className="h-96 w-full" />;
+  if (flagsQuery.error) return <ErrorState message={t('hq.flags.loadError')} onRetry={flagsQuery.reload} />;
+
+  const rows = flags ?? flagsQuery.data!;
+
+  async function setState(row: FeatureFlag, state: FlagState) {
+    if (row.state === state) return;
+    setBusyKey(row.key);
+    // Optimistic: reflect immediately, roll back on failure.
+    setFlags(rows.map((f) => (f.key === row.key ? { ...f, state } : f)));
+    try {
+      const saved = await api.patch<FeatureFlag>(endpoints.admin.flag(row.key), { state }, true);
+      setFlags((prev) => (prev ?? rows).map((f) => (f.key === row.key ? saved : f)));
+      toast(t('hq.flags.changed', { name: row.label, state: t(`hq.flags.states.${state}`) }), 'success');
+    } catch (err) {
+      setFlags(rows);
+      toast(err instanceof ApiError ? err.message : t('hq.flags.saveError'), 'error');
+    } finally {
+      setBusyKey(null);
+    }
   }
+
+  const settings = settingsQuery.data;
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Flag} title={t('hq.flags.title')} subtitle={t('hq.flags.subtitle')} stub />
+      <HqPageHeader icon={Flag} title={t('hq.flags.title')} subtitle={t('hq.flags.subtitle')} />
 
       <div className="flex flex-col gap-3">
-        {flags.map((f) => (
-          <Card key={f.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        {rows.map((f) => (
+          <Card key={f.key} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="font-semibold">{f.name}</p>
-              <p className="text-xs text-muted">{f.desc}</p>
+              <p className="font-semibold">{f.label}</p>
+              <p className="text-xs text-muted">{f.description}</p>
             </div>
-            <div className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold">
+            <div
+              className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold"
+              aria-busy={busyKey === f.key}
+            >
               {STATES.map((s) => (
                 <button
                   key={s}
                   type="button"
+                  disabled={busyKey === f.key}
                   onClick={() => setState(f, s)}
                   aria-pressed={f.state === s}
-                  className={`px-2.5 py-1 transition-colors ${
+                  className={`px-2.5 py-1 transition-colors disabled:opacity-60 ${
                     f.state === s ? STATE_STYLE[s] : 'text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >
@@ -63,13 +92,27 @@ export default function HqFlagsPage() {
 
       <Card className="flex flex-col gap-1 p-5">
         <p className="mb-2 text-sm font-extrabold">{t('hq.flags.platformTitle')}</p>
-        {PLATFORM_SETTINGS_STUB.map((s) => (
-          <div key={s.id} className="flex items-center justify-between border-b border-[color:var(--border-soft)] py-2.5 last:border-0">
-            <span className="text-sm text-muted">{s.label}</span>
-            <span className="text-sm font-semibold tabular-nums">{s.value}</span>
-          </div>
-        ))}
+        {settingsQuery.loading && <Skeleton className="h-16 w-full" />}
+        {settingsQuery.error && (
+          <ErrorState message={t('hq.flags.loadError')} onRetry={settingsQuery.reload} />
+        )}
+        {settings && (
+          <>
+            <SettingRow label={t('hq.flags.tz')} value={settings.defaultTimezone} />
+            <SettingRow label={t('hq.flags.currency')} value={settings.currency} />
+            <SettingRow label={t('hq.flags.radius')} value={t('hq.flags.km', { n: settings.serviceRadiusKm })} />
+          </>
+        )}
       </Card>
+    </div>
+  );
+}
+
+function SettingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-[color:var(--border-soft)] py-2.5 last:border-0">
+      <span className="text-sm text-muted">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
     </div>
   );
 }

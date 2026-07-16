@@ -306,6 +306,35 @@ services:
       timeout: 5s
       retries: 12
 
+  admin:
+    <<: *svc
+    build: { context: ., dockerfile: services/admin-service/Dockerfile }
+    environment:
+      <<: *shared
+      ADMIN_SERVICE_PORT: 3017
+      ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public
+      # Peer service base URLs probed by the aggregate system-health roll-up (13b).
+      AUTH_SERVICE_URL: http://auth:3001
+      CUSTOMER_SERVICE_URL: http://customer:3002
+      PRODUCT_SERVICE_URL: http://product:3003
+      ORDER_SERVICE_URL: http://order:3004
+      PAYMENT_SERVICE_URL: http://payment:3005
+      DELIVERY_SERVICE_URL: http://delivery:3006
+      DEPOT_SERVICE_URL: http://depot:3007
+      DASHBOARD_SERVICE_URL: http://dashboard:3008
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      PROMO_SERVICE_URL: http://promo:3010
+      REFERRAL_SERVICE_URL: http://referral:3011
+      CRM_SERVICE_URL: http://crm:3012
+      RECOMMENDATION_SERVICE_URL: http://recommendation:3013
+      FORECAST_SERVICE_URL: http://forecast:3014
+      PAYOUT_SERVICE_URL: http://payout:3016
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3017/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     <<: *svc
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
@@ -330,6 +359,7 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation:3013
       FORECAST_SERVICE_URL: http://forecast:3014
       PAYOUT_SERVICE_URL: http://payout:3016
+      ADMIN_SERVICE_URL: http://admin:3017
     ports:
       - "8080:8080"
     healthcheck:

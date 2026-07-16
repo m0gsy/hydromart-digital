@@ -260,6 +260,17 @@ export const endpoints = {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
   },
+  // Platform administration (admin-service). Feature flags (8b), system settings (8b),
+  // and the aggregate per-service health roll-up (13b). SUPER_ADMIN / HEAD_OFFICE gated.
+  admin: {
+    flags: '/admin/api/v1/feature-flags',
+    // PATCH a single flag's state / rolloutPct by key.
+    flag: (key: string) => `/admin/api/v1/feature-flags/${encodeURIComponent(key)}`,
+    // GET current settings, PUT to replace.
+    settings: '/admin/api/v1/system-settings',
+    // GET aggregate per-service health (real per-service probe).
+    health: '/admin/api/v1/system-health',
+  },
   depots: {
     // Public browse (active only), paginated → { items, ... }.
     browse: (q: { page?: number; limit?: number } = {}) => {

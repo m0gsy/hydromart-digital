@@ -1029,3 +1029,34 @@ export interface PriceOverrideProposalItem {
   createdAt: string;
   updatedAt: string;
 }
+
+// Platform administration (admin-service). Feature flags (8b), system settings (8b),
+// and the aggregate per-service health roll-up (13b).
+export type FlagState = 'ROLLOUT' | 'ACTIVE' | 'BETA' | 'OFF';
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  label: string;
+  description: string;
+  state: FlagState;
+  rolloutPct: number | null;
+  updatedAt: string;
+}
+export interface SystemSettings {
+  defaultTimezone: string;
+  currency: string;
+  serviceRadiusKm: number;
+  updatedAt: string;
+}
+export interface ServiceHealth {
+  name: string;
+  status: 'up' | 'down';
+  latencyMs: number;
+  httpStatus: number | null;
+}
+export interface SystemHealth {
+  services: ServiceHealth[];
+  upCount: number;
+  total: number;
+  checkedAt: string;
+}

@@ -147,50 +147,12 @@ export function stubForecastConfidence(productId: string): number {
 // service-to-service ingest endpoint). See endpoints.audit.*. The old AUDIT_LOG_STUB
 // was removed.
 
-// STUB: feature-flag + platform config — real backend track (no config service).
-export type FlagState = 'ROLLOUT' | 'AKTIF' | 'BETA' | 'MATI';
-export interface FeatureFlagRow {
-  id: string;
-  name: string;
-  desc: string;
-  state: FlagState;
-}
-export const FEATURE_FLAGS_STUB: FeatureFlagRow[] = [
-  { id: 'f1', name: 'Pembayaran Virtual Account', desc: 'VA per-bank di checkout', state: 'ROLLOUT' },
-  { id: 'f2', name: 'Langganan galon', desc: 'Isi ulang terjadwal otomatis', state: 'BETA' },
-  { id: 'f3', name: 'Rekomendasi AI', desc: 'Saran produk di beranda', state: 'AKTIF' },
-  { id: 'f4', name: 'Live tracking kurir', desc: 'Peta posisi kurir real-time', state: 'AKTIF' },
-  { id: 'f5', name: 'Pembayaran tunai di tempat', desc: 'COD saat pengantaran', state: 'MATI' },
-];
-export interface PlatformSettingRow {
-  id: string;
-  label: string;
-  value: string;
-}
-export const PLATFORM_SETTINGS_STUB: PlatformSettingRow[] = [
-  { id: 'tz', label: 'Zona waktu', value: 'Asia/Jakarta (WIB)' },
-  { id: 'cur', label: 'Mata uang', value: 'IDR (Rp)' },
-  { id: 'radius', label: 'Radius layanan default', value: '5 km' },
-];
+// Feature flags (8b) + platform config (8b) are now REAL: admin-service
+// endpoints.admin.flags / endpoints.admin.settings. The old FEATURE_FLAGS_STUB /
+// PLATFORM_SETTINGS_STUB were removed.
 
-// STUB: aggregate service health — real backend track (no health-rollup endpoint).
-export interface ServiceHealthRow {
-  name: string;
-  status: 'up' | 'degraded' | 'down';
-  uptime: number; // percent, 0..100
-  p95: number; // ms
-}
-export const SERVICE_HEALTH_STUB: ServiceHealthRow[] = [
-  { name: 'auth-service', status: 'up', uptime: 99.98, p95: 82 },
-  { name: 'order-service', status: 'up', uptime: 99.95, p95: 141 },
-  { name: 'payment-service', status: 'degraded', uptime: 99.4, p95: 512 },
-  { name: 'depot-service', status: 'up', uptime: 99.99, p95: 74 },
-  { name: 'delivery-service', status: 'up', uptime: 99.9, p95: 168 },
-  { name: 'loyalty-service', status: 'up', uptime: 99.97, p95: 96 },
-  { name: 'crm-service', status: 'up', uptime: 99.92, p95: 120 },
-  { name: 'forecast-service', status: 'up', uptime: 99.8, p95: 240 },
-  { name: 'vouchers-service', status: 'up', uptime: 99.96, p95: 88 },
-];
+// Aggregate service health (13b) is now REAL: admin-service endpoints.admin.health
+// (server-side per-service /health fan-out). The old SERVICE_HEALTH_STUB was removed.
 
 // STUB: data-export audit — real backend track (no export-log service).
 export interface ExportLogRow {
