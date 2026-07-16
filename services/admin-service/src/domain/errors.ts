@@ -55,3 +55,11 @@ export class IncidentNotFoundError extends DomainError {
     super(`Incident "${id}" not found.`);
   }
 }
+
+export class RetentionPolicyNotFoundError extends DomainError {
+  readonly code = 'RETENTION_POLICY_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor(id: string) {
+    super(`Retention policy "${id}" not found.`);
+  }
+}

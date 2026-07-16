@@ -297,3 +297,92 @@ model IncidentUpdate {
   @@index([incidentId])
   @@map("incident_updates")
 }
+
+// ---------------------------------------------------------------------------
+// Governance & config (0004_admin_config): SLA policy (19d), retention & backup
+// (19e), security policy (19b), admin notification prefs (23a), first-run
+// onboarding wizard (23b). SUPER_ADMIN / HEAD_OFFICE gated. All additive —
+// earlier migrations are untouched.
+// ---------------------------------------------------------------------------
+
+/// On-time delivery SLA policy (Design 19d). SINGLETON: exactly one row, id = "singleton".
+/// NOTE: delivery-service still grades on-time delivery with its OWN threshold and does not
+/// yet read this row — wiring it is a later cross-service change and is NOT done here.
+model SlaPolicy {
+  id                     String   @id @default(uuid())
+  /// Minutes under which a delivery counts as on-time.
+  onTimeThresholdMinutes Int      @default(90)
+  /// % on-time at/above which a depot is "healthy".
+  healthyBandPct         Int      @default(95)
+  /// % on-time below which a depot is "critical".
+  criticalBandPct        Int      @default(85)
+  updatedAt              DateTime @updatedAt
+
+  @@map("sla_policy")
+}
+
+/// A data-retention window per dataset (Design 19e). One row per dataset (`dataset` unique).
+model RetentionPolicy {
+  id          String   @id @default(uuid())
+  dataset     String   @unique
+  /// Human-readable window label, e.g. "7 tahun (UU PDP)".
+  windowLabel String
+  /// Window length in days (advisory metadata; the label is what's displayed).
+  windowDays  Int
+  updatedAt   DateTime @updatedAt
+
+  @@map("retention_policies")
+}
+
+/// Last-backup status (Design 19e). SINGLETON: id = "singleton". READ-ONLY — there is NO
+/// backup engine wired, so `status`/`lastBackupAt` are whatever was last recorded (or the
+/// honest "NONE" default). This is never a fabricated "success just now".
+model BackupStatus {
+  id           String    @id @default(uuid())
+  /// Last recorded backup outcome. "NONE" = no backup engine has ever run.
+  status       String    @default("NONE")
+  lastBackupAt DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@map("backup_status")
+}
+
+/// Platform security policy (Design 19b). SINGLETON: id = "singleton". NOTE: active-session
+/// enforcement/listing lives in auth-service, not here — this row only stores the policy.
+model SecurityPolicy {
+  id                 String   @id @default(uuid())
+  /// Idle minutes before an HQ session is signed out.
+  idleTimeoutMinutes Int      @default(15)
+  /// Whether 2FA is mandatory for HQ accounts.
+  require2fa         Boolean  @default(true)
+  /// CIDR allowlist; empty = access from anywhere.
+  ipAllowlist        String[]
+  updatedAt          DateTime @updatedAt
+
+  @@map("security_policy")
+}
+
+/// Per-admin notification channel preferences (Design 23a). One row per account, keyed by the
+/// auth `sub`. `channels` is the per-event matrix ([{ id, push, email, wa }, ...]); the
+/// canonical event list + defaults live in the service, so missing events fall back to defaults.
+model AdminNotificationPref {
+  accountId String   @id
+  channels  Json
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_notification_prefs")
+}
+
+/// First-run HQ onboarding wizard state (Design 23b). SINGLETON: id = "singleton". Each flag
+/// marks one setup step complete.
+model OnboardingState {
+  id               String   @id @default(uuid())
+  verify2fa        Boolean  @default(false)
+  addDepot         Boolean  @default(false)
+  inviteHeadOffice Boolean  @default(false)
+  setPricingTax    Boolean  @default(false)
+  enablePayments   Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  @@map("onboarding_state")
+}

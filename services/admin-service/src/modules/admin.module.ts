@@ -16,6 +16,11 @@ import { ScheduledReportService } from '../application/services/scheduled-report
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import { FraudFlagService } from '../application/services/fraud-flag.service';
 import { IncidentService } from '../application/services/incident.service';
+import { SlaPolicyService } from '../application/services/sla-policy.service';
+import { RetentionService } from '../application/services/retention.service';
+import { SecurityPolicyService } from '../application/services/security-policy.service';
+import { AdminNotificationPrefService } from '../application/services/admin-notification-pref.service';
+import { OnboardingStateService } from '../application/services/onboarding-state.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { FeatureFlagPrismaRepository } from '../infrastructure/prisma/feature-flag.prisma.repository';
 import { SystemSettingsPrismaRepository } from '../infrastructure/prisma/system-settings.prisma.repository';
@@ -26,6 +31,11 @@ import { ScheduledReportPrismaRepository } from '../infrastructure/prisma/schedu
 import { SupportTicketPrismaRepository } from '../infrastructure/prisma/support-ticket.prisma.repository';
 import { FraudFlagPrismaRepository } from '../infrastructure/prisma/fraud-flag.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
+import { SlaPolicyPrismaRepository } from '../infrastructure/prisma/sla-policy.prisma.repository';
+import { RetentionPrismaRepository } from '../infrastructure/prisma/retention.prisma.repository';
+import { SecurityPolicyPrismaRepository } from '../infrastructure/prisma/security-policy.prisma.repository';
+import { AdminNotificationPrefPrismaRepository } from '../infrastructure/prisma/admin-notification-pref.prisma.repository';
+import { OnboardingStatePrismaRepository } from '../infrastructure/prisma/onboarding-state.prisma.repository';
 import { HealthProbeHttpAdapter } from '../infrastructure/http/health-probe.http.adapter';
 import { FeatureFlagsController } from './feature-flags.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -37,6 +47,11 @@ import { ScheduledReportsController } from './scheduled-reports.controller';
 import { SupportTicketsController } from './support-tickets.controller';
 import { FraudFlagsController } from './fraud-flags.controller';
 import { IncidentsController } from './incidents.controller';
+import { SlaPolicyController } from './sla-policy.controller';
+import { RetentionController } from './retention.controller';
+import { SecurityPolicyController } from './security-policy.controller';
+import { NotificationPrefsController } from './notification-prefs.controller';
+import { OnboardingController } from './onboarding.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -51,6 +66,11 @@ const providers: Provider[] = [
   SupportTicketService,
   FraudFlagService,
   IncidentService,
+  SlaPolicyService,
+  RetentionService,
+  SecurityPolicyService,
+  AdminNotificationPrefService,
+  OnboardingStateService,
   { provide: ADMIN_TOKENS.FeatureFlagRepository, useClass: FeatureFlagPrismaRepository },
   { provide: ADMIN_TOKENS.SystemSettingsRepository, useClass: SystemSettingsPrismaRepository },
   { provide: ADMIN_TOKENS.HealthProbe, useClass: HealthProbeHttpAdapter },
@@ -61,6 +81,11 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
   { provide: ADMIN_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
+  { provide: ADMIN_TOKENS.SlaPolicyRepository, useClass: SlaPolicyPrismaRepository },
+  { provide: ADMIN_TOKENS.RetentionRepository, useClass: RetentionPrismaRepository },
+  { provide: ADMIN_TOKENS.SecurityPolicyRepository, useClass: SecurityPolicyPrismaRepository },
+  { provide: ADMIN_TOKENS.AdminNotificationPrefRepository, useClass: AdminNotificationPrefPrismaRepository },
+  { provide: ADMIN_TOKENS.OnboardingStateRepository, useClass: OnboardingStatePrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
@@ -78,6 +103,11 @@ const providers: Provider[] = [
     SupportTicketsController,
     FraudFlagsController,
     IncidentsController,
+    SlaPolicyController,
+    RetentionController,
+    SecurityPolicyController,
+    NotificationPrefsController,
+    OnboardingController,
   ],
   providers,
   exports: [PrismaService, AdminConfigService],

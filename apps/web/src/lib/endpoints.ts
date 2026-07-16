@@ -340,6 +340,19 @@ export const endpoints = {
       create: '/admin/api/v1/incidents',
       update: (id: string) => `/admin/api/v1/incidents/${encodeURIComponent(id)}`,
     },
+    // SLA policy (19d) — HEAD_OFFICE + SUPER_ADMIN. GET current, PUT to replace.
+    slaPolicy: '/admin/api/v1/sla-policy',
+    // Retention windows + read-only backup status (19e) — SUPER_ADMIN. GET list+backup, PUT one row.
+    retention: {
+      list: '/admin/api/v1/retention',
+      update: (id: string) => `/admin/api/v1/retention/${encodeURIComponent(id)}`,
+    },
+    // Security policy (19b) — SUPER_ADMIN. GET current, PUT to replace. (Sessions live in auth-service.)
+    security: '/admin/api/v1/security-policy',
+    // Per-admin notification prefs (23a) — HEAD_OFFICE + SUPER_ADMIN, own prefs. GET/PUT.
+    notifPrefs: '/admin/api/v1/notification-prefs',
+    // First-run onboarding wizard state (23b) — SUPER_ADMIN. GET, PATCH one step.
+    wizard: '/admin/api/v1/onboarding',
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.

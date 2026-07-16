@@ -127,7 +127,31 @@ async function main() {
     },
   });
 
-  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings + integration + governance-ops samples`);
+  // Governance & config (0004_admin_config). Retention rows are REAL config (not fake data)
+  // so the 19e page renders; backup status stays honest ("NONE" = no backup engine wired).
+  // The SLA/security/onboarding singletons intentionally stay UNSEEDED — the services return
+  // sensible defaults until an admin saves. Idempotent (upsert on dataset / id).
+  const RETENTION = [
+    { dataset: 'orders_transactions', windowLabel: '7 tahun (UU PDP)', windowDays: 2555 },
+    { dataset: 'audit_logs', windowLabel: '2 tahun', windowDays: 730 },
+    { dataset: 'proof_of_delivery', windowLabel: '90 hari', windowDays: 90 },
+    { dataset: 'notifications_messages', windowLabel: '180 hari', windowDays: 180 },
+  ];
+  for (const r of RETENTION) {
+    await prisma.retentionPolicy.upsert({
+      where: { dataset: r.dataset },
+      update: { windowLabel: r.windowLabel, windowDays: r.windowDays },
+      create: r,
+    });
+  }
+  await prisma.backupStatus.upsert({
+    where: { id: 'singleton' },
+    update: {},
+    // Honest: no backup engine is wired, so status is NONE and lastBackupAt is null.
+    create: { id: 'singleton', status: 'NONE', lastBackupAt: null },
+  });
+
+  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings + integration + governance-ops + config samples`);
 }
 
 main()

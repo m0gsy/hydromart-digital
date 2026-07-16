@@ -1170,3 +1170,72 @@ export interface SystemHealth {
   total: number;
   checkedAt: string;
 }
+
+// Governance & config (0004_admin_config) — admin-service.
+// SLA policy (19d).
+export interface SlaPolicy {
+  onTimeThresholdMinutes: number;
+  healthyBandPct: number;
+  criticalBandPct: number;
+  updatedAt: string;
+}
+
+// Retention & backup (19e).
+export interface RetentionPolicy {
+  id: string;
+  dataset: string;
+  windowLabel: string;
+  windowDays: number;
+  updatedAt: string;
+}
+/** Read-only. status "NONE" = no backup engine is wired/has run. */
+export interface BackupStatus {
+  status: string;
+  lastBackupAt: string | null;
+}
+export interface RetentionOverview {
+  policies: RetentionPolicy[];
+  backup: BackupStatus;
+}
+
+// Security policy (19b). Active sessions are NOT here — they live in auth-service.
+export interface SecurityPolicy {
+  idleTimeoutMinutes: number;
+  require2fa: boolean;
+  ipAllowlist: string[];
+  updatedAt: string;
+}
+
+// Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
+export type NotificationEventId =
+  | 'criticalSla'
+  | 'newFranchiseApp'
+  | 'payoutPending'
+  | 'systemIncident'
+  | 'dailyDigest';
+export interface NotificationChannelPref {
+  id: NotificationEventId;
+  push: boolean;
+  email: boolean;
+  wa: boolean;
+}
+export interface AdminNotificationPrefs {
+  events: NotificationChannelPref[];
+  updatedAt: string;
+}
+
+// First-run onboarding wizard state (23b).
+export type OnboardingStep =
+  | 'verify2fa'
+  | 'addDepot'
+  | 'inviteHeadOffice'
+  | 'setPricingTax'
+  | 'enablePayments';
+export interface OnboardingState {
+  verify2fa: boolean;
+  addDepot: boolean;
+  inviteHeadOffice: boolean;
+  setPricingTax: boolean;
+  enablePayments: boolean;
+  updatedAt: string;
+}

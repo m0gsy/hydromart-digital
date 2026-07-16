@@ -4,17 +4,19 @@ import { useState } from 'react';
 import { IdentificationBadge } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card, Toggle } from '@/components/ui';
-import { StubBadge, NOTIF_EVENTS_STUB, type NotifEventRow } from '@/lib/hq/stubs';
+import { Card, ErrorState, Skeleton, Toggle } from '@/components/ui';
 import { useToast } from '@/components/toast';
+import { api, ApiError } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
+import { useAsync } from '@/lib/use-async';
+import type { AdminNotificationPrefs, NotificationChannelPref } from '@/lib/types';
 
 // Design 23a — admin profile & notification prefs. The account block is REAL (the signed-in
-// customer IS auth.me). Language + theme controls are real. The per-EVENT channel matrix has
-// no endpoint (endpoints.preferences.notifications is global push/email/whatsapp), so it is
-// stubbed local state — real backend track.
+// user IS auth.me). Language + theme controls are real. The per-EVENT channel matrix is now
+// REAL admin-service track: GET/PUT /notification-prefs (keyed by the current user).
 type Channel = 'push' | 'email' | 'wa';
 
 export default function HqProfilePage() {
@@ -22,11 +24,22 @@ export default function HqProfilePage() {
   const { resolved, toggle: toggleTheme } = useTheme();
   const { customer } = useAuth();
   const { toast } = useToast();
-  const [events, setEvents] = useState<NotifEventRow[]>(NOTIF_EVENTS_STUB);
+  const query = useAsync<AdminNotificationPrefs>(() => api.get(endpoints.admin.notifPrefs, true));
+  const [events, setEvents] = useState<NotificationChannelPref[] | null>(null);
 
-  function setChan(id: string, chan: Channel, v: boolean) {
-    setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, [chan]: v } : e)));
-    toast(t('hq.profile.saved'), 'success');
+  const rows = events ?? query.data?.events ?? [];
+
+  async function setChan(id: string, chan: Channel, v: boolean) {
+    const next = rows.map((e) => (e.id === id ? { ...e, [chan]: v } : e));
+    setEvents(next);
+    try {
+      const saved = await api.put<AdminNotificationPrefs>(endpoints.admin.notifPrefs, { events: next }, true);
+      setEvents(saved.events);
+      toast(t('hq.profile.saved'), 'success');
+    } catch (err) {
+      setEvents(rows); // roll back
+      toast(err instanceof ApiError ? err.message : t('hq.profile.saveError'), 'error');
+    }
   }
 
   const account = customer && [
@@ -55,41 +68,46 @@ export default function HqProfilePage() {
       </Card>
 
       <Card className="p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-extrabold">{t('hq.profile.notifTitle')}</p>
-            <p className="text-xs text-muted">{t('hq.profile.notifBody')}</p>
-          </div>
-          <StubBadge />
+        <div className="mb-3">
+          <p className="text-sm font-extrabold">{t('hq.profile.notifTitle')}</p>
+          <p className="text-xs text-muted">{t('hq.profile.notifBody')}</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[420px] border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-app text-xs font-medium uppercase tracking-wide text-muted">
-                <th className="py-2 text-left">{t('hq.profile.event')}</th>
-                {channels.map((c) => (
-                  <th key={c} className="px-2 py-2 text-center">
-                    {t(`hq.profile.chan.${c}`)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr key={e.id} className="border-b border-app last:border-0">
-                  <td className="py-2.5 pr-3">{e.label}</td>
+        {query.loading && <Skeleton className="h-40 w-full" />}
+        {query.error && <ErrorState message={t('hq.profile.notifError')} onRetry={query.reload} />}
+        {query.data && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[420px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-app text-xs font-medium uppercase tracking-wide text-muted">
+                  <th className="py-2 text-left">{t('hq.profile.event')}</th>
                   {channels.map((c) => (
-                    <td key={c} className="px-2 py-2.5">
-                      <div className="flex justify-center">
-                        <Toggle on={e[c]} onChange={(v) => setChan(e.id, c, v)} label={`${e.label} · ${t(`hq.profile.chan.${c}`)}`} />
-                      </div>
-                    </td>
+                    <th key={c} className="px-2 py-2 text-center">
+                      {t(`hq.profile.chan.${c}`)}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((e) => (
+                  <tr key={e.id} className="border-b border-app last:border-0">
+                    <td className="py-2.5 pr-3">{t(`hq.profile.events.${e.id}`)}</td>
+                    {channels.map((c) => (
+                      <td key={c} className="px-2 py-2.5">
+                        <div className="flex justify-center">
+                          <Toggle
+                            on={e[c]}
+                            onChange={(v) => setChan(e.id, c, v)}
+                            label={`${t(`hq.profile.events.${e.id}`)} · ${t(`hq.profile.chan.${c}`)}`}
+                          />
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
       <Card className="flex flex-col gap-3 p-5">

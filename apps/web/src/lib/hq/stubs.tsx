@@ -158,27 +158,17 @@ export function stubForecastConfidence(productId: string): number {
 // endpoints.admin.exportLogs / endpoints.admin.apiKeys / endpoints.admin.webhooks. The old
 // EXPORT_LOG_STUB / API_KEYS_STUB / WEBHOOKS_STUB were removed.
 
-// STUB: SLA policy — local state only (no policy endpoint). Defaults for the editor.
-export const SLA_DEFAULT_MINUTES = 90;
-export const SLA_HEALTHY_BAND = 95; // % on-time = sehat
-export const SLA_CRITICAL_BAND = 85; // % on-time below = kritis
+// SLA policy (19d) is now REAL: admin-service endpoints.admin.slaPolicy (GET/PUT threshold +
+// healthy/critical bands). The old SLA_DEFAULT_MINUTES / SLA_HEALTHY_BAND / SLA_CRITICAL_BAND
+// stubs were removed. (delivery-service still grades with its own threshold — noted in-page.)
 
-// STUB: retention & backup — real backend track (no retention service).
-export interface RetentionRow {
-  id: string;
-  dataset: string;
-  window: string;
-  lastBackup: string;
-  status: 'ok' | 'warn';
-}
-export const RETENTION_STUB: RetentionRow[] = [
-  { id: 'r1', dataset: 'Pesanan & transaksi', window: '7 tahun (UU PDP)', lastBackup: 'Hari ini 03:00', status: 'ok' },
-  { id: 'r2', dataset: 'Log audit', window: '2 tahun', lastBackup: 'Hari ini 03:05', status: 'ok' },
-  { id: 'r3', dataset: 'Bukti pengantaran (PoD)', window: '90 hari', lastBackup: 'Kemarin 03:00', status: 'warn' },
-  { id: 'r4', dataset: 'Notifikasi & pesan', window: '180 hari', lastBackup: 'Hari ini 03:02', status: 'ok' },
-];
+// Retention windows (19e) are now REAL: admin-service endpoints.admin.retention (GET list +
+// PUT one window). The old RETENTION_STUB was removed. Backup status is REAL but has NO engine
+// wired, so it's returned and labeled honestly (endpoints.admin.retention → backup.status).
 
-// STUB: security & sessions — real backend track (no session-admin endpoint).
+// STUB: active sessions for the security page (19b) — sessions live in auth-service, which has
+// no session-admin endpoint here, so this list stays clearly badged. The SECURITY POLICY
+// itself (idle timeout / require-2FA / IP allowlist) is REAL: endpoints.admin.security.
 export interface SessionRow {
   id: string;
   device: string;
@@ -232,23 +222,9 @@ export const ONBOARDING_STEPS_STUB: OnboardStepRow[] = [
   { id: 'o6', label: 'Aktifkan kanal pembayaran', owner: 'Finance', done: false, href: '/hq/payments' },
 ];
 
-// STUB: per-event notification channel prefs for the admin profile (23a). Account-level
-// prefs are real (endpoints.preferences.notifications); the per-EVENT matrix has no
-// endpoint — real backend track.
-export interface NotifEventRow {
-  id: string;
-  label: string;
-  push: boolean;
-  email: boolean;
-  wa: boolean;
-}
-export const NOTIF_EVENTS_STUB: NotifEventRow[] = [
-  { id: 'n1', label: 'Lamaran waralaba baru', push: true, email: true, wa: false },
-  { id: 'n2', label: 'Refund menunggu persetujuan', push: true, email: true, wa: true },
-  { id: 'n3', label: 'Insiden sistem (kritis)', push: true, email: true, wa: true },
-  { id: 'n4', label: 'SLA depot di bawah ambang', push: true, email: false, wa: false },
-  { id: 'n5', label: 'Laporan terjadwal selesai', push: false, email: true, wa: false },
-];
+// Per-event admin notification prefs (23a) are now REAL: admin-service
+// endpoints.admin.notifPrefs (GET/PUT, keyed by the current user). The old NOTIF_EVENTS_STUB /
+// NotifEventRow were removed — the profile page loads/saves the real per-event channel matrix.
 
 /** Format a minutes-ago number into a localized relative-time label (client-safe). */
 export function agoLabel(min: number, t: (key: string, vars?: Record<string, string | number>) => string): string {

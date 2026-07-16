@@ -478,6 +478,133 @@ export class InMemoryIncidentRepository implements IncidentRepository {
   }
 }
 
+import {
+  SaveSlaPolicyData,
+  SlaPolicyRecord,
+  SlaPolicyRepository,
+} from '../../src/application/ports/sla-policy.repository';
+import {
+  BackupStatusRecord,
+  RetentionPolicyRecord,
+  RetentionRepository,
+  UpdateRetentionData,
+} from '../../src/application/ports/retention.repository';
+import {
+  SaveSecurityPolicyData,
+  SecurityPolicyRecord,
+  SecurityPolicyRepository,
+} from '../../src/application/ports/security-policy.repository';
+import {
+  AdminNotificationPrefRecord,
+  AdminNotificationPrefRepository,
+  NotificationChannelPref,
+} from '../../src/application/ports/admin-notification-pref.repository';
+import {
+  OnboardingStateRecord,
+  OnboardingStateRepository,
+  OnboardingStep,
+} from '../../src/application/ports/onboarding-state.repository';
+
+export class InMemorySlaPolicyRepository implements SlaPolicyRepository {
+  row: SlaPolicyRecord | null = null;
+
+  async get(): Promise<SlaPolicyRecord | null> {
+    return this.row ? { ...this.row } : null;
+  }
+
+  async save(data: SaveSlaPolicyData): Promise<SlaPolicyRecord> {
+    this.row = { ...data, updatedAt: nextDate() };
+    return { ...this.row };
+  }
+}
+
+export function makeRetentionPolicy(over: Partial<RetentionPolicyRecord> = {}): RetentionPolicyRecord {
+  return {
+    id: randomUUID(),
+    dataset: 'orders_transactions',
+    windowLabel: '7 tahun (UU PDP)',
+    windowDays: 2555,
+    updatedAt: nextDate(),
+    ...over,
+  };
+}
+
+export class InMemoryRetentionRepository implements RetentionRepository {
+  rows: RetentionPolicyRecord[] = [];
+  backup: BackupStatusRecord | null = null;
+
+  async listPolicies(): Promise<RetentionPolicyRecord[]> {
+    return [...this.rows].sort((a, b) => a.dataset.localeCompare(b.dataset)).map((r) => ({ ...r }));
+  }
+
+  async updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.windowLabel = data.windowLabel;
+    r.windowDays = data.windowDays;
+    r.updatedAt = nextDate();
+    return { ...r };
+  }
+
+  async getBackupStatus(): Promise<BackupStatusRecord | null> {
+    return this.backup ? { ...this.backup } : null;
+  }
+}
+
+export class InMemorySecurityPolicyRepository implements SecurityPolicyRepository {
+  row: SecurityPolicyRecord | null = null;
+
+  async get(): Promise<SecurityPolicyRecord | null> {
+    return this.row ? { ...this.row } : null;
+  }
+
+  async save(data: SaveSecurityPolicyData): Promise<SecurityPolicyRecord> {
+    this.row = { ...data, ipAllowlist: [...data.ipAllowlist], updatedAt: nextDate() };
+    return { ...this.row, ipAllowlist: [...this.row.ipAllowlist] };
+  }
+}
+
+export class InMemoryAdminNotificationPrefRepository implements AdminNotificationPrefRepository {
+  rows = new Map<string, AdminNotificationPrefRecord>();
+
+  async get(accountId: string): Promise<AdminNotificationPrefRecord | null> {
+    const r = this.rows.get(accountId);
+    return r ? { ...r, channels: r.channels.map((c) => ({ ...c })) } : null;
+  }
+
+  async save(accountId: string, channels: NotificationChannelPref[]): Promise<AdminNotificationPrefRecord> {
+    const record: AdminNotificationPrefRecord = {
+      accountId,
+      channels: channels.map((c) => ({ ...c })),
+      updatedAt: nextDate(),
+    };
+    this.rows.set(accountId, record);
+    return { ...record, channels: record.channels.map((c) => ({ ...c })) };
+  }
+}
+
+export class InMemoryOnboardingStateRepository implements OnboardingStateRepository {
+  row: OnboardingStateRecord | null = null;
+
+  async get(): Promise<OnboardingStateRecord | null> {
+    return this.row ? { ...this.row } : null;
+  }
+
+  async setStep(step: OnboardingStep, done: boolean): Promise<OnboardingStateRecord> {
+    this.row = {
+      verify2fa: false,
+      addDepot: false,
+      inviteHeadOffice: false,
+      setPricingTax: false,
+      enablePayments: false,
+      ...this.row,
+      [step]: done,
+      updatedAt: nextDate(),
+    };
+    return { ...this.row };
+  }
+}
+
 export class FakeHealthProbe implements HealthProbePort {
   probed: string[] = [];
   // Map baseUrl -> forced result; anything not present defaults to a healthy probe.

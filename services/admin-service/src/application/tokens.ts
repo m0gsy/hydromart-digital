@@ -9,4 +9,9 @@ export const ADMIN_TOKENS = {
   SupportTicketRepository: Symbol('SupportTicketRepository'),
   FraudFlagRepository: Symbol('FraudFlagRepository'),
   IncidentRepository: Symbol('IncidentRepository'),
+  SlaPolicyRepository: Symbol('SlaPolicyRepository'),
+  RetentionRepository: Symbol('RetentionRepository'),
+  SecurityPolicyRepository: Symbol('SecurityPolicyRepository'),
+  AdminNotificationPrefRepository: Symbol('AdminNotificationPrefRepository'),
+  OnboardingStateRepository: Symbol('OnboardingStateRepository'),
 } as const;
