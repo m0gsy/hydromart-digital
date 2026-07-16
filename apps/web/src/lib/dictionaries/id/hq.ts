@@ -417,8 +417,11 @@ export const hq = {
     approve: 'Setujui',
     reject: 'Tolak',
     empty: 'Tidak ada refund menunggu persetujuan.',
-    approved: 'Refund {order} disetujui (contoh)',
-    rejected: 'Refund {order} ditolak (contoh)',
+    approved: 'Refund {order} disetujui',
+    rejected: 'Refund {order} ditolak',
+    loadError: 'Gagal memuat antrean refund.',
+    approveError: 'Gagal memproses refund.',
+    enrichNote: 'Nama depot & nomor pesanan belum ditampilkan (dimiliki layanan lain); nilai, metode, alasan & keputusan sudah nyata.',
   },
   vouchers: {
     title: 'Tata kelola voucher',
@@ -924,6 +927,8 @@ export const hq = {
     exported: 'Ekspor log audit dijadwalkan (contoh)',
     empty: 'Belum ada aktivitas.',
     note: 'Log bersifat append-only — tidak bisa diubah atau dihapus.',
+    loadError: 'Gagal memuat log audit.',
+    system: 'Sistem',
   },
   flags: {
     title: 'Feature flags',
@@ -1039,7 +1044,9 @@ export const hq = {
     npwp: 'NPWP',
     address: 'Alamat',
     save: 'Simpan pengaturan',
-    saved: 'Pengaturan pajak disimpan (contoh)',
+    saved: 'Pengaturan pajak disimpan',
+    loadError: 'Gagal memuat pengaturan pajak.',
+    saveError: 'Gagal menyimpan pengaturan pajak.',
     previewLink: 'Lihat template faktur →',
   },
   incidents: {

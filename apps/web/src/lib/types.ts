@@ -916,3 +916,44 @@ export interface PricingRulePayload {
   priority: number;
   active: boolean;
 }
+
+// HQ Backend Phase 3 — audit trail (8a), tax settings (19f/24d), refund queue (14a).
+export interface AuditEntry {
+  id: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  target: string | null;
+  success: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface TaxSettings {
+  ppnPercent: number;
+  priceIncludesTax: boolean;
+  invoiceFormat: string;
+  companyName: string;
+  npwp: string;
+  address: string;
+  updatedAt: string | null;
+}
+
+export type RefundApproval = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+// A payment awaiting HQ refund approval. Depot & order number are not owned by
+// payment-service, so the queue exposes orderId/customerId only (residual gap).
+export interface RefundQueueItem {
+  id: string;
+  orderId: string;
+  customerId: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: number;
+  refundReason: string | null;
+  refundApproval: RefundApproval;
+  createdAt: string;
+  updatedAt: string;
+}

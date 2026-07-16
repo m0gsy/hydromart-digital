@@ -136,6 +136,35 @@ export const endpoints = {
     // Staff: confirm a payment as received (cash/transfer/QRIS).
     confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
   },
+  // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.
+  audit: {
+    list: (q: { page?: number; limit?: number; action?: string; actorId?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.action) p.set('action', q.action);
+      if (q.actorId) p.set('actorId', q.actorId);
+      const qs = p.toString();
+      return `/auth/api/v1/auth/audit${qs ? `?${qs}` : ''}`;
+    },
+  },
+  // HQ tax & invoice settings (payment-service, FINANCE/SUPER_ADMIN). GET current, PUT to save.
+  tax: {
+    get: '/payments/api/v1/tax-settings',
+    update: '/payments/api/v1/tax-settings',
+  },
+  // HQ refund-approval queue (payment-service, FINANCE/SUPER_ADMIN). Above the HQ threshold.
+  refunds: {
+    queue: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payments/api/v1/payments/refunds/queue${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/payments/api/v1/payments/${id}/refund/approve`,
+    reject: (id: string) => `/payments/api/v1/payments/${id}/refund/reject`,
+  },
   // Recurring galon subscriptions (order-service, spec 7b).
   subscriptions: {
     list: '/orders/api/v1/subscriptions',

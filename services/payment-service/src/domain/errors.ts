@@ -44,6 +44,15 @@ export class GatewayUnavailableError extends DomainError {
   }
 }
 
+/** Approve/reject was called on a refund that is not awaiting HQ approval. */
+export class RefundNotPendingError extends DomainError {
+  readonly code = 'REFUND_NOT_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This refund is not awaiting approval.');
+  }
+}
+
 /** Webhook signature did not verify. */
 export class InvalidWebhookSignatureError extends DomainError {
   readonly code = 'PAYMENT_INVALID_SIGNATURE';

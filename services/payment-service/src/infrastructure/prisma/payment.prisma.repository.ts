@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PaymentMethod, PaymentStatus } from '../../domain/payment';
+import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
   CreatePaymentData,
   PaymentQuery,
@@ -27,6 +27,7 @@ interface PaymentRow {
   refundedAt: Date | null;
   refundReason: string | null;
   refundedAmount: Decimalish | null;
+  refundApproval: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -53,6 +54,7 @@ export class PaymentPrismaRepository implements PaymentRepository {
       refundedAt: row.refundedAt,
       refundReason: row.refundReason,
       refundedAmount: row.refundedAmount ? row.refundedAmount.toNumber() : null,
+      refundApproval: row.refundApproval as RefundApproval,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -91,6 +93,23 @@ export class PaymentPrismaRepository implements PaymentRepository {
       this.prisma.payment.findMany({
         where,
         orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+    return { items: rows.map((r) => this.toRecord(r)), total };
+  }
+
+  async listPendingRefunds(query: {
+    page: number;
+    limit: number;
+  }): Promise<{ items: PaymentRecord[]; total: number }> {
+    const where = { refundApproval: RefundApproval.PENDING };
+    const [rows, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 
 import { PaymentConfigService } from '../../src/config/payment-config.service';
-import { PaymentStatus } from '../../src/domain/payment';
+import { PaymentStatus, RefundApproval } from '../../src/domain/payment';
 import {
   CreatePaymentData,
   PaymentQuery,
@@ -38,6 +38,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundedAt: null,
       refundReason: null,
       refundedAmount: null,
+      refundApproval: RefundApproval.NONE,
       createdAt: now,
       updatedAt: now,
     };
@@ -67,6 +68,16 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       items: all.slice(start, start + query.limit).map((r) => ({ ...r })),
       total: all.length,
     };
+  }
+  async listPendingRefunds(query: {
+    page: number;
+    limit: number;
+  }): Promise<{ items: PaymentRecord[]; total: number }> {
+    const all = this.rows
+      .filter((r) => r.refundApproval === RefundApproval.PENDING)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const start = (query.page - 1) * query.limit;
+    return { items: all.slice(start, start + query.limit).map((r) => ({ ...r })), total: all.length };
   }
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = this.rows.find((r) => r.id === id)!;

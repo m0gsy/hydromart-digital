@@ -14,6 +14,7 @@ import { SessionService } from '../../application/services/session.service';
 import { TokenService } from '../../application/services/token.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditLogPrismaRepository } from '../../infrastructure/prisma/repositories/audit-log.prisma.repository';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
@@ -31,6 +32,7 @@ import { LocalDiskStorageAdapter } from '../../infrastructure/storage/local-disk
 import { S3StorageAdapter } from '../../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../../application/ports/storage.port';
 import { AccountController } from './account.controller';
+import { AuditController } from './audit.controller';
 import { AuthController } from './auth.controller';
 import { AvatarController } from './avatar.controller';
 
@@ -41,6 +43,7 @@ const adapterProviders: Provider[] = [
   ConsoleOtpDeliveryAdapter,
   WhatsappOtpDeliveryAdapter,
   SmsOtpDeliveryAdapter,
+  InternalAuthGuard,
   { provide: AUTH_TOKENS.CustomerRepository, useClass: CustomerPrismaRepository },
   { provide: AUTH_TOKENS.OtpTokenRepository, useClass: OtpTokenPrismaRepository },
   { provide: AUTH_TOKENS.RefreshTokenRepository, useClass: RefreshTokenPrismaRepository },
@@ -102,7 +105,7 @@ const globalGuards: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController, AccountController, AvatarController],
+  controllers: [AuthController, AccountController, AvatarController, AuditController],
   providers: [...adapterProviders, ...applicationServices, ...globalGuards],
   exports: [PrismaService, AuthConfigService],
 })

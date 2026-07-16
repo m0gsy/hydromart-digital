@@ -33,6 +33,11 @@ export class PaymentConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** Refunds above this IDR amount require HQ approval (feature 14a). Default Rp 100k. */
+  get refundApprovalThreshold(): number {
+    const raw = Number(this.config.get<string>('REFUND_HQ_THRESHOLD'));
+    return Number.isFinite(raw) && raw > 0 ? raw : 100_000;
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

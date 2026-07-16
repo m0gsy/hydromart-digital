@@ -31,6 +31,16 @@ enum PaymentStatus {
   CANCELLED
 }
 
+// HQ refund-approval state for a payment (feature 14a). NONE = no approval needed
+// (refunded directly, under the HQ threshold). PENDING = queued for HQ review.
+// APPROVED/REJECTED = decided by finance/super-admin.
+enum RefundApproval {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 /// One payment attempt for an order. A new attempt is created if a prior one
 /// failed/was cancelled; at most one PENDING/PAID row exists per order.
 model Payment {
@@ -52,6 +62,8 @@ model Payment {
   refundedAt     DateTime?
   refundReason   String?
   refundedAmount Decimal?  @db.Decimal(12, 2)
+  /// HQ refund-approval state. High-value refunds park at PENDING until decided.
+  refundApproval RefundApproval @default(NONE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -59,5 +71,23 @@ model Payment {
   @@index([orderId])
   @@index([customerId])
   @@index([status])
+  @@index([refundApproval])
   @@map("payments")
+}
+
+/// Singleton tax & invoice settings (feature 19f). One active row; feeds the
+/// invoice-template preview (24d). PPN %, price-inclusive toggle, invoice-number
+/// format and the company's legal identity.
+model TaxSettings {
+  id               String   @id @default(uuid()) @db.Uuid
+  ppnPercent       Decimal  @db.Decimal(5, 2)
+  priceIncludesTax Boolean  @default(true)
+  invoiceFormat    String
+  companyName      String
+  npwp             String
+  address          String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("tax_settings")
 }

@@ -414,8 +414,11 @@ export const hq = {
     approve: 'Approve',
     reject: 'Reject',
     empty: 'No refunds awaiting approval.',
-    approved: 'Refund {order} approved (sample)',
-    rejected: 'Refund {order} rejected (sample)',
+    approved: 'Refund {order} approved',
+    rejected: 'Refund {order} rejected',
+    loadError: 'Could not load the refund queue.',
+    approveError: 'Could not process the refund.',
+    enrichNote: 'Depot name & order number are not shown yet (owned by other services); amount, method, reason & decision are real.',
   },
   vouchers: {
     title: 'Voucher governance',
@@ -921,6 +924,8 @@ export const hq = {
     exported: 'Audit-log export scheduled (sample)',
     empty: 'No activity yet.',
     note: 'The log is append-only — it cannot be edited or deleted.',
+    loadError: 'Could not load the audit log.',
+    system: 'System',
   },
   flags: {
     title: 'Feature flags',
@@ -1036,7 +1041,9 @@ export const hq = {
     npwp: 'Tax ID (NPWP)',
     address: 'Address',
     save: 'Save settings',
-    saved: 'Tax settings saved (sample)',
+    saved: 'Tax settings saved',
+    loadError: 'Could not load tax settings.',
+    saveError: 'Could not save tax settings.',
     previewLink: 'View invoice template →',
   },
   incidents: {

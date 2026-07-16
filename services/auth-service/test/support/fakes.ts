@@ -30,6 +30,8 @@ import {
 } from '../../src/application/ports/refresh-token.repository';
 import {
   AuditLogEntry,
+  AuditLogListItem,
+  AuditLogQuery,
   AuditLogRepository,
 } from '../../src/application/ports/audit-log.repository';
 
@@ -291,6 +293,29 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
       throw new Error('audit failure');
     }
     this.entries.push(entry);
+  }
+  async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+    const all = this.entries
+      .filter((e) => !query.action || e.action === query.action)
+      .filter((e) => !query.customerId || e.customerId === query.customerId)
+      .map(
+        (e, i): AuditLogListItem => ({
+          id: `audit-${i}`,
+          customerId: e.customerId,
+          action: e.action,
+          success: e.success,
+          ipAddress: e.ipAddress,
+          userAgent: e.userAgent,
+          metadata: (e.metadata ?? null) as Record<string, unknown> | null,
+          createdAt: new Date(),
+          actorEmail: null,
+          actorName: null,
+          actorRole: null,
+        }),
+      )
+      .reverse();
+    const start = (query.page - 1) * query.limit;
+    return { items: all.slice(start, start + query.limit), total: all.length };
   }
   actions(): string[] {
     return this.entries.map((e) => e.action);

@@ -1,4 +1,4 @@
-import { PaymentMethod, PaymentStatus } from '../../domain/payment';
+import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 
 export interface PaymentRecord {
   id: string;
@@ -15,6 +15,7 @@ export interface PaymentRecord {
   refundedAt: Date | null;
   refundReason: string | null;
   refundedAmount: number | null;
+  refundApproval: RefundApproval;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,7 @@ export interface PaymentStatusPatch {
   refundedAt?: Date | null;
   refundReason?: string | null;
   refundedAmount?: number | null;
+  refundApproval?: RefundApproval;
   reference?: string | null;
   instruction?: string | null;
   gatewayData?: string | null;
@@ -56,5 +58,10 @@ export interface PaymentRepository {
   findActiveByOrder(orderId: string): Promise<PaymentRecord | null>;
   findByReference(reference: string): Promise<PaymentRecord | null>;
   search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }>;
+  /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
+  listPendingRefunds(query: { page: number; limit: number }): Promise<{
+    items: PaymentRecord[];
+    total: number;
+  }>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

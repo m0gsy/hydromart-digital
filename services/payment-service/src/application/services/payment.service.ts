@@ -9,10 +9,12 @@ import {
   PaymentAlreadyExistsError,
   PaymentNotFoundError,
   PaymentNotRefundableError,
+  RefundNotPendingError,
 } from '../../domain/errors';
 import {
   PaymentMethod,
   PaymentStatus,
+  RefundApproval,
   canTransition,
   isOnlineMethod,
   isRefundable,
@@ -168,29 +170,87 @@ export class PaymentService {
     return this.payments.update(id, { status: PaymentStatus.FAILED, failedAt: new Date() });
   }
 
-  /** BR: an online-paid order that is cancelled must be refunded. */
+  /**
+   * BR: an online-paid order that is cancelled must be refunded. Refunds strictly
+   * above the HQ threshold (feature 14a) do NOT settle here — they park in the
+   * PENDING approval queue and settle only once HQ approves. At or below it, the
+   * refund goes through immediately (unchanged behaviour).
+   */
   async refund(id: string, changedBy: string, reason?: string): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     if (!isRefundable(payment.status)) {
       throw new PaymentNotRefundableError(payment.status);
     }
+    if (payment.amount > this.config.refundApprovalThreshold) {
+      this.logger.log(
+        `Refund for ${id} (${payment.amount}) queued for HQ approval by ${changedBy}`,
+      );
+      return this.payments.update(id, {
+        status: payment.status, // stays PAID until approved
+        refundApproval: RefundApproval.PENDING,
+        refundReason: reason ?? null,
+        refundedAmount: payment.amount,
+      });
+    }
+    return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE);
+  }
+
+  /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */
+  async listRefundQueue(input: { page?: number; limit?: number }): Promise<Page<PaymentRecord>> {
+    const page = Math.max(1, input.page ?? 1);
+    const limit = Math.min(PaymentService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
+    const { items, total } = await this.payments.listPendingRefunds({ page, limit });
+    return buildPage(items, total, page, limit);
+  }
+
+  /** HQ approves a queued refund → it settles now (finance/super-admin). */
+  async approveRefund(id: string, changedBy: string): Promise<PaymentRecord> {
+    const payment = await this.getAny(id);
+    if (payment.refundApproval !== RefundApproval.PENDING) {
+      throw new RefundNotPendingError();
+    }
+    return this.executeRefund(payment, changedBy, payment.refundReason, RefundApproval.APPROVED);
+  }
+
+  /** HQ rejects a queued refund → no money moves; payment stays PAID. */
+  async rejectRefund(id: string, changedBy: string, reason?: string): Promise<PaymentRecord> {
+    const payment = await this.getAny(id);
+    if (payment.refundApproval !== RefundApproval.PENDING) {
+      throw new RefundNotPendingError();
+    }
+    this.logger.log(`Refund ${id} rejected by ${changedBy}`);
+    return this.payments.update(id, {
+      status: payment.status, // stays PAID
+      refundApproval: RefundApproval.REJECTED,
+      refundReason: reason ?? payment.refundReason,
+    });
+  }
+
+  /** Settles a refund: gateway call (online methods) then PAID → REFUNDED. */
+  private async executeRefund(
+    payment: PaymentRecord,
+    changedBy: string,
+    reason: string | null,
+    approval: RefundApproval,
+  ): Promise<PaymentRecord> {
     const patch: PaymentStatusPatch = {
       status: PaymentStatus.REFUNDED,
       refundedAt: new Date(),
-      refundReason: reason ?? null,
+      refundReason: reason,
       refundedAmount: payment.amount,
+      refundApproval: approval,
     };
     if (isOnlineMethod(payment.method) && payment.reference) {
       try {
         const result = await this.gateway.refund(payment.reference, payment.amount);
         patch.gatewayData = result.raw;
       } catch (error) {
-        this.logger.error(`Gateway refund failed for ${id}: ${(error as Error).message}`);
+        this.logger.error(`Gateway refund failed for ${payment.id}: ${(error as Error).message}`);
         throw new GatewayUnavailableError();
       }
     }
-    this.logger.log(`Payment ${id} refunded by ${changedBy}`);
-    return this.payments.update(id, patch);
+    this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
+    return this.payments.update(payment.id, patch);
   }
 
   /**

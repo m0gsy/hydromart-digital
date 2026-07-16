@@ -82,49 +82,8 @@ export const PRICE_OVERRIDE_QUEUE_STUB: PriceOverrideProposal[] = [
   },
 ];
 
-// STUB: HQ refund approval queue (> Rp 100rb) pending — Milestone D.
-export interface RefundRequestRow {
-  id: string;
-  orderNumber: string;
-  method: string;
-  depot: string;
-  reason: string;
-  amount: number;
-  requestedBy: string;
-  ageHours: number;
-}
-export const REFUND_QUEUE_STUB: RefundRequestRow[] = [
-  {
-    id: 'rf-1',
-    orderNumber: 'ORD-0231',
-    method: 'QRIS',
-    depot: 'Depot Cempaka Putih',
-    reason: 'Galon bocor saat diantar',
-    amount: 145_000,
-    requestedBy: 'Operator depot',
-    ageHours: 3,
-  },
-  {
-    id: 'rf-2',
-    orderNumber: 'ORD-0248',
-    method: 'Transfer bank',
-    depot: 'Depot Kelapa Gading',
-    reason: 'Pesanan dobel',
-    amount: 220_000,
-    requestedBy: 'Manajer depot',
-    ageHours: 9,
-  },
-  {
-    id: 'rf-3',
-    orderNumber: 'ORD-0255',
-    method: 'Virtual account',
-    depot: 'Depot Bekasi Timur',
-    reason: 'Barang tidak sesuai',
-    amount: 168_000,
-    requestedBy: 'Operator depot',
-    ageHours: 26,
-  },
-];
+// The HQ refund-approval queue is now REAL: payment-service refunds/queue +
+// approve/reject track (endpoints.refunds.*). The old REFUND_QUEUE_STUB was removed.
 
 // STUB: network promo budget + per-voucher burn + pending depot voucher requests — Milestone D.
 export const PROMO_BUDGET_STUB = { total: 50_000_000, used: 32_400_000 };
@@ -265,23 +224,9 @@ export function stubBroadcastReach(audience: string): number {
 // The franchise-application pipeline is now REAL: depot-service franchise-applications
 // track (endpoints.franchiseApps.*). The old APPLICATION_QUEUE_STUB was removed.
 
-// STUB: cross-service audit trail — real backend track (no aggregate audit endpoint).
-export interface AuditRow {
-  id: string;
-  actor: string;
-  role: string;
-  target: string;
-  action: string;
-  agoMin: number;
-}
-export const AUDIT_LOG_STUB: AuditRow[] = [
-  { id: 'a1', actor: 'Sari Dewi', role: 'Head office', target: 'Depot Kelapa Gading', action: 'Menyetujui override harga', agoMin: 8 },
-  { id: 'a2', actor: 'Budi Santoso', role: 'Super admin', target: 'Peran & hak akses', action: 'Mengubah capability voucherWrite', agoMin: 42 },
-  { id: 'a3', actor: 'Finance', role: 'Finance', target: 'Payout wa-0231', action: 'Merilis payout ke bank', agoMin: 95 },
-  { id: 'a4', actor: 'Marketing', role: 'Marketing', target: 'Voucher HEMAT20', action: 'Menerbitkan voucher', agoMin: 180 },
-  { id: 'a5', actor: 'Andi Wijaya', role: 'Head office', target: 'Staf 0812xxxx', action: 'Mengundang staf baru', agoMin: 320 },
-  { id: 'a6', actor: 'Super admin', role: 'Super admin', target: 'Feature flag payment-va', action: 'Mengaktifkan rollout', agoMin: 1440 },
-];
+// The cross-service audit trail is now REAL: auth-service GET /auth/audit (with a
+// service-to-service ingest endpoint). See endpoints.audit.*. The old AUDIT_LOG_STUB
+// was removed.
 
 // STUB: feature-flag + platform config — real backend track (no config service).
 export type FlagState = 'ROLLOUT' | 'AKTIF' | 'BETA' | 'MATI';
@@ -407,24 +352,10 @@ export const ACTIVE_SESSIONS_STUB: SessionRow[] = [
   { id: 's3', device: 'Edge · Windows', location: 'Bandung, ID', ip: '180.2.x.x', current: false, agoMin: 1440 },
 ];
 
-// STUB: tax & invoice settings — local state only (no billing-config endpoint). Shared
-// by the tax page (19f) and the invoice template preview (24d).
-export interface TaxSettings {
-  ppnPercent: number;
-  priceIncludesTax: boolean;
-  invoiceFormat: string;
-  companyName: string;
-  npwp: string;
-  address: string;
-}
-export const TAX_SETTINGS_DEFAULT: TaxSettings = {
-  ppnPercent: 11,
-  priceIncludesTax: true,
-  invoiceFormat: 'INV/{YYYY}/{MM}/{NNNN}',
-  companyName: 'PT Hydromart Nusantara',
-  npwp: '01.234.567.8-901.000',
-  address: 'Jl. Sudirman Kav. 21, Jakarta Pusat 10220',
-};
+// Tax & invoice settings are now REAL: payment-service GET/PUT /tax-settings
+// (endpoints.tax.*), shared by the tax page (19f) and the invoice template (24d).
+// The TaxSettings type now lives in @/lib/types. Only the invoice line items below
+// stay sample data (no single order is being previewed).
 export interface InvoiceLine {
   name: string;
   qty: number;

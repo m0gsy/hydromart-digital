@@ -27,6 +27,8 @@ import {
 // Settlement roles (confirm/fail/read-by-order) come from the shared capability map.
 // Refunds stay a narrower finance/manager action.
 const REFUND_ROLES = [Role.FINANCE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+// HQ refund-approval queue (feature 14a): cross-depot, finance/super-admin only.
+const REFUND_QUEUE_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -59,6 +61,15 @@ export class PaymentController {
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
   listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
     return this.payments.listAll({ orderId, limit: 20 });
+  }
+
+  // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
+  // threshold, newest first. Declared before ':id' so the static segment wins.
+  @Get('refunds/queue')
+  @Roles(...REFUND_QUEUE_ROLES)
+  @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
+  listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<PaymentRecord>> {
+    return this.payments.listRefundQueue(query);
   }
 
   @Get(':id')
@@ -99,6 +110,27 @@ export class PaymentController {
     @Body() dto: RefundPaymentDto,
   ): Promise<PaymentRecord> {
     return this.payments.refund(id, user.sub, dto.reason);
+  }
+
+  @Post(':id/refund/approve')
+  @Roles(...REFUND_QUEUE_ROLES)
+  @ApiOperation({ summary: 'Approve a queued refund → settles now (HQ)' })
+  approveRefund(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<PaymentRecord> {
+    return this.payments.approveRefund(id, user.sub);
+  }
+
+  @Post(':id/refund/reject')
+  @Roles(...REFUND_QUEUE_ROLES)
+  @ApiOperation({ summary: 'Reject a queued refund → no money moves (HQ)' })
+  rejectRefund(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RefundPaymentDto,
+  ): Promise<PaymentRecord> {
+    return this.payments.rejectRefund(id, user.sub, dto.reason);
   }
 
   @Public()
