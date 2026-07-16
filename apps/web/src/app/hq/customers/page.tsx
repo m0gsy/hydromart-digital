@@ -5,20 +5,22 @@ import { UserCircle } from '@phosphor-icons/react';
 
 import { Button, Card, Input, Money } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubCustomerLifetimeValue } from '@/lib/hq/stubs';
+import { StubBadge } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import type { Customer } from '@/lib/types';
+import type { Customer, CustomerSummary } from '@/lib/types';
 
-// Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup).
-// Loyalty / recent-orders / LTV have no cross-customer endpoint → badged stubs.
+// Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
+// LTV + recent orders are real (order-service reports.customer). Loyalty stays badged
+// (no cross-customer loyalty endpoint yet).
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [phone, setPhone] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -27,9 +29,16 @@ export default function HqCustomersPage() {
     setBusy(true);
     setError(null);
     setCustomer(null);
+    setSummary(null);
     try {
       const c = await api.get<Customer>(endpoints.auth.customerLookup(phone.trim()), true);
       setCustomer(c);
+      // Best-effort: a customer with no orders still shows the profile.
+      try {
+        setSummary(await api.get<CustomerSummary>(endpoints.reports.customer(c.id), true));
+      } catch {
+        setSummary(null);
+      }
     } catch (err) {
       setError(err instanceof ApiError && err.status === 404 ? t('hq.customers.notFound') : (err as ApiError).message);
     } finally {
@@ -89,13 +98,14 @@ export default function HqCustomersPage() {
                 <dd>{formatDateTime(customer.createdAt)}</dd>
               </div>
               <div>
-                <dt className="flex items-center gap-1.5 text-xs text-muted">
-                  {t('hq.customers.ltv')}
-                  <StubBadge />
-                </dt>
+                <dt className="text-xs text-muted">{t('hq.customers.ltv')}</dt>
                 <dd className="font-semibold">
-                  <Money amount={stubCustomerLifetimeValue(customer.id)} />
+                  <Money amount={summary?.revenue ?? 0} />
                 </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted">{t('hq.customers.orderCount')}</dt>
+                <dd className="font-semibold tabular-nums">{summary?.orderCount ?? 0}</dd>
               </div>
             </dl>
             <div className="flex flex-wrap gap-2 border-t border-app pt-3">
@@ -120,11 +130,22 @@ export default function HqCustomersPage() {
               <p className="text-sm text-muted">{t('hq.customers.loyaltyStub')}</p>
             </Card>
             <Card className="flex flex-col gap-2 p-5">
-              <h2 className="flex items-center gap-2 font-semibold">
-                {t('hq.customers.recentOrders')}
-                <StubBadge />
-              </h2>
-              <p className="text-sm text-muted">{t('hq.customers.recentStub')}</p>
+              <h2 className="font-semibold">{t('hq.customers.recentOrders')}</h2>
+              {summary && summary.recentOrders.length > 0 ? (
+                <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+                  {summary.recentOrders.map((o) => (
+                    <li key={o.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{o.orderNumber}</p>
+                        <p className="text-xs text-muted">{formatDateTime(o.createdAt)}</p>
+                      </div>
+                      <Money amount={o.total} className="shrink-0 font-semibold" />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted">{t('hq.customers.noOrders')}</p>
+              )}
             </Card>
           </div>
         </div>

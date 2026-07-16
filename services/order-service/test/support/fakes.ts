@@ -8,17 +8,21 @@ import { CartItemRecord, CartRepository } from '../../src/application/ports/cart
 import {
   CreateOrderData,
   CreateReviewData,
+  CustomerLifetime,
   CustomerSales,
   DepotSales,
   OrderQuery,
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  ProductRevenue,
   ReportRange,
+  RetentionCell,
   SalesBucket,
 } from '../../src/application/ports/order.repository';
 import {
   CreateSubscriptionData,
+  SubscriptionNetworkSummary,
   SubscriptionRecord,
   SubscriptionRepository,
   SubscriptionStatus,
@@ -242,6 +246,68 @@ export class InMemoryOrderRepository implements OrderRepository {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
   }
+
+  async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
+    const agg = new Map<string, ProductRevenue>();
+    for (const r of this.reportRows(range)) {
+      for (const i of r.items) {
+        const cur = agg.get(i.productId) ?? {
+          productId: i.productId,
+          productName: i.productName,
+          orderCount: 0,
+          revenue: 0,
+        };
+        cur.orderCount += 1;
+        cur.revenue += i.lineTotal;
+        agg.set(i.productId, cur);
+      }
+    }
+    return [...agg.values()].sort((a, b) => b.revenue - a.revenue).slice(0, limit);
+  }
+
+  async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
+    const monthKey = (d: Date) => d.toISOString().slice(0, 7);
+    const monthIdx = (cohort: string, active: string) => {
+      const [cy, cm] = cohort.split('-').map(Number);
+      const [ay, am] = active.split('-').map(Number);
+      return (ay - cy) * 12 + (am - cm);
+    };
+    const rows = this.reportRows(range);
+    const cohortOf = new Map<string, string>();
+    for (const r of rows) {
+      const m = monthKey(r.createdAt);
+      const cur = cohortOf.get(r.customerId);
+      if (!cur || m < cur) cohortOf.set(r.customerId, m);
+    }
+    // (cohort, monthIndex) -> set of customerIds active that month
+    const cells = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const cohort = cohortOf.get(r.customerId)!;
+      const idx = monthIdx(cohort, monthKey(r.createdAt));
+      const key = `${cohort}#${idx}`;
+      const set = cells.get(key) ?? new Set<string>();
+      set.add(r.customerId);
+      cells.set(key, set);
+    }
+    return [...cells.entries()]
+      .map(([key, set]) => {
+        const [cohort, idx] = key.split('#');
+        return { cohort, monthIndex: Number(idx), customers: set.size };
+      })
+      .sort((a, b) => a.cohort.localeCompare(b.cohort) || a.monthIndex - b.monthIndex);
+  }
+
+  async customerLifetime(customerId: string): Promise<CustomerLifetime> {
+    const rows = this.rows
+      .filter((r) => r.customerId === customerId && r.status !== OrderStatus.CANCELLED)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return {
+      orderCount: rows.length,
+      revenue: rows.reduce((s, r) => s + r.total, 0),
+      firstOrderAt: rows[0]?.createdAt ?? null,
+      lastOrderAt: rows[rows.length - 1]?.createdAt ?? null,
+    };
+  }
 }
 
 export class InMemorySubscriptionRepository implements SubscriptionRepository {
@@ -276,6 +342,26 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.nextDeliveryAt = nextDeliveryAt;
     r.updatedAt = nextDate();
     return structuredClone(r);
+  }
+
+  async networkSummary(): Promise<SubscriptionNetworkSummary> {
+    const active = this.rows.filter((r) => r.status === 'ACTIVE');
+    const agg = new Map<string, SubscriptionNetworkSummary['plans'][number]>();
+    for (const r of active) {
+      const key = `${r.productName}#${r.frequency}`;
+      const cur = agg.get(key) ?? {
+        productName: r.productName,
+        frequency: r.frequency,
+        subscribers: 0,
+      };
+      cur.subscribers += 1;
+      agg.set(key, cur);
+    }
+    return {
+      activeSubscriptions: active.length,
+      activeSubscribers: new Set(active.map((r) => r.customerId)).size,
+      plans: [...agg.values()].sort((a, b) => b.subscribers - a.subscribers),
+    };
   }
 }
 

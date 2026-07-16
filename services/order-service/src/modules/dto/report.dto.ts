@@ -19,6 +19,18 @@ export class SalesReportQueryDto {
   to?: string;
 }
 
+export class RangeReportQueryDto {
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
 export class TopReportQueryDto {
   @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
   @IsOptional()

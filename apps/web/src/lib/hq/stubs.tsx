@@ -95,33 +95,10 @@ export function stubSegmentEstimate(conditionCount: number): number {
 
 /* ---------- Milestone C — Daily ops, Analytics & growth, Catalog & pricing ---------- */
 
-// STUB: no revenue-by-category endpoint — Milestone D. Executive dashboard reports
-// network revenue but not a category breakdown, so the analytics panel samples it.
-export interface CategoryRevenueRow {
-  label: string;
-  revenue: number;
-}
-export const CATEGORY_REVENUE_STUB: CategoryRevenueRow[] = [
-  { label: 'Galon isi ulang', revenue: 148_200_000 },
-  { label: 'Air kemasan (dus)', revenue: 92_600_000 },
-  { label: 'Galon + air baru', revenue: 41_800_000 },
-  { label: 'Dispenser & aksesoris', revenue: 18_400_000 },
-];
-
-// STUB: no retention-cohort endpoint — Milestone D. Rows = signup cohorts, cells =
-// month-over-month retention ratio (0..1) for the CohortGrid.
-export interface CohortRow {
-  label: string;
-  cells: number[];
-}
-export const RETENTION_COHORT_STUB: CohortRow[] = [
-  { label: 'Feb', cells: [1, 0.72, 0.61, 0.55, 0.5, 0.47] },
-  { label: 'Mar', cells: [1, 0.75, 0.64, 0.58, 0.53] },
-  { label: 'Apr', cells: [1, 0.7, 0.6, 0.54] },
-  { label: 'Mei', cells: [1, 0.78, 0.66] },
-  { label: 'Jun', cells: [1, 0.74] },
-  { label: 'Jul', cells: [1] },
-];
+// Revenue-by-product (22b) is now REAL: order-service GET /reports/revenue-by-category
+// (endpoints.reports.revenueByCategory) — grouped per PRODUCT (no category column).
+// Retention cohort (22b) is now REAL: order-service GET /reports/retention-cohort. The
+// old CATEGORY_REVENUE_STUB / RETENTION_COHORT_STUB were removed.
 
 // STUB: per-depot ops metrics with no HQ endpoint (14d compare + 22c scorecard) — Milestone D.
 /** Sample average delivery time (minutes) for a depot, stable per id. */
@@ -142,24 +119,12 @@ export function stubForecastConfidence(productId: string): number {
   return 0.7 + (hash(productId) % 28) / 100; // 0.70..0.97
 }
 
-// STUB: no cross-customer lifetime-value endpoint (Customer 360, 17e) — Milestone D.
-export function stubCustomerLifetimeValue(customerId: string): number {
-  return 350_000 + (hash(customerId) % 60) * 45_000; // ~350rb..3jt
-}
+// Customer lifetime value (17e) is now REAL: order-service GET /reports/customer/:id
+// (endpoints.reports.customer). The old stubCustomerLifetimeValue was removed.
 
-// STUB: subscriptions endpoint is customer-scoped; no network aggregate (18c) — Milestone D.
-export interface SubscriptionPlanRow {
-  id: string;
-  productName: string;
-  frequency: string;
-  subscribers: number;
-  nextRun: string;
-}
-export const SUBSCRIPTION_PLANS_STUB: SubscriptionPlanRow[] = [
-  { id: 'sp-1', productName: 'Galon 19L isi ulang', frequency: 'Mingguan', subscribers: 342, nextRun: 'Sen, 09.00' },
-  { id: 'sp-2', productName: 'Galon 19L isi ulang', frequency: '2 mingguan', subscribers: 128, nextRun: 'Rab, 10.00' },
-  { id: 'sp-3', productName: 'Air 600ml (dus)', frequency: 'Bulanan', subscribers: 76, nextRun: 'Jum, 08.00' },
-];
+// Subscription network aggregate (18c) is now REAL: order-service
+// GET /subscriptions/admin/summary (endpoints.subscriptions.adminSummary). The old
+// SUBSCRIPTION_PLANS_STUB was removed.
 
 // STUB: no audience-sizing endpoint for the broadcast composer (10d) — Milestone D.
 export function stubBroadcastReach(audience: string): number {

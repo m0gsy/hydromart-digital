@@ -126,6 +126,36 @@ export interface DepotSales {
   revenue: number;
 }
 
+/**
+ * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
+ * productName but NOT a category, so this groups by product — a true category
+ * breakdown would need a cross-service join into product-service (not done here).
+ */
+export interface ProductRevenue {
+  productId: string;
+  productName: string;
+  orderCount: number;
+  revenue: number;
+}
+
+/** One (cohort-month, months-since-cohort) cell of the retention grid (22b). */
+export interface RetentionCell {
+  /** Cohort = first-order month, 'YYYY-MM'. */
+  cohort: string;
+  /** Months elapsed since the cohort month (0 = the cohort's own month). */
+  monthIndex: number;
+  /** Distinct customers from this cohort active in that later month. */
+  customers: number;
+}
+
+/** A single customer's lifetime aggregates over the order book (17e / Customer 360). */
+export interface CustomerLifetime {
+  orderCount: number;
+  revenue: number;
+  firstOrderAt: Date | null;
+  lastOrderAt: Date | null;
+}
+
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
@@ -168,4 +198,14 @@ export interface OrderRepository {
   topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
+  /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
+  revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
+  /**
+   * Retention cells: for each first-order cohort month, distinct customers still
+   * ordering `monthIndex` months later (CANCELLED excluded). The service pivots
+   * these into per-cohort retention rows (22b).
+   */
+  retentionCohort(range: ReportRange): Promise<RetentionCell[]>;
+  /** One customer's lifetime revenue/order-count/first-last dates (17e). */
+  customerLifetime(customerId: string): Promise<CustomerLifetime>;
 }

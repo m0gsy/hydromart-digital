@@ -77,4 +77,45 @@ describe('ReportService', () => {
     expect(totalRevenue).toBe(105000); // 50k+30k+20k+5k, cancelled 999999 excluded
     expect(totalOrders).toBe(4);
   });
+
+  it('summarizes a customer lifetime, excluding cancelled from the totals', async () => {
+    const summary = await reports.customerSummary(CUST_B);
+    // Lifetime aggregate excludes the 999999 cancelled order: only the 20k counts.
+    expect(summary.orderCount).toBe(1);
+    expect(summary.revenue).toBe(20000);
+    // Recent-orders list is the raw order history (cancellations are still shown).
+    expect(summary.recentOrders.length).toBe(2);
+    expect(summary.recentOrders[0].orderNumber).toBeTruthy();
+    expect(summary.firstOrderAt).not.toBeNull();
+    expect(summary.lastOrderAt).not.toBeNull();
+  });
+
+  it('groups revenue by product with a share summing to 1', async () => {
+    const p1 = randomUUID();
+    const p2 = randomUUID();
+    const withItems = (over: Partial<CreateOrderData>, items: CreateOrderData['items']) => ({
+      ...orderData(over),
+      items,
+    });
+    const r2 = new InMemoryOrderRepository();
+    const svc = new ReportService(r2);
+    await r2.create(
+      withItems({ total: 60000 }, [
+        { productId: p1, productName: 'Galon 19L', sku: 'G19', unit: 'Galon', unitPrice: 20000, quantity: 2, lineTotal: 40000 },
+        { productId: p2, productName: 'Air 600ml', sku: 'A600', unit: 'Dus', unitPrice: 20000, quantity: 1, lineTotal: 20000 },
+      ]),
+    );
+    const report = await svc.revenueByProduct({}, 10);
+    expect(report.grouping).toBe('product');
+    expect(report.items[0]).toMatchObject({ productId: p1, revenue: 40000 });
+    const shareSum = report.items.reduce((s, i) => s + i.share, 0);
+    expect(shareSum).toBeCloseTo(1, 5);
+  });
+
+  it('pivots retention into per-cohort rows (M0 = 100%)', async () => {
+    const report = await reports.retentionCohort({});
+    expect(report.rows.length).toBeGreaterThan(0);
+    // Every cohort's own month retains 100% of itself.
+    expect(report.rows.every((r) => r.cells[0] === 1)).toBe(true);
+  });
 });

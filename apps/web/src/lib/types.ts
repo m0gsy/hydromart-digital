@@ -496,6 +496,41 @@ export interface TopCustomers {
   items: { customerId: string; orderCount: number; revenue: number }[];
 }
 
+// 22b — revenue share per product (order-service has no category column, so grouping
+// is always 'product'; the web labels it "per produk" honestly).
+export interface RevenueByProduct {
+  grouping: 'product';
+  from: string | null;
+  to: string | null;
+  items: { productId: string; productName: string; orderCount: number; revenue: number; share: number }[];
+}
+
+// 22b — retention grid: rows = first-order-month cohorts, cells = retention ratio (0..1).
+export interface RetentionCohort {
+  from: string | null;
+  to: string | null;
+  rows: { label: string; cohortSize: number; cells: number[] }[];
+}
+
+// 17e — one customer's lifetime aggregate + recent orders (Customer 360).
+export interface CustomerSummary {
+  customerId: string;
+  orderCount: number;
+  revenue: number;
+  firstOrderAt: string | null;
+  lastOrderAt: string | null;
+  recentOrders: { id: string; orderNumber: string; status: string; total: number; createdAt: string }[];
+}
+
+// 18c — HQ network subscription aggregate. estMonthlyDeliveries is an estimate (no
+// rupiah MRR is derivable — subscriptions snapshot no price).
+export interface SubscriptionNetworkSummary {
+  activeSubscriptions: number;
+  activeSubscribers: number;
+  estMonthlyDeliveries: number;
+  plans: { productName: string; frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'; subscribers: number }[];
+}
+
 export interface TopDepots {
   from: string | null;
   to: string | null;

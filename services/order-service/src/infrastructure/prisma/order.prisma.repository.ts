@@ -5,13 +5,16 @@ import { OrderStatus } from '../../domain/order-status';
 import {
   CreateOrderData,
   CreateReviewData,
+  CustomerLifetime,
   CustomerSales,
   DepotSales,
   OrderQuery,
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  ProductRevenue,
   ReportRange,
+  RetentionCell,
   SalesBucket,
 } from '../../application/ports/order.repository';
 import { PrismaService } from './prisma.service';
@@ -347,5 +350,73 @@ export class OrderPrismaRepository implements OrderRepository {
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
     }));
+  }
+
+  async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
+    // Group the line items whose parent order is non-cancelled & in-window. OrderItem
+    // has no category column, so this is a per-PRODUCT breakdown (see ProductRevenue).
+    const rows = await this.prisma.orderItem.groupBy({
+      by: ['productId', 'productName'],
+      where: { order: this.reportWhere(range) },
+      _sum: { lineTotal: true },
+      _count: { _all: true },
+      orderBy: { _sum: { lineTotal: 'desc' } },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      productId: r.productId,
+      productName: r.productName,
+      orderCount: r._count._all,
+      revenue: r._sum.lineTotal ? r._sum.lineTotal.toNumber() : 0,
+    }));
+  }
+
+  async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
+    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const rows = await this.prisma.$queryRaw<
+      { cohort: string; monthIndex: number; customers: bigint }[]
+    >(Prisma.sql`
+      WITH first_order AS (
+        SELECT "customerId", date_trunc('month', MIN("createdAt")) AS cohort
+        FROM "orders" WHERE ${where} GROUP BY "customerId"
+      ),
+      activity AS (
+        SELECT DISTINCT "customerId", date_trunc('month', "createdAt") AS active_month
+        FROM "orders" WHERE ${where}
+      )
+      SELECT to_char(f.cohort, 'YYYY-MM') AS cohort,
+             ((EXTRACT(YEAR FROM a.active_month) - EXTRACT(YEAR FROM f.cohort)) * 12
+              + (EXTRACT(MONTH FROM a.active_month) - EXTRACT(MONTH FROM f.cohort)))::int
+               AS "monthIndex",
+             COUNT(DISTINCT f."customerId")::bigint AS customers
+      FROM first_order f
+      JOIN activity a ON a."customerId" = f."customerId"
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `);
+    return rows.map((r) => ({
+      cohort: r.cohort,
+      monthIndex: Number(r.monthIndex),
+      customers: Number(r.customers),
+    }));
+  }
+
+  async customerLifetime(customerId: string): Promise<CustomerLifetime> {
+    const agg = await this.prisma.order.aggregate({
+      where: { customerId, status: { not: DbOrderStatus.CANCELLED } },
+      _sum: { total: true },
+      _count: { _all: true },
+      _min: { createdAt: true },
+      _max: { createdAt: true },
+    });
+    return {
+      orderCount: agg._count._all,
+      revenue: agg._sum.total ? agg._sum.total.toNumber() : 0,
+      firstOrderAt: agg._min.createdAt,
+      lastOrderAt: agg._max.createdAt,
+    };
   }
 }

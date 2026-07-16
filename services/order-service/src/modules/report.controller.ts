@@ -1,13 +1,15 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
-import { SalesReportQueryDto, TopReportQueryDto } from './dto/report.dto';
+import { RangeReportQueryDto, SalesReportQueryDto, TopReportQueryDto } from './dto/report.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+// Customer 360 (17e) is HQ-only — no depot-manager access to a single customer's history.
+const HQ_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
 
 function toRange(q: { from?: string; to?: string }): ReportRange {
   return {
@@ -39,5 +41,24 @@ export class ReportController {
   @ApiOperation({ summary: 'Highest-revenue depots (FR-098)' })
   topDepots(@Query() q: TopReportQueryDto) {
     return this.reports.topDepots(toRange(q), q.limit ?? 10);
+  }
+
+  @Get('revenue-by-category')
+  @ApiOperation({ summary: 'Revenue share per product (22b; per-product — no category column)' })
+  revenueByCategory(@Query() q: TopReportQueryDto) {
+    return this.reports.revenueByProduct(toRange(q), q.limit ?? 10);
+  }
+
+  @Get('retention-cohort')
+  @ApiOperation({ summary: 'Customer retention by first-order-month cohort (22b)' })
+  retentionCohort(@Query() q: RangeReportQueryDto) {
+    return this.reports.retentionCohort(toRange(q));
+  }
+
+  @Roles(...HQ_ROLES)
+  @Get('customer/:customerId')
+  @ApiOperation({ summary: 'One customer lifetime value + recent orders (17e Customer 360)' })
+  customer(@Param('customerId', ParseUUIDPipe) customerId: string) {
+    return this.reports.customerSummary(customerId);
   }
 }

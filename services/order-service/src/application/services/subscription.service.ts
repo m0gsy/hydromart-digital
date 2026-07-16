@@ -11,6 +11,7 @@ import { ProductCatalogPort } from '../ports/product-catalog.port';
 import {
   CreateSubscriptionData,
   SubscriptionFrequency,
+  SubscriptionNetworkSummary,
   SubscriptionRecord,
   SubscriptionRepository,
 } from '../ports/subscription.repository';
@@ -23,6 +24,20 @@ export interface CreateSubscriptionInput {
   frequency: SubscriptionFrequency;
   firstDeliveryAt: Date;
   address: DeliveryAddressSnapshot;
+}
+
+/** Deliveries a single subscription generates per 30-day month, by cadence. */
+const MONTHLY_DELIVERY_RATE: Record<SubscriptionFrequency, number> = {
+  WEEKLY: 30 / 7,
+  BIWEEKLY: 30 / 14,
+  MONTHLY: 1,
+};
+
+/** Network aggregate (18c). estMonthlyDeliveries is an ESTIMATE — a rupiah MRR
+ * can't be derived here (subscriptions snapshot no price), so we report the
+ * expected monthly delivery volume instead. */
+export interface SubscriptionNetworkSummaryView extends SubscriptionNetworkSummary {
+  estMonthlyDeliveries: number;
 }
 
 @Injectable()
@@ -57,6 +72,15 @@ export class SubscriptionService {
 
   async list(customerId: string): Promise<SubscriptionRecord[]> {
     return this.subs.listByCustomer(customerId);
+  }
+
+  /** HQ network summary (18c): active counts, per-plan breakdown + delivery estimate. */
+  async networkSummary(): Promise<SubscriptionNetworkSummaryView> {
+    const summary = await this.subs.networkSummary();
+    const estMonthlyDeliveries = Math.round(
+      summary.plans.reduce((n, p) => n + p.subscribers * MONTHLY_DELIVERY_RATE[p.frequency], 0),
+    );
+    return { ...summary, estMonthlyDeliveries };
   }
 
   private async owned(customerId: string, id: string): Promise<SubscriptionRecord> {

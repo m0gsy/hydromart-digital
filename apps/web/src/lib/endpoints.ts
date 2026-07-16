@@ -180,6 +180,28 @@ export const endpoints = {
     pause: (id: string) => `/orders/api/v1/subscriptions/${id}/pause`,
     resume: (id: string) => `/orders/api/v1/subscriptions/${id}/resume`,
     cancel: (id: string) => `/orders/api/v1/subscriptions/${id}/cancel`,
+    // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
+    adminSummary: '/orders/api/v1/subscriptions/admin/summary',
+  },
+  // HQ analytics reports (order-service, HEAD_OFFICE/DEPOT_MANAGER/SUPER_ADMIN; customer is HQ-only).
+  reports: {
+    // Revenue share per product (22b). Grouped by product — order-service has no category column.
+    revenueByCategory: (q: { from?: string; to?: string; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/orders/api/v1/reports/revenue-by-category${qs ? `?${qs}` : ''}`;
+    },
+    retentionCohort: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/retention-cohort${qs ? `?${qs}` : ''}`;
+    },
+    customer: (customerId: string) => `/orders/api/v1/reports/customer/${customerId}`,
   },
   loyalty: {
     tiers: '/loyalty/api/v1/loyalty/tiers',
