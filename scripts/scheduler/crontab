@@ -5,3 +5,5 @@
 0 * * * * sh /scripts/sweep.sh subscriptions/process-due
 # "Time to refill" reorder reminders — daily at 08:00.
 0 8 * * * sh /scripts/sweep.sh orders/reminders/reorder
+# UU PDP retention: purge proof-of-delivery records past the window — daily at 03:15.
+15 3 * * * sh /scripts/sweep.sh proofs/purge-expired delivery:3006

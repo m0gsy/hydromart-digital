@@ -120,6 +120,16 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return clone(row);
   }
+  async purgeProofsBefore(cutoff: Date): Promise<number> {
+    let count = 0;
+    for (const r of this.rows) {
+      if (r.proof && r.proof.capturedAt.getTime() < cutoff.getTime()) {
+        r.proof = null;
+        count += 1;
+      }
+    }
+    return count;
+  }
   async slaStats(
     range: ReportRange,
     thresholdMinutes: number,
@@ -170,6 +180,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     ORDER_SERVICE_URL: 'http://localhost:3004',
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
     DELIVERY_SLA_MINUTES: '120',
+    POD_RETENTION_DAYS: '365',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',

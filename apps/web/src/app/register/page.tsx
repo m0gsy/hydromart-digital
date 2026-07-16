@@ -19,6 +19,7 @@ function RegisterForm() {
   // ponytail: referral is visual-only — the register endpoint accepts phone/name/email
   // only, and referral redemption is a separate authenticated call. Not submitted here.
   const [referral, setReferral] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,12 @@ function RegisterForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    // UU PDP: explicit, recorded consent. Gate submit on it; the account's
+    // existence (createdAt) is the consent timestamp.
+    if (!agreed) {
+      setError(t('auth.register.consentError'));
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -159,6 +166,23 @@ function RegisterForm() {
           </div>
         </div>
 
+        {/* UU PDP consent — required to submit. */}
+        <label className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-muted">
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+          />
+          <span>
+            {t('auth.register.consentPre')}
+            <Link href="/kebijakan-privasi" target="_blank" className="font-bold text-brand-600 hover:underline">
+              {t('auth.register.consentPrivacy')}
+            </Link>
+            {t('auth.register.consentPost')}
+          </span>
+        </label>
+
         {error && (
           <p className="text-[13px] font-medium text-[color:var(--danger)]" role="alert">
             {error}
@@ -168,6 +192,7 @@ function RegisterForm() {
         <Button
           type="submit"
           loading={loading}
+          disabled={!agreed}
           className="mt-1 h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
         >
           {t('auth.register.submit')}

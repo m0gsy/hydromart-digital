@@ -76,8 +76,11 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-8 border-t border-white/15 pt-5 text-[13px] text-white/55">
-          {t('auth.footer.copyright')}
+        <div className="mt-8 flex flex-col gap-2 border-t border-white/15 pt-5 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
+          <span>{t('auth.footer.copyright')}</span>
+          <Link href="/kebijakan-privasi" className="text-white/65 hover:text-white">
+            {t('privacy.title')}
+          </Link>
         </div>
       </div>
     </footer>

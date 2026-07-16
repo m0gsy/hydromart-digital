@@ -180,6 +180,20 @@ export class DeliveryService {
     return this.search(input);
   }
 
+  /**
+   * UU PDP retention sweep: delete proof-of-delivery records older than the
+   * configured window (default 12 months). Invoked by the internal scheduler.
+   * Image files are expired separately by an object-storage bucket lifecycle rule.
+   */
+  async purgeExpiredProofs(now: Date = new Date()): Promise<{ purged: number }> {
+    const cutoff = new Date(now.getTime() - this.config.podRetentionDays * 86_400_000);
+    const purged = await this.deliveries.purgeProofsBefore(cutoff);
+    if (purged > 0) {
+      this.logger.log(`Purged ${purged} proof-of-delivery record(s) older than ${cutoff.toISOString()}`);
+    }
+    return { purged };
+  }
+
   private async advance(
     driverId: string,
     id: string,

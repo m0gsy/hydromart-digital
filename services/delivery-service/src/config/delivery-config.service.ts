@@ -27,6 +27,10 @@ export class DeliveryConfigService {
   get slaMinutes(): number {
     return this.num('DELIVERY_SLA_MINUTES');
   }
+  /** UU PDP retention window for proof-of-delivery records, in days. */
+  get podRetentionDays(): number {
+    return this.num('POD_RETENTION_DAYS');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

@@ -106,6 +106,12 @@ export interface DeliveryRepository {
     changedBy: string,
   ): Promise<DeliveryRecord>;
   /**
+   * UU PDP retention: delete proof-of-delivery rows (photo/signature URL,
+   * recipient name, GPS) captured before `cutoff`. Returns the count deleted.
+   * The underlying image files are expired separately by a bucket lifecycle rule.
+   */
+  purgeProofsBefore(cutoff: Date): Promise<number>;
+  /**
    * Delivery SLA aggregates over the window: delivered on-time vs breached +
    * failures. When `depotIds` is a non-empty array, only deliveries snapshotted
    * to one of those depots count (null-depot deliveries excluded) — used for

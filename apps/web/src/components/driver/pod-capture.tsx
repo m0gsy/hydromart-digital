@@ -201,6 +201,15 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
         <span className="flex items-center gap-1 text-sm font-medium">
           <PencilLine size={16} /> Tanda tangan penerima
         </span>
+        {/* UU PDP consent: the recipient must be told their signature + delivery
+            photo are stored, and consents by signing. */}
+        <p className="text-xs leading-relaxed text-[color:var(--muted)]">
+          Dengan menandatangani, penerima menyetujui foto & tanda tangan bukti antar disimpan sesuai{' '}
+          <a href="/kebijakan-privasi" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600">
+            Kebijakan Privasi
+          </a>
+          .
+        </p>
         <SignaturePad canvasRef={canvasRef} />
       </div>
 

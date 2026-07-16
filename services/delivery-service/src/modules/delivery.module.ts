@@ -18,6 +18,7 @@ import { DeliveryController } from './delivery.controller';
 import { DriverDeliveryController } from './driver-delivery.controller';
 import { ReportController } from './report.controller';
 import { UploadController } from './upload.controller';
+import { RetentionController } from './retention.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -40,7 +41,13 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DeliveryController, DriverDeliveryController, ReportController, UploadController],
+  controllers: [
+    DeliveryController,
+    DriverDeliveryController,
+    ReportController,
+    UploadController,
+    RetentionController,
+  ],
   providers,
   exports: [PrismaService, DeliveryConfigService],
 })

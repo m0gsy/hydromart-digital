@@ -206,6 +206,13 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
+  async purgeProofsBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.proofOfDelivery.deleteMany({
+      where: { capturedAt: { lt: cutoff } },
+    });
+    return count;
+  }
+
   async slaStats(
     range: ReportRange,
     thresholdMinutes: number,

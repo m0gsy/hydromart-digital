@@ -12,6 +12,7 @@ import { onboarding } from './id/onboarding';
 import { review } from './id/review';
 import { subscriptions } from './id/subscriptions';
 import { ops } from './id/ops';
+import { privacy } from './id/privacy';
 
 export const id = {
   nav: {
@@ -105,6 +106,7 @@ export const id = {
   review,
   subscriptions,
   ops,
+  privacy,
 };
 
 export type Dictionary = typeof id;

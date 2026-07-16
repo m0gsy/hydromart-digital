@@ -147,4 +147,20 @@ describe('DeliveryService', () => {
     expect(mine.total).toBe(1);
     expect(others.total).toBe(0);
   });
+
+  it('purges proof-of-delivery records past the retention window (UU PDP)', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    const capturedAt = done.proof!.capturedAt;
+
+    // Within the window (default 365d) → nothing purged.
+    expect(await service.purgeExpiredProofs(capturedAt)).toEqual({ purged: 0 });
+
+    // Past the window → the proof (name/GPS/signature) is deleted.
+    const later = new Date(capturedAt.getTime() + 366 * 86_400_000);
+    expect(await service.purgeExpiredProofs(later)).toEqual({ purged: 1 });
+    expect((await service.getAny(d.id)).proof).toBeNull();
+  });
 });
