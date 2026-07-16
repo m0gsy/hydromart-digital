@@ -31,13 +31,31 @@ fi
 echo "rebuild-stale: ${#SERVICES[@]} service(s), batch size ${BATCH}"
 df -h / | awk 'NR==2{print "  disk: "$4" free ("$5" used)"}'
 
+# Warm the shared base image ONCE (all Dockerfiles use node:20-alpine). Without
+# this, every parallel batch re-fetches its manifest from Docker Hub at the same
+# time — that contention is what triggers "TLS handshake timeout". Retry, since
+# the registry is flaky under load.
+pull_base() {
+  local n=1
+  until docker pull node:20-alpine; do
+    [ "$n" -ge 5 ] && { echo "!! could not pull node:20-alpine after 5 tries"; return 1; }
+    echo "   base pull failed (try $n) — retrying in 10s"; sleep 10; n=$((n + 1))
+  done
+}
+pull_base
+
 i=0
 batch=()
 flush() {
   [ "${#batch[@]}" -eq 0 ] && return 0
   echo ">> building: ${batch[*]}"
-  # --pull keeps the base node:20-alpine current; build is serial across flushes.
-  $COMPOSE build "${batch[@]}"
+  # Build is serial across flushes. Retry: BuildKit still HEADs the registry for
+  # the base manifest, so a flaky Docker Hub can still TLS-timeout mid-build.
+  local n=1
+  until $COMPOSE build "${batch[@]}"; do
+    [ "$n" -ge 3 ] && { echo "!! build failed for ${batch[*]} after 3 tries"; return 1; }
+    echo "   build failed (try $n) — retrying in 15s"; sleep 15; n=$((n + 1))
+  done
   echo ">> starting: ${batch[*]}"
   $COMPOSE up -d "${batch[@]}"
   echo ">> reclaiming orphaned layers"
