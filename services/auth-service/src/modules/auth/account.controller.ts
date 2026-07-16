@@ -89,6 +89,24 @@ export class AccountController {
     return drivers.map(PublicCustomerDto.from);
   }
 
+  // HQ overview KPI (feature: new-customers tile): count of end-customer signups
+  // in an optional [from, to) ISO window. Head-office / super-admin only.
+  @Roles(...CAPABILITIES.staffAdmin)
+  @Get('auth/customers/count')
+  @ApiOperation({ summary: 'HQ: count new customer signups in an optional date window' })
+  async countCustomers(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<{ count: number; from: string | null; to: string | null }> {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    const count = await this.account.countNewCustomers(
+      fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
+      toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
+    );
+    return { count, from: from ?? null, to: to ?? null };
+  }
+
   @Roles(...CAPABILITIES.staffAdmin)
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })

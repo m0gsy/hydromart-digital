@@ -11,7 +11,13 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, NetworkDashboard, Page } from '@/lib/types';
+import type {
+  DepotAdmin,
+  ExecutiveDashboard,
+  FranchiseApplication,
+  NetworkDashboard,
+  Page,
+} from '@/lib/types';
 
 // Trailing-30-day window, computed once per mount (client-only). Copied from
 // franchise/page.tsx so the exec endpoint gets a stable range.
@@ -47,6 +53,14 @@ export default function HqOverviewPage() {
   const depotList = useAsync<Page<DepotAdmin>>(() =>
     api.get(endpoints.depots.manage({ limit: 100 }), true),
   );
+  // Two KPI tiles fed by their own endpoints (not on the exec dashboard):
+  // new customer signups in-range, and the pending franchise-application queue.
+  const newCustomers = useAsync<{ count: number }>(() =>
+    api.get(endpoints.hq.newCustomers(range), true),
+  );
+  const pendingApps = useAsync<Page<FranchiseApplication>>(() =>
+    api.get(endpoints.franchiseApps.list({ limit: 100 }), true),
+  );
 
   const depots = depotList.data?.items ?? [];
 
@@ -60,6 +74,10 @@ export default function HqOverviewPage() {
   const totalOrders = buckets.reduce((n, b) => n + b.orderCount, 0);
   const activeDepots = depots.filter((d) => d.active).length;
   const slaPct = deliverySla ? Math.round(deliverySla.slaRate * 100) : null;
+  // Pending franchise applications = non-terminal stages (mirrors /hq/applications).
+  const pendingCount = pendingApps.data
+    ? pendingApps.data.items.filter((a) => a.stage !== 'APPROVED' && a.stage !== 'REJECTED').length
+    : null;
 
   const unavailable = Object.entries(sources)
     .filter(([, v]) => v === 'unavailable')
@@ -129,9 +147,16 @@ export default function HqOverviewPage() {
           value={String(activeDepots)}
           hint={t('hq.overview.kpiHint.depots', { total: depots.length })}
         />
-        {/* No new-customer / pending-approval metric on the exec endpoint in Milestone A. */}
-        <Stat label={t('hq.overview.kpi.newCustomers')} value={t('hq.common.dash')} hint={t('hq.overview.kpiHint.soon')} />
-        <Stat label={t('hq.overview.kpi.pendingApproval')} value={t('hq.common.dash')} hint={t('hq.overview.kpiHint.soon')} />
+        <Stat
+          label={t('hq.overview.kpi.newCustomers')}
+          value={newCustomers.data ? newCustomers.data.count.toLocaleString('id-ID') : t('hq.common.dash')}
+          hint={newCustomers.data ? t('hq.overview.kpiHint.newCustomers') : t('hq.overview.kpiHint.soon')}
+        />
+        <Stat
+          label={t('hq.overview.kpi.pendingApproval')}
+          value={pendingCount != null ? String(pendingCount) : t('hq.common.dash')}
+          hint={pendingCount != null ? t('hq.overview.kpiHint.pendingApproval') : t('hq.overview.kpiHint.soon')}
+        />
       </div>
 
       {unavailable.length > 0 && (

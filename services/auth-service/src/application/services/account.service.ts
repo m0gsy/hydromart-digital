@@ -83,6 +83,11 @@ export class AccountService {
     return { items: items.map(toPublicCustomer), total, page, limit };
   }
 
+  /** HQ overview KPI: new end-customer signups in an optional [from, to) window. */
+  async countNewCustomers(from?: Date, to?: Date): Promise<number> {
+    return this.customers.countCustomersCreated(from, to);
+  }
+
   /**
    * Driver roster for dispatch (feature 9b): active couriers only, so staff can
    * pick one by name. Reuses the staff-directory query with a DRIVER filter and

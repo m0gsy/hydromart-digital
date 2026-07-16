@@ -582,5 +582,13 @@ export const endpoints = {
       const qs = p.toString();
       return `/dashboard/api/v1/dashboard/network${qs ? `?${qs}` : ''}`;
     },
+    // New-customer signups in a window (auth-service; head-office/super-admin) → { count }.
+    newCustomers: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/auth/api/v1/auth/customers/count${qs ? `?${qs}` : ''}`;
+    },
   },
 } as const;

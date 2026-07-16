@@ -69,6 +69,18 @@ export class CustomerPrismaRepository implements CustomerRepository {
     return { items: rows.map(toCustomerEntity), total };
   }
 
+  async countCustomersCreated(from?: Date, to?: Date): Promise<number> {
+    const createdAt =
+      from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } : undefined;
+    return this.prisma.customer.count({
+      where: {
+        status: { not: toPrismaStatus(CustomerStatus.DELETED) },
+        role: toPrismaRole(Role.CUSTOMER),
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
+  }
+
   async save(customer: Customer): Promise<Customer> {
     const props = customer.toProps();
     try {

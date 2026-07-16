@@ -166,6 +166,8 @@ export const hq = {
       sla: '{onTime}/{total} on time',
       depots: 'of {total} depots',
       soon: 'endpoint pending',
+      newCustomers: 'last 30 days',
+      pendingApproval: 'awaiting review',
     },
     perf: {
       title: 'Depot performance',

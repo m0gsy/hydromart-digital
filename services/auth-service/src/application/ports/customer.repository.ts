@@ -25,4 +25,9 @@ export interface CustomerRepository {
    * Excludes DELETED accounts; filters to one role when given.
    */
   listStaff(page: number, limit: number, role?: Role): Promise<{ items: Customer[]; total: number }>;
+  /**
+   * HQ metric: count of end-customer (role CUSTOMER, non-DELETED) accounts created
+   * in the optional [from, to] window. Both bounds inclusive-of-start / exclusive-of-end.
+   */
+  countCustomersCreated(from?: Date, to?: Date): Promise<number>;
 }

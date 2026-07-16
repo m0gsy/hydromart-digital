@@ -169,6 +169,8 @@ export const hq = {
       sla: '{onTime}/{total} tepat waktu',
       depots: 'dari {total} depot',
       soon: 'endpoint menyusul',
+      newCustomers: '30 hari terakhir',
+      pendingApproval: 'menunggu tinjauan',
     },
     perf: {
       title: 'Performa depot',

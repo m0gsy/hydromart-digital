@@ -131,6 +131,24 @@ describe('AccountService', () => {
     expect(staff.items.every((s) => s.role !== Role.CUSTOMER)).toBe(true);
   });
 
+  it('counts only end-customers created within the window', async () => {
+    const jan = new Date('2026-01-10T00:00:00Z');
+    const feb = new Date('2026-02-10T00:00:00Z');
+    customers.seed(makeCustomer({ phone: '+628991110001', role: Role.CUSTOMER, createdAt: jan }));
+    customers.seed(makeCustomer({ phone: '+628991110002', role: Role.CUSTOMER, createdAt: feb }));
+    // Excluded: a staff account in-range, and a customer outside the window.
+    customers.seed(makeCustomer({ phone: '+628991110003', role: Role.HEAD_OFFICE, createdAt: feb }));
+    customers.seed(makeCustomer({ phone: '+628991110004', role: Role.CUSTOMER, createdAt: new Date('2025-12-01T00:00:00Z') }));
+
+    const all = await service.countNewCustomers();
+    expect(all).toBe(3); // three CUSTOMER rows regardless of date
+    const windowed = await service.countNewCustomers(
+      new Date('2026-01-01T00:00:00Z'),
+      new Date('2026-02-01T00:00:00Z'),
+    );
+    expect(windowed).toBe(1); // only the January customer
+  });
+
   it('lists only active DRIVER accounts for dispatch', async () => {
     customers.seed(
       makeCustomer({ phone: '+628990007777', role: Role.DRIVER, status: CustomerStatus.ACTIVE, fullName: 'Andi' }),

@@ -184,6 +184,16 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       .map((p) => Customer.fromPersistence({ ...p }));
     return { items, total: all.length };
   }
+
+  async countCustomersCreated(from?: Date, to?: Date): Promise<number> {
+    return [...this.rows.values()].filter(
+      (p) =>
+        p.status !== CustomerStatus.DELETED &&
+        p.role === Role.CUSTOMER &&
+        (!from || p.createdAt >= from) &&
+        (!to || p.createdAt < to),
+    ).length;
+  }
 }
 
 export class InMemoryOtpTokenRepository implements OtpTokenRepository {
