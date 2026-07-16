@@ -37,12 +37,42 @@ import {
   ArrowsClockwise,
   UploadSimple,
   Broadcast,
+  FileText,
+  ClockCounterClockwise,
+  Flag,
+  Heartbeat,
+  FileArrowDown,
+  Key,
+  Plugs,
+  Timer,
+  Archive,
+  Lock,
+  Invoice,
+  WarningOctagon,
+  ChatCircleDots,
+  ShieldWarning,
+  CalendarCheck,
+  ListChecks,
+  IdentificationBadge,
+  Sparkle,
+  Article,
+  Translate,
+  SquaresFour,
+  Sun,
+  Moon,
+  Command,
   type Icon,
 } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { isHq } from '@/lib/roles';
+import { useTheme } from '@/lib/theme-context';
+
+// Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
+// the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
+// Paired with the same literal in command-palette.tsx.
+const HQ_COMMAND_EVENT = 'hq:command-open';
 
 type Role = string | null | undefined;
 
@@ -82,7 +112,10 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
   {
     headKey: 'franchise',
-    items: [{ href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: false }],
+    items: [
+      { href: '/hq/applications', labelKey: 'applications', icon: FileText, ready: true },
+      { href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: false },
+    ],
   },
   {
     headKey: 'finance',
@@ -93,6 +126,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/refunds', labelKey: 'refunds', icon: Receipt, ready: true },
       { href: '/hq/reconciliation', labelKey: 'reconciliation', icon: Scales, ready: true },
       { href: '/hq/reports/export', labelKey: 'reportsExport', icon: Export, ready: true },
+      { href: '/hq/tax', labelKey: 'tax', icon: Invoice, ready: true },
     ],
   },
   {
@@ -139,15 +173,40 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
   {
     headKey: 'flow',
-    items: [{ href: '/hq/flow', labelKey: 'flow', icon: FlowArrow, ready: false }],
+    items: [
+      { href: '/hq/incidents', labelKey: 'incidents', icon: WarningOctagon, ready: true },
+      { href: '/hq/tickets', labelKey: 'tickets', icon: ChatCircleDots, ready: true },
+      { href: '/hq/fraud', labelKey: 'fraud', icon: ShieldWarning, ready: true },
+      { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', icon: CalendarCheck, ready: true },
+      { href: '/hq/onboarding', labelKey: 'onboarding', icon: ListChecks, ready: true },
+      { href: '/hq/flow', labelKey: 'flow', icon: FlowArrow, ready: false },
+    ],
   },
   {
     headKey: 'system',
-    items: [{ href: '/hq/system', labelKey: 'system', icon: Gear, ready: false }],
+    items: [
+      { href: '/hq/audit', labelKey: 'audit', icon: ClockCounterClockwise, ready: true },
+      { href: '/hq/flags', labelKey: 'flags', icon: Flag, ready: true },
+      { href: '/hq/health', labelKey: 'health', icon: Heartbeat, ready: true },
+      { href: '/hq/exports', labelKey: 'exports', icon: FileArrowDown, ready: true },
+      { href: '/hq/api-keys', labelKey: 'apiKeys', icon: Key, ready: true },
+      { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true },
+      { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true },
+      { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true },
+      { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true },
+      { href: '/hq/system', labelKey: 'system', icon: Gear, ready: false },
+    ],
   },
   {
     headKey: 'admin',
-    items: [{ href: '/hq/admin', labelKey: 'admin', icon: Stack, ready: false }],
+    items: [
+      { href: '/hq/profile', labelKey: 'profile', icon: IdentificationBadge, ready: true },
+      { href: '/hq/wizard', labelKey: 'wizard', icon: Sparkle, ready: true },
+      { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', icon: Article, ready: true },
+      { href: '/hq/content', labelKey: 'content', icon: Translate, ready: true },
+      { href: '/hq/sitemap', labelKey: 'sitemap', icon: SquaresFour, ready: true },
+      { href: '/hq/admin', labelKey: 'admin', icon: Stack, ready: false },
+    ],
   },
 ];
 
@@ -159,6 +218,7 @@ export function hqItemsForRole(role: Role): HqRailItem[] {
 export function HqRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
+  const { resolved, toggle: toggleTheme } = useTheme();
   const pathname = usePathname();
   const role = customer?.role;
 
@@ -218,24 +278,48 @@ export function HqRail() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 pt-2">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(HQ_COMMAND_EVENT))}
+          className="mx-3 mb-1 flex items-center justify-between rounded-[10px] border border-app px-3 py-2 text-xs font-semibold text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
+        >
+          <span className="flex items-center gap-2">
+            <Command size={15} weight="bold" />
+            {t('hq.common.palette.title')}
+          </span>
+          <kbd className="rounded border border-app bg-[color:var(--surface-soft)] px-1.5 py-0.5 text-[10px] font-bold">
+            {t('hq.common.kbd')}
+          </kbd>
+        </button>
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs font-medium text-muted">{t('hq.language')}</span>
-          <div className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold">
-            {(['id', 'en'] as const).map((l) => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => setLocale(l)}
-                aria-pressed={locale === l}
-                className={`px-2.5 py-1 uppercase transition-colors ${
-                  locale === l
-                    ? 'bg-brand-600 text-on-brand'
-                    : 'text-muted hover:bg-[color:var(--surface-soft)]'
-                }`}
-              >
-                {l}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={t('hq.common.theme.toggle')}
+              title={t('hq.common.theme.toggle')}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-app text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
+            >
+              {resolved === 'dark' ? <Sun size={15} weight="fill" /> : <Moon size={15} weight="fill" />}
+            </button>
+            <div className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold">
+              {(['id', 'en'] as const).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLocale(l)}
+                  aria-pressed={locale === l}
+                  className={`px-2.5 py-1 uppercase transition-colors ${
+                    locale === l
+                      ? 'bg-brand-600 text-on-brand'
+                      : 'text-muted hover:bg-[color:var(--surface-soft)]'
+                  }`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         {role && (

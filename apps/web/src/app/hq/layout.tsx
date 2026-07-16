@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 
 import { AccessDeniedHq } from '@/components/hq/access-denied';
+import { CommandPalette } from '@/components/hq/command-palette';
 import { HqBottomNav } from '@/components/hq/hq-bottom-nav';
 import { HqRail } from '@/components/hq/hq-rail';
 import { RequireAuth } from '@/components/require-auth';
@@ -32,6 +33,7 @@ export default function HqLayout({ children }: { children: React.ReactNode }) {
           <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
         </div>
         <HqBottomNav />
+        <CommandPalette />
       </HqGate>
     </RequireAuth>
   );

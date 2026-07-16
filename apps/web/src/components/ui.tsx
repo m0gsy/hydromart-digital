@@ -283,6 +283,37 @@ export function Badge({
   );
 }
 
+/* ---------- Toggle ---------- (accessible on/off switch) */
+export function Toggle({
+  on,
+  onChange,
+  label,
+  disabled,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={cx(
+        'flex h-[27px] w-[46px] flex-shrink-0 items-center rounded-full p-[3px] transition-colors disabled:opacity-50',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600',
+        on ? 'justify-end bg-brand-600' : 'justify-start bg-[color:var(--surface-soft)]',
+      )}
+    >
+      <span className="h-[21px] w-[21px] rounded-full bg-white shadow-card" />
+    </button>
+  );
+}
+
 /* ---------- Money ---------- */
 export function Money({ amount, className }: { amount: number; className?: string }) {
   return <span className={cx('tabular-nums', className)}>{formatIDR(amount)}</span>;

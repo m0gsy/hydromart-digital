@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { MagnifyingGlass, Storefront } from '@phosphor-icons/react';
 
 import { DepotForm } from '@/components/hq/depot-form';
@@ -19,6 +19,13 @@ export default function HqDepotsPage() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Real provision handoff: application approval / onboarding checklist link here with
+  // ?onboard=1 to auto-open the onboard form (window.location avoids the useSearchParams
+  // Suspense-boundary requirement during static generation).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('onboard')) setCreating(true);
+  }, []);
 
   const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];

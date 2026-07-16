@@ -12,6 +12,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { CartProvider } from '@/lib/cart-context';
 import { LocaleProvider } from '@/lib/locale-context';
 import { LocationProvider } from '@/lib/location-context';
+import { ThemeProvider } from '@/lib/theme-context';
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -35,23 +36,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id" className={jakarta.variable}>
       <body className="min-h-[100dvh] overflow-x-hidden">
-        <LocaleProvider>
-          <AuthProvider>
-            <CartProvider>
-              <LocationProvider>
-                <ToastProvider>
-                  <Nav />
-                  <main className="mx-auto w-full max-w-[1216px] px-4 pt-6 pb-24 sm:px-8 sm:pb-10">
-                    <PageTransition>{children}</PageTransition>
-                  </main>
-                  <Footer />
-                  <BottomNav />
-                  <OnboardingTour />
-                </ToastProvider>
-              </LocationProvider>
-            </CartProvider>
-          </AuthProvider>
-        </LocaleProvider>
+        <ThemeProvider>
+          <LocaleProvider>
+            <AuthProvider>
+              <CartProvider>
+                <LocationProvider>
+                  <ToastProvider>
+                    <Nav />
+                    <main className="mx-auto w-full max-w-[1216px] px-4 pt-6 pb-24 sm:px-8 sm:pb-10">
+                      <PageTransition>{children}</PageTransition>
+                    </main>
+                    <Footer />
+                    <BottomNav />
+                    <OnboardingTour />
+                  </ToastProvider>
+                </LocationProvider>
+              </CartProvider>
+            </AuthProvider>
+          </LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

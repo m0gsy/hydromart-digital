@@ -103,6 +103,78 @@
   }
 }
 
+/* Manual theme override (design 24b). An explicit data-theme on <html> wins over
+   the OS media query above: [data-theme="dark"] mirrors the dark block, and
+   [data-theme="light"] restores the light values so a user on a dark OS can force
+   light. No attribute → the @media block decides (system default). */
+:root[data-theme='dark'] {
+  --color-brand-50: #12303a;
+  --color-brand-100: #143a44;
+  --color-brand-200: #1a4d59;
+  --color-brand-300: #2b8496;
+  --color-brand-400: #33bbd1;
+  --color-brand-500: #45c6d9;
+  --color-brand-600: #33bbd1;
+  --color-brand-700: #5ccbdd;
+  --color-brand-800: #bfe9f0;
+  --color-brand-900: #d5f0f5;
+  --color-on-brand: #06232a;
+
+  --surface: #132025;
+  --surface-muted: #0c1518;
+  --surface-elevated: #172736;
+  --surface-soft: #16262c;
+  --border: #24363c;
+  --border-soft: #1c2b31;
+  --text: #ecf3f4;
+  --text-muted: #8fa3a9;
+
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.14);
+  --warning: #e0b64a;
+  --warning-bg: rgba(224, 182, 74, 0.14);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.14);
+
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lift: 0 14px 30px rgba(0, 0, 0, 0.5);
+  --shadow-float: 0 10px 28px rgba(0, 0, 0, 0.55);
+}
+
+:root[data-theme='light'] {
+  --color-brand-50: #e4f5f7;
+  --color-brand-100: #d3edf1;
+  --color-brand-200: #b3e1e8;
+  --color-brand-300: #7fccd7;
+  --color-brand-400: #45b1c1;
+  --color-brand-500: #1ba2b5;
+  --color-brand-600: #0c97ac;
+  --color-brand-700: #0a7f92;
+  --color-brand-800: #0b4d57;
+  --color-brand-900: #0b3b43;
+  --color-on-brand: #ffffff;
+
+  --surface: #ffffff;
+  --surface-muted: #faf9f5;
+  --surface-elevated: #ffffff;
+  --surface-soft: #f0eee6;
+  --border: #e9e7df;
+  --border-soft: #f0eee6;
+  --text: #16282e;
+  --text-muted: #64757c;
+
+  --success: #18734a;
+  --success-bg: #e2f5e9;
+  --warning: #b97d10;
+  --warning-bg: #faf1de;
+  --danger: #b3261e;
+  --danger-bg: #fdeceb;
+
+  --shadow-card: 0 1px 3px rgba(22, 40, 46, 0.05);
+  --shadow-lift: 0 14px 30px rgba(22, 40, 46, 0.1);
+  --shadow-float: 0 10px 28px rgba(11, 77, 87, 0.14);
+}
+
 html {
   color-scheme: light dark;
 }
