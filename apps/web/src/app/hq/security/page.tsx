@@ -4,26 +4,27 @@ import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Badge, Button, Card, ErrorState, Skeleton, Toggle } from '@/components/ui';
+import { Button, Card, ErrorState, Skeleton, Toggle } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { ACTIVE_SESSIONS_STUB, agoLabel, StubBadge, type SessionRow } from '@/lib/hq/stubs';
+import { agoLabel } from '@/lib/hq/stubs';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { SecurityPolicy } from '@/lib/types';
+import type { AdminSession, SecurityPolicy } from '@/lib/types';
 
-// Design 19b — security & 2FA. The POLICY is real admin-service track: GET/PUT
-// /security-policy (idle timeout, require-2FA, IP allowlist). The "active sessions" list has
-// NO source here (sessions live in auth-service) so it stays clearly badged as sample data.
+// Design 19b — security & 2FA. Both the POLICY (admin-service GET/PUT /security-policy)
+// and the ACTIVE SESSIONS list (auth-service GET /sessions for the current user, with
+// per-session revoke) are real. No geo lookup, so sessions show device + IP, not city.
 export default function HqSecurityPage() {
   const { t } = useT();
   const { toast } = useToast();
   const query = useAsync<SecurityPolicy>(() => api.get(endpoints.admin.security, true));
+  const sessionsQ = useAsync<AdminSession[]>(() => api.get(endpoints.auth.sessions, true));
   const [draft, setDraft] = useState<SecurityPolicy | null>(null);
   const [allowlistText, setAllowlistText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [sessions, setSessions] = useState<SessionRow[]>(ACTIVE_SESSIONS_STUB);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
   if (query.error) return <ErrorState message={t('hq.security.loadError')} onRetry={query.reload} />;
@@ -51,10 +52,21 @@ export default function HqSecurityPage() {
     }
   }
 
-  function revoke(s: SessionRow) {
-    setSessions((prev) => prev.filter((x) => x.id !== s.id));
-    toast(t('hq.security.revoked'), 'info');
+  async function revoke(s: AdminSession) {
+    setRevoking(s.id);
+    try {
+      await api.post(endpoints.auth.revokeSession(s.id), {}, true);
+      toast(t('hq.security.revoked'), 'info');
+      sessionsQ.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.security.saveError'), 'error');
+    } finally {
+      setRevoking(null);
+    }
   }
+
+  const sessions = sessionsQ.data ?? [];
+  const minutesAgo = (iso: string) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,33 +115,34 @@ export default function HqSecurityPage() {
       </Card>
 
       <Card className="flex flex-col gap-2 p-5">
-        <div className="mb-1 flex items-center justify-between">
-          <p className="text-sm font-extrabold">{t('hq.security.sessionsTitle')}</p>
-          <StubBadge />
-        </div>
+        <p className="text-sm font-extrabold">{t('hq.security.sessionsTitle')}</p>
         <p className="mb-1 text-xs text-muted">{t('hq.security.sessionsNote')}</p>
-        {sessions.map((s) => (
-          <div key={s.id} className="flex items-center justify-between gap-3 border-b border-[color:var(--border-soft)] py-2.5 last:border-0">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-semibold">{s.device}</span>
-                {s.current && <Badge tone="brand">{t('hq.security.current')}</Badge>}
+        {sessionsQ.loading ? (
+          <Skeleton className="h-20 w-full" />
+        ) : sessionsQ.error ? (
+          <ErrorState message={sessionsQ.error} onRetry={sessionsQ.reload} />
+        ) : sessions.length === 0 ? (
+          <p className="py-3 text-center text-sm text-muted">{t('hq.security.sessionsEmpty')}</p>
+        ) : (
+          sessions.map((s) => (
+            <div key={s.id} className="flex items-center justify-between gap-3 border-b border-[color:var(--border-soft)] py-2.5 last:border-0">
+              <div className="min-w-0">
+                <span className="text-sm font-semibold">{s.userAgent || t('hq.security.unknownDevice')}</span>
+                <p className="text-xs text-muted">
+                  {(s.ipAddress || t('hq.common.dash')) + ' · ' + agoLabel(minutesAgo(s.createdAt), t)}
+                </p>
               </div>
-              <p className="text-xs text-muted">
-                {s.location} · {s.ip} · {agoLabel(s.agoMin, t)}
-              </p>
-            </div>
-            {!s.current && (
               <button
                 type="button"
                 onClick={() => revoke(s)}
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)]"
+                disabled={revoking === s.id}
+                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] disabled:opacity-50"
               >
                 {t('hq.security.revoke')}
               </button>
-            )}
-          </div>
-        ))}
+            </div>
+          ))
+        )}
       </Card>
     </div>
   );

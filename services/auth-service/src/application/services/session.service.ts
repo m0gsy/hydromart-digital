@@ -90,6 +90,19 @@ export class SessionService {
     await this.refreshTokens.revokeAllForCustomer(customerId, this.clock.now());
   }
 
+  /**
+   * Revoke a single session the customer owns (by the session record id from
+   * listActive). Revokes the whole rotation family so a rotated token can't survive.
+   * Returns false when the id is not one of the caller's active sessions.
+   */
+  async revokeSession(customerId: string, sessionId: string): Promise<boolean> {
+    const records = await this.refreshTokens.listActiveForCustomer(customerId, this.clock.now());
+    const target = records.find((r) => r.id === sessionId);
+    if (!target) return false;
+    await this.refreshTokens.revokeFamily(target.familyId, this.clock.now());
+    return true;
+  }
+
   /** List active sessions for a customer (FR-010 multi-device management). */
   async listActive(customerId: string): Promise<SessionInfo[]> {
     const records = await this.refreshTokens.listActiveForCustomer(customerId, this.clock.now());

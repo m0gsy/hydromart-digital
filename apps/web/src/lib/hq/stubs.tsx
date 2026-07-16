@@ -146,22 +146,10 @@ export function stubForecastConfidence(productId: string): number {
 // PUT one window). The old RETENTION_STUB was removed. Backup status is REAL but has NO engine
 // wired, so it's returned and labeled honestly (endpoints.admin.retention → backup.status).
 
-// STUB: active sessions for the security page (19b) — sessions live in auth-service, which has
-// no session-admin endpoint here, so this list stays clearly badged. The SECURITY POLICY
-// itself (idle timeout / require-2FA / IP allowlist) is REAL: endpoints.admin.security.
-export interface SessionRow {
-  id: string;
-  device: string;
-  location: string;
-  ip: string;
-  current: boolean;
-  agoMin: number;
-}
-export const ACTIVE_SESSIONS_STUB: SessionRow[] = [
-  { id: 's1', device: 'Chrome · Windows', location: 'Jakarta, ID', ip: '103.21.x.x', current: true, agoMin: 0 },
-  { id: 's2', device: 'Safari · iPhone', location: 'Jakarta, ID', ip: '114.5.x.x', current: false, agoMin: 35 },
-  { id: 's3', device: 'Edge · Windows', location: 'Bandung, ID', ip: '180.2.x.x', current: false, agoMin: 1440 },
-];
+// Active sessions (19b) are now REAL: auth-service GET /sessions (current user's active
+// refresh-token sessions) + POST /sessions/:id/revoke. The security POLICY (idle timeout /
+// require-2FA / IP allowlist) is also real (endpoints.admin.security). No geo lookup exists,
+// so the UI shows device + IP, not a city.
 
 // Tax & invoice settings are now REAL: payment-service GET/PUT /tax-settings
 // (endpoints.tax.*), shared by the tax page (19f) and the invoice template (24d).

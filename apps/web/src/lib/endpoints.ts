@@ -18,6 +18,9 @@ export const endpoints = {
     customerLookup: (phone: string) =>
       `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
     logout: '/auth/api/v1/auth/logout',
+    // Current user's active device sessions (19b) + revoke one by id.
+    sessions: '/auth/api/v1/sessions',
+    revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,
     // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
     staff: (q: { page?: number; limit?: number; role?: string } = {}) => {
       const p = new URLSearchParams();

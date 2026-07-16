@@ -586,6 +586,16 @@ export interface NetworkDepotRow {
   lowStockCount: number;
 }
 
+// Current user's active device session (auth-service GET /sessions). No geo lookup, so
+// no location; userAgent is the raw device string.
+export interface AdminSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
 // Network gallon rollup (depot-service GET /gallon-outstanding): per-depot empties still
 // at customers (issued − returned) + deposit still held (held − refunded).
 export interface GallonOutstanding {

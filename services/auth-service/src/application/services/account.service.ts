@@ -147,6 +147,11 @@ export class AccountService {
     return this.sessions.listActive(customerId);
   }
 
+  /** Revoke one of the caller's own sessions by id; false if it isn't theirs/active. */
+  async revokeSession(customerId: string, sessionId: string): Promise<boolean> {
+    return this.sessions.revokeSession(customerId, sessionId);
+  }
+
   async logoutAll(customerId: string, context: RequestContext): Promise<void> {
     await this.sessions.revokeAll(customerId);
     await this.audit.record({
