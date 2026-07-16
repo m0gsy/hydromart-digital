@@ -208,87 +208,8 @@ export const INVOICE_SAMPLE_LINES: InvoiceLine[] = [
   { name: 'Ongkir', qty: 1, unitPrice: 5_000 },
 ];
 
-// STUB: incident timeline — real backend track (no incident service).
-export interface IncidentRow {
-  id: string;
-  severity: 'kritis' | 'peringatan' | 'info';
-  service: string;
-  title: string;
-  status: 'terbuka' | 'dipantau' | 'selesai';
-  agoMin: number;
-}
-export const INCIDENTS_STUB: IncidentRow[] = [
-  { id: 'i1', severity: 'kritis', service: 'payment-service', title: 'Latensi settlement tinggi', status: 'dipantau', agoMin: 25 },
-  { id: 'i2', severity: 'peringatan', service: 'forecast-service', title: 'Rebuild model tertunda', status: 'terbuka', agoMin: 120 },
-  { id: 'i3', severity: 'info', service: 'crm-service', title: 'Kuota WhatsApp mendekati batas', status: 'terbuka', agoMin: 200 },
-  { id: 'i4', severity: 'kritis', service: 'order-service', title: 'Antrean checkout melambat', status: 'selesai', agoMin: 2880 },
-];
-
-// STUB: support tickets — real backend track (no support/ticket service).
-export interface TicketMessage {
-  from: 'customer' | 'agent';
-  text: string;
-  agoMin: number;
-}
-export interface TicketRow {
-  id: string;
-  subject: string;
-  customer: string;
-  orderNumber: string;
-  priority: 'tinggi' | 'sedang' | 'rendah';
-  status: 'terbuka' | 'selesai';
-  assignee: string | null;
-  thread: TicketMessage[];
-}
-export const TICKETS_STUB: TicketRow[] = [
-  {
-    id: 't1',
-    subject: 'Galon belum sampai',
-    customer: 'Ibu Rina',
-    orderNumber: 'ORD-0231',
-    priority: 'tinggi',
-    status: 'terbuka',
-    assignee: null,
-    thread: [
-      { from: 'customer', text: 'Halo, pesanan saya sudah 2 jam belum datang.', agoMin: 45 },
-      { from: 'agent', text: 'Baik Bu, kami cek posisi kurir ya.', agoMin: 30 },
-    ],
-  },
-  {
-    id: 't2',
-    subject: 'Refund belum masuk',
-    customer: 'Pak Joko',
-    orderNumber: 'ORD-0248',
-    priority: 'sedang',
-    status: 'terbuka',
-    assignee: 'Agent Nadia',
-    thread: [{ from: 'customer', text: 'Refund pesanan dobel belum saya terima.', agoMin: 180 }],
-  },
-  {
-    id: 't3',
-    subject: 'Salah alamat',
-    customer: 'Ibu Sinta',
-    orderNumber: 'ORD-0255',
-    priority: 'rendah',
-    status: 'selesai',
-    assignee: 'Agent Bima',
-    thread: [{ from: 'customer', text: 'Alamat saya keliru, sudah dibetulkan. Terima kasih.', agoMin: 1440 }],
-  },
-];
-
-// STUB: fraud & risk signals — real backend track (no risk-scoring service).
-export interface FraudRow {
-  id: string;
-  subject: string;
-  type: 'pesanan' | 'akun';
-  score: number; // 0..100
-  signals: string[];
-}
-export const FRAUD_QUEUE_STUB: FraudRow[] = [
-  { id: 'fr1', subject: 'ORD-0261', type: 'pesanan', score: 88, signals: ['Nilai jauh di atas rata-rata', 'Alamat baru', '3 voucher dalam 1 pesanan'] },
-  { id: 'fr2', subject: '0812-9090-1212', type: 'akun', score: 72, signals: ['5 akun dari 1 perangkat', 'Referral berulang'] },
-  { id: 'fr3', subject: 'ORD-0272', type: 'pesanan', score: 54, signals: ['Pembatalan beruntun', 'Metode COD'] },
-];
+// Incident timeline (14c), support tickets (15a), and fraud & risk (15b) are now REAL:
+// admin-service endpoints.admin.incidents / .tickets / .fraud. Their stubs were removed.
 
 // Scheduled reports (15c) are now REAL: admin-service endpoints.admin.scheduledReports.
 // The old SCHEDULED_REPORTS_STUB was removed.

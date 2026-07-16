@@ -31,3 +31,27 @@ export class ScheduledReportNotFoundError extends DomainError {
     super(`Scheduled report "${id}" not found.`);
   }
 }
+
+export class SupportTicketNotFoundError extends DomainError {
+  readonly code = 'SUPPORT_TICKET_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor(id: string) {
+    super(`Support ticket "${id}" not found.`);
+  }
+}
+
+export class FraudFlagNotFoundError extends DomainError {
+  readonly code = 'FRAUD_FLAG_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor(id: string) {
+    super(`Fraud flag "${id}" not found.`);
+  }
+}
+
+export class IncidentNotFoundError extends DomainError {
+  readonly code = 'INCIDENT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor(id: string) {
+    super(`Incident "${id}" not found.`);
+  }
+}

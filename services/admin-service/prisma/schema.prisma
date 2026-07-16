@@ -158,3 +158,142 @@ model ScheduledReport {
 
   @@map("scheduled_reports")
 }
+
+// ---------------------------------------------------------------------------
+// Governance operations (0003_admin_ops): support tickets (15a), fraud & risk
+// flags (15b), incident timeline (14c). SUPER_ADMIN / HEAD_OFFICE gated. All
+// additive — 0001_init / 0002_admin_integration are untouched.
+// ---------------------------------------------------------------------------
+
+/// Support-ticket priority.
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Support-ticket lifecycle.
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+}
+
+/// Author of a ticket message.
+enum TicketAuthorType {
+  CUSTOMER
+  STAFF
+}
+
+/// The entity a fraud flag targets.
+enum FraudEntityType {
+  ORDER
+  ACCOUNT
+}
+
+/// Fraud risk band.
+enum FraudLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Fraud flag review lifecycle.
+enum FraudStatus {
+  OPEN
+  REVIEWED
+  BLOCKED
+  CLEARED
+}
+
+/// Incident severity band.
+enum IncidentSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+/// Incident lifecycle.
+enum IncidentStatus {
+  ONGOING
+  RESOLVED
+}
+
+/// A customer support ticket (Design 15a). `customerRef`/`orderRef` link back to the source
+/// records; the conversation lives in the child `TicketMessage` rows.
+model SupportTicket {
+  id          String           @id @default(uuid())
+  subject     String
+  customerRef String
+  customerPhone String
+  orderRef    String?
+  priority    TicketPriority   @default(MEDIUM)
+  status      TicketStatus     @default(OPEN)
+  assigneeId  String?
+  createdAt   DateTime         @default(now())
+  messages    TicketMessage[]
+
+  @@index([status])
+  @@index([priority])
+  @@map("support_tickets")
+}
+
+/// One message in a support-ticket thread (Design 15a).
+model TicketMessage {
+  id         String           @id @default(uuid())
+  ticketId   String
+  ticket     SupportTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType TicketAuthorType
+  body       String
+  createdAt  DateTime         @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_messages")
+}
+
+/// A fraud/risk flag on an order or account (Design 15b). `score`/`level`/`signals` are the
+/// values a scoring job supplied at ingest — stored verbatim, not recomputed here.
+model FraudFlag {
+  id         String          @id @default(uuid())
+  entityType FraudEntityType
+  entityRef  String
+  /// Risk score 0..100 supplied by the ingesting scoring job.
+  score      Int
+  level      FraudLevel
+  /// Human-readable risk signals supplied at ingest.
+  signals    String[]
+  status     FraudStatus     @default(OPEN)
+  createdAt  DateTime        @default(now())
+
+  @@index([status])
+  @@index([level])
+  @@map("fraud_flags")
+}
+
+/// A platform incident (Design 14c). Timeline entries live in the child `IncidentUpdate` rows.
+model Incident {
+  id              String            @id @default(uuid())
+  title           String
+  severity        IncidentSeverity
+  affectedService String
+  status          IncidentStatus    @default(ONGOING)
+  startedAt       DateTime          @default(now())
+  resolvedAt      DateTime?
+  note            String?
+  updates         IncidentUpdate[]
+
+  @@index([status])
+  @@map("incidents")
+}
+
+/// One timeline entry on an incident (Design 14c).
+model IncidentUpdate {
+  id         String   @id @default(uuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  note       String
+  createdAt  DateTime @default(now())
+
+  @@index([incidentId])
+  @@map("incident_updates")
+}

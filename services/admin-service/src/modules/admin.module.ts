@@ -13,6 +13,9 @@ import { ApiKeyService } from '../application/services/api-key.service';
 import { WebhookService } from '../application/services/webhook.service';
 import { ExportLogService } from '../application/services/export-log.service';
 import { ScheduledReportService } from '../application/services/scheduled-report.service';
+import { SupportTicketService } from '../application/services/support-ticket.service';
+import { FraudFlagService } from '../application/services/fraud-flag.service';
+import { IncidentService } from '../application/services/incident.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { FeatureFlagPrismaRepository } from '../infrastructure/prisma/feature-flag.prisma.repository';
 import { SystemSettingsPrismaRepository } from '../infrastructure/prisma/system-settings.prisma.repository';
@@ -20,6 +23,9 @@ import { ApiKeyPrismaRepository } from '../infrastructure/prisma/api-key.prisma.
 import { WebhookPrismaRepository } from '../infrastructure/prisma/webhook.prisma.repository';
 import { ExportLogPrismaRepository } from '../infrastructure/prisma/export-log.prisma.repository';
 import { ScheduledReportPrismaRepository } from '../infrastructure/prisma/scheduled-report.prisma.repository';
+import { SupportTicketPrismaRepository } from '../infrastructure/prisma/support-ticket.prisma.repository';
+import { FraudFlagPrismaRepository } from '../infrastructure/prisma/fraud-flag.prisma.repository';
+import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { HealthProbeHttpAdapter } from '../infrastructure/http/health-probe.http.adapter';
 import { FeatureFlagsController } from './feature-flags.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -28,6 +34,9 @@ import { ApiKeysController } from './api-keys.controller';
 import { WebhooksController } from './webhooks.controller';
 import { ExportLogsController } from './export-logs.controller';
 import { ScheduledReportsController } from './scheduled-reports.controller';
+import { SupportTicketsController } from './support-tickets.controller';
+import { FraudFlagsController } from './fraud-flags.controller';
+import { IncidentsController } from './incidents.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -39,6 +48,9 @@ const providers: Provider[] = [
   WebhookService,
   ExportLogService,
   ScheduledReportService,
+  SupportTicketService,
+  FraudFlagService,
+  IncidentService,
   { provide: ADMIN_TOKENS.FeatureFlagRepository, useClass: FeatureFlagPrismaRepository },
   { provide: ADMIN_TOKENS.SystemSettingsRepository, useClass: SystemSettingsPrismaRepository },
   { provide: ADMIN_TOKENS.HealthProbe, useClass: HealthProbeHttpAdapter },
@@ -46,6 +58,9 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.WebhookRepository, useClass: WebhookPrismaRepository },
   { provide: ADMIN_TOKENS.ExportLogRepository, useClass: ExportLogPrismaRepository },
   { provide: ADMIN_TOKENS.ScheduledReportRepository, useClass: ScheduledReportPrismaRepository },
+  { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
+  { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
+  { provide: ADMIN_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
@@ -60,6 +75,9 @@ const providers: Provider[] = [
     WebhooksController,
     ExportLogsController,
     ScheduledReportsController,
+    SupportTicketsController,
+    FraudFlagsController,
+    IncidentsController,
   ],
   providers,
   exports: [PrismaService, AdminConfigService],

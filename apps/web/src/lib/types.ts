@@ -1106,6 +1106,64 @@ export interface ServiceHealth {
   latencyMs: number;
   httpStatus: number | null;
 }
+
+// Support tickets (15a) — admin-service.
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type TicketStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
+export type TicketAuthorType = 'CUSTOMER' | 'STAFF';
+export interface TicketMessage {
+  id: string;
+  authorType: TicketAuthorType;
+  body: string;
+  createdAt: string;
+}
+export interface SupportTicket {
+  id: string;
+  subject: string;
+  customerRef: string;
+  customerPhone: string;
+  orderRef: string | null;
+  priority: TicketPriority;
+  status: TicketStatus;
+  assigneeId: string | null;
+  createdAt: string;
+  messages: TicketMessage[];
+}
+
+// Fraud & risk flags (15b) — admin-service.
+export type FraudEntityType = 'ORDER' | 'ACCOUNT';
+export type FraudLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type FraudStatus = 'OPEN' | 'REVIEWED' | 'BLOCKED' | 'CLEARED';
+export interface FraudFlag {
+  id: string;
+  entityType: FraudEntityType;
+  entityRef: string;
+  score: number;
+  level: FraudLevel;
+  signals: string[];
+  status: FraudStatus;
+  createdAt: string;
+}
+
+// Incident timeline (14c) — admin-service.
+export type IncidentSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
+export type IncidentStatus = 'ONGOING' | 'RESOLVED';
+export interface IncidentUpdate {
+  id: string;
+  note: string;
+  createdAt: string;
+}
+export interface Incident {
+  id: string;
+  title: string;
+  severity: IncidentSeverity;
+  affectedService: string;
+  status: IncidentStatus;
+  startedAt: string;
+  resolvedAt: string | null;
+  note: string | null;
+  updates: IncidentUpdate[];
+}
 export interface SystemHealth {
   services: ServiceHealth[];
   upCount: number;

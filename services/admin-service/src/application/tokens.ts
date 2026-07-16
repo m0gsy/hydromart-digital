@@ -6,4 +6,7 @@ export const ADMIN_TOKENS = {
   WebhookRepository: Symbol('WebhookRepository'),
   ExportLogRepository: Symbol('ExportLogRepository'),
   ScheduledReportRepository: Symbol('ScheduledReportRepository'),
+  SupportTicketRepository: Symbol('SupportTicketRepository'),
+  FraudFlagRepository: Symbol('FraudFlagRepository'),
+  IncidentRepository: Symbol('IncidentRepository'),
 } as const;

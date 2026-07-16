@@ -79,7 +79,55 @@ async function main() {
     },
   });
 
-  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings + integration samples`);
+  // Governance-ops sample rows (15a/15b/14c) so the HQ pages render before real traffic.
+  // CLEARLY seed samples — not real tickets/flags/incidents. Idempotent (upsert on id).
+  await prisma.supportTicket.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000e1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000e1',
+      subject: 'Galon belum sampai (sample)',
+      customerRef: 'Ibu Rina',
+      customerPhone: '0812-0000-0001',
+      orderRef: 'ORD-0231',
+      priority: 'HIGH',
+      status: 'OPEN',
+      messages: {
+        create: [
+          { authorType: 'CUSTOMER', body: 'Halo, pesanan saya sudah 2 jam belum datang.' },
+          { authorType: 'STAFF', body: 'Baik Bu, kami cek posisi kurir ya.' },
+        ],
+      },
+    },
+  });
+  await prisma.fraudFlag.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000f1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000f1',
+      entityType: 'ORDER',
+      entityRef: 'ORD-0261',
+      score: 88,
+      level: 'HIGH',
+      signals: ['Nilai jauh di atas rata-rata', 'Alamat baru', '3 voucher dalam 1 pesanan'],
+      status: 'OPEN',
+    },
+  });
+  await prisma.incident.upsert({
+    where: { id: '00000000-0000-4000-a000-000000000101' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-000000000101',
+      title: 'Latensi settlement tinggi (sample)',
+      severity: 'CRITICAL',
+      affectedService: 'payment-service',
+      status: 'ONGOING',
+      note: 'Investigating elevated settlement latency.',
+      updates: { create: [{ note: 'Escalated to the payments on-call.' }] },
+    },
+  });
+
+  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings + integration + governance-ops samples`);
 }
 
 main()

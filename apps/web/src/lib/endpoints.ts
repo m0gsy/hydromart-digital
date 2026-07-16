@@ -301,6 +301,45 @@ export const endpoints = {
       update: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
       remove: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
     },
+    // Support tickets (15a) — HEAD_OFFICE + SUPER_ADMIN. List with message threads; reply /
+    // assign / resolve mutate a ticket.
+    tickets: {
+      list: (q: { status?: string; priority?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.status) p.set('status', q.status);
+        if (q.priority) p.set('priority', q.priority);
+        const qs = p.toString();
+        return `/admin/api/v1/tickets${qs ? `?${qs}` : ''}`;
+      },
+      get: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}`,
+      reply: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/reply`,
+      assign: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/assign`,
+      resolve: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/resolve`,
+    },
+    // Fraud & risk flags (15b) — HEAD_OFFICE + SUPER_ADMIN read; review / block / clear.
+    fraud: {
+      list: (q: { level?: string; status?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.level) p.set('level', q.level);
+        if (q.status) p.set('status', q.status);
+        const qs = p.toString();
+        return `/admin/api/v1/fraud-flags${qs ? `?${qs}` : ''}`;
+      },
+      review: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/review`,
+      block: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/block`,
+      clear: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/clear`,
+    },
+    // Incident timeline (14c) — HEAD_OFFICE + SUPER_ADMIN. List/create/patch.
+    incidents: {
+      list: (q: { status?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.status) p.set('status', q.status);
+        const qs = p.toString();
+        return `/admin/api/v1/incidents${qs ? `?${qs}` : ''}`;
+      },
+      create: '/admin/api/v1/incidents',
+      update: (id: string) => `/admin/api/v1/incidents/${encodeURIComponent(id)}`,
+    },
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.

@@ -39,9 +39,30 @@ import {
   ScheduledReportRepository,
   UpdateScheduledReportData,
 } from '../../src/application/ports/scheduled-report.repository';
+import {
+  ListSupportTicketsFilter,
+  SupportTicketRecord,
+  SupportTicketRepository,
+} from '../../src/application/ports/support-ticket.repository';
+import {
+  CreateFraudFlagData,
+  FraudFlagRecord,
+  FraudFlagRepository,
+  ListFraudFlagsFilter,
+} from '../../src/application/ports/fraud-flag.repository';
+import {
+  CreateIncidentData,
+  IncidentRecord,
+  IncidentRepository,
+  ListIncidentsFilter,
+  PatchIncidentData,
+} from '../../src/application/ports/incident.repository';
 import { ApiKeyEnvironment } from '../../src/domain/api-key-environment';
 import { ExportFormat, ExportStatus } from '../../src/domain/export';
 import { ReportCadence } from '../../src/domain/report-cadence';
+import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain/ticket';
+import { FraudEntityType, FraudLevel, FraudStatus } from '../../src/domain/fraud';
+import { IncidentSeverity, IncidentStatus } from '../../src/domain/incident';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -292,6 +313,169 @@ export function makeScheduledReport(
     createdAt: nextDate(),
     ...over,
   };
+}
+
+export function makeSupportTicket(over: Partial<SupportTicketRecord> = {}): SupportTicketRecord {
+  return {
+    id: randomUUID(),
+    subject: 'Sample ticket',
+    customerRef: 'Ibu Rina',
+    customerPhone: '0812-0000-0001',
+    orderRef: 'ORD-0231',
+    priority: TicketPriority.MEDIUM,
+    status: TicketStatus.OPEN,
+    assigneeId: null,
+    createdAt: nextDate(),
+    messages: [],
+    ...over,
+  };
+}
+
+export class InMemorySupportTicketRepository implements SupportTicketRepository {
+  rows: SupportTicketRecord[] = [];
+
+  async list(filter: ListSupportTicketsFilter): Promise<SupportTicketRecord[]> {
+    let items = [...this.rows].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    if (filter.status) items = items.filter((r) => r.status === filter.status);
+    if (filter.priority) items = items.filter((r) => r.priority === filter.priority);
+    return items.map((r) => ({ ...r, messages: [...r.messages] }));
+  }
+
+  async findById(id: string): Promise<SupportTicketRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r, messages: [...r.messages] } : null;
+  }
+
+  async addStaffMessage(id: string, body: string): Promise<SupportTicketRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.messages.push({
+      id: randomUUID(),
+      ticketId: id,
+      authorType: TicketAuthorType.STAFF,
+      body,
+      createdAt: nextDate(),
+    });
+    return { ...r, messages: [...r.messages] };
+  }
+
+  async assign(id: string, assigneeId: string): Promise<SupportTicketRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.assigneeId = assigneeId;
+    r.status = TicketStatus.ASSIGNED;
+    return { ...r, messages: [...r.messages] };
+  }
+
+  async resolve(id: string): Promise<SupportTicketRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.status = TicketStatus.RESOLVED;
+    return { ...r, messages: [...r.messages] };
+  }
+}
+
+export function makeFraudFlag(over: Partial<FraudFlagRecord> = {}): FraudFlagRecord {
+  return {
+    id: randomUUID(),
+    entityType: FraudEntityType.ORDER,
+    entityRef: 'ORD-0261',
+    score: 80,
+    level: FraudLevel.HIGH,
+    signals: ['Sample signal'],
+    status: FraudStatus.OPEN,
+    createdAt: nextDate(),
+    ...over,
+  };
+}
+
+export class InMemoryFraudFlagRepository implements FraudFlagRepository {
+  rows: FraudFlagRecord[] = [];
+
+  async list(filter: ListFraudFlagsFilter): Promise<FraudFlagRecord[]> {
+    let items = [...this.rows].sort(
+      (a, b) => b.score - a.score || b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    if (filter.level) items = items.filter((r) => r.level === filter.level);
+    if (filter.status) items = items.filter((r) => r.status === filter.status);
+    return items.map((r) => ({ ...r }));
+  }
+
+  async create(data: CreateFraudFlagData): Promise<FraudFlagRecord> {
+    const record: FraudFlagRecord = {
+      id: randomUUID(),
+      entityType: data.entityType,
+      entityRef: data.entityRef,
+      score: data.score,
+      level: data.level,
+      signals: data.signals,
+      status: data.status ?? FraudStatus.OPEN,
+      createdAt: nextDate(),
+    };
+    this.rows.push(record);
+    return { ...record };
+  }
+
+  async setStatus(id: string, status: FraudStatus): Promise<FraudFlagRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    r.status = status;
+    return { ...r };
+  }
+}
+
+export function makeIncident(over: Partial<IncidentRecord> = {}): IncidentRecord {
+  return {
+    id: randomUUID(),
+    title: 'Sample incident',
+    severity: IncidentSeverity.WARNING,
+    affectedService: 'order-service',
+    status: IncidentStatus.ONGOING,
+    startedAt: nextDate(),
+    resolvedAt: null,
+    note: null,
+    updates: [],
+    ...over,
+  };
+}
+
+export class InMemoryIncidentRepository implements IncidentRepository {
+  rows: IncidentRecord[] = [];
+
+  async list(filter: ListIncidentsFilter): Promise<IncidentRecord[]> {
+    let items = [...this.rows].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+    if (filter.status) items = items.filter((r) => r.status === filter.status);
+    return items.map((r) => ({ ...r, updates: [...r.updates] }));
+  }
+
+  async create(data: CreateIncidentData): Promise<IncidentRecord> {
+    const record: IncidentRecord = {
+      id: randomUUID(),
+      title: data.title,
+      severity: data.severity,
+      affectedService: data.affectedService,
+      status: IncidentStatus.ONGOING,
+      startedAt: nextDate(),
+      resolvedAt: null,
+      note: data.note ?? null,
+      updates: [],
+    };
+    this.rows.push(record);
+    return { ...record, updates: [] };
+  }
+
+  async patch(id: string, data: PatchIncidentData): Promise<IncidentRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    if (!r) return null;
+    if (data.note) {
+      r.updates.unshift({ id: randomUUID(), incidentId: id, note: data.note, createdAt: nextDate() });
+    }
+    if (data.status) {
+      r.status = data.status;
+      r.resolvedAt = data.status === IncidentStatus.RESOLVED ? nextDate() : null;
+    }
+    return { ...r, updates: [...r.updates] };
+  }
 }
 
 export class FakeHealthProbe implements HealthProbePort {
