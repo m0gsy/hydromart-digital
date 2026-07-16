@@ -1,11 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import type { Session } from '@/lib/types';
 
 // The button only appears when a Google OAuth client id is configured for this
@@ -30,6 +32,7 @@ declare global {
 export function GoogleSignInButton({ next }: { next: string }) {
   const router = useRouter();
   const { signIn } = useAuth();
+  const { t } = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +94,14 @@ export function GoogleSignInButton({ next }: { next: string }) {
         <span className="h-px flex-1 border-t border-app" />
       </div>
       <div ref={ref} />
+      {/* UU PDP: Google is an account-creation path too — consent by continuing. */}
+      <p className="max-w-[320px] text-center text-xs leading-relaxed text-muted">
+        {t('auth.register.googleConsentPre')}
+        <Link href="/kebijakan-privasi" target="_blank" className="underline hover:text-brand-600">
+          {t('auth.register.consentPrivacy')}
+        </Link>
+        .
+      </p>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}

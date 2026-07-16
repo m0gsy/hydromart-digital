@@ -27,6 +27,7 @@ export const auth: typeof base = {
     consentPrivacy: 'Privacy Policy',
     consentPost: ' and Hydromart’s Terms of Service.',
     consentError: 'You must agree to the Privacy Policy to register.',
+    googleConsentPre: 'By continuing with Google, you agree to the ',
     error: 'Could not start registration.',
     haveAccount: 'Already have an account?',
     loginCta: 'Sign in',
