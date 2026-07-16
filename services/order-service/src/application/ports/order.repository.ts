@@ -126,6 +126,12 @@ export interface DepotSales {
   revenue: number;
 }
 
+/** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */
+export interface DepotShipping {
+  depotId: string;
+  shippingBilled: number;
+}
+
 /**
  * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
  * productName but NOT a category, so this groups by product — a true category
@@ -212,6 +218,7 @@ export interface OrderRepository {
   topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
+  shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
   /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
   revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
   /**

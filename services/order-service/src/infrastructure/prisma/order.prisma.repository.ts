@@ -8,6 +8,7 @@ import {
   CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotShipping,
   OrderQuery,
   OrderRecord,
   OrderRepository,
@@ -350,6 +351,18 @@ export class OrderPrismaRepository implements OrderRepository {
       depotId: r.depotId as string,
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
+    }));
+  }
+
+  async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {
+    const rows = await this.prisma.order.groupBy({
+      by: ['depotId'],
+      where: { ...this.reportWhere(range), depotId: { not: null } },
+      _sum: { deliveryFee: true },
+    });
+    return rows.map((r) => ({
+      depotId: r.depotId as string,
+      shippingBilled: r._sum.deliveryFee ? r._sum.deliveryFee.toNumber() : 0,
     }));
   }
 

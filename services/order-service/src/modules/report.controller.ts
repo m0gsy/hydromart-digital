@@ -51,6 +51,12 @@ export class ReportController {
     return this.reports.topDepots(toRange(q), q.limit ?? 10);
   }
 
+  @Get('shipping-by-depot')
+  @ApiOperation({ summary: 'Shipping (ongkir) billed per depot (reconciliation 22a)' })
+  shippingByDepot(@Query() q: RangeReportQueryDto) {
+    return this.reports.shippingByDepot(toRange(q));
+  }
+
   @Get('revenue-by-category')
   @ApiOperation({ summary: 'Revenue share per product (22b; per-product — no category column)' })
   revenueByCategory(@Query() q: TopReportQueryDto) {

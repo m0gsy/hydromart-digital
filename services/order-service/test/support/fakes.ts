@@ -11,6 +11,7 @@ import {
   CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotShipping,
   OrderQuery,
   OrderRecord,
   OrderRepository,
@@ -246,6 +247,15 @@ export class InMemoryOrderRepository implements OrderRepository {
       .map(([depotId, v]) => ({ depotId, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
+  }
+
+  async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {
+    const agg = new Map<string, number>();
+    for (const r of this.reportRows(range)) {
+      if (!r.depotId) continue;
+      agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + r.deliveryFee);
+    }
+    return [...agg.entries()].map(([depotId, shippingBilled]) => ({ depotId, shippingBilled }));
   }
 
   async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {

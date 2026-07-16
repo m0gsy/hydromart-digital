@@ -5,12 +5,16 @@ import { Scales, DownloadSimple } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubReconLines } from '@/lib/hq/stubs';
+import { StubBadge, stubReconRefunds } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, Page } from '@/lib/types';
+import type { DepotAdmin, ExecutiveDashboard, GallonOutstanding, Page } from '@/lib/types';
+
+interface ShippingByDepot {
+  items: { depotId: string; shippingBilled: number }[];
+}
 
 const SELECT_CLASS =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
@@ -22,9 +26,10 @@ function defaultRange(): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-// Design 22a — Rekonsiliasi keuangan per depot. Total penjualan is real (executive
-// topDepots revenue for the depot); platform fee (5%), franchise commission (20%) and
-// the net payout are computed from it. Ongkir/refund/deposit have no source → stubbed.
+// Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (executive topDepots),
+// ongkir (order shipping-by-depot) and gallon deposit (depot gallon-outstanding netDeposit)
+// are real; platform fee (5%) & commission (20%) are computed. Only per-depot REFUNDS has
+// no source (payment has no depotId) → stays a labeled stub line.
 export default function HqReconciliationPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -32,6 +37,8 @@ export default function HqReconciliationPage() {
 
   const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
+  const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
+  const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
 
   const [depotId, setDepotId] = useState('');
 
@@ -51,14 +58,17 @@ export default function HqReconciliationPage() {
   const platformFee = sales != null ? Math.round(sales * 0.05) : null;
   const commission = sales != null ? Math.round(sales * 0.2) : null;
 
-  // Stub lines (no source endpoint).
-  const stub = stubReconLines(selected);
+  // Real lines.
+  const shippingBilled = shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled ?? 0;
+  const gallonDeposit = gallon.data?.find((r) => r.depotId === selected)?.netDeposit ?? 0;
+  // Stub line (no per-depot refund source).
+  const refunds = stubReconRefunds(selected);
 
   // ponytail: illustrative payout formula — owner keeps sales + ongkir, less platform
   // fee, franchise commission, refunds and the deposit held. Server is authority later.
   const net =
     sales != null && platformFee != null && commission != null
-      ? sales - platformFee - commission + stub.shippingBilled - stub.refunds - stub.gallonDeposit
+      ? sales - platformFee - commission + shippingBilled - refunds - gallonDeposit
       : null;
 
   const dash20 = t('hq.common.dash');
@@ -116,10 +126,10 @@ export default function HqReconciliationPage() {
           <dl className="flex flex-col divide-y divide-[color:var(--border)]">
             <Line label={t('hq.reconciliation.lines.sales')} value={money(sales)} />
             <Line label={t('hq.reconciliation.lines.platformFee')} value={money(platformFee == null ? null : -platformFee)} />
-            <Line label={t('hq.reconciliation.lines.shipping')} value={<Money amount={stub.shippingBilled} />} badge />
-            <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-stub.refunds} />} badge />
+            <Line label={t('hq.reconciliation.lines.shipping')} value={<Money amount={shippingBilled} />} />
+            <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-refunds} />} badge />
             <Line label={t('hq.reconciliation.lines.commission')} value={money(commission == null ? null : -commission)} />
-            <Line label={t('hq.reconciliation.lines.deposit')} value={<Money amount={-stub.gallonDeposit} />} badge />
+            <Line label={t('hq.reconciliation.lines.deposit')} value={<Money amount={-gallonDeposit} />} />
           </dl>
 
           <div className="mt-4 flex items-center justify-between rounded-xl bg-deep-teal px-4 py-4 text-white">

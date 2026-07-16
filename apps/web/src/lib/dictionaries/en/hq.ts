@@ -371,6 +371,7 @@ export const hq = {
       unsettled: 'Unsettled',
       payoutPending: 'Payout pending',
       disputes: 'Disputes',
+      pendingRefunds: 'Refunds to approve',
     },
     unsettled: {
       title: 'Unsettled by method',

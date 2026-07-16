@@ -6,33 +6,37 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Chip, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { INVOICE_SAMPLE_LINES } from '@/lib/hq/stubs';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { TaxSettings } from '@/lib/types';
+import type { Order, Page, TaxSettings } from '@/lib/types';
 
 // Design 24d — invoice/receipt print preview. Company identity + PPN come from the REAL
-// tax settings (19f, payment-service); only the line items are sample data (no single
-// order is being previewed), so the header keeps a "sample" badge.
+// tax settings (19f, payment-service); the previewed order (lines, number, date, subtotal)
+// is the most recent real order (order-service staff queue). Only falls back to a "sample"
+// badge when the network has no orders yet.
 export default function HqInvoiceTemplatePage() {
   const { t } = useT();
   const tax = useAsync<TaxSettings>(() => api.get(endpoints.tax.get, true));
+  const latest = useAsync<Page<Order>>(() => api.get(endpoints.orders.manage({ limit: 1 }), true));
 
-  if (tax.loading) return <Skeleton className="h-96 w-full" />;
+  if (tax.loading || latest.loading) return <Skeleton className="h-96 w-full" />;
   if (tax.error) return <ErrorState message={t('hq.tax.loadError')} onRetry={tax.reload} />;
 
   const settings = tax.data!;
-  const gross = INVOICE_SAMPLE_LINES.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+  const order = latest.data?.items[0] ?? null;
+  const lines = order?.items ?? [];
+  const gross = order?.subtotal ?? 0;
   const rate = settings.ppnPercent / 100;
   // "termasuk pajak": total is the gross and PPN is extracted; else PPN is added on top.
   const ppn = settings.priceIncludesTax ? Math.round(gross - gross / (1 + rate)) : Math.round(gross * rate);
   const net = settings.priceIncludesTax ? gross - ppn : gross;
   const total = settings.priceIncludesTax ? gross : gross + ppn;
-  const invoiceNo = settings.invoiceFormat
-    .replace('{YYYY}', '2026')
-    .replace('{MM}', '07')
-    .replace('{SEQ}', '0142')
-    .replace('{NNNN}', '0142');
+  const invoiceNo = order
+    ? order.orderNumber
+    : settings.invoiceFormat.replace('{YYYY}', '2026').replace('{MM}', '07').replace('{SEQ}', '0142').replace('{NNNN}', '0142');
+  const invoiceDate = order
+    ? new Date(order.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '16/07/2026';
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,7 +44,7 @@ export default function HqInvoiceTemplatePage() {
         icon={Article}
         title={t('hq.invoiceTemplate.title')}
         subtitle={t('hq.invoiceTemplate.subtitle')}
-        stub
+        stub={!order}
         action={
           <Button variant="secondary" onClick={() => window.print()}>
             <Printer size={16} weight="fill" />
@@ -62,7 +66,7 @@ export default function HqInvoiceTemplatePage() {
             <Chip tone="success">{t('hq.invoiceTemplate.paid')}</Chip>
             <p className="mt-2 text-xs text-[#64757c]">{t('hq.invoiceTemplate.invoiceNo')}</p>
             <p className="font-mono text-sm font-bold">{invoiceNo}</p>
-            <p className="mt-1 text-xs text-[#64757c]">{t('hq.invoiceTemplate.date')}: 16/07/2026</p>
+            <p className="mt-1 text-xs text-[#64757c]">{t('hq.invoiceTemplate.date')}: {invoiceDate}</p>
           </div>
         </div>
 
@@ -81,15 +85,15 @@ export default function HqInvoiceTemplatePage() {
             </tr>
           </thead>
           <tbody>
-            {INVOICE_SAMPLE_LINES.map((l) => (
-              <tr key={l.name} className="border-b border-[#f0eee6]">
-                <td className="py-2.5">{l.name}</td>
-                <td className="py-2.5 text-right tabular-nums">{l.qty}</td>
+            {lines.map((l) => (
+              <tr key={l.id} className="border-b border-[#f0eee6]">
+                <td className="py-2.5">{l.productName}</td>
+                <td className="py-2.5 text-right tabular-nums">{l.quantity}</td>
                 <td className="py-2.5 text-right tabular-nums">
                   <Money amount={l.unitPrice} />
                 </td>
                 <td className="py-2.5 text-right tabular-nums font-semibold">
-                  <Money amount={l.qty * l.unitPrice} />
+                  <Money amount={l.lineTotal} />
                 </td>
               </tr>
             ))}

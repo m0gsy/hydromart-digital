@@ -374,6 +374,7 @@ export const hq = {
       unsettled: 'Belum settle',
       payoutPending: 'Payout tertunda',
       disputes: 'Sengketa',
+      pendingRefunds: 'Refund perlu disetujui',
     },
     unsettled: {
       title: 'Belum settle per metode',

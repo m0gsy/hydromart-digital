@@ -5,13 +5,14 @@ import { Wallet } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { PAYMENTS_DISPUTE_COUNT_STUB, StubBadge } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
   ExecutiveDashboard,
+  Page,
+  Payment,
   PendingPayout,
   UnsettledMethodBucket,
 } from '@/lib/types';
@@ -43,10 +44,10 @@ function Stat({
   );
 }
 
-// Design 6a — Pembayaran & payout (cross-depot). "Terkumpul" is executive sales
-// revenue; "Belum settle per metode" (left) and the payout-release queue (right) are
-// now real (payment-service unsettled aggregate + payout-service HQ queue). Only the
-// dispute count has no source yet (badged).
+// Design 6a — Pembayaran & payout (cross-depot). "Terkumpul" is executive sales revenue;
+// "Belum settle per metode" (left), the payout-release queue (right) and the pending-
+// refunds KPI (payment-service refund queue total) are all real. There is no distinct
+// "dispute" concept in the data — the KPI honestly shows refunds awaiting HQ approval.
 export default function HqPaymentsPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -56,6 +57,8 @@ export default function HqPaymentsPage() {
     api.get(endpoints.payments.unsettledByMethod(range), true),
   );
   const queueQ = useAsync<PendingPayout[]>(() => api.get(endpoints.payout.hqQueue, true));
+  // Real "needs attention" count: payments awaiting HQ refund approval (the queue total).
+  const refundsQ = useAsync<Page<Payment>>(() => api.get(endpoints.refunds.queue({ limit: 1 }), true));
   const [releasing, setReleasing] = useState<string | null>(null);
 
   if (dash.loading) return <Skeleton className="h-96 w-full" />;
@@ -101,7 +104,10 @@ export default function HqPaymentsPage() {
           label={t('hq.payments.kpi.payoutPending')}
           value={queueQ.loading ? '…' : `Rp ${payoutPending.toLocaleString('id-ID')}`}
         />
-        <Stat label={t('hq.payments.kpi.disputes')} value={String(PAYMENTS_DISPUTE_COUNT_STUB)} badge={<StubBadge />} />
+        <Stat
+          label={t('hq.payments.kpi.pendingRefunds')}
+          value={refundsQ.loading ? '…' : String(refundsQ.data?.total ?? 0)}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

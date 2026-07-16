@@ -26,9 +26,9 @@ function hash(s: string): number {
 // UNSETTLED_BY_METHOD_STUB was removed.
 
 // The HQ payout-release queue is now REAL: payout-service GET /payout/hq/pending +
-// POST /payout/hq/release (endpoints.payout.hqQueue / .release). The old
-// PAYOUT_RELEASE_QUEUE_STUB was removed. Only the dispute count has no source yet.
-export const PAYMENTS_DISPUTE_COUNT_STUB = 3;
+// POST /payout/hq/release (endpoints.payout.hqQueue / .release). The payments KPI that
+// used to show a stub "dispute count" now shows the real refunds-awaiting-approval total
+// (there is no distinct dispute concept in the data).
 
 // Per-product override counts are now REAL: depot-service GET
 // /price-overrides/count-by-product (grouped, defaults to the PENDING queue).
@@ -45,19 +45,12 @@ export const PAYMENTS_DISPUTE_COUNT_STUB = 3;
 // workflow has no model, so this pending count stays a labeled stub.
 export const PENDING_VOUCHER_REQUESTS_STUB = 2;
 
-// STUB: reconciliation lines with no real source (ongkir/refund/deposit) — Milestone D.
-export interface ReconStubLines {
-  shippingBilled: number;
-  refunds: number;
-  gallonDeposit: number;
-}
-export function stubReconLines(depotId: string): ReconStubLines {
-  const h = hash(depotId);
-  return {
-    shippingBilled: 200_000 + (h % 40) * 10_000,
-    refunds: (h % 12) * 15_000,
-    gallonDeposit: 300_000 + (h % 25) * 20_000,
-  };
+// Reconciliation ongkir (shipping) and gallon deposit are now REAL: order-service
+// shipping-by-depot + depot-service gallon-outstanding (netDeposit). Only per-depot
+// REFUNDS has no source — payment-service has no depotId, so refunds can't be split by
+// depot without a payment→order join. This one line stays a labeled stub.
+export function stubReconRefunds(depotId: string): number {
+  return (hash(depotId) % 12) * 15_000;
 }
 
 // Export preview row shape. All three groupings (depot/produk/metode) are now REAL:
@@ -151,20 +144,10 @@ export function stubForecastConfidence(productId: string): number {
 // require-2FA / IP allowlist) is also real (endpoints.admin.security). No geo lookup exists,
 // so the UI shows device + IP, not a city.
 
-// Tax & invoice settings are now REAL: payment-service GET/PUT /tax-settings
-// (endpoints.tax.*), shared by the tax page (19f) and the invoice template (24d).
-// The TaxSettings type now lives in @/lib/types. Only the invoice line items below
-// stay sample data (no single order is being previewed).
-export interface InvoiceLine {
-  name: string;
-  qty: number;
-  unitPrice: number;
-}
-export const INVOICE_SAMPLE_LINES: InvoiceLine[] = [
-  { name: 'Galon 19L isi ulang', qty: 4, unitPrice: 20_000 },
-  { name: 'Air 600ml (dus)', qty: 2, unitPrice: 48_000 },
-  { name: 'Ongkir', qty: 1, unitPrice: 5_000 },
-];
+// Tax & invoice settings are REAL: payment-service GET/PUT /tax-settings
+// (endpoints.tax.*), shared by the tax page (19f) and the invoice template (24d). The
+// invoice template (24d) now previews the most recent REAL order (order-service staff
+// queue) for its line items — no sample lines remain here.
 
 // Incident timeline (14c), support tickets (15a), and fraud & risk (15b) are now REAL:
 // admin-service endpoints.admin.incidents / .tickets / .fraud. Their stubs were removed.
