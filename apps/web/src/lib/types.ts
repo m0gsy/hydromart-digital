@@ -582,7 +582,20 @@ export interface NetworkDepotRow {
   revenue: number;
   orderCount: number;
   slaRate: number | null;
+  avgMinutes: number | null;
   lowStockCount: number;
+}
+
+// Network gallon rollup (depot-service GET /gallon-outstanding): per-depot empties still
+// at customers (issued − returned) + deposit still held (held − refunded).
+export interface GallonOutstanding {
+  depotId: string;
+  issued: number;
+  returned: number;
+  outstanding: number;
+  depositHeld: number;
+  depositRefunded: number;
+  netDeposit: number;
 }
 
 export interface NetworkDashboard {

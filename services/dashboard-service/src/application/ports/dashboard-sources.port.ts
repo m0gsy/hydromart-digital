@@ -62,6 +62,8 @@ export interface NetworkDepot {
 export interface DepotSlaRow {
   depotId: string;
   slaRate: number;
+  /** Average delivered-order lead time in minutes, or null when none delivered. */
+  avgMinutes: number | null;
 }
 
 /** Per-depot SLA report (delivery-service GET /reports/sla-by-depot). */

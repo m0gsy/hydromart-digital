@@ -438,6 +438,11 @@ export const endpoints = {
     summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/summary`,
     create: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues`,
   },
+  // Network gallon rollup (HQ compare 14d + reconciliation 22a): per-depot outstanding
+  // empties + net deposit held (issued − returned), one grouped call.
+  gallonNetwork: {
+    outstanding: '/depots/api/v1/gallon-outstanding',
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,

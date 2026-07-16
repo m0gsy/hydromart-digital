@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { GallonCondition } from '../../domain/gallon-return';
 import {
   CreateGallonReturnData,
+  GallonReturnDepotRow,
   GallonReturnRecord,
   GallonReturnRepository,
   GallonReturnSummary,
@@ -70,5 +71,17 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
       damaged,
       depositRefunded: Number(agg._sum.depositRefunded ?? 0),
     };
+  }
+
+  async networkSummary(): Promise<GallonReturnDepotRow[]> {
+    const grouped = await this.prisma.gallonReturn.groupBy({
+      by: ['depotId'],
+      _sum: { quantity: true, depositRefunded: true },
+    });
+    return grouped.map((g) => ({
+      depotId: g.depotId,
+      gallons: g._sum.quantity ?? 0,
+      depositRefunded: Number(g._sum.depositRefunded ?? 0),
+    }));
   }
 }

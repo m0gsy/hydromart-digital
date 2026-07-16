@@ -88,18 +88,13 @@ export function stubSegmentEstimate(conditionCount: number): number {
 // Retention cohort (22b) is now REAL: order-service GET /reports/retention-cohort. The
 // old CATEGORY_REVENUE_STUB / RETENTION_COHORT_STUB were removed.
 
-// STUB: per-depot ops metrics with no HQ endpoint (14d compare + 22c scorecard) — Milestone D.
-/** Sample average delivery time (minutes) for a depot, stable per id. */
-export function stubDepotAvgDelivery(depotId: string): number {
-  return 22 + (hash(depotId) % 20); // 22..41 min
-}
+// Avg delivery time (14d) is now REAL: dashboard-service network roll-up forwards
+// delivery-service avgMinutes per depot. Gallon-outstanding (14d) is now REAL:
+// depot-service GET /gallon-outstanding (issued − returned). Only the customer RATING
+// has no source (no depot-review model) → stays a badged stub.
 /** Sample customer rating (1–5) for a depot, stable per id. */
 export function stubDepotRating(depotId: string): number {
   return Math.round((4.2 + (hash(depotId) % 8) / 10) * 10) / 10; // 4.2..4.9
-}
-/** Sample outstanding empty-gallon count for a depot, stable per id. */
-export function stubDepotGallonReturn(depotId: string): number {
-  return 40 + (hash(depotId) % 120); // 40..159
 }
 
 // STUB: forecast-service returns no confidence score — Milestone D. Sampled per product.

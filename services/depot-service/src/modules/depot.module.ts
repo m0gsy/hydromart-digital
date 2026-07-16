@@ -11,6 +11,7 @@ import { InventoryService } from '../application/services/inventory.service';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
+import { GallonNetworkService } from '../application/services/gallon-network.service';
 import { FranchiseApplicationService } from '../application/services/franchise-application.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
@@ -27,6 +28,7 @@ import { DepotInventoryController, InventoryController } from './inventory.contr
 import { PricingController } from './pricing.controller';
 import { GallonReturnController } from './gallon-return.controller';
 import { GallonIssueController } from './gallon-issue.controller';
+import { GallonNetworkController } from './gallon-network.controller';
 import { FranchiseApplicationController } from './franchise-application.controller';
 import {
   DepotPriceOverrideController,
@@ -41,6 +43,7 @@ const providers: Provider[] = [
   PricingService,
   GallonReturnService,
   GallonIssueService,
+  GallonNetworkService,
   FranchiseApplicationService,
   PriceOverrideService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
@@ -70,6 +73,7 @@ const providers: Provider[] = [
     PricingController,
     GallonReturnController,
     GallonIssueController,
+    GallonNetworkController,
     FranchiseApplicationController,
     DepotPriceOverrideController,
     PriceOverrideController,

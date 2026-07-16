@@ -30,6 +30,16 @@ class InMemoryGallonIssueRepository implements GallonIssueRepository {
       depositHeld: all.reduce((s, r) => s + r.depositHeld, 0),
     };
   }
+  async networkSummary() {
+    const map = new Map<string, { gallons: number; depositHeld: number }>();
+    for (const r of this.rows) {
+      const e = map.get(r.depotId) ?? { gallons: 0, depositHeld: 0 };
+      e.gallons += r.quantity;
+      e.depositHeld += r.depositHeld;
+      map.set(r.depotId, e);
+    }
+    return [...map.entries()].map(([depotId, v]) => ({ depotId, ...v }));
+  }
 }
 
 const DEPOT = {

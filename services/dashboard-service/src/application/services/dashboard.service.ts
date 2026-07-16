@@ -20,6 +20,8 @@ export interface NetworkDepotRow {
   orderCount: number;
   /** On-time rate 0..1, or null when the depot has no delivered orders in range. */
   slaRate: number | null;
+  /** Average delivered-order lead time in minutes, or null when none delivered. */
+  avgMinutes: number | null;
   lowStockCount: number;
 }
 
@@ -133,7 +135,11 @@ export class DashboardService {
       revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
     }
     const slaByDepotId = new Map<string, number>();
-    for (const row of slaByDepot?.depots ?? []) slaByDepotId.set(row.depotId, row.slaRate);
+    const avgMinutesByDepot = new Map<string, number | null>();
+    for (const row of slaByDepot?.depots ?? []) {
+      slaByDepotId.set(row.depotId, row.slaRate);
+      avgMinutesByDepot.set(row.depotId, row.avgMinutes);
+    }
 
     // Low-stock fan-out per depot (same shape as franchise()).
     const lowStockLists: (LowStockLine[] | null)[] = depots
@@ -154,6 +160,7 @@ export class DashboardService {
         revenue: rev?.revenue ?? 0,
         orderCount: rev?.orderCount ?? 0,
         slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
+        avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,
         lowStockCount: low?.length ?? 0,
       };
     });

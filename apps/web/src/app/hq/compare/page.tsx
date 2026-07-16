@@ -5,18 +5,13 @@ import { ChartBar } from '@phosphor-icons/react';
 
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import {
-  StubBadge,
-  stubDepotAvgDelivery,
-  stubDepotGallonReturn,
-  stubDepotRating,
-} from '@/lib/hq/stubs';
+import { StubBadge, stubDepotRating } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, NetworkDashboard, Page } from '@/lib/types';
+import type { DepotAdmin, GallonOutstanding, NetworkDashboard, Page } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -25,22 +20,25 @@ function range30(): { from: string; to: string } {
 }
 
 // One comparable KPI row. `higher` = a bigger value wins (for best-value highlight).
+// A null value = no data for that depot (rendered as a dash, excluded from the best-of).
 interface Metric {
   key: string;
   higher: boolean;
   stub: boolean;
-  value: (depotId: string) => number;
+  value: (depotId: string) => number | null;
   format: (n: number) => string;
 }
 
-// Design 14d — compare up to 3 depots. Revenue/Orders are real (executive topDepots);
-// SLA / avg delivery / rating / gallon returns have no per-depot endpoint → badged stubs.
+// Design 14d — compare up to 3 depots. Revenue/Orders/SLA/avg-delivery/gallon-outstanding
+// are all real (network roll-up + gallon rollup). Only the customer rating has no source
+// yet → stays a badged stub.
 export default function HqComparePage() {
   const { t } = useT();
   const { toast } = useToast();
   const range = useMemo(range30, []);
   const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
   const depotList = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
   const [selected, setSelected] = useState<string[]>([]);
 
   if (dash.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
@@ -48,6 +46,7 @@ export default function HqComparePage() {
 
   const depots = depotList.data?.items ?? [];
   const perf = new Map((dash.data?.depots ?? []).map((d) => [d.depotId, d]));
+  const outstanding = new Map((gallon.data ?? []).map((g) => [g.depotId, g.outstanding]));
 
   function toggle(id: string) {
     setSelected((cur) => {
@@ -63,10 +62,10 @@ export default function HqComparePage() {
   const metrics: Metric[] = [
     { key: 'revenue', higher: true, stub: false, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
     { key: 'orders', higher: true, stub: false, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
-    { key: 'sla', higher: true, stub: false, value: (id) => perf.get(id)?.slaRate ?? 0, format: (n) => `${Math.round(n * 100)}%` },
-    { key: 'avgDelivery', higher: false, stub: true, value: (id) => stubDepotAvgDelivery(id), format: (n) => t('hq.compare.minutes', { n }) },
+    { key: 'sla', higher: true, stub: false, value: (id) => perf.get(id)?.slaRate ?? null, format: (n) => `${Math.round(n * 100)}%` },
+    { key: 'avgDelivery', higher: false, stub: false, value: (id) => perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
     { key: 'rating', higher: true, stub: true, value: (id) => stubDepotRating(id), format: (n) => n.toFixed(1) },
-    { key: 'gallonReturn', higher: false, stub: true, value: (id) => stubDepotGallonReturn(id), format: (n) => String(n) },
+    { key: 'gallonReturn', higher: false, stub: false, value: (id) => outstanding.get(id) ?? null, format: (n) => String(n) },
   ];
 
   const chosen = selected.map((id) => depots.find((d) => d.id === id)).filter((d): d is DepotAdmin => !!d);
@@ -118,8 +117,14 @@ export default function HqComparePage() {
             </thead>
             <tbody className="divide-y divide-[color:var(--border)]">
               {metrics.map((m) => {
-                const vals = chosen.map((d) => m.value(d.id));
-                const best = m.higher ? Math.max(...vals) : Math.min(...vals);
+                const present = chosen
+                  .map((d) => m.value(d.id))
+                  .filter((v): v is number => v != null);
+                const best = present.length
+                  ? m.higher
+                    ? Math.max(...present)
+                    : Math.min(...present)
+                  : null;
                 return (
                   <tr key={m.key}>
                     <td className="px-4 py-3">
@@ -130,13 +135,13 @@ export default function HqComparePage() {
                     </td>
                     {chosen.map((d) => {
                       const v = m.value(d.id);
-                      const isBest = v === best;
+                      const isBest = v != null && best != null && v === best;
                       return (
                         <td
                           key={d.id}
                           className={`px-4 py-3 text-right tabular-nums ${isBest ? 'font-bold text-brand-700' : ''}`}
                         >
-                          {m.format(v)}
+                          {v == null ? <span className="text-muted">{t('hq.common.dash')}</span> : m.format(v)}
                           {isBest && <span className="ml-1.5 text-[10px] font-bold uppercase text-brand-600">{t('hq.compare.best')}</span>}
                         </td>
                       );
