@@ -97,6 +97,19 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     );
   }
 
+  /**
+   * Org SLA on-time threshold (minutes) from admin-service, or null when admin
+   * isn't wired / the lookup fails. Best-effort: delivery-service applies its own
+   * default when we don't forward a threshold, so a null here changes nothing.
+   */
+  private async slaThresholdMinutes(): Promise<number | null> {
+    if (!this.config.adminServiceUrl) return null;
+    const policy = await this.getInternal<{ onTimeThresholdMinutes: number }>(
+      `${this.config.adminServiceUrl}/api/v1/sla-policy`,
+    );
+    return policy?.onTimeThresholdMinutes ?? null;
+  }
+
   async deliverySla(
     range: DateRange,
     _token: string,
@@ -105,6 +118,8 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const params = new URLSearchParams();
     this.applyRange(params, range);
     if (depotIds && depotIds.length > 0) params.set('depotIds', depotIds.join(','));
+    const threshold = await this.slaThresholdMinutes();
+    if (threshold != null) params.set('thresholdMinutes', String(threshold));
     const query = params.toString();
     return this.getInternal<DeliverySla>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla${query ? `?${query}` : ''}`,
@@ -134,6 +149,8 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
   async slaByDepot(range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
     const params = new URLSearchParams();
     this.applyRange(params, range);
+    const threshold = await this.slaThresholdMinutes();
+    if (threshold != null) params.set('thresholdMinutes', String(threshold));
     const query = params.toString();
     return this.getInternal<DepotSlaByDepot>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla-by-depot${query ? `?${query}` : ''}`,

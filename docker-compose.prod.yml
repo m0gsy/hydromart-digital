@@ -194,6 +194,7 @@ services:
       ORDER_SERVICE_URL: http://order:3004
       DELIVERY_SERVICE_URL: http://delivery:3006
       DEPOT_SERVICE_URL: http://depot:3007
+      ADMIN_SERVICE_URL: http://admin:3017
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3008/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

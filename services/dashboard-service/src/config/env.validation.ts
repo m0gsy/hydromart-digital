@@ -12,6 +12,9 @@ export const envValidationSchema = Joi.object({
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   DELIVERY_SERVICE_URL: Joi.string().uri().required(),
   DEPOT_SERVICE_URL: Joi.string().uri().required(),
+  // Optional: when set, the roll-up applies the org SLA on-time threshold from
+  // admin-service. Unset → delivery-service falls back to its own default.
+  ADMIN_SERVICE_URL: Joi.string().uri().optional(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
