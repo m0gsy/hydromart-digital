@@ -13,6 +13,8 @@ x-shared: &shared
   NODE_ENV: production
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (min 32 chars)}
   INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?set INTERNAL_SERVICE_KEY}
+  # Optional error alerting: Slack/Discord/webhook URL. Blank = disabled (no 5xx pings).
+  ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
 
 x-svc: &svc
   restart: unless-stopped

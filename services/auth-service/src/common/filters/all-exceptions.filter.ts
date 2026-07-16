@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
+import { alertServerError } from '@hydromart/platform';
+
 import { DomainError } from '../../domain/errors/domain-error';
 
 interface ErrorBody {
@@ -40,6 +42,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
           (exception as Error)?.stack ?? exception,
         )}`,
       );
+      alertServerError({
+        method: request.method,
+        path: request.url,
+        status: body.statusCode,
+        exception,
+      });
     }
 
     response.status(body.statusCode).json(body);

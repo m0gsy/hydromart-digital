@@ -9,6 +9,7 @@ import {
 import { Request, Response } from 'express';
 
 import { DomainError } from '../domain/domain-error';
+import { alertServerError } from './error-alerter';
 
 interface ErrorBody {
   statusCode: number;
@@ -39,6 +40,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
           (exception as Error)?.stack ?? exception,
         )}`,
       );
+      alertServerError({
+        method: request.method,
+        path: request.url,
+        status: body.statusCode,
+        exception,
+      });
     }
     response.status(body.statusCode).json(body);
   }
