@@ -154,49 +154,9 @@ export function stubForecastConfidence(productId: string): number {
 // Aggregate service health (13b) is now REAL: admin-service endpoints.admin.health
 // (server-side per-service /health fan-out). The old SERVICE_HEALTH_STUB was removed.
 
-// STUB: data-export audit — real backend track (no export-log service).
-export interface ExportLogRow {
-  id: string;
-  dataset: string;
-  by: string;
-  format: string;
-  rows: number;
-  status: 'selesai' | 'proses' | 'gagal';
-  agoMin: number;
-}
-export const EXPORT_LOG_STUB: ExportLogRow[] = [
-  { id: 'e1', dataset: 'Pendapatan per depot', by: 'Finance', format: 'CSV', rows: 128, status: 'selesai', agoMin: 15 },
-  { id: 'e2', dataset: 'Pesanan 30 hari', by: 'Head office', format: 'XLSX', rows: 8420, status: 'selesai', agoMin: 90 },
-  { id: 'e3', dataset: 'Pelanggan loyalti', by: 'Marketing', format: 'CSV', rows: 4320, status: 'proses', agoMin: 3 },
-  { id: 'e4', dataset: 'Rekonsiliasi payout', by: 'Finance', format: 'PDF', rows: 54, status: 'gagal', agoMin: 240 },
-];
-
-// STUB: API credentials — real backend track (no key-management service).
-export interface ApiKeyRow {
-  id: string;
-  name: string;
-  prefix: string;
-  scopes: string[];
-  lastUsedAgoMin: number;
-}
-export const API_KEYS_STUB: ApiKeyRow[] = [
-  { id: 'k1', name: 'Gateway pembayaran', prefix: 'hm_live_a1b2', scopes: ['payments:read', 'payments:write'], lastUsedAgoMin: 4 },
-  { id: 'k2', name: 'Mitra logistik', prefix: 'hm_live_9f8e', scopes: ['deliveries:read'], lastUsedAgoMin: 55 },
-  { id: 'k3', name: 'Data warehouse', prefix: 'hm_live_44cd', scopes: ['orders:read', 'depots:read'], lastUsedAgoMin: 720 },
-];
-
-// STUB: webhook subscriptions — real backend track (no webhook service).
-export interface WebhookRow {
-  id: string;
-  url: string;
-  events: string[];
-  delivery: number; // percent
-}
-export const WEBHOOKS_STUB: WebhookRow[] = [
-  { id: 'w1', url: 'https://mitra-bayar.example.com/hooks', events: ['payment.settled', 'refund.approved'], delivery: 99.7 },
-  { id: 'w2', url: 'https://gudang.example.com/inbound', events: ['order.dispatched', 'delivery.completed'], delivery: 98.2 },
-  { id: 'w3', url: 'https://analitik.example.com/events', events: ['order.created'], delivery: 100 },
-];
+// Data-export logs (13c), API keys (13d) and webhooks (19c) are now REAL: admin-service
+// endpoints.admin.exportLogs / endpoints.admin.apiKeys / endpoints.admin.webhooks. The old
+// EXPORT_LOG_STUB / API_KEYS_STUB / WEBHOOKS_STUB were removed.
 
 // STUB: SLA policy — local state only (no policy endpoint). Defaults for the editor.
 export const SLA_DEFAULT_MINUTES = 90;
@@ -330,20 +290,8 @@ export const FRAUD_QUEUE_STUB: FraudRow[] = [
   { id: 'fr3', subject: 'ORD-0272', type: 'pesanan', score: 54, signals: ['Pembatalan beruntun', 'Metode COD'] },
 ];
 
-// STUB: scheduled recurring exports — real backend track (no scheduler service).
-export interface ScheduledReportRow {
-  id: string;
-  name: string;
-  cadence: string;
-  recipients: string;
-  nextRun: string;
-  on: boolean;
-}
-export const SCHEDULED_REPORTS_STUB: ScheduledReportRow[] = [
-  { id: 'sr1', name: 'Ringkasan pendapatan harian', cadence: 'Harian · 06:00', recipients: 'finance@hydromart.id', nextRun: 'Besok 06:00', on: true },
-  { id: 'sr2', name: 'Performa depot mingguan', cadence: 'Senin · 08:00', recipients: 'ho@hydromart.id', nextRun: 'Sen 08:00', on: true },
-  { id: 'sr3', name: 'Rekap voucher bulanan', cadence: 'Tgl 1 · 09:00', recipients: 'marketing@hydromart.id', nextRun: '1 Agu 09:00', on: false },
-];
+// Scheduled reports (15c) are now REAL: admin-service endpoints.admin.scheduledReports.
+// The old SCHEDULED_REPORTS_STUB was removed.
 
 // STUB: depot go-live checklist — real backend track (no onboarding-workflow service).
 // The "provision depot" step links to the REAL onboard form (/hq/depots?onboard=1).

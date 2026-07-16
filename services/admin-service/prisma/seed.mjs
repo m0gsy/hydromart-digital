@@ -28,7 +28,58 @@ async function main() {
     update: {},
     create: { id: 'singleton', defaultTimezone: 'Asia/Jakarta', currency: 'IDR', serviceRadiusKm: 5 },
   });
-  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings`);
+
+  // Fixed-id example rows for the integration/governance screens (13d/19c/13c/15c) so the
+  // HQ pages have something to render before real traffic. Idempotent (upsert on id).
+  // These are CLEARLY seed samples — not real credentials/deliveries.
+  await prisma.apiKey.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000a1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000a1',
+      name: 'Payment gateway (sample)',
+      keyPrefix: 'hm_live_seed0001',
+      keyHash: 'seed-placeholder-not-a-real-key',
+      scopes: ['payments:read', 'payments:write'],
+      environment: 'PROD',
+    },
+  });
+  await prisma.webhookEndpoint.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000b1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000b1',
+      url: 'https://partner.example.com/hooks',
+      events: ['payment.settled', 'refund.approved'],
+      active: true,
+    },
+  });
+  await prisma.exportLog.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000c1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000c1',
+      dataset: 'Pendapatan per depot',
+      requestedByEmail: 'finance@hydromart.id',
+      format: 'CSV',
+      rowCount: 128,
+      status: 'DONE',
+    },
+  });
+  await prisma.scheduledReport.upsert({
+    where: { id: '00000000-0000-4000-a000-0000000000d1' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-a000-0000000000d1',
+      name: 'Ringkasan pendapatan harian (sample)',
+      cadence: 'DAILY',
+      recipients: ['finance@hydromart.id'],
+      format: 'XLSX',
+      enabled: true,
+    },
+  });
+
+  console.log(`[seed] upserted ${FLAGS.length} feature flags + system settings + integration samples`);
 }
 
 main()

@@ -270,6 +270,37 @@ export const endpoints = {
     settings: '/admin/api/v1/system-settings',
     // GET aggregate per-service health (real per-service probe).
     health: '/admin/api/v1/system-health',
+    // API keys (13d) — SUPER_ADMIN. Create/rotate return the full secret ONCE.
+    apiKeys: {
+      list: '/admin/api/v1/api-keys',
+      create: '/admin/api/v1/api-keys',
+      rotate: (id: string) => `/admin/api/v1/api-keys/${encodeURIComponent(id)}/rotate`,
+      revoke: (id: string) => `/admin/api/v1/api-keys/${encodeURIComponent(id)}`,
+    },
+    // Webhook endpoints (19c) — SUPER_ADMIN.
+    webhooks: {
+      list: '/admin/api/v1/webhooks',
+      create: '/admin/api/v1/webhooks',
+      update: (id: string) => `/admin/api/v1/webhooks/${encodeURIComponent(id)}`,
+      remove: (id: string) => `/admin/api/v1/webhooks/${encodeURIComponent(id)}`,
+    },
+    // Data-export logs (13c) — HEAD_OFFICE + SUPER_ADMIN read (paginated, filterable).
+    exportLogs: (q: { page?: number; limit?: number; dataset?: string; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.dataset) p.set('dataset', q.dataset);
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/admin/api/v1/export-logs${qs ? `?${qs}` : ''}`;
+    },
+    // Scheduled reports (15c) — HEAD_OFFICE + SUPER_ADMIN.
+    scheduledReports: {
+      list: '/admin/api/v1/scheduled-reports',
+      create: '/admin/api/v1/scheduled-reports',
+      update: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
+      remove: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
+    },
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.

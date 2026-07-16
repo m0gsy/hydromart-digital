@@ -58,3 +58,103 @@ model SystemSetting {
 
   @@map("system_settings")
 }
+
+// ---------------------------------------------------------------------------
+// Integration & governance (0002_admin_integration): API keys (13d), webhook
+// endpoints (19c), data-export logs (13c), scheduled reports (15c). SUPER_ADMIN /
+// HEAD_OFFICE gated. All additive — 0001_init is untouched.
+// ---------------------------------------------------------------------------
+
+/// Deployment target a credential/report belongs to.
+enum ApiKeyEnvironment {
+  PROD
+  STAGING
+}
+
+/// Serialized output format for exports and scheduled reports.
+enum ExportFormat {
+  XLSX
+  CSV
+  PDF
+}
+
+/// Lifecycle of a data-export job.
+enum ExportStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Recurrence of a scheduled report.
+enum ReportCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// A service API credential (Design 13d). The full secret is shown ONCE at creation;
+/// only `keyPrefix` (safe to display) and `keyHash` (sha256, for verification) persist.
+model ApiKey {
+  id          String            @id @default(uuid())
+  name        String
+  /// Display-safe leading segment, e.g. "hm_live_a1b2c3d4".
+  keyPrefix   String
+  /// sha256 of the full secret; the secret itself is never stored.
+  keyHash     String
+  scopes      String[]
+  environment ApiKeyEnvironment @default(PROD)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@map("api_keys")
+}
+
+/// An outbound webhook subscription (Design 19c). `deliveryRatePct`/`lastDeliveryStatus`
+/// are updated by future delivery attempts; null until a real delivery has been recorded.
+model WebhookEndpoint {
+  id                 String   @id @default(uuid())
+  url                String
+  events             String[]
+  active             Boolean  @default(true)
+  secret             String?
+  /// Outcome of the most recent delivery attempt (null until one occurs).
+  lastDeliveryStatus String?
+  /// Rolling success rate 0..100 (null until real deliveries are recorded).
+  deliveryRatePct    Int?
+  createdAt          DateTime @default(now())
+
+  @@map("webhook_endpoints")
+}
+
+/// An immutable data-export audit entry (Design 13c). Written by export jobs via the
+/// internal-key ingest endpoint; read (paginated, newest-first) by HQ.
+model ExportLog {
+  id               String       @id @default(uuid())
+  dataset          String
+  requestedById    String?
+  requestedByEmail String
+  format           ExportFormat
+  rowCount         Int?
+  status           ExportStatus @default(PENDING)
+  createdAt        DateTime     @default(now())
+
+  @@index([dataset])
+  @@index([status])
+  @@map("export_logs")
+}
+
+/// A recurring report definition (Design 15c). `nextRunAt` is advisory metadata for the
+/// future scheduler; toggling `enabled` pauses it without deleting.
+model ScheduledReport {
+  id         String        @id @default(uuid())
+  name       String
+  cadence    ReportCadence
+  recipients String[]
+  format     ExportFormat  @default(XLSX)
+  nextRunAt  DateTime?
+  enabled    Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+
+  @@map("scheduled_reports")
+}

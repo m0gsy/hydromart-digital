@@ -1048,6 +1048,58 @@ export interface SystemSettings {
   serviceRadiusKm: number;
   updatedAt: string;
 }
+
+// admin-service integration & governance (13d / 19c / 13c / 15c).
+export type ApiKeyEnvironment = 'PROD' | 'STAGING';
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  environment: ApiKeyEnvironment;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+/** Create/rotate response — carries the full secret exactly once. */
+export interface CreatedApiKey extends ApiKey {
+  token: string;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  lastDeliveryStatus: string | null;
+  deliveryRatePct: number | null;
+  createdAt: string;
+}
+
+export type ExportFormat = 'XLSX' | 'CSV' | 'PDF';
+export type ExportStatus = 'PENDING' | 'DONE' | 'FAILED';
+export interface ExportLogEntry {
+  id: string;
+  dataset: string;
+  requestedById: string | null;
+  requestedByEmail: string;
+  format: ExportFormat;
+  rowCount: number | null;
+  status: ExportStatus;
+  createdAt: string;
+}
+
+export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export interface ScheduledReport {
+  id: string;
+  name: string;
+  cadence: ReportCadence;
+  recipients: string[];
+  format: ExportFormat;
+  nextRunAt: string | null;
+  enabled: boolean;
+  createdAt: string;
+}
 export interface ServiceHealth {
   name: string;
   status: 'up' | 'down';
