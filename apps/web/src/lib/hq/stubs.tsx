@@ -21,32 +21,13 @@ function hash(s: string): number {
 
 /* ---------- Milestone B — Finance & pricing governance ---------- */
 
-// STUB: cross-depot settlement aggregate ("belum settle per metode") pending — Milestone D.
-export interface UnsettledMethodRow {
-  method: string;
-  amount: number;
-  count: number;
-}
-export const UNSETTLED_BY_METHOD_STUB: UnsettledMethodRow[] = [
-  { method: 'QRIS', amount: 4_820_000, count: 128 },
-  { method: 'Transfer bank', amount: 3_150_000, count: 54 },
-  { method: 'Virtual account', amount: 2_090_000, count: 37 },
-  { method: 'E-wallet', amount: 1_240_000, count: 61 },
-  { method: 'Tunai', amount: 980_000, count: 22 },
-];
+// Settlement-by-method ("belum settle per metode") is now REAL: payment-service
+// GET /payments/unsettled-by-method (endpoints.payments.unsettledByMethod). The old
+// UNSETTLED_BY_METHOD_STUB was removed.
 
-// STUB: HQ payout-release queue + dispute count pending — Milestone D.
-export interface PayoutReleaseRow {
-  id: string;
-  owner: string;
-  depot: string;
-  amount: number;
-}
-export const PAYOUT_RELEASE_QUEUE_STUB: PayoutReleaseRow[] = [
-  { id: 'po-1', owner: 'Budi Santoso', depot: 'Depot Cempaka Putih', amount: 6_420_000 },
-  { id: 'po-2', owner: 'Sari Dewi', depot: 'Depot Kelapa Gading', amount: 4_180_000 },
-  { id: 'po-3', owner: 'Andi Wijaya', depot: 'Depot Bekasi Timur', amount: 2_960_000 },
-];
+// The HQ payout-release queue is now REAL: payout-service GET /payout/hq/pending +
+// POST /payout/hq/release (endpoints.payout.hqQueue / .release). The old
+// PAYOUT_RELEASE_QUEUE_STUB was removed. Only the dispute count has no source yet.
 export const PAYMENTS_DISPUTE_COUNT_STUB = 3;
 
 // STUB: per-product override counts (network base pricing) pending — Milestone D.
@@ -54,33 +35,9 @@ export function stubOverrideCount(productId: string): number {
   return hash(productId) % 6; // 0..5
 }
 
-// STUB: depot→HQ price-override approval queue pending — Milestone D.
-export interface PriceOverrideProposal {
-  id: string;
-  productName: string;
-  depot: string;
-  proposedBy: string;
-  currentPrice: number;
-  proposedPrice: number;
-}
-export const PRICE_OVERRIDE_QUEUE_STUB: PriceOverrideProposal[] = [
-  {
-    id: 'ov-1',
-    productName: 'Galon 19L isi ulang',
-    depot: 'Depot Kelapa Gading',
-    proposedBy: 'Manajer depot',
-    currentPrice: 20_000,
-    proposedPrice: 18_000,
-  },
-  {
-    id: 'ov-2',
-    productName: 'Air 600ml (dus)',
-    depot: 'Depot Bekasi Timur',
-    proposedBy: 'Manajer depot',
-    currentPrice: 48_000,
-    proposedPrice: 43_200,
-  },
-];
+// The depot→HQ price-override approval queue is now REAL: depot-service
+// GET /price-overrides + approve/reject (endpoints.priceOverrides.*). The old
+// PRICE_OVERRIDE_QUEUE_STUB was removed.
 
 // The HQ refund-approval queue is now REAL: payment-service refunds/queue +
 // approve/reject track (endpoints.refunds.*). The old REFUND_QUEUE_STUB was removed.

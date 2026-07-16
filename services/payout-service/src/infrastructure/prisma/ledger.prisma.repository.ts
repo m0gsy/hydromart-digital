@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { LedgerEntryRecord, LedgerEntryType } from '../../domain/ledger';
-import { CreateLedgerEntryData, LedgerRepository } from '../../application/ports/ledger.repository';
+import {
+  CreateLedgerEntryData,
+  LedgerRepository,
+  OwnerBalance,
+} from '../../application/ports/ledger.repository';
 import { PrismaService } from './prisma.service';
 
 interface LedgerRow {
@@ -43,6 +47,17 @@ export class LedgerPrismaRepository implements LedgerRepository {
       _sum: { amount: true },
     });
     return Number(agg._sum.amount ?? 0);
+  }
+
+  async ownersWithBalance(): Promise<OwnerBalance[]> {
+    const grouped = await this.prisma.ledgerEntry.groupBy({
+      by: ['franchiseOwnerId'],
+      _sum: { amount: true },
+    });
+    return grouped
+      .map((g) => ({ franchiseOwnerId: g.franchiseOwnerId, availableBalance: Number(g._sum.amount ?? 0) }))
+      .filter((o) => o.availableBalance > 0)
+      .sort((a, b) => b.availableBalance - a.availableBalance);
   }
 
   async sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number> {

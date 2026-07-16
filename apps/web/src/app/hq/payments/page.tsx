@@ -5,18 +5,16 @@ import { Wallet } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import {
-  PAYMENTS_DISPUTE_COUNT_STUB,
-  PAYOUT_RELEASE_QUEUE_STUB,
-  StubBadge,
-  UNSETTLED_BY_METHOD_STUB,
-  type PayoutReleaseRow,
-} from '@/lib/hq/stubs';
-import { api } from '@/lib/api';
+import { PAYMENTS_DISPUTE_COUNT_STUB, StubBadge } from '@/lib/hq/stubs';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { ExecutiveDashboard } from '@/lib/types';
+import type {
+  ExecutiveDashboard,
+  PendingPayout,
+  UnsettledMethodBucket,
+} from '@/lib/types';
 
 // Trailing-30-day window, computed once per mount (client-only).
 function defaultRange(): { from: string; to: string } {
@@ -45,27 +43,42 @@ function Stat({
   );
 }
 
-// Design 6a — Pembayaran & payout (cross-depot). Only "Terkumpul" is real (executive
-// sales revenue); the settlement/payout/dispute figures have no HQ aggregate endpoint.
+// Design 6a — Pembayaran & payout (cross-depot). "Terkumpul" is executive sales
+// revenue; "Belum settle per metode" (left) and the payout-release queue (right) are
+// now real (payment-service unsettled aggregate + payout-service HQ queue). Only the
+// dispute count has no source yet (badged).
 export default function HqPaymentsPage() {
   const { t } = useT();
   const { toast } = useToast();
   const range = useMemo(defaultRange, []);
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
-  const [queue, setQueue] = useState<PayoutReleaseRow[]>(PAYOUT_RELEASE_QUEUE_STUB);
+  const unsettledQ = useAsync<UnsettledMethodBucket[]>(() =>
+    api.get(endpoints.payments.unsettledByMethod(range), true),
+  );
+  const queueQ = useAsync<PendingPayout[]>(() => api.get(endpoints.payout.hqQueue, true));
+  const [releasing, setReleasing] = useState<string | null>(null);
 
   if (dash.loading) return <Skeleton className="h-96 w-full" />;
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
   const buckets = dash.data?.sales?.buckets ?? [];
   const collected = buckets.reduce((n, b) => n + b.revenue, 0);
-  const unsettled = UNSETTLED_BY_METHOD_STUB.reduce((n, r) => n + r.amount, 0);
-  const payoutPending = queue.reduce((n, r) => n + r.amount, 0);
+  const unsettledRows = unsettledQ.data ?? [];
+  const unsettled = unsettledRows.reduce((n, r) => n + r.amount, 0);
+  const queue = queueQ.data ?? [];
+  const payoutPending = queue.reduce((n, r) => n + r.availableBalance, 0);
 
-  function release(row: PayoutReleaseRow) {
-    // STUB: no HQ-side payout-release endpoint — Milestone D. Optimistic removal + toast.
-    setQueue((q) => q.filter((r) => r.id !== row.id));
-    toast(t('hq.payments.release.released', { owner: row.owner }), 'success');
+  async function release(row: PendingPayout) {
+    setReleasing(row.franchiseOwnerId);
+    try {
+      await api.post(endpoints.payout.release, { franchiseOwnerId: row.franchiseOwnerId }, true);
+      toast(t('hq.payments.release.released', { owner: ownerLabel(row.franchiseOwnerId) }), 'success');
+      queueQ.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : String(err), 'error');
+    } finally {
+      setReleasing(null);
+    }
   }
 
   return (
@@ -82,60 +95,71 @@ export default function HqPaymentsPage() {
         <Stat label={t('hq.payments.kpi.collected')} value={`Rp ${collected.toLocaleString('id-ID')}`} />
         <Stat
           label={t('hq.payments.kpi.unsettled')}
-          value={`Rp ${unsettled.toLocaleString('id-ID')}`}
-          badge={<StubBadge />}
+          value={unsettledQ.loading ? '…' : `Rp ${unsettled.toLocaleString('id-ID')}`}
         />
         <Stat
           label={t('hq.payments.kpi.payoutPending')}
-          value={`Rp ${payoutPending.toLocaleString('id-ID')}`}
-          badge={<StubBadge />}
+          value={queueQ.loading ? '…' : `Rp ${payoutPending.toLocaleString('id-ID')}`}
         />
         <Stat label={t('hq.payments.kpi.disputes')} value={String(PAYMENTS_DISPUTE_COUNT_STUB)} badge={<StubBadge />} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Belum settle per metode — STUB */}
+        {/* Belum settle per metode — REAL (payment-service unsettled aggregate) */}
         <Card className="flex flex-col p-5">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold">
-            {t('hq.payments.unsettled.title')}
-            <StubBadge />
-          </h2>
-          <ul className="divide-y divide-[color:var(--border)]">
-            {UNSETTLED_BY_METHOD_STUB.map((r) => (
-              <li key={r.method} className="flex items-center justify-between gap-3 py-3 text-sm">
-                <span className="min-w-0">
-                  <span className="font-medium">{r.method}</span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    {t('hq.payments.unsettled.count', { n: r.count })}
+          <h2 className="mb-3 font-semibold">{t('hq.payments.unsettled.title')}</h2>
+          {unsettledQ.loading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : unsettledQ.error ? (
+            <ErrorState message={unsettledQ.error} onRetry={unsettledQ.reload} />
+          ) : unsettledRows.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted">{t('hq.payments.unsettled.empty')}</p>
+          ) : (
+            <ul className="divide-y divide-[color:var(--border)]">
+              {unsettledRows.map((r) => (
+                <li key={r.method} className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span className="min-w-0">
+                    <span className="font-medium">{t(`hq.payments.unsettled.method.${r.method}`)}</span>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {t('hq.payments.unsettled.count', { n: r.count })}
+                    </span>
                   </span>
-                </span>
-                <Money amount={r.amount} className="shrink-0 font-medium" />
-              </li>
-            ))}
-          </ul>
+                  <Money amount={r.amount} className="shrink-0 font-medium" />
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
-        {/* Rilis payout waralaba — STUB */}
+        {/* Rilis payout waralaba — REAL (payout-service HQ queue + release) */}
         <Card className="flex flex-col p-5">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold">
-            {t('hq.payments.release.title')}
-            <StubBadge />
-          </h2>
-          {queue.length === 0 ? (
+          <h2 className="mb-3 font-semibold">{t('hq.payments.release.title')}</h2>
+          {queueQ.loading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : queueQ.error ? (
+            <ErrorState message={queueQ.error} onRetry={queueQ.reload} />
+          ) : queue.length === 0 ? (
             <p className="py-4 text-center text-sm text-muted">{t('hq.payments.release.empty')}</p>
           ) : (
             <ul className="flex flex-col gap-3">
               {queue.map((r) => (
                 <li
-                  key={r.id}
+                  key={r.franchiseOwnerId}
                   className="flex items-center justify-between gap-3 rounded-xl border border-app p-3"
                 >
                   <span className="min-w-0">
-                    <span className="truncate font-medium">{r.owner}</span>
-                    <span className="mt-0.5 block truncate text-xs text-muted">{r.depot}</span>
-                    <Money amount={r.amount} className="mt-1 block text-sm font-semibold text-brand-700" />
+                    <span className="truncate font-medium">{ownerLabel(r.franchiseOwnerId)}</span>
+                    <span className="mt-0.5 block truncate text-xs text-muted">
+                      {t('hq.payments.release.due', { date: formatDue(r.nextPayoutDate) })}
+                    </span>
+                    <Money amount={r.availableBalance} className="mt-1 block text-sm font-semibold text-brand-700" />
                   </span>
-                  <Button variant="secondary" onClick={() => release(r)} className="shrink-0">
+                  <Button
+                    variant="secondary"
+                    onClick={() => release(r)}
+                    disabled={releasing === r.franchiseOwnerId}
+                    className="shrink-0"
+                  >
                     {t('hq.payments.release.action')}
                   </Button>
                 </li>
@@ -146,4 +170,13 @@ export default function HqPaymentsPage() {
       </div>
     </div>
   );
+}
+
+// payout-service exposes only the owner id (no name source); shorten it for display.
+function ownerLabel(id: string): string {
+  return `#${id.slice(0, 8)}`;
+}
+
+function formatDue(iso: string): string {
+  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 }

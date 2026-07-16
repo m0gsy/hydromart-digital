@@ -256,6 +256,44 @@ enum PricingAdjustType {
   FIXED
 }
 
+/// HQ decision on a depot's price-override proposal (design 7a). PENDING until HQ
+/// approves (creates the winning pricing rule) or rejects it.
+enum PriceOverrideStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// A depot manager's proposal to override a product's price at their depot (design 7a).
+/// HQ approves (priority-wins) or rejects. On approval a PricingRule is created through
+/// the existing pricing mechanism; this row only records the proposal + decision.
+/// depotName/productName/currentPrice are denormalized snapshots for the HQ queue view
+/// (mirrors CommissionScheme.ownerName): the depot-service does not own product names.
+model PriceOverrideProposal {
+  id           String              @id @default(uuid()) @db.Uuid
+  depotId      String              @db.Uuid
+  depotName    String
+  productId    String              @db.Uuid
+  productName  String
+  /// Snapshot of the depot's current price at propose time (IDR).
+  currentPrice Decimal             @db.Decimal(12, 2)
+  adjustType   PricingAdjustType
+  /// PERCENT = signed percent; FIXED = signed rupiah delta (same semantics as PricingRule).
+  value        Decimal             @db.Decimal(12, 2)
+  note         String?
+  status       PriceOverrideStatus @default(PENDING)
+  /// Account id of the proposing depot manager.
+  proposedBy   String              @db.Uuid
+  /// Account id of the HQ approver/rejecter. Null until decided.
+  decidedBy    String?             @db.Uuid
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  // Newest-first queue reads by (status, createdAt).
+  @@index([status, createdAt])
+  @@map("price_override_proposals")
+}
+
 model PricingRule {
   id          String            @id @default(uuid()) @db.Uuid
   depotId     String            @db.Uuid

@@ -957,3 +957,40 @@ export interface RefundQueueItem {
   createdAt: string;
   updatedAt: string;
 }
+
+// HQ settlement dashboard (6a): one payment-method's unsettled (PENDING) total + count,
+// network-wide. Method is the raw enum; the console maps it to a display label.
+export interface UnsettledMethodBucket {
+  method: PaymentMethod;
+  amount: number;
+  count: number;
+}
+
+// HQ payout-release queue (6a): an owner with a positive network balance awaiting
+// release. payout-service does not own owner/depot names, so only the owner id is
+// exposed (residual gap — the console shortens it for display).
+export interface PendingPayout {
+  franchiseOwnerId: string;
+  availableBalance: number;
+  nextPayoutDate: string;
+}
+
+// HQ price-override approval queue (7a). depotName/productName/currentPrice are
+// denormalized snapshots captured at propose time so the queue renders fully.
+export type PriceAdjustType = 'PERCENT' | 'FIXED';
+export interface PriceOverrideProposalItem {
+  id: string;
+  depotId: string;
+  depotName: string;
+  productId: string;
+  productName: string;
+  currentPrice: number;
+  adjustType: PriceAdjustType;
+  value: number;
+  note: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  proposedBy: string;
+  decidedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

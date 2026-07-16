@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsPositive, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsPositive,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 export class RequestWithdrawalDto {
   @ApiProperty({ example: 8420000, description: 'IDR amount to withdraw (positive).' })
@@ -14,6 +23,12 @@ export class RequestWithdrawalDto {
   @IsNotEmpty()
   @MaxLength(120)
   bankAccountRef!: string;
+}
+
+export class ReleasePayoutDto {
+  @ApiProperty({ format: 'uuid', description: 'Franchise owner whose balance HQ is releasing.' })
+  @IsUUID()
+  franchiseOwnerId!: string;
 }
 
 export class LedgerQueryDto {

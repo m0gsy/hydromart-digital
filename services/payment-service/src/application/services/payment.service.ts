@@ -23,9 +23,11 @@ import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
 import {
   CreatePaymentData,
+  DateRange,
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  UnsettledMethodAggregate,
 } from '../ports/payment.repository';
 import { PaymentGatewayPort } from '../ports/payment-gateway.port';
 import { OrderCoordinationPort } from '../ports/order-coordination.port';
@@ -193,6 +195,15 @@ export class PaymentService {
       });
     }
     return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE);
+  }
+
+  /**
+   * Settlement dashboard (design 6a): network-wide unsettled (PENDING) payments
+   * grouped by method with total amount + transaction count, over a date range.
+   * Read-only aggregate — no pagination, one row per method with activity.
+   */
+  async unsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    return this.payments.aggregateUnsettledByMethod(range);
   }
 
   /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */

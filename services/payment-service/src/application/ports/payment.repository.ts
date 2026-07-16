@@ -51,6 +51,18 @@ export interface PaymentQuery {
   limit: number;
 }
 
+/** One method's unsettled (PENDING) total + transaction count, network-wide. */
+export interface UnsettledMethodAggregate {
+  method: PaymentMethod;
+  amount: number;
+  count: number;
+}
+
+export interface DateRange {
+  from?: Date;
+  to?: Date;
+}
+
 export interface PaymentRepository {
   create(data: CreatePaymentData): Promise<PaymentRecord>;
   findById(id: string): Promise<PaymentRecord | null>;
@@ -63,5 +75,7 @@ export interface PaymentRepository {
     items: PaymentRecord[];
     total: number;
   }>;
+  /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
+  aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

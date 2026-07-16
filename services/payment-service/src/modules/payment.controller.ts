@@ -15,13 +15,14 @@ import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PaymentService } from '../application/services/payment.service';
-import { PaymentRecord } from '../application/ports/payment.repository';
+import { PaymentRecord, UnsettledMethodAggregate } from '../application/ports/payment.repository';
 import { Page } from '../application/pagination';
 import {
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentWebhookDto,
   RefundPaymentDto,
+  UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
 
 // Settlement roles (confirm/fail/read-by-order) come from the shared capability map.
@@ -29,6 +30,8 @@ import {
 const REFUND_ROLES = [Role.FINANCE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 // HQ refund-approval queue (feature 14a): cross-depot, finance/super-admin only.
 const REFUND_QUEUE_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
+// HQ settlement dashboard (design 6a): read-only network aggregate, finance/super-admin.
+const SETTLEMENT_READ_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -61,6 +64,20 @@ export class PaymentController {
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
   listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
     return this.payments.listAll({ orderId, limit: 20 });
+  }
+
+  // HQ settlement dashboard (design 6a): network-wide unsettled payments grouped by
+  // method. Declared before ':id' so the static segment wins. Read-only aggregate.
+  @Get('unsettled-by-method')
+  @Roles(...SETTLEMENT_READ_ROLES)
+  @ApiOperation({ summary: 'Network unsettled payments grouped by method (finance/super-admin)' })
+  unsettledByMethod(
+    @Query() query: UnsettledByMethodQueryDto,
+  ): Promise<UnsettledMethodAggregate[]> {
+    return this.payments.unsettledByMethod({
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
   }
 
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ

@@ -13,6 +13,7 @@ import { LedgerPrismaRepository } from '../infrastructure/prisma/ledger.prisma.r
 import { WithdrawalPrismaRepository } from '../infrastructure/prisma/withdrawal.prisma.repository';
 import { CommissionSchemePrismaRepository } from '../infrastructure/prisma/commission-scheme.prisma.repository';
 import { PayoutController } from './payout.controller';
+import { HqPayoutController } from './hq-payout.controller';
 import { CommissionController } from './commission.controller';
 
 const providers: Provider[] = [
@@ -29,7 +30,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [PayoutController, CommissionController],
+  controllers: [PayoutController, HqPayoutController, CommissionController],
   providers,
   exports: [PrismaService, PayoutConfigService],
 })

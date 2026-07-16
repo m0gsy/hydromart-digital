@@ -135,6 +135,14 @@ export const endpoints = {
     forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,
     // Staff: confirm a payment as received (cash/transfer/QRIS).
     confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
+    // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).
+    unsettledByMethod: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/payments/api/v1/payments/unsettled-by-method${qs ? `?${qs}` : ''}`;
+    },
   },
   // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.
   audit: {
@@ -393,6 +401,24 @@ export const endpoints = {
       return `/payout/api/v1/payout/ledger${qs ? `?${qs}` : ''}`;
     },
     withdrawals: '/payout/api/v1/payout/withdrawals',
+    // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
+    hqQueue: '/payout/api/v1/payout/hq/pending',
+    release: '/payout/api/v1/payout/hq/release',
+  },
+  // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
+  // propose is depot-manager (under the depots segment).
+  priceOverrides: {
+    queue: (q: { page?: number; limit?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/depots/api/v1/price-overrides${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
+    reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
+    propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
   },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {

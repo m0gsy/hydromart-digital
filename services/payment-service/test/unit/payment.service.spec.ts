@@ -150,6 +150,29 @@ describe('PaymentService', () => {
     );
   });
 
+  // Design 6a — settlement dashboard aggregate (unsettled = PENDING).
+  it('groups unsettled payments by method with amount + count, excluding settled', async () => {
+    await initiate(PaymentMethod.CASH, 10_000);
+    await initiate(PaymentMethod.CASH, 5_000);
+    await initiate(PaymentMethod.QRIS, 20_000);
+    const paid = await initiate(PaymentMethod.VA, 99_000);
+    await service.confirm(paid.id, 'staff'); // now PAID → excluded
+
+    const rows = await service.unsettledByMethod({});
+    const byMethod = Object.fromEntries(rows.map((r) => [r.method, r]));
+    expect(byMethod[PaymentMethod.CASH]).toEqual({
+      method: PaymentMethod.CASH,
+      amount: 15_000,
+      count: 2,
+    });
+    expect(byMethod[PaymentMethod.QRIS]).toEqual({
+      method: PaymentMethod.QRIS,
+      amount: 20_000,
+      count: 1,
+    });
+    expect(byMethod[PaymentMethod.VA]).toBeUndefined();
+  });
+
   it("never reveals another customer's payment (cross-tenant 404)", async () => {
     const payment = await initiate(PaymentMethod.CASH);
     await expect(service.getForCustomer(randomUUID(), payment.id)).rejects.toBeInstanceOf(

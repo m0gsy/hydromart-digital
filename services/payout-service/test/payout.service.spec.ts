@@ -37,8 +37,20 @@ class FakeLedger implements LedgerRepository {
     this.entries.push(row);
     return row;
   }
-  async balanceFor(): Promise<number> {
-    return this.entries.reduce((n, e) => n + e.amount, 0);
+  async balanceFor(owner?: string): Promise<number> {
+    return this.entries
+      .filter((e) => !owner || e.franchiseOwnerId === owner)
+      .reduce((n, e) => n + e.amount, 0);
+  }
+  async ownersWithBalance() {
+    const byOwner = new Map<string, number>();
+    for (const e of this.entries) {
+      byOwner.set(e.franchiseOwnerId, (byOwner.get(e.franchiseOwnerId) ?? 0) + e.amount);
+    }
+    return [...byOwner.entries()]
+      .map(([franchiseOwnerId, availableBalance]) => ({ franchiseOwnerId, availableBalance }))
+      .filter((o) => o.availableBalance > 0)
+      .sort((a, b) => b.availableBalance - a.availableBalance);
   }
   async sumByType(): Promise<number> {
     return 0;
@@ -84,5 +96,35 @@ describe('PayoutService.requestWithdrawal', () => {
     expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
     expect(withdrawals.created).toHaveLength(1);
     expect(await ledger.balanceFor()).toBe(0);
+  });
+});
+
+describe('PayoutService HQ release queue', () => {
+  it('lists every owner with a positive balance, highest first', async () => {
+    const ledger = new FakeLedger();
+    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 300000, description: '' });
+    await ledger.create({ franchiseOwnerId: 'owner-b', depotId: null, type: 'SALE_SETTLEMENT', amount: 900000, description: '' });
+    await ledger.create({ franchiseOwnerId: 'owner-c', depotId: null, type: 'WITHDRAWAL', amount: -100000, description: '' });
+    const svc = new PayoutService(ledger, new FakeWithdrawals());
+
+    const pending = await svc.pendingPayouts();
+    expect(pending.map((p) => p.franchiseOwnerId)).toEqual(['owner-b', 'owner-a']);
+    expect(pending[0].availableBalance).toBe(900000);
+    expect(pending[0].nextPayoutDate).toMatch(/^\d{4}-/);
+  });
+
+  it('releasing an owner cashes out their full balance via the withdrawal path', async () => {
+    const ledger = new FakeLedger();
+    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 500000, description: '' });
+    const withdrawals = new FakeWithdrawals();
+    const svc = new PayoutService(ledger, withdrawals);
+
+    const w = await svc.releaseForOwner('owner-a');
+    expect(w.amount).toBe(500000);
+    expect(w.bankAccountRef).toBe('Rilis HQ');
+    expect(withdrawals.created).toHaveLength(1);
+    expect(await ledger.balanceFor('owner-a')).toBe(0);
+    // Cleared owner no longer appears in the queue.
+    expect(await svc.pendingPayouts()).toHaveLength(0);
   });
 });
