@@ -5,12 +5,11 @@ import { Trophy } from '@phosphor-icons/react';
 
 import { RankBar } from '@/components/hq/charts';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
-import { StubBadge, stubDepotSla } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, Page } from '@/lib/types';
+import type { NetworkDashboard } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -18,28 +17,26 @@ function range30(): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
-// Design 22c — depot scorecard. Composite = 70% revenue (real topDepots) + 30% SLA
-// (per-depot SLA has no endpoint → shared stub). The SLA contribution is badged.
+// Design 22c — depot scorecard. Composite = 70% revenue + 30% SLA, both real from
+// the network roll-up (order-service revenue + delivery-service per-depot SLA).
 export default function HqScorecardPage() {
   const { t } = useT();
   const range = useMemo(range30, []);
-  const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
-  const depotList = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
 
-  if (dash.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
+  if (dash.loading) return <Skeleton className="h-96 w-full" />;
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
-  const names = new Map((depotList.data?.items ?? []).map((d) => [d.id, d.name]));
-  const items = dash.data?.topDepots?.items ?? [];
+  const items = dash.data?.depots ?? [];
   const maxRevenue = Math.max(1, ...items.map((d) => d.revenue));
 
   const ranked = items
     .map((d) => {
-      const sla = stubDepotSla(d.depotId);
+      const sla = d.slaRate ?? 0; // no delivered orders in range → 0 SLA contribution
       const revScore = d.revenue / maxRevenue;
       return {
         depotId: d.depotId,
-        name: names.get(d.depotId) ?? d.depotId.slice(0, 8),
+        name: d.name,
         revenue: d.revenue,
         orderCount: d.orderCount,
         sla,
@@ -58,10 +55,7 @@ export default function HqScorecardPage() {
         </div>
       </div>
 
-      <p className="flex items-center gap-2 text-[12.5px] text-muted">
-        {t('hq.scorecard.scoreNote')}
-        <StubBadge />
-      </p>
+      <p className="text-[12.5px] text-muted">{t('hq.scorecard.scoreNote')}</p>
 
       {ranked.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.scorecard.empty')}</p>

@@ -28,4 +28,10 @@ export class ReportController {
   sla(@Query() q: SlaReportQueryDto) {
     return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
   }
+
+  @Get('sla-by-depot')
+  @ApiOperation({ summary: 'On-time SLA grouped per depot (HQ network roll-up)' })
+  slaByDepot(@Query() q: SlaReportQueryDto) {
+    return this.reports.slaByDepot(toRange(q), q.thresholdMinutes);
+  }
 }

@@ -315,6 +315,24 @@ export const hq = {
     },
     notFound: 'Depot not found.',
   },
+  // Design 10b — depot suspend confirm (destructive, with typed-code guard).
+  suspend: {
+    title: 'Suspend depot?',
+    subtitle: 'Depot "{name}" will be deactivated. This has wide impact.',
+    impact: {
+      title: 'Suspension impact',
+      orders: 'Active orders reassigned to the nearest depot',
+      staff: 'Depot staff & couriers lose access',
+      coverage: 'Coverage radius reverts to the nearest depot',
+    },
+    estimate: 'Estimate',
+    guard: {
+      label: 'Type the depot code "{code}" to confirm',
+    },
+    cancel: 'Cancel',
+    confirm: 'Suspend depot',
+    error: 'Failed to suspend the depot. Try again.',
+  },
   staff: {
     title: 'Staff directory',
     subtitle: 'Every staff account in the network',

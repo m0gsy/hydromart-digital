@@ -6,14 +6,15 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-icons/react';
 
 import { DepotForm } from '@/components/hq/depot-form';
+import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
 import { StockBar } from '@/components/hq/charts';
-import { StubBadge, stubDepotSla } from '@/lib/hq/stubs';
+import { StubBadge } from '@/lib/hq/stubs';
 import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, InventoryItem, Order, Page } from '@/lib/types';
+import type { DepotAdmin, InventoryItem, NetworkDashboard, Order, Page } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -39,9 +40,10 @@ export default function HqDepotDetailPage() {
   const id = (Array.isArray(param.id) ? param.id[0] : param.id) ?? '';
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [suspendOpen, setSuspendOpen] = useState(false);
 
   const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.detail(id), true), [id]);
-  const exec = useAsync<ExecutiveDashboard>(() => api.get(endpoints.hq.overview(range30()), true));
+  const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range30()), true));
   const inv = useAsync<InventoryItem[]>(() => api.get(endpoints.inventory.lines(id), true), [id]);
   const orders = useAsync<Page<Order>>(() =>
     api.get(endpoints.orders.manage({ depotId: id, limit: 5 }), true),
@@ -52,14 +54,14 @@ export default function HqDepotDetailPage() {
   if (!depot.data) return <p className="text-sm text-muted">{t('hq.depotDetail.notFound')}</p>;
 
   const d = depot.data;
-  const perf = exec.data?.topDepots?.items.find((x) => x.depotId === id);
-  const sla = stubDepotSla(id);
+  const perf = rollup.data?.depots.find((x) => x.depotId === id);
+  const slaPct = perf?.slaRate != null ? Math.round(perf.slaRate * 100) : null;
 
-  async function toggleActive() {
+  // Reactivate is a direct, low-risk PATCH; suspend is destructive → guarded dialog.
+  async function reactivate() {
     setBusy(true);
     try {
-      if (d.active) await api.del(endpoints.depots.detail(id), true);
-      else await api.patch(endpoints.depots.detail(id), { active: true }, true);
+      await api.patch(endpoints.depots.detail(id), { active: true }, true);
       depot.reload();
     } catch (err) {
       // Surfaced by the reload path; keep it non-fatal.
@@ -101,9 +103,15 @@ export default function HqDepotDetailPage() {
             <Button variant="secondary" onClick={() => setEditing((v) => !v)} disabled={busy}>
               {t('hq.depotDetail.edit')}
             </Button>
-            <Button variant={d.active ? 'danger' : 'primary'} onClick={toggleActive} loading={busy}>
-              {d.active ? t('hq.depotDetail.suspend') : t('hq.depotDetail.reactivate')}
-            </Button>
+            {d.active ? (
+              <Button variant="danger" onClick={() => setSuspendOpen(true)} disabled={busy}>
+                {t('hq.depotDetail.suspend')}
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={reactivate} loading={busy}>
+                {t('hq.depotDetail.reactivate')}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -130,7 +138,10 @@ export default function HqDepotDetailPage() {
           label={t('hq.depotDetail.kpi.orders')}
           value={perf ? String(perf.orderCount) : t('hq.common.dash')}
         />
-        <Tile label={t('hq.depotDetail.kpi.sla')} value={`${Math.round(sla * 100)}%`} badge={<StubBadge />} />
+        <Tile
+          label={t('hq.depotDetail.kpi.sla')}
+          value={slaPct != null ? `${slaPct}%` : t('hq.common.dash')}
+        />
         <Tile label={t('hq.depotDetail.kpi.rating')} value="4.6" badge={<StubBadge />} />
       </div>
 
@@ -241,6 +252,17 @@ export default function HqDepotDetailPage() {
         </h2>
         <p className="text-sm text-white/70">{t('hq.depotDetail.payout.body')}</p>
       </Card>
+
+      {suspendOpen && (
+        <DepotSuspendDialog
+          depot={{ id: d.id, code: d.code, name: d.name }}
+          onClose={() => setSuspendOpen(false)}
+          onSuspended={() => {
+            setSuspendOpen(false);
+            depot.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

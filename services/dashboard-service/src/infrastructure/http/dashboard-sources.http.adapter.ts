@@ -5,8 +5,10 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
+  NetworkDepot,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -117,6 +119,24 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const params = new URLSearchParams({ depotId });
     return this.getInternal<LowStockLine[]>(
       `${this.config.depotServiceUrl}/api/v1/inventory/low-stock?${params.toString()}`,
+    );
+  }
+
+  // ponytail: single page of 100 depots — the whole network today. Add pagination
+  // to allDepots (and the roll-up fan-out) when the depot count outgrows one page.
+  async allDepots(_token: string): Promise<NetworkDepot[] | null> {
+    const page = await this.getInternal<{ items: NetworkDepot[] }>(
+      `${this.config.depotServiceUrl}/api/v1/depots/manage?limit=100`,
+    );
+    return page ? page.items : null;
+  }
+
+  async slaByDepot(range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
+    const params = new URLSearchParams();
+    this.applyRange(params, range);
+    const query = params.toString();
+    return this.getInternal<DepotSlaByDepot>(
+      `${this.config.deliveryServiceUrl}/api/v1/reports/sla-by-depot${query ? `?${query}` : ''}`,
     );
   }
 }

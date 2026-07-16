@@ -83,6 +83,16 @@ export interface SlaStats {
   failedCount: number;
 }
 
+/** Per-depot SLA aggregates (one row per attributed depot); no failedCount — the
+ * network roll-up only needs the on-time rate + average, not failure counts. */
+export interface DepotSlaStats {
+  depotId: string;
+  totalDelivered: number;
+  onTime: number;
+  breached: number;
+  sumMinutes: number;
+}
+
 export interface DeliveryRepository {
   create(data: CreateDeliveryData): Promise<DeliveryRecord>;
   findById(id: string): Promise<DeliveryRecord | null>;
@@ -118,4 +128,10 @@ export interface DeliveryRepository {
    * per-franchise scoping; undefined/empty means all depots (global).
    */
   slaStats(range: ReportRange, thresholdMinutes: number, depotIds?: string[]): Promise<SlaStats>;
+  /**
+   * SLA aggregates grouped per depot over the window. Deliveries with a null
+   * depotId are excluded (unattributable). Powers the HQ network roll-up
+   * (dashboard-service) — one row per depot that has ≥1 delivered order.
+   */
+  slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]>;
 }

@@ -534,6 +534,34 @@ export interface FranchiseDepotSummary {
   lowStockCount: number;
 }
 
+// HQ network roll-up (dashboard-service GET /dashboard/network): one row per depot
+// with real revenue/orders (order-service), on-time SLA (delivery-service), and
+// low-stock count (depot-service). slaRate is null when a depot has no delivered
+// orders in range.
+export interface NetworkDepotRow {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  ownershipType: string;
+  revenue: number;
+  orderCount: number;
+  slaRate: number | null;
+  lowStockCount: number;
+}
+
+export interface NetworkDashboard {
+  from: string | null;
+  to: string | null;
+  depots: NetworkDepotRow[];
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'unavailable';
+    delivery: 'ok' | 'unavailable';
+    inventory: 'ok' | 'unavailable';
+  };
+}
+
 export interface FranchiseDashboard {
   from: string | null;
   to: string | null;

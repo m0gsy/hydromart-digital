@@ -10,14 +10,13 @@ import {
   stubDepotAvgDelivery,
   stubDepotGallonReturn,
   stubDepotRating,
-  stubDepotSla,
 } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, Page } from '@/lib/types';
+import type { DepotAdmin, NetworkDashboard, Page } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -40,7 +39,7 @@ export default function HqComparePage() {
   const { t } = useT();
   const { toast } = useToast();
   const range = useMemo(range30, []);
-  const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
+  const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
   const depotList = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -48,7 +47,7 @@ export default function HqComparePage() {
   if (depotList.error) return <ErrorState message={depotList.error} onRetry={depotList.reload} />;
 
   const depots = depotList.data?.items ?? [];
-  const perf = new Map((dash.data?.topDepots?.items ?? []).map((d) => [d.depotId, d]));
+  const perf = new Map((dash.data?.depots ?? []).map((d) => [d.depotId, d]));
 
   function toggle(id: string) {
     setSelected((cur) => {
@@ -64,7 +63,7 @@ export default function HqComparePage() {
   const metrics: Metric[] = [
     { key: 'revenue', higher: true, stub: false, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
     { key: 'orders', higher: true, stub: false, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
-    { key: 'sla', higher: true, stub: true, value: (id) => stubDepotSla(id), format: (n) => `${Math.round(n * 100)}%` },
+    { key: 'sla', higher: true, stub: false, value: (id) => perf.get(id)?.slaRate ?? 0, format: (n) => `${Math.round(n * 100)}%` },
     { key: 'avgDelivery', higher: false, stub: true, value: (id) => stubDepotAvgDelivery(id), format: (n) => t('hq.compare.minutes', { n }) },
     { key: 'rating', higher: true, stub: true, value: (id) => stubDepotRating(id), format: (n) => n.toFixed(1) },
     { key: 'gallonReturn', higher: false, stub: true, value: (id) => stubDepotGallonReturn(id), format: (n) => String(n) },

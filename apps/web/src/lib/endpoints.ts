@@ -361,11 +361,19 @@ export const endpoints = {
       return `/dashboard/api/v1/dashboard/franchise${qs ? `?${qs}` : ''}`;
     },
   },
-  // HQ console (Milestone A) — no net-new backend. The network overview reuses the
-  // real executive dashboard endpoint. Global search assembles client-side from the
-  // existing per-service list endpoints (depots.manage / auth.staff / orders.manage);
-  // a dedicated /search endpoint is a later milestone.
+  // HQ console. The network overview reuses the real executive dashboard endpoint;
+  // the per-depot roll-up (revenue + real SLA + low stock for every depot) is served
+  // by dashboard-service GET /dashboard/network. Global search assembles client-side
+  // from the existing per-service list endpoints (depots.manage / auth.staff /
+  // orders.manage); a dedicated /search endpoint is a later milestone.
   hq: {
     overview: (q: { from?: string; to?: string } = {}) => endpoints.dashboard.executive(q),
+    rollup: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/dashboard/api/v1/dashboard/network${qs ? `?${qs}` : ''}`;
+    },
   },
 } as const;

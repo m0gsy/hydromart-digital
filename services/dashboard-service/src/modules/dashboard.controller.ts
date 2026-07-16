@@ -8,6 +8,7 @@ import {
   DashboardService,
   ExecutiveDashboard,
   FranchiseDashboard,
+  NetworkDashboard,
 } from '../application/services/dashboard.service';
 import { ExecutiveQueryDto } from './dto/dashboard.dto';
 
@@ -25,6 +26,15 @@ export class DashboardController {
     @Headers('authorization') token: string,
   ): Promise<ExecutiveDashboard> {
     return this.dashboard.executive({ from: query.from, to: query.to }, token);
+  }
+
+  @Get('network')
+  @ApiOperation({ summary: 'Network per-depot roll-up (revenue, orders, SLA, low stock per depot)' })
+  network(
+    @Query() query: ExecutiveQueryDto,
+    @Headers('authorization') token: string,
+  ): Promise<NetworkDashboard> {
+    return this.dashboard.network({ from: query.from, to: query.to }, token);
   }
 
   // Method-level @Roles overrides the class-level roles (RolesGuard getAllAndOverride).

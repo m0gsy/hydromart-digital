@@ -115,4 +115,24 @@ describe('ReportService.sla', () => {
     expect(r.avgMinutes).toBeNull();
     expect(r.failedCount).toBe(0);
   });
+
+  it('groups SLA per depot, excluding null-depot deliveries', async () => {
+    const depotA = randomUUID();
+    const depotB = randomUUID();
+    seed(repo, { depotId: depotA, deliveredAt: at(60) }); // A on time
+    seed(repo, { depotId: depotA, deliveredAt: at(181) }); // A breached
+    seed(repo, { depotId: depotB, deliveredAt: at(60) }); // B on time
+    seed(repo, { depotId: null, deliveredAt: at(60) }); // unattributed → excluded
+
+    const r = await service.slaByDepot({});
+
+    expect(r.thresholdMinutes).toBe(120);
+    expect(r.depots).toHaveLength(2);
+    const a = r.depots.find((d) => d.depotId === depotA)!;
+    expect(a).toMatchObject({ totalDelivered: 2, onTime: 1, breached: 1 });
+    expect(a.slaRate).toBeCloseTo(0.5, 5);
+    expect(a.avgMinutes).toBe(120.5); // (60+181)/2
+    const b = r.depots.find((d) => d.depotId === depotB)!;
+    expect(b).toMatchObject({ totalDelivered: 1, onTime: 1, breached: 0, slaRate: 1 });
+  });
 });

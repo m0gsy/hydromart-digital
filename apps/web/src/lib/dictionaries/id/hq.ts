@@ -318,6 +318,24 @@ export const hq = {
     },
     notFound: 'Depot tidak ditemukan.',
   },
+  // Design 10b — konfirmasi tangguhkan depot (destruktif, dengan guard ketik kode).
+  suspend: {
+    title: 'Tangguhkan Depot?',
+    subtitle: 'Depot "{name}" akan dinonaktifkan. Tindakan ini berdampak besar.',
+    impact: {
+      title: 'Dampak penangguhan',
+      orders: 'Pesanan aktif dialihkan ke depot terdekat',
+      staff: 'Staf & kurir depot kehilangan akses',
+      coverage: 'Radius cakupan dikembalikan ke depot terdekat',
+    },
+    estimate: 'Perkiraan',
+    guard: {
+      label: 'Ketik kode depot "{code}" untuk mengonfirmasi',
+    },
+    cancel: 'Batal',
+    confirm: 'Tangguhkan depot',
+    error: 'Gagal menangguhkan depot. Coba lagi.',
+  },
   staff: {
     title: 'Direktori staf',
     subtitle: 'Seluruh akun staf jaringan',

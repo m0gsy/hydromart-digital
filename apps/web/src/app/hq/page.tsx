@@ -7,12 +7,11 @@ import { ChartLineUp, Warning } from '@phosphor-icons/react';
 import { DepotMap } from '@/components/dashboard/depot-map';
 import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
-import { StubBadge, stubDepotSla } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, Page } from '@/lib/types';
+import type { DepotAdmin, ExecutiveDashboard, NetworkDashboard, Page } from '@/lib/types';
 
 // Trailing-30-day window, computed once per mount (client-only). Copied from
 // franchise/page.tsx so the exec endpoint gets a stable range.
@@ -44,22 +43,18 @@ export default function HqOverviewPage() {
   const [view, setView] = useState<View>('main');
 
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.hq.overview(range), true));
+  const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
   const depotList = useAsync<Page<DepotAdmin>>(() =>
     api.get(endpoints.depots.manage({ limit: 100 }), true),
   );
 
   const depots = depotList.data?.items ?? [];
-  const depotName = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const d of depotList.data?.items ?? []) m.set(d.id, d.name);
-    return m;
-  }, [depotList.data]);
 
-  if (dash.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
+  if (dash.loading || rollup.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
   if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
   if (!dash.data) return null;
 
-  const { sales, topDepots, deliverySla, sources } = dash.data;
+  const { sales, deliverySla, sources } = dash.data;
   const buckets = sales?.buckets ?? [];
   const totalRevenue = buckets.reduce((n, b) => n + b.revenue, 0);
   const totalOrders = buckets.reduce((n, b) => n + b.orderCount, 0);
@@ -70,18 +65,20 @@ export default function HqOverviewPage() {
     .filter(([, v]) => v === 'unavailable')
     .map(([k]) => k);
 
-  // Depot rows ranked by revenue, SLA joined from the stub.
-  const rows = (topDepots?.items ?? []).map((d) => ({
+  // Per-depot rows from the real network roll-up (revenue/orders + real SLA).
+  const rows = (rollup.data?.depots ?? []).map((d) => ({
     depotId: d.depotId,
-    name: depotName.get(d.depotId) ?? d.depotId.slice(0, 8),
+    name: d.name,
     revenue: d.revenue,
     orderCount: d.orderCount,
-    sla: stubDepotSla(d.depotId),
+    sla: d.slaRate, // number | null (null = no delivered orders in range)
   }));
   const byRevenue = [...rows].sort((a, b) => b.revenue - a.revenue);
 
-  // "Needs attention": low-SLA depots + any unavailable source.
-  const lowSla = rows.filter((r) => r.sla < 0.88).sort((a, b) => a.sla - b.sla);
+  // "Needs attention": depots with a real SLA below the healthy band + any down source.
+  const lowSla = rows
+    .filter((r): r is typeof r & { sla: number } => r.sla != null && r.sla < 0.88)
+    .sort((a, b) => a.sla - b.sla);
 
   return (
     <div className="flex flex-col gap-6">
@@ -157,12 +154,7 @@ export default function HqOverviewPage() {
                     <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
                       <th className="pb-2 font-medium">{t('hq.overview.perf.depot')}</th>
                       <th className="pb-2 text-right font-medium">{t('hq.overview.perf.revenue')}</th>
-                      <th className="pb-2 text-right font-medium">
-                        <span className="inline-flex items-center gap-1.5">
-                          {t('hq.overview.perf.sla')}
-                          <StubBadge />
-                        </span>
-                      </th>
+                      <th className="pb-2 text-right font-medium">{t('hq.overview.perf.sla')}</th>
                       <th className="pb-2 text-right font-medium">{t('hq.overview.perf.orders')}</th>
                     </tr>
                   </thead>
@@ -177,7 +169,9 @@ export default function HqOverviewPage() {
                         <td className="py-2.5 text-right">
                           <Money amount={r.revenue} />
                         </td>
-                        <td className="py-2.5 text-right tabular-nums">{Math.round(r.sla * 100)}%</td>
+                        <td className="py-2.5 text-right tabular-nums">
+                          {r.sla != null ? `${Math.round(r.sla * 100)}%` : t('hq.common.dash')}
+                        </td>
                         <td className="py-2.5 text-right tabular-nums">{r.orderCount}</td>
                       </tr>
                     ))}
@@ -212,9 +206,6 @@ export default function HqOverviewPage() {
                 ))}
               </ul>
             )}
-            <div className="mt-1">
-              <StubBadge />
-            </div>
           </Card>
         </div>
       )}
@@ -258,12 +249,11 @@ export default function HqOverviewPage() {
 
           <Card className="flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-2.5">
-              <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
                 {t('hq.overview.compact.top')}
-                <StubBadge />
               </p>
               {byRevenue.slice(0, 3).map((r, i) => (
-                <RankBar key={r.depotId} position={i} label={r.name} score={r.sla} />
+                <RankBar key={r.depotId} position={i} label={r.name} score={r.sla ?? 0} />
               ))}
             </div>
             {lowSla.length > 0 && (

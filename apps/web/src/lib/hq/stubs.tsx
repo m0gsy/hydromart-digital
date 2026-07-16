@@ -14,17 +14,10 @@ function hash(s: string): number {
   return h;
 }
 
-// STUB: per-depot SLA endpoint pending — Milestone D. Network SLA is real
-// (dashboard executive `deliverySla`); per-depot SLA has no endpoint yet, so the
-// depot performance table + depot detail read a fixed sample rate keyed by depotId.
-export const PER_DEPOT_SLA_STUB: Record<string, number> = {};
-
-/** Deterministic sample SLA in [0.82, 0.99] for a depotId (so the table is stable). */
-export function stubDepotSla(depotId: string): number {
-  const override = PER_DEPOT_SLA_STUB[depotId];
-  if (override !== undefined) return override;
-  return 0.82 + (hash(depotId) % 18) / 100; // 0.82..0.99
-}
+// Per-depot SLA is now REAL: dashboard-service GET /dashboard/network returns a
+// real slaRate per depot (delivery-service sla-by-depot). The old stubDepotSla was
+// removed — the overview table, scorecard, compare and depot detail all read the
+// live roll-up. See endpoints.hq.rollup.
 
 /* ---------- Milestone B — Finance & pricing governance ---------- */
 
