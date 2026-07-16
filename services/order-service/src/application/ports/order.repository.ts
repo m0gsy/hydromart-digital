@@ -156,6 +156,20 @@ export interface CustomerLifetime {
   lastOrderAt: Date | null;
 }
 
+/**
+ * Activity-based segment conditions over the order book (Phase 4c, design 21d).
+ * Every condition is AND-combined; distinct customers matching them all are counted.
+ * `tier` is NOT here — it is owned by loyalty-service and not joinable in order-service.
+ */
+export interface SegmentConditions {
+  /** Last order at-or-after this cutoff (recency). */
+  recencyCutoff?: Date;
+  /** At least this many (non-cancelled) orders (frequency). */
+  minOrders?: number;
+  /** Has ordered at this depot; also scopes recency/frequency to that depot's orders. */
+  depotId?: string;
+}
+
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
@@ -208,4 +222,11 @@ export interface OrderRepository {
   retentionCohort(range: ReportRange): Promise<RetentionCell[]>;
   /** One customer's lifetime revenue/order-count/first-last dates (17e). */
   customerLifetime(customerId: string): Promise<CustomerLifetime>;
+  /**
+   * Distinct customers reachable for a broadcast (design 10d) — anyone with a
+   * non-cancelled order (every order carries a phone). Scoped to one depot when given.
+   */
+  audienceReach(depotId?: string): Promise<number>;
+  /** Distinct customers matching all activity-based segment conditions (design 21d). */
+  segmentEstimate(conditions: SegmentConditions): Promise<number>;
 }

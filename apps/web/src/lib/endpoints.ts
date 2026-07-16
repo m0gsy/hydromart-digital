@@ -202,6 +202,22 @@ export const endpoints = {
       return `/orders/api/v1/reports/retention-cohort${qs ? `?${qs}` : ''}`;
     },
     customer: (customerId: string) => `/orders/api/v1/reports/customer/${customerId}`,
+    // Opt-in reachable customer count for a broadcast audience (10d). Activity-based
+    // (distinct customers with a non-cancelled order); optional per-depot scope.
+    audienceReach: (depotId?: string) =>
+      `/orders/api/v1/reports/audience-reach${depotId ? `?depotId=${depotId}` : ''}`,
+  },
+  // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
+  // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).
+  segments: {
+    estimate: (q: { recencyDays?: number; minOrders?: number; depotId?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.recencyDays != null) p.set('recencyDays', String(q.recencyDays));
+      if (q.minOrders != null) p.set('minOrders', String(q.minOrders));
+      if (q.depotId) p.set('depotId', q.depotId);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/segment-estimate${qs ? `?${qs}` : ''}`;
+    },
   },
   loyalty: {
     tiers: '/loyalty/api/v1/loyalty/tiers',

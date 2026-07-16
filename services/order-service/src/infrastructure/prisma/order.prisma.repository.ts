@@ -16,6 +16,7 @@ import {
   ReportRange,
   RetentionCell,
   SalesBucket,
+  SegmentConditions,
 } from '../../application/ports/order.repository';
 import { PrismaService } from './prisma.service';
 
@@ -418,5 +419,40 @@ export class OrderPrismaRepository implements OrderRepository {
       firstOrderAt: agg._min.createdAt,
       lastOrderAt: agg._max.createdAt,
     };
+  }
+
+  async audienceReach(depotId?: string): Promise<number> {
+    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (depotId) conds.push(Prisma.sql`"depotId" = ${depotId}::uuid`);
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT "customerId")::bigint AS count
+      FROM "orders"
+      WHERE ${Prisma.join(conds, ' AND ')}
+    `);
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
+    // frequency/recency are HAVING predicates over the per-customer aggregate.
+    const where: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
+    const having: Prisma.Sql[] = [];
+    if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);
+    if (conditions.recencyCutoff)
+      having.push(Prisma.sql`MAX("createdAt") >= ${conditions.recencyCutoff}`);
+    const havingSql = having.length
+      ? Prisma.sql`HAVING ${Prisma.join(having, ' AND ')}`
+      : Prisma.empty;
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM (
+        SELECT "customerId"
+        FROM "orders"
+        WHERE ${Prisma.join(where, ' AND ')}
+        GROUP BY "customerId"
+        ${havingSql}
+      ) t
+    `);
+    return Number(rows[0]?.count ?? 0);
   }
 }

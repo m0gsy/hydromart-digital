@@ -87,7 +87,10 @@ export const EXPORT_BY_METHOD_STUB: ExportRow[] = [
 // Commission scheme % per depot is now REAL: payout-service commission-schemes track
 // (endpoints.commission.*). The old stubCommissionPct was removed.
 
-// STUB: segment size estimate (no segment endpoint) — Milestone D.
+// The segment-BUILDER (21d, hq/forms/segment) now uses a REAL estimate: order-service
+// GET /reports/segment-estimate (endpoints.segments.estimate). This stub remains ONLY for
+// the 17c campaign builder's preset chips (all/loyalty/atRisk/new), whose preset→condition
+// mapping has no endpoint yet — badged there. Remove once 17c is wired to real conditions.
 export function stubSegmentEstimate(conditionCount: number): number {
   const base = 12_480;
   return Math.max(120, Math.round(base / Math.pow(1.7, conditionCount)));
@@ -126,16 +129,10 @@ export function stubForecastConfidence(productId: string): number {
 // GET /subscriptions/admin/summary (endpoints.subscriptions.adminSummary). The old
 // SUBSCRIPTION_PLANS_STUB was removed.
 
-// STUB: no audience-sizing endpoint for the broadcast composer (10d) — Milestone D.
-export function stubBroadcastReach(audience: string): number {
-  const base: Record<string, number> = {
-    all: 12_480,
-    depot: 2_140,
-    loyalty: 4_320,
-    staff: 86,
-  };
-  return base[audience] ?? 0;
-}
+// Broadcast reach (10d) is now REAL for "all"/"per-depot": order-service
+// GET /reports/audience-reach (endpoints.reports.audienceReach) — distinct customers with
+// an order. Loyalty/staff have no reach source here and stay badged in the page (no number).
+// The old stubBroadcastReach was removed.
 
 /* ---------- Milestone D — System, governance, admin & polish ---------- */
 // Every export below has NO backend endpoint yet. Sample row CONTENT is literal

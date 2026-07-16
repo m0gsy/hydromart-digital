@@ -118,4 +118,38 @@ describe('ReportService', () => {
     // Every cohort's own month retains 100% of itself.
     expect(report.rows.every((r) => r.cells[0] === 1)).toBe(true);
   });
+
+  it('counts distinct reachable customers, excluding cancelled', async () => {
+    // CUST_A + CUST_B have non-cancelled orders; the 999999 cancelled order is CUST_B too.
+    const all = await reports.audienceReach();
+    expect(all.count).toBe(2);
+    expect(all.depotId).toBeNull();
+  });
+
+  it('scopes audience reach to one depot', async () => {
+    const a = await reports.audienceReach(DEPOT_A);
+    expect(a).toEqual({ depotId: DEPOT_A, count: 1 }); // only CUST_A ordered at DEPOT_A
+  });
+
+  it('sizes a frequency segment (>= N orders), excluding cancelled', async () => {
+    // CUST_A has 3 non-cancelled orders, CUST_B has 1 (cancelled excluded).
+    const two = await reports.segmentEstimate({ minOrders: 2 });
+    expect(two.count).toBe(1);
+    expect(two.minOrders).toBe(2);
+    const one = await reports.segmentEstimate({ minOrders: 1 });
+    expect(one.count).toBe(2);
+  });
+
+  it('sizes a recency segment (last order within N days)', async () => {
+    // All seed orders were just created, so a wide recency window keeps everyone.
+    const recent = await reports.segmentEstimate({ recencyDays: 30 });
+    expect(recent.count).toBe(2);
+    expect(recent.recencyDays).toBe(30);
+  });
+
+  it('scopes a segment to a depot', async () => {
+    const atA = await reports.segmentEstimate({ depotId: DEPOT_A });
+    expect(atA.count).toBe(1); // only CUST_A ordered at DEPOT_A
+    expect(atA.depotId).toBe(DEPOT_A);
+  });
 });

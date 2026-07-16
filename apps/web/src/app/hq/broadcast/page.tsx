@@ -5,8 +5,8 @@ import { Broadcast } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubBroadcastReach } from '@/lib/hq/stubs';
-import { api } from '@/lib/api';
+import { StubBadge } from '@/lib/hq/stubs';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -19,9 +19,14 @@ type Audience = 'all' | 'depot' | 'loyalty' | 'staff';
 const AUDIENCES: Audience[] = ['all', 'depot', 'loyalty', 'staff'];
 const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 
-// Design 10d — notification broadcast. The audience model (all/per-depot/loyalty/staff)
-// doesn't map to crm.createCampaign's recipient/segment contract, so send is a stub toast;
-// estimated reach has no sizing endpoint → stub. Depot list is real (for the picker).
+// Design 10d — notification broadcast.
+// REACH: order-service audience-reach gives a REAL activity-based count for "all" and
+// "per depot" (distinct customers with an order). Loyalty/staff live in loyalty/auth and
+// have no reach endpoint here → badged, never fabricated.
+// SEND: wired to the real crm campaign path (createCampaign + sendCampaign). The crm
+// recipient model only expresses "all reachable" (empty segment) or tier/city, so only the
+// "Semua pelanggan" audience sends for real; depot/loyalty/staff are honestly badged.
+// crm has no scheduling, so "Jadwalkan" is badged too. Channels stay cosmetic (crm = WA only).
 export default function HqBroadcastPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -32,13 +37,42 @@ export default function HqBroadcastPage() {
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [channels, setChannels] = useState<Set<string>>(new Set(['channelPush', 'channelInApp']));
+  const [busy, setBusy] = useState(false);
 
-  const reach = stubBroadcastReach(audience);
+  // Reach is real only where order-service owns the data: all customers, or one depot.
+  const reachable = audience === 'all' || (audience === 'depot' && !!depotId);
+  const reach = useAsync<{ count: number } | null>(
+    () =>
+      reachable
+        ? api.get<{ count: number }>(
+            endpoints.reports.audienceReach(audience === 'depot' ? depotId : undefined),
+            true,
+          )
+        : Promise.resolve(null),
+    [audience, depotId],
+  );
 
-  function submit(schedule: boolean) {
+  async function submit(schedule: boolean) {
     if (!title.trim()) return toast(t('hq.broadcast.needTitle'), 'error');
     if (!message.trim()) return toast(t('hq.broadcast.needMessage'), 'error');
-    toast(schedule ? t('hq.broadcast.scheduled') : t('hq.broadcast.sent'), 'success');
+    if (schedule) return toast(t('hq.broadcast.scheduleUnsupported'), 'error');
+    if (audience !== 'all') return toast(t('hq.broadcast.audienceUnsupported'), 'error');
+    setBusy(true);
+    try {
+      // Empty segment = all reachable customers (crm SegmentFilter contract). Title rides in
+      // the body since crm's WhatsApp broadcast has no separate title field.
+      const created = await api.post<{ id: string }>(
+        endpoints.crm.createCampaign,
+        { name: title.trim(), messageTemplate: `${title.trim()}\n\n${message.trim()}`, segment: {} },
+        true,
+      );
+      await api.post(endpoints.crm.sendCampaign(created.id), undefined, true);
+      toast(t('hq.broadcast.sent'), 'success');
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.broadcast.error'), 'error');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -115,22 +149,32 @@ export default function HqBroadcastPage() {
         </div>
       </Card>
 
-      {/* Estimated reach — STUB */}
+      {/* Estimated reach — REAL for all/depot; loyalty/staff have no source → badged. */}
       <Card className="flex items-center justify-between gap-3 p-5">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
           {t('hq.broadcast.reach')}
-          <StubBadge />
+          {!reachable && <StubBadge />}
         </span>
-        <span className="text-2xl font-bold tabular-nums text-brand-700">
-          {t('hq.broadcast.people', { n: reach.toLocaleString('id-ID') })}
-        </span>
+        {reachable ? (
+          <span className="text-2xl font-bold tabular-nums text-brand-700">
+            {reach.loading
+              ? '…'
+              : t('hq.broadcast.people', { n: (reach.data?.count ?? 0).toLocaleString('id-ID') })}
+          </span>
+        ) : audience === 'depot' ? (
+          <span className="text-sm text-muted">{t('hq.broadcast.pickDepot')}</span>
+        ) : (
+          <span className="text-sm text-muted">{t('hq.broadcast.reachUnavailable')}</span>
+        )}
       </Card>
 
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="secondary" onClick={() => submit(true)}>
+        <Button variant="secondary" onClick={() => submit(true)} disabled={busy}>
           {t('hq.broadcast.schedule')}
         </Button>
-        <Button onClick={() => submit(false)}>{t('hq.broadcast.send')}</Button>
+        <Button onClick={() => submit(false)} loading={busy}>
+          {t('hq.broadcast.send')}
+        </Button>
       </div>
     </div>
   );

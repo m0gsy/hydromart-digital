@@ -118,6 +118,43 @@ export class ReportService {
     return { ...ReportService.rangeView(range), rows };
   }
 
+  /**
+   * Opt-in reachable audience for a broadcast (design 10d) — distinct customers with a
+   * non-cancelled order, optionally scoped to one depot. Activity-based (every order has
+   * a phone); it does NOT include registered customers who have never ordered.
+   */
+  async audienceReach(depotId?: string): Promise<{ depotId: string | null; count: number }> {
+    const count = await this.orders.audienceReach(depotId);
+    return { depotId: depotId ?? null, count };
+  }
+
+  /**
+   * Live size of an activity-based segment (design 21d). Recency/frequency/depot are
+   * resolved here; `tier` is loyalty-owned and not joinable, so the caller supplies only
+   * the conditions this service can honour and badges `tier` itself.
+   */
+  async segmentEstimate(input: {
+    recencyDays?: number;
+    minOrders?: number;
+    depotId?: string;
+  }): Promise<{ count: number; recencyDays: number | null; minOrders: number | null; depotId: string | null }> {
+    const recencyCutoff =
+      input.recencyDays != null
+        ? new Date(Date.now() - input.recencyDays * 24 * 60 * 60 * 1000)
+        : undefined;
+    const count = await this.orders.segmentEstimate({
+      recencyCutoff,
+      minOrders: input.minOrders,
+      depotId: input.depotId,
+    });
+    return {
+      count,
+      recencyDays: input.recencyDays ?? null,
+      minOrders: input.minOrders ?? null,
+      depotId: input.depotId ?? null,
+    };
+  }
+
   async customerSummary(customerId: string): Promise<CustomerSummary> {
     const [life, recent] = await Promise.all([
       this.orders.customerLifetime(customerId),

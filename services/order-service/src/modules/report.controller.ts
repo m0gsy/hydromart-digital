@@ -5,11 +5,19 @@ import { Role, Roles } from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
-import { RangeReportQueryDto, SalesReportQueryDto, TopReportQueryDto } from './dto/report.dto';
+import {
+  AudienceReachQueryDto,
+  RangeReportQueryDto,
+  SalesReportQueryDto,
+  SegmentEstimateQueryDto,
+  TopReportQueryDto,
+} from './dto/report.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 // Customer 360 (17e) is HQ-only — no depot-manager access to a single customer's history.
 const HQ_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
+// Broadcast reach + segment sizing (10d/21d) are marketing-led audience tools.
+const AUDIENCE_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN, Role.MARKETING] as const;
 
 function toRange(q: { from?: string; to?: string }): ReportRange {
   return {
@@ -53,6 +61,20 @@ export class ReportController {
   @ApiOperation({ summary: 'Customer retention by first-order-month cohort (22b)' })
   retentionCohort(@Query() q: RangeReportQueryDto) {
     return this.reports.retentionCohort(toRange(q));
+  }
+
+  @Roles(...AUDIENCE_ROLES)
+  @Get('audience-reach')
+  @ApiOperation({ summary: 'Opt-in reachable customer count for a broadcast audience (10d)' })
+  audienceReach(@Query() q: AudienceReachQueryDto) {
+    return this.reports.audienceReach(q.depotId);
+  }
+
+  @Roles(...AUDIENCE_ROLES)
+  @Get('segment-estimate')
+  @ApiOperation({ summary: 'Live size of an activity-based segment: recency/frequency/depot (21d)' })
+  segmentEstimate(@Query() q: SegmentEstimateQueryDto) {
+    return this.reports.segmentEstimate(q);
   }
 
   @Roles(...HQ_ROLES)

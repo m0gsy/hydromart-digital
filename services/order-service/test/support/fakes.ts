@@ -19,6 +19,7 @@ import {
   ReportRange,
   RetentionCell,
   SalesBucket,
+  SegmentConditions,
 } from '../../src/application/ports/order.repository';
 import {
   CreateSubscriptionData,
@@ -307,6 +308,35 @@ export class InMemoryOrderRepository implements OrderRepository {
       firstOrderAt: rows[0]?.createdAt ?? null,
       lastOrderAt: rows[rows.length - 1]?.createdAt ?? null,
     };
+  }
+
+  async audienceReach(depotId?: string): Promise<number> {
+    const ids = new Set(
+      this.rows
+        .filter((r) => r.status !== OrderStatus.CANCELLED)
+        .filter((r) => !depotId || r.depotId === depotId)
+        .map((r) => r.customerId),
+    );
+    return ids.size;
+  }
+
+  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    const byCustomer = new Map<string, { count: number; last: Date }>();
+    for (const r of this.rows) {
+      if (r.status === OrderStatus.CANCELLED) continue;
+      if (conditions.depotId && r.depotId !== conditions.depotId) continue;
+      const cur = byCustomer.get(r.customerId) ?? { count: 0, last: r.createdAt };
+      cur.count += 1;
+      if (r.createdAt > cur.last) cur.last = r.createdAt;
+      byCustomer.set(r.customerId, cur);
+    }
+    let n = 0;
+    for (const agg of byCustomer.values()) {
+      if (conditions.minOrders != null && agg.count < conditions.minOrders) continue;
+      if (conditions.recencyCutoff && agg.last < conditions.recencyCutoff) continue;
+      n += 1;
+    }
+    return n;
   }
 }
 
