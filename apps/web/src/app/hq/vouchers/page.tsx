@@ -4,28 +4,31 @@ import Link from 'next/link';
 import { Ticket, Info } from '@phosphor-icons/react';
 
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
-import {
-  PENDING_VOUCHER_REQUESTS_STUB,
-  PROMO_BUDGET_STUB,
-  StubBadge,
-  stubVoucherBudget,
-} from '@/lib/hq/stubs';
+import { PENDING_VOUCHER_REQUESTS_STUB, StubBadge } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Page, Voucher } from '@/lib/types';
 
-// Design 14b — Tata kelola voucher. The voucher list is real (promo-service browse);
-// the network promo budget, per-voucher budget, and pending depot requests are stubs.
+interface BurnSummary {
+  totalUsed: number;
+  byVoucher: Record<string, number>;
+}
+
+// Design 14b — Tata kelola voucher. The voucher list AND per-voucher/network burn are
+// real (promo-service browse + burn-summary = SUM discountApplied). There is no budget
+// CAP as data, so we show the real spend, not a % of a made-up ceiling. Pending depot
+// voucher requests have no workflow → stays badged.
 export default function HqVouchersPage() {
   const { t } = useT();
   const list = useAsync<Page<Voucher>>(() => api.get(endpoints.vouchers.browse(1, 50), true));
+  const burn = useAsync<BurnSummary>(() => api.get(endpoints.vouchers.burnSummary, true));
 
   const vouchers = list.data?.items ?? [];
   const active = vouchers.filter((v) => v.active);
-  const budgetPct = Math.min(100, Math.round((PROMO_BUDGET_STUB.used / PROMO_BUDGET_STUB.total) * 100));
+  const totalUsed = burn.data?.totalUsed ?? 0;
+  const byVoucher = burn.data?.byVoucher ?? {};
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,25 +48,17 @@ export default function HqVouchersPage() {
         </Link>
       </div>
 
-      {/* Network promo budget — STUB */}
-      <Card className="flex flex-col gap-3 p-5">
+      {/* Network voucher spend — REAL (promo-service burn-summary = SUM discountApplied) */}
+      <Card className="flex flex-col gap-2 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-2 font-semibold">
-            {t('hq.vouchers.budget.title')}
-            <StubBadge />
-          </h2>
+          <h2 className="font-semibold">{t('hq.vouchers.budget.title')}</h2>
           <span className="text-sm text-muted">
             {t('hq.vouchers.budget.active', { n: active.length })}
           </span>
         </div>
-        <div className="h-2.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
-          <div className="h-full rounded-full bg-brand-600" style={{ width: `${budgetPct}%` }} />
-        </div>
-        <p className="text-sm text-muted">
-          {t('hq.vouchers.budget.used', {
-            used: formatIDR(PROMO_BUDGET_STUB.used),
-            total: formatIDR(PROMO_BUDGET_STUB.total),
-          })}
+        <p className="text-xs uppercase tracking-wide text-muted">{t('hq.vouchers.budget.total')}</p>
+        <p className="text-2xl font-bold tabular-nums">
+          {burn.loading ? '…' : <Money amount={totalUsed} />}
         </p>
       </Card>
 
@@ -86,7 +81,7 @@ export default function HqVouchersPage() {
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {active.map((v) => {
-              const budget = stubVoucherBudget(v.id);
+              const burned = byVoucher[v.id] ?? 0;
               const cap = v.usageLimit ?? Math.max(v.usedCount, 50);
               const burnPct = Math.min(100, Math.round((v.usedCount / cap) * 100));
               return (
@@ -106,8 +101,7 @@ export default function HqVouchersPage() {
                     <div className="h-full rounded-full bg-brand-600" style={{ width: `${burnPct}%` }} />
                   </div>
                   <p className="flex items-center gap-1.5 text-xs text-muted">
-                    {t('hq.vouchers.list.burn')}: <Money amount={budget} />
-                    <StubBadge />
+                    {t('hq.vouchers.list.burn')}: <Money amount={burned} />
                   </p>
                 </li>
               );

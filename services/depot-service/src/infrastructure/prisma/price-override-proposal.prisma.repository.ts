@@ -74,6 +74,17 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
     return { items: rows.map((r) => this.toRecord(r as unknown as ProposalRow)), total };
   }
 
+  async countByProduct(
+    status?: PriceOverrideStatus,
+  ): Promise<{ productId: string; count: number }[]> {
+    const grouped = await this.prisma.priceOverrideProposal.groupBy({
+      by: ['productId'],
+      where: status ? { status } : {},
+      _count: { _all: true },
+    });
+    return grouped.map((g) => ({ productId: g.productId, count: g._count._all }));
+  }
+
   async findById(id: string): Promise<PriceOverrideProposalRecord | null> {
     const row = await this.prisma.priceOverrideProposal.findUnique({ where: { id } });
     return row ? this.toRecord(row as unknown as ProposalRow) : null;

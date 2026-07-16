@@ -442,15 +442,15 @@ export const hq = {
     subtitle: 'Anggaran & voucher promo seluruh jaringan',
     newVoucher: 'Voucher baru',
     budget: {
-      title: 'Anggaran promo jaringan · 30 hari',
-      used: '{used} dari {total} terpakai',
+      title: 'Belanja voucher jaringan',
+      total: 'Total diskon terpakai',
       active: '{n} voucher aktif',
     },
     pending: '{n} permintaan voucher depot menunggu persetujuan',
     list: {
       title: 'Voucher aktif',
       used: '{n} terpakai',
-      burn: 'Anggaran terpakai',
+      burn: 'Terpakai',
       empty: 'Belum ada voucher aktif.',
     },
   },

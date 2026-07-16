@@ -30,10 +30,8 @@ function hash(s: string): number {
 // PAYOUT_RELEASE_QUEUE_STUB was removed. Only the dispute count has no source yet.
 export const PAYMENTS_DISPUTE_COUNT_STUB = 3;
 
-// STUB: per-product override counts (network base pricing) pending — Milestone D.
-export function stubOverrideCount(productId: string): number {
-  return hash(productId) % 6; // 0..5
-}
+// Per-product override counts are now REAL: depot-service GET
+// /price-overrides/count-by-product (grouped, defaults to the PENDING queue).
 
 // The depot→HQ price-override approval queue is now REAL: depot-service
 // GET /price-overrides + approve/reject (endpoints.priceOverrides.*). The old
@@ -42,12 +40,10 @@ export function stubOverrideCount(productId: string): number {
 // The HQ refund-approval queue is now REAL: payment-service refunds/queue +
 // approve/reject track (endpoints.refunds.*). The old REFUND_QUEUE_STUB was removed.
 
-// STUB: network promo budget + per-voucher burn + pending depot voucher requests — Milestone D.
-export const PROMO_BUDGET_STUB = { total: 50_000_000, used: 32_400_000 };
+// Network voucher spend + per-voucher burn are now REAL: promo-service GET
+// /vouchers/burn-summary (SUM discountApplied). Only the depot→HQ voucher REQUEST
+// workflow has no model, so this pending count stays a labeled stub.
 export const PENDING_VOUCHER_REQUESTS_STUB = 2;
-export function stubVoucherBudget(voucherId: string): number {
-  return 1_000_000 + (hash(voucherId) % 9) * 500_000; // 1jt..5jt
-}
 
 // STUB: reconciliation lines with no real source (ongkir/refund/deposit) — Milestone D.
 export interface ReconStubLines {
@@ -64,25 +60,14 @@ export function stubReconLines(depotId: string): ReconStubLines {
   };
 }
 
-// STUB: export preview groupings other than depot (produk/metode) — Milestone D.
+// Export preview row shape. All three groupings (depot/produk/metode) are now REAL:
+// depot = executive topDepots, produk = order-service revenue-by-product, metode =
+// payment-service revenue-by-method. Type kept here as the shared row contract.
 export interface ExportRow {
   label: string;
   orders: number;
   revenue: number;
 }
-export const EXPORT_BY_PRODUCT_STUB: ExportRow[] = [
-  { label: 'Galon 19L isi ulang', orders: 1_820, revenue: 36_400_000 },
-  { label: 'Air 600ml (dus)', orders: 640, revenue: 30_720_000 },
-  { label: 'Galon 19L baru + air', orders: 210, revenue: 14_700_000 },
-  { label: 'Air 1500ml (dus)', orders: 380, revenue: 13_300_000 },
-];
-export const EXPORT_BY_METHOD_STUB: ExportRow[] = [
-  { label: 'QRIS', orders: 1_640, revenue: 41_000_000 },
-  { label: 'Transfer bank', orders: 720, revenue: 28_800_000 },
-  { label: 'Virtual account', orders: 430, revenue: 17_200_000 },
-  { label: 'E-wallet', orders: 560, revenue: 14_000_000 },
-  { label: 'Tunai', orders: 300, revenue: 6_000_000 },
-];
 
 // Commission scheme % per depot is now REAL: payout-service commission-schemes track
 // (endpoints.commission.*). The old stubCommissionPct was removed.

@@ -74,6 +74,14 @@ export class PriceOverrideController {
     });
   }
 
+  // Per-product override counts for the 7a base-price list. Static path declared before
+  // ':id/*' routes. Defaults to the PENDING queue.
+  @Get('count-by-product')
+  @ApiOperation({ summary: 'Override proposal counts grouped by product (defaults to pending)' })
+  countByProduct(): Promise<{ productId: string; count: number }[]> {
+    return this.overrides.countByProduct();
+  }
+
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → applies the override as a winning pricing rule' })

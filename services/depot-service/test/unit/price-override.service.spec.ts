@@ -40,6 +40,14 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
     const start = (filter.page - 1) * filter.limit;
     return { items: all.slice(start, start + filter.limit), total: all.length };
   }
+  async countByProduct(status?: PriceOverrideStatus) {
+    const map = new Map<string, number>();
+    for (const r of this.rows) {
+      if (status && r.status !== status) continue;
+      map.set(r.productId, (map.get(r.productId) ?? 0) + 1);
+    }
+    return [...map.entries()].map(([productId, count]) => ({ productId, count }));
+  }
   async findById(id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
   }

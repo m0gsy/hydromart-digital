@@ -206,6 +206,14 @@ export class PaymentService {
     return this.payments.aggregateUnsettledByMethod(range);
   }
 
+  /**
+   * Revenue-export grouping (design 10a): network-wide collected (PAID) revenue by
+   * method with amount + transaction count, over a date range. Read-only aggregate.
+   */
+  async revenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    return this.payments.aggregateRevenueByMethod(range);
+  }
+
   /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */
   async listRefundQueue(input: { page?: number; limit?: number }): Promise<Page<PaymentRecord>> {
     const page = Math.max(1, input.page ?? 1);

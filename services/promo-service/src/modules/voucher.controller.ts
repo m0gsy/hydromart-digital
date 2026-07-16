@@ -52,6 +52,16 @@ export class VoucherController {
     return this.vouchers.browse(query.page, query.limit, false);
   }
 
+  // HQ voucher governance (14b): real burn per voucher + network total. Declared before
+  // `@Get(':code')` so "burn-summary" is not captured as a code.
+  @ApiBearerAuth()
+  @Roles(...CAPABILITIES.voucherRead)
+  @Get('burn-summary')
+  @ApiOperation({ summary: 'Rupiah discount burned per voucher + network total (admin)' })
+  burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    return this.vouchers.burnSummary();
+  }
+
   // Declared before the `@Get(':code')` route below so "me" is not captured as a code.
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)

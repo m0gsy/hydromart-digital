@@ -77,5 +77,7 @@ export interface PaymentRepository {
   }>;
   /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
+  /** Network-wide collected (PAID) revenue grouped by method over a date range. */
+  aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

@@ -6,7 +6,6 @@ import { Tag } from '@phosphor-icons/react';
 
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubOverrideCount } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { computeEffective } from '@/lib/pricing';
@@ -14,9 +13,9 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Page, PriceOverrideProposalItem, Product } from '@/lib/types';
 
-// Design 7a — Tata kelola harga. Base prices are real (catalog basePrice). The depot→HQ
-// override-approval queue (right) is now real (depot-service price-overrides). Only the
-// per-product override counts on the base list have no aggregate endpoint (badged).
+// Design 7a — Tata kelola harga. Base prices are real (catalog basePrice); the depot→HQ
+// override-approval queue (right) and the per-product pending-override counts on the base
+// list are now real (depot-service price-overrides + count-by-product).
 export default function HqPricingPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -24,6 +23,10 @@ export default function HqPricingPage() {
   const queueQ = useAsync<Page<PriceOverrideProposalItem>>(() =>
     api.get(endpoints.priceOverrides.queue({ limit: 50 }), true),
   );
+  const countsQ = useAsync<{ productId: string; count: number }[]>(() =>
+    api.get(endpoints.priceOverrides.countByProduct, true),
+  );
+  const overrideCount = new Map((countsQ.data ?? []).map((r) => [r.productId, r.count]));
   const [deciding, setDeciding] = useState<string | null>(null);
 
   async function decide(p: PriceOverrideProposalItem, approved: boolean) {
@@ -85,10 +88,7 @@ export default function HqPricingPage() {
                     <th className="pb-2 font-medium">{t('hq.pricing.base.product')}</th>
                     <th className="pb-2 text-right font-medium">{t('hq.pricing.base.price')}</th>
                     <th className="pb-2 text-right font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        {t('hq.pricing.base.overridesCol')}
-                        <StubBadge />
-                      </span>
+                      {t('hq.pricing.base.overridesCol')}
                     </th>
                   </tr>
                 </thead>
@@ -103,7 +103,7 @@ export default function HqPricingPage() {
                         <Money amount={p.basePrice} />
                       </td>
                       <td className="py-2.5 text-right tabular-nums text-muted">
-                        {t('hq.pricing.base.overrides', { n: stubOverrideCount(p.id) })}
+                        {t('hq.pricing.base.overrides', { n: overrideCount.get(p.id) ?? 0 })}
                       </td>
                     </tr>
                   ))}

@@ -94,6 +94,14 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       }));
   }
 
+  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+    const map = new Map<string, number>();
+    for (const r of this.redemptions) {
+      map.set(r.voucherId, (map.get(r.voucherId) ?? 0) + r.discountApplied);
+    }
+    return [...map.entries()].map(([voucherId, burned]) => ({ voucherId, burned }));
+  }
+
   async findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null> {
     const r = this.redemptions.find((x) => x.orderId === orderId);
     return r ? { ...r } : null;

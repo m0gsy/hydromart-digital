@@ -143,6 +143,14 @@ export const endpoints = {
       const qs = p.toString();
       return `/payments/api/v1/payments/unsettled-by-method${qs ? `?${qs}` : ''}`;
     },
+    // HQ report export (10a): network collected (PAID) revenue by method (FINANCE/SUPER_ADMIN).
+    revenueByMethod: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/payments/api/v1/payments/revenue-by-method${qs ? `?${qs}` : ''}`;
+    },
   },
   // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.
   audit: {
@@ -238,6 +246,8 @@ export const endpoints = {
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
     // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.
     browse: (page = 1, limit = 50) => `/vouchers/api/v1/vouchers?page=${page}&limit=${limit}`,
+    // HQ voucher governance (14b): real rupiah burned per voucher + network total.
+    burnSummary: '/vouchers/api/v1/vouchers/burn-summary',
     create: '/vouchers/api/v1/vouchers',
     // PATCH to edit, DELETE to deactivate.
     detail: (id: string) => `/vouchers/api/v1/vouchers/${id}`,
@@ -551,6 +561,8 @@ export const endpoints = {
     approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
     reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
     propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
+    // Per-product pending-override counts for the 7a base list.
+    countByProduct: '/depots/api/v1/price-overrides/count-by-product',
   },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {

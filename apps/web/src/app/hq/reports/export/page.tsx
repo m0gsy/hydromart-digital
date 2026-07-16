@@ -5,17 +5,18 @@ import { Export } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import {
-  EXPORT_BY_METHOD_STUB,
-  EXPORT_BY_PRODUCT_STUB,
-  StubBadge,
-  type ExportRow,
-} from '@/lib/hq/stubs';
+import type { ExportRow } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, ExecutiveDashboard, Page } from '@/lib/types';
+import type {
+  DepotAdmin,
+  ExecutiveDashboard,
+  Page,
+  RevenueByProduct,
+  UnsettledMethodBucket,
+} from '@/lib/types';
 
 type RangeKey = 'd7' | 'd30' | 'quarter' | 'custom';
 type GroupKey = 'depot' | 'product' | 'method';
@@ -31,9 +32,9 @@ function isoDay(offsetDays = 0): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Design 10a — Ekspor laporan pendapatan. Depot grouping is real (executive topDepots
-// joined to depot names); Produk/Metode groupings have no aggregate endpoint → stub.
-// The export itself has no job endpoint → stub handler + toast.
+// Design 10a — Ekspor laporan pendapatan. All three groupings are real: depot (executive
+// topDepots joined to names), produk (order-service revenue-by-product), metode
+// (payment-service collected-by-method). The export job itself has no endpoint → toast.
 export default function HqReportsExportPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -66,6 +67,16 @@ export default function HqReportsExportPage() {
     () => api.get(endpoints.dashboard.executive({ from: fromIso, to: toIso }), true),
     [fromIso, toIso],
   );
+  // Product grouping: order-service revenue-by-product. Method grouping: payment-service
+  // collected (PAID) revenue by method. Both real; fetched on the active window.
+  const byProduct = useAsync<RevenueByProduct>(
+    () => api.get(endpoints.reports.revenueByCategory({ from: fromIso, to: toIso, limit: 50 }), true),
+    [fromIso, toIso],
+  );
+  const byMethod = useAsync<UnsettledMethodBucket[]>(
+    () => api.get(endpoints.payments.revenueByMethod({ from: fromIso, to: toIso }), true),
+    [fromIso, toIso],
+  );
 
   // Real rows for the "depot" grouping: join executive topDepots to depot names.
   const depotRows: ExportRow[] = (() => {
@@ -76,13 +87,20 @@ export default function HqReportsExportPage() {
       revenue: r.revenue,
     }));
   })();
+  const productRows: ExportRow[] = (byProduct.data?.items ?? []).map((r) => ({
+    label: r.productName,
+    orders: r.orderCount,
+    revenue: r.revenue,
+  }));
+  const methodRows: ExportRow[] = (byMethod.data ?? []).map((r) => ({
+    label: t(`hq.payments.unsettled.method.${r.method}`),
+    orders: r.count,
+    revenue: r.amount,
+  }));
 
   const isDepot = group === 'depot';
-  const rows: ExportRow[] = isDepot
-    ? depotRows
-    : group === 'product'
-      ? EXPORT_BY_PRODUCT_STUB
-      : EXPORT_BY_METHOD_STUB;
+  const active = group === 'depot' ? dash : group === 'product' ? byProduct : byMethod;
+  const rows: ExportRow[] = isDepot ? depotRows : group === 'product' ? productRows : methodRows;
 
   function runExport() {
     // STUB: no report-export job endpoint — Milestone D.
@@ -158,7 +176,6 @@ export default function HqReportsExportPage() {
                 className={`${CHIP} inline-flex items-center gap-1.5 ${group === g ? 'bg-brand-600 text-on-brand' : 'surface-elevated border border-app text-muted hover:bg-brand-50'}`}
               >
                 {t(`hq.reportsExport.group.${g}`)}
-                {g !== 'depot' && <StubBadge />}
               </button>
             ))}
           </div>
@@ -169,12 +186,11 @@ export default function HqReportsExportPage() {
       <Card className="flex flex-col p-5">
         <h2 className="mb-3 flex items-center gap-2 font-semibold">
           {t('hq.reportsExport.preview')}
-          {!isDepot && <StubBadge />}
         </h2>
-        {isDepot && (depots.loading || dash.loading) ? (
+        {active.loading || (isDepot && depots.loading) ? (
           <Skeleton className="h-40 w-full" />
-        ) : isDepot && dash.error ? (
-          <ErrorState message={dash.error} onRetry={dash.reload} />
+        ) : active.error ? (
+          <ErrorState message={active.error} onRetry={active.reload} />
         ) : rows.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted">{t('hq.reportsExport.empty')}</p>
         ) : (

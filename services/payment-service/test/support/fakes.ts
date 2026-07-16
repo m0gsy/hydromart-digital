@@ -95,6 +95,20 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return [...map.entries()].map(([method, v]) => ({ method, ...v }));
   }
 
+  async aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    const map = new Map<PaymentMethod, { amount: number; count: number }>();
+    for (const r of this.rows) {
+      if (r.status !== PaymentStatus.PAID) continue;
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt > range.to) continue;
+      const e = map.get(r.method) ?? { amount: 0, count: 0 };
+      e.amount += r.amount;
+      e.count += 1;
+      map.set(r.method, e);
+    }
+    return [...map.entries()].map(([method, v]) => ({ method, ...v }));
+  }
+
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, patch, { updatedAt: nextDate() });

@@ -80,6 +80,20 @@ export class PaymentController {
     });
   }
 
+  // HQ report export (design 10a): network-wide collected (PAID) revenue grouped by
+  // method. Declared before ':id' so the static segment wins. Read-only aggregate.
+  @Get('revenue-by-method')
+  @Roles(...SETTLEMENT_READ_ROLES)
+  @ApiOperation({ summary: 'Network collected revenue grouped by method (finance/super-admin)' })
+  revenueByMethod(
+    @Query() query: UnsettledByMethodQueryDto,
+  ): Promise<UnsettledMethodAggregate[]> {
+    return this.payments.revenueByMethod({
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
+  }
+
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
   // threshold, newest first. Declared before ':id' so the static segment wins.
   @Get('refunds/queue')

@@ -439,15 +439,15 @@ export const hq = {
     subtitle: 'Network promo budget & vouchers',
     newVoucher: 'New voucher',
     budget: {
-      title: 'Network promo budget · 30 days',
-      used: '{used} of {total} used',
+      title: 'Network voucher spend',
+      total: 'Total discount burned',
       active: '{n} active vouchers',
     },
     pending: '{n} depot voucher requests awaiting approval',
     list: {
       title: 'Active vouchers',
       used: '{n} used',
-      burn: 'Budget used',
+      burn: 'Burned',
       empty: 'No active vouchers yet.',
     },
   },

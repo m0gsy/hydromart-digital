@@ -138,6 +138,24 @@ export class PaymentPrismaRepository implements PaymentRepository {
     }));
   }
 
+  async aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    const createdAt =
+      range.from || range.to
+        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) }
+        : undefined;
+    const grouped = await this.prisma.payment.groupBy({
+      by: ['method'],
+      where: { status: PaymentStatus.PAID, ...(createdAt ? { createdAt } : {}) },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    return grouped.map((g) => ({
+      method: g.method as PaymentMethod,
+      amount: g._sum.amount ? Number(g._sum.amount) : 0,
+      count: g._count._all,
+    }));
+  }
+
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = await this.prisma.payment.update({ where: { id }, data: patch });
     return this.toRecord(row);

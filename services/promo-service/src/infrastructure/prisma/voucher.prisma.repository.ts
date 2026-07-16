@@ -97,6 +97,17 @@ export class VoucherPrismaRepository implements VoucherRepository {
     });
   }
 
+  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+    const grouped = await this.prisma.voucherRedemption.groupBy({
+      by: ['voucherId'],
+      _sum: { discountApplied: true },
+    });
+    return grouped.map((g) => ({
+      voucherId: g.voucherId,
+      burned: g._sum.discountApplied ?? 0,
+    }));
+  }
+
   async listForCustomer(
     customerId: string,
   ): Promise<{ voucher: VoucherRecord; customerRedemptions: number }[]> {

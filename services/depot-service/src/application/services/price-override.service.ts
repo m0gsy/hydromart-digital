@@ -72,6 +72,13 @@ export class PriceOverrideService {
     return buildPage(items, total, filter.page, filter.limit);
   }
 
+  /** Per-product proposal count (7a base list); HQ defaults to the PENDING queue. */
+  countByProduct(status: PriceOverrideStatus = PriceOverrideStatus.PENDING): Promise<
+    { productId: string; count: number }[]
+  > {
+    return this.proposals.countByProduct(status);
+  }
+
   async approve(id: string, decidedBy: string): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();

@@ -108,6 +108,22 @@ export class VoucherService {
   }
 
   /**
+   * HQ voucher governance (design 14b): real rupiah discount burned per voucher plus
+   * the network total. `byVoucher` is keyed by voucher id; vouchers with no redemption
+   * are absent (the UI defaults them to 0). No budget cap exists as data.
+   */
+  async burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    const rows = await this.repo.sumRedemptionsByVoucher();
+    const byVoucher: Record<string, number> = {};
+    let totalUsed = 0;
+    for (const r of rows) {
+      byVoucher[r.voucherId] = r.burned;
+      totalUsed += r.burned;
+    }
+    return { totalUsed, byVoucher };
+  }
+
+  /**
    * Preview the discount a voucher would grant for a customer's order. Runs the
    * full validation (throws on any failing rule) but has NO side effect.
    */

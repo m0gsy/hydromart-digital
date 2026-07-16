@@ -80,6 +80,9 @@ export interface VoucherRepository {
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
 
+  /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
+  sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;
+
   /**
    * Active vouchers paired with this customer's redemption count for each, for
    * the wallet view. One query per side (no N+1).
