@@ -10,7 +10,8 @@
 //   STORAGE_PUBLIC_BASE_URL=https://nos.jkt-1.neo.id/hydromart-pod \
 //   node scripts/verify-object-storage.mjs
 //
-// It: sets a public-read bucket policy, PutObjects a probe file, then GETs the
+// It: sets a public-read bucket policy, sets a UU PDP lifecycle rule (expire pod/*
+// after POD_RETENTION_DAYS, default 365), PutObjects a probe file, then GETs the
 // returned public URL and checks the bytes round-trip. Exit 0 = storage is ready.
 
 import { randomUUID } from 'node:crypto';
@@ -18,6 +19,7 @@ import {
   S3Client,
   PutObjectCommand,
   PutBucketPolicyCommand,
+  PutBucketLifecycleConfigurationCommand,
 } from '@aws-sdk/client-s3';
 
 const env = (k) => {
@@ -33,6 +35,8 @@ const endpoint = env('STORAGE_S3_ENDPOINT');
 const region = process.env.STORAGE_S3_REGION || 'us-east-1';
 const bucket = env('STORAGE_S3_BUCKET');
 const publicBase = env('STORAGE_PUBLIC_BASE_URL').replace(/\/+$/, '');
+// UU PDP retention: expire pod/* files on the same window the DB purge uses.
+const retentionDays = Number(process.env.POD_RETENTION_DAYS || 365);
 
 const client = new S3Client({
   region,
@@ -65,6 +69,29 @@ async function main() {
     console.log('✓ public-read bucket policy set');
   } catch (e) {
     console.warn(`! could not set bucket policy (${e.name}); set public access in the console instead`);
+  }
+
+  // 1b) UU PDP retention: bucket lifecycle rule expiring pod/* after the window.
+  //     Only applies to the pod bucket (prefix-filtered, so harmless elsewhere).
+  try {
+    await client.send(
+      new PutBucketLifecycleConfigurationCommand({
+        Bucket: bucket,
+        LifecycleConfiguration: {
+          Rules: [
+            {
+              ID: 'expire-pod-uu-pdp',
+              Status: 'Enabled',
+              Filter: { Prefix: 'pod/' },
+              Expiration: { Days: retentionDays },
+            },
+          ],
+        },
+      }),
+    );
+    console.log(`✓ lifecycle rule set: expire pod/* after ${retentionDays}d`);
+  } catch (e) {
+    console.warn(`! could not set lifecycle rule (${e.name}); set pod/* expiry ${retentionDays}d in the console`);
   }
 
   // 2) Upload a probe object (mirrors the adapter's key shape / content-type).
