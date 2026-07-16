@@ -48,6 +48,25 @@ model LedgerEntry {
   @@map("ledger_entries")
 }
 
+/// Per-depot franchise commission scheme (design 21c "Skema komisi"). Effective-dated:
+/// the row with the latest effectiveDate is a depot's current payout percentage.
+/// "Terapkan skema baru" appends a new row per depot rather than mutating in place, so
+/// the change is auditable and time-scoped. Append-only — never updated.
+model CommissionScheme {
+  id            String   @id @default(uuid()) @db.Uuid
+  depotId       String   @db.Uuid
+  /// Denormalized owner display name (design shows the owner beside each depot).
+  ownerName     String?
+  /// Franchise payout percentage (0..100), e.g. 20.00.
+  pct           Decimal  @db.Decimal(5, 2)
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  // Current-scheme lookup reads the newest effectiveDate per depot.
+  @@index([depotId, effectiveDate])
+  @@map("commission_schemes")
+}
+
 /// A franchise owner's request to cash out available balance to their bank account.
 model Withdrawal {
   id               String           @id @default(uuid()) @db.Uuid

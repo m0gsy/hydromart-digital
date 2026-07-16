@@ -35,15 +35,20 @@ function formFromDepot(d: DepotAdmin): DepotForm {
 // depot console; only the presentation (RadioCard ownership) differs.
 export function DepotForm({
   depot,
+  initial,
   onDone,
   onCancel,
 }: {
   depot: DepotAdmin | null;
+  // Prefill for a new depot (e.g. an approved franchise application). Ignored when editing.
+  initial?: Partial<DepotForm>;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const { t } = useT();
-  const [form, setForm] = useState<DepotForm>(depot ? formFromDepot(depot) : EMPTY_DEPOT_FORM);
+  const [form, setForm] = useState<DepotForm>(
+    depot ? formFromDepot(depot) : { ...EMPTY_DEPOT_FORM, ...initial },
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) =>

@@ -168,10 +168,8 @@ export const EXPORT_BY_METHOD_STUB: ExportRow[] = [
   { label: 'Tunai', orders: 300, revenue: 6_000_000 },
 ];
 
-// STUB: per-depot commission scheme % (no scheme-config endpoint) — Milestone D.
-export function stubCommissionPct(depotId: string): number {
-  return 18 + (hash(depotId) % 5); // 18..22
-}
+// Commission scheme % per depot is now REAL: payout-service commission-schemes track
+// (endpoints.commission.*). The old stubCommissionPct was removed.
 
 // STUB: segment size estimate (no segment endpoint) — Milestone D.
 export function stubSegmentEstimate(conditionCount: number): number {
@@ -264,64 +262,8 @@ export function stubBroadcastReach(audience: string): number {
 // Relative times are stored as minutes-ago numbers so rendering is client-safe (no
 // server/client Date mismatch).
 
-// STUB: franchise-application pipeline — real backend track (no franchise-intake service).
-export interface ApplicationRow {
-  id: string;
-  applicant: string;
-  proposedName: string;
-  city: string;
-  phone: string;
-  email: string;
-  stage: 'baru' | 'dokumen' | 'survei' | 'kontrak';
-  ageDays: number;
-  docs: { ktp: boolean; npwp: boolean; location: boolean; deposit: boolean; agreement: boolean };
-}
-export const APPLICATION_QUEUE_STUB: ApplicationRow[] = [
-  {
-    id: 'app-1',
-    applicant: 'Rudi Hartono',
-    proposedName: 'Depot Sumber Jernih',
-    city: 'Depok',
-    phone: '0812-1111-2222',
-    email: 'rudi.h@example.com',
-    stage: 'baru',
-    ageDays: 6,
-    docs: { ktp: true, npwp: false, location: true, deposit: false, agreement: false },
-  },
-  {
-    id: 'app-2',
-    applicant: 'Maya Kusuma',
-    proposedName: 'Depot Tirta Sari',
-    city: 'Tangerang',
-    phone: '0813-3333-4444',
-    email: 'maya.k@example.com',
-    stage: 'dokumen',
-    ageDays: 4,
-    docs: { ktp: true, npwp: true, location: true, deposit: false, agreement: false },
-  },
-  {
-    id: 'app-3',
-    applicant: 'Doni Prasetyo',
-    proposedName: 'Depot Air Murni',
-    city: 'Bogor',
-    phone: '0814-5555-6666',
-    email: 'doni.p@example.com',
-    stage: 'survei',
-    ageDays: 2,
-    docs: { ktp: true, npwp: true, location: true, deposit: true, agreement: false },
-  },
-  {
-    id: 'app-4',
-    applicant: 'Linda Wijaya',
-    proposedName: 'Depot Segar Alami',
-    city: 'Bekasi',
-    phone: '0815-7777-8888',
-    email: 'linda.w@example.com',
-    stage: 'kontrak',
-    ageDays: 1,
-    docs: { ktp: true, npwp: true, location: true, deposit: true, agreement: true },
-  },
-];
+// The franchise-application pipeline is now REAL: depot-service franchise-applications
+// track (endpoints.franchiseApps.*). The old APPLICATION_QUEUE_STUB was removed.
 
 // STUB: cross-service audit trail — real backend track (no aggregate audit endpoint).
 export interface AuditRow {

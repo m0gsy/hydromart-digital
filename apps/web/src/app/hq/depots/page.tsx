@@ -8,9 +8,12 @@ import { DepotForm } from '@/components/hq/depot-form';
 import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import type { DepotForm as DepotFormValues } from '@/lib/depots';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin, Page } from '@/lib/types';
+
+const PREFILL_KEY = 'hq.onboard.prefill';
 
 // Design 3a — network depot directory. Search filters client-side; the row opens the
 // depot detail drill-down; onboard opens the shared DepotForm.
@@ -19,12 +22,24 @@ export default function HqDepotsPage() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
+  const [prefill, setPrefill] = useState<Partial<DepotFormValues>>();
 
   // Real provision handoff: application approval / onboarding checklist link here with
   // ?onboard=1 to auto-open the onboard form (window.location avoids the useSearchParams
-  // Suspense-boundary requirement during static generation).
+  // Suspense-boundary requirement during static generation). An approved application also
+  // stashes its proposed-depot fields in sessionStorage to prefill the form.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('onboard')) setCreating(true);
+    if (!new URLSearchParams(window.location.search).get('onboard')) return;
+    setCreating(true);
+    const stashed = sessionStorage.getItem(PREFILL_KEY);
+    if (stashed) {
+      try {
+        setPrefill(JSON.parse(stashed) as Partial<DepotFormValues>);
+      } catch {
+        // Ignore a malformed stash — the form just opens blank.
+      }
+      sessionStorage.removeItem(PREFILL_KEY);
+    }
   }, []);
 
   const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
@@ -41,6 +56,7 @@ export default function HqDepotsPage() {
 
   function closeForm() {
     setCreating(false);
+    setPrefill(undefined);
     list.reload();
   }
 
@@ -57,7 +73,17 @@ export default function HqDepotsPage() {
         {!creating && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
       </div>
 
-      {creating && <DepotForm depot={null} onDone={closeForm} onCancel={() => setCreating(false)} />}
+      {creating && (
+        <DepotForm
+          depot={null}
+          initial={prefill}
+          onDone={closeForm}
+          onCancel={() => {
+            setCreating(false);
+            setPrefill(undefined);
+          }}
+        />
+      )}
 
       <div className="relative">
         <MagnifyingGlass

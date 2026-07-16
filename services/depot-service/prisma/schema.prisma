@@ -210,6 +210,47 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+/// Prospective-franchise application lifecycle (HQ approvals queue, design 5a/5b).
+/// PENDING -> DOC_VERIFICATION -> SURVEY -> APPROVED / REJECTED.
+enum FranchiseAppStage {
+  PENDING
+  DOC_VERIFICATION
+  SURVEY
+  APPROVED
+  REJECTED
+}
+
+/// An HQ-reviewed application to open a new franchise (WARALABA) depot. The proposed
+/// depot fields double as the onboard-form prefill returned on approval. The document
+/// checklist (KTP&NPWP, location-ownership proof, capital deposit, field survey) is a
+/// JSON map of item -> status, mirroring how the schema stores operatingHours/holidays.
+model FranchiseApplication {
+  id                      String            @id @default(uuid()) @db.Uuid
+  applicantName           String
+  applicantPhone          String
+  /// Proposed depot short code (becomes the depot `code` on onboard).
+  proposedCode            String
+  proposedName            String
+  city                    String
+  province                String
+  lat                     Float
+  lng                     Float
+  /// Applicant's stated investment (IDR).
+  investmentAmount        Decimal           @db.Decimal(14, 2)
+  /// Applicant's projected monthly revenue (IDR).
+  projectedMonthlyRevenue Decimal           @db.Decimal(14, 2)
+  /// { ktpNpwp, locationProof, capitalDeposit, fieldSurvey } each = PENDING|VERIFIED|REJECTED.
+  checklist               Json              @default("{}")
+  stage                   FranchiseAppStage @default(PENDING)
+  submittedAt             DateTime          @default(now())
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  // Oldest-first SLA queue reads by (stage, submittedAt).
+  @@index([stage, submittedAt])
+  @@map("franchise_applications")
+}
+
 enum PricingAdjustType {
   PERCENT
   FIXED

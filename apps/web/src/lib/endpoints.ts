@@ -333,6 +333,26 @@ export const endpoints = {
       return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
     },
   },
+  // HQ franchise-application approvals queue (depot-service, HEAD_OFFICE/SUPER_ADMIN).
+  franchiseApps: {
+    list: (q: { page?: number; limit?: number; stage?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.stage) p.set('stage', q.stage);
+      const qs = p.toString();
+      return `/depots/api/v1/franchise-applications${qs ? `?${qs}` : ''}`;
+    },
+    detail: (id: string) => `/depots/api/v1/franchise-applications/${id}`,
+    // PATCH stage/checklist.
+    approve: (id: string) => `/depots/api/v1/franchise-applications/${id}/approve`,
+    reject: (id: string) => `/depots/api/v1/franchise-applications/${id}/reject`,
+  },
+  // HQ commission-scheme config (payout-service, FINANCE/SUPER_ADMIN).
+  commission: {
+    schemes: '/payout/api/v1/commission/schemes',
+    apply: '/payout/api/v1/commission/schemes/apply',
+  },
   // Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).
   payout: {
     summary: '/payout/api/v1/payout/summary',

@@ -15,3 +15,11 @@ export class InvalidWithdrawalAmountError extends DomainError {
     super('Withdrawal amount must be greater than zero.');
   }
 }
+
+export class InvalidCommissionSchemeError extends DomainError {
+  readonly code = 'COMMISSION_INVALID_SCHEME';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message = 'Commission percentage must be between 0 and 100.') {
+    super(message);
+  }
+}

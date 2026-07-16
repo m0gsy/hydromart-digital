@@ -5,4 +5,5 @@ export const DEPOT_TOKENS = {
   PricingRuleRepository: Symbol('PricingRuleRepository'),
   GallonReturnRepository: Symbol('GallonReturnRepository'),
   GallonIssueRepository: Symbol('GallonIssueRepository'),
+  FranchiseApplicationRepository: Symbol('FranchiseApplicationRepository'),
 } as const;

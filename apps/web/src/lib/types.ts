@@ -629,6 +629,56 @@ export interface PayoutSummary {
   recentWithdrawals: Withdrawal[];
 }
 
+// HQ franchise-application approvals (depot-service, design 5a/5b).
+export type FranchiseAppStage = 'PENDING' | 'DOC_VERIFICATION' | 'SURVEY' | 'APPROVED' | 'REJECTED';
+export type ChecklistItemStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type ChecklistItem = 'ktpNpwp' | 'locationProof' | 'capitalDeposit' | 'fieldSurvey';
+export type ApplicationChecklist = Record<ChecklistItem, ChecklistItemStatus>;
+
+export interface FranchiseApplication {
+  id: string;
+  applicantName: string;
+  applicantPhone: string;
+  proposedCode: string;
+  proposedName: string;
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+  investmentAmount: number;
+  projectedMonthlyRevenue: number;
+  checklist: ApplicationChecklist;
+  stage: FranchiseAppStage;
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Onboard-form prefill returned by POST /franchise-applications/:id/approve.
+export interface ProposedDepot {
+  code: string;
+  name: string;
+  ownershipType: 'WARALABA';
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+}
+export interface ApproveApplicationResult {
+  application: FranchiseApplication;
+  proposedDepot: ProposedDepot;
+}
+
+// HQ commission scheme per depot (payout-service, design 21c).
+export interface CommissionScheme {
+  id: string;
+  depotId: string;
+  ownerName: string | null;
+  pct: number;
+  effectiveDate: string;
+  createdAt: string;
+}
+
 // Per-depot payment destination (franchise: money goes direct to each depot).
 // Static QRIS + bank account shown to the customer at pay time; confirmed by staff.
 export interface DepotPaymentInfo {

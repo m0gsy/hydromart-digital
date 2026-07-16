@@ -5,32 +5,66 @@ import { Percent } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Input, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubCommissionPct } from '@/lib/hq/stubs';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, Page } from '@/lib/types';
+import type { CommissionScheme, DepotAdmin, Page } from '@/lib/types';
 
-// Design 21c — Skema komisi per depot. There is no commission-scheme endpoint, so the
-// whole table is a stub: current % is sample data, the "new %" inputs are local, and
-// "Apply" persists via a toast only. The depot list itself is real.
+// Design 21c — Skema komisi per depot (real payout-service track). Current % comes from
+// commission-service (latest effective scheme per depot); "Apply" POSTs a new scheme for
+// every changed depot with the chosen effective date. The depot list itself is real too.
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function HqCommissionFormPage() {
   const { t } = useT();
   const { toast } = useToast();
   const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const schemes = useAsync<CommissionScheme[]>(() => api.get(endpoints.commission.schemes, true));
 
   // Local edits: depotId -> new percent string. Undefined = unchanged (shows current).
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [effectiveDate, setEffectiveDate] = useState(todayIso());
+  const [busy, setBusy] = useState(false);
 
-  if (depots.loading) return <Skeleton className="h-96 w-full" />;
+  if (depots.loading || schemes.loading) return <Skeleton className="h-96 w-full" />;
   if (depots.error) return <ErrorState message={depots.error} onRetry={depots.reload} />;
+  if (schemes.error) return <ErrorState message={t('hq.forms.commission.loadError')} onRetry={schemes.reload} />;
 
   const items = depots.data?.items ?? [];
+  // depotId -> current pct (from the latest effective scheme).
+  const currentByDepot = new Map((schemes.data ?? []).map((s) => [s.depotId, s.pct]));
 
-  function apply() {
-    // STUB: no commission-scheme endpoint — Milestone D.
-    toast(t('hq.forms.commission.applied'), 'success');
+  async function apply() {
+    // Only depots whose input differs from the current pct are re-applied.
+    const changed = items
+      .map((d) => {
+        const raw = edits[d.id];
+        if (raw === undefined) return null;
+        const pct = Number(raw);
+        if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
+        if (pct === currentByDepot.get(d.id)) return null;
+        return { depotId: d.id, ownerName: d.name, pct };
+      })
+      .filter((x): x is { depotId: string; ownerName: string; pct: number } => x !== null);
+
+    if (changed.length === 0) {
+      toast(t('hq.forms.commission.applied'), 'success');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.post(endpoints.commission.apply, { effectiveDate, items: changed }, true);
+      toast(t('hq.forms.commission.applied'), 'success');
+      setEdits({});
+      schemes.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.forms.commission.applyError'), 'error');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -38,10 +72,7 @@ export default function HqCommissionFormPage() {
       <div className="flex items-center gap-2">
         <Percent size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold">
-            {t('hq.forms.commission.title')}
-            <StubBadge />
-          </h1>
+          <h1 className="text-2xl font-bold">{t('hq.forms.commission.title')}</h1>
           <p className="text-sm text-muted">{t('hq.forms.commission.subtitle')}</p>
         </div>
       </div>
@@ -61,15 +92,17 @@ export default function HqCommissionFormPage() {
               </thead>
               <tbody className="divide-y divide-[color:var(--border)]">
                 {items.map((d) => {
-                  const current = stubCommissionPct(d.id);
-                  const next = edits[d.id] ?? String(current);
+                  const current = currentByDepot.get(d.id);
+                  const next = edits[d.id] ?? (current !== undefined ? String(current) : '');
                   return (
                     <tr key={d.id}>
                       <td className="py-2.5">
                         <p className="font-medium">{d.name}</p>
                         <p className="text-xs text-muted">{d.code}</p>
                       </td>
-                      <td className="py-2.5 text-right tabular-nums text-muted">{current}%</td>
+                      <td className="py-2.5 text-right tabular-nums text-muted">
+                        {current !== undefined ? `${current}%` : t('hq.forms.commission.noScheme')}
+                      </td>
                       <td className="py-2.5 text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Input
@@ -90,8 +123,16 @@ export default function HqCommissionFormPage() {
         )}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-app pt-3">
-          <p className="text-xs font-medium text-muted">{t('hq.forms.commission.effective')}</p>
-          <Button onClick={apply}>{t('hq.forms.commission.apply')}</Button>
+          <label className="flex items-center gap-2 text-xs font-medium text-muted">
+            {t('hq.forms.commission.effectiveLabel')}
+            <Input
+              type="date"
+              value={effectiveDate}
+              onChange={(e) => setEffectiveDate(e.target.value)}
+              className="w-40"
+            />
+          </label>
+          <Button onClick={apply} loading={busy}>{t('hq.forms.commission.apply')}</Button>
         </div>
       </Card>
     </div>
