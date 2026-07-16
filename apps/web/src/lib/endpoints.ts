@@ -361,4 +361,11 @@ export const endpoints = {
       return `/dashboard/api/v1/dashboard/franchise${qs ? `?${qs}` : ''}`;
     },
   },
+  // HQ console (Milestone A) — no net-new backend. The network overview reuses the
+  // real executive dashboard endpoint. Global search assembles client-side from the
+  // existing per-service list endpoints (depots.manage / auth.staff / orders.manage);
+  // a dedicated /search endpoint is a later milestone.
+  hq: {
+    overview: (q: { from?: string; to?: string } = {}) => endpoints.dashboard.executive(q),
+  },
 } as const;

@@ -10,6 +10,7 @@ import { onboarding } from './en/onboarding';
 import { review } from './en/review';
 import { subscriptions } from './en/subscriptions';
 import { ops } from './en/ops';
+import { hq } from './en/hq';
 import { privacy } from './en/privacy';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
@@ -105,5 +106,6 @@ export const en: Dictionary = {
   review,
   subscriptions,
   ops,
+  hq,
   privacy,
 };

@@ -14,6 +14,16 @@ export function isStaff(role: string | null | undefined): boolean {
   return role != null && role !== '' && role !== 'CUSTOMER';
 }
 
+/**
+ * HQ console gate (SUPER_ADMIN + HEAD_OFFICE only). Deliberately NOT a capability
+ * in @hydromart/access — the "Peran & hak akses" matrix must stay 20×8, and
+ * DEPOT_MANAGER holds `dashboard` but is denied HQ (design 20c). So HQ reach is
+ * its own coarse gate over these two head-of-network roles.
+ */
+export function isHq(role: string | null | undefined): boolean {
+  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN';
+}
+
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);
 export const canViewInventory = (role: string | null | undefined) => can('inventoryRead', role);
 export const canWriteInventory = (role: string | null | undefined) => can('inventoryWrite', role);
