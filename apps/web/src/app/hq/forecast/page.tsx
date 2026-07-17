@@ -3,7 +3,6 @@
 import { ChartLineUp } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
-import { StubBadge, stubForecastConfidence } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { trendLabel } from '@/lib/forecast';
@@ -14,7 +13,7 @@ import type { ForecastResult, Page, Product } from '@/lib/types';
 const HORIZON = 14;
 
 // Design 17a — network demand forecast. Loops the catalog and calls forecast.demand per
-// product (all real). Confidence has no endpoint field → sampled per product, badged.
+// product (all real, incl. confidence derived from each product's history).
 export default function HqForecastPage() {
   const { t } = useT();
 
@@ -59,7 +58,7 @@ export default function HqForecastPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           {rows.map(({ product, forecast }) => {
             const current = Math.round(forecast.avgDaily * HORIZON);
-            const confidence = stubForecastConfidence(product.id);
+            const confidence = forecast.confidence;
             return (
               <Card key={product.id} className="flex flex-col gap-3 p-4">
                 <div className="flex items-start justify-between gap-2">
@@ -86,7 +85,6 @@ export default function HqForecastPage() {
                 <div className="flex items-center gap-2 border-t border-app pt-2">
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted">
                     {t('hq.forecast.confidence')}
-                    <StubBadge />
                   </span>
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
                     <div className="h-full rounded-full bg-green-500" style={{ width: `${Math.round(confidence * 100)}%` }} />

@@ -83,10 +83,9 @@ export interface ExportRow {
 // now REAL too: dashboard roll-up forwards order-service rating-by-depot (AVG over
 // OrderReview joined to the order's depot). The old stubDepotRating was removed.
 
-// STUB: forecast-service returns no confidence score — Milestone D. Sampled per product.
-export function stubForecastConfidence(productId: string): number {
-  return 0.7 + (hash(productId) % 28) / 100; // 0.70..0.97
-}
+// Forecast confidence (17a) is now REAL: forecast-service derives it per product from the
+// history series (demand density, stability, sample length). See ForecastResult.confidence.
+// The old stubForecastConfidence was removed.
 
 // Customer lifetime value (17e) is now REAL: order-service GET /reports/customer/:id
 // (endpoints.reports.customer). The old stubCustomerLifetimeValue was removed.

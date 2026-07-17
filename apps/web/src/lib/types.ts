@@ -919,6 +919,7 @@ export interface ForecastItem {
 // Single-product forecast + its history window (mirrors forecast-service ForecastResult).
 export interface ForecastResult extends ForecastItem {
   predictedDaily: number[];
+  confidence: number; // 0..1 trust in the projection (history density/stability/length)
   history: number[];
 }
 
