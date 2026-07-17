@@ -5,22 +5,22 @@ import { UserCircle } from '@phosphor-icons/react';
 
 import { Button, Card, Input, Money } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import type { Customer, CustomerSummary } from '@/lib/types';
+import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
 
 // Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
-// LTV + recent orders are real (order-service reports.customer). Loyalty stays badged
-// (no cross-customer loyalty endpoint yet).
+// LTV + recent orders are real (order-service reports.customer); loyalty tier + points are
+// real (loyalty-service GET loyalty/customers/:id).
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [phone, setPhone] = useState('');
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
+  const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -30,14 +30,20 @@ export default function HqCustomersPage() {
     setError(null);
     setCustomer(null);
     setSummary(null);
+    setLoyalty(null);
     try {
       const c = await api.get<Customer>(endpoints.auth.customerLookup(phone.trim()), true);
       setCustomer(c);
-      // Best-effort: a customer with no orders still shows the profile.
+      // Best-effort: a customer with no orders (or no loyalty account) still shows the profile.
       try {
         setSummary(await api.get<CustomerSummary>(endpoints.reports.customer(c.id), true));
       } catch {
         setSummary(null);
+      }
+      try {
+        setLoyalty(await api.get<LoyaltyAccount>(endpoints.loyalty.byCustomer(c.id), true));
+      } catch {
+        setLoyalty(null);
       }
     } catch (err) {
       setError(err instanceof ApiError && err.status === 404 ? t('hq.customers.notFound') : (err as ApiError).message);
@@ -123,11 +129,29 @@ export default function HqCustomersPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Card className="flex flex-col gap-2 p-5">
-              <h2 className="flex items-center gap-2 font-semibold">
-                {t('hq.customers.loyalty')}
-                <StubBadge />
-              </h2>
-              <p className="text-sm text-muted">{t('hq.customers.loyaltyStub')}</p>
+              <h2 className="font-semibold">{t('hq.customers.loyalty')}</h2>
+              {loyalty ? (
+                <dl className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-muted">{t('hq.customers.loyaltyTier')}</dt>
+                    <dd className="font-bold text-brand-700">{loyalty.tier}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">{t('hq.customers.loyaltyPoints')}</dt>
+                    <dd className="font-semibold tabular-nums">{loyalty.pointsBalance.toLocaleString('id-ID')}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">{t('hq.customers.loyaltyLifetime')}</dt>
+                    <dd className="font-semibold tabular-nums">{loyalty.lifetimePoints.toLocaleString('id-ID')}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted">{t('hq.customers.loyaltyDiscount')}</dt>
+                    <dd className="font-semibold tabular-nums">{Math.round(loyalty.discountRate * 100)}%</dd>
+                  </div>
+                </dl>
+              ) : (
+                <p className="text-sm text-muted">{t('hq.customers.loyaltyNone')}</p>
+              )}
             </Card>
             <Card className="flex flex-col gap-2 p-5">
               <h2 className="font-semibold">{t('hq.customers.recentOrders')}</h2>
