@@ -18,6 +18,7 @@ datasource db {
 enum DiscountType {
   PERCENTAGE
   FIXED
+  FREE_SHIPPING
 }
 
 /// A discount voucher/coupon. `code` is stored UPPERCASE and unique.

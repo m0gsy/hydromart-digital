@@ -81,7 +81,7 @@ export class VoucherController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: QuoteVoucherDto,
   ): Promise<QuoteResult> {
-    return this.vouchers.quote(dto.code, user.sub, dto.subtotal);
+    return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0);
   }
 
   // System-to-system call from order-service at checkout, authenticated by the shared
@@ -94,7 +94,7 @@ export class VoucherController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)' })
   redeem(@Body() dto: RedeemVoucherDto): Promise<RedeemResult> {
-    return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal);
+    return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal, dto.shippingFee ?? 0);
   }
 
   @ApiBearerAuth()

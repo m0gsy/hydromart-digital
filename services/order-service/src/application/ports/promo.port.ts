@@ -14,6 +14,7 @@ export interface PromoPort {
     code: string,
     customerId: string,
     subtotal: number,
+    shippingFee: number,
     authorization: string,
   ): Promise<{ discount: number }>;
 
@@ -22,6 +23,7 @@ export interface PromoPort {
     customerId: string,
     orderId: string,
     subtotal: number,
+    shippingFee: number,
     authorization: string,
   ): Promise<void>;
 }

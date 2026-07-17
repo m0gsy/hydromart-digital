@@ -304,7 +304,7 @@ export interface RewardRedemption {
   pointsBalance: number;
 }
 
-export type DiscountType = 'PERCENTAGE' | 'FIXED';
+export type DiscountType = 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
 
 /** An admin voucher record (vouchers GET /vouchers; admin list includes inactive). */
 export interface Voucher {

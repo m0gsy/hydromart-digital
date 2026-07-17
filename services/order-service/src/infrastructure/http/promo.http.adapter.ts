@@ -21,6 +21,7 @@ export class PromoHttpAdapter implements PromoPort {
     code: string,
     _customerId: string,
     subtotal: number,
+    shippingFee: number,
     authorization: string,
   ): Promise<{ discount: number }> {
     const url = `${this.config.promoServiceUrl}/api/v1/vouchers/quote`;
@@ -31,7 +32,7 @@ export class PromoHttpAdapter implements PromoPort {
       res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization },
-        body: JSON.stringify({ code, subtotal }),
+        body: JSON.stringify({ code, subtotal, shippingFee }),
         signal: controller.signal,
       });
     } catch (error) {
@@ -54,6 +55,7 @@ export class PromoHttpAdapter implements PromoPort {
     customerId: string,
     orderId: string,
     subtotal: number,
+    shippingFee: number,
     _authorization: string,
   ): Promise<void> {
     const { internalServiceKey } = this.config;
@@ -68,7 +70,7 @@ export class PromoHttpAdapter implements PromoPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({ code, customerId, orderId, subtotal }),
+        body: JSON.stringify({ code, customerId, orderId, subtotal, shippingFee }),
         signal: controller.signal,
       });
       if (!res.ok) {

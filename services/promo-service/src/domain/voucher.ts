@@ -14,6 +14,7 @@ import {
 export enum DiscountType {
   PERCENTAGE = 'PERCENTAGE',
   FIXED = 'FIXED',
+  FREE_SHIPPING = 'FREE_SHIPPING',
 }
 
 /** The subset of a voucher the pure domain rules need. */
@@ -31,16 +32,24 @@ export interface VoucherRules {
 }
 
 /**
- * Discount (rupiah) this voucher grants against `subtotal`. PERCENTAGE takes
- * `value`% of the subtotal, floored, capped by `maxDiscount` when set. FIXED
- * takes `value` rupiah. The result never exceeds the subtotal and is never
- * negative.
+ * Discount (rupiah) this voucher grants. PERCENTAGE takes `value`% of the
+ * subtotal, floored, capped by `maxDiscount` when set, never above the subtotal.
+ * FIXED takes `value` rupiah off the subtotal. FREE_SHIPPING waives the delivery
+ * fee (capped by `maxDiscount` when set) — it does not touch the subtotal, so the
+ * caller must supply `shippingFee`. Never negative.
  */
-export function computeDiscount(v: VoucherRules, subtotal: number): number {
-  const raw =
-    v.discountType === DiscountType.PERCENTAGE
-      ? Math.min(Math.floor((subtotal * v.value) / 100), v.maxDiscount ?? Infinity, subtotal)
-      : Math.min(v.value, subtotal);
+export function computeDiscount(v: VoucherRules, subtotal: number, shippingFee = 0): number {
+  let raw: number;
+  switch (v.discountType) {
+    case DiscountType.PERCENTAGE:
+      raw = Math.min(Math.floor((subtotal * v.value) / 100), v.maxDiscount ?? Infinity, subtotal);
+      break;
+    case DiscountType.FREE_SHIPPING:
+      raw = Math.min(shippingFee, v.maxDiscount ?? Infinity);
+      break;
+    default: // FIXED
+      raw = Math.min(v.value, subtotal);
+  }
   return Math.max(0, raw);
 }
 

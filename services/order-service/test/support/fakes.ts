@@ -630,15 +630,18 @@ export class FakeNotification implements NotificationPort {
 export class FakePromo implements PromoPort {
   quoteDiscount = 0;
   rejectQuote = false;
-  redeemCalls: { code: string; orderId: string; subtotal: number }[] = [];
+  quoteCalls: { code: string; subtotal: number; shippingFee: number }[] = [];
+  redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
 
   async quote(
-    _code: string,
+    code: string,
     _customerId: string,
-    _subtotal: number,
+    subtotal: number,
+    shippingFee: number,
     _authorization: string,
   ): Promise<{ discount: number }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
+    this.quoteCalls.push({ code, subtotal, shippingFee });
     return { discount: this.quoteDiscount };
   }
   async redeem(
@@ -646,9 +649,10 @@ export class FakePromo implements PromoPort {
     _customerId: string,
     orderId: string,
     subtotal: number,
+    shippingFee: number,
     _authorization: string,
   ): Promise<void> {
-    this.redeemCalls.push({ code, orderId, subtotal });
+    this.redeemCalls.push({ code, orderId, subtotal, shippingFee });
   }
 }
 

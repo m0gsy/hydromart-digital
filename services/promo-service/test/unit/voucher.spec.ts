@@ -45,6 +45,14 @@ describe('computeDiscount', () => {
     expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 90000 }), 60000)).toBe(60000);
     expect(computeDiscount(rules({ value: 100, maxDiscount: null }), 60000)).toBe(60000);
   });
+
+  it('waives the delivery fee for a FREE_SHIPPING voucher', () => {
+    const v = rules({ discountType: DiscountType.FREE_SHIPPING, value: 0 });
+    expect(computeDiscount(v, 60000, 8000)).toBe(8000); // full shipping fee
+    expect(computeDiscount(v, 60000, 0)).toBe(0); // free pickup → nothing to waive
+    // Capped by maxDiscount when set (e.g. subsidise shipping up to 5000).
+    expect(computeDiscount(rules({ discountType: DiscountType.FREE_SHIPPING, maxDiscount: 5000 }), 60000, 8000)).toBe(5000);
+  });
 });
 
 describe('validateVoucher', () => {

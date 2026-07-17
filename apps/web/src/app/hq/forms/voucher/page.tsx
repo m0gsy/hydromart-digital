@@ -6,7 +6,6 @@ import { Ticket } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -35,15 +34,18 @@ export default function HqVoucherFormPage() {
 
   const num = (s: string) => (s.trim() === '' ? undefined : Number(s));
 
-  // Build the create payload for percent/nominal vouchers. `active:false` saves a draft.
+  const discountType = kind === 'percent' ? 'PERCENTAGE' : kind === 'nominal' ? 'FIXED' : 'FREE_SHIPPING';
+
+  // Build the create payload. `active:false` saves a draft. FREE_SHIPPING carries no
+  // value (0); maxDiscount doubles as an optional shipping-subsidy cap.
   function buildPayload(active: boolean): VoucherPayload {
     return {
       code: code.trim().toUpperCase(),
       description: null,
-      discountType: kind === 'percent' ? 'PERCENTAGE' : 'FIXED',
-      value: Number(value),
+      discountType,
+      value: kind === 'freeShip' ? 0 : Number(value),
       minSpend: num(minOrder) ?? 0,
-      maxDiscount: kind === 'percent' ? num(maxDiscount) ?? null : null,
+      maxDiscount: kind === 'nominal' ? null : num(maxDiscount) ?? null,
       validFrom: null,
       validUntil: null,
       usageLimit: num(quota) ?? null,
@@ -55,14 +57,9 @@ export default function HqVoucherFormPage() {
 
   async function submit(active: boolean) {
     if (!code.trim()) return setError(t('hq.forms.voucher.needCode'));
-
-    // Free shipping has no backend representation → stub publish.
-    if (kind === 'freeShip') {
-      toast(t('hq.forms.voucher.published'), 'success');
-      router.push('/hq/vouchers');
-      return;
+    if (kind !== 'freeShip' && (value.trim() === '' || Number(value) <= 0)) {
+      return setError(t('hq.forms.voucher.needValue'));
     }
-    if (value.trim() === '' || Number(value) <= 0) return setError(t('hq.forms.voucher.needValue'));
 
     setBusy(true);
     setError(null);
@@ -98,7 +95,6 @@ export default function HqVoucherFormPage() {
               <RadioCard key={k} selected={kind === k} onSelect={() => setKind(k)}>
                 <span className="flex items-center gap-1.5 font-semibold">
                   {t(`hq.forms.voucher.${k}`)}
-                  {k === 'freeShip' && <StubBadge />}
                 </span>
               </RadioCard>
             ))}

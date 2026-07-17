@@ -83,6 +83,10 @@ function toPayload(f: VoucherForm, mode: 'create' | 'edit'): VoucherPayload {
 }
 
 function discountLabel(v: Voucher): string {
+  if (v.discountType === 'FREE_SHIPPING') {
+    const cap = v.maxDiscount ? ` (maks Rp ${v.maxDiscount.toLocaleString('id-ID')})` : '';
+    return `Gratis ongkir${cap}`;
+  }
   if (v.discountType === 'PERCENTAGE') {
     const cap = v.maxDiscount ? ` (maks Rp ${v.maxDiscount.toLocaleString('id-ID')})` : '';
     return `${v.value}%${cap}`;
