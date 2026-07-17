@@ -18,12 +18,16 @@ export const endpoints = {
     customerLookup: (phone: string) =>
       `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
     logout: '/auth/api/v1/auth/logout',
+    // Current user's active device sessions (19b) + revoke one by id.
+    sessions: '/auth/api/v1/sessions',
+    revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,
     // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
-    staff: (q: { page?: number; limit?: number; role?: string } = {}) => {
+    staff: (q: { page?: number; limit?: number; role?: string; depotId?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.role) p.set('role', q.role);
+      if (q.depotId) p.set('depotId', q.depotId);
       const qs = p.toString();
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },
@@ -135,6 +139,51 @@ export const endpoints = {
     forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,
     // Staff: confirm a payment as received (cash/transfer/QRIS).
     confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
+    // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).
+    unsettledByMethod: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/payments/api/v1/payments/unsettled-by-method${qs ? `?${qs}` : ''}`;
+    },
+    // HQ report export (10a): network collected (PAID) revenue by method (FINANCE/SUPER_ADMIN).
+    revenueByMethod: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/payments/api/v1/payments/revenue-by-method${qs ? `?${qs}` : ''}`;
+    },
+  },
+  // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.
+  audit: {
+    list: (q: { page?: number; limit?: number; action?: string; actorId?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.action) p.set('action', q.action);
+      if (q.actorId) p.set('actorId', q.actorId);
+      const qs = p.toString();
+      return `/auth/api/v1/auth/audit${qs ? `?${qs}` : ''}`;
+    },
+  },
+  // HQ tax & invoice settings (payment-service, FINANCE/SUPER_ADMIN). GET current, PUT to save.
+  tax: {
+    get: '/payments/api/v1/tax-settings',
+    update: '/payments/api/v1/tax-settings',
+  },
+  // HQ refund-approval queue (payment-service, FINANCE/SUPER_ADMIN). Above the HQ threshold.
+  refunds: {
+    queue: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payments/api/v1/payments/refunds/queue${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/payments/api/v1/payments/${id}/refund/approve`,
+    reject: (id: string) => `/payments/api/v1/payments/${id}/refund/reject`,
   },
   // Recurring galon subscriptions (order-service, spec 7b).
   subscriptions: {
@@ -143,10 +192,77 @@ export const endpoints = {
     pause: (id: string) => `/orders/api/v1/subscriptions/${id}/pause`,
     resume: (id: string) => `/orders/api/v1/subscriptions/${id}/resume`,
     cancel: (id: string) => `/orders/api/v1/subscriptions/${id}/cancel`,
+    // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
+    adminSummary: '/orders/api/v1/subscriptions/admin/summary',
+  },
+  // HQ analytics reports (order-service, HEAD_OFFICE/DEPOT_MANAGER/SUPER_ADMIN; customer is HQ-only).
+  reports: {
+    // Revenue share per product (22b). Grouped by product — order-service has no category column.
+    revenueByCategory: (q: { from?: string; to?: string; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/orders/api/v1/reports/revenue-by-category${qs ? `?${qs}` : ''}`;
+    },
+    retentionCohort: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/retention-cohort${qs ? `?${qs}` : ''}`;
+    },
+    customer: (customerId: string) => `/orders/api/v1/reports/customer/${customerId}`,
+    // Shipping (ongkir) billed per depot over a window (reconciliation 22a).
+    shippingByDepot: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/shipping-by-depot${qs ? `?${qs}` : ''}`;
+    },
+    refundsByDepot: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/refunds-by-depot${qs ? `?${qs}` : ''}`;
+    },
+    // Opt-in reachable customer count for a broadcast audience (10d). Activity-based
+    // (distinct customers with a non-cancelled order); optional per-depot scope.
+    audienceReach: (depotId?: string) =>
+      `/orders/api/v1/reports/audience-reach${depotId ? `?depotId=${depotId}` : ''}`,
+  },
+  // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
+  // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).
+  segments: {
+    estimate: (
+      q: {
+        recencyDays?: number;
+        lapsedDays?: number;
+        newWithinDays?: number;
+        minOrders?: number;
+        depotId?: string;
+      } = {},
+    ) => {
+      const p = new URLSearchParams();
+      if (q.recencyDays != null) p.set('recencyDays', String(q.recencyDays));
+      if (q.lapsedDays != null) p.set('lapsedDays', String(q.lapsedDays));
+      if (q.newWithinDays != null) p.set('newWithinDays', String(q.newWithinDays));
+      if (q.minOrders != null) p.set('minOrders', String(q.minOrders));
+      if (q.depotId) p.set('depotId', q.depotId);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/segment-estimate${qs ? `?${qs}` : ''}`;
+    },
   },
   loyalty: {
     tiers: '/loyalty/api/v1/loyalty/tiers',
     me: '/loyalty/api/v1/loyalty/me',
+    // Read any customer's loyalty account (staff — HEAD_OFFICE/MARKETING/SUPER_ADMIN).
+    byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
+    // Total enrolled members (HQ broadcast reach for the loyalty audience).
+    memberCount: '/loyalty/api/v1/loyalty/members/count',
     transactions: (q: { page?: number; limit?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
@@ -163,9 +279,25 @@ export const endpoints = {
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
     // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.
     browse: (page = 1, limit = 50) => `/vouchers/api/v1/vouchers?page=${page}&limit=${limit}`,
+    // HQ voucher governance (14b): real rupiah burned per voucher + network total.
+    burnSummary: '/vouchers/api/v1/vouchers/burn-summary',
     create: '/vouchers/api/v1/vouchers',
     // PATCH to edit, DELETE to deactivate.
     detail: (id: string) => `/vouchers/api/v1/vouchers/${id}`,
+  },
+  // Depot→HQ voucher requests (14b). HQ queue + approve/reject; propose is depot-side.
+  voucherRequests: {
+    queue: (q: { page?: number; limit?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/vouchers/api/v1/voucher-requests${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/approve`,
+    reject: (id: string) => `/vouchers/api/v1/voucher-requests/${id}/reject`,
+    propose: (depotId: string) => `/vouchers/api/v1/depots/${depotId}/voucher-requests`,
   },
   // Points-redeem catalog (loyalty-service).
   rewards: {
@@ -184,6 +316,100 @@ export const endpoints = {
   referrals: {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
+  },
+  // Platform administration (admin-service). Feature flags (8b), system settings (8b),
+  // and the aggregate per-service health roll-up (13b). SUPER_ADMIN / HEAD_OFFICE gated.
+  admin: {
+    flags: '/admin/api/v1/feature-flags',
+    // PATCH a single flag's state / rolloutPct by key.
+    flag: (key: string) => `/admin/api/v1/feature-flags/${encodeURIComponent(key)}`,
+    // GET current settings, PUT to replace.
+    settings: '/admin/api/v1/system-settings',
+    // GET aggregate per-service health (real per-service probe).
+    health: '/admin/api/v1/system-health',
+    // API keys (13d) — SUPER_ADMIN. Create/rotate return the full secret ONCE.
+    apiKeys: {
+      list: '/admin/api/v1/api-keys',
+      create: '/admin/api/v1/api-keys',
+      rotate: (id: string) => `/admin/api/v1/api-keys/${encodeURIComponent(id)}/rotate`,
+      revoke: (id: string) => `/admin/api/v1/api-keys/${encodeURIComponent(id)}`,
+    },
+    // Webhook endpoints (19c) — SUPER_ADMIN.
+    webhooks: {
+      list: '/admin/api/v1/webhooks',
+      create: '/admin/api/v1/webhooks',
+      update: (id: string) => `/admin/api/v1/webhooks/${encodeURIComponent(id)}`,
+      remove: (id: string) => `/admin/api/v1/webhooks/${encodeURIComponent(id)}`,
+    },
+    // Data-export logs (13c) — HEAD_OFFICE + SUPER_ADMIN read (paginated, filterable).
+    exportLogs: (q: { page?: number; limit?: number; dataset?: string; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.dataset) p.set('dataset', q.dataset);
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/admin/api/v1/export-logs${qs ? `?${qs}` : ''}`;
+    },
+    // Scheduled reports (15c) — HEAD_OFFICE + SUPER_ADMIN.
+    scheduledReports: {
+      list: '/admin/api/v1/scheduled-reports',
+      create: '/admin/api/v1/scheduled-reports',
+      update: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
+      remove: (id: string) => `/admin/api/v1/scheduled-reports/${encodeURIComponent(id)}`,
+    },
+    // Support tickets (15a) — HEAD_OFFICE + SUPER_ADMIN. List with message threads; reply /
+    // assign / resolve mutate a ticket.
+    tickets: {
+      list: (q: { status?: string; priority?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.status) p.set('status', q.status);
+        if (q.priority) p.set('priority', q.priority);
+        const qs = p.toString();
+        return `/admin/api/v1/tickets${qs ? `?${qs}` : ''}`;
+      },
+      get: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}`,
+      reply: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/reply`,
+      assign: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/assign`,
+      resolve: (id: string) => `/admin/api/v1/tickets/${encodeURIComponent(id)}/resolve`,
+    },
+    // Fraud & risk flags (15b) — HEAD_OFFICE + SUPER_ADMIN read; review / block / clear.
+    fraud: {
+      list: (q: { level?: string; status?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.level) p.set('level', q.level);
+        if (q.status) p.set('status', q.status);
+        const qs = p.toString();
+        return `/admin/api/v1/fraud-flags${qs ? `?${qs}` : ''}`;
+      },
+      review: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/review`,
+      block: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/block`,
+      clear: (id: string) => `/admin/api/v1/fraud-flags/${encodeURIComponent(id)}/clear`,
+    },
+    // Incident timeline (14c) — HEAD_OFFICE + SUPER_ADMIN. List/create/patch.
+    incidents: {
+      list: (q: { status?: string } = {}) => {
+        const p = new URLSearchParams();
+        if (q.status) p.set('status', q.status);
+        const qs = p.toString();
+        return `/admin/api/v1/incidents${qs ? `?${qs}` : ''}`;
+      },
+      create: '/admin/api/v1/incidents',
+      update: (id: string) => `/admin/api/v1/incidents/${encodeURIComponent(id)}`,
+    },
+    // SLA policy (19d) — HEAD_OFFICE + SUPER_ADMIN. GET current, PUT to replace.
+    slaPolicy: '/admin/api/v1/sla-policy',
+    // Retention windows + read-only backup status (19e) — SUPER_ADMIN. GET list+backup, PUT one row.
+    retention: {
+      list: '/admin/api/v1/retention',
+      update: (id: string) => `/admin/api/v1/retention/${encodeURIComponent(id)}`,
+    },
+    // Security policy (19b) — SUPER_ADMIN. GET current, PUT to replace. (Sessions live in auth-service.)
+    security: '/admin/api/v1/security-policy',
+    // Per-admin notification prefs (23a) — HEAD_OFFICE + SUPER_ADMIN, own prefs. GET/PUT.
+    notifPrefs: '/admin/api/v1/notification-prefs',
+    // First-run onboarding wizard state (23b) — SUPER_ADMIN. GET, PATCH one step.
+    wizard: '/admin/api/v1/onboarding',
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.
@@ -259,6 +485,11 @@ export const endpoints = {
     summary: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues/summary`,
     create: (depotId: string) => `/depots/api/v1/depots/${depotId}/gallon-issues`,
   },
+  // Network gallon rollup (HQ compare 14d + reconciliation 22a): per-depot outstanding
+  // empties + net deposit held (issued − returned), one grouped call.
+  gallonNetwork: {
+    outstanding: '/depots/api/v1/gallon-outstanding',
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
@@ -333,6 +564,26 @@ export const endpoints = {
       return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
     },
   },
+  // HQ franchise-application approvals queue (depot-service, HEAD_OFFICE/SUPER_ADMIN).
+  franchiseApps: {
+    list: (q: { page?: number; limit?: number; stage?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.stage) p.set('stage', q.stage);
+      const qs = p.toString();
+      return `/depots/api/v1/franchise-applications${qs ? `?${qs}` : ''}`;
+    },
+    detail: (id: string) => `/depots/api/v1/franchise-applications/${id}`,
+    // PATCH stage/checklist.
+    approve: (id: string) => `/depots/api/v1/franchise-applications/${id}/approve`,
+    reject: (id: string) => `/depots/api/v1/franchise-applications/${id}/reject`,
+  },
+  // HQ commission-scheme config (payout-service, FINANCE/SUPER_ADMIN).
+  commission: {
+    schemes: '/payout/api/v1/commission/schemes',
+    apply: '/payout/api/v1/commission/schemes/apply',
+  },
   // Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).
   payout: {
     summary: '/payout/api/v1/payout/summary',
@@ -344,6 +595,28 @@ export const endpoints = {
       return `/payout/api/v1/payout/ledger${qs ? `?${qs}` : ''}`;
     },
     withdrawals: '/payout/api/v1/payout/withdrawals',
+    // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
+    hqQueue: '/payout/api/v1/payout/hq/pending',
+    release: '/payout/api/v1/payout/hq/release',
+    // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
+    hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
+  },
+  // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
+  // propose is depot-manager (under the depots segment).
+  priceOverrides: {
+    queue: (q: { page?: number; limit?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/depots/api/v1/price-overrides${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
+    reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
+    propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
+    // Per-product pending-override counts for the 7a base list.
+    countByProduct: '/depots/api/v1/price-overrides/count-by-product',
   },
   dashboard: {
     executive: (q: { from?: string; to?: string } = {}) => {
@@ -359,6 +632,29 @@ export const endpoints = {
       if (q.to) p.set('to', q.to);
       const qs = p.toString();
       return `/dashboard/api/v1/dashboard/franchise${qs ? `?${qs}` : ''}`;
+    },
+  },
+  // HQ console. The network overview reuses the real executive dashboard endpoint;
+  // the per-depot roll-up (revenue + real SLA + low stock for every depot) is served
+  // by dashboard-service GET /dashboard/network. Global search assembles client-side
+  // from the existing per-service list endpoints (depots.manage / auth.staff /
+  // orders.manage); a dedicated /search endpoint is a later milestone.
+  hq: {
+    overview: (q: { from?: string; to?: string } = {}) => endpoints.dashboard.executive(q),
+    rollup: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/dashboard/api/v1/dashboard/network${qs ? `?${qs}` : ''}`;
+    },
+    // New-customer signups in a window (auth-service; head-office/super-admin) → { count }.
+    newCustomers: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/auth/api/v1/auth/customers/count${qs ? `?${qs}` : ''}`;
     },
   },
 } as const;

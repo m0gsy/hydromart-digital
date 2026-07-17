@@ -1,5 +1,6 @@
 import {
   MinSpendNotMetError,
+  VoucherBudgetExhaustedError,
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
   VoucherInactiveError,
@@ -17,6 +18,7 @@ const rules = (overrides: Partial<VoucherRules> = {}): VoucherRules => ({
   validUntil: null,
   usageLimit: null,
   perCustomerLimit: 1,
+  budgetCap: null,
   active: true,
   ...overrides,
 });
@@ -42,6 +44,14 @@ describe('computeDiscount', () => {
   it('never exceeds the subtotal', () => {
     expect(computeDiscount(rules({ discountType: DiscountType.FIXED, value: 90000 }), 60000)).toBe(60000);
     expect(computeDiscount(rules({ value: 100, maxDiscount: null }), 60000)).toBe(60000);
+  });
+
+  it('waives the delivery fee for a FREE_SHIPPING voucher', () => {
+    const v = rules({ discountType: DiscountType.FREE_SHIPPING, value: 0 });
+    expect(computeDiscount(v, 60000, 8000)).toBe(8000); // full shipping fee
+    expect(computeDiscount(v, 60000, 0)).toBe(0); // free pickup → nothing to waive
+    // Capped by maxDiscount when set (e.g. subsidise shipping up to 5000).
+    expect(computeDiscount(rules({ discountType: DiscountType.FREE_SHIPPING, maxDiscount: 5000 }), 60000, 8000)).toBe(5000);
   });
 });
 
@@ -77,6 +87,14 @@ describe('validateVoucher', () => {
   it('rejects when the customer limit is reached', () => {
     expect(() => validateVoucher(rules({ perCustomerLimit: 1 }), 60000, now, 0, 1)).toThrow(
       VoucherCustomerLimitReachedError,
+    );
+  });
+
+  it('rejects once the discount budget cap is exhausted', () => {
+    // Under the cap → ok; at/over the cap → blocked.
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 99999)).not.toThrow();
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000)).toThrow(
+      VoucherBudgetExhaustedError,
     );
   });
 });

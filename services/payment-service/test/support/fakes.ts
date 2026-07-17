@@ -3,13 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 
 import { PaymentConfigService } from '../../src/config/payment-config.service';
-import { PaymentStatus } from '../../src/domain/payment';
+import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
 import {
   CreatePaymentData,
+  DateRange,
   PaymentQuery,
   PaymentRecord,
   PaymentRepository,
   PaymentStatusPatch,
+  UnsettledMethodAggregate,
 } from '../../src/application/ports/payment.repository';
 import {
   ChargeRequest,
@@ -38,6 +40,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundedAt: null,
       refundReason: null,
       refundedAmount: null,
+      refundApproval: RefundApproval.NONE,
       createdAt: now,
       updatedAt: now,
     };
@@ -68,6 +71,44 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       total: all.length,
     };
   }
+  async listPendingRefunds(query: {
+    page: number;
+    limit: number;
+  }): Promise<{ items: PaymentRecord[]; total: number }> {
+    const all = this.rows
+      .filter((r) => r.refundApproval === RefundApproval.PENDING)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    const start = (query.page - 1) * query.limit;
+    return { items: all.slice(start, start + query.limit).map((r) => ({ ...r })), total: all.length };
+  }
+  async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    const map = new Map<PaymentMethod, { amount: number; count: number }>();
+    for (const r of this.rows) {
+      if (r.status !== PaymentStatus.PENDING) continue;
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt > range.to) continue;
+      const e = map.get(r.method) ?? { amount: 0, count: 0 };
+      e.amount += r.amount;
+      e.count += 1;
+      map.set(r.method, e);
+    }
+    return [...map.entries()].map(([method, v]) => ({ method, ...v }));
+  }
+
+  async aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
+    const map = new Map<PaymentMethod, { amount: number; count: number }>();
+    for (const r of this.rows) {
+      if (r.status !== PaymentStatus.PAID) continue;
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt > range.to) continue;
+      const e = map.get(r.method) ?? { amount: 0, count: 0 };
+      e.amount += r.amount;
+      e.count += 1;
+      map.set(r.method, e);
+    }
+    return [...map.entries()].map(([method, v]) => ({ method, ...v }));
+  }
+
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, patch, { updatedAt: nextDate() });
@@ -101,8 +142,12 @@ export class FakeGateway implements PaymentGatewayPort {
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
   confirmedOrderIds: string[] = [];
+  refunded: { orderId: string; amount: number }[] = [];
   async confirmPaid(orderId: string): Promise<void> {
     this.confirmedOrderIds.push(orderId);
+  }
+  async notifyRefunded(orderId: string, amount: number): Promise<void> {
+    this.refunded.push({ orderId, amount });
   }
 }
 

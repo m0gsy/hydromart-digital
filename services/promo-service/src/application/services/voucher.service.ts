@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { DuplicateVoucherCodeError, VoucherNotFoundError } from '../../domain/errors';
+import { DuplicateVoucherCodeError, InvalidVoucherValueError, VoucherNotFoundError } from '../../domain/errors';
 import {
   DiscountType,
   VoucherStatus,
@@ -77,6 +77,10 @@ export class VoucherService {
   /** Create a voucher (admin). Code is stored UPPERCASE and must be unique. */
   async create(input: CreateVoucherData): Promise<VoucherRecord> {
     const code = input.code.toUpperCase();
+    // FREE_SHIPPING waives the delivery fee and needs no `value`; percent/fixed do.
+    if (input.discountType !== DiscountType.FREE_SHIPPING && input.value <= 0) {
+      throw new InvalidVoucherValueError();
+    }
     if (await this.repo.findByCode(code)) throw new DuplicateVoucherCodeError(code);
     return this.repo.create({ ...input, code });
   }
@@ -108,14 +112,31 @@ export class VoucherService {
   }
 
   /**
+   * HQ voucher governance (design 14b): real rupiah discount burned per voucher plus
+   * the network total. `byVoucher` is keyed by voucher id; vouchers with no redemption
+   * are absent (the UI defaults them to 0). No budget cap exists as data.
+   */
+  async burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    const rows = await this.repo.sumRedemptionsByVoucher();
+    const byVoucher: Record<string, number> = {};
+    let totalUsed = 0;
+    for (const r of rows) {
+      byVoucher[r.voucherId] = r.burned;
+      totalUsed += r.burned;
+    }
+    return { totalUsed, byVoucher };
+  }
+
+  /**
    * Preview the discount a voucher would grant for a customer's order. Runs the
    * full validation (throws on any failing rule) but has NO side effect.
    */
-  async quote(code: string, customerId: string, subtotal: number): Promise<QuoteResult> {
+  async quote(code: string, customerId: string, subtotal: number, shippingFee = 0): Promise<QuoteResult> {
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount);
-    const discount = computeDiscount(voucher, subtotal);
+    const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
+    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
+    const discount = computeDiscount(voucher, subtotal, shippingFee);
     return { code: voucher.code, discountType: voucher.discountType, discount, valid: true };
   }
 
@@ -130,6 +151,7 @@ export class VoucherService {
     customerId: string,
     orderId: string,
     subtotal: number,
+    shippingFee = 0,
   ): Promise<RedeemResult> {
     const existing = await this.repo.findRedemptionByOrder(orderId);
     if (existing) {
@@ -138,8 +160,9 @@ export class VoucherService {
 
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount);
-    const discount = computeDiscount(voucher, subtotal);
+    const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
+    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
+    const discount = computeDiscount(voucher, subtotal, shippingFee);
 
     const redemption = await this.repo.recordRedemption({
       voucherId: voucher.id,

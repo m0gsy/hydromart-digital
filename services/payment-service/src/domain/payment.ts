@@ -18,6 +18,21 @@ export enum PaymentStatus {
   CANCELLED = 'CANCELLED',
 }
 
+/** HQ refund-approval state (feature 14a). See schema RefundApproval enum. */
+export enum RefundApproval {
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+/**
+ * Refunds strictly above this amount (IDR) require HQ approval before they settle;
+ * at or below it, finance/manager refunds go through immediately. Overridable via
+ * the REFUND_HQ_THRESHOLD env var (PaymentConfigService.refundApprovalThreshold).
+ */
+export const DEFAULT_REFUND_APPROVAL_THRESHOLD = 100_000;
+
 /**
  * Methods settled through the payment gateway (need a charge + reference).
  * QRIS is NOT online: depots use their own static QRIS paid directly to the

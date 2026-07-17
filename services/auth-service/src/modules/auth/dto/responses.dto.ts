@@ -39,6 +39,9 @@ export class PublicCustomerDto {
   @ApiProperty({ nullable: true })
   avatarUrl!: string | null;
 
+  @ApiProperty({ format: 'uuid', nullable: true, description: 'Depot this staff member is assigned to.' })
+  assignedDepotId!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 

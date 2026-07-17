@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -73,7 +73,7 @@ export class AccountController {
     page: number;
     limit: number;
   }> {
-    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role);
+    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, query.depotId);
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 
@@ -89,12 +89,30 @@ export class AccountController {
     return drivers.map(PublicCustomerDto.from);
   }
 
+  // HQ overview KPI (feature: new-customers tile): count of end-customer signups
+  // in an optional [from, to) ISO window. Head-office / super-admin only.
+  @Roles(...CAPABILITIES.staffAdmin)
+  @Get('auth/customers/count')
+  @ApiOperation({ summary: 'HQ: count new customer signups in an optional date window' })
+  async countCustomers(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ): Promise<{ count: number; from: string | null; to: string | null }> {
+    const fromDate = from ? new Date(from) : undefined;
+    const toDate = to ? new Date(to) : undefined;
+    const count = await this.account.countNewCustomers(
+      fromDate && !Number.isNaN(fromDate.getTime()) ? fromDate : undefined,
+      toDate && !Number.isNaN(toDate.getTime()) ? toDate : undefined,
+    );
+    return { count, from: from ?? null, to: to ?? null };
+  }
+
   @Roles(...CAPABILITIES.staffAdmin)
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName);
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
     return PublicCustomerDto.from(staff);
   }
 
@@ -104,6 +122,19 @@ export class AccountController {
   async sessions(@CurrentUser() user: AuthenticatedUser): Promise<SessionInfoDto[]> {
     const sessions = await this.account.listSessions(user.sub);
     return sessions.map((session) => SessionInfoDto.from(session));
+  }
+
+  @Post('sessions/:id/revoke')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke one of your own active device sessions by id' })
+  @ApiOkResponse({ type: MessageResponseDto })
+  async revokeSession(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MessageResponseDto> {
+    const ok = await this.account.revokeSession(user.sub, id);
+    if (!ok) throw new NotFoundException('Session not found.');
+    return { message: 'Session revoked.' };
   }
 
   @Post('auth/logout')

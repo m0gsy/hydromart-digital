@@ -7,8 +7,9 @@ import {
   PaymentAlreadyExistsError,
   PaymentNotFoundError,
   PaymentNotRefundableError,
+  RefundNotPendingError,
 } from '../../src/domain/errors';
-import { PaymentMethod, PaymentStatus } from '../../src/domain/payment';
+import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
 import {
   FakeGateway,
   FakeOrderCoordination,
@@ -88,6 +89,8 @@ describe('PaymentService', () => {
     expect(refunded.status).toBe(PaymentStatus.REFUNDED);
     expect(refunded.refundedAmount).toBe(45000);
     expect(refunded.refundReason).toBe('order cancelled');
+    // Notifies order-service so the refund lands on the order's depot (reconciliation 22a).
+    expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 45000 }]);
   });
 
   it('refuses to refund a payment that is not PAID', async () => {
@@ -95,6 +98,82 @@ describe('PaymentService', () => {
     await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
       PaymentNotRefundableError,
     );
+  });
+
+  // Feature 14a — HQ refund-approval queue (default threshold Rp 100k).
+  const paidOver = async (amount: number) => {
+    const payment = await initiate(PaymentMethod.VA, amount);
+    await service.confirm(payment.id, 'staff');
+    return payment;
+  };
+
+  it('queues a high-value refund for HQ approval instead of settling immediately', async () => {
+    const payment = await paidOver(150_000);
+    const queued = await service.refund(payment.id, 'finance', 'galon bocor');
+    expect(queued.status).toBe(PaymentStatus.PAID); // not settled yet
+    expect(queued.refundApproval).toBe(RefundApproval.PENDING);
+    expect(queued.refundReason).toBe('galon bocor');
+
+    const list = await service.listRefundQueue({});
+    expect(list.total).toBe(1);
+    expect(list.items[0].id).toBe(payment.id);
+  });
+
+  it('approving a queued refund settles it and clears the queue', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance', 'galon bocor');
+    const approved = await service.approveRefund(payment.id, 'hq');
+    expect(approved.status).toBe(PaymentStatus.REFUNDED);
+    expect(approved.refundApproval).toBe(RefundApproval.APPROVED);
+    expect(approved.refundedAmount).toBe(150_000);
+    expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 150_000 }]);
+    expect((await service.listRefundQueue({})).total).toBe(0);
+  });
+
+  it('rejecting a queued refund leaves the payment PAID and unrefunded', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance');
+    const rejected = await service.rejectRefund(payment.id, 'hq', 'tidak valid');
+    expect(rejected.status).toBe(PaymentStatus.PAID);
+    expect(rejected.refundApproval).toBe(RefundApproval.REJECTED);
+    expect((await service.listRefundQueue({})).total).toBe(0);
+  });
+
+  it('refunds at/under the threshold immediately (no approval needed)', async () => {
+    const payment = await paidOver(80_000);
+    const refunded = await service.refund(payment.id, 'finance');
+    expect(refunded.status).toBe(PaymentStatus.REFUNDED);
+    expect(refunded.refundApproval).toBe(RefundApproval.NONE);
+  });
+
+  it('rejects approving a refund that is not pending', async () => {
+    const payment = await paidOver(80_000);
+    await expect(service.approveRefund(payment.id, 'hq')).rejects.toBeInstanceOf(
+      RefundNotPendingError,
+    );
+  });
+
+  // Design 6a — settlement dashboard aggregate (unsettled = PENDING).
+  it('groups unsettled payments by method with amount + count, excluding settled', async () => {
+    await initiate(PaymentMethod.CASH, 10_000);
+    await initiate(PaymentMethod.CASH, 5_000);
+    await initiate(PaymentMethod.QRIS, 20_000);
+    const paid = await initiate(PaymentMethod.VA, 99_000);
+    await service.confirm(paid.id, 'staff'); // now PAID → excluded
+
+    const rows = await service.unsettledByMethod({});
+    const byMethod = Object.fromEntries(rows.map((r) => [r.method, r]));
+    expect(byMethod[PaymentMethod.CASH]).toEqual({
+      method: PaymentMethod.CASH,
+      amount: 15_000,
+      count: 2,
+    });
+    expect(byMethod[PaymentMethod.QRIS]).toEqual({
+      method: PaymentMethod.QRIS,
+      amount: 20_000,
+      count: 1,
+    });
+    expect(byMethod[PaymentMethod.VA]).toBeUndefined();
   });
 
   it("never reveals another customer's payment (cross-tenant 404)", async () => {

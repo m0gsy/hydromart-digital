@@ -44,6 +44,11 @@ export class LoyaltyService {
     return TIER_BENEFITS;
   }
 
+  /** HQ broadcast reach: how many customers are enrolled in loyalty. */
+  async countMembers(): Promise<number> {
+    return this.repo.countAccounts();
+  }
+
   async listTransactions(
     customerId: string,
     page = 1,

@@ -8,6 +8,7 @@ import {
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotSlaStats,
   ProofRecord,
   ReportRange,
   SlaStats,
@@ -254,5 +255,42 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       sumMinutes: Number(agg.summinutes ?? 0),
       failedCount,
     };
+  }
+
+  async slaStatsByDepot(
+    range: ReportRange,
+    thresholdMinutes: number,
+  ): Promise<DepotSlaStats[]> {
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`"deliveredAt" IS NOT NULL`,
+      Prisma.sql`"depotId" IS NOT NULL`,
+    ];
+    if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
+    const rows = await this.prisma.$queryRaw<
+      { depotid: string; total: bigint; ontime: bigint; summinutes: number | null }[]
+    >(Prisma.sql`
+      SELECT "depotId" AS depotid,
+             COUNT(*)::bigint AS total,
+             COALESCE(SUM(
+               CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
+                    THEN 1 ELSE 0 END
+             ), 0)::bigint AS ontime,
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes
+      FROM "deliveries"
+      WHERE ${Prisma.join(conds, ' AND ')}
+      GROUP BY "depotId"
+    `);
+    return rows.map((r) => {
+      const totalDelivered = Number(r.total);
+      const onTime = Number(r.ontime);
+      return {
+        depotId: r.depotid,
+        totalDelivered,
+        onTime,
+        breached: totalDelivered - onTime,
+        sumMinutes: Number(r.summinutes ?? 0),
+      };
+    });
   }
 }

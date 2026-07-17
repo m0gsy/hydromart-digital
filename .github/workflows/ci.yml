@@ -23,6 +23,8 @@ env:
   CRM_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_crm?schema=public
   RECOMMENDATION_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_recommendation?schema=public
   FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
+  PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payout?schema=public
+  ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
 
 jobs:
   verify:

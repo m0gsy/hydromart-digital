@@ -1,0 +1,388 @@
+// Hydromart admin-service data model (platform administration).
+//
+// Two tables, both owned by SUPER_ADMIN:
+//   * feature_flags  (Design 8b) — network feature rollout switches. `key` is the stable
+//     identifier the app/backends read; `state` drives who sees the feature. `rolloutPct`
+//     is advisory metadata for a ROLLOUT-state flag (percentage ramp).
+//   * system_settings (Design 8b platform config) — a SINGLETON row of global defaults
+//     (timezone, currency, service radius). Exactly one row (id = "singleton").
+//
+// The aggregate system-health endpoint (Design 13b) has NO table — it fans out to each
+// peer service's /health at request time.
+
+generator client {
+  provider = "prisma-client-js"
+  // Service-local output so it never clobbers other services' @prisma/client.
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("ADMIN_DATABASE_URL")
+}
+
+/// Feature-flag lifecycle. ROLLOUT = gated ramp (see rolloutPct); ACTIVE = fully on;
+/// BETA = opt-in / limited audience; OFF = disabled.
+enum FlagState {
+  ROLLOUT
+  ACTIVE
+  BETA
+  OFF
+}
+
+/// A single network-wide feature switch (Design 8b). `key` is machine-readable and unique.
+model FeatureFlag {
+  id          String    @id @default(uuid())
+  key         String    @unique
+  label       String
+  description String
+  state       FlagState @default(OFF)
+  /// Percentage ramp (0..100) for a ROLLOUT-state flag; null when not ramping.
+  rolloutPct  Int?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("feature_flags")
+}
+
+/// Global platform defaults (Design 8b). Singleton: exactly one row, id = "singleton".
+model SystemSetting {
+  id              String   @id @default(uuid())
+  /// Default IANA timezone for the network (e.g. "Asia/Jakarta").
+  defaultTimezone String   @default("Asia/Jakarta")
+  /// ISO-4217 currency code presented across the platform (e.g. "IDR").
+  currency        String   @default("IDR")
+  /// Default depot service radius in kilometres.
+  serviceRadiusKm Int      @default(5)
+  updatedAt       DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Integration & governance (0002_admin_integration): API keys (13d), webhook
+// endpoints (19c), data-export logs (13c), scheduled reports (15c). SUPER_ADMIN /
+// HEAD_OFFICE gated. All additive — 0001_init is untouched.
+// ---------------------------------------------------------------------------
+
+/// Deployment target a credential/report belongs to.
+enum ApiKeyEnvironment {
+  PROD
+  STAGING
+}
+
+/// Serialized output format for exports and scheduled reports.
+enum ExportFormat {
+  XLSX
+  CSV
+  PDF
+}
+
+/// Lifecycle of a data-export job.
+enum ExportStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+/// Recurrence of a scheduled report.
+enum ReportCadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// A service API credential (Design 13d). The full secret is shown ONCE at creation;
+/// only `keyPrefix` (safe to display) and `keyHash` (sha256, for verification) persist.
+model ApiKey {
+  id          String            @id @default(uuid())
+  name        String
+  /// Display-safe leading segment, e.g. "hm_live_a1b2c3d4".
+  keyPrefix   String
+  /// sha256 of the full secret; the secret itself is never stored.
+  keyHash     String
+  scopes      String[]
+  environment ApiKeyEnvironment @default(PROD)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@map("api_keys")
+}
+
+/// An outbound webhook subscription (Design 19c). `deliveryRatePct`/`lastDeliveryStatus`
+/// are updated by future delivery attempts; null until a real delivery has been recorded.
+model WebhookEndpoint {
+  id                 String   @id @default(uuid())
+  url                String
+  events             String[]
+  active             Boolean  @default(true)
+  secret             String?
+  /// Outcome of the most recent delivery attempt (null until one occurs).
+  lastDeliveryStatus String?
+  /// Rolling success rate 0..100 (null until real deliveries are recorded).
+  deliveryRatePct    Int?
+  createdAt          DateTime @default(now())
+
+  @@map("webhook_endpoints")
+}
+
+/// An immutable data-export audit entry (Design 13c). Written by export jobs via the
+/// internal-key ingest endpoint; read (paginated, newest-first) by HQ.
+model ExportLog {
+  id               String       @id @default(uuid())
+  dataset          String
+  requestedById    String?
+  requestedByEmail String
+  format           ExportFormat
+  rowCount         Int?
+  status           ExportStatus @default(PENDING)
+  createdAt        DateTime     @default(now())
+
+  @@index([dataset])
+  @@index([status])
+  @@map("export_logs")
+}
+
+/// A recurring report definition (Design 15c). `nextRunAt` is advisory metadata for the
+/// future scheduler; toggling `enabled` pauses it without deleting.
+model ScheduledReport {
+  id         String        @id @default(uuid())
+  name       String
+  cadence    ReportCadence
+  recipients String[]
+  format     ExportFormat  @default(XLSX)
+  nextRunAt  DateTime?
+  enabled    Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+
+  @@map("scheduled_reports")
+}
+
+// ---------------------------------------------------------------------------
+// Governance operations (0003_admin_ops): support tickets (15a), fraud & risk
+// flags (15b), incident timeline (14c). SUPER_ADMIN / HEAD_OFFICE gated. All
+// additive — 0001_init / 0002_admin_integration are untouched.
+// ---------------------------------------------------------------------------
+
+/// Support-ticket priority.
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Support-ticket lifecycle.
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+}
+
+/// Author of a ticket message.
+enum TicketAuthorType {
+  CUSTOMER
+  STAFF
+}
+
+/// The entity a fraud flag targets.
+enum FraudEntityType {
+  ORDER
+  ACCOUNT
+}
+
+/// Fraud risk band.
+enum FraudLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// Fraud flag review lifecycle.
+enum FraudStatus {
+  OPEN
+  REVIEWED
+  BLOCKED
+  CLEARED
+}
+
+/// Incident severity band.
+enum IncidentSeverity {
+  CRITICAL
+  WARNING
+  INFO
+}
+
+/// Incident lifecycle.
+enum IncidentStatus {
+  ONGOING
+  RESOLVED
+}
+
+/// A customer support ticket (Design 15a). `customerRef`/`orderRef` link back to the source
+/// records; the conversation lives in the child `TicketMessage` rows.
+model SupportTicket {
+  id          String           @id @default(uuid())
+  subject     String
+  customerRef String
+  customerPhone String
+  orderRef    String?
+  priority    TicketPriority   @default(MEDIUM)
+  status      TicketStatus     @default(OPEN)
+  assigneeId  String?
+  createdAt   DateTime         @default(now())
+  messages    TicketMessage[]
+
+  @@index([status])
+  @@index([priority])
+  @@map("support_tickets")
+}
+
+/// One message in a support-ticket thread (Design 15a).
+model TicketMessage {
+  id         String           @id @default(uuid())
+  ticketId   String
+  ticket     SupportTicket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType TicketAuthorType
+  body       String
+  createdAt  DateTime         @default(now())
+
+  @@index([ticketId])
+  @@map("ticket_messages")
+}
+
+/// A fraud/risk flag on an order or account (Design 15b). `score`/`level`/`signals` are the
+/// values a scoring job supplied at ingest — stored verbatim, not recomputed here.
+model FraudFlag {
+  id         String          @id @default(uuid())
+  entityType FraudEntityType
+  entityRef  String
+  /// Risk score 0..100 supplied by the ingesting scoring job.
+  score      Int
+  level      FraudLevel
+  /// Human-readable risk signals supplied at ingest.
+  signals    String[]
+  status     FraudStatus     @default(OPEN)
+  createdAt  DateTime        @default(now())
+
+  @@index([status])
+  @@index([level])
+  @@map("fraud_flags")
+}
+
+/// A platform incident (Design 14c). Timeline entries live in the child `IncidentUpdate` rows.
+model Incident {
+  id              String            @id @default(uuid())
+  title           String
+  severity        IncidentSeverity
+  affectedService String
+  status          IncidentStatus    @default(ONGOING)
+  startedAt       DateTime          @default(now())
+  resolvedAt      DateTime?
+  note            String?
+  updates         IncidentUpdate[]
+
+  @@index([status])
+  @@map("incidents")
+}
+
+/// One timeline entry on an incident (Design 14c).
+model IncidentUpdate {
+  id         String   @id @default(uuid())
+  incidentId String
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  note       String
+  createdAt  DateTime @default(now())
+
+  @@index([incidentId])
+  @@map("incident_updates")
+}
+
+// ---------------------------------------------------------------------------
+// Governance & config (0004_admin_config): SLA policy (19d), retention & backup
+// (19e), security policy (19b), admin notification prefs (23a), first-run
+// onboarding wizard (23b). SUPER_ADMIN / HEAD_OFFICE gated. All additive —
+// earlier migrations are untouched.
+// ---------------------------------------------------------------------------
+
+/// On-time delivery SLA policy (Design 19d). SINGLETON: exactly one row, id = "singleton".
+/// NOTE: delivery-service still grades on-time delivery with its OWN threshold and does not
+/// yet read this row — wiring it is a later cross-service change and is NOT done here.
+model SlaPolicy {
+  id                     String   @id @default(uuid())
+  /// Minutes under which a delivery counts as on-time.
+  onTimeThresholdMinutes Int      @default(90)
+  /// % on-time at/above which a depot is "healthy".
+  healthyBandPct         Int      @default(95)
+  /// % on-time below which a depot is "critical".
+  criticalBandPct        Int      @default(85)
+  updatedAt              DateTime @updatedAt
+
+  @@map("sla_policy")
+}
+
+/// A data-retention window per dataset (Design 19e). One row per dataset (`dataset` unique).
+model RetentionPolicy {
+  id          String   @id @default(uuid())
+  dataset     String   @unique
+  /// Human-readable window label, e.g. "7 tahun (UU PDP)".
+  windowLabel String
+  /// Window length in days (advisory metadata; the label is what's displayed).
+  windowDays  Int
+  updatedAt   DateTime @updatedAt
+
+  @@map("retention_policies")
+}
+
+/// Last-backup status (Design 19e). SINGLETON: id = "singleton". READ-ONLY — there is NO
+/// backup engine wired, so `status`/`lastBackupAt` are whatever was last recorded (or the
+/// honest "NONE" default). This is never a fabricated "success just now".
+model BackupStatus {
+  id           String    @id @default(uuid())
+  /// Last recorded backup outcome. "NONE" = no backup engine has ever run.
+  status       String    @default("NONE")
+  lastBackupAt DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@map("backup_status")
+}
+
+/// Platform security policy (Design 19b). SINGLETON: id = "singleton". NOTE: active-session
+/// enforcement/listing lives in auth-service, not here — this row only stores the policy.
+model SecurityPolicy {
+  id                 String   @id @default(uuid())
+  /// Idle minutes before an HQ session is signed out.
+  idleTimeoutMinutes Int      @default(15)
+  /// Whether 2FA is mandatory for HQ accounts.
+  require2fa         Boolean  @default(true)
+  /// CIDR allowlist; empty = access from anywhere.
+  ipAllowlist        String[]
+  updatedAt          DateTime @updatedAt
+
+  @@map("security_policy")
+}
+
+/// Per-admin notification channel preferences (Design 23a). One row per account, keyed by the
+/// auth `sub`. `channels` is the per-event matrix ([{ id, push, email, wa }, ...]); the
+/// canonical event list + defaults live in the service, so missing events fall back to defaults.
+model AdminNotificationPref {
+  accountId String   @id
+  channels  Json
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_notification_prefs")
+}
+
+/// First-run HQ onboarding wizard state (Design 23b). SINGLETON: id = "singleton". Each flag
+/// marks one setup step complete.
+model OnboardingState {
+  id               String   @id @default(uuid())
+  verify2fa        Boolean  @default(false)
+  addDepot         Boolean  @default(false)
+  inviteHeadOffice Boolean  @default(false)
+  setPricingTax    Boolean  @default(false)
+  enablePayments   Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+
+  @@map("onboarding_state")
+}

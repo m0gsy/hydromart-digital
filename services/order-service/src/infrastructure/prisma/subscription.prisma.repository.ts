@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import {
   CreateSubscriptionData,
   SubscriptionFrequency,
+  SubscriptionNetworkSummary,
   SubscriptionRecord,
   SubscriptionRepository,
   SubscriptionStatus,
@@ -95,5 +96,32 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
   async advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
     const row = await this.prisma.subscription.update({ where: { id }, data: { nextDeliveryAt } });
     return this.toRecord(row);
+  }
+
+  async networkSummary(): Promise<SubscriptionNetworkSummary> {
+    const [grouped, distinctCustomers] = await Promise.all([
+      this.prisma.subscription.groupBy({
+        by: ['productName', 'frequency'],
+        where: { status: 'ACTIVE' },
+        _count: { _all: true },
+      }),
+      this.prisma.subscription.findMany({
+        where: { status: 'ACTIVE' },
+        distinct: ['customerId'],
+        select: { customerId: true },
+      }),
+    ]);
+    const plans = grouped
+      .map((g) => ({
+        productName: g.productName,
+        frequency: g.frequency as SubscriptionFrequency,
+        subscribers: g._count._all,
+      }))
+      .sort((a, b) => b.subscribers - a.subscribers);
+    return {
+      activeSubscriptions: plans.reduce((n, p) => n + p.subscribers, 0),
+      activeSubscribers: distinctCustomers.length,
+      plans,
+    };
   }
 }

@@ -37,6 +37,13 @@ export class SubscriptionController {
     return this.subscriptions.list(user.sub);
   }
 
+  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Get('admin/summary')
+  @ApiOperation({ summary: 'HQ network subscription aggregate (18c)' })
+  adminSummary() {
+    return this.subscriptions.networkSummary();
+  }
+
   @Roles(Role.CUSTOMER)
   @Post()
   @ApiOperation({ summary: 'Create a recurring galon subscription (spec 7b)' })

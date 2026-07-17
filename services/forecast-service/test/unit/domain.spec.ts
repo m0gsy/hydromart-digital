@@ -1,7 +1,7 @@
 import { toUtcDay, addDays, denseDailySeries } from '../../src/domain/series';
 import { movingAverage } from '../../src/domain/moving-average';
 import { linearTrend, projectAt } from '../../src/domain/trend';
-import { clampNonNeg, forecastDemand } from '../../src/domain/forecast';
+import { clampNonNeg, forecastDemand, forecastConfidence } from '../../src/domain/forecast';
 import { churnRisk } from '../../src/domain/churn';
 
 const DAY = 86_400_000;
@@ -112,6 +112,34 @@ describe('forecastDemand', () => {
   it('clampNonNeg floors at 0', () => {
     expect(clampNonNeg(-3)).toBe(0);
     expect(clampNonNeg(5)).toBe(5);
+  });
+  it('exposes confidence in 0..1', () => {
+    const f = forecastDemand([5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5], { horizonDays: 3, maWindow: 3 });
+    expect(f.confidence).toBeGreaterThanOrEqual(0);
+    expect(f.confidence).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('forecastConfidence', () => {
+  it('empty series -> 0', () => {
+    expect(forecastConfidence([])).toBe(0);
+  });
+  it('all-zero history -> 0 (no demand to trust)', () => {
+    expect(forecastConfidence([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])).toBe(0);
+  });
+  it('steady, dense, long history -> full confidence', () => {
+    const steady = new Array(14).fill(5);
+    expect(forecastConfidence(steady)).toBe(1);
+  });
+  it('spiky history scores lower than steady history of the same length', () => {
+    const steady = new Array(14).fill(5);
+    const spiky = Array.from({ length: 14 }, (_, i) => (i % 2 === 0 ? 0 : 20));
+    expect(forecastConfidence(spiky)).toBeLessThan(forecastConfidence(steady));
+  });
+  it('short history is damped below a long one of the same shape', () => {
+    const short = new Array(7).fill(5);
+    const long = new Array(14).fill(5);
+    expect(forecastConfidence(short)).toBeLessThan(forecastConfidence(long));
   });
 });
 

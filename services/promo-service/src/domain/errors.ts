@@ -16,6 +16,14 @@ export class DuplicateVoucherCodeError extends DomainError {
   }
 }
 
+export class InvalidVoucherValueError extends DomainError {
+  readonly code = 'VOUCHER_VALUE_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('A percentage or fixed voucher needs a positive value.');
+  }
+}
+
 export class PromotionNotFoundError extends DomainError {
   readonly code = 'PROMOTION_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
@@ -69,5 +77,29 @@ export class VoucherCustomerLimitReachedError extends DomainError {
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
     super('You have already used this voucher the maximum number of times.');
+  }
+}
+
+export class VoucherBudgetExhaustedError extends DomainError {
+  readonly code = 'VOUCHER_BUDGET_EXHAUSTED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This voucher has spent its full discount budget.');
+  }
+}
+
+export class VoucherRequestNotFoundError extends DomainError {
+  readonly code = 'VOUCHER_REQUEST_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Voucher request not found.');
+  }
+}
+
+export class VoucherRequestDecidedError extends DomainError {
+  readonly code = 'VOUCHER_REQUEST_DECIDED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This voucher request has already been decided.');
   }
 }

@@ -74,6 +74,10 @@ model Order {
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 
+  /// Amount refunded on this order, set by payment-service when a refund settles.
+  /// Null = no refund. Powers per-depot refund reconciliation (22a).
+  refundedAmount Decimal? @db.Decimal(12, 2)
+
   items   OrderItem[]
   history OrderStatusHistory[]
   review  OrderReview?

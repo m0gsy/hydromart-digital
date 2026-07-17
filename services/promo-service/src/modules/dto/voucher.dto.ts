@@ -37,10 +37,10 @@ export class CreateVoucherDto {
   @IsEnum(DiscountType)
   discountType!: DiscountType;
 
-  @ApiProperty({ example: 10, description: 'PERCENTAGE: percent 1..100. FIXED: rupiah off.' })
+  @ApiProperty({ example: 10, description: 'PERCENTAGE: percent 1..100. FIXED: rupiah off. Ignored (0) for FREE_SHIPPING.' })
   @Type(() => Number)
   @IsInt()
-  @IsPositive()
+  @Min(0)
   value!: number;
 
   @ApiPropertyOptional({ example: 50000, default: 0, description: 'Minimum order subtotal (IDR).' })
@@ -80,6 +80,18 @@ export class CreateVoucherDto {
   @IsInt()
   @Min(1)
   perCustomerLimit?: number = 1;
+
+  @ApiPropertyOptional({ example: 5000000, description: 'Total discount budget (IDR); null = unlimited.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  budgetCap?: number;
+
+  @ApiPropertyOptional({ default: true, description: 'Set false to save the voucher as a draft.' })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {
@@ -100,6 +112,13 @@ export class QuoteVoucherDto {
   @IsInt()
   @IsPositive()
   subtotal!: number;
+
+  @ApiPropertyOptional({ example: 8000, description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  shippingFee?: number;
 }
 
 /** Spec 5h: grant a voucher to a specific customer's wallet. */
@@ -128,6 +147,13 @@ export class RedeemVoucherDto {
   @IsInt()
   @IsPositive()
   subtotal!: number;
+
+  @ApiPropertyOptional({ example: 8000, description: 'Order delivery fee in IDR (for FREE_SHIPPING vouchers).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  shippingFee?: number;
 }
 
 /* ---------- Responses ---------- */

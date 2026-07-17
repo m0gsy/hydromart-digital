@@ -16,6 +16,15 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
   constructor(private readonly config: PaymentConfigService) {}
 
   async confirmPaid(orderId: string): Promise<void> {
+    await this.post(`/api/v1/orders/${orderId}/internal-confirm`, undefined, `Order confirm skipped for ${orderId}`);
+  }
+
+  async notifyRefunded(orderId: string, amount: number): Promise<void> {
+    await this.post(`/api/v1/orders/${orderId}/internal-refund`, { amount }, `Refund notify skipped for ${orderId}`);
+  }
+
+  /** POST to order-service over the internal-key path, failing open (logged, never thrown). */
+  private async post(path: string, body: unknown, skipMsg: string): Promise<void> {
     const { orderServiceUrl, internalServiceKey } = this.config;
     if (!orderServiceUrl || !internalServiceKey) {
       return; // feature disabled in this environment
@@ -23,16 +32,17 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(`${orderServiceUrl}/api/v1/orders/${orderId}/internal-confirm`, {
+      const res = await fetch(`${orderServiceUrl}${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
       if (!res.ok) {
         throw new Error(`order-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(`Order confirm skipped for ${orderId}: ${(error as Error).message}`);
+      this.logger.warn(`${skipMsg}: ${(error as Error).message}`);
     } finally {
       clearTimeout(timer);
     }

@@ -18,6 +18,7 @@ export const envValidationSchema = Joi.object({
   RECOMMENDATION_SERVICE_URL: Joi.string().uri().required(),
   FORECAST_SERVICE_URL: Joi.string().uri().required(),
   PAYOUT_SERVICE_URL: Joi.string().uri().required(),
+  ADMIN_SERVICE_URL: Joi.string().uri().required(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

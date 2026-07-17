@@ -12,6 +12,7 @@ const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
   status: CustomerStatus.PENDING_VERIFICATION,
   googleSub: null,
   avatarUrl: null,
+  assignedDepotId: null,
   phoneVerifiedAt: null,
   lastLoginAt: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),

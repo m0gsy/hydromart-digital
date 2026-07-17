@@ -5,8 +5,11 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotRatingByDepot,
+  DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
+  NetworkDepot,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -95,6 +98,19 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     );
   }
 
+  /**
+   * Org SLA on-time threshold (minutes) from admin-service, or null when admin
+   * isn't wired / the lookup fails. Best-effort: delivery-service applies its own
+   * default when we don't forward a threshold, so a null here changes nothing.
+   */
+  private async slaThresholdMinutes(): Promise<number | null> {
+    if (!this.config.adminServiceUrl) return null;
+    const policy = await this.getInternal<{ onTimeThresholdMinutes: number }>(
+      `${this.config.adminServiceUrl}/api/v1/sla-policy`,
+    );
+    return policy?.onTimeThresholdMinutes ?? null;
+  }
+
   async deliverySla(
     range: DateRange,
     _token: string,
@@ -103,6 +119,8 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const params = new URLSearchParams();
     this.applyRange(params, range);
     if (depotIds && depotIds.length > 0) params.set('depotIds', depotIds.join(','));
+    const threshold = await this.slaThresholdMinutes();
+    if (threshold != null) params.set('thresholdMinutes', String(threshold));
     const query = params.toString();
     return this.getInternal<DeliverySla>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla${query ? `?${query}` : ''}`,
@@ -117,6 +135,35 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const params = new URLSearchParams({ depotId });
     return this.getInternal<LowStockLine[]>(
       `${this.config.depotServiceUrl}/api/v1/inventory/low-stock?${params.toString()}`,
+    );
+  }
+
+  // ponytail: single page of 100 depots — the whole network today. Add pagination
+  // to allDepots (and the roll-up fan-out) when the depot count outgrows one page.
+  async allDepots(_token: string): Promise<NetworkDepot[] | null> {
+    const page = await this.getInternal<{ items: NetworkDepot[] }>(
+      `${this.config.depotServiceUrl}/api/v1/depots/manage?limit=100`,
+    );
+    return page ? page.items : null;
+  }
+
+  async slaByDepot(range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
+    const params = new URLSearchParams();
+    this.applyRange(params, range);
+    const threshold = await this.slaThresholdMinutes();
+    if (threshold != null) params.set('thresholdMinutes', String(threshold));
+    const query = params.toString();
+    return this.getInternal<DepotSlaByDepot>(
+      `${this.config.deliveryServiceUrl}/api/v1/reports/sla-by-depot${query ? `?${query}` : ''}`,
+    );
+  }
+
+  async ratingByDepot(range: DateRange, _token: string): Promise<DepotRatingByDepot | null> {
+    const params = new URLSearchParams();
+    this.applyRange(params, range);
+    const query = params.toString();
+    return this.getInternal<DepotRatingByDepot>(
+      `${this.config.orderServiceUrl}/api/v1/reports/rating-by-depot${query ? `?${query}` : ''}`,
     );
   }
 }

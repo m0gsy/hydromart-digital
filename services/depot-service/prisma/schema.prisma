@@ -210,9 +210,88 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+/// Prospective-franchise application lifecycle (HQ approvals queue, design 5a/5b).
+/// PENDING -> DOC_VERIFICATION -> SURVEY -> APPROVED / REJECTED.
+enum FranchiseAppStage {
+  PENDING
+  DOC_VERIFICATION
+  SURVEY
+  APPROVED
+  REJECTED
+}
+
+/// An HQ-reviewed application to open a new franchise (WARALABA) depot. The proposed
+/// depot fields double as the onboard-form prefill returned on approval. The document
+/// checklist (KTP&NPWP, location-ownership proof, capital deposit, field survey) is a
+/// JSON map of item -> status, mirroring how the schema stores operatingHours/holidays.
+model FranchiseApplication {
+  id                      String            @id @default(uuid()) @db.Uuid
+  applicantName           String
+  applicantPhone          String
+  /// Proposed depot short code (becomes the depot `code` on onboard).
+  proposedCode            String
+  proposedName            String
+  city                    String
+  province                String
+  lat                     Float
+  lng                     Float
+  /// Applicant's stated investment (IDR).
+  investmentAmount        Decimal           @db.Decimal(14, 2)
+  /// Applicant's projected monthly revenue (IDR).
+  projectedMonthlyRevenue Decimal           @db.Decimal(14, 2)
+  /// { ktpNpwp, locationProof, capitalDeposit, fieldSurvey } each = PENDING|VERIFIED|REJECTED.
+  checklist               Json              @default("{}")
+  stage                   FranchiseAppStage @default(PENDING)
+  submittedAt             DateTime          @default(now())
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  // Oldest-first SLA queue reads by (stage, submittedAt).
+  @@index([stage, submittedAt])
+  @@map("franchise_applications")
+}
+
 enum PricingAdjustType {
   PERCENT
   FIXED
+}
+
+/// HQ decision on a depot's price-override proposal (design 7a). PENDING until HQ
+/// approves (creates the winning pricing rule) or rejects it.
+enum PriceOverrideStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// A depot manager's proposal to override a product's price at their depot (design 7a).
+/// HQ approves (priority-wins) or rejects. On approval a PricingRule is created through
+/// the existing pricing mechanism; this row only records the proposal + decision.
+/// depotName/productName/currentPrice are denormalized snapshots for the HQ queue view
+/// (mirrors CommissionScheme.ownerName): the depot-service does not own product names.
+model PriceOverrideProposal {
+  id           String              @id @default(uuid()) @db.Uuid
+  depotId      String              @db.Uuid
+  depotName    String
+  productId    String              @db.Uuid
+  productName  String
+  /// Snapshot of the depot's current price at propose time (IDR).
+  currentPrice Decimal             @db.Decimal(12, 2)
+  adjustType   PricingAdjustType
+  /// PERCENT = signed percent; FIXED = signed rupiah delta (same semantics as PricingRule).
+  value        Decimal             @db.Decimal(12, 2)
+  note         String?
+  status       PriceOverrideStatus @default(PENDING)
+  /// Account id of the proposing depot manager.
+  proposedBy   String              @db.Uuid
+  /// Account id of the HQ approver/rejecter. Null until decided.
+  decidedBy    String?             @db.Uuid
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  // Newest-first queue reads by (status, createdAt).
+  @@index([status, createdAt])
+  @@map("price_override_proposals")
 }
 
 model PricingRule {

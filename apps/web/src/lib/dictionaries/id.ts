@@ -12,6 +12,7 @@ import { onboarding } from './id/onboarding';
 import { review } from './id/review';
 import { subscriptions } from './id/subscriptions';
 import { ops } from './id/ops';
+import { hq } from './id/hq';
 import { privacy } from './id/privacy';
 
 export const id = {
@@ -106,6 +107,7 @@ export const id = {
   review,
   subscriptions,
   ops,
+  hq,
   privacy,
 };
 

@@ -94,6 +94,14 @@ export class LoyaltyController {
 
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
+  @Get('members/count')
+  @ApiOperation({ summary: 'HQ broadcast reach: total enrolled loyalty members' })
+  async memberCount(): Promise<{ count: number }> {
+    return { count: await this.loyalty.countMembers() };
+  }
+
+  @ApiBearerAuth()
+  @Roles(...READ_ROLES)
   @Get('customers/:customerId')
   @ApiOperation({ summary: "Read a customer's loyalty account (staff)" })
   async byCustomer(

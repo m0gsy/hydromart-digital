@@ -17,6 +17,7 @@ export interface PublicCustomer {
   role: Role;
   status: CustomerStatus;
   avatarUrl: string | null;
+  assignedDepotId: string | null;
   createdAt: Date;
 }
 
@@ -29,6 +30,7 @@ export function toPublicCustomer(customer: Customer): PublicCustomer {
     role: customer.role,
     status: customer.status,
     avatarUrl: customer.avatarUrl,
+    assignedDepotId: customer.assignedDepotId,
     createdAt: customer.createdAt,
   };
 }

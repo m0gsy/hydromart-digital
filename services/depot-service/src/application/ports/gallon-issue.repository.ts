@@ -25,8 +25,17 @@ export interface GallonIssueSummary {
   depositHeld: number;
 }
 
+/** One depot's all-time issue totals (network rollup). */
+export interface GallonIssueDepotRow {
+  depotId: string;
+  gallons: number;
+  depositHeld: number;
+}
+
 export interface GallonIssueRepository {
   create(data: CreateGallonIssueData): Promise<GallonIssueRecord>;
   listForDepot(depotId: string, page: number, limit: number): Promise<{ items: GallonIssueRecord[]; total: number }>;
   summaryForDepot(depotId: string): Promise<GallonIssueSummary>;
+  /** Per-depot issue totals across the network (SUM quantity, depositHeld). */
+  networkSummary(): Promise<GallonIssueDepotRow[]>;
 }

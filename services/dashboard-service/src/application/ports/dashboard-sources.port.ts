@@ -49,6 +49,35 @@ export interface LowStockLine {
   depotId: string;
 }
 
+/** Any depot in the network (subset of depot-service DepotRecord, incl. inactive). */
+export interface NetworkDepot {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+  ownershipType: string;
+}
+
+/** One depot's on-time SLA (subset of delivery-service DepotSlaRow). */
+export interface DepotSlaRow {
+  depotId: string;
+  slaRate: number;
+  /** Average delivered-order lead time in minutes, or null when none delivered. */
+  avgMinutes: number | null;
+}
+
+/** Per-depot SLA report (delivery-service GET /reports/sla-by-depot). */
+export interface DepotSlaByDepot {
+  from: string | null;
+  to: string | null;
+  depots: DepotSlaRow[];
+}
+
+/** Per-depot rating report (order-service GET /reports/rating-by-depot). */
+export interface DepotRatingByDepot {
+  items: { depotId: string; rating: number; reviewCount: number }[];
+}
+
 /**
  * Reads report data from downstream services (order + delivery + depot). Each
  * method forwards the caller's bearer token and returns `null` on any failure
@@ -64,4 +93,10 @@ export interface DashboardSourcesPort {
   myDepots(token: string): Promise<FranchiseDepot[] | null>;
   /** Low-stock lines for one depot (depot-service GET /inventory/low-stock?depotId=). */
   lowStock(depotId: string, token: string): Promise<LowStockLine[] | null>;
+  /** Every depot incl. inactive (depot-service GET /depots/manage); for the network roll-up. */
+  allDepots(token: string): Promise<NetworkDepot[] | null>;
+  /** On-time SLA grouped per depot (delivery-service GET /reports/sla-by-depot). */
+  slaByDepot(range: DateRange, token: string): Promise<DepotSlaByDepot | null>;
+  /** Average rating grouped per depot (order-service GET /reports/rating-by-depot). */
+  ratingByDepot(range: DateRange, token: string): Promise<DepotRatingByDepot | null>;
 }

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
   IsEnum,
   IsIn,
   IsInt,
@@ -55,6 +56,18 @@ export class ListPaymentsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class UnsettledByMethodQueryDto {
+  @ApiPropertyOptional({ format: 'date-time', description: 'Start of the window (inclusive).' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'End of the window (inclusive).' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
 }
 
 export class RefundPaymentDto {

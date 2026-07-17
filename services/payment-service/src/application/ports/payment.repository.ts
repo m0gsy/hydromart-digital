@@ -1,4 +1,4 @@
-import { PaymentMethod, PaymentStatus } from '../../domain/payment';
+import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 
 export interface PaymentRecord {
   id: string;
@@ -15,6 +15,7 @@ export interface PaymentRecord {
   refundedAt: Date | null;
   refundReason: string | null;
   refundedAmount: number | null;
+  refundApproval: RefundApproval;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -36,6 +37,7 @@ export interface PaymentStatusPatch {
   refundedAt?: Date | null;
   refundReason?: string | null;
   refundedAmount?: number | null;
+  refundApproval?: RefundApproval;
   reference?: string | null;
   instruction?: string | null;
   gatewayData?: string | null;
@@ -49,6 +51,18 @@ export interface PaymentQuery {
   limit: number;
 }
 
+/** One method's unsettled (PENDING) total + transaction count, network-wide. */
+export interface UnsettledMethodAggregate {
+  method: PaymentMethod;
+  amount: number;
+  count: number;
+}
+
+export interface DateRange {
+  from?: Date;
+  to?: Date;
+}
+
 export interface PaymentRepository {
   create(data: CreatePaymentData): Promise<PaymentRecord>;
   findById(id: string): Promise<PaymentRecord | null>;
@@ -56,5 +70,14 @@ export interface PaymentRepository {
   findActiveByOrder(orderId: string): Promise<PaymentRecord | null>;
   findByReference(reference: string): Promise<PaymentRecord | null>;
   search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }>;
+  /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
+  listPendingRefunds(query: { page: number; limit: number }): Promise<{
+    items: PaymentRecord[];
+    total: number;
+  }>;
+  /** Network-wide unsettled (PENDING) payments grouped by method over a date range. */
+  aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
+  /** Network-wide collected (PAID) revenue grouped by method over a date range. */
+  aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

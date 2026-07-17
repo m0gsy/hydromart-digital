@@ -43,6 +43,7 @@ export class CustomerPrismaRepository implements CustomerRepository {
         email: data.email,
         fullName: data.fullName,
         role: toPrismaRole(data.role),
+        assignedDepotId: data.assignedDepotId ?? null,
       },
     });
     return toCustomerEntity(row);
@@ -52,10 +53,12 @@ export class CustomerPrismaRepository implements CustomerRepository {
     page: number,
     limit: number,
     role?: Role,
+    depotId?: string,
   ): Promise<{ items: Customer[]; total: number }> {
     const where = {
       status: { not: toPrismaStatus(CustomerStatus.DELETED) },
       role: role ? toPrismaRole(role) : { not: toPrismaRole(Role.CUSTOMER) },
+      ...(depotId ? { assignedDepotId: depotId } : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.customer.findMany({
@@ -67,6 +70,18 @@ export class CustomerPrismaRepository implements CustomerRepository {
       this.prisma.customer.count({ where }),
     ]);
     return { items: rows.map(toCustomerEntity), total };
+  }
+
+  async countCustomersCreated(from?: Date, to?: Date): Promise<number> {
+    const createdAt =
+      from || to ? { ...(from ? { gte: from } : {}), ...(to ? { lt: to } : {}) } : undefined;
+    return this.prisma.customer.count({
+      where: {
+        status: { not: toPrismaStatus(CustomerStatus.DELETED) },
+        role: toPrismaRole(Role.CUSTOMER),
+        ...(createdAt ? { createdAt } : {}),
+      },
+    });
   }
 
   async save(customer: Customer): Promise<Customer> {
@@ -81,6 +96,7 @@ export class CustomerPrismaRepository implements CustomerRepository {
           status: toPrismaStatus(props.status),
           googleSub: props.googleSub,
           avatarUrl: props.avatarUrl,
+          assignedDepotId: props.assignedDepotId,
           phoneVerifiedAt: props.phoneVerifiedAt,
           lastLoginAt: props.lastLoginAt,
         },

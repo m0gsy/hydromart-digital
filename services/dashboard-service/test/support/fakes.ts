@@ -2,8 +2,11 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotRatingByDepot,
+  DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
+  NetworkDepot,
   SalesReport,
   TopCustomers,
   TopDepots,
@@ -37,6 +40,23 @@ const MY_DEPOTS: FranchiseDepot[] = [
 const LOW_STOCK: Record<string, LowStockLine[]> = {
   'depot-1': [{ itemId: 'item-1', depotId: 'depot-1' }],
   'depot-2': [],
+};
+
+// All depots incl. inactive (network roll-up). Mirrors MY_DEPOTS plus ownership.
+const ALL_DEPOTS: NetworkDepot[] = [
+  { id: 'depot-1', code: 'DPT-1', name: 'Depot One', active: true, ownershipType: 'PUSAT' },
+  { id: 'depot-2', code: 'DPT-2', name: 'Depot Two', active: false, ownershipType: 'WARALABA' },
+];
+
+// depot-1 has a real SLA; depot-2 has none in range → null slaRate in the roll-up.
+const SLA_BY_DEPOT: DepotSlaByDepot = {
+  from: null,
+  to: null,
+  depots: [{ depotId: 'depot-1', slaRate: 0.9, avgMinutes: 32 }],
+};
+
+const RATING_BY_DEPOT: DepotRatingByDepot = {
+  items: [{ depotId: 'depot-1', rating: 4.6, reviewCount: 12 }],
 };
 
 const DELIVERY_SLA: DeliverySla = {
@@ -80,5 +100,16 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   }
   async lowStock(depotId: string, _token: string): Promise<LowStockLine[] | null> {
     return LOW_STOCK[depotId] ?? [];
+  }
+  async allDepots(_token: string): Promise<NetworkDepot[] | null> {
+    // Independent of `orderDown` — depot-service is a distinct source; lets the
+    // network test exercise "order down but depots/SLA still list".
+    return ALL_DEPOTS;
+  }
+  async slaByDepot(_range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
+    return SLA_BY_DEPOT;
+  }
+  async ratingByDepot(_range: DateRange, _token: string): Promise<DepotRatingByDepot | null> {
+    return this.orderDown ? null : RATING_BY_DEPOT;
   }
 }

@@ -27,6 +27,10 @@ export class DashboardConfigService {
   get depotServiceUrl(): string {
     return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
   }
+  /** Optional — undefined when admin-service isn't wired for SLA-policy lookup. */
+  get adminServiceUrl(): string | undefined {
+    return this.config.get<string>('ADMIN_SERVICE_URL')?.replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.getOrThrow<string>('INTERNAL_SERVICE_KEY');
   }

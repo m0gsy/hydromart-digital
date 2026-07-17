@@ -75,3 +75,37 @@ export class InvalidPricingWindowError extends DomainError {
     super(message);
   }
 }
+
+export class FranchiseApplicationNotFoundError extends DomainError {
+  readonly code = 'FRANCHISE_APPLICATION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Franchise application not found.');
+  }
+}
+
+/** Approve/reject or edit attempted on an already-decided (APPROVED/REJECTED) application. */
+export class ApplicationAlreadyDecidedError extends DomainError {
+  readonly code = 'FRANCHISE_APPLICATION_DECIDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This application has already been approved or rejected.');
+  }
+}
+
+export class PriceOverrideProposalNotFoundError extends DomainError {
+  readonly code = 'PRICE_OVERRIDE_PROPOSAL_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Price-override proposal not found.');
+  }
+}
+
+/** Approve/reject attempted on an already-decided (APPROVED/REJECTED) proposal. */
+export class PriceOverrideProposalDecidedError extends DomainError {
+  readonly code = 'PRICE_OVERRIDE_PROPOSAL_DECIDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This price-override proposal has already been approved or rejected.');
+  }
+}

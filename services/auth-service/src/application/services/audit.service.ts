@@ -1,6 +1,10 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { AuditLogEntry, AuditLogRepository } from '../ports/audit-log.repository';
+import {
+  AuditLogEntry,
+  AuditLogListItem,
+  AuditLogRepository,
+} from '../ports/audit-log.repository';
 import { AUTH_TOKENS } from '../tokens';
 
 /** Security-relevant actions recorded to the audit trail. */
@@ -24,6 +28,7 @@ export enum AuditAction {
  */
 @Injectable()
 export class AuditService {
+  private static readonly MAX_LIMIT = 100;
   private readonly logger = new Logger(AuditService.name);
 
   constructor(
@@ -38,5 +43,57 @@ export class AuditService {
         `Failed to persist audit entry "${entry.action}": ${(error as Error).message}`,
       );
     }
+  }
+
+  /**
+   * HQ audit list (feature 8a): recent privileged actions, newest first, paginated,
+   * with the actor's identity resolved. Unlike {@link record}, read failures DO
+   * propagate — a broken list must surface, not be silently swallowed.
+   */
+  async list(input: {
+    page: number;
+    limit: number;
+    action?: string;
+    customerId?: string;
+  }): Promise<{ items: AuditLogListItem[]; total: number; page: number; limit: number }> {
+    const page = Math.max(1, input.page);
+    const limit = Math.min(AuditService.MAX_LIMIT, Math.max(1, input.limit));
+    const { items, total } = await this.auditLog.list({
+      page,
+      limit,
+      action: input.action,
+      customerId: input.customerId,
+    });
+    return { items, total, page, limit };
+  }
+
+  /**
+   * Cross-service ingest: another service records a privileged action it performed
+   * (e.g. depot suspend, franchise approve). The optional `target` is folded into
+   * metadata so the model stays as-is. Recorded through the append-only trail.
+   */
+  async ingest(input: {
+    actorId: string | null;
+    action: string;
+    target?: string | null;
+    success?: boolean;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    const metadata =
+      input.target != null && input.target !== ''
+        ? { ...(input.metadata ?? {}), target: input.target }
+        : input.metadata;
+    // Ingest bypasses record()'s swallow: the caller is a service and should learn
+    // if the write failed, so the error propagates to the internal endpoint.
+    await this.auditLog.record({
+      customerId: input.actorId,
+      action: input.action,
+      success: input.success ?? true,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      metadata,
+    });
   }
 }

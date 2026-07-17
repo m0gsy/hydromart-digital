@@ -165,14 +165,16 @@ export class OrderService {
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
     let voucherDiscount = 0;
     if (voucherCode) {
-      const quote = await this.promo.quote(voucherCode, customerId, subtotal, authorization);
+      // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
+      const quote = await this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization);
       voucherDiscount = quote.discount;
     }
 
     // Membership and voucher discounts stack (BR-015 forbids stacking multiple
-    // vouchers, not a voucher with a tier benefit). The combined discount can
-    // never exceed the subtotal.
-    const discount = money(Math.min(subtotal, membershipDiscount + voucherDiscount));
+    // vouchers, not a voucher with a tier benefit). The combined discount can never
+    // exceed the whole bill — a FREE_SHIPPING voucher discounts against the delivery
+    // fee, so the ceiling is subtotal + deliveryFee, not subtotal alone.
+    const discount = money(Math.min(subtotal + deliveryFee, membershipDiscount + voucherDiscount));
     const total = money(subtotal + deliveryFee - discount);
 
     // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves
@@ -205,7 +207,7 @@ export class OrderService {
     // Record the redemption now that the order exists. Idempotent per order and
     // fail-open — a failure here never unwinds a placed order.
     if (voucherCode) {
-      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, authorization);
+      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, deliveryFee, authorization);
     }
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
@@ -540,6 +542,12 @@ export class OrderService {
       return order;
     }
     return this.updateStatus(orderId, OrderStatus.CONFIRMED, changedBy);
+  }
+
+  /** Record a settled refund amount on the order (payment-service coordination, 22a). */
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    await this.getAny(orderId); // 404 if the order doesn't exist
+    await this.orders.recordRefund(orderId, amount);
   }
 
   /** Re-adds an order's still-available lines back into the customer's cart. */

@@ -8,17 +8,25 @@ import { CartItemRecord, CartRepository } from '../../src/application/ports/cart
 import {
   CreateOrderData,
   CreateReviewData,
+  CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotRating,
+  DepotRefund,
+  DepotShipping,
   OrderQuery,
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  ProductRevenue,
   ReportRange,
+  RetentionCell,
   SalesBucket,
+  SegmentConditions,
 } from '../../src/application/ports/order.repository';
 import {
   CreateSubscriptionData,
+  SubscriptionNetworkSummary,
   SubscriptionRecord,
   SubscriptionRepository,
   SubscriptionStatus,
@@ -90,6 +98,7 @@ export class InMemoryCartRepository implements CartRepository {
 export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
   reviews: OrderReviewRecord[] = [];
+  refunds = new Map<string, number>();
 
   async findReorderReminderTargets(
     cutoff: Date,
@@ -242,6 +251,145 @@ export class InMemoryOrderRepository implements OrderRepository {
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
   }
+
+  async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {
+    const agg = new Map<string, number>();
+    for (const r of this.reportRows(range)) {
+      if (!r.depotId) continue;
+      agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + r.deliveryFee);
+    }
+    return [...agg.entries()].map(([depotId, shippingBilled]) => ({ depotId, shippingBilled }));
+  }
+
+  async refundsByDepot(range: ReportRange): Promise<DepotRefund[]> {
+    // Refunds count regardless of status (a cancelled order is what triggers a refund),
+    // windowed on createdAt like the sibling reports.
+    const agg = new Map<string, number>();
+    for (const r of this.rows) {
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt >= range.to) continue;
+      const refunded = this.refunds.get(r.id);
+      if (!r.depotId || refunded == null) continue;
+      agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + refunded);
+    }
+    return [...agg.entries()].map(([depotId, refunded]) => ({ depotId, refunded }));
+  }
+
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    this.refunds.set(orderId, amount);
+  }
+
+  async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
+    const inRange = new Set(this.reportRows(range).map((r) => r.id));
+    const byDepot = new Map<string, { sum: number; count: number }>();
+    for (const rev of this.reviews) {
+      const order = this.rows.find((o) => o.id === rev.orderId);
+      if (!order?.depotId || !inRange.has(order.id)) continue;
+      const a = byDepot.get(order.depotId) ?? { sum: 0, count: 0 };
+      a.sum += rev.rating;
+      a.count += 1;
+      byDepot.set(order.depotId, a);
+    }
+    return [...byDepot.entries()].map(([depotId, v]) => ({
+      depotId,
+      rating: v.sum / v.count,
+      reviewCount: v.count,
+    }));
+  }
+
+  async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
+    const agg = new Map<string, ProductRevenue>();
+    for (const r of this.reportRows(range)) {
+      for (const i of r.items) {
+        const cur = agg.get(i.productId) ?? {
+          productId: i.productId,
+          productName: i.productName,
+          orderCount: 0,
+          revenue: 0,
+        };
+        cur.orderCount += 1;
+        cur.revenue += i.lineTotal;
+        agg.set(i.productId, cur);
+      }
+    }
+    return [...agg.values()].sort((a, b) => b.revenue - a.revenue).slice(0, limit);
+  }
+
+  async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
+    const monthKey = (d: Date) => d.toISOString().slice(0, 7);
+    const monthIdx = (cohort: string, active: string) => {
+      const [cy, cm] = cohort.split('-').map(Number);
+      const [ay, am] = active.split('-').map(Number);
+      return (ay - cy) * 12 + (am - cm);
+    };
+    const rows = this.reportRows(range);
+    const cohortOf = new Map<string, string>();
+    for (const r of rows) {
+      const m = monthKey(r.createdAt);
+      const cur = cohortOf.get(r.customerId);
+      if (!cur || m < cur) cohortOf.set(r.customerId, m);
+    }
+    // (cohort, monthIndex) -> set of customerIds active that month
+    const cells = new Map<string, Set<string>>();
+    for (const r of rows) {
+      const cohort = cohortOf.get(r.customerId)!;
+      const idx = monthIdx(cohort, monthKey(r.createdAt));
+      const key = `${cohort}#${idx}`;
+      const set = cells.get(key) ?? new Set<string>();
+      set.add(r.customerId);
+      cells.set(key, set);
+    }
+    return [...cells.entries()]
+      .map(([key, set]) => {
+        const [cohort, idx] = key.split('#');
+        return { cohort, monthIndex: Number(idx), customers: set.size };
+      })
+      .sort((a, b) => a.cohort.localeCompare(b.cohort) || a.monthIndex - b.monthIndex);
+  }
+
+  async customerLifetime(customerId: string): Promise<CustomerLifetime> {
+    const rows = this.rows
+      .filter((r) => r.customerId === customerId && r.status !== OrderStatus.CANCELLED)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return {
+      orderCount: rows.length,
+      revenue: rows.reduce((s, r) => s + r.total, 0),
+      firstOrderAt: rows[0]?.createdAt ?? null,
+      lastOrderAt: rows[rows.length - 1]?.createdAt ?? null,
+    };
+  }
+
+  async audienceReach(depotId?: string): Promise<number> {
+    const ids = new Set(
+      this.rows
+        .filter((r) => r.status !== OrderStatus.CANCELLED)
+        .filter((r) => !depotId || r.depotId === depotId)
+        .map((r) => r.customerId),
+    );
+    return ids.size;
+  }
+
+  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    const byCustomer = new Map<string, { count: number; first: Date; last: Date }>();
+    for (const r of this.rows) {
+      if (r.status === OrderStatus.CANCELLED) continue;
+      if (conditions.depotId && r.depotId !== conditions.depotId) continue;
+      const cur = byCustomer.get(r.customerId) ?? { count: 0, first: r.createdAt, last: r.createdAt };
+      cur.count += 1;
+      if (r.createdAt > cur.last) cur.last = r.createdAt;
+      if (r.createdAt < cur.first) cur.first = r.createdAt;
+      byCustomer.set(r.customerId, cur);
+    }
+    let n = 0;
+    for (const agg of byCustomer.values()) {
+      if (conditions.minOrders != null && agg.count < conditions.minOrders) continue;
+      if (conditions.recencyCutoff && agg.last < conditions.recencyCutoff) continue;
+      if (conditions.lapsedCutoff && agg.last >= conditions.lapsedCutoff) continue;
+      if (conditions.firstOrderCutoff && agg.first < conditions.firstOrderCutoff) continue;
+      n += 1;
+    }
+    return n;
+  }
 }
 
 export class InMemorySubscriptionRepository implements SubscriptionRepository {
@@ -276,6 +424,26 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.nextDeliveryAt = nextDeliveryAt;
     r.updatedAt = nextDate();
     return structuredClone(r);
+  }
+
+  async networkSummary(): Promise<SubscriptionNetworkSummary> {
+    const active = this.rows.filter((r) => r.status === 'ACTIVE');
+    const agg = new Map<string, SubscriptionNetworkSummary['plans'][number]>();
+    for (const r of active) {
+      const key = `${r.productName}#${r.frequency}`;
+      const cur = agg.get(key) ?? {
+        productName: r.productName,
+        frequency: r.frequency,
+        subscribers: 0,
+      };
+      cur.subscribers += 1;
+      agg.set(key, cur);
+    }
+    return {
+      activeSubscriptions: active.length,
+      activeSubscribers: new Set(active.map((r) => r.customerId)).size,
+      plans: [...agg.values()].sort((a, b) => b.subscribers - a.subscribers),
+    };
   }
 }
 
@@ -462,15 +630,18 @@ export class FakeNotification implements NotificationPort {
 export class FakePromo implements PromoPort {
   quoteDiscount = 0;
   rejectQuote = false;
-  redeemCalls: { code: string; orderId: string; subtotal: number }[] = [];
+  quoteCalls: { code: string; subtotal: number; shippingFee: number }[] = [];
+  redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
 
   async quote(
-    _code: string,
+    code: string,
     _customerId: string,
-    _subtotal: number,
+    subtotal: number,
+    shippingFee: number,
     _authorization: string,
   ): Promise<{ discount: number }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
+    this.quoteCalls.push({ code, subtotal, shippingFee });
     return { discount: this.quoteDiscount };
   }
   async redeem(
@@ -478,9 +649,10 @@ export class FakePromo implements PromoPort {
     _customerId: string,
     orderId: string,
     subtotal: number,
+    shippingFee: number,
     _authorization: string,
   ): Promise<void> {
-    this.redeemCalls.push({ code, orderId, subtotal });
+    this.redeemCalls.push({ code, orderId, subtotal, shippingFee });
   }
 }
 

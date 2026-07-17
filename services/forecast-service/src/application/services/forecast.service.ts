@@ -22,6 +22,7 @@ export type ForecastResult = {
   predictedDaily: number[];
   predictedTotal: number;
   reorderSuggestion: number;
+  confidence: number;
   history: number[];
 };
 
@@ -129,6 +130,7 @@ export class ForecastService {
       predictedDaily: f.predictedDaily,
       predictedTotal: f.predictedTotal,
       reorderSuggestion: f.reorderSuggestion,
+      confidence: f.confidence,
       history: series,
     };
   }

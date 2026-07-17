@@ -24,6 +24,7 @@ export interface Customer {
   role: string;
   status: string;
   avatarUrl: string | null;
+  assignedDepotId?: string | null;
   createdAt: string;
 }
 
@@ -303,7 +304,7 @@ export interface RewardRedemption {
   pointsBalance: number;
 }
 
-export type DiscountType = 'PERCENTAGE' | 'FIXED';
+export type DiscountType = 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
 
 /** An admin voucher record (vouchers GET /vouchers; admin list includes inactive). */
 export interface Voucher {
@@ -336,6 +337,7 @@ export interface VoucherPayload {
   validUntil?: string | null;
   usageLimit?: number | null;
   perCustomerLimit?: number;
+  budgetCap?: number | null;
   active?: boolean;
 }
 
@@ -496,6 +498,41 @@ export interface TopCustomers {
   items: { customerId: string; orderCount: number; revenue: number }[];
 }
 
+// 22b — revenue share per product (order-service has no category column, so grouping
+// is always 'product'; the web labels it "per produk" honestly).
+export interface RevenueByProduct {
+  grouping: 'product';
+  from: string | null;
+  to: string | null;
+  items: { productId: string; productName: string; orderCount: number; revenue: number; share: number }[];
+}
+
+// 22b — retention grid: rows = first-order-month cohorts, cells = retention ratio (0..1).
+export interface RetentionCohort {
+  from: string | null;
+  to: string | null;
+  rows: { label: string; cohortSize: number; cells: number[] }[];
+}
+
+// 17e — one customer's lifetime aggregate + recent orders (Customer 360).
+export interface CustomerSummary {
+  customerId: string;
+  orderCount: number;
+  revenue: number;
+  firstOrderAt: string | null;
+  lastOrderAt: string | null;
+  recentOrders: { id: string; orderNumber: string; status: string; total: number; createdAt: string }[];
+}
+
+// 18c — HQ network subscription aggregate. estMonthlyDeliveries is an estimate (no
+// rupiah MRR is derivable — subscriptions snapshot no price).
+export interface SubscriptionNetworkSummary {
+  activeSubscriptions: number;
+  activeSubscribers: number;
+  estMonthlyDeliveries: number;
+  plans: { productName: string; frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'; subscribers: number }[];
+}
+
 export interface TopDepots {
   from: string | null;
   to: string | null;
@@ -532,6 +569,58 @@ export interface FranchiseDepotSummary {
   orderCount: number;
   revenue: number;
   lowStockCount: number;
+}
+
+// HQ network roll-up (dashboard-service GET /dashboard/network): one row per depot
+// with real revenue/orders (order-service), on-time SLA (delivery-service), and
+// low-stock count (depot-service). slaRate is null when a depot has no delivered
+// orders in range.
+export interface NetworkDepotRow {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  ownershipType: string;
+  revenue: number;
+  orderCount: number;
+  slaRate: number | null;
+  avgMinutes: number | null;
+  rating: number | null;
+  lowStockCount: number;
+}
+
+// Current user's active device session (auth-service GET /sessions). No geo lookup, so
+// no location; userAgent is the raw device string.
+export interface AdminSession {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+}
+
+// Network gallon rollup (depot-service GET /gallon-outstanding): per-depot empties still
+// at customers (issued − returned) + deposit still held (held − refunded).
+export interface GallonOutstanding {
+  depotId: string;
+  issued: number;
+  returned: number;
+  outstanding: number;
+  depositHeld: number;
+  depositRefunded: number;
+  netDeposit: number;
+}
+
+export interface NetworkDashboard {
+  from: string | null;
+  to: string | null;
+  depots: NetworkDepotRow[];
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'unavailable';
+    delivery: 'ok' | 'unavailable';
+    inventory: 'ok' | 'unavailable';
+  };
 }
 
 export interface FranchiseDashboard {
@@ -601,6 +690,56 @@ export interface PayoutSummary {
   recentWithdrawals: Withdrawal[];
 }
 
+// HQ franchise-application approvals (depot-service, design 5a/5b).
+export type FranchiseAppStage = 'PENDING' | 'DOC_VERIFICATION' | 'SURVEY' | 'APPROVED' | 'REJECTED';
+export type ChecklistItemStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+export type ChecklistItem = 'ktpNpwp' | 'locationProof' | 'capitalDeposit' | 'fieldSurvey';
+export type ApplicationChecklist = Record<ChecklistItem, ChecklistItemStatus>;
+
+export interface FranchiseApplication {
+  id: string;
+  applicantName: string;
+  applicantPhone: string;
+  proposedCode: string;
+  proposedName: string;
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+  investmentAmount: number;
+  projectedMonthlyRevenue: number;
+  checklist: ApplicationChecklist;
+  stage: FranchiseAppStage;
+  submittedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Onboard-form prefill returned by POST /franchise-applications/:id/approve.
+export interface ProposedDepot {
+  code: string;
+  name: string;
+  ownershipType: 'WARALABA';
+  city: string;
+  province: string;
+  lat: number;
+  lng: number;
+}
+export interface ApproveApplicationResult {
+  application: FranchiseApplication;
+  proposedDepot: ProposedDepot;
+}
+
+// HQ commission scheme per depot (payout-service, design 21c).
+export interface CommissionScheme {
+  id: string;
+  depotId: string;
+  ownerName: string | null;
+  pct: number;
+  effectiveDate: string;
+  createdAt: string;
+}
+
 // Per-depot payment destination (franchise: money goes direct to each depot).
 // Static QRIS + bank account shown to the customer at pay time; confirmed by staff.
 export interface DepotPaymentInfo {
@@ -621,8 +760,17 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   deliveryFee: number;
   minOrderAmount: number | null;
   active: boolean;
+  // Franchise owner account id (null for company-owned depots) — drives the payout card.
+  ownerId?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+}
+
+// One franchise owner's payout standing (payout-service GET payout/hq/owner/:ownerId).
+export interface OwnerPayoutBalance {
+  franchiseOwnerId: string;
+  availableBalance: number;
+  nextPayoutDate: string;
 }
 
 export interface DepotHours {
@@ -782,6 +930,7 @@ export interface ForecastItem {
 // Single-product forecast + its history window (mirrors forecast-service ForecastResult).
 export interface ForecastResult extends ForecastItem {
   predictedDaily: number[];
+  confidence: number; // 0..1 trust in the projection (history density/stability/length)
   history: number[];
 }
 
@@ -837,4 +986,314 @@ export interface PricingRulePayload {
   validUntil: string | null;
   priority: number;
   active: boolean;
+}
+
+// HQ Backend Phase 3 — audit trail (8a), tax settings (19f/24d), refund queue (14a).
+export interface AuditEntry {
+  id: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  actorRole: string | null;
+  action: string;
+  target: string | null;
+  success: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface TaxSettings {
+  ppnPercent: number;
+  priceIncludesTax: boolean;
+  invoiceFormat: string;
+  companyName: string;
+  npwp: string;
+  address: string;
+  updatedAt: string | null;
+}
+
+export type RefundApproval = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
+
+// A payment awaiting HQ refund approval. Depot & order number are not owned by
+// payment-service, so the queue exposes orderId/customerId only (residual gap).
+export interface RefundQueueItem {
+  id: string;
+  orderId: string;
+  customerId: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  amount: number;
+  refundReason: string | null;
+  refundApproval: RefundApproval;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// HQ settlement dashboard (6a): one payment-method's unsettled (PENDING) total + count,
+// network-wide. Method is the raw enum; the console maps it to a display label.
+export interface UnsettledMethodBucket {
+  method: PaymentMethod;
+  amount: number;
+  count: number;
+}
+
+// HQ payout-release queue (6a): an owner with a positive network balance awaiting
+// release. payout-service does not own owner/depot names, so only the owner id is
+// exposed (residual gap — the console shortens it for display).
+export interface PendingPayout {
+  franchiseOwnerId: string;
+  availableBalance: number;
+  nextPayoutDate: string;
+}
+
+// HQ price-override approval queue (7a). depotName/productName/currentPrice are
+// denormalized snapshots captured at propose time so the queue renders fully.
+export type PriceAdjustType = 'PERCENT' | 'FIXED';
+export interface PriceOverrideProposalItem {
+  id: string;
+  depotId: string;
+  depotName: string;
+  productId: string;
+  productName: string;
+  currentPrice: number;
+  adjustType: PriceAdjustType;
+  value: number;
+  note: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  proposedBy: string;
+  decidedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Depot→HQ voucher request (promo-service voucher-requests, design 14b).
+export interface VoucherRequestItem {
+  id: string;
+  depotId: string;
+  depotName: string;
+  code: string;
+  description: string | null;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  value: number;
+  minSpend: number;
+  maxDiscount: number | null;
+  usageLimit: number | null;
+  perCustomerLimit: number;
+  note: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedBy: string;
+  decidedBy: string | null;
+  createdVoucherId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Platform administration (admin-service). Feature flags (8b), system settings (8b),
+// and the aggregate per-service health roll-up (13b).
+export type FlagState = 'ROLLOUT' | 'ACTIVE' | 'BETA' | 'OFF';
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  label: string;
+  description: string;
+  state: FlagState;
+  rolloutPct: number | null;
+  updatedAt: string;
+}
+export interface SystemSettings {
+  defaultTimezone: string;
+  currency: string;
+  serviceRadiusKm: number;
+  updatedAt: string;
+}
+
+// admin-service integration & governance (13d / 19c / 13c / 15c).
+export type ApiKeyEnvironment = 'PROD' | 'STAGING';
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  environment: ApiKeyEnvironment;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+/** Create/rotate response — carries the full secret exactly once. */
+export interface CreatedApiKey extends ApiKey {
+  token: string;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  url: string;
+  events: string[];
+  active: boolean;
+  lastDeliveryStatus: string | null;
+  deliveryRatePct: number | null;
+  createdAt: string;
+}
+
+export type ExportFormat = 'XLSX' | 'CSV' | 'PDF';
+export type ExportStatus = 'PENDING' | 'DONE' | 'FAILED';
+export interface ExportLogEntry {
+  id: string;
+  dataset: string;
+  requestedById: string | null;
+  requestedByEmail: string;
+  format: ExportFormat;
+  rowCount: number | null;
+  status: ExportStatus;
+  createdAt: string;
+}
+
+export type ReportCadence = 'DAILY' | 'WEEKLY' | 'MONTHLY';
+export interface ScheduledReport {
+  id: string;
+  name: string;
+  cadence: ReportCadence;
+  recipients: string[];
+  format: ExportFormat;
+  nextRunAt: string | null;
+  enabled: boolean;
+  createdAt: string;
+}
+export interface ServiceHealth {
+  name: string;
+  status: 'up' | 'down';
+  latencyMs: number;
+  httpStatus: number | null;
+}
+
+// Support tickets (15a) — admin-service.
+export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH';
+export type TicketStatus = 'OPEN' | 'ASSIGNED' | 'RESOLVED';
+export type TicketAuthorType = 'CUSTOMER' | 'STAFF';
+export interface TicketMessage {
+  id: string;
+  authorType: TicketAuthorType;
+  body: string;
+  createdAt: string;
+}
+export interface SupportTicket {
+  id: string;
+  subject: string;
+  customerRef: string;
+  customerPhone: string;
+  orderRef: string | null;
+  priority: TicketPriority;
+  status: TicketStatus;
+  assigneeId: string | null;
+  createdAt: string;
+  messages: TicketMessage[];
+}
+
+// Fraud & risk flags (15b) — admin-service.
+export type FraudEntityType = 'ORDER' | 'ACCOUNT';
+export type FraudLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type FraudStatus = 'OPEN' | 'REVIEWED' | 'BLOCKED' | 'CLEARED';
+export interface FraudFlag {
+  id: string;
+  entityType: FraudEntityType;
+  entityRef: string;
+  score: number;
+  level: FraudLevel;
+  signals: string[];
+  status: FraudStatus;
+  createdAt: string;
+}
+
+// Incident timeline (14c) — admin-service.
+export type IncidentSeverity = 'CRITICAL' | 'WARNING' | 'INFO';
+export type IncidentStatus = 'ONGOING' | 'RESOLVED';
+export interface IncidentUpdate {
+  id: string;
+  note: string;
+  createdAt: string;
+}
+export interface Incident {
+  id: string;
+  title: string;
+  severity: IncidentSeverity;
+  affectedService: string;
+  status: IncidentStatus;
+  startedAt: string;
+  resolvedAt: string | null;
+  note: string | null;
+  updates: IncidentUpdate[];
+}
+export interface SystemHealth {
+  services: ServiceHealth[];
+  upCount: number;
+  total: number;
+  checkedAt: string;
+}
+
+// Governance & config (0004_admin_config) — admin-service.
+// SLA policy (19d).
+export interface SlaPolicy {
+  onTimeThresholdMinutes: number;
+  healthyBandPct: number;
+  criticalBandPct: number;
+  updatedAt: string;
+}
+
+// Retention & backup (19e).
+export interface RetentionPolicy {
+  id: string;
+  dataset: string;
+  windowLabel: string;
+  windowDays: number;
+  updatedAt: string;
+}
+/** Read-only. status "NONE" = no backup engine is wired/has run. */
+export interface BackupStatus {
+  status: string;
+  lastBackupAt: string | null;
+}
+export interface RetentionOverview {
+  policies: RetentionPolicy[];
+  backup: BackupStatus;
+}
+
+// Security policy (19b). Active sessions are NOT here — they live in auth-service.
+export interface SecurityPolicy {
+  idleTimeoutMinutes: number;
+  require2fa: boolean;
+  ipAllowlist: string[];
+  updatedAt: string;
+}
+
+// Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
+export type NotificationEventId =
+  | 'criticalSla'
+  | 'newFranchiseApp'
+  | 'payoutPending'
+  | 'systemIncident'
+  | 'dailyDigest';
+export interface NotificationChannelPref {
+  id: NotificationEventId;
+  push: boolean;
+  email: boolean;
+  wa: boolean;
+}
+export interface AdminNotificationPrefs {
+  events: NotificationChannelPref[];
+  updatedAt: string;
+}
+
+// First-run onboarding wizard state (23b).
+export type OnboardingStep =
+  | 'verify2fa'
+  | 'addDepot'
+  | 'inviteHeadOffice'
+  | 'setPricingTax'
+  | 'enablePayments';
+export interface OnboardingState {
+  verify2fa: boolean;
+  addDepot: boolean;
+  inviteHeadOffice: boolean;
+  setPricingTax: boolean;
+  enablePayments: boolean;
+  updatedAt: string;
 }

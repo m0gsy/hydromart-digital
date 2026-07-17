@@ -32,6 +32,16 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
       depositRefunded: all.reduce((s, r) => s + r.depositRefunded, 0),
     };
   }
+  async networkSummary() {
+    const map = new Map<string, { gallons: number; depositRefunded: number }>();
+    for (const r of this.rows) {
+      const e = map.get(r.depotId) ?? { gallons: 0, depositRefunded: 0 };
+      e.gallons += r.quantity;
+      e.depositRefunded += r.depositRefunded;
+      map.set(r.depotId, e);
+    }
+    return [...map.entries()].map(([depotId, v]) => ({ depotId, ...v }));
+  }
 }
 
 const DEPOT = {

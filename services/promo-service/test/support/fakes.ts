@@ -43,8 +43,9 @@ export class InMemoryVoucherRepository implements VoucherRepository {
       validUntil: data.validUntil,
       usageLimit: data.usageLimit,
       perCustomerLimit: data.perCustomerLimit,
+      budgetCap: data.budgetCap ?? null,
       usedCount: 0,
-      active: true,
+      active: data.active ?? true,
       createdAt: now,
       updatedAt: now,
     };
@@ -92,6 +93,20 @@ export class InMemoryVoucherRepository implements VoucherRepository {
           (r) => r.voucherId === v.id && r.customerId === customerId,
         ).length,
       }));
+  }
+
+  async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {
+    const map = new Map<string, number>();
+    for (const r of this.redemptions) {
+      map.set(r.voucherId, (map.get(r.voucherId) ?? 0) + r.discountApplied);
+    }
+    return [...map.entries()].map(([voucherId, burned]) => ({ voucherId, burned }));
+  }
+
+  async sumRedemptionsFor(voucherId: string): Promise<number> {
+    return this.redemptions
+      .filter((r) => r.voucherId === voucherId)
+      .reduce((sum, r) => sum + r.discountApplied, 0);
   }
 
   async findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null> {

@@ -16,6 +16,13 @@ export interface PayoutSummary {
   recentWithdrawals: WithdrawalRecord[];
 }
 
+/** One owner's pending payout in the HQ release queue (design 6a, right panel). */
+export interface PendingPayout {
+  franchiseOwnerId: string;
+  availableBalance: number;
+  nextPayoutDate: string;
+}
+
 @Injectable()
 export class PayoutService {
   constructor(
@@ -42,6 +49,44 @@ export class PayoutService {
       recentEntries: recent.items,
       recentWithdrawals,
     };
+  }
+
+  /**
+   * HQ payout-release queue (design 6a): every owner across the network with a
+   * positive available balance, highest first. Same balance math as the owner
+   * summary (signed ledger sum), just network-wide instead of self-scoped.
+   */
+  async pendingPayouts(): Promise<PendingPayout[]> {
+    const owners = await this.ledger.ownersWithBalance();
+    const due = nextPayoutDate(new Date()).toISOString();
+    return owners.map((o) => ({
+      franchiseOwnerId: o.franchiseOwnerId,
+      availableBalance: o.availableBalance,
+      nextPayoutDate: due,
+    }));
+  }
+
+  /**
+   * One owner's available balance + next release date (HQ depot-detail payout card).
+   * Same signed-ledger math as the owner summary, but readable by HQ for any owner id.
+   */
+  async availableForOwner(ownerId: string): Promise<PendingPayout> {
+    const availableBalance = await this.ledger.balanceFor(ownerId);
+    return {
+      franchiseOwnerId: ownerId,
+      availableBalance,
+      nextPayoutDate: nextPayoutDate(new Date()).toISOString(),
+    };
+  }
+
+  /**
+   * HQ releases an owner's full available balance to their bank (design 6a "Rilis ke
+   * bank"). Reuses the exact withdrawal path (withdrawal record + matching debit), so
+   * the released amount leaves the balance the same way an owner-initiated cash-out does.
+   */
+  async releaseForOwner(ownerId: string): Promise<WithdrawalRecord> {
+    const balance = await this.ledger.balanceFor(ownerId);
+    return this.requestWithdrawal(ownerId, balance, 'Rilis HQ');
   }
 
   async ledgerPage(ownerId: string, page: number, limit: number): Promise<Page<LedgerEntryRecord>> {

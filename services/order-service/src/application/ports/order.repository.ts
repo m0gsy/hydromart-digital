@@ -126,6 +126,73 @@ export interface DepotSales {
   revenue: number;
 }
 
+/** Shipping (ongkir) billed per depot over a range — reconciliation 22a. */
+export interface DepotShipping {
+  depotId: string;
+  shippingBilled: number;
+}
+
+/** Refunds settled per depot over a range — reconciliation 22a. */
+export interface DepotRefund {
+  depotId: string;
+  refunded: number;
+}
+
+/** Average customer rating (1..5) per depot over a range — depot compare 14d. */
+export interface DepotRating {
+  depotId: string;
+  rating: number;
+  reviewCount: number;
+}
+
+/**
+ * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
+ * productName but NOT a category, so this groups by product — a true category
+ * breakdown would need a cross-service join into product-service (not done here).
+ */
+export interface ProductRevenue {
+  productId: string;
+  productName: string;
+  orderCount: number;
+  revenue: number;
+}
+
+/** One (cohort-month, months-since-cohort) cell of the retention grid (22b). */
+export interface RetentionCell {
+  /** Cohort = first-order month, 'YYYY-MM'. */
+  cohort: string;
+  /** Months elapsed since the cohort month (0 = the cohort's own month). */
+  monthIndex: number;
+  /** Distinct customers from this cohort active in that later month. */
+  customers: number;
+}
+
+/** A single customer's lifetime aggregates over the order book (17e / Customer 360). */
+export interface CustomerLifetime {
+  orderCount: number;
+  revenue: number;
+  firstOrderAt: Date | null;
+  lastOrderAt: Date | null;
+}
+
+/**
+ * Activity-based segment conditions over the order book (Phase 4c, design 21d).
+ * Every condition is AND-combined; distinct customers matching them all are counted.
+ * `tier` is NOT here — it is owned by loyalty-service and not joinable in order-service.
+ */
+export interface SegmentConditions {
+  /** Last order at-or-after this cutoff (recency = still active). */
+  recencyCutoff?: Date;
+  /** Last order STRICTLY BEFORE this cutoff (lapsed / at-risk — has ordered, not lately). */
+  lapsedCutoff?: Date;
+  /** First order at-or-after this cutoff (newly acquired customer). */
+  firstOrderCutoff?: Date;
+  /** At least this many (non-cancelled) orders (frequency). */
+  minOrders?: number;
+  /** Has ordered at this depot; also scopes recency/frequency to that depot's orders. */
+  depotId?: string;
+}
+
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
@@ -168,4 +235,28 @@ export interface OrderRepository {
   topCustomers(range: ReportRange, limit: number): Promise<CustomerSales[]>;
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
+  shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
+  /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
+  refundsByDepot(range: ReportRange): Promise<DepotRefund[]>;
+  /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
+  recordRefund(orderId: string, amount: number): Promise<void>;
+  /** Average rating per depot (orders in-window that have a review), 14d. */
+  ratingByDepot(range: ReportRange): Promise<DepotRating[]>;
+  /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
+  revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
+  /**
+   * Retention cells: for each first-order cohort month, distinct customers still
+   * ordering `monthIndex` months later (CANCELLED excluded). The service pivots
+   * these into per-cohort retention rows (22b).
+   */
+  retentionCohort(range: ReportRange): Promise<RetentionCell[]>;
+  /** One customer's lifetime revenue/order-count/first-last dates (17e). */
+  customerLifetime(customerId: string): Promise<CustomerLifetime>;
+  /**
+   * Distinct customers reachable for a broadcast (design 10d) — anyone with a
+   * non-cancelled order (every order carries a phone). Scoped to one depot when given.
+   */
+  audienceReach(depotId?: string): Promise<number>;
+  /** Distinct customers matching all activity-based segment conditions (design 21d). */
+  segmentEstimate(conditions: SegmentConditions): Promise<number>;
 }

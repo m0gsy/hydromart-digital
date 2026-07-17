@@ -151,7 +151,10 @@ describe('Order HTTP flows (e2e)', () => {
       .set(auth(customerToken))
       .send({ deliveryAddress: ADDRESS })
       .expect(201);
-    expect(order.body.total).toBe(45000);
+    // Delivery fee is per-galon and env-configurable, so assert the pricing identity
+    // rather than a magic total: total = subtotal + deliveryFee - discount.
+    expect(order.body.subtotal).toBe(40000);
+    expect(order.body.total).toBe(order.body.subtotal + order.body.deliveryFee - order.body.discount);
     expect(order.body.status).toBe('CREATED');
 
     const list = await request(server()).get('/api/v1/orders').set(auth(customerToken)).expect(200);

@@ -52,6 +52,16 @@ export class VoucherController {
     return this.vouchers.browse(query.page, query.limit, false);
   }
 
+  // HQ voucher governance (14b): real burn per voucher + network total. Declared before
+  // `@Get(':code')` so "burn-summary" is not captured as a code.
+  @ApiBearerAuth()
+  @Roles(...CAPABILITIES.voucherRead)
+  @Get('burn-summary')
+  @ApiOperation({ summary: 'Rupiah discount burned per voucher + network total (admin)' })
+  burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
+    return this.vouchers.burnSummary();
+  }
+
   // Declared before the `@Get(':code')` route below so "me" is not captured as a code.
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
@@ -71,7 +81,7 @@ export class VoucherController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: QuoteVoucherDto,
   ): Promise<QuoteResult> {
-    return this.vouchers.quote(dto.code, user.sub, dto.subtotal);
+    return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0);
   }
 
   // System-to-system call from order-service at checkout, authenticated by the shared
@@ -84,7 +94,7 @@ export class VoucherController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Redeem a voucher for an order (internal service auth, idempotent per orderId)' })
   redeem(@Body() dto: RedeemVoucherDto): Promise<RedeemResult> {
-    return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal);
+    return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal, dto.shippingFee ?? 0);
   }
 
   @ApiBearerAuth()
@@ -103,6 +113,8 @@ export class VoucherController {
       validUntil: toDate(dto.validUntil) ?? null,
       usageLimit: dto.usageLimit ?? null,
       perCustomerLimit: dto.perCustomerLimit ?? 1,
+      budgetCap: dto.budgetCap ?? null,
+      active: dto.active,
     });
   }
 

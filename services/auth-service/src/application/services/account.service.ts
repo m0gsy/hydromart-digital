@@ -78,9 +78,15 @@ export class AccountService {
     page: number,
     limit: number,
     role?: Role,
+    depotId?: string,
   ): Promise<{ items: PublicCustomer[]; total: number; page: number; limit: number }> {
-    const { items, total } = await this.customers.listStaff(page, limit, role);
+    const { items, total } = await this.customers.listStaff(page, limit, role, depotId);
     return { items: items.map(toPublicCustomer), total, page, limit };
+  }
+
+  /** HQ overview KPI: new end-customer signups in an optional [from, to) window. */
+  async countNewCustomers(from?: Date, to?: Date): Promise<number> {
+    return this.customers.countCustomersCreated(from, to);
   }
 
   /**
@@ -99,14 +105,19 @@ export class AccountService {
    * the given staff role, or creates a new pre-activated account if the phone is
    * unknown (they sign in by phone OTP). The role must not be CUSTOMER.
    */
-  async inviteStaff(rawPhone: string, role: Role, fullName?: string | null): Promise<PublicCustomer> {
+  async inviteStaff(
+    rawPhone: string,
+    role: Role,
+    fullName?: string | null,
+    depotId?: string | null,
+  ): Promise<PublicCustomer> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
     const phone = PhoneNumber.create(rawPhone).value;
     const existing = await this.customers.findByPhone(phone);
     if (existing) {
-      existing.promoteToStaff(role);
+      existing.promoteToStaff(role, depotId);
       if (fullName !== undefined && fullName !== null && fullName !== '') {
         existing.updateProfile(fullName, undefined);
       }
@@ -117,9 +128,10 @@ export class AccountService {
       email: null,
       fullName: fullName ?? null,
       role,
+      assignedDepotId: depotId ?? null,
     });
     // create() defaults the account to PENDING; activate it so the invitee can sign in.
-    created.promoteToStaff(role);
+    created.promoteToStaff(role, depotId);
     return toPublicCustomer(await this.customers.save(created));
   }
 
@@ -140,6 +152,11 @@ export class AccountService {
 
   async listSessions(customerId: string): Promise<SessionInfo[]> {
     return this.sessions.listActive(customerId);
+  }
+
+  /** Revoke one of the caller's own sessions by id; false if it isn't theirs/active. */
+  async revokeSession(customerId: string, sessionId: string): Promise<boolean> {
+    return this.sessions.revokeSession(customerId, sessionId);
   }
 
   async logoutAll(customerId: string, context: RequestContext): Promise<void> {

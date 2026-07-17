@@ -66,6 +66,16 @@ describe('CampaignService', () => {
       expect(directory.lastAuth).toBe('Bearer tok');
     });
 
+    it('resolves an EMPTY segment to all reachable customers (design 10d "Semua pelanggan")', async () => {
+      directory.recipients = [
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+      ];
+      const c = await service.create('staff-1', 'Blast', 'Hi {{name}}', undefined, {}, 'Bearer tok');
+      expect(c.totalRecipients).toBe(2);
+      expect(directory.lastAuth).toBe('Bearer tok');
+    });
+
     it('fails closed with SegmentUnavailableError when the directory is down', async () => {
       directory.down = true;
       await expect(

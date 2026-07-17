@@ -10,6 +10,7 @@ import {
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -125,6 +126,14 @@ export class CancelOrderDto {
   @IsString()
   @MaxLength(255)
   reason?: string;
+}
+
+/** Internal (payment-service): a settled refund amount to record on the order (22a). */
+export class InternalRefundDto {
+  @ApiProperty({ example: 25000, description: 'Refunded amount in rupiah.' })
+  @IsNumber()
+  @Min(0)
+  amount!: number;
 }
 
 /** Spec 7b: set up a recurring galon delivery. */

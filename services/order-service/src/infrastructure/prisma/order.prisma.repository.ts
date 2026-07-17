@@ -5,14 +5,21 @@ import { OrderStatus } from '../../domain/order-status';
 import {
   CreateOrderData,
   CreateReviewData,
+  CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotRating,
+  DepotRefund,
+  DepotShipping,
   OrderQuery,
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  ProductRevenue,
   ReportRange,
+  RetentionCell,
   SalesBucket,
+  SegmentConditions,
 } from '../../application/ports/order.repository';
 import { PrismaService } from './prisma.service';
 
@@ -347,5 +354,176 @@ export class OrderPrismaRepository implements OrderRepository {
       orderCount: r._count._all,
       revenue: r._sum.total ? r._sum.total.toNumber() : 0,
     }));
+  }
+
+  async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {
+    const rows = await this.prisma.order.groupBy({
+      by: ['depotId'],
+      where: { ...this.reportWhere(range), depotId: { not: null } },
+      _sum: { deliveryFee: true },
+    });
+    return rows.map((r) => ({
+      depotId: r.depotId as string,
+      shippingBilled: r._sum.deliveryFee ? r._sum.deliveryFee.toNumber() : 0,
+    }));
+  }
+
+  async refundsByDepot(range: ReportRange): Promise<DepotRefund[]> {
+    // Unlike the other by-depot reports, refunds must NOT exclude CANCELLED orders:
+    // an online-paid order that gets cancelled is precisely what triggers a refund
+    // (BR-refund). Window on the order's createdAt to match the sibling lines.
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    const rows = await this.prisma.order.groupBy({
+      by: ['depotId'],
+      where: {
+        depotId: { not: null },
+        refundedAmount: { not: null },
+        ...(range.from || range.to ? { createdAt } : {}),
+      },
+      _sum: { refundedAmount: true },
+    });
+    return rows.map((r) => ({
+      depotId: r.depotId as string,
+      refunded: r._sum.refundedAmount ? r._sum.refundedAmount.toNumber() : 0,
+    }));
+  }
+
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: amount } });
+  }
+
+  async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
+    // OrderReview has no depotId, so join through the parent order. Range filters
+    // the order's createdAt to match every other by-depot report's semantics.
+    const conds: Prisma.Sql[] = [Prisma.sql`o."depotId" IS NOT NULL`];
+    if (range.from) conds.push(Prisma.sql`o."createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`o."createdAt" < ${range.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const rows = await this.prisma.$queryRaw<
+      { depotId: string; rating: number; reviewCount: bigint }[]
+    >(Prisma.sql`
+      SELECT o."depotId" AS "depotId",
+             AVG(r.rating)::float AS rating,
+             COUNT(*)::bigint AS "reviewCount"
+      FROM "order_reviews" r
+      JOIN "orders" o ON o.id = r."orderId"
+      WHERE ${where}
+      GROUP BY o."depotId"
+    `);
+    return rows.map((r) => ({
+      depotId: r.depotId,
+      rating: r.rating,
+      reviewCount: Number(r.reviewCount),
+    }));
+  }
+
+  async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
+    // Group the line items whose parent order is non-cancelled & in-window. OrderItem
+    // has no category column, so this is a per-PRODUCT breakdown (see ProductRevenue).
+    const rows = await this.prisma.orderItem.groupBy({
+      by: ['productId', 'productName'],
+      where: { order: this.reportWhere(range) },
+      _sum: { lineTotal: true },
+      _count: { _all: true },
+      orderBy: { _sum: { lineTotal: 'desc' } },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      productId: r.productId,
+      productName: r.productName,
+      orderCount: r._count._all,
+      revenue: r._sum.lineTotal ? r._sum.lineTotal.toNumber() : 0,
+    }));
+  }
+
+  async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
+    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const rows = await this.prisma.$queryRaw<
+      { cohort: string; monthIndex: number; customers: bigint }[]
+    >(Prisma.sql`
+      WITH first_order AS (
+        SELECT "customerId", date_trunc('month', MIN("createdAt")) AS cohort
+        FROM "orders" WHERE ${where} GROUP BY "customerId"
+      ),
+      activity AS (
+        SELECT DISTINCT "customerId", date_trunc('month', "createdAt") AS active_month
+        FROM "orders" WHERE ${where}
+      )
+      SELECT to_char(f.cohort, 'YYYY-MM') AS cohort,
+             ((EXTRACT(YEAR FROM a.active_month) - EXTRACT(YEAR FROM f.cohort)) * 12
+              + (EXTRACT(MONTH FROM a.active_month) - EXTRACT(MONTH FROM f.cohort)))::int
+               AS "monthIndex",
+             COUNT(DISTINCT f."customerId")::bigint AS customers
+      FROM first_order f
+      JOIN activity a ON a."customerId" = f."customerId"
+      GROUP BY 1, 2
+      ORDER BY 1, 2
+    `);
+    return rows.map((r) => ({
+      cohort: r.cohort,
+      monthIndex: Number(r.monthIndex),
+      customers: Number(r.customers),
+    }));
+  }
+
+  async customerLifetime(customerId: string): Promise<CustomerLifetime> {
+    const agg = await this.prisma.order.aggregate({
+      where: { customerId, status: { not: DbOrderStatus.CANCELLED } },
+      _sum: { total: true },
+      _count: { _all: true },
+      _min: { createdAt: true },
+      _max: { createdAt: true },
+    });
+    return {
+      orderCount: agg._count._all,
+      revenue: agg._sum.total ? agg._sum.total.toNumber() : 0,
+      firstOrderAt: agg._min.createdAt,
+      lastOrderAt: agg._max.createdAt,
+    };
+  }
+
+  async audienceReach(depotId?: string): Promise<number> {
+    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (depotId) conds.push(Prisma.sql`"depotId" = ${depotId}::uuid`);
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT "customerId")::bigint AS count
+      FROM "orders"
+      WHERE ${Prisma.join(conds, ' AND ')}
+    `);
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async segmentEstimate(conditions: SegmentConditions): Promise<number> {
+    // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
+    // frequency/recency are HAVING predicates over the per-customer aggregate.
+    const where: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
+    const having: Prisma.Sql[] = [];
+    if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);
+    if (conditions.recencyCutoff)
+      having.push(Prisma.sql`MAX("createdAt") >= ${conditions.recencyCutoff}`);
+    if (conditions.lapsedCutoff)
+      having.push(Prisma.sql`MAX("createdAt") < ${conditions.lapsedCutoff}`);
+    if (conditions.firstOrderCutoff)
+      having.push(Prisma.sql`MIN("createdAt") >= ${conditions.firstOrderCutoff}`);
+    const havingSql = having.length
+      ? Prisma.sql`HAVING ${Prisma.join(having, ' AND ')}`
+      : Prisma.empty;
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
+      SELECT COUNT(*)::bigint AS count FROM (
+        SELECT "customerId"
+        FROM "orders"
+        WHERE ${Prisma.join(where, ' AND ')}
+        GROUP BY "customerId"
+        ${havingSql}
+      ) t
+    `);
+    return Number(rows[0]?.count ?? 0);
   }
 }

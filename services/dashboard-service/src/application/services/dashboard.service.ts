@@ -9,6 +9,35 @@ import {
   TopCustomers,
   TopDepots,
 } from '../ports/dashboard-sources.port';
+
+export interface NetworkDepotRow {
+  depotId: string;
+  code: string;
+  name: string;
+  active: boolean;
+  ownershipType: string;
+  revenue: number;
+  orderCount: number;
+  /** On-time rate 0..1, or null when the depot has no delivered orders in range. */
+  slaRate: number | null;
+  /** Average delivered-order lead time in minutes, or null when none delivered. */
+  avgMinutes: number | null;
+  /** Average customer rating 1..5, or null when the depot has no reviews in range. */
+  rating: number | null;
+  lowStockCount: number;
+}
+
+export interface NetworkDashboard {
+  from: string | null;
+  to: string | null;
+  depots: NetworkDepotRow[];
+  sources: {
+    depot: 'ok' | 'unavailable';
+    order: 'ok' | 'unavailable';
+    delivery: 'ok' | 'unavailable';
+    inventory: 'ok' | 'unavailable';
+  };
+}
 import { DASHBOARD_TOKENS } from '../tokens';
 
 export interface ExecutiveDashboard {
@@ -57,6 +86,9 @@ export class DashboardService {
   // Franchise scoping intersects the owner's depots with the top-depots report;
   // a high limit keeps depots outside the global top-10 from silently reading 0.
   private static readonly FRANCHISE_TOP_LIMIT = 100;
+  // Network roll-up lists every depot; keep the revenue report wide enough that
+  // no live depot falls outside it and reads a false 0.
+  private static readonly NETWORK_TOP_LIMIT = 100;
 
   constructor(
     @Inject(DASHBOARD_TOKENS.Sources) private readonly sources: DashboardSourcesPort,
@@ -87,13 +119,79 @@ export class DashboardService {
   }
 
   /**
+   * HQ network roll-up: one row per depot in the network with revenue + orders
+   * (order-service top-depots), on-time SLA (delivery-service sla-by-depot), and
+   * low-stock count (depot-service low-stock, fanned out per depot). Assembled
+   * best-effort — a down source marks itself 'unavailable' and its columns read
+   * as 0/null rather than failing the whole response (same pattern as executive).
+   */
+  async network(range: DateRange, token: string): Promise<NetworkDashboard> {
+    const [depots, topDepots, slaByDepot, ratingByDepot] = await Promise.all([
+      this.sources.allDepots(token),
+      this.sources.topDepots(range, DashboardService.NETWORK_TOP_LIMIT, token),
+      this.sources.slaByDepot(range, token),
+      this.sources.ratingByDepot(range, token),
+    ]);
+
+    const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
+    for (const item of topDepots?.items ?? []) {
+      revenueByDepot.set(item.depotId, { orderCount: item.orderCount, revenue: item.revenue });
+    }
+    const slaByDepotId = new Map<string, number>();
+    const avgMinutesByDepot = new Map<string, number | null>();
+    for (const row of slaByDepot?.depots ?? []) {
+      slaByDepotId.set(row.depotId, row.slaRate);
+      avgMinutesByDepot.set(row.depotId, row.avgMinutes);
+    }
+    const ratingByDepotId = new Map<string, number>();
+    for (const row of ratingByDepot?.items ?? []) {
+      ratingByDepotId.set(row.depotId, row.rating);
+    }
+
+    // Low-stock fan-out per depot (same shape as franchise()).
+    const lowStockLists: (LowStockLine[] | null)[] = depots
+      ? await Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
+      : [];
+    let inventoryOk = depots !== null;
+
+    const rows: NetworkDepotRow[] = (depots ?? []).map((d, i) => {
+      const rev = revenueByDepot.get(d.id);
+      const low = lowStockLists[i];
+      if (low === null) inventoryOk = false;
+      return {
+        depotId: d.id,
+        code: d.code,
+        name: d.name,
+        active: d.active,
+        ownershipType: d.ownershipType,
+        revenue: rev?.revenue ?? 0,
+        orderCount: rev?.orderCount ?? 0,
+        slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
+        avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,
+        rating: ratingByDepotId.has(d.id) ? ratingByDepotId.get(d.id)! : null,
+        lowStockCount: low?.length ?? 0,
+      };
+    });
+
+    return {
+      from: range.from ?? null,
+      to: range.to ?? null,
+      depots: rows,
+      sources: {
+        depot: depots !== null ? 'ok' : 'unavailable',
+        order: topDepots !== null ? 'ok' : 'unavailable',
+        delivery: slaByDepot !== null ? 'ok' : 'unavailable',
+        inventory: inventoryOk ? 'ok' : 'unavailable',
+      },
+    };
+  }
+
+  /**
    * Franchise-owner dashboard (M-R3.2): scopes revenue + low-stock to the depots
    * the caller owns. Fans out to depot-service (/depots/mine) and order-service
-   * (top-depots) + delivery-service (SLA, still global), then rolls up low-stock
-   * per owned depot. Best-effort per section like the executive BFF.
-   *
-   * ponytail: delivery SLA is global, not per-franchise — no depot-scoped SLA
-   * report exists yet; add a ?depotIds= filter on the SLA report when needed.
+   * (top-depots) + delivery-service (SLA scoped to the owned depots via ?depotIds=),
+   * then rolls up low-stock per owned depot. Best-effort per section like the
+   * executive BFF.
    */
   async franchise(range: DateRange, token: string): Promise<FranchiseDashboard> {
     // Owner's depots + global-ish top-depots first; both feed the per-depot rollup.

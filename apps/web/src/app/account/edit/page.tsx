@@ -94,7 +94,6 @@ function EditProfileInner() {
       <div className="flex flex-col items-center gap-2">
         <div className="relative">
           {customer.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={customer.avatarUrl}
               alt=""

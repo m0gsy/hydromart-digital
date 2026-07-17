@@ -18,6 +18,22 @@ export interface SlaReport {
   failedCount: number;
 }
 
+export interface DepotSlaRow {
+  depotId: string;
+  totalDelivered: number;
+  onTime: number;
+  breached: number;
+  slaRate: number;
+  avgMinutes: number | null;
+}
+
+export interface DepotSlaReport {
+  from: string | null;
+  to: string | null;
+  thresholdMinutes: number;
+  depots: DepotSlaRow[];
+}
+
 /** Delivery SLA report over the delivery book (M6, operational dashboard). */
 @Injectable()
 export class ReportService {
@@ -44,6 +60,26 @@ export class ReportService {
       avgMinutes:
         s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
       failedCount: s.failedCount,
+    };
+  }
+
+  /** Same on-time SLA computation as `sla`, but grouped per depot (HQ network roll-up). */
+  async slaByDepot(range: ReportRange, thresholdMinutes?: number): Promise<DepotSlaReport> {
+    const threshold = thresholdMinutes ?? this.config.slaMinutes;
+    const stats = await this.deliveries.slaStatsByDepot(range, threshold);
+    return {
+      from: range.from ? range.from.toISOString() : null,
+      to: range.to ? range.to.toISOString() : null,
+      thresholdMinutes: threshold,
+      depots: stats.map((s) => ({
+        depotId: s.depotId,
+        totalDelivered: s.totalDelivered,
+        onTime: s.onTime,
+        breached: s.breached,
+        slaRate: s.totalDelivered === 0 ? 0 : s.onTime / s.totalDelivered,
+        avgMinutes:
+          s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
+      })),
     };
   }
 }

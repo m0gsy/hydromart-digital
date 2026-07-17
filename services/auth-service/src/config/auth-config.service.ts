@@ -102,6 +102,12 @@ export class AuthConfigService {
     };
   }
 
+  // Shared service-to-service secret guarding inbound internal endpoints
+  // (e.g. cross-service audit ingest). Blank = those endpoints reject everything.
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
+
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

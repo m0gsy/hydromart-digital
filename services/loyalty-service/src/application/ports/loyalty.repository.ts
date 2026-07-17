@@ -67,4 +67,7 @@ export interface LoyaltyRepository {
   /** EARN lots that are past their expiry and not yet swept (BR-014). */
   findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]>;
   recordExpiry(mutation: ExpiryMutation): Promise<void>;
+
+  /** Total enrolled loyalty accounts (HQ broadcast reach for the loyalty audience). */
+  countAccounts(): Promise<number>;
 }

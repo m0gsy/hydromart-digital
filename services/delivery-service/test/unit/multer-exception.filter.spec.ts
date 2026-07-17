@@ -1,11 +1,11 @@
-import { HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, HttpStatus } from '@nestjs/common';
 import { MulterError } from 'multer';
 
 import { MulterExceptionFilter } from '../../src/modules/multer-exception.filter';
 
 function mockHost() {
   const res = { status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() };
-  const host = { switchToHttp: () => ({ getResponse: () => res }) } as any;
+  const host = { switchToHttp: () => ({ getResponse: () => res }) } as unknown as ArgumentsHost;
   return { res, host };
 }
 

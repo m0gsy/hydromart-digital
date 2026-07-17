@@ -38,6 +38,7 @@ export function toCustomerEntity(row: PrismaCustomer): Customer {
     status: toDomainStatus(row.status),
     googleSub: row.googleSub,
     avatarUrl: row.avatarUrl,
+    assignedDepotId: row.assignedDepotId,
     phoneVerifiedAt: row.phoneVerifiedAt,
     lastLoginAt: row.lastLoginAt,
     createdAt: row.createdAt,

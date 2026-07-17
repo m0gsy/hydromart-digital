@@ -17,6 +17,7 @@ const customerRow = () => ({
   status: 'ACTIVE',
   googleSub: null,
   avatarUrl: null,
+  assignedDepotId: null,
   phoneVerifiedAt: new Date('2026-01-01'),
   lastLoginAt: null,
   createdAt: new Date('2026-01-01'),
@@ -53,7 +54,7 @@ describe('CustomerPrismaRepository', () => {
     model.create.mockResolvedValue(customerRow());
     await repo.create({ phone: '+6281234567890', email: null, fullName: null, role: Role.CUSTOMER });
     expect(model.create).toHaveBeenCalledWith({
-      data: { phone: '+6281234567890', email: null, fullName: null, role: 'CUSTOMER' },
+      data: { phone: '+6281234567890', email: null, fullName: null, role: 'CUSTOMER', assignedDepotId: null },
     });
   });
 

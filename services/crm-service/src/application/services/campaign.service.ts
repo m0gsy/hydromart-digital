@@ -48,9 +48,11 @@ export class CampaignService {
     authorization = '',
   ): Promise<CampaignRecord> {
     // A segment (FR-087) resolves its own audience from the customer directory; otherwise
-    // use the explicit list. Segment resolution throws if the directory is unreachable.
+    // use the explicit list. A PRESENT segment is always resolved — an EMPTY filter means
+    // "all reachable customers" (SegmentFilter contract; design 10d "Semua pelanggan"),
+    // not "fall back to the explicit list". Resolution throws if the directory is unreachable.
     let list: CreateRecipientData[] = recipients;
-    if (segment && (segment.tier || segment.city)) {
+    if (segment) {
       const resolved = await this.directory.resolveSegment(segment, authorization);
       list = resolved.map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));
     }

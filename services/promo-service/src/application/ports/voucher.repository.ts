@@ -12,6 +12,7 @@ export interface VoucherRecord {
   validUntil: Date | null;
   usageLimit: number | null;
   perCustomerLimit: number;
+  budgetCap: number | null;
   usedCount: number;
   active: boolean;
   createdAt: Date;
@@ -40,6 +41,9 @@ export interface CreateVoucherData {
   validUntil: Date | null;
   usageLimit: number | null;
   perCustomerLimit: number;
+  budgetCap?: number | null;
+  /** Create a voucher as a draft (inactive) — defaults to active when omitted. */
+  active?: boolean;
 }
 
 /** Partial patch for an existing voucher; omitted keys are left unchanged. */
@@ -53,6 +57,7 @@ export interface UpdateVoucherData {
   validUntil?: Date | null;
   usageLimit?: number | null;
   perCustomerLimit?: number;
+  budgetCap?: number | null;
   active?: boolean;
 }
 
@@ -79,6 +84,12 @@ export interface VoucherRepository {
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
+
+  /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
+  sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;
+
+  /** Total rupiah discount burned by one voucher (for the budget cap). */
+  sumRedemptionsFor(voucherId: string): Promise<number>;
 
   /**
    * Active vouchers paired with this customer's redemption count for each, for

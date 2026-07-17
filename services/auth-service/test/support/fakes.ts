@@ -30,6 +30,8 @@ import {
 } from '../../src/application/ports/refresh-token.repository';
 import {
   AuditLogEntry,
+  AuditLogListItem,
+  AuditLogQuery,
   AuditLogRepository,
 } from '../../src/application/ports/audit-log.repository';
 
@@ -156,6 +158,7 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       status: CustomerStatus.PENDING_VERIFICATION,
       googleSub: null,
       avatarUrl: null,
+      assignedDepotId: data.assignedDepotId ?? null,
       phoneVerifiedAt: null,
       lastLoginAt: null,
       createdAt: now,
@@ -172,15 +175,27 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     page: number,
     limit: number,
     role?: Role,
+    depotId?: string,
   ): Promise<{ items: Customer[]; total: number }> {
     const all = [...this.rows.values()]
       .filter((p) => p.status !== CustomerStatus.DELETED)
       .filter((p) => (role ? p.role === role : p.role !== Role.CUSTOMER))
+      .filter((p) => (depotId ? p.assignedDepotId === depotId : true))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const items = all
       .slice((page - 1) * limit, page * limit)
       .map((p) => Customer.fromPersistence({ ...p }));
     return { items, total: all.length };
+  }
+
+  async countCustomersCreated(from?: Date, to?: Date): Promise<number> {
+    return [...this.rows.values()].filter(
+      (p) =>
+        p.status !== CustomerStatus.DELETED &&
+        p.role === Role.CUSTOMER &&
+        (!from || p.createdAt >= from) &&
+        (!to || p.createdAt < to),
+    ).length;
   }
 }
 
@@ -292,6 +307,29 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     }
     this.entries.push(entry);
   }
+  async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+    const all = this.entries
+      .filter((e) => !query.action || e.action === query.action)
+      .filter((e) => !query.customerId || e.customerId === query.customerId)
+      .map(
+        (e, i): AuditLogListItem => ({
+          id: `audit-${i}`,
+          customerId: e.customerId,
+          action: e.action,
+          success: e.success,
+          ipAddress: e.ipAddress,
+          userAgent: e.userAgent,
+          metadata: (e.metadata ?? null) as Record<string, unknown> | null,
+          createdAt: new Date(),
+          actorEmail: null,
+          actorName: null,
+          actorRole: null,
+        }),
+      )
+      .reverse();
+    const start = (query.page - 1) * query.limit;
+    return { items: all.slice(start, start + query.limit), total: all.length };
+  }
   actions(): string[] {
     return this.entries.map((e) => e.action);
   }
@@ -347,6 +385,7 @@ export function makeCustomer(overrides: Partial<ReturnType<Customer['toProps']>>
     status: CustomerStatus.ACTIVE,
     googleSub: null,
     avatarUrl: null,
+    assignedDepotId: null,
     phoneVerifiedAt: now,
     lastLoginAt: null,
     createdAt: now,

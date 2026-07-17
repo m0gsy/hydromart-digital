@@ -10,6 +10,7 @@ import {
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotSlaStats,
   ProofRecord,
   ReportRange,
   SlaStats,
@@ -156,6 +157,25 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       sumMinutes,
       failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt) && inScope(r)).length,
     };
+  }
+  async slaStatsByDepot(range: ReportRange, thresholdMinutes: number): Promise<DepotSlaStats[]> {
+    const inRange = (d: Date): boolean =>
+      (!range.from || d.getTime() >= range.from.getTime()) &&
+      (!range.to || d.getTime() < range.to.getTime());
+    const byDepot = new Map<string, DepotSlaStats>();
+    for (const r of this.rows) {
+      if (!r.depotId || !r.deliveredAt || !inRange(r.deliveredAt)) continue;
+      const cur =
+        byDepot.get(r.depotId) ??
+        { depotId: r.depotId, totalDelivered: 0, onTime: 0, breached: 0, sumMinutes: 0 };
+      const minutes = (r.deliveredAt.getTime() - r.assignedAt.getTime()) / 60000;
+      cur.totalDelivered += 1;
+      cur.sumMinutes += minutes;
+      if (minutes <= thresholdMinutes) cur.onTime += 1;
+      cur.breached = cur.totalDelivered - cur.onTime;
+      byDepot.set(r.depotId, cur);
+    }
+    return [...byDepot.values()];
   }
 }
 
