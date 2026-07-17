@@ -25,6 +25,9 @@ import {
 import { DepotRepository } from '../ports/depot.repository';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
+import { ApprovalType, needsApproval } from '../../domain/approval';
+import { ApprovalService } from './approval.service';
+import { DepotConfigService } from '../../config/depot-config.service';
 
 export interface CreateLineInput {
   itemType: InventoryItemType;
@@ -61,6 +64,8 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(DEPOT_TOKENS.LowStockAlert) private readonly lowStockAlert: LowStockAlertPort,
+    private readonly approvals: ApprovalService,
+    private readonly config: DepotConfigService,
   ) {}
 
   private toView(item: InventoryItemRecord): ItemView {
@@ -237,7 +242,46 @@ export class InventoryService {
       available(countedQuantity, item.reserved),
       authorization,
     );
+    await this.emitVarianceApproval(item, variance, reason, actorId);
     return this.toView(updated);
+  }
+
+  /**
+   * Best-effort: raise an OPNAME_VARIANCE approval when the loss value clears the depot's
+   * threshold (the ApprovalService auto-passes anything under it, so this only surfaces the
+   * ones a manager must actually decide). ponytail: the rupiah value uses the PRODUK
+   * sellPrice; raw lines (no price) value to 0 and never emit — give raw types a per-unit
+   * value if their opname must be approvable too. Never blocks the opname on failure.
+   */
+  private async emitVarianceApproval(
+    item: InventoryItemRecord,
+    variance: number,
+    reason: string | null,
+    actorId: string,
+  ): Promise<void> {
+    if (variance === 0) return;
+    const amountIdr = Math.round(variance * (item.sellPrice ?? 0));
+    if (!needsApproval(amountIdr, this.config.approvalAutoPassIdr)) return;
+    try {
+      await this.approvals.create(
+        {
+          depotId: item.depotId,
+          type: ApprovalType.OPNAME_VARIANCE,
+          title: `Selisih opname ${item.label}`,
+          subjectRef: item.label,
+          amountIdr,
+          payload: {
+            system: item.quantity,
+            physical: item.quantity + variance,
+            variance,
+            reason: reason ?? undefined,
+          },
+        },
+        actorId,
+      );
+    } catch {
+      // Approval emission is a side channel — a failure here must not fail the opname.
+    }
   }
 
   /**

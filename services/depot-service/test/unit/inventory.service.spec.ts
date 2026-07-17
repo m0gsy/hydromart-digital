@@ -10,10 +10,13 @@ import {
   ProductLineRequiresProductError,
 } from '../../src/domain/errors';
 import {
+  buildTestConfig,
   FakeLowStockAlert,
+  InMemoryApprovalRepository,
   InMemoryDepotRepository,
   InMemoryInventoryRepository,
 } from '../support/fakes';
+import { ApprovalService } from '../../src/application/services/approval.service';
 
 const ACTOR = 'staff-1';
 const TOKEN = 'Bearer staff-token';
@@ -30,7 +33,9 @@ describe('InventoryService', () => {
     depotRepo = new InMemoryDepotRepository();
     invRepo = new InMemoryInventoryRepository();
     alerts = new FakeLowStockAlert();
-    inventory = new InventoryService(invRepo, depotRepo, alerts);
+    const config = buildTestConfig();
+    const approvals = new ApprovalService(new InMemoryApprovalRepository(), depotRepo, config);
+    inventory = new InventoryService(invRepo, depotRepo, alerts, approvals, config);
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
       name: 'Depot Cikini',

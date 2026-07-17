@@ -101,6 +101,23 @@ export class IncidentNotFoundError extends DomainError {
   }
 }
 
+export class ApprovalNotFoundError extends DomainError {
+  readonly code = 'APPROVAL_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Approval item not found.');
+  }
+}
+
+/** Decide attempted on an already-terminal (APPROVED/REJECTED) approval item. */
+export class ApprovalAlreadyDecidedError extends DomainError {
+  readonly code = 'APPROVAL_ALREADY_DECIDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This approval item has already been approved or rejected.');
+  }
+}
+
 export class PriceOverrideProposalNotFoundError extends DomainError {
   readonly code = 'PRICE_OVERRIDE_PROPOSAL_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

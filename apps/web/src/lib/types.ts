@@ -1479,6 +1479,36 @@ export interface DepotIncident {
   updatedAt: string;
 }
 
+// Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). A depot-scoped
+// inbox of value decisions (opname loss, deposit refund, COD shortfall). No collision with
+// the admin RefundApproval string-union above, so these keep the plain Approval* names.
+export type ApprovalType = 'OPNAME_VARIANCE' | 'DEPOSIT_REFUND' | 'COD_VARIANCE';
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'HELD';
+
+export interface Approval {
+  id: string;
+  depotId: string;
+  type: ApprovalType;
+  status: ApprovalStatus;
+  title: string;
+  submittedBy: string;
+  subjectRef: string | null;
+  /** Signed rupiah at stake (loss/refund/shortfall). */
+  amountIdr: number;
+  /** Per-type snapshot: {system,physical,variance} | {condition,deposit} | {expected,received}. */
+  payload: Record<string, unknown>;
+  autoPassThreshold: number;
+  decisionNote: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApprovalCounts {
+  total: number;
+  byType: Record<ApprovalType, number>;
+}
+
 // Governance & config (0004_admin_config) — admin-service.
 // SLA policy (19d).
 export interface SlaPolicy {

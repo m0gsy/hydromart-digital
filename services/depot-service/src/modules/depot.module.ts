@@ -15,6 +15,7 @@ import { GallonNetworkService } from '../application/services/gallon-network.ser
 import { FranchiseApplicationService } from '../application/services/franchise-application.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { IncidentService } from '../application/services/incident.service';
+import { ApprovalService } from '../application/services/approval.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
@@ -24,6 +25,7 @@ import { GallonIssuePrismaRepository } from '../infrastructure/prisma/gallon-iss
 import { FranchiseApplicationPrismaRepository } from '../infrastructure/prisma/franchise-application.prisma.repository';
 import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/price-override-proposal.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
+import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
@@ -38,6 +40,7 @@ import {
   PriceOverrideController,
 } from './price-override.controller';
 import { IncidentController } from './incident.controller';
+import { ApprovalController } from './approval.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -51,6 +54,7 @@ const providers: Provider[] = [
   FranchiseApplicationService,
   PriceOverrideService,
   IncidentService,
+  ApprovalService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
@@ -65,6 +69,7 @@ const providers: Provider[] = [
     useClass: PriceOverrideProposalPrismaRepository,
   },
   { provide: DEPOT_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
+  { provide: DEPOT_TOKENS.ApprovalRepository, useClass: ApprovalPrismaRepository },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -85,6 +90,7 @@ const providers: Provider[] = [
     DepotPriceOverrideController,
     PriceOverrideController,
     IncidentController,
+    ApprovalController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],

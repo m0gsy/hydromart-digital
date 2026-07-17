@@ -3,14 +3,13 @@
 import Link from 'next/link';
 import { CaretRight, Package, Truck, Warning } from '@phosphor-icons/react';
 
-import { APPROVALS } from '@/components/manager-mobile/approval-placeholder';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
-import type { ExecutiveDashboard } from '@/lib/types';
+import type { ApprovalCounts, ExecutiveDashboard } from '@/lib/types';
 
 function firstName(name: string | null | undefined): string {
   if (!name) return 'Manajer';
@@ -73,14 +72,18 @@ function Tile({
 
 export default function ManagerHomePage() {
   const { customer } = useAuth();
-  const { selected, depots } = useDepot();
+  const { selected, depots, scopedId } = useDepot();
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(), true), []);
+  const counts = useAsync<ApprovalCounts>(
+    () => (scopedId ? api.get(endpoints.approvals.counts(scopedId), true) : Promise.resolve(null as unknown as ApprovalCounts)),
+    [scopedId],
+  );
 
   const depotName =
     selected?.name ??
     depots.find((dep) => dep.id === customer?.assignedDepotId)?.name ??
     'Depot kamu';
-  const pending = APPROVALS.length;
+  const pending = counts.data?.total ?? 0;
 
   return (
     <div className="space-y-4 px-4 py-6">

@@ -30,6 +30,13 @@ import {
 } from '../../src/application/ports/inventory.repository';
 import { available, ReservationStatus } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
+import { Approval, ApprovalStatus, ApprovalType } from '../../src/domain/approval';
+import {
+  ApprovalRepository,
+  CreateApprovalData,
+  PendingCounts,
+  UpdateApprovalData,
+} from '../../src/application/ports/approval.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -272,6 +279,41 @@ export class FakePricingRuleRepository implements PricingRuleRepository {
   }
 }
 
+export class InMemoryApprovalRepository implements ApprovalRepository {
+  rows: Approval[] = [];
+
+  async create(data: CreateApprovalData): Promise<Approval> {
+    const at = nextDate();
+    const row: Approval = { id: randomUUID(), ...data, createdAt: at };
+    this.rows.push(row);
+    return row;
+  }
+  async listForDepot(depotId: string, status?: ApprovalStatus): Promise<Approval[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && (!status || r.status === status))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async findById(id: string): Promise<Approval | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async update(id: string, data: UpdateApprovalData): Promise<Approval> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, data);
+    return row;
+  }
+  async pendingCounts(depotId: string): Promise<PendingCounts> {
+    const counts: PendingCounts = {
+      [ApprovalType.OPNAME_VARIANCE]: 0,
+      [ApprovalType.DEPOSIT_REFUND]: 0,
+      [ApprovalType.COD_VARIANCE]: 0,
+    };
+    for (const r of this.rows) {
+      if (r.depotId === depotId && r.status === ApprovalStatus.PENDING) counts[r.type] += 1;
+    }
+    return counts;
+  }
+}
+
 export function buildTestConfig(overrides: Record<string, string> = {}): DepotConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
@@ -281,6 +323,8 @@ export function buildTestConfig(overrides: Record<string, string> = {}): DepotCo
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',
+    GALLON_DEPOSIT_IDR: '20000',
+    APPROVAL_AUTO_PASS_IDR: '100000',
     ...overrides,
   };
   const fake = {

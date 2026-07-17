@@ -558,6 +558,20 @@ export const endpoints = {
     create: () => '/incidents/api/v1/incidents',
     resolve: (id: string) => `/incidents/api/v1/incidents/${id}/resolve`,
   },
+  // Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). Own gateway
+  // segment (proxied to depot-service). depotId scopes the list/counts; status filters.
+  approvals: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/approvals/api/v1/approvals?${p}`;
+    },
+    detail: (id: string) => `/approvals/api/v1/approvals/${id}`,
+    decide: (id: string) => `/approvals/api/v1/approvals/${id}/decide`,
+    counts: (depotId: string) =>
+      `/approvals/api/v1/approvals/counts?depotId=${encodeURIComponent(depotId)}`,
+    create: '/approvals/api/v1/approvals',
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,

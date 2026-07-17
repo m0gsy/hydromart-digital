@@ -369,3 +369,50 @@ model Incident {
   @@index([depotId, status, createdAt])
   @@map("incidents")
 }
+
+/// Kind of manager approval item (design 1c/2a-2c/10c/12a).
+enum ApprovalType {
+  OPNAME_VARIANCE
+  DEPOSIT_REFUND
+  COD_VARIANCE
+}
+
+/// PENDING → APPROVED / REJECTED / HELD lifecycle for an approval item.
+/// HELD parks an item for later without a final decision.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HELD
+}
+
+/// Depot-manager approval queue (design 1c/2a-2c/10c/12a): one row per value decision a
+/// manager must sign off — stock-count loss (opname), deposit refund, COD shortfall. Small
+/// values auto-pass (APPROVED at create) under the depot's threshold; larger ones wait
+/// PENDING for a Tolak/Tahan/Setujui decision. payload is a per-type JSON snapshot rendered
+/// on the detail screen: {system,physical,variance} | {condition,deposit} | {expected,received}.
+model Approval {
+  id                String         @id @default(uuid()) @db.Uuid
+  depotId           String         @db.Uuid
+  type              ApprovalType
+  status            ApprovalStatus @default(PENDING)
+  title             String
+  /// Account id of the operator/system that raised the item.
+  submittedBy       String         @db.Uuid
+  /// Human subject of the decision (product / customer / courier name).
+  subjectRef        String?
+  /// Signed rupiah at stake: loss (opname), refund (deposit), shortfall (COD).
+  amountIdr         Int
+  /// Per-type snapshot for the detail view.
+  payload           Json           @default("{}")
+  /// At/under |amount| this item auto-passed without review (snapshot of the threshold).
+  autoPassThreshold Int
+  decisionNote      String?
+  decidedBy         String?        @db.Uuid
+  decidedAt         DateTime?
+  createdAt         DateTime       @default(now())
+
+  // Newest-first queue reads by (depotId, status, createdAt).
+  @@index([depotId, status, createdAt])
+  @@map("approvals")
+}

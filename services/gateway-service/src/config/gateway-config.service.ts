@@ -17,6 +17,9 @@ const SEGMENT_ENV: Record<string, string> = {
   // Depot operational incidents inbox (depot-service, design 6b/13b). Its own public
   // segment; reuses the depot-service upstream (no new env var).
   incidents: 'DEPOT_SERVICE_URL',
+  // Depot-manager approval queue (depot-service, design 1c/2a-2c). Own public segment,
+  // reuses the depot-service upstream (no new env var).
+  approvals: 'DEPOT_SERVICE_URL',
   dashboard: 'DASHBOARD_SERVICE_URL',
   loyalty: 'LOYALTY_SERVICE_URL',
   vouchers: 'PROMO_SERVICE_URL',
