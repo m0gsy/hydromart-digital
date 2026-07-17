@@ -21,6 +21,8 @@ services:
       <<: *shared
       AUTH_SERVICE_PORT: 3001
       AUTH_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_auth?schema=public
+      # Avatar/image storage: only the public base URL is required to boot (no upload driven).
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/avatars
       JWT_REFRESH_SECRET: itest-shared-refresh-secret-0123456789abcdef
       JWT_ACCESS_TTL: 900
       JWT_REFRESH_TTL: 2592000
@@ -60,6 +62,7 @@ services:
       <<: *shared
       PRODUCT_SERVICE_PORT: 3003
       PRODUCT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_product?schema=public
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/products
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -126,6 +129,7 @@ services:
       <<: *shared
       DELIVERY_SERVICE_PORT: 3006
       DELIVERY_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_delivery?schema=public
+      STORAGE_PUBLIC_BASE_URL: http://storage.test/pod
       ORDER_SERVICE_URL: http://order:3004
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       DELIVERY_SLA_MINUTES: 120
