@@ -947,6 +947,27 @@ export interface CourierEarningsSummary {
   recentWithdrawals: CourierWithdrawal[];
 }
 
+// Courier expense claims (payout-service, design 6a).
+export type ExpenseCategory = 'FUEL' | 'PARKING_TOLL' | 'VEHICLE_REPAIR' | 'OTHER';
+export type ExpenseClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ExpenseClaim {
+  id: string;
+  courierId: string;
+  depotId: string | null;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  receiptUrl: string | null;
+  status: ExpenseClaimStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  ledgerEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Courier field incident (delivery-service, design 4b). HIGH alerts ops.
 // Named Courier* to avoid the HQ admin IncidentSeverity below.
 export type CourierIncidentCategory =

@@ -123,6 +123,51 @@ model CourierLedgerEntry {
   @@map("courier_ledger_entries")
 }
 
+/// Expense-claim lifecycle (design 6a). PENDING on submit unless auto-approved under
+/// the threshold; a reviewer moves it to APPROVED (credits the courier ledger) or REJECTED.
+enum ExpenseClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// Reimbursable expense kinds a courier can claim.
+enum ExpenseCategory {
+  FUEL
+  PARKING_TOLL
+  VEHICLE_REPAIR
+  OTHER
+}
+
+/// A courier's out-of-pocket expense claim (design 6a). Approval credits the courier
+/// ledger (ADJUSTMENT) via sourceRef "expense:<id>" so the credit is idempotent.
+model ExpenseClaim {
+  id          String             @id @default(uuid()) @db.Uuid
+  courierId   String             @db.Uuid
+  /// Courier's assigned depot (client-supplied) so a reviewer can filter by depot.
+  depotId     String?            @db.Uuid
+  category    ExpenseCategory
+  /// Positive IDR amount claimed.
+  amount      Decimal            @db.Decimal(14, 2)
+  description String
+  /// Optional receipt photo URL. Retention/lifecycle for this asset is an ops concern
+  /// (separate bucket/prefix from PoD) — this model only stores the reference.
+  receiptUrl  String?
+  status      ExpenseClaimStatus @default(PENDING)
+  /// Reviewer staff user id (null when auto-approved under the threshold).
+  reviewedBy  String?            @db.Uuid
+  reviewedAt  DateTime?
+  reviewNote  String?
+  /// The credited CourierLedgerEntry id once approved (null until credited).
+  ledgerEntryId String?          @db.Uuid
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([depotId, status])
+  @@index([courierId, createdAt])
+  @@map("expense_claims")
+}
+
 /// A courier's request to cash out earnings to their bank account (design 2c). Parallel
 /// to the franchise Withdrawal; the matching debit posts to CourierLedgerEntry.
 model CourierWithdrawal {

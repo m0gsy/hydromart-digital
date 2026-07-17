@@ -656,6 +656,7 @@ export const endpoints = {
     },
     withdraw: '/payout/api/v1/courier/withdrawals',
     withdrawals: '/payout/api/v1/courier/withdrawals',
+    expenses: '/payout/api/v1/courier/expenses',
   },
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
   // propose is depot-manager (under the depots segment).

@@ -23,10 +23,13 @@ import {
   CourierEarningsSummary,
   CourierPayoutService,
 } from '../application/services/courier-payout.service';
+import { ExpenseClaimService } from '../application/services/expense-claim.service';
 import { CourierLedgerEntryRecord } from '../application/ports/courier-ledger.repository';
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
+import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
 import { CourierLedgerQueryDto, DeliveryCompletedEventDto } from './dto/courier-payout.dto';
+import { ExpenseQueryDto, SubmitExpenseDto } from './dto/expense-claim.dto';
 import { RequestWithdrawalDto } from './dto/payout.dto';
 
 // Courier-scoped: reads the calling courier's own earnings ledger (user.sub).
@@ -35,7 +38,10 @@ import { RequestWithdrawalDto } from './dto/payout.dto';
 @Roles(...CAPABILITIES.courierPayout)
 @Controller({ path: 'courier', version: '1' })
 export class CourierPayoutController {
-  constructor(private readonly payout: CourierPayoutService) {}
+  constructor(
+    private readonly payout: CourierPayoutService,
+    private readonly expenses: ExpenseClaimService,
+  ) {}
 
   @Get('earnings/summary')
   @ApiOperation({ summary: "Balance, this month's earnings + recent activity (design 2c)" })
@@ -65,6 +71,30 @@ export class CourierPayoutController {
   @ApiOperation({ summary: 'Withdrawal history for the calling courier (design 2c riwayat)' })
   withdrawals(@CurrentUser() user: AuthenticatedUser): Promise<CourierWithdrawalRecord[]> {
     return this.payout.withdrawalHistory(user.sub);
+  }
+
+  @Post('expenses')
+  @ApiOperation({ summary: 'File an expense claim (design 6a); auto-approves under threshold' })
+  submitExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubmitExpenseDto,
+  ): Promise<ExpenseClaimRecord> {
+    return this.expenses.submit(user.sub, {
+      category: dto.category,
+      amount: dto.amount,
+      description: dto.description,
+      depotId: dto.depotId ?? null,
+      receiptUrl: dto.receiptUrl ?? null,
+    });
+  }
+
+  @Get('expenses')
+  @ApiOperation({ summary: 'Expense claims filed by the calling courier (design 6a)' })
+  expenseHistory(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ExpenseQueryDto,
+  ): Promise<Page<ExpenseClaimRecord>> {
+    return this.expenses.listForCourier(user.sub, query.page, query.limit);
   }
 
   // System-triggered: delivery-service posts a completed delivery, authenticated by the

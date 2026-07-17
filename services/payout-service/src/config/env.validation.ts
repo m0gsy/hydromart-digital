@@ -13,4 +13,6 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   // HQ commission rate applied to gross sales settlements (0.05 = 5%). Reporting only.
   PAYOUT_COMMISSION_RATE: Joi.number().min(0).max(1).default(0.05),
+  // Expense claims at or under this IDR amount auto-approve (0 = every claim needs a reviewer).
+  EXPENSE_AUTO_APPROVE_MAX_IDR: Joi.number().integer().min(0).default(50000),
 });
