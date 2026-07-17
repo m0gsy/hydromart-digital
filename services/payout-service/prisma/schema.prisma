@@ -32,6 +32,18 @@ enum WithdrawalStatus {
   FAILED
 }
 
+/// Courier cash-book entry kind. Credit (+): EARNING. Debits (-): DEDUCTION (e.g.
+/// break overage), CASH_VARIANCE (COD shortfall charged, slice 13), WITHDRAWAL.
+/// ADJUSTMENT may be either sign. Kept parallel to LedgerEntryType (franchise money)
+/// rather than generalised — the two ledgers never share a balance.
+enum CourierLedgerEntryType {
+  EARNING
+  DEDUCTION
+  CASH_VARIANCE
+  WITHDRAWAL
+  ADJUSTMENT
+}
+
 /// Append-only cash-book entry for one franchise owner (optionally attributed to a depot).
 model LedgerEntry {
   id               String          @id @default(uuid()) @db.Uuid
@@ -65,6 +77,50 @@ model CommissionScheme {
   // Current-scheme lookup reads the newest effectiveDate per depot.
   @@index([depotId, effectiveDate])
   @@map("commission_schemes")
+}
+
+/// Per-depot courier earning rule (design 6b). Effective-dated like CommissionScheme:
+/// the newest effectiveDate for a depot is its current rule; a row with depotId NULL
+/// is the network default used when a depot has no rule of its own. Append-only.
+/// Applied in payout-service (not delivery-service) so the money math has one home.
+model CourierEarningRule {
+  id      String  @id @default(uuid()) @db.Uuid
+  /// NULL = network default rule.
+  depotId String? @db.Uuid
+  /// Flat pay per completed delivery (IDR).
+  baseFare      Decimal @db.Decimal(12, 2)
+  /// Added on top of baseFare when the delivery completes within peak hours.
+  peakBonus     Decimal @db.Decimal(12, 2)
+  /// Added when the delivery beat its SLA (onTime, decided by delivery-service).
+  onTimeBonus   Decimal @db.Decimal(12, 2)
+  /// Peak window [start, end) in local hour-of-day, e.g. 17..20.
+  peakStartHour Int
+  peakEndHour   Int
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([depotId, effectiveDate])
+  @@map("courier_earning_rules")
+}
+
+/// Append-only courier cash-book entry. Balance = signed sum of amounts. sourceRef
+/// makes upstream pushes idempotent (a re-delivered event re-uses the same ref and
+/// is a no-op) — the delivery→payout push is at-least-once.
+model CourierLedgerEntry {
+  id        String                 @id @default(uuid()) @db.Uuid
+  courierId String                 @db.Uuid
+  depotId   String?                @db.Uuid
+  type      CourierLedgerEntryType
+  /// Signed IDR amount: positive = credit (balance up), negative = debit.
+  amount    Decimal                @db.Decimal(14, 2)
+  description String
+  /// Idempotency key for the source event, e.g. "earning:<deliveryId>". Unique.
+  sourceRef String? @unique
+  occurredAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@index([courierId, occurredAt])
+  @@map("courier_ledger_entries")
 }
 
 /// A franchise owner's request to cash out available balance to their bank account.

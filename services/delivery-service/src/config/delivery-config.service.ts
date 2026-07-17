@@ -32,6 +32,10 @@ export class DeliveryConfigService {
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** payout-service base URL for the courier earning push. Blank = disabled (fail-open). */
+  get payoutServiceUrl(): string {
+    return this.config.get<string>('PAYOUT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Shared service-to-service key (x-internal-key). Blank = internal calls disabled. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

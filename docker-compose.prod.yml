@@ -165,6 +165,8 @@ services:
       # HIGH field incidents (4b) push to the ops feed via crm; reuses DEPOT_ALERT_PHONE.
       CRM_SERVICE_URL: http://crm:3012
       OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
+      # Courier earning push on delivery completion (design 6b, internal key).
+      PAYOUT_SERVICE_URL: http://payout:3016
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
       SHIFT_LENGTH_HOURS: 8

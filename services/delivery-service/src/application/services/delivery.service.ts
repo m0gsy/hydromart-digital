@@ -34,6 +34,7 @@ import {
   ProofRecord,
 } from '../ports/delivery.repository';
 import { OrderCoordinationPort } from '../ports/order-coordination.port';
+import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 
@@ -77,6 +78,7 @@ export class DeliveryService {
   constructor(
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Inject(DELIVERY_TOKENS.OrderCoordination) private readonly orders: OrderCoordinationPort,
+    @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
     private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
   ) {}
@@ -153,7 +155,23 @@ export class DeliveryService {
     await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
     const completed = await this.deliveries.completeWithProof(id, proof, driverId);
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
+    // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
+    // delivery must never roll back because its earning push did.
+    void this.pushEarning(completed);
     return completed;
+  }
+
+  /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */
+  private async pushEarning(delivery: DeliveryRecord): Promise<void> {
+    if (!delivery.deliveredAt) return;
+    const minutes = (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60000;
+    await this.payout.deliveryCompleted({
+      courierId: delivery.driverId,
+      depotId: delivery.depotId,
+      deliveryId: delivery.id,
+      deliveredAt: delivery.deliveredAt.toISOString(),
+      onTime: minutes <= this.config.slaMinutes,
+    });
   }
 
   /** Marks the delivery failed (does not change the order status). */

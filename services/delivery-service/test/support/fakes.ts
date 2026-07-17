@@ -34,6 +34,10 @@ import {
 import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
 import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
 import {
+  CourierPayoutPort,
+  DeliveryCompletedEvent,
+} from '../../src/application/ports/courier-payout.port';
+import {
   CreateSettlementData,
   ResolveSettlementPatch,
   SettlementQuery,
@@ -419,6 +423,13 @@ export class InMemorySettlementRepository implements SettlementRepository {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, patch, { updatedAt: nextDate() });
     return clone(row);
+  }
+}
+
+export class FakeCourierPayout implements CourierPayoutPort {
+  events: DeliveryCompletedEvent[] = [];
+  async deliveryCompleted(event: DeliveryCompletedEvent): Promise<void> {
+    this.events.push(event);
   }
 }
 

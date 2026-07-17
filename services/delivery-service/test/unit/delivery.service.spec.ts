@@ -18,6 +18,7 @@ import { ContactMethod } from '../../src/domain/no-show';
 import { ShiftStatus } from '../../src/domain/shift';
 import {
   FakeDepotLocation,
+  FakeCourierPayout,
   FakeOrderCoordination,
   InMemoryDeliveryRepository,
   InMemoryShiftRepository,
@@ -51,7 +52,7 @@ describe('DeliveryService', () => {
     orders = new FakeOrderCoordination();
     const config = buildTestConfig();
     shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
-    service = new DeliveryService(repo, orders, shifts, config);
+    service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config);
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });

@@ -644,6 +644,17 @@ export const endpoints = {
     // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
     hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
   },
+  // Courier earnings: balance, month earnings, ledger (payout-service, DRIVER). Design 2c.
+  courierPayout: {
+    summary: '/payout/api/v1/courier/earnings/summary',
+    ledger: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
+    },
+  },
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
   // propose is depot-manager (under the depots segment).
   priceOverrides: {

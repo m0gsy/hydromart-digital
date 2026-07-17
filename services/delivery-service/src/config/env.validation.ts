@@ -20,6 +20,8 @@ export const envValidationSchema = Joi.object({
   // crm-service base URL for pushing HIGH field incidents to the ops feed (design 4b).
   // Blank = incident ops alerting disabled (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // payout-service base URL for the courier earning push (delivery→payout). Blank = disabled.
+  PAYOUT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // WhatsApp number that receives HIGH incident alerts (the ops number). Blank = disabled.
   OPS_ALERT_PHONE: Joi.string().allow('').default(''),
   MAX_ACTIVE_DELIVERIES_PER_DRIVER: Joi.number().integer().positive().default(1),

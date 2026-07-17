@@ -908,6 +908,33 @@ export interface CashSettlement {
   updatedAt: string;
 }
 
+// Courier earnings ledger (payout-service, design 2c/6b).
+export type CourierLedgerEntryType =
+  | 'EARNING'
+  | 'DEDUCTION'
+  | 'CASH_VARIANCE'
+  | 'WITHDRAWAL'
+  | 'ADJUSTMENT';
+
+export interface CourierLedgerEntry {
+  id: string;
+  courierId: string;
+  depotId: string | null;
+  type: CourierLedgerEntryType;
+  // Signed IDR: positive = credit, negative = debit.
+  amount: number;
+  description: string;
+  sourceRef: string | null;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface CourierEarningsSummary {
+  availableBalance: number;
+  monthEarnings: number;
+  recentEntries: CourierLedgerEntry[];
+}
+
 // Courier field incident (delivery-service, design 4b). HIGH alerts ops.
 // Named Courier* to avoid the HQ admin IncidentSeverity below.
 export type CourierIncidentCategory =
