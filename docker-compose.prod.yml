@@ -159,7 +159,16 @@ services:
       DELIVERY_SERVICE_PORT: 3006
       DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public
       ORDER_SERVICE_URL: http://order:3004
+      DEPOT_SERVICE_URL: http://depot:3007
+      # HIGH field incidents (4b) push to the ops feed via crm; reuses DEPOT_ALERT_PHONE.
+      CRM_SERVICE_URL: http://crm:3012
+      OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
+      SHIFT_CHECKIN_RADIUS_M: 200
+      SHIFT_LENGTH_HOURS: 8
+      SHIFT_BREAK_QUOTA_MINUTES: 30
+      NO_SHOW_MIN_CONTACT_ATTEMPTS: 2
+      NO_SHOW_MIN_WAIT_SECONDS: 300
       DELIVERY_SLA_MINUTES: 120
       # Object storage for PoD photo + signature. BiznetGio NEO (S3-compatible);
       # per-bucket keys, so delivery uses its own bucket/creds (see DELIVERY_STORAGE_* in .env).

@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 
 import { PaymentService } from '../../src/application/services/payment.service';
 import {
+  CashShortError,
   GatewayUnavailableError,
   InvalidWebhookSignatureError,
   PaymentAlreadyExistsError,
@@ -80,6 +81,21 @@ describe('PaymentService', () => {
     expect(confirmed.paidAt).not.toBeNull();
     // A settled payment confirms its order (CREATED→CONFIRMED).
     expect(orders.confirmedOrderIds).toEqual([confirmed.orderId]);
+  });
+
+  it('records cash tendered and change owed when confirming a COD payment (7a)', async () => {
+    const payment = await initiate(PaymentMethod.CASH, 45000);
+    const confirmed = await service.confirm(payment.id, 'driver', 50000);
+    expect(confirmed.status).toBe(PaymentStatus.PAID);
+    expect(confirmed.cashReceived).toBe(50000);
+    expect(confirmed.changeGiven).toBe(5000);
+  });
+
+  it('rejects a COD confirm when the cash handed over is short', async () => {
+    const payment = await initiate(PaymentMethod.CASH, 45000);
+    await expect(service.confirm(payment.id, 'driver', 40000)).rejects.toBeInstanceOf(CashShortError);
+    // Payment stays PENDING — nothing settled.
+    expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
   });
 
   it('refunds a paid online payment via the gateway (BR: online-paid cancel needs refund)', async () => {

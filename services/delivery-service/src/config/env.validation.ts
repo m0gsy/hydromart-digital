@@ -13,7 +13,28 @@ export const envValidationSchema = Joi.object({
   // uses it to read the global SLA report. Blank = internal-key auth stays fail-closed.
   INTERNAL_SERVICE_KEY: optionalSecret(16),
   ORDER_SERVICE_URL: Joi.string().uri().required(),
+  // Read for the depot's coordinates when a courier checks in (GET /depots/:id is public).
+  DEPOT_SERVICE_URL: Joi.string().uri().required(),
+  // crm-service base URL for pushing HIGH field incidents to the ops feed (design 4b).
+  // Blank = incident ops alerting disabled (fail-open).
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // WhatsApp number that receives HIGH incident alerts (the ops number). Blank = disabled.
+  OPS_ALERT_PHONE: Joi.string().allow('').default(''),
   MAX_ACTIVE_DELIVERIES_PER_DRIVER: Joi.number().integer().positive().default(1),
+  // How close to the depot a courier must stand to check in (design 3a).
+  SHIFT_CHECKIN_RADIUS_M: Joi.number().integer().positive().default(200),
+  // Shift window length, frozen onto the shift at check-in. ponytail: derived from
+  // check-in because there is no roster yet — a roster (design Operator 6d) would
+  // schedule the window ahead of time instead.
+  SHIFT_LENGTH_HOURS: Joi.number().positive().default(8),
+  // Paid break allowance per shift (design 3b countdown). Exceeding it is recorded
+  // as an overage, not blocked.
+  SHIFT_BREAK_QUOTA_MINUTES: Joi.number().integer().positive().default(30),
+  // No-show gate (design 5a): a courier must make this many contact attempts and
+  // wait this many seconds (from the first attempt) before failing a delivery as
+  // a no-show. Both together stop a premature no-show.
+  NO_SHOW_MIN_CONTACT_ATTEMPTS: Joi.number().integer().positive().default(2),
+  NO_SHOW_MIN_WAIT_SECONDS: Joi.number().integer().positive().default(300),
   DELIVERY_SLA_MINUTES: Joi.number().integer().positive().default(120),
   // UU PDP retention window for proof-of-delivery data (photo/signature/name/GPS).
   // The scheduler purges rows older than this daily; the storage bucket must carry

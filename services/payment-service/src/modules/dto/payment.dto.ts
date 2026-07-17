@@ -70,6 +70,17 @@ export class UnsettledByMethodQueryDto {
   to?: string;
 }
 
+export class ConfirmPaymentDto {
+  @ApiPropertyOptional({
+    example: 50000,
+    description: 'COD cash handed over (IDR). Change owed back is computed and returned.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsPositive()
+  cashReceived?: number;
+}
+
 export class RefundPaymentDto {
   @ApiPropertyOptional({ example: 'Order cancelled by customer.' })
   @IsOptional()

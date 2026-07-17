@@ -16,6 +16,8 @@ export interface PaymentRecord {
   refundReason: string | null;
   refundedAmount: number | null;
   refundApproval: RefundApproval;
+  cashReceived: number | null;
+  changeGiven: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +43,8 @@ export interface PaymentStatusPatch {
   reference?: string | null;
   instruction?: string | null;
   gatewayData?: string | null;
+  cashReceived?: number | null;
+  changeGiven?: number | null;
 }
 
 export interface PaymentQuery {

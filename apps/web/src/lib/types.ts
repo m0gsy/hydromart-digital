@@ -244,6 +244,9 @@ export interface Payment {
   amount: number;
   reference: string | null;
   instruction: string | null;
+  // COD only (design 7a): cash tendered + change given back, set on confirm.
+  cashReceived?: number | null;
+  changeGiven?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -801,7 +804,30 @@ export interface DepotPayload {
 }
 
 // Delivery (delivery-service). Live-tracking slice consumed by the ops console.
-export type DeliveryStatus = 'ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED' | 'FAILED';
+export type DeliveryStatus =
+  | 'ASSIGNED'
+  | 'PICKED_UP'
+  | 'ON_DELIVERY'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'RESCHEDULED';
+
+export interface DeliveryStatusHistoryEntry {
+  status: DeliveryStatus;
+  changedBy: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface ProofOfDelivery {
+  photoUrl: string;
+  signatureUrl: string;
+  recipientName: string;
+  latitude: number;
+  longitude: number;
+  note: string | null;
+  capturedAt: string;
+}
 
 export interface Delivery {
   id: string;
@@ -817,6 +843,68 @@ export interface Delivery {
   lastLng: number | null;
   lastLocationAt: string | null;
   assignedAt: string;
+  // Present on the driver detail read (getForDriver); absent from the tracking list.
+  pickedUpAt?: string | null;
+  startedAt?: string | null;
+  deliveredAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  rescheduledFor?: string | null;
+  rescheduleSlot?: string | null;
+  rescheduleNote?: string | null;
+  proof?: ProofOfDelivery | null;
+  history?: DeliveryStatusHistoryEntry[];
+}
+
+/** No-show gate status returned by the contact-attempt endpoint (design 5a). */
+export interface NoShowStatus {
+  attempts: number;
+  eligibleAt: string | null;
+  canMarkNoShow: boolean;
+}
+
+// Courier shift (delivery-service). Front door of the driver app (design 3a/3b).
+export type ShiftStatus = 'ONLINE' | 'BREAK' | 'OFFLINE' | 'ENDED';
+
+export interface Shift {
+  id: string;
+  driverId: string;
+  depotId: string;
+  status: ShiftStatus;
+  checkInAt: string;
+  checkInLat: number;
+  checkInLng: number;
+  expectedEndAt: string;
+  checkOutAt: string | null;
+  checkOutLat: number | null;
+  checkOutLng: number | null;
+  breakSecondsUsed: number;
+  breakStartedAt: string | null;
+  // Derived by the service, shown but never stored.
+  breakSecondsRemaining: number;
+  acceptsAssignments: boolean;
+}
+
+// Courier field incident (delivery-service, design 4b). HIGH alerts ops.
+// Named Courier* to avoid the HQ admin IncidentSeverity below.
+export type CourierIncidentCategory =
+  | 'ACCIDENT'
+  | 'VEHICLE_BREAKDOWN'
+  | 'THEFT_OR_THREAT'
+  | 'CUSTOMER_DISPUTE'
+  | 'PRODUCT_DAMAGE'
+  | 'OTHER';
+
+export type CourierIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface FieldIncident {
+  id: string;
+  deliveryId: string | null;
+  category: CourierIncidentCategory;
+  severity: CourierIncidentSeverity;
+  description: string;
+  photoUrl: string | null;
+  createdAt: string;
 }
 
 // Ops notification (crm-service). Operational alert feed for staff.

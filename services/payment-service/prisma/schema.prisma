@@ -59,6 +59,11 @@ model Payment {
   paidAt       DateTime?
   failedAt     DateTime?
 
+  /// COD only: cash the customer handed over and the change given back, recorded
+  /// at confirm time (design 7a). Null for online/transfer settlements.
+  cashReceived Decimal?  @db.Decimal(12, 2)
+  changeGiven  Decimal?  @db.Decimal(12, 2)
+
   refundedAt     DateTime?
   refundReason   String?
   refundedAmount Decimal?  @db.Decimal(12, 2)

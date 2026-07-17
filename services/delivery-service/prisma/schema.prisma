@@ -22,6 +22,71 @@ enum DeliveryStatus {
   ON_DELIVERY
   DELIVERED
   FAILED
+  RESCHEDULED
+}
+
+/// How a courier tried to reach the customer before declaring a no-show (design 5a).
+enum ContactMethod {
+  CALL
+  WHATSAPP
+}
+
+/// A courier's availability while on shift. ENDED is terminal (checked out).
+/// Only ONLINE accepts new assignments.
+enum ShiftStatus {
+  ONLINE
+  BREAK
+  OFFLINE
+  ENDED
+}
+
+/// What a courier reports from the field (design 4b).
+enum IncidentCategory {
+  ACCIDENT
+  VEHICLE_BREAKDOWN
+  THEFT_OR_THREAT
+  CUSTOMER_DISPUTE
+  PRODUCT_DAMAGE
+  OTHER
+}
+
+/// HIGH incidents are pushed to the ops feed; all are stored.
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// One courier work session at one depot, opened by a GPS-verified check-in at the
+/// depot and closed by check-out. It is the window every end-of-shift COD
+/// settlement is computed over, and the gate on receiving assignments.
+model Shift {
+  id       String      @id @default(uuid()) @db.Uuid
+  driverId String      @db.Uuid
+  depotId  String      @db.Uuid
+  status   ShiftStatus @default(ONLINE)
+
+  checkInAt  DateTime @default(now())
+  checkInLat Float
+  checkInLng Float
+  /// checkInAt + SHIFT_LENGTH_HOURS, frozen at check-in so a config change cannot
+  /// move a running shift's end. ponytail: derived, not rostered — a real roster
+  /// (design Operator 6d / Manager 7b) would set this ahead of time instead.
+  expectedEndAt DateTime
+
+  checkOutAt  DateTime?
+  checkOutLat Float?
+  checkOutLng Float?
+
+  /// Break time consumed so far, accumulated on each BREAK → ONLINE/OFFLINE exit.
+  /// Quota is config (SHIFT_BREAK_QUOTA_MINUTES); exceeding it is recorded, not
+  /// blocked — the overage becomes a payout DEDUCTION, not a failed request.
+  breakSecondsUsed Int       @default(0)
+  breakStartedAt   DateTime?
+
+  @@index([driverId, checkInAt])
+  @@index([depotId, status])
+  @@map("shifts")
 }
 
 /// One driver assignment per order (orderId unique). Destination is snapshotted
@@ -54,8 +119,15 @@ model Delivery {
   failedAt      DateTime?
   failureReason String?
 
-  proof   ProofOfDelivery?
-  history DeliveryStatusHistory[]
+  // Reschedule (design 3c): the new target time/slot the courier agreed with the
+  // customer + an optional note. Set when status becomes RESCHEDULED.
+  rescheduledFor DateTime?
+  rescheduleSlot String?
+  rescheduleNote String?
+
+  proof           ProofOfDelivery?
+  history         DeliveryStatusHistory[]
+  contactAttempts ContactAttempt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -81,6 +153,42 @@ model ProofOfDelivery {
   capturedAt    DateTime @default(now())
 
   @@map("proofs_of_delivery")
+}
+
+/// One recorded attempt by the courier to reach the customer (design 5a). The
+/// count + first attempt time gate whether a no-show may be declared.
+model ContactAttempt {
+  id         String        @id @default(uuid()) @db.Uuid
+  deliveryId String        @db.Uuid
+  delivery   Delivery      @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  driverId   String        @db.Uuid
+  method     ContactMethod @default(CALL)
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  @@index([deliveryId])
+  @@map("contact_attempts")
+}
+
+/// A courier-reported field incident (design 4b). Optionally tied to a delivery;
+/// depotId is snapshotted so ops can scope. Photo (optional) goes through the
+/// existing PoD upload endpoint, so only the URL is stored here.
+model FieldIncident {
+  id          String           @id @default(uuid()) @db.Uuid
+  driverId    String           @db.Uuid
+  deliveryId  String?          @db.Uuid
+  depotId     String?          @db.Uuid
+  category    IncidentCategory
+  severity    IncidentSeverity
+  description String
+  photoUrl    String?
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime         @default(now())
+
+  @@index([driverId, createdAt])
+  @@index([depotId, createdAt])
+  @@map("field_incidents")
 }
 
 /// Append-only audit of every delivery status transition.

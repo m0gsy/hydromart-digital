@@ -53,6 +53,15 @@ export class RefundNotPendingError extends DomainError {
   }
 }
 
+/** COD cash handed over is less than the amount due — cannot settle short. */
+export class CashShortError extends DomainError {
+  readonly code = 'PAYMENT_CASH_SHORT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(due: number, received: number) {
+    super(`Cash received (${received}) is less than the amount due (${due}).`);
+  }
+}
+
 /** Webhook signature did not verify. */
 export class InvalidWebhookSignatureError extends DomainError {
   readonly code = 'PAYMENT_INVALID_SIGNATURE';

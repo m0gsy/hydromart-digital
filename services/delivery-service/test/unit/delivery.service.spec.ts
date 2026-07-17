@@ -1,19 +1,26 @@
 import { randomUUID } from 'node:crypto';
 
 import { DeliveryService } from '../../src/application/services/delivery.service';
+import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DeliveryAlreadyExistsError,
   DeliveryNotActiveError,
   DeliveryNotFoundError,
   DriverBusyError,
+  DriverNotOnShiftError,
   InvalidDeliveryTransitionError,
+  NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
 } from '../../src/domain/errors';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
+import { ContactMethod } from '../../src/domain/no-show';
+import { ShiftStatus } from '../../src/domain/shift';
 import {
+  FakeDepotLocation,
   FakeOrderCoordination,
   InMemoryDeliveryRepository,
+  InMemoryShiftRepository,
   buildTestConfig,
 } from '../support/fakes';
 
@@ -27,17 +34,26 @@ const PROOF = {
   note: null,
 };
 
+// The depot fixture FakeDepotLocation sits at — check-in must be within radius.
+const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
+const AT_DEPOT = { lat: -6.9147, lng: 107.6098 };
+
 describe('DeliveryService', () => {
   let repo: InMemoryDeliveryRepository;
   let orders: FakeOrderCoordination;
+  let shifts: ShiftService;
   let service: DeliveryService;
   const driver = randomUUID();
   const staff = randomUUID();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     repo = new InMemoryDeliveryRepository();
     orders = new FakeOrderCoordination();
-    service = new DeliveryService(repo, orders, buildTestConfig());
+    const config = buildTestConfig();
+    shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    service = new DeliveryService(repo, orders, shifts, config);
+    // Assignment now requires an open ONLINE shift, so every driver clocks in first.
+    await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
 
   const assign = (driverId = driver, orderId = randomUUID()) =>
@@ -62,6 +78,22 @@ describe('DeliveryService', () => {
   it('enforces one active delivery per driver (BR)', async () => {
     await assign(driver);
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverBusyError);
+  });
+
+  it('refuses to assign a driver who has not checked in', async () => {
+    await expect(assign(randomUUID())).rejects.toBeInstanceOf(DriverNotOnShiftError);
+  });
+
+  it('refuses to assign a driver who is on a break', async () => {
+    const shift = (await shifts.current(driver))!;
+    await shifts.setStatus(driver, shift.id, ShiftStatus.BREAK);
+    await expect(assign(driver)).rejects.toBeInstanceOf(DriverNotOnShiftError);
+  });
+
+  it('refuses to assign a driver who has checked out', async () => {
+    const shift = (await shifts.current(driver))!;
+    await shifts.checkOut(driver, shift.id, AT_DEPOT.lat, AT_DEPOT.lng);
+    await expect(assign(driver)).rejects.toBeInstanceOf(DriverNotOnShiftError);
   });
 
   it('records the driver location while active and rejects it after delivery', async () => {
@@ -131,6 +163,47 @@ describe('DeliveryService', () => {
     expect(failed.failureReason).toBe('address not found');
     // Only the assignment sync happened; failure does not advance the order.
     expect(orders.calls).toHaveLength(1);
+  });
+
+  it('gates no-show behind contact attempts + wait, then fails as no-show (5a)', async () => {
+    const d = await assign();
+    // Too early: no attempts yet.
+    await expect(service.markNoShow(driver, d.id)).rejects.toBeInstanceOf(NoShowNotEligibleError);
+
+    const first = await service.recordContactAttempt(driver, d.id, ContactMethod.CALL);
+    expect(first.attempts).toBe(1);
+    expect(first.canMarkNoShow).toBe(false); // needs 2 attempts
+    const second = await service.recordContactAttempt(driver, d.id, ContactMethod.WHATSAPP);
+    expect(second.attempts).toBe(2);
+    expect(second.eligibleAt).not.toBeNull();
+
+    // Still short of the wait window.
+    const beforeWait = new Date(second.eligibleAt!.getTime() - 1000);
+    await expect(service.markNoShow(driver, d.id, beforeWait)).rejects.toBeInstanceOf(
+      NoShowNotEligibleError,
+    );
+
+    // Attempts met + wait elapsed → fails as no-show, order untouched.
+    const failed = await service.markNoShow(driver, d.id, second.eligibleAt!);
+    expect(failed.status).toBe(DeliveryStatus.FAILED);
+    expect(failed.failureReason).toContain('no-show');
+    expect(orders.calls).toHaveLength(1);
+  });
+
+  it('reschedules a delivery without advancing the order (3c)', async () => {
+    const d = await assign();
+    const when = new Date('2026-08-01T09:00:00.000Z');
+    const out = await service.reschedule(driver, d.id, {
+      rescheduledFor: when,
+      slot: 'Pagi (09:00–12:00)',
+      note: 'Pelanggan tidak di rumah.',
+    });
+    expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
+    expect(out.rescheduledFor).toEqual(when);
+    expect(out.rescheduleSlot).toBe('Pagi (09:00–12:00)');
+    // RESCHEDULED frees the driver (non-active) and never advanced the order.
+    expect(orders.calls).toHaveLength(1);
+    expect(await repo.countActiveByDriver(driver)).toBe(0);
   });
 
   it("never reveals another driver's delivery (404)", async () => {

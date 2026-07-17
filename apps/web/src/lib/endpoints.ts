@@ -125,11 +125,35 @@ export const endpoints = {
         const base = '/deliveries/api/v1/driver/deliveries';
         return status ? `${base}?status=${status}` : base;
       },
+      get: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}`,
+      // pickup/start/fail are PATCH on the service — use api.patch, not api.post.
       pickup: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/pickup`,
       start: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/start`,
       complete: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/complete`,
+      fail: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/fail`,
+      // No-show gate (5a): POST records a contact attempt → { attempts, eligibleAt,
+      // canMarkNoShow }; PATCH no-show fails the delivery once the gate is met.
+      contactAttempts: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/contact-attempts`,
+      noShow: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/no-show`,
+      // Reschedule (3c): PATCH { rescheduledFor, slot?, note? } → RESCHEDULED.
+      reschedule: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/reschedule`,
+      // Position ping while ON_DELIVERY; overwrites, no history.
+      location: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/location`,
       // Multipart PoD upload (photo + signature); returns { url }.
       upload: '/deliveries/api/v1/driver/deliveries/uploads',
+    },
+    // Courier shift (design 3a/3b). check-in/out are POST; status is PATCH.
+    shifts: {
+      current: '/deliveries/api/v1/driver/shifts/current',
+      history: '/deliveries/api/v1/driver/shifts',
+      checkIn: '/deliveries/api/v1/driver/shifts/check-in',
+      checkOut: (id: string) => `/deliveries/api/v1/driver/shifts/${id}/check-out`,
+      status: (id: string) => `/deliveries/api/v1/driver/shifts/${id}/status`,
+    },
+    // Courier field incident reporting (design 4b). POST reports; HIGH alerts ops.
+    incidents: {
+      list: '/deliveries/api/v1/driver/incidents',
+      create: '/deliveries/api/v1/driver/incidents',
     },
   },
   payments: {

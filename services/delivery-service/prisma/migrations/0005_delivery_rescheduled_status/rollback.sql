@@ -1,0 +1,6 @@
+-- Manual rollback for 0005_delivery_rescheduled_status (delivery-service).
+-- Postgres cannot DROP a single enum value. To remove RESCHEDULED you must recreate
+-- the type without it, which requires no rows still referencing it:
+--   ALTER TABLE "deliveries" ALTER COLUMN "status" TYPE TEXT;
+--   -- ... then recreate "DeliveryStatus" without 'RESCHEDULED' and cast back.
+-- Left as documentation: dropping a shipped enum value is a data migration, not a DDL undo.

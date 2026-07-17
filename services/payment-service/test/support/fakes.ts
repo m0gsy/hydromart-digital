@@ -41,6 +41,8 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundReason: null,
       refundedAmount: null,
       refundApproval: RefundApproval.NONE,
+      cashReceived: null,
+      changeGiven: null,
       createdAt: now,
       updatedAt: now,
     };

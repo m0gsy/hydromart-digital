@@ -6,21 +6,8 @@ import { Camera, Eraser, PencilLine } from '@phosphor-icons/react';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { currentPosition } from '@/lib/geo';
 import { compressImage } from '@/lib/image';
-
-/** Ask the browser for the current position (required by the PoD proof). */
-function currentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!('geolocation' in navigator)) {
-      reject(new Error('Perangkat tidak mendukung lokasi GPS.'));
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(resolve, () => reject(new Error('Lokasi GPS ditolak. Aktifkan izin lokasi.')), {
-      enableHighAccuracy: true,
-      timeout: 10000,
-    });
-  });
-}
 
 /** Signature pad: freehand pointer drawing on a canvas, exportable as a PNG blob. */
 function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElement | null> }) {

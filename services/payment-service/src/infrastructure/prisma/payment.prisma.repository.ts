@@ -30,6 +30,8 @@ interface PaymentRow {
   refundReason: string | null;
   refundedAmount: Decimalish | null;
   refundApproval: string;
+  cashReceived: Decimalish | null;
+  changeGiven: Decimalish | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +59,8 @@ export class PaymentPrismaRepository implements PaymentRepository {
       refundReason: row.refundReason,
       refundedAmount: row.refundedAmount ? row.refundedAmount.toNumber() : null,
       refundApproval: row.refundApproval as RefundApproval,
+      cashReceived: row.cashReceived ? row.cashReceived.toNumber() : null,
+      changeGiven: row.changeGiven ? row.changeGiven.toNumber() : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

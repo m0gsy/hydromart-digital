@@ -5,7 +5,9 @@ import {
   DeliveryNotActiveError,
   DeliveryNotFoundError,
   DriverBusyError,
+  DriverNotOnShiftError,
   InvalidDeliveryTransitionError,
+  NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
 } from '../../domain/errors';
@@ -16,6 +18,12 @@ import {
   isActive,
   orderStatusFor,
 } from '../../domain/delivery-status';
+import {
+  ContactMethod,
+  NoShowPolicy,
+  canMarkNoShow,
+  noShowEligibleAt,
+} from '../../domain/no-show';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { Page, buildPage } from '../pagination';
 import {
@@ -26,6 +34,7 @@ import {
   ProofRecord,
 } from '../ports/delivery.repository';
 import { OrderCoordinationPort } from '../ports/order-coordination.port';
+import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 
 export interface AssignInput {
@@ -47,6 +56,19 @@ export interface ListDeliveriesInput {
   limit?: number;
 }
 
+/** No-show gate view for the app timer (design 5a). */
+export interface NoShowStatus {
+  attempts: number;
+  eligibleAt: Date | null;
+  canMarkNoShow: boolean;
+}
+
+export interface RescheduleInput {
+  rescheduledFor: Date;
+  slot?: string;
+  note?: string;
+}
+
 @Injectable()
 export class DeliveryService {
   private static readonly MAX_LIMIT = 100;
@@ -55,14 +77,15 @@ export class DeliveryService {
   constructor(
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Inject(DELIVERY_TOKENS.OrderCoordination) private readonly orders: OrderCoordinationPort,
+    private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
   ) {}
 
   /**
-   * Assigns a driver to an order (staff). Enforces one delivery per order and
-   * the per-driver active-delivery cap (BR: one driver = one active order). The
-   * order is advanced to DRIVER_ASSIGNED on order-service first (which validates
-   * BR-012); the delivery is then recorded.
+   * Assigns a driver to an order (staff). Enforces one delivery per order, that the
+   * driver is checked in and ONLINE, and the per-driver active-delivery cap (BR: one
+   * driver = one active order). The order is advanced to DRIVER_ASSIGNED on
+   * order-service first (which validates BR-012); the delivery is then recorded.
    */
   async assign(
     actorId: string,
@@ -71,6 +94,11 @@ export class DeliveryService {
   ): Promise<DeliveryRecord> {
     if (await this.deliveries.findByOrder(input.orderId)) {
       throw new DeliveryAlreadyExistsError();
+    }
+    // Every delivery must fall inside exactly one shift, or the end-of-shift COD
+    // settlement has orders it cannot account for. No shift, no assignment.
+    if (!(await this.shifts.isAvailable(input.driverId))) {
+      throw new DriverNotOnShiftError();
     }
     const active = await this.deliveries.countActiveByDriver(input.driverId);
     if (active >= this.config.maxActiveDeliveriesPerDriver) {
@@ -140,6 +168,88 @@ export class DeliveryService {
       driverId,
       reason,
     );
+  }
+
+  /**
+   * Records a contact attempt (design 5a) and returns the no-show gate status the
+   * app timer shows. Only allowed while the delivery is still in progress.
+   */
+  async recordContactAttempt(
+    driverId: string,
+    id: string,
+    method: ContactMethod,
+    note?: string,
+    now: Date = new Date(),
+  ): Promise<NoShowStatus> {
+    const delivery = await this.ownedByDriver(driverId, id);
+    if (!isActive(delivery.status)) {
+      throw new DeliveryNotActiveError();
+    }
+    const state = await this.deliveries.recordContactAttempt(id, driverId, method, note ?? null);
+    return {
+      attempts: state.attempts,
+      eligibleAt: noShowEligibleAt(state, this.noShowPolicy),
+      canMarkNoShow: canMarkNoShow(state, this.noShowPolicy, now),
+    };
+  }
+
+  /**
+   * Fails the delivery as a no-show (design 5a), only once the contact-attempt +
+   * wait gate is satisfied. Recorded as a FAILED with a no-show reason.
+   */
+  async markNoShow(driverId: string, id: string, now: Date = new Date()): Promise<DeliveryRecord> {
+    const delivery = await this.ownedByDriver(driverId, id);
+    this.assertTransition(delivery.status, DeliveryStatus.FAILED);
+    const state = await this.deliveries.contactState(id);
+    if (!canMarkNoShow(state, this.noShowPolicy, now)) {
+      throw new NoShowNotEligibleError(
+        this.config.noShowMinContactAttempts,
+        this.config.noShowMinWaitSeconds,
+      );
+    }
+    const reason = 'Pelanggan tidak di tempat (no-show).';
+    this.logger.warn(`Delivery ${id} failed as no-show by driver ${driverId}`);
+    return this.deliveries.applyStatus(
+      id,
+      DeliveryStatus.FAILED,
+      { failedAt: new Date(), failureReason: reason },
+      driverId,
+      reason,
+    );
+  }
+
+  /**
+   * Reschedules the delivery to a later slot (design 3c). The delivery goes
+   * RESCHEDULED (non-active, frees the driver) and the order is NOT advanced —
+   * dispatch re-assigns it later. The customer notice is best-effort.
+   */
+  async reschedule(driverId: string, id: string, input: RescheduleInput): Promise<DeliveryRecord> {
+    const delivery = await this.ownedByDriver(driverId, id);
+    this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
+    const updated = await this.deliveries.applyStatus(
+      id,
+      DeliveryStatus.RESCHEDULED,
+      {
+        rescheduledFor: input.rescheduledFor,
+        rescheduleSlot: input.slot ?? null,
+        rescheduleNote: input.note ?? null,
+      },
+      driverId,
+      input.note ?? null,
+    );
+    // ponytail: best-effort customer notice, logged for now. The real crm push
+    // (customer notification feed) is wired in slice 6 when crm plumbing lands.
+    this.logger.log(
+      `Delivery ${id} rescheduled to ${input.rescheduledFor.toISOString()} — customer notice pending (slice 6 crm)`,
+    );
+    return updated;
+  }
+
+  private get noShowPolicy(): NoShowPolicy {
+    return {
+      minAttempts: this.config.noShowMinContactAttempts,
+      minWaitSeconds: this.config.noShowMinWaitSeconds,
+    };
   }
 
   /**

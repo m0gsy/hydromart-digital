@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsDateString,
   IsEnum,
   IsInt,
   IsLatitude,
@@ -15,6 +16,7 @@ import {
 } from 'class-validator';
 
 import { DeliveryStatus } from '../../domain/delivery-status';
+import { ContactMethod } from '../../domain/no-show';
 
 export class ReportLocationDto {
   @ApiProperty({ example: -6.2088, description: "Driver's current latitude." })
@@ -115,6 +117,37 @@ export class FailDeliveryDto {
   @IsNotEmpty()
   @MaxLength(255)
   reason!: string;
+}
+
+export class RecordContactAttemptDto {
+  @ApiPropertyOptional({ enum: ContactMethod, default: ContactMethod.CALL })
+  @IsOptional()
+  @IsEnum(ContactMethod)
+  method?: ContactMethod;
+
+  @ApiPropertyOptional({ example: 'Tidak diangkat.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  note?: string;
+}
+
+export class RescheduleDeliveryDto {
+  @ApiProperty({ format: 'date-time', description: 'New target delivery time agreed with the customer.' })
+  @IsDateString()
+  rescheduledFor!: string;
+
+  @ApiPropertyOptional({ example: 'Sore (15:00–18:00)', description: 'Human-readable slot label.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  slot?: string;
+
+  @ApiPropertyOptional({ example: 'Pelanggan minta diantar ulang besok.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  note?: string;
 }
 
 export class ListDeliveriesQueryDto {

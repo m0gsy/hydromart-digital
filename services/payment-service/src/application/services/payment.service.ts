@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import {
+  CashShortError,
   GatewayUnavailableError,
   InvalidPaymentTransitionError,
   InvalidWebhookSignatureError,
@@ -16,6 +17,7 @@ import {
   PaymentStatus,
   RefundApproval,
   canTransition,
+  computeChange,
   isOnlineMethod,
   isRefundable,
 } from '../../domain/payment';
@@ -151,15 +153,27 @@ export class PaymentService {
     return this.search(input);
   }
 
-  /** Manually mark a payment settled (e.g. cash received on delivery). */
-  async confirm(id: string, changedBy: string): Promise<PaymentRecord> {
+  /**
+   * Manually mark a payment settled (e.g. cash received on delivery). For COD the
+   * driver may pass the cash handed over (design 7a): the change owed back is
+   * computed and recorded, and underpayment is rejected (a COD payment cannot
+   * settle short).
+   */
+  async confirm(id: string, changedBy: string, cashReceived?: number): Promise<PaymentRecord> {
     const payment = await this.getAny(id);
     this.assertTransition(payment.status, PaymentStatus.PAID);
+    const patch: PaymentStatusPatch = { status: PaymentStatus.PAID, paidAt: new Date() };
+    if (cashReceived != null) {
+      const received = money(cashReceived);
+      const change = computeChange(payment.amount, received);
+      if (change < 0) {
+        throw new CashShortError(payment.amount, received);
+      }
+      patch.cashReceived = received;
+      patch.changeGiven = change;
+    }
     this.logger.log(`Payment ${id} confirmed PAID by ${changedBy}`);
-    const updated = await this.payments.update(id, {
-      status: PaymentStatus.PAID,
-      paidAt: new Date(),
-    });
+    const updated = await this.payments.update(id, patch);
     // A settled payment confirms the order (CREATED→CONFIRMED). Fail-open, idempotent.
     await this.orderCoordination.confirmPaid(updated.orderId);
     return updated;

@@ -18,6 +18,7 @@ import { PaymentService } from '../application/services/payment.service';
 import { PaymentRecord, UnsettledMethodAggregate } from '../application/ports/payment.repository';
 import { Page } from '../application/pagination';
 import {
+  ConfirmPaymentDto,
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentWebhookDto,
@@ -118,8 +119,9 @@ export class PaymentController {
   confirm(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmPaymentDto,
   ): Promise<PaymentRecord> {
-    return this.payments.confirm(id, user.sub);
+    return this.payments.confirm(id, user.sub, dto.cashReceived);
   }
 
   @Post(':id/fail')

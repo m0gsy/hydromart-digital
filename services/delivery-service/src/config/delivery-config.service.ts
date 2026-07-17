@@ -21,8 +21,41 @@ export class DeliveryConfigService {
   get orderServiceUrl(): string {
     return this.config.getOrThrow<string>('ORDER_SERVICE_URL').replace(/\/+$/, '');
   }
+  get depotServiceUrl(): string {
+    return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
+  }
+  /** crm-service base URL for the internal ops-incident push. Blank = disabled. */
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  /** Shared service-to-service key (x-internal-key). Blank = internal calls disabled. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
+  /** WhatsApp number HIGH incidents alert. Blank = ops alerting disabled. */
+  get opsAlertPhone(): string {
+    return this.config.get<string>('OPS_ALERT_PHONE', '');
+  }
   get maxActiveDeliveriesPerDriver(): number {
     return this.num('MAX_ACTIVE_DELIVERIES_PER_DRIVER');
+  }
+  /** How close to the depot a courier must be to check in, in metres. */
+  get shiftCheckInRadiusMeters(): number {
+    return this.num('SHIFT_CHECKIN_RADIUS_M');
+  }
+  get shiftLengthHours(): number {
+    return this.num('SHIFT_LENGTH_HOURS');
+  }
+  get shiftBreakQuotaMinutes(): number {
+    return this.num('SHIFT_BREAK_QUOTA_MINUTES');
+  }
+  /** Minimum contact attempts before a no-show may be declared (design 5a). */
+  get noShowMinContactAttempts(): number {
+    return this.num('NO_SHOW_MIN_CONTACT_ATTEMPTS');
+  }
+  /** Minimum wait (seconds, from first attempt) before a no-show may be declared. */
+  get noShowMinWaitSeconds(): number {
+    return this.num('NO_SHOW_MIN_WAIT_SECONDS');
   }
   get slaMinutes(): number {
     return this.num('DELIVERY_SLA_MINUTES');

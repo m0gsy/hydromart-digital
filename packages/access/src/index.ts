@@ -58,6 +58,20 @@ export const CAPABILITIES = {
   // payment-service — settle a payment (confirm cash/transfer/QRIS received). Mirrors
   // the settlement roles; DRIVER can confirm cash-on-delivery, FINANCE for the office.
   paymentSettle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'FINANCE', 'SUPER_ADMIN'],
+  // payout-service — a courier reads their own earnings ledger and files their own
+  // expense claims. Scoped to self by the controller, never cross-courier.
+  courierPayout: ['DRIVER'],
+  // delivery-service — the depot cashier verifies a courier's end-of-shift COD deposit
+  // and decides whether a shortfall is charged to the courier.
+  courierSettle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  // payout-service — decide a courier expense claim above the auto-approve threshold.
+  expenseApprove: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  // crm-service — depot -> courier in-app announcements (not customer campaigns).
+  depotBroadcast: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // depot-service — a courier records empties taken back at the customer's door.
+  // Narrower than returnsWrite: the refund amount is derived server-side from the
+  // depot's deposit rate, never supplied by the courier.
+  courierReturn: ['DRIVER'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

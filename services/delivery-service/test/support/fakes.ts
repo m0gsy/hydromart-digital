@@ -15,7 +15,23 @@ import {
   ReportRange,
   SlaStats,
 } from '../../src/application/ports/delivery.repository';
+import { ContactMethod, ContactState } from '../../src/domain/no-show';
 import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
+import { DepotLocation, DepotLocationPort } from '../../src/application/ports/depot-location.port';
+import {
+  OpenShiftData,
+  ShiftQuery,
+  ShiftRecord,
+  ShiftRepository,
+  ShiftStatusPatch,
+} from '../../src/application/ports/shift.repository';
+import { ShiftStatus } from '../../src/domain/shift';
+import {
+  CreateIncidentData,
+  IncidentRecord,
+  IncidentRepository,
+} from '../../src/application/ports/incident.repository';
+import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -44,6 +60,7 @@ const ACTIVE: DeliveryStatus[] = [
 
 export class InMemoryDeliveryRepository implements DeliveryRepository {
   rows: DeliveryRecord[] = [];
+  attempts: { deliveryId: string; driverId: string; method: ContactMethod; note: string | null; createdAt: Date }[] = [];
 
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
     const now = nextDate();
@@ -60,6 +77,9 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       deliveredAt: null,
       failedAt: null,
       failureReason: null,
+      rescheduledFor: null,
+      rescheduleSlot: null,
+      rescheduleNote: null,
       proof: null,
       history: [{ status: DeliveryStatus.ASSIGNED, changedBy: null, note: null, createdAt: now }],
       createdAt: now,
@@ -78,6 +98,21 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   async countActiveByDriver(driverId: string): Promise<number> {
     return this.rows.filter((r) => r.driverId === driverId && ACTIVE.includes(r.status)).length;
+  }
+  async recordContactAttempt(
+    deliveryId: string,
+    driverId: string,
+    method: ContactMethod,
+    note: string | null,
+  ): Promise<ContactState> {
+    this.attempts.push({ deliveryId, driverId, method, note, createdAt: nextDate() });
+    return this.contactState(deliveryId);
+  }
+  async contactState(deliveryId: string): Promise<ContactState> {
+    const mine = this.attempts
+      .filter((a) => a.deliveryId === deliveryId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    return { attempts: mine.length, firstAttemptAt: mine[0]?.createdAt ?? null };
   }
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
     const all = this.rows
@@ -191,6 +226,101 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   }
 }
 
+const OPEN: ShiftStatus[] = [ShiftStatus.ONLINE, ShiftStatus.BREAK, ShiftStatus.OFFLINE];
+
+export class InMemoryShiftRepository implements ShiftRepository {
+  rows: ShiftRecord[] = [];
+
+  async open(data: OpenShiftData): Promise<ShiftRecord> {
+    const rec: ShiftRecord = {
+      ...data,
+      id: randomUUID(),
+      status: ShiftStatus.ONLINE,
+      checkOutAt: null,
+      checkOutLat: null,
+      checkOutLng: null,
+      breakSecondsUsed: 0,
+      breakStartedAt: null,
+    };
+    this.rows.push(rec);
+    return clone(rec);
+  }
+  async findById(id: string): Promise<ShiftRecord | null> {
+    const row = this.rows.find((r) => r.id === id);
+    return row ? clone(row) : null;
+  }
+  async findOpenByDriver(driverId: string): Promise<ShiftRecord | null> {
+    const row = this.rows.find((r) => r.driverId === driverId && OPEN.includes(r.status));
+    return row ? clone(row) : null;
+  }
+  async patchStatus(id: string, patch: ShiftStatusPatch): Promise<ShiftRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, patch);
+    return clone(row);
+  }
+  async listByDriver(driverId: string, limit: number): Promise<ShiftRecord[]> {
+    return this.rows
+      .filter((r) => r.driverId === driverId)
+      .sort((a, b) => b.checkInAt.getTime() - a.checkInAt.getTime())
+      .slice(0, limit)
+      .map((r) => clone(r));
+  }
+  async search(query: ShiftQuery): Promise<ShiftRecord[]> {
+    return this.rows
+      .filter((r) => !query.depotId || r.depotId === query.depotId)
+      .filter((r) => !query.from || r.checkInAt.getTime() >= query.from.getTime())
+      .filter((r) => !query.to || r.checkInAt.getTime() <= query.to.getTime())
+      .map((r) => clone(r));
+  }
+}
+
+export class InMemoryIncidentRepository implements IncidentRepository {
+  rows: IncidentRecord[] = [];
+
+  async create(data: CreateIncidentData): Promise<IncidentRecord> {
+    const rec: IncidentRecord = { ...data, id: randomUUID(), createdAt: nextDate() };
+    this.rows.push(rec);
+    return clone(rec);
+  }
+  async listByDriver(driverId: string, limit: number): Promise<IncidentRecord[]> {
+    return this.rows
+      .filter((r) => r.driverId === driverId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => clone(r));
+  }
+}
+
+export class FakeOpsNotifier implements OpsNotifierPort {
+  alerts: OpsIncidentAlert[] = [];
+  throwOnAlert = false;
+
+  async incidentReported(alert: OpsIncidentAlert): Promise<void> {
+    if (this.throwOnAlert) {
+      throw new Error('crm down');
+    }
+    this.alerts.push(alert);
+  }
+}
+
+/** Depot fixed at the Bandung coordinates the designs use. */
+export class FakeDepotLocation implements DepotLocationPort {
+  depot: DepotLocation | null = {
+    id: '00000000-0000-4000-8000-000000000001',
+    name: 'Depot Kemang',
+    lat: -6.9147,
+    lng: 107.6098,
+  };
+  throwOnFind = false;
+
+  async find(): Promise<DepotLocation | null> {
+    if (this.throwOnFind) {
+      throw new Error('depot-service down');
+    }
+    return this.depot;
+  }
+}
+
 export function buildTestConfig(overrides: Record<string, string> = {}): DeliveryConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
@@ -198,7 +328,13 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     DELIVERY_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
     JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
     ORDER_SERVICE_URL: 'http://localhost:3004',
+    DEPOT_SERVICE_URL: 'http://localhost:3007',
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
+    SHIFT_CHECKIN_RADIUS_M: '200',
+    SHIFT_LENGTH_HOURS: '8',
+    SHIFT_BREAK_QUOTA_MINUTES: '30',
+    NO_SHOW_MIN_CONTACT_ATTEMPTS: '2',
+    NO_SHOW_MIN_WAIT_SECONDS: '300',
     DELIVERY_SLA_MINUTES: '120',
     POD_RETENTION_DAYS: '365',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',

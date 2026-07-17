@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
+import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
   DeliveryQuery,
@@ -51,6 +52,9 @@ interface DeliveryRow {
   deliveredAt: Date | null;
   failedAt: Date | null;
   failureReason: string | null;
+  rescheduledFor: Date | null;
+  rescheduleSlot: string | null;
+  rescheduleNote: string | null;
   proof: ProofRow | null;
   history: HistoryRow[];
   createdAt: Date;
@@ -93,6 +97,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       deliveredAt: row.deliveredAt,
       failedAt: row.failedAt,
       failureReason: row.failureReason,
+      rescheduledFor: row.rescheduledFor,
+      rescheduleSlot: row.rescheduleSlot,
+      rescheduleNote: row.rescheduleNote,
       proof: row.proof
         ? {
             photoUrl: row.proof.photoUrl,
@@ -141,6 +148,28 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.prisma.delivery.count({
       where: { driverId, status: { in: ACTIVE_STATUSES } },
     });
+  }
+
+  async recordContactAttempt(
+    deliveryId: string,
+    driverId: string,
+    method: ContactMethod,
+    note: string | null,
+  ): Promise<ContactState> {
+    await this.prisma.contactAttempt.create({ data: { deliveryId, driverId, method, note } });
+    return this.contactState(deliveryId);
+  }
+
+  async contactState(deliveryId: string): Promise<ContactState> {
+    const [attempts, first] = await Promise.all([
+      this.prisma.contactAttempt.count({ where: { deliveryId } }),
+      this.prisma.contactAttempt.findFirst({
+        where: { deliveryId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { attempts, firstAttemptAt: first?.createdAt ?? null };
   }
 
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {

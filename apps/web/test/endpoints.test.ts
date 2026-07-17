@@ -74,6 +74,40 @@ describe('endpoints', () => {
     );
   });
 
+  it('builds the driver delivery paths', () => {
+    expect(endpoints.deliveries.driver.list()).toBe('/deliveries/api/v1/driver/deliveries');
+    expect(endpoints.deliveries.driver.list('ON_DELIVERY')).toBe(
+      '/deliveries/api/v1/driver/deliveries?status=ON_DELIVERY',
+    );
+    expect(endpoints.deliveries.driver.get('d1')).toBe('/deliveries/api/v1/driver/deliveries/d1');
+    expect(endpoints.deliveries.driver.pickup('d1')).toBe(
+      '/deliveries/api/v1/driver/deliveries/d1/pickup',
+    );
+    expect(endpoints.deliveries.driver.start('d1')).toBe(
+      '/deliveries/api/v1/driver/deliveries/d1/start',
+    );
+    expect(endpoints.deliveries.driver.complete('d1')).toBe(
+      '/deliveries/api/v1/driver/deliveries/d1/complete',
+    );
+    expect(endpoints.deliveries.driver.fail('d1')).toBe(
+      '/deliveries/api/v1/driver/deliveries/d1/fail',
+    );
+    expect(endpoints.deliveries.driver.location('d1')).toBe(
+      '/deliveries/api/v1/driver/deliveries/d1/location',
+    );
+  });
+
+  it('builds the driver shift paths', () => {
+    expect(endpoints.deliveries.shifts.current).toBe('/deliveries/api/v1/driver/shifts/current');
+    expect(endpoints.deliveries.shifts.checkIn).toBe('/deliveries/api/v1/driver/shifts/check-in');
+    expect(endpoints.deliveries.shifts.checkOut('s1')).toBe(
+      '/deliveries/api/v1/driver/shifts/s1/check-out',
+    );
+    expect(endpoints.deliveries.shifts.status('s1')).toBe(
+      '/deliveries/api/v1/driver/shifts/s1/status',
+    );
+  });
+
   it('builds the depot + inventory staff paths', () => {
     expect(endpoints.depots.browse({ limit: 100 })).toBe('/depots/api/v1/depots?limit=100');
     expect(endpoints.inventory.lines('d1')).toBe('/depots/api/v1/depots/d1/inventory');
