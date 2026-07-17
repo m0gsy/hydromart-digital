@@ -261,6 +261,8 @@ export const endpoints = {
     me: '/loyalty/api/v1/loyalty/me',
     // Read any customer's loyalty account (staff — HEAD_OFFICE/MARKETING/SUPER_ADMIN).
     byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
+    // Total enrolled members (HQ broadcast reach for the loyalty audience).
+    memberCount: '/loyalty/api/v1/loyalty/members/count',
     transactions: (q: { page?: number; limit?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));

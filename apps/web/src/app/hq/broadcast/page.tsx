@@ -5,7 +5,6 @@ import { Broadcast } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -39,18 +38,26 @@ export default function HqBroadcastPage() {
   const [channels, setChannels] = useState<Set<string>>(new Set(['channelPush', 'channelInApp']));
   const [busy, setBusy] = useState(false);
 
-  // Reach is real only where order-service owns the data: all customers, or one depot.
-  const reachable = audience === 'all' || (audience === 'depot' && !!depotId);
-  const reach = useAsync<{ count: number } | null>(
-    () =>
-      reachable
-        ? api.get<{ count: number }>(
-            endpoints.reports.audienceReach(audience === 'depot' ? depotId : undefined),
-            true,
-          )
-        : Promise.resolve(null),
-    [audience, depotId],
-  );
+  // Reach is real for every audience now: order-service owns all/per-depot activity,
+  // loyalty-service owns member count, auth-service owns the staff count. A depot audience
+  // still needs a depot picked first.
+  const reachable = audience !== 'depot' || !!depotId;
+  const reach = useAsync<{ count: number } | null>(() => {
+    switch (audience) {
+      case 'all':
+        return api.get<{ count: number }>(endpoints.reports.audienceReach(undefined), true);
+      case 'depot':
+        return depotId
+          ? api.get<{ count: number }>(endpoints.reports.audienceReach(depotId), true)
+          : Promise.resolve(null);
+      case 'loyalty':
+        return api.get<{ count: number }>(endpoints.loyalty.memberCount, true);
+      case 'staff':
+        return api
+          .get<{ total: number }>(endpoints.auth.staff({ limit: 1 }), true)
+          .then((r) => ({ count: r.total }));
+    }
+  }, [audience, depotId]);
 
   async function submit(schedule: boolean) {
     if (!title.trim()) return toast(t('hq.broadcast.needTitle'), 'error');
@@ -149,11 +156,10 @@ export default function HqBroadcastPage() {
         </div>
       </Card>
 
-      {/* Estimated reach — REAL for all/depot; loyalty/staff have no source → badged. */}
+      {/* Estimated reach — REAL for every audience (order/loyalty/auth counts). */}
       <Card className="flex items-center justify-between gap-3 p-5">
         <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
           {t('hq.broadcast.reach')}
-          {!reachable && <StubBadge />}
         </span>
         {reachable ? (
           <span className="text-2xl font-bold tabular-nums text-brand-700">
@@ -161,10 +167,8 @@ export default function HqBroadcastPage() {
               ? '…'
               : t('hq.broadcast.people', { n: (reach.data?.count ?? 0).toLocaleString('id-ID') })}
           </span>
-        ) : audience === 'depot' ? (
-          <span className="text-sm text-muted">{t('hq.broadcast.pickDepot')}</span>
         ) : (
-          <span className="text-sm text-muted">{t('hq.broadcast.reachUnavailable')}</span>
+          <span className="text-sm text-muted">{t('hq.broadcast.pickDepot')}</span>
         )}
       </Card>
 

@@ -32,6 +32,10 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     return a ? { ...a } : null;
   }
 
+  async countAccounts(): Promise<number> {
+    return this.accounts.length;
+  }
+
   async createAccount(customerId: string): Promise<LoyaltyAccountRecord> {
     const now = nextDate();
     const a: LoyaltyAccountRecord = {

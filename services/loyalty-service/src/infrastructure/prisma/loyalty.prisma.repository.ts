@@ -63,6 +63,10 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return this.toAccount(row);
   }
 
+  async countAccounts(): Promise<number> {
+    return this.prisma.loyaltyAccount.count();
+  }
+
   async findEarnByOrder(orderId: string): Promise<PointsTransactionRecord | null> {
     const row = await this.prisma.pointsTransaction.findUnique({
       where: { orderId_type: { orderId, type: PrismaTxnType.EARN } },
