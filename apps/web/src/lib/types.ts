@@ -1054,6 +1054,28 @@ export interface PriceOverrideProposalItem {
   updatedAt: string;
 }
 
+// Depot→HQ voucher request (promo-service voucher-requests, design 14b).
+export interface VoucherRequestItem {
+  id: string;
+  depotId: string;
+  depotName: string;
+  code: string;
+  description: string | null;
+  discountType: 'PERCENTAGE' | 'FIXED';
+  value: number;
+  minSpend: number;
+  maxDiscount: number | null;
+  usageLimit: number | null;
+  perCustomerLimit: number;
+  note: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  requestedBy: string;
+  decidedBy: string | null;
+  createdVoucherId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Platform administration (admin-service). Feature flags (8b), system settings (8b),
 // and the aggregate per-service health roll-up (13b).
 export type FlagState = 'ROLLOUT' | 'ACTIVE' | 'BETA' | 'OFF';

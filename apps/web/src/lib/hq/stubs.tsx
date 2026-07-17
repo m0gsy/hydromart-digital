@@ -41,9 +41,9 @@ function hash(s: string): number {
 // approve/reject track (endpoints.refunds.*). The old REFUND_QUEUE_STUB was removed.
 
 // Network voucher spend + per-voucher burn are now REAL: promo-service GET
-// /vouchers/burn-summary (SUM discountApplied). Only the depot→HQ voucher REQUEST
-// workflow has no model, so this pending count stays a labeled stub.
-export const PENDING_VOUCHER_REQUESTS_STUB = 2;
+// /vouchers/burn-summary (SUM discountApplied). The depot→HQ voucher REQUEST workflow
+// is now REAL too: promo-service voucher-requests (propose + HQ approve/reject, approve
+// creates the real voucher). The old PENDING_VOUCHER_REQUESTS_STUB was removed.
 
 // Reconciliation ongkir (shipping) and gallon deposit are now REAL: order-service
 // shipping-by-depot + depot-service gallon-outstanding (netDeposit). Only per-depot

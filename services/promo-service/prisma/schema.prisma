@@ -65,6 +65,34 @@ model VoucherGrant {
   @@map("voucher_grants")
 }
 
+/// A depot→HQ request to create a voucher (design 14b). A depot manager proposes the
+/// voucher fields; HQ approves (which creates the real Voucher and stores its id here)
+/// or rejects. Denormalises depotName for the queue display.
+model VoucherRequest {
+  id               String       @id @default(uuid())
+  depotId          String
+  depotName        String
+  code             String
+  description      String?
+  discountType     DiscountType
+  value            Int
+  minSpend         Int          @default(0)
+  maxDiscount      Int?
+  usageLimit       Int?
+  perCustomerLimit Int          @default(1)
+  note             String?
+  status           String       @default("PENDING")
+  requestedBy      String
+  decidedBy        String?
+  /// The voucher created on approval; null while pending/rejected.
+  createdVoucherId String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([status, createdAt])
+  @@map("voucher_requests")
+}
+
 /// A marketing banner shown on the customer Home page (distinct from Voucher, a
 /// discount rule). `voucherCode` optionally links a banner to a voucher to apply.
 model Promotion {
