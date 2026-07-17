@@ -20,12 +20,8 @@ export const envValidationSchema = Joi.object({
   OTP_LENGTH: Joi.number().integer().min(4).max(8).default(6),
   OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
   OTP_RESEND_COOLDOWN_SECONDS: Joi.number().integer().positive().default(60),
-  OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'whatsapp', 'sms').default('console'),
+  OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'sms').default('console'),
   OTP_PEPPER: requiredSecret(16),
-
-  WHATSAPP_API_BASE_URL: Joi.string().uri().allow('').optional(),
-  WHATSAPP_API_TOKEN: Joi.string().allow('').optional(),
-  WHATSAPP_OTP_TEMPLATE: Joi.string().allow('').default('hydromart_otp'),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
@@ -72,12 +68,6 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
 })
   // If a delivery channel is selected, its provider credentials must be present.
-  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('whatsapp') }).unknown(), {
-    then: Joi.object({
-      WHATSAPP_API_BASE_URL: Joi.string().uri().required(),
-      WHATSAPP_API_TOKEN: Joi.string().required(),
-    }),
-  })
   .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms') }).unknown(), {
     then: Joi.object({
       SMS_API_BASE_URL: Joi.string().uri().required(),

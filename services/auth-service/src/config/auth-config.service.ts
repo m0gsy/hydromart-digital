@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-export type OtpDeliveryChannel = 'console' | 'whatsapp' | 'sms';
+export type OtpDeliveryChannel = 'console' | 'sms';
 
 export interface OtpPolicy {
   ttlSeconds: number;
@@ -75,14 +75,6 @@ export class AuthConfigService {
   get googleClientId(): string | undefined {
     const value = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID');
     return value && value.length > 0 ? value : undefined;
-  }
-
-  get whatsapp(): { baseUrl: string; token: string; template: string } {
-    return {
-      baseUrl: this.config.get<string>('WHATSAPP_API_BASE_URL', ''),
-      token: this.config.get<string>('WHATSAPP_API_TOKEN', ''),
-      template: this.config.get<string>('WHATSAPP_OTP_TEMPLATE', 'hydromart_otp'),
-    };
   }
 
   get sms(): { baseUrl: string; token: string; senderId: string } {

@@ -26,7 +26,6 @@ import { GoogleVerifier } from '../../infrastructure/security/google-verifier';
 import { SystemClock } from '../../infrastructure/security/system-clock';
 import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
-import { WhatsappOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/whatsapp-otp-delivery.adapter';
 import { CustomerNotificationHttpAdapter } from '../../infrastructure/notification/customer-notification.http.adapter';
 import { LocalDiskStorageAdapter } from '../../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../../infrastructure/storage/s3-storage.adapter';
@@ -41,7 +40,6 @@ const adapterProviders: Provider[] = [
   PrismaService,
   AuthConfigService,
   ConsoleOtpDeliveryAdapter,
-  WhatsappOtpDeliveryAdapter,
   SmsOtpDeliveryAdapter,
   InternalAuthGuard,
   { provide: AUTH_TOKENS.CustomerRepository, useClass: CustomerPrismaRepository },
@@ -63,27 +61,12 @@ const adapterProviders: Provider[] = [
   },
   {
     provide: AUTH_TOKENS.OtpDeliveryPort,
-    inject: [
-      AuthConfigService,
-      ConsoleOtpDeliveryAdapter,
-      WhatsappOtpDeliveryAdapter,
-      SmsOtpDeliveryAdapter,
-    ],
+    inject: [AuthConfigService, ConsoleOtpDeliveryAdapter, SmsOtpDeliveryAdapter],
     useFactory: (
       config: AuthConfigService,
       consoleAdapter: ConsoleOtpDeliveryAdapter,
-      whatsapp: WhatsappOtpDeliveryAdapter,
       sms: SmsOtpDeliveryAdapter,
-    ) => {
-      switch (config.otpDeliveryChannel) {
-        case 'whatsapp':
-          return whatsapp;
-        case 'sms':
-          return sms;
-        default:
-          return consoleAdapter;
-      }
-    },
+    ) => (config.otpDeliveryChannel === 'sms' ? sms : consoleAdapter),
   },
 ];
 

@@ -5,7 +5,7 @@ import { OtpDeliveryPort, OtpMessage } from '../../application/ports/otp-deliver
 /**
  * Development-only OTP channel: writes the code to the application log instead of
  * sending it. Selected via OTP_DELIVERY_CHANNEL=console. Never use in production —
- * config validation should point production at whatsapp/sms.
+ * config validation should point production at sms.
  */
 @Injectable()
 export class ConsoleOtpDeliveryAdapter implements OtpDeliveryPort {

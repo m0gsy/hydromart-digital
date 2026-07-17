@@ -47,7 +47,13 @@ services:
       OTP_LENGTH: 6
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
-      OTP_DELIVERY_CHANNEL: console
+      # `console` only prints the code to the container log — real customers can
+      # never receive it. Set OTP_DELIVERY_CHANNEL=sms in .env plus the SMS_*
+      # credentials below before taking real signups.
+      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:-console}
+      SMS_API_BASE_URL: ${SMS_API_BASE_URL:-}
+      SMS_API_TOKEN: ${SMS_API_TOKEN:-}
+      SMS_SENDER_ID: ${SMS_SENDER_ID:-HYDROMART}
       OTP_PEPPER: ${OTP_PEPPER:?set OTP_PEPPER}
       CRM_SERVICE_URL: http://crm:3012
       # Object storage for customer avatar photos. BiznetGio NEO (S3-compatible);

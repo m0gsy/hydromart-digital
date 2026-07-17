@@ -31,12 +31,11 @@ describe('AuthConfigService', () => {
     expect(buildTestConfig({ GOOGLE_OAUTH_CLIENT_ID: 'client-1' }).googleClientId).toBe('client-1');
   });
 
-  it('exposes whatsapp/sms provider settings and environment flags', () => {
+  it('exposes sms provider settings and environment flags', () => {
     const config = buildTestConfig({ NODE_ENV: 'production' });
     expect(config.isProduction).toBe(true);
     expect(config.port).toBe(3001);
     expect(config.otpPepper).toBe('test-otp-pepper-value');
-    expect(config.whatsapp.template).toBe('hydromart_otp');
     expect(config.sms.senderId).toBe('HYDROMART');
   });
 });
