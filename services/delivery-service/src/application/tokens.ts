@@ -6,6 +6,7 @@ export const DELIVERY_TOKENS = {
   OrderCoordination: Symbol('OrderCoordination'),
   CashCollection: Symbol('CashCollection'),
   CourierPayout: Symbol('CourierPayout'),
+  Rating: Symbol('Rating'),
   DepotLocation: Symbol('DepotLocation'),
   OpsNotifier: Symbol('OpsNotifier'),
   Storage: Symbol('Storage'),

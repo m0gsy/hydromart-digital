@@ -32,6 +32,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  RatingSummary,
 } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
@@ -375,6 +376,11 @@ export class OrderService {
   async getReview(customerId: string, orderId: string): Promise<OrderReviewRecord | null> {
     await this.getForCustomer(customerId, orderId); // ownership/404 guard
     return this.orders.findReviewByOrderId(orderId);
+  }
+
+  /** Mean rating over a set of orders — courier weekly performance (design 4c). */
+  async ratingSummary(orderIds: string[]): Promise<RatingSummary> {
+    return this.orders.avgRatingForOrders(orderIds);
   }
 
   async getAny(orderId: string): Promise<OrderRecord> {

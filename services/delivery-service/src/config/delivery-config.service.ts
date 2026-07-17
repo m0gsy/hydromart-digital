@@ -68,6 +68,10 @@ export class DeliveryConfigService {
   get slaMinutes(): number {
     return this.num('DELIVERY_SLA_MINUTES');
   }
+  /** Weekly delivered-orders target on the courier performance card (design 4c). */
+  get courierWeeklyTarget(): number {
+    return this.num('COURIER_WEEKLY_TARGET');
+  }
   /** UU PDP retention window for proof-of-delivery records, in days. */
   get podRetentionDays(): number {
     return this.num('POD_RETENTION_DAYS');

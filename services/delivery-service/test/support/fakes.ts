@@ -6,10 +6,12 @@ import { DeliveryConfigService } from '../../src/config/delivery-config.service'
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
 import {
   CreateDeliveryData,
+  DeliveredRow,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotDeliveredCount,
   DepotSlaStats,
   ProofRecord,
   ReportRange,
@@ -33,6 +35,7 @@ import {
 } from '../../src/application/ports/incident.repository';
 import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
 import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
+import { RatingPort, RatingSummary } from '../../src/application/ports/rating.port';
 import {
   CashVarianceChargedEvent,
   CourierPayoutPort,
@@ -150,6 +153,50 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
           r.deliveredAt.getTime() <= to.getTime(),
       )
       .map((r) => r.orderId);
+  }
+  async driverDeliveredInWindow(
+    driverId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DeliveredRow[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.driverId === driverId &&
+          r.status === DeliveryStatus.DELIVERED &&
+          r.deliveredAt !== null &&
+          r.deliveredAt.getTime() >= from.getTime() &&
+          r.deliveredAt.getTime() < to.getTime(),
+      )
+      .map((r) => ({ orderId: r.orderId, assignedAt: r.assignedAt, deliveredAt: r.deliveredAt! }));
+  }
+  async driverFailedCountInWindow(driverId: string, from: Date, to: Date): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.driverId === driverId &&
+        r.failedAt !== null &&
+        r.failedAt.getTime() >= from.getTime() &&
+        r.failedAt.getTime() < to.getTime(),
+    ).length;
+  }
+  async depotDeliveredCountsInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotDeliveredCount[]> {
+    const byDriver = new Map<string, number>();
+    for (const r of this.rows) {
+      if (
+        r.depotId === depotId &&
+        r.status === DeliveryStatus.DELIVERED &&
+        r.deliveredAt !== null &&
+        r.deliveredAt.getTime() >= from.getTime() &&
+        r.deliveredAt.getTime() < to.getTime()
+      ) {
+        byDriver.set(r.driverId, (byDriver.get(r.driverId) ?? 0) + 1);
+      }
+    }
+    return [...byDriver].map(([driverId, count]) => ({ driverId, count }));
   }
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
     const row = this.rows.find((r) => r.id === id)!;
@@ -363,6 +410,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     NO_SHOW_MIN_CONTACT_ATTEMPTS: '2',
     NO_SHOW_MIN_WAIT_SECONDS: '300',
     DELIVERY_SLA_MINUTES: '120',
+    COURIER_WEEKLY_TARGET: '45',
     POD_RETENTION_DAYS: '365',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
@@ -435,6 +483,19 @@ export class FakeCourierPayout implements CourierPayoutPort {
   }
   async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<void> {
     this.variances.push(event);
+  }
+}
+
+export class FakeRating implements RatingPort {
+  /** rating keyed by orderId; unknown orders contribute nothing. */
+  ratings = new Map<string, number>();
+  calls: string[][] = [];
+
+  async avgRating(orderIds: string[]): Promise<RatingSummary> {
+    this.calls.push(orderIds);
+    const found = orderIds.map((id) => this.ratings.get(id)).filter((r): r is number => r != null);
+    if (found.length === 0) return { average: null, count: 0 };
+    return { average: found.reduce((s, r) => s + r, 0) / found.length, count: found.length };
   }
 }
 

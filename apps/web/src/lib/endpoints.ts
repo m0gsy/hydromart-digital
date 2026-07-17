@@ -174,6 +174,13 @@ export const endpoints = {
     gallonReturns: {
       create: '/depots/api/v1/driver/gallon-returns',
     },
+    // Courier weekly performance card (design 4c). Local delivery aggregates + rating
+    // batch; pass the courier's depot to get the depot leaderboard rank.
+    performance: (weekStart: string, depotId?: string) => {
+      const p = new URLSearchParams({ weekStart });
+      if (depotId) p.set('depotId', depotId);
+      return `/deliveries/api/v1/driver/performance?${p}`;
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',

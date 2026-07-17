@@ -15,6 +15,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  RatingSummary,
   ProductRevenue,
   ReportRange,
   RetentionCell,
@@ -181,6 +182,16 @@ export class OrderPrismaRepository implements OrderRepository {
   async findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null> {
     const row = await this.prisma.orderReview.findUnique({ where: { orderId } });
     return row ? this.toReview(row) : null;
+  }
+
+  async avgRatingForOrders(orderIds: string[]): Promise<RatingSummary> {
+    if (orderIds.length === 0) return { average: null, count: 0 };
+    const agg = await this.prisma.orderReview.aggregate({
+      where: { orderId: { in: orderIds } },
+      _avg: { rating: true },
+      _count: { _all: true },
+    });
+    return { average: agg._avg.rating, count: agg._count._all };
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {

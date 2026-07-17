@@ -947,6 +947,23 @@ export interface CourierEarningsSummary {
   recentWithdrawals: CourierWithdrawal[];
 }
 
+// Courier weekly performance card (delivery-service, design 4c).
+export interface CourierPerformance {
+  weekStart: string;
+  delivered: number;
+  deliveredPrev: number;
+  perDay: number[];
+  onTime: number;
+  onTimeRate: number;
+  failed: number;
+  rating: number | null;
+  ratingPrev: number | null;
+  rank: number | null;
+  depotCouriers: number;
+  target: number;
+  targetMet: boolean;
+}
+
 // Courier expense claims (payout-service, design 6a).
 export type ExpenseCategory = 'FUEL' | 'PARKING_TOLL' | 'VEHICLE_REPAIR' | 'OTHER';
 export type ExpenseClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';

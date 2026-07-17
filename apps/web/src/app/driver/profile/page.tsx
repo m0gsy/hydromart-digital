@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { CaretRight, Coins, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Wallet, Warning } from '@phosphor-icons/react';
+import { CaretRight, ChartBar, Coins, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Wallet, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
@@ -50,6 +50,11 @@ function Profile() {
         {customer?.assignedDepotId && (
           <Row icon={<Storefront size={19} weight="fill" />} label="Depot penempatan" />
         )}
+        <Row
+          icon={<ChartBar size={19} weight="fill" />}
+          label="Performa mingguan"
+          onClick={() => router.push('/driver/performance')}
+        />
         <Row
           icon={<Coins size={19} weight="fill" />}
           label="Pendapatan"

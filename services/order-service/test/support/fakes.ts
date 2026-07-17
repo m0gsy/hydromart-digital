@@ -18,6 +18,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  RatingSummary,
   ProductRevenue,
   ReportRange,
   RetentionCell,
@@ -125,6 +126,14 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null> {
     const r = this.reviews.find((x) => x.orderId === orderId);
     return r ? structuredClone(r) : null;
+  }
+  async avgRatingForOrders(orderIds: string[]): Promise<RatingSummary> {
+    const mine = this.reviews.filter((r) => orderIds.includes(r.orderId));
+    if (mine.length === 0) return { average: null, count: 0 };
+    return {
+      average: mine.reduce((s, r) => s + r.rating, 0) / mine.length,
+      count: mine.length,
+    };
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {

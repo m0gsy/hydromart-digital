@@ -40,6 +40,10 @@ export const envValidationSchema = Joi.object({
   NO_SHOW_MIN_CONTACT_ATTEMPTS: Joi.number().integer().positive().default(2),
   NO_SHOW_MIN_WAIT_SECONDS: Joi.number().integer().positive().default(300),
   DELIVERY_SLA_MINUTES: Joi.number().integer().positive().default(120),
+  // Weekly delivered-orders target shown on the courier performance card (design 4c).
+  // A display/goal only — nothing is blocked when unmet. Default fills it, so no
+  // compose change is needed.
+  COURIER_WEEKLY_TARGET: Joi.number().integer().positive().default(45),
   // UU PDP retention window for proof-of-delivery data (photo/signature/name/GPS).
   // The scheduler purges rows older than this daily; the storage bucket must carry
   // a matching lifecycle rule to expire the image files.

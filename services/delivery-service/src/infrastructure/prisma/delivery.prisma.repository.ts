@@ -5,10 +5,12 @@ import { DeliveryStatus } from '../../domain/delivery-status';
 import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
+  DeliveredRow,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotDeliveredCount,
   DepotSlaStats,
   ProofRecord,
   ReportRange,
@@ -200,6 +202,41 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       select: { orderId: true },
     });
     return rows.map((r) => r.orderId);
+  }
+
+  async driverDeliveredInWindow(
+    driverId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DeliveredRow[]> {
+    const rows = await this.prisma.delivery.findMany({
+      where: { driverId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      select: { orderId: true, assignedAt: true, deliveredAt: true },
+    });
+    return rows.map((r) => ({
+      orderId: r.orderId,
+      assignedAt: r.assignedAt,
+      deliveredAt: r.deliveredAt!,
+    }));
+  }
+
+  async driverFailedCountInWindow(driverId: string, from: Date, to: Date): Promise<number> {
+    return this.prisma.delivery.count({
+      where: { driverId, failedAt: { gte: from, lt: to } },
+    });
+  }
+
+  async depotDeliveredCountsInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotDeliveredCount[]> {
+    const rows = await this.prisma.delivery.groupBy({
+      by: ['driverId'],
+      where: { depotId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      _count: { _all: true },
+    });
+    return rows.map((r) => ({ driverId: r.driverId, count: r._count._all }));
   }
 
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
