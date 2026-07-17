@@ -137,23 +137,9 @@ export interface ExportRow {
 // Scheduled reports (15c) are now REAL: admin-service endpoints.admin.scheduledReports.
 // The old SCHEDULED_REPORTS_STUB was removed.
 
-// STUB: depot go-live checklist — real backend track (no onboarding-workflow service).
-// The "provision depot" step links to the REAL onboard form (/hq/depots?onboard=1).
-export interface OnboardStepRow {
-  id: string;
-  label: string;
-  owner: string;
-  done: boolean;
-  href?: string;
-}
-export const ONBOARDING_STEPS_STUB: OnboardStepRow[] = [
-  { id: 'o1', label: 'Verifikasi dokumen legal', owner: 'Legal', done: true },
-  { id: 'o2', label: 'Survei lokasi & radius layanan', owner: 'Ops', done: true },
-  { id: 'o3', label: 'Provision depot di sistem', owner: 'Head office', done: false, href: '/hq/depots?onboard=1' },
-  { id: 'o4', label: 'Isi stok awal & harga', owner: 'Manajer depot', done: false, href: '/hq/catalog' },
-  { id: 'o5', label: 'Onboarding staf & kurir', owner: 'Head office', done: false, href: '/hq/staff' },
-  { id: 'o6', label: 'Aktifkan kanal pembayaran', owner: 'Finance', done: false, href: '/hq/payments' },
-];
+// Depot go-live checklist (15d) is now REAL: the /hq/onboarding page is depot-scoped and
+// derives each step's done-state live from the depot record + inventory + staff-by-depot +
+// payment config. No separate onboarding-workflow store. The old ONBOARDING_STEPS_STUB was removed.
 
 // Per-event admin notification prefs (23a) are now REAL: admin-service
 // endpoints.admin.notifPrefs (GET/PUT, keyed by the current user). The old NOTIF_EVENTS_STUB /
