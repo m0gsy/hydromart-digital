@@ -1,12 +1,18 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { computeEarning } from '../../domain/courier-earning';
+import { InsufficientBalanceError, InvalidWithdrawalAmountError } from '../../domain/errors';
 import {
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
 } from '../ports/courier-ledger.repository';
+import {
+  CourierWithdrawalRecord,
+  CourierWithdrawalRepository,
+} from '../ports/courier-withdrawal.repository';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
+import { withdrawalReference } from './payout.service';
 
 /** Raw delivery-completion event pushed by delivery-service (design 6b earning). */
 export interface DeliveryCompletedEvent {
@@ -23,6 +29,7 @@ export interface CourierEarningsSummary {
   availableBalance: number;
   monthEarnings: number;
   recentEntries: CourierLedgerEntryRecord[];
+  recentWithdrawals: CourierWithdrawalRecord[];
 }
 
 // Indonesia runs one business timezone; peak hours are WIB (UTC+7). ponytail: fixed
@@ -36,6 +43,8 @@ export class CourierPayoutService {
   constructor(
     @Inject(PAYOUT_TOKENS.CourierLedgerRepository)
     private readonly ledger: CourierLedgerRepository,
+    @Inject(PAYOUT_TOKENS.CourierWithdrawalRepository)
+    private readonly withdrawals: CourierWithdrawalRepository,
   ) {}
 
   /**
@@ -77,12 +86,49 @@ export class CourierPayoutService {
 
   async summary(courierId: string): Promise<CourierEarningsSummary> {
     const monthStart = startOfMonth(new Date());
-    const [availableBalance, monthEarnings, recent] = await Promise.all([
+    const [availableBalance, monthEarnings, recent, recentWithdrawals] = await Promise.all([
       this.ledger.balanceFor(courierId),
       this.ledger.sumByType(courierId, 'EARNING', monthStart),
       this.ledger.listForCourier(courierId, 1, 8),
+      this.withdrawals.listForCourier(courierId, 5),
     ]);
-    return { availableBalance, monthEarnings, recentEntries: recent.items };
+    return { availableBalance, monthEarnings, recentEntries: recent.items, recentWithdrawals };
+  }
+
+  /**
+   * Courier cashes out available balance to their bank (design 2c). Same guard + matching
+   * debit as the franchise path: reject non-positive or over-balance, record the withdrawal,
+   * then post a WITHDRAWAL debit so the balance drops immediately.
+   */
+  async requestWithdrawal(
+    courierId: string,
+    amount: number,
+    bankAccountRef: string,
+  ): Promise<CourierWithdrawalRecord> {
+    if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
+    const balance = await this.ledger.balanceFor(courierId);
+    if (amount > balance) throw new InsufficientBalanceError(balance, amount);
+
+    const reference = withdrawalReference(new Date());
+    const withdrawal = await this.withdrawals.create({
+      courierId,
+      amount,
+      bankAccountRef,
+      reference,
+      status: 'PROCESSING',
+    });
+    await this.ledger.create({
+      courierId,
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -amount,
+      description: `Penarikan saldo · ${reference}`,
+    });
+    return withdrawal;
+  }
+
+  async withdrawalHistory(courierId: string, limit = 20): Promise<CourierWithdrawalRecord[]> {
+    return this.withdrawals.listForCourier(courierId, limit);
   }
 
   async ledgerPage(

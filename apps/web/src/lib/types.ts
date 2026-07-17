@@ -929,10 +929,22 @@ export interface CourierLedgerEntry {
   createdAt: string;
 }
 
+export interface CourierWithdrawal {
+  id: string;
+  courierId: string;
+  amount: number;
+  bankAccountRef: string;
+  status: WithdrawalStatus;
+  reference: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CourierEarningsSummary {
   availableBalance: number;
   monthEarnings: number;
   recentEntries: CourierLedgerEntry[];
+  recentWithdrawals: CourierWithdrawal[];
 }
 
 // Courier field incident (delivery-service, design 4b). HIGH alerts ops.

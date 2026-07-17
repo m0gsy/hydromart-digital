@@ -24,8 +24,10 @@ import {
   CourierPayoutService,
 } from '../application/services/courier-payout.service';
 import { CourierLedgerEntryRecord } from '../application/ports/courier-ledger.repository';
+import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { Page } from '../application/pagination';
 import { CourierLedgerQueryDto, DeliveryCompletedEventDto } from './dto/courier-payout.dto';
+import { RequestWithdrawalDto } from './dto/payout.dto';
 
 // Courier-scoped: reads the calling courier's own earnings ledger (user.sub).
 @ApiTags('Courier Payout')
@@ -48,6 +50,21 @@ export class CourierPayoutController {
     @Query() query: CourierLedgerQueryDto,
   ): Promise<Page<CourierLedgerEntryRecord>> {
     return this.payout.ledgerPage(user.sub, query.page, query.limit);
+  }
+
+  @Post('withdrawals')
+  @ApiOperation({ summary: 'Cash out available balance to the bank (design 2c)' })
+  withdraw(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestWithdrawalDto,
+  ): Promise<CourierWithdrawalRecord> {
+    return this.payout.requestWithdrawal(user.sub, dto.amount, dto.bankAccountRef);
+  }
+
+  @Get('withdrawals')
+  @ApiOperation({ summary: 'Withdrawal history for the calling courier (design 2c riwayat)' })
+  withdrawals(@CurrentUser() user: AuthenticatedUser): Promise<CourierWithdrawalRecord[]> {
+    return this.payout.withdrawalHistory(user.sub);
   }
 
   // System-triggered: delivery-service posts a completed delivery, authenticated by the

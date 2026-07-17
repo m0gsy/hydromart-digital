@@ -123,6 +123,25 @@ model CourierLedgerEntry {
   @@map("courier_ledger_entries")
 }
 
+/// A courier's request to cash out earnings to their bank account (design 2c). Parallel
+/// to the franchise Withdrawal; the matching debit posts to CourierLedgerEntry.
+model CourierWithdrawal {
+  id             String           @id @default(uuid()) @db.Uuid
+  courierId      String           @db.Uuid
+  /// Positive IDR amount requested.
+  amount         Decimal          @db.Decimal(14, 2)
+  /// Masked destination shown in the UI, e.g. "BCA ···· 4821".
+  bankAccountRef String
+  status         WithdrawalStatus @default(PROCESSING)
+  /// Human-facing reference, e.g. "WD-20260718-4821". Unique.
+  reference      String           @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([courierId, createdAt])
+  @@map("courier_withdrawals")
+}
+
 /// A franchise owner's request to cash out available balance to their bank account.
 model Withdrawal {
   id               String           @id @default(uuid()) @db.Uuid

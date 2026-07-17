@@ -14,6 +14,7 @@ import { LedgerPrismaRepository } from '../infrastructure/prisma/ledger.prisma.r
 import { WithdrawalPrismaRepository } from '../infrastructure/prisma/withdrawal.prisma.repository';
 import { CommissionSchemePrismaRepository } from '../infrastructure/prisma/commission-scheme.prisma.repository';
 import { CourierLedgerPrismaRepository } from '../infrastructure/prisma/courier-ledger.prisma.repository';
+import { CourierWithdrawalPrismaRepository } from '../infrastructure/prisma/courier-withdrawal.prisma.repository';
 import { PayoutController } from './payout.controller';
 import { HqPayoutController } from './hq-payout.controller';
 import { CommissionController } from './commission.controller';
@@ -29,6 +30,7 @@ const providers: Provider[] = [
   { provide: PAYOUT_TOKENS.WithdrawalRepository, useClass: WithdrawalPrismaRepository },
   { provide: PAYOUT_TOKENS.CommissionSchemeRepository, useClass: CommissionSchemePrismaRepository },
   { provide: PAYOUT_TOKENS.CourierLedgerRepository, useClass: CourierLedgerPrismaRepository },
+  { provide: PAYOUT_TOKENS.CourierWithdrawalRepository, useClass: CourierWithdrawalPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

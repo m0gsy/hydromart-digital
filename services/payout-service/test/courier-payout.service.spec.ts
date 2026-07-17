@@ -1,3 +1,4 @@
+import { InsufficientBalanceError, InvalidWithdrawalAmountError } from '../src/domain/errors';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
 import type { CourierEarningRule, CourierLedgerEntryType } from '../src/domain/courier-earning';
 import type {
@@ -5,6 +6,11 @@ import type {
   CourierLedgerRepository,
   CreateCourierLedgerData,
 } from '../src/application/ports/courier-ledger.repository';
+import type {
+  CourierWithdrawalRecord,
+  CourierWithdrawalRepository,
+  CreateCourierWithdrawalData,
+} from '../src/application/ports/courier-withdrawal.repository';
 
 const DEFAULT_RULE: CourierEarningRule = {
   baseFare: 5000,
@@ -59,6 +65,19 @@ class FakeCourierLedger implements CourierLedgerRepository {
   }
 }
 
+class FakeCourierWithdrawals implements CourierWithdrawalRepository {
+  created: CreateCourierWithdrawalData[] = [];
+  async create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord> {
+    this.created.push(data);
+    return { ...data, id: `w-${this.created.length}`, createdAt: new Date(), updatedAt: new Date() };
+  }
+  async listForCourier(courierId: string): Promise<CourierWithdrawalRecord[]> {
+    return this.created
+      .filter((w) => w.courierId === courierId)
+      .map((w, i) => ({ ...w, id: `w-${i}`, createdAt: new Date(), updatedAt: new Date() }));
+  }
+}
+
 const COURIER = '11111111-1111-4111-8111-111111111111';
 // 18:00 WIB = 11:00 UTC → peak; 03:00 UTC = 10:00 WIB → off-peak.
 const PEAK_UTC = '2026-07-18T11:00:00.000Z';
@@ -74,11 +93,13 @@ const event = (deliveryId: string, deliveredAt: string, onTime: boolean) => ({
 
 describe('CourierPayoutService', () => {
   let ledger: FakeCourierLedger;
+  let withdrawals: FakeCourierWithdrawals;
   let service: CourierPayoutService;
 
   beforeEach(() => {
     ledger = new FakeCourierLedger();
-    service = new CourierPayoutService(ledger);
+    withdrawals = new FakeCourierWithdrawals();
+    service = new CourierPayoutService(ledger, withdrawals);
   });
 
   it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
@@ -112,5 +133,29 @@ describe('CourierPayoutService', () => {
     const summary = await service.summary(COURIER);
     expect(summary.availableBalance).toBe(13000);
     expect(summary.recentEntries).toHaveLength(2);
+  });
+
+  describe('requestWithdrawal', () => {
+    it('rejects a non-positive amount', async () => {
+      await expect(service.requestWithdrawal(COURIER, 0, 'BCA')).rejects.toBeInstanceOf(
+        InvalidWithdrawalAmountError,
+      );
+    });
+
+    it('rejects when the amount exceeds available balance', async () => {
+      await service.recordDeliveryEarning(event('d1', OFFPEAK_UTC, false)); // 5000 balance
+      await expect(service.requestWithdrawal(COURIER, 6000, 'BCA')).rejects.toBeInstanceOf(
+        InsufficientBalanceError,
+      );
+    });
+
+    it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
+      await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
+      const w = await service.requestWithdrawal(COURIER, 8000, 'BCA ···· 4821');
+      expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
+      expect(withdrawals.created).toHaveLength(1);
+      expect(await ledger.balanceFor(COURIER)).toBe(0);
+      expect((await service.summary(COURIER)).recentWithdrawals).toHaveLength(1);
+    });
   });
 });
