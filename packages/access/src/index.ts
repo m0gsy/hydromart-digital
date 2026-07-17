@@ -72,6 +72,23 @@ export const CAPABILITIES = {
   // Narrower than returnsWrite: the refund amount is derived server-side from the
   // depot's deposit rate, never supplied by the courier.
   courierReturn: ['DRIVER'],
+  // crm-service — depot-scoped customer directory (CRM read: profiles, deposit
+  // ledger, order history). Depot staff see their own depot's customers.
+  depotCrm: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
+  // and follow-up. Operators log & triage, managers resolve.
+  incidents: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // auth-service — depot-scoped audit trail read (who did what at this depot).
+  auditRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // procurement-service — purchase orders + supplier directory (goods-in -> RECEIPT).
+  // Manager-exclusive depot power (like depotAdmin).
+  procurement: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // depot-service — the manager approval queue: opname-variance, deposit-refund and
+  // COD-settlement-variance decisions that exceed the depot's auto-pass thresholds.
+  approvals: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
+  // courier commission runs, monthly ops review. Manager-exclusive finance view.
+  depotFinance: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

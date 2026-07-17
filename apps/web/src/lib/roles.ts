@@ -50,3 +50,13 @@ export const canBroadcastToCouriers = (role: string | null | undefined) => can('
 // commission schemes) — not part of the per-depot capability matrix.
 export const canManageEarningRules = (role: string | null | undefined) =>
   role === 'FINANCE' || role === 'SUPER_ADMIN';
+// Depot console additions (operator/manager surfaces).
+export const canViewDepotCrm = (role: string | null | undefined) => can('depotCrm', role);
+export const canViewIncidents = (role: string | null | undefined) => can('incidents', role);
+export const canViewAudit = (role: string | null | undefined) => can('auditRead', role);
+export const canManageProcurement = (role: string | null | undefined) => can('procurement', role);
+export const canReviewApprovals = (role: string | null | undefined) => can('approvals', role);
+export const canViewDepotFinance = (role: string | null | undefined) => can('depotFinance', role);
+// Role identity helpers for shell selection (operator gets the top-tab console).
+export const isDepotOperator = (role: string | null | undefined) => role === 'DEPOT_OPERATOR';
+export const isDepotManager = (role: string | null | undefined) => role === 'DEPOT_MANAGER';
