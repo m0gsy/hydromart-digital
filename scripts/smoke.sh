@@ -35,7 +35,18 @@ CAT=$(curl -s $GW/loyalty/api/v1/rewards/catalog)
 N=$(echo "$CAT"|jq 'length'); RID=$(echo "$CAT"|jq -r 'sort_by(.pointsCost)[0].id'); COST=$(echo "$CAT"|jq -r 'sort_by(.pointsCost)[0].pointsCost')
 [ "$N" -ge 1 ] && ok "catalog=$N item (termurah $COST poin)" || no "catalog kosong"
 
-curl -s -o /dev/null -XPOST $GW/loyalty/api/v1/loyalty/reward -H "x-internal-key: $INTERNAL_SERVICE_KEY" -H 'content-type: application/json' -d "{\"customerId\":\"$CID\",\"points\":$((COST+200)),\"reason\":\"smoke\"}"
+# Granting points is an INTERNAL call: the gateway strips x-internal-key on purpose
+# (gateway.setup.ts — a browser must never inject it), so this has to talk to the
+# loyalty container directly, the same way a peer service would.
+GRANT=$($DC exec -T loyalty node -e '
+const [customerId, points] = process.argv.slice(1);
+fetch("http://localhost:3009/api/v1/loyalty/reward", {
+  method: "POST",
+  headers: { "x-internal-key": process.env.INTERNAL_SERVICE_KEY, "content-type": "application/json" },
+  body: JSON.stringify({ customerId, points: Number(points), reason: "smoke" }),
+}).then(async (r) => console.log(r.ok ? "ok" : `${r.status} ${await r.text()}`));
+' "$CID" "$((COST + 200))" 2>&1 | tr -d '\r')
+if [ "$GRANT" = "ok" ]; then ok "grant $((COST + 200)) poin"; else no "grant poin: $GRANT"; fi
 
 KEY=$(cat /proc/sys/kernel/random/uuid)
 B1=$(curl -s -XPOST $GW/loyalty/api/v1/rewards/redeem -H "$A" -H 'content-type: application/json' -d "{\"rewardItemId\":\"$RID\",\"idempotencyKey\":\"$KEY\"}" | jq -r '.pointsBalance')
