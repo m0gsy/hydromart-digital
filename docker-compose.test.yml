@@ -287,6 +287,9 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation:3013
       FORECAST_SERVICE_URL: http://forecast:3014
       PAYOUT_SERVICE_URL: http://payout:3016
+      # admin-service isn't booted in the integration loop; the gateway only needs the
+      # URL set to pass config validation (no /admin request is driven).
+      ADMIN_SERVICE_URL: http://admin:3017
     ports:
       - "8080:8080"
     healthcheck:
