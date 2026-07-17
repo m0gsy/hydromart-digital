@@ -769,4 +769,14 @@ export const endpoints = {
       return `/auth/api/v1/auth/customers/count${qs ? `?${qs}` : ''}`;
     },
   },
+  // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).
+  depotCrm: {
+    list: (depotId: string, q?: string) => {
+      const p = new URLSearchParams({ depotId });
+      if (q) p.set('q', q);
+      return `/customers/api/v1/customers/depot?${p}`;
+    },
+    detail: (id: string, depotId: string) =>
+      `/customers/api/v1/customers/${id}/depot-detail?depotId=${encodeURIComponent(depotId)}`,
+  },
 } as const;

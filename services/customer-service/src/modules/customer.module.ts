@@ -10,15 +10,18 @@ import { AddressService } from '../application/services/address.service';
 import { NotificationService } from '../application/services/notification.service';
 import { PaymentMethodService } from '../application/services/payment-method.service';
 import { ProfileService } from '../application/services/profile.service';
+import { DepotCrmService } from '../application/services/depot-crm.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
 import { NotificationPrismaRepository } from '../infrastructure/prisma/notification.prisma.repository';
 import { PaymentMethodPrismaRepository } from '../infrastructure/prisma/payment-method.prisma.repository';
 import { ProfilePrismaRepository } from '../infrastructure/prisma/profile.prisma.repository';
+import { DepotCrmPrismaRepository } from '../infrastructure/prisma/depot-crm.prisma.repository';
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { AddressController } from './address.controller';
 import { PaymentMethodController } from './payment-method.controller';
 import { ProfileController } from './profile.controller';
+import { DepotCrmController } from './depot-crm.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -27,18 +30,20 @@ const providers: Provider[] = [
   AddressService,
   NotificationService,
   PaymentMethodService,
+  DepotCrmService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   { provide: CUSTOMER_TOKENS.NotificationPreferenceRepository, useClass: NotificationPrismaRepository },
   { provide: CUSTOMER_TOKENS.PaymentMethodRepository, useClass: PaymentMethodPrismaRepository },
   { provide: CUSTOMER_TOKENS.LoyaltyRewardPort, useClass: LoyaltyRewardHttpAdapter },
+  { provide: CUSTOMER_TOKENS.DepotCrmRepository, useClass: DepotCrmPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [ProfileController, AddressController, PaymentMethodController],
+  controllers: [ProfileController, AddressController, PaymentMethodController, DepotCrmController],
   providers,
   exports: [PrismaService, CustomerConfigService],
 })

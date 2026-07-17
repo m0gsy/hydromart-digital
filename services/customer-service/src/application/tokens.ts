@@ -5,4 +5,5 @@ export const CUSTOMER_TOKENS = {
   PaymentMethodRepository: Symbol('PaymentMethodRepository'),
   NotificationPreferenceRepository: Symbol('NotificationPreferenceRepository'),
   LoyaltyRewardPort: Symbol('LoyaltyRewardPort'),
+  DepotCrmRepository: Symbol('DepotCrmRepository'),
 } as const;

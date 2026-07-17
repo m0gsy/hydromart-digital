@@ -1547,3 +1547,67 @@ export interface OnboardingState {
   enablePayments: boolean;
   updatedAt: string;
 }
+
+// Depot CRM — depot-scoped customer directory (Depot Operator 6a/7a, Manager 12b).
+// `Customer` and `MembershipTier` are already taken, so these are prefixed and the tier is
+// left as a plain string (customer-service uses BASIC/SILVER/GOLD).
+export interface DepotCustomer {
+  id: string;
+  fullName: string | null;
+  phone: string | null;
+  membershipTier: string;
+  orderCount: number;
+  gallonsOnLoan: number;
+  depositHeldIdr: number;
+  lastOrderAt: string | null;
+  isSubscriber: boolean;
+}
+
+export interface DepotCustomerAddress {
+  id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  province: string;
+  latitude: number | null;
+  longitude: number | null;
+  isPrimary: boolean;
+  /** null while the depot serviceRadiusKm port is unwired. */
+  inRadius: boolean | null;
+  distanceKm: number | null;
+}
+
+export interface DepotDepositLedgerEntry {
+  id: string;
+  type: 'ISSUE' | 'RETURN';
+  quantity: number;
+  amountIdr: number;
+  at: string;
+}
+
+export interface DepotRecentOrder {
+  id: string;
+  status: string;
+  totalIdr: number;
+  placedAt: string;
+}
+
+export interface DepotCustomerDetail {
+  profile: {
+    id: string;
+    fullName: string | null;
+    phone: string | null;
+    membershipTier: string;
+    isSubscriber: boolean;
+    orderCount: number;
+    totalSpentIdr: number;
+    gallonsOnLoan: number;
+    depositHeldIdr: number;
+    churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  };
+  addresses: DepotCustomerAddress[];
+  depositLedger: DepotDepositLedgerEntry[];
+  recentOrders: DepotRecentOrder[];
+}
