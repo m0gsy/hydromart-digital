@@ -4,6 +4,7 @@ import {
   CustomerSales,
   DepotSales,
   DepotRating,
+  DepotRefund,
   DepotShipping,
   OrderRepository,
   ProductRevenue,
@@ -90,6 +91,11 @@ export class ReportService {
 
   async shippingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotShipping[] }> {
     const items = await this.orders.shippingByDepot(range);
+    return { ...ReportService.rangeView(range), items };
+  }
+
+  async refundsByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotRefund[] }> {
+    const items = await this.orders.refundsByDepot(range);
     return { ...ReportService.rangeView(range), items };
   }
 

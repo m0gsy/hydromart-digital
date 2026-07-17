@@ -12,6 +12,7 @@ import {
   CustomerSales,
   DepotSales,
   DepotRating,
+  DepotRefund,
   DepotShipping,
   OrderQuery,
   OrderRecord,
@@ -97,6 +98,7 @@ export class InMemoryCartRepository implements CartRepository {
 export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
   reviews: OrderReviewRecord[] = [];
+  refunds = new Map<string, number>();
 
   async findReorderReminderTargets(
     cutoff: Date,
@@ -257,6 +259,24 @@ export class InMemoryOrderRepository implements OrderRepository {
       agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + r.deliveryFee);
     }
     return [...agg.entries()].map(([depotId, shippingBilled]) => ({ depotId, shippingBilled }));
+  }
+
+  async refundsByDepot(range: ReportRange): Promise<DepotRefund[]> {
+    // Refunds count regardless of status (a cancelled order is what triggers a refund),
+    // windowed on createdAt like the sibling reports.
+    const agg = new Map<string, number>();
+    for (const r of this.rows) {
+      if (range.from && r.createdAt < range.from) continue;
+      if (range.to && r.createdAt >= range.to) continue;
+      const refunded = this.refunds.get(r.id);
+      if (!r.depotId || refunded == null) continue;
+      agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + refunded);
+    }
+    return [...agg.entries()].map(([depotId, refunded]) => ({ depotId, refunded }));
+  }
+
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    this.refunds.set(orderId, amount);
   }
 
   async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {

@@ -142,8 +142,12 @@ export class FakeGateway implements PaymentGatewayPort {
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
   confirmedOrderIds: string[] = [];
+  refunded: { orderId: string; amount: number }[] = [];
   async confirmPaid(orderId: string): Promise<void> {
     this.confirmedOrderIds.push(orderId);
+  }
+  async notifyRefunded(orderId: string, amount: number): Promise<void> {
+    this.refunded.push({ orderId, amount });
   }
 }
 

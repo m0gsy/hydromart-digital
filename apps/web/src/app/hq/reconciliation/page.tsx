@@ -5,7 +5,6 @@ import { Scales, DownloadSimple } from '@phosphor-icons/react';
 
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubReconRefunds } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -14,6 +13,10 @@ import type { DepotAdmin, ExecutiveDashboard, GallonOutstanding, Page } from '@/
 
 interface ShippingByDepot {
   items: { depotId: string; shippingBilled: number }[];
+}
+
+interface RefundsByDepot {
+  items: { depotId: string; refunded: number }[];
 }
 
 const SELECT_CLASS =
@@ -27,9 +30,9 @@ function defaultRange(): { from: string; to: string } {
 }
 
 // Design 22a — Rekonsiliasi keuangan per depot. Total penjualan (executive topDepots),
-// ongkir (order shipping-by-depot) and gallon deposit (depot gallon-outstanding netDeposit)
-// are real; platform fee (5%) & commission (20%) are computed. Only per-depot REFUNDS has
-// no source (payment has no depotId) → stays a labeled stub line.
+// ongkir (order shipping-by-depot), refunds (order refunds-by-depot, fed by payment-service
+// coordination) and gallon deposit (depot gallon-outstanding netDeposit) are all real;
+// platform fee (5%) & commission (20%) are computed. No stub lines remain.
 export default function HqReconciliationPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -38,6 +41,7 @@ export default function HqReconciliationPage() {
   const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
   const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
+  const refundsByDepot = useAsync<RefundsByDepot>(() => api.get(endpoints.reports.refundsByDepot(range), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
 
   const [depotId, setDepotId] = useState('');
@@ -61,8 +65,8 @@ export default function HqReconciliationPage() {
   // Real lines.
   const shippingBilled = shipping.data?.items.find((r) => r.depotId === selected)?.shippingBilled ?? 0;
   const gallonDeposit = gallon.data?.find((r) => r.depotId === selected)?.netDeposit ?? 0;
-  // Stub line (no per-depot refund source).
-  const refunds = stubReconRefunds(selected);
+  // Real: refunds settled on this depot's orders in the window (payment-service → order-service).
+  const refunds = refundsByDepot.data?.items.find((r) => r.depotId === selected)?.refunded ?? 0;
 
   // ponytail: illustrative payout formula — owner keeps sales + ongkir, less platform
   // fee, franchise commission, refunds and the deposit held. Server is authority later.
@@ -127,7 +131,7 @@ export default function HqReconciliationPage() {
             <Line label={t('hq.reconciliation.lines.sales')} value={money(sales)} />
             <Line label={t('hq.reconciliation.lines.platformFee')} value={money(platformFee == null ? null : -platformFee)} />
             <Line label={t('hq.reconciliation.lines.shipping')} value={<Money amount={shippingBilled} />} />
-            <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-refunds} />} badge />
+            <Line label={t('hq.reconciliation.lines.refunds')} value={<Money amount={-refunds} />} />
             <Line label={t('hq.reconciliation.lines.commission')} value={money(commission == null ? null : -commission)} />
             <Line label={t('hq.reconciliation.lines.deposit')} value={<Money amount={-gallonDeposit} />} />
           </dl>
@@ -144,13 +148,10 @@ export default function HqReconciliationPage() {
   );
 }
 
-function Line({ label, value, badge }: { label: string; value: React.ReactNode; badge?: boolean }) {
+function Line({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 py-3 text-sm">
-      <dt className="flex items-center gap-2 text-muted">
-        {label}
-        {badge && <StubBadge />}
-      </dt>
+      <dt className="flex items-center gap-2 text-muted">{label}</dt>
       <dd className="font-medium tabular-nums">{value}</dd>
     </div>
   );

@@ -64,6 +64,20 @@ describe('ReportService', () => {
     expect(items[1]).toMatchObject({ depotId: DEPOT_B, orderCount: 1, revenue: 20000 });
   });
 
+  it('sums refunds per depot, INCLUDING cancelled orders (a cancel is what refunds)', async () => {
+    // Refund a live DEPOT_A order and a cancelled DEPOT_B order; both must count.
+    const live = await repo.create(orderData({ depotId: DEPOT_A, total: 40000 }));
+    await repo.recordRefund(live.id, 40000);
+    const cancelledRefunded = await repo.create(orderData({ depotId: DEPOT_B, total: 15000 }));
+    await repo.applyStatus(cancelledRefunded.id, OrderStatus.CANCELLED, null, null);
+    await repo.recordRefund(cancelledRefunded.id, 15000);
+
+    const { items } = await reports.refundsByDepot({});
+    const byDepot = Object.fromEntries(items.map((r) => [r.depotId, r.refunded]));
+    expect(byDepot[DEPOT_A]).toBe(40000);
+    expect(byDepot[DEPOT_B]).toBe(15000); // cancelled order's refund still counted
+  });
+
   it('respects the limit', async () => {
     const { items } = await reports.topCustomers({}, 1);
     expect(items).toHaveLength(1);

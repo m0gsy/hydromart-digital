@@ -89,6 +89,8 @@ describe('PaymentService', () => {
     expect(refunded.status).toBe(PaymentStatus.REFUNDED);
     expect(refunded.refundedAmount).toBe(45000);
     expect(refunded.refundReason).toBe('order cancelled');
+    // Notifies order-service so the refund lands on the order's depot (reconciliation 22a).
+    expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 45000 }]);
   });
 
   it('refuses to refund a payment that is not PAID', async () => {
@@ -124,6 +126,7 @@ describe('PaymentService', () => {
     expect(approved.status).toBe(PaymentStatus.REFUNDED);
     expect(approved.refundApproval).toBe(RefundApproval.APPROVED);
     expect(approved.refundedAmount).toBe(150_000);
+    expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 150_000 }]);
     expect((await service.listRefundQueue({})).total).toBe(0);
   });
 

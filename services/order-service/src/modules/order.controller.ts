@@ -37,6 +37,7 @@ import {
   CancelOrderDto,
   CheckoutDto,
   CreateReviewDto,
+  InternalRefundDto,
   ListOrdersQueryDto,
   UpdateOrderStatusDto,
 } from './dto/order.dto';
@@ -264,6 +265,22 @@ export class OrderController {
   ): Promise<{ orderId: string; status: OrderStatus }> {
     const order = await this.orders.confirmPaid(id, 'payment-service');
     return { orderId: order.id, status: order.status };
+  }
+
+  // Records a settled refund amount on the order for per-depot reconciliation (22a).
+  // Same internal service-auth path as internal-confirm.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post(':id/internal-refund')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record a settled refund amount on an order (internal service auth)' })
+  async internalRefund(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: InternalRefundDto,
+  ): Promise<{ orderId: string }> {
+    await this.orders.recordRefund(id, dto.amount);
+    return { orderId: id };
   }
 
   @Patch(':id/status')

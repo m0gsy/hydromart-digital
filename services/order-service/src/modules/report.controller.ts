@@ -57,6 +57,12 @@ export class ReportController {
     return this.reports.shippingByDepot(toRange(q));
   }
 
+  @Get('refunds-by-depot')
+  @ApiOperation({ summary: 'Refunds settled per depot (reconciliation 22a)' })
+  refundsByDepot(@Query() q: RangeReportQueryDto) {
+    return this.reports.refundsByDepot(toRange(q));
+  }
+
   @Get('rating-by-depot')
   @ApiOperation({ summary: 'Average customer rating per depot (compare 14d)' })
   ratingByDepot(@Query() q: RangeReportQueryDto) {

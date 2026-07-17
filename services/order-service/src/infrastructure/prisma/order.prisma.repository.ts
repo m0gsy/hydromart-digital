@@ -9,6 +9,7 @@ import {
   CustomerSales,
   DepotSales,
   DepotRating,
+  DepotRefund,
   DepotShipping,
   OrderQuery,
   OrderRecord,
@@ -365,6 +366,33 @@ export class OrderPrismaRepository implements OrderRepository {
       depotId: r.depotId as string,
       shippingBilled: r._sum.deliveryFee ? r._sum.deliveryFee.toNumber() : 0,
     }));
+  }
+
+  async refundsByDepot(range: ReportRange): Promise<DepotRefund[]> {
+    // Unlike the other by-depot reports, refunds must NOT exclude CANCELLED orders:
+    // an online-paid order that gets cancelled is precisely what triggers a refund
+    // (BR-refund). Window on the order's createdAt to match the sibling lines.
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    const rows = await this.prisma.order.groupBy({
+      by: ['depotId'],
+      where: {
+        depotId: { not: null },
+        refundedAmount: { not: null },
+        ...(range.from || range.to ? { createdAt } : {}),
+      },
+      _sum: { refundedAmount: true },
+    });
+    return rows.map((r) => ({
+      depotId: r.depotId as string,
+      refunded: r._sum.refundedAmount ? r._sum.refundedAmount.toNumber() : 0,
+    }));
+  }
+
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: amount } });
   }
 
   async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {

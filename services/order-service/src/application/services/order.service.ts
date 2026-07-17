@@ -542,6 +542,12 @@ export class OrderService {
     return this.updateStatus(orderId, OrderStatus.CONFIRMED, changedBy);
   }
 
+  /** Record a settled refund amount on the order (payment-service coordination, 22a). */
+  async recordRefund(orderId: string, amount: number): Promise<void> {
+    await this.getAny(orderId); // 404 if the order doesn't exist
+    await this.orders.recordRefund(orderId, amount);
+  }
+
   /** Re-adds an order's still-available lines back into the customer's cart. */
   async repeat(customerId: string, orderId: string): Promise<CartView> {
     const order = await this.getForCustomer(customerId, orderId);

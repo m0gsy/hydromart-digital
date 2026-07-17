@@ -269,7 +269,11 @@ export class PaymentService {
       }
     }
     this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
-    return this.payments.update(payment.id, patch);
+    const updated = await this.payments.update(payment.id, patch);
+    // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
+    // is already settled, so a coordination hiccup must never surface as a payment error.
+    await this.orderCoordination.notifyRefunded(payment.orderId, payment.amount);
+    return updated;
   }
 
   /**

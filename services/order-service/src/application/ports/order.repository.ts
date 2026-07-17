@@ -132,6 +132,12 @@ export interface DepotShipping {
   shippingBilled: number;
 }
 
+/** Refunds settled per depot over a range — reconciliation 22a. */
+export interface DepotRefund {
+  depotId: string;
+  refunded: number;
+}
+
 /** Average customer rating (1..5) per depot over a range — depot compare 14d. */
 export interface DepotRating {
   depotId: string;
@@ -230,6 +236,10 @@ export interface OrderRepository {
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
   shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
+  /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
+  refundsByDepot(range: ReportRange): Promise<DepotRefund[]>;
+  /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
+  recordRefund(orderId: string, amount: number): Promise<void>;
   /** Average rating per depot (orders in-window that have a review), 14d. */
   ratingByDepot(range: ReportRange): Promise<DepotRating[]>;
   /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */

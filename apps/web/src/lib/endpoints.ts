@@ -221,6 +221,13 @@ export const endpoints = {
       const qs = p.toString();
       return `/orders/api/v1/reports/shipping-by-depot${qs ? `?${qs}` : ''}`;
     },
+    refundsByDepot: (q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/refunds-by-depot${qs ? `?${qs}` : ''}`;
+    },
     // Opt-in reachable customer count for a broadcast audience (10d). Activity-based
     // (distinct customers with a non-cancelled order); optional per-depot scope.
     audienceReach: (depotId?: string) =>

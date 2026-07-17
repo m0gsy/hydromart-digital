@@ -7,13 +7,6 @@ import { useT } from '@/lib/locale-context';
 // source of stubbed data so live vs mock is never ambiguous — anything rendered
 // from here must also show <StubBadge/>.
 
-/** Deterministic 32-bit hash of a string — keeps sample values stable per id. */
-function hash(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
 // Per-depot SLA is now REAL: dashboard-service GET /dashboard/network returns a
 // real slaRate per depot (delivery-service sla-by-depot). The old stubDepotSla was
 // removed — the overview table, scorecard, compare and depot detail all read the
@@ -45,13 +38,10 @@ function hash(s: string): number {
 // is now REAL too: promo-service voucher-requests (propose + HQ approve/reject, approve
 // creates the real voucher). The old PENDING_VOUCHER_REQUESTS_STUB was removed.
 
-// Reconciliation ongkir (shipping) and gallon deposit are now REAL: order-service
-// shipping-by-depot + depot-service gallon-outstanding (netDeposit). Only per-depot
-// REFUNDS has no source — payment-service has no depotId, so refunds can't be split by
-// depot without a payment→order join. This one line stays a labeled stub.
-export function stubReconRefunds(depotId: string): number {
-  return (hash(depotId) % 12) * 15_000;
-}
+// Reconciliation ongkir (shipping), gallon deposit AND refunds are now REAL: order-service
+// shipping-by-depot + refunds-by-depot (the latter fed by payment-service, which posts each
+// settled refund to order-service's internal-refund endpoint so it lands on the order's
+// depot) + depot-service gallon-outstanding (netDeposit). The old stubReconRefunds was removed.
 
 // Export preview row shape. All three groupings (depot/produk/metode) are now REAL:
 // depot = executive topDepots, produk = order-service revenue-by-product, metode =
