@@ -5,10 +5,10 @@ import { Megaphone } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubSegmentEstimate } from '@/lib/hq/stubs';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { useAsync } from '@/lib/use-async';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -17,8 +17,19 @@ type Segment = 'all' | 'loyalty' | 'atRisk' | 'new';
 const SEGMENTS: Segment[] = ['all', 'loyalty', 'atRisk', 'new'];
 const STEPS = ['segment', 'message', 'send'] as const;
 
+// Each preset maps to activity conditions the order-service segment-estimate endpoint
+// honours (frequency / lapsed-recency / first-order recency). `all` = every reachable
+// customer. Tier isn't joinable here, so "loyalty" is a frequency proxy (≥5 orders).
+const SEGMENT_CONDITIONS: Record<Segment, { minOrders?: number; lapsedDays?: number; newWithinDays?: number }> = {
+  all: {},
+  loyalty: { minOrders: 5 },
+  atRisk: { lapsedDays: 60 },
+  new: { newWithinDays: 30 },
+};
+
 // Design 17c — campaign builder. Create is real (crm.createCampaign, same payload shape
-// as dashboard/campaigns). The segment→recipient sizing has no endpoint → badged stub.
+// as dashboard/campaigns). Segment sizing is now real too: order-service segment-estimate
+// with each preset mapped to activity conditions.
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -28,7 +39,11 @@ export default function HqCampaignBuilderPage() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const estimate = stubSegmentEstimate(SEGMENTS.indexOf(segment));
+  const estimateQ = useAsync<{ count: number }>(
+    () => api.get(endpoints.segments.estimate(SEGMENT_CONDITIONS[segment]), true),
+    [segment],
+  );
+  const estimate = estimateQ.data?.count ?? 0;
 
   // Both "Send now" and "Schedule" create the campaign as a DRAFT (dispatch is a
   // separate sendCampaign step); the builder's job is the real create.
@@ -102,10 +117,9 @@ export default function HqCampaignBuilderPage() {
             <div className="flex items-center justify-between gap-3 rounded-xl border border-app p-3">
               <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted">
                 {t('hq.campaigns.estimate')}
-                <StubBadge />
               </span>
               <span className="text-lg font-bold tabular-nums text-brand-700">
-                {t('hq.campaigns.people', { n: estimate.toLocaleString('id-ID') })}
+                {estimateQ.loading ? '…' : t('hq.campaigns.people', { n: estimate.toLocaleString('id-ID') })}
               </span>
             </div>
           </>

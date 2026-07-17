@@ -152,4 +152,16 @@ describe('ReportService', () => {
     expect(atA.count).toBe(1); // only CUST_A ordered at DEPOT_A
     expect(atA.depotId).toBe(DEPOT_A);
   });
+
+  it('sizes an at-risk segment (last order older than N days)', async () => {
+    // Seed orders were just created, so nobody is lapsed against any positive window.
+    const lapsed = await reports.segmentEstimate({ lapsedDays: 1 });
+    expect(lapsed.count).toBe(0);
+  });
+
+  it('sizes a new-customer segment (first order within N days)', async () => {
+    // Everyone's first order is recent → both reachable customers qualify.
+    const fresh = await reports.segmentEstimate({ newWithinDays: 30 });
+    expect(fresh.count).toBe(2);
+  });
 });

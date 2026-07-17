@@ -175,8 +175,12 @@ export interface CustomerLifetime {
  * `tier` is NOT here — it is owned by loyalty-service and not joinable in order-service.
  */
 export interface SegmentConditions {
-  /** Last order at-or-after this cutoff (recency). */
+  /** Last order at-or-after this cutoff (recency = still active). */
   recencyCutoff?: Date;
+  /** Last order STRICTLY BEFORE this cutoff (lapsed / at-risk — has ordered, not lately). */
+  lapsedCutoff?: Date;
+  /** First order at-or-after this cutoff (newly acquired customer). */
+  firstOrderCutoff?: Date;
   /** At least this many (non-cancelled) orders (frequency). */
   minOrders?: number;
   /** Has ordered at this depot; also scopes recency/frequency to that depot's orders. */

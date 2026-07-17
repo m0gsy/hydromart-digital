@@ -65,14 +65,10 @@ export interface ExportRow {
 // Commission scheme % per depot is now REAL: payout-service commission-schemes track
 // (endpoints.commission.*). The old stubCommissionPct was removed.
 
-// The segment-BUILDER (21d, hq/forms/segment) now uses a REAL estimate: order-service
-// GET /reports/segment-estimate (endpoints.segments.estimate). This stub remains ONLY for
-// the 17c campaign builder's preset chips (all/loyalty/atRisk/new), whose preset→condition
-// mapping has no endpoint yet — badged there. Remove once 17c is wired to real conditions.
-export function stubSegmentEstimate(conditionCount: number): number {
-  const base = 12_480;
-  return Math.max(120, Math.round(base / Math.pow(1.7, conditionCount)));
-}
+// Segment sizing is now REAL everywhere: order-service GET /reports/segment-estimate
+// (endpoints.segments.estimate). The 21d builder passes explicit recency/frequency/depot;
+// the 17c campaign presets (all/loyalty/atRisk/new) map to minOrders / lapsedDays /
+// newWithinDays conditions the endpoint honours. The old stubSegmentEstimate was removed.
 
 /* ---------- Milestone C — Daily ops, Analytics & growth, Catalog & pricing ---------- */
 

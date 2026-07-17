@@ -46,6 +46,20 @@ export class SegmentEstimateQueryDto {
   @Min(1)
   recencyDays?: number;
 
+  @ApiPropertyOptional({ minimum: 1, description: 'Last order OLDER than this many days (lapsed / at-risk).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  lapsedDays?: number;
+
+  @ApiPropertyOptional({ minimum: 1, description: 'First order within this many days (newly acquired).' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  newWithinDays?: number;
+
   @ApiPropertyOptional({ minimum: 1, description: 'At least this many non-cancelled orders (frequency).' })
   @IsOptional()
   @Type(() => Number)

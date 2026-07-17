@@ -350,19 +350,22 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
-    const byCustomer = new Map<string, { count: number; last: Date }>();
+    const byCustomer = new Map<string, { count: number; first: Date; last: Date }>();
     for (const r of this.rows) {
       if (r.status === OrderStatus.CANCELLED) continue;
       if (conditions.depotId && r.depotId !== conditions.depotId) continue;
-      const cur = byCustomer.get(r.customerId) ?? { count: 0, last: r.createdAt };
+      const cur = byCustomer.get(r.customerId) ?? { count: 0, first: r.createdAt, last: r.createdAt };
       cur.count += 1;
       if (r.createdAt > cur.last) cur.last = r.createdAt;
+      if (r.createdAt < cur.first) cur.first = r.createdAt;
       byCustomer.set(r.customerId, cur);
     }
     let n = 0;
     for (const agg of byCustomer.values()) {
       if (conditions.minOrders != null && agg.count < conditions.minOrders) continue;
       if (conditions.recencyCutoff && agg.last < conditions.recencyCutoff) continue;
+      if (conditions.lapsedCutoff && agg.last >= conditions.lapsedCutoff) continue;
+      if (conditions.firstOrderCutoff && agg.first < conditions.firstOrderCutoff) continue;
       n += 1;
     }
     return n;

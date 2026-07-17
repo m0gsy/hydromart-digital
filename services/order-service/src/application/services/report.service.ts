@@ -147,15 +147,16 @@ export class ReportService {
    */
   async segmentEstimate(input: {
     recencyDays?: number;
+    lapsedDays?: number;
+    newWithinDays?: number;
     minOrders?: number;
     depotId?: string;
   }): Promise<{ count: number; recencyDays: number | null; minOrders: number | null; depotId: string | null }> {
-    const recencyCutoff =
-      input.recencyDays != null
-        ? new Date(Date.now() - input.recencyDays * 24 * 60 * 60 * 1000)
-        : undefined;
+    const daysAgo = (d: number): Date => new Date(Date.now() - d * 24 * 60 * 60 * 1000);
     const count = await this.orders.segmentEstimate({
-      recencyCutoff,
+      recencyCutoff: input.recencyDays != null ? daysAgo(input.recencyDays) : undefined,
+      lapsedCutoff: input.lapsedDays != null ? daysAgo(input.lapsedDays) : undefined,
+      firstOrderCutoff: input.newWithinDays != null ? daysAgo(input.newWithinDays) : undefined,
       minOrders: input.minOrders,
       depotId: input.depotId,
     });

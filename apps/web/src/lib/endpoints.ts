@@ -229,9 +229,19 @@ export const endpoints = {
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).
   segments: {
-    estimate: (q: { recencyDays?: number; minOrders?: number; depotId?: string } = {}) => {
+    estimate: (
+      q: {
+        recencyDays?: number;
+        lapsedDays?: number;
+        newWithinDays?: number;
+        minOrders?: number;
+        depotId?: string;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.recencyDays != null) p.set('recencyDays', String(q.recencyDays));
+      if (q.lapsedDays != null) p.set('lapsedDays', String(q.lapsedDays));
+      if (q.newWithinDays != null) p.set('newWithinDays', String(q.newWithinDays));
       if (q.minOrders != null) p.set('minOrders', String(q.minOrders));
       if (q.depotId) p.set('depotId', q.depotId);
       const qs = p.toString();

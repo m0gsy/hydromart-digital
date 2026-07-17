@@ -480,6 +480,10 @@ export class OrderPrismaRepository implements OrderRepository {
     if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);
     if (conditions.recencyCutoff)
       having.push(Prisma.sql`MAX("createdAt") >= ${conditions.recencyCutoff}`);
+    if (conditions.lapsedCutoff)
+      having.push(Prisma.sql`MAX("createdAt") < ${conditions.lapsedCutoff}`);
+    if (conditions.firstOrderCutoff)
+      having.push(Prisma.sql`MIN("createdAt") >= ${conditions.firstOrderCutoff}`);
     const havingSql = having.length
       ? Prisma.sql`HAVING ${Prisma.join(having, ' AND ')}`
       : Prisma.empty;
