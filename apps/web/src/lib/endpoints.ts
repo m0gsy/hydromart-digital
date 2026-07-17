@@ -546,6 +546,18 @@ export const endpoints = {
   gallonNetwork: {
     outstanding: '/depots/api/v1/gallon-outstanding',
   },
+  // Depot operational incidents inbox (depot-service, design 6b/13b). Its own gateway
+  // segment (proxied to depot-service). depotId scopes the list; status filters it.
+  incidents: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/incidents/api/v1/incidents?${p}`;
+    },
+    detail: (id: string) => `/incidents/api/v1/incidents/${id}`,
+    create: () => '/incidents/api/v1/incidents',
+    resolve: (id: string) => `/incidents/api/v1/incidents/${id}/resolve`,
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,

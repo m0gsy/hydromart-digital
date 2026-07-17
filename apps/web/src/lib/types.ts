@@ -1448,6 +1448,37 @@ export interface SystemHealth {
   checkedAt: string;
 }
 
+// Depot operational incidents inbox (depot-service, design 6b operator + 13b manager).
+// Prefixed Depot* to avoid the admin-service HQ Incident/IncidentSeverity/IncidentStatus
+// types above (same collision reason the courier FieldIncident is Courier*-prefixed).
+export type DepotIncidentType =
+  | 'COURIER_FALL'
+  | 'VEHICLE_BREAKDOWN'
+  | 'CUSTOMER_CONFLICT'
+  | 'POWER_OUTAGE'
+  | 'GALLON_DAMAGE'
+  | 'OTHER';
+export type DepotIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+export type DepotIncidentStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+
+export interface DepotIncident {
+  id: string;
+  depotId: string;
+  type: DepotIncidentType;
+  severity: DepotIncidentSeverity;
+  status: DepotIncidentStatus;
+  title: string;
+  description: string | null;
+  reportedBy: string;
+  courierName: string | null;
+  orderRef: string | null;
+  resolutionNote: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Governance & config (0004_admin_config) — admin-service.
 // SLA policy (19d).
 export interface SlaPolicy {

@@ -318,3 +318,54 @@ model PricingRule {
   @@index([depotId])
   @@map("pricing_rules")
 }
+
+/// Kind of depot operational incident (design 6b operator "Insiden depot" + 13b manager).
+enum IncidentType {
+  COURIER_FALL
+  VEHICLE_BREAKDOWN
+  CUSTOMER_CONFLICT
+  POWER_OUTAGE
+  GALLON_DAMAGE
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// OPEN → IN_PROGRESS → RESOLVED lifecycle for a depot incident.
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+/// Depot operational incidents inbox (design 6b/13b): one row per field/ops event
+/// (courier fall, breakdown, complaint, outage, gallon damage) with a resolution trail.
+model Incident {
+  id             String           @id @default(uuid()) @db.Uuid
+  depotId        String           @db.Uuid
+  type           IncidentType
+  severity       IncidentSeverity
+  status         IncidentStatus   @default(OPEN)
+  title          String
+  description    String?
+  /// Account id of the staff member who logged the incident.
+  reportedBy     String           @db.Uuid
+  /// Courier involved, if any (free text — courier need not be an account).
+  courierName    String?
+  /// Related order reference (e.g. "HM-...000476"), if any.
+  orderRef       String?
+  /// Resolution note + who/when, set when the incident is marked RESOLVED.
+  resolutionNote String?
+  resolvedBy     String?          @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Newest-first inbox reads by (depotId, status, createdAt).
+  @@index([depotId, status, createdAt])
+  @@map("incidents")
+}

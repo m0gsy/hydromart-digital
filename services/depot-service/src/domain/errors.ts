@@ -93,6 +93,14 @@ export class ApplicationAlreadyDecidedError extends DomainError {
   }
 }
 
+export class IncidentNotFoundError extends DomainError {
+  readonly code = 'INCIDENT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Incident not found.');
+  }
+}
+
 export class PriceOverrideProposalNotFoundError extends DomainError {
   readonly code = 'PRICE_OVERRIDE_PROPOSAL_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
