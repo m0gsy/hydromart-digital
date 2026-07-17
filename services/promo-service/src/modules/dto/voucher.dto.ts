@@ -80,6 +80,18 @@ export class CreateVoucherDto {
   @IsInt()
   @Min(1)
   perCustomerLimit?: number = 1;
+
+  @ApiPropertyOptional({ example: 5000000, description: 'Total discount budget (IDR); null = unlimited.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  budgetCap?: number;
+
+  @ApiPropertyOptional({ default: true, description: 'Set false to save the voucher as a draft.' })
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {

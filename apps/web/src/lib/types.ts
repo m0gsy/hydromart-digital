@@ -337,6 +337,7 @@ export interface VoucherPayload {
   validUntil?: string | null;
   usageLimit?: number | null;
   perCustomerLimit?: number;
+  budgetCap?: number | null;
   active?: boolean;
 }
 

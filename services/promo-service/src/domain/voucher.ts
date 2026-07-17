@@ -3,6 +3,7 @@
 
 import {
   MinSpendNotMetError,
+  VoucherBudgetExhaustedError,
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
   VoucherInactiveError,
@@ -25,6 +26,7 @@ export interface VoucherRules {
   validUntil: Date | null;
   usageLimit: number | null;
   perCustomerLimit: number;
+  budgetCap: number | null;
   active: boolean;
 }
 
@@ -76,6 +78,7 @@ export function validateVoucher(
   now: Date,
   globalUsedCount: number,
   customerRedemptionCount: number,
+  burnedSoFar = 0,
 ): void {
   if (!v.active) throw new VoucherInactiveError();
   if (v.validFrom !== null && now < v.validFrom) throw new VoucherNotStartedError();
@@ -86,5 +89,10 @@ export function validateVoucher(
   }
   if (customerRedemptionCount >= v.perCustomerLimit) {
     throw new VoucherCustomerLimitReachedError();
+  }
+  // Budget is exhausted once cumulative discount reaches the cap (soft budget: the
+  // in-flight redemption is allowed to tip it over, but the next one is blocked).
+  if (v.budgetCap !== null && burnedSoFar >= v.budgetCap) {
+    throw new VoucherBudgetExhaustedError();
   }
 }

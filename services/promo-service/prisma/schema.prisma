@@ -32,6 +32,9 @@ model Voucher {
   minSpend    Int          @default(0)
   /// Cap on the discount for PERCENTAGE vouchers (rupiah); null = uncapped.
   maxDiscount Int?
+  /// Total discount budget (rupiah) this voucher may burn across all redemptions;
+  /// null = unlimited. Once cumulative discountApplied reaches it, the voucher stops.
+  budgetCap   Int?
   validFrom   DateTime?
   validUntil  DateTime?
   /// Global redemption cap; null = unlimited.

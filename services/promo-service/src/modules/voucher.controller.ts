@@ -113,6 +113,8 @@ export class VoucherController {
       validUntil: toDate(dto.validUntil) ?? null,
       usageLimit: dto.usageLimit ?? null,
       perCustomerLimit: dto.perCustomerLimit ?? 1,
+      budgetCap: dto.budgetCap ?? null,
+      active: dto.active,
     });
   }
 

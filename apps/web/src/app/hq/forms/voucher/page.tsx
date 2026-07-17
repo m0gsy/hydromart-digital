@@ -29,25 +29,15 @@ export default function HqVoucherFormPage() {
   const [minOrder, setMinOrder] = useState('');
   const [quota, setQuota] = useState('');
   const [perUser, setPerUser] = useState('1');
-  const [budget, setBudget] = useState(''); // STUB: no backend budget field.
+  const [budget, setBudget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const num = (s: string) => (s.trim() === '' ? undefined : Number(s));
 
-  async function publish() {
-    if (!code.trim()) return setError(t('hq.forms.voucher.needCode'));
-
-    // Free shipping has no backend representation → stub publish.
-    if (kind === 'freeShip') {
-      toast(t('hq.forms.voucher.published'), 'success');
-      router.push('/hq/vouchers');
-      return;
-    }
-    if (value.trim() === '' || Number(value) <= 0) return setError(t('hq.forms.voucher.needValue'));
-
-    // Mirror dashboard/vouchers `toPayload(f, 'create')` — create omits `active`.
-    const payload: VoucherPayload = {
+  // Build the create payload for percent/nominal vouchers. `active:false` saves a draft.
+  function buildPayload(active: boolean): VoucherPayload {
+    return {
       code: code.trim().toUpperCase(),
       description: null,
       discountType: kind === 'percent' ? 'PERCENTAGE' : 'FIXED',
@@ -58,24 +48,33 @@ export default function HqVoucherFormPage() {
       validUntil: null,
       usageLimit: num(quota) ?? null,
       perCustomerLimit: num(perUser) ?? 1,
+      budgetCap: num(budget) ?? null,
+      active,
     };
+  }
+
+  async function submit(active: boolean) {
+    if (!code.trim()) return setError(t('hq.forms.voucher.needCode'));
+
+    // Free shipping has no backend representation → stub publish.
+    if (kind === 'freeShip') {
+      toast(t('hq.forms.voucher.published'), 'success');
+      router.push('/hq/vouchers');
+      return;
+    }
+    if (value.trim() === '' || Number(value) <= 0) return setError(t('hq.forms.voucher.needValue'));
 
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.vouchers.create, payload, true);
-      toast(t('hq.forms.voucher.published'), 'success');
+      await api.post(endpoints.vouchers.create, buildPayload(active), true);
+      toast(t(active ? 'hq.forms.voucher.published' : 'hq.forms.voucher.draftSaved'), active ? 'success' : 'info');
       router.push('/hq/vouchers');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.forms.voucher.error'));
     } finally {
       setBusy(false);
     }
-  }
-
-  function saveDraft() {
-    // STUB: no draft state in the voucher backend — Milestone D.
-    toast(t('hq.forms.voucher.draftSaved'), 'info');
   }
 
   const KINDS: VoucherKind[] = ['percent', 'nominal', 'freeShip'];
@@ -130,10 +129,7 @@ export default function HqVoucherFormPage() {
             <Input id="v-per" type="number" value={perUser} onChange={(e) => setPerUser(e.target.value)} placeholder="1" />
           </Field>
           <Field label={t('hq.forms.voucher.budget')} htmlFor="v-budget">
-            <div className="flex items-center gap-2">
-              <Input id="v-budget" type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="5000000" />
-              <StubBadge />
-            </div>
+            <Input id="v-budget" type="number" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="5000000" />
           </Field>
         </div>
 
@@ -144,13 +140,10 @@ export default function HqVoucherFormPage() {
         )}
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-app pt-3">
-          <Button variant="secondary" onClick={saveDraft} disabled={busy}>
-            <span className="flex items-center gap-1.5">
-              {t('hq.forms.voucher.saveDraft')}
-              <StubBadge />
-            </span>
+          <Button variant="secondary" onClick={() => submit(false)} disabled={busy}>
+            {t('hq.forms.voucher.saveDraft')}
           </Button>
-          <Button onClick={publish} loading={busy}>
+          <Button onClick={() => submit(true)} loading={busy}>
             {t('hq.forms.voucher.publish')}
           </Button>
         </div>

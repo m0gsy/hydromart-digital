@@ -1,5 +1,6 @@
 import {
   MinSpendNotMetError,
+  VoucherBudgetExhaustedError,
   VoucherCustomerLimitReachedError,
   VoucherExpiredError,
   VoucherInactiveError,
@@ -17,6 +18,7 @@ const rules = (overrides: Partial<VoucherRules> = {}): VoucherRules => ({
   validUntil: null,
   usageLimit: null,
   perCustomerLimit: 1,
+  budgetCap: null,
   active: true,
   ...overrides,
 });
@@ -77,6 +79,14 @@ describe('validateVoucher', () => {
   it('rejects when the customer limit is reached', () => {
     expect(() => validateVoucher(rules({ perCustomerLimit: 1 }), 60000, now, 0, 1)).toThrow(
       VoucherCustomerLimitReachedError,
+    );
+  });
+
+  it('rejects once the discount budget cap is exhausted', () => {
+    // Under the cap → ok; at/over the cap → blocked.
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 99999)).not.toThrow();
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000)).toThrow(
+      VoucherBudgetExhaustedError,
     );
   });
 });

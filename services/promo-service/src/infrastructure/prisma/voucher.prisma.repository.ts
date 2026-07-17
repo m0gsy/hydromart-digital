@@ -27,6 +27,7 @@ interface VoucherRow {
   validUntil: Date | null;
   usageLimit: number | null;
   perCustomerLimit: number;
+  budgetCap: number | null;
   usedCount: number;
   active: boolean;
   createdAt: Date;
@@ -95,6 +96,14 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return this.prisma.voucherRedemption.count({
       where: { voucherId, ...(customerId ? { customerId } : {}) },
     });
+  }
+
+  async sumRedemptionsFor(voucherId: string): Promise<number> {
+    const agg = await this.prisma.voucherRedemption.aggregate({
+      where: { voucherId },
+      _sum: { discountApplied: true },
+    });
+    return agg._sum.discountApplied ?? 0;
   }
 
   async sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]> {

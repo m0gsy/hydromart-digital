@@ -130,7 +130,8 @@ export class VoucherService {
   async quote(code: string, customerId: string, subtotal: number): Promise<QuoteResult> {
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount);
+    const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
+    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
     const discount = computeDiscount(voucher, subtotal);
     return { code: voucher.code, discountType: voucher.discountType, discount, valid: true };
   }
@@ -154,7 +155,8 @@ export class VoucherService {
 
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount);
+    const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
+    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
     const discount = computeDiscount(voucher, subtotal);
 
     const redemption = await this.repo.recordRedemption({
