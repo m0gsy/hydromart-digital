@@ -14,7 +14,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, InventoryItem, NetworkDashboard, Order, Page } from '@/lib/types';
+import type { DepotAdmin, InventoryItem, NetworkDashboard, Order, OwnerPayoutBalance, Page } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -47,6 +47,13 @@ export default function HqDepotDetailPage() {
   const inv = useAsync<InventoryItem[]>(() => api.get(endpoints.inventory.lines(id), true), [id]);
   const orders = useAsync<Page<Order>>(() =>
     api.get(endpoints.orders.manage({ depotId: id, limit: 5 }), true),
+  );
+  // Franchise payout balance — only for depots with an owner; best-effort (non-finance
+  // viewers get 403 → card shows an honest "unavailable" note rather than erroring the page).
+  const ownerId = depot.data?.ownerId ?? null;
+  const payout = useAsync<OwnerPayoutBalance | null>(
+    () => (ownerId ? api.get<OwnerPayoutBalance>(endpoints.payout.hqOwnerBalance(ownerId), true).catch(() => null) : Promise.resolve(null)),
+    [ownerId],
   );
 
   if (depot.loading) return <Skeleton className="h-96 w-full" />;
@@ -246,14 +253,30 @@ export default function HqDepotDetailPage() {
         </Card>
       </div>
 
-      {/* Pending franchise payout — deep-teal, no HQ endpoint yet */}
+      {/* Pending franchise payout — real balance for franchise depots (payout-service). */}
       <Card className="flex flex-col gap-2 border-0 bg-deep-teal p-5 text-white">
         <h2 className="flex items-center gap-2 font-semibold">
           <Wallet size={18} weight="fill" />
           {t('hq.depotDetail.payout.title')}
-          <StubBadge />
         </h2>
-        <p className="text-sm text-white/70">{t('hq.depotDetail.payout.body')}</p>
+        {!ownerId ? (
+          <p className="text-sm text-white/70">{t('hq.depotDetail.payout.noOwner')}</p>
+        ) : payout.loading ? (
+          <Skeleton className="h-10 w-40 bg-white/20" />
+        ) : payout.data ? (
+          <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-white/60">{t('hq.depotDetail.payout.balance')}</p>
+              <p className="text-2xl font-bold tabular-nums">Rp {payout.data.availableBalance.toLocaleString('id-ID')}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-white/60">{t('hq.depotDetail.payout.nextDate')}</p>
+              <p className="text-sm font-semibold">{new Date(payout.data.nextPayoutDate).toLocaleDateString('id-ID')}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-white/70">{t('hq.depotDetail.payout.unavailable')}</p>
+        )}
       </Card>
 
       {suspendOpen && (

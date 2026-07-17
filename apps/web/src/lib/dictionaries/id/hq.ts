@@ -316,7 +316,10 @@ export const hq = {
     orders: { title: 'Pesanan terbaru', empty: 'Belum ada pesanan.' },
     payout: {
       title: 'Payout waralaba tertunda',
-      body: 'Data payout bersifat milik pemilik waralaba — belum ada endpoint cakupan HQ.',
+      balance: 'Saldo tersedia',
+      nextDate: 'Rilis berikutnya',
+      noOwner: 'Depot milik perusahaan — tidak ada payout waralaba.',
+      unavailable: 'Saldo payout tidak tersedia.',
     },
     notFound: 'Depot tidak ditemukan.',
   },

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
@@ -23,6 +23,15 @@ export class HqPayoutController {
   @ApiOperation({ summary: 'Owners across the network with a positive balance awaiting release' })
   pending(): Promise<PendingPayout[]> {
     return this.payout.pendingPayouts();
+  }
+
+  // Read-only single-owner balance for the HQ depot-detail payout card. HEAD_OFFICE also
+  // reads it (depot admins view depot detail); release stays FINANCE/SUPER_ADMIN only.
+  @Roles(Role.HEAD_OFFICE, Role.FINANCE, Role.SUPER_ADMIN)
+  @Get('owner/:ownerId')
+  @ApiOperation({ summary: "One franchise owner's available balance + next release date" })
+  ownerBalance(@Param('ownerId', ParseUUIDPipe) ownerId: string): Promise<PendingPayout> {
+    return this.payout.availableForOwner(ownerId);
   }
 
   @Post('release')

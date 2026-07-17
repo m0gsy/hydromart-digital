@@ -313,7 +313,10 @@ export const hq = {
     orders: { title: 'Recent orders', empty: 'No orders yet.' },
     payout: {
       title: 'Pending franchise payout',
-      body: 'Payout data is franchise-owner scoped — no HQ endpoint yet.',
+      balance: 'Available balance',
+      nextDate: 'Next release',
+      noOwner: 'Company-owned depot — no franchise payout.',
+      unavailable: 'Payout balance unavailable.',
     },
     notFound: 'Depot not found.',
   },

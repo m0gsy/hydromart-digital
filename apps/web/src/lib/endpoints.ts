@@ -595,6 +595,8 @@ export const endpoints = {
     // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
     hqQueue: '/payout/api/v1/payout/hq/pending',
     release: '/payout/api/v1/payout/hq/release',
+    // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
+    hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
   },
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
   // propose is depot-manager (under the depots segment).

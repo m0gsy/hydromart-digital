@@ -67,6 +67,19 @@ export class PayoutService {
   }
 
   /**
+   * One owner's available balance + next release date (HQ depot-detail payout card).
+   * Same signed-ledger math as the owner summary, but readable by HQ for any owner id.
+   */
+  async availableForOwner(ownerId: string): Promise<PendingPayout> {
+    const availableBalance = await this.ledger.balanceFor(ownerId);
+    return {
+      franchiseOwnerId: ownerId,
+      availableBalance,
+      nextPayoutDate: nextPayoutDate(new Date()).toISOString(),
+    };
+  }
+
+  /**
    * HQ releases an owner's full available balance to their bank (design 6a "Rilis ke
    * bank"). Reuses the exact withdrawal path (withdrawal record + matching debit), so
    * the released amount leaves the balance the same way an owner-initiated cash-out does.

@@ -758,8 +758,17 @@ export interface DepotAdmin extends Depot, DepotPaymentInfo {
   deliveryFee: number;
   minOrderAmount: number | null;
   active: boolean;
+  // Franchise owner account id (null for company-owned depots) — drives the payout card.
+  ownerId?: string | null;
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+}
+
+// One franchise owner's payout standing (payout-service GET payout/hq/owner/:ownerId).
+export interface OwnerPayoutBalance {
+  franchiseOwnerId: string;
+  availableBalance: number;
+  nextPayoutDate: string;
 }
 
 export interface DepotHours {

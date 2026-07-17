@@ -113,6 +113,20 @@ describe('PayoutService HQ release queue', () => {
     expect(pending[0].nextPayoutDate).toMatch(/^\d{4}-/);
   });
 
+  it('reports one owner balance for the depot-detail payout card', async () => {
+    const ledger = new FakeLedger();
+    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 300000, description: '' });
+    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'WITHDRAWAL', amount: -100000, description: '' });
+    const svc = new PayoutService(ledger, new FakeWithdrawals());
+
+    const bal = await svc.availableForOwner('owner-a');
+    expect(bal.franchiseOwnerId).toBe('owner-a');
+    expect(bal.availableBalance).toBe(200000);
+    expect(bal.nextPayoutDate).toMatch(/^\d{4}-/);
+    // Unknown owner → zero, never throws.
+    expect((await svc.availableForOwner('nobody')).availableBalance).toBe(0);
+  });
+
   it('releasing an owner cashes out their full balance via the withdrawal path', async () => {
     const ledger = new FakeLedger();
     await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 500000, description: '' });
