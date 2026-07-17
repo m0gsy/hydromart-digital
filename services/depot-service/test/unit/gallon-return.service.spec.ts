@@ -8,7 +8,11 @@ import {
   GallonReturnRepository,
   GallonReturnSummary,
 } from '../../src/application/ports/gallon-return.repository';
+import { DepotConfigService } from '../../src/config/depot-config.service';
 import { InMemoryDepotRepository } from '../support/fakes';
+
+const GALLON_DEPOSIT_IDR = 20000;
+const configStub = { gallonDepositIdr: GALLON_DEPOSIT_IDR } as DepotConfigService;
 
 class InMemoryGallonReturnRepository implements GallonReturnRepository {
   private rows: GallonReturnRecord[] = [];
@@ -70,7 +74,7 @@ describe('GallonReturnService', () => {
   beforeEach(async () => {
     depots = new InMemoryDepotRepository();
     returns = new InMemoryGallonReturnRepository();
-    service = new GallonReturnService(returns, depots);
+    service = new GallonReturnService(returns, depots, configStub);
     depotId = (await depots.create(DEPOT)).id;
   });
 
@@ -90,5 +94,36 @@ describe('GallonReturnService', () => {
     const page = await service.list(depotId, 1, 20);
     expect(page.total).toBe(2);
     expect(page.items[0].condition).toBe(GallonCondition.DAMAGED); // newest first
+  });
+
+  it('derives the deposit from config on a courier return (deposit × qty)', async () => {
+    const rec = await service.recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000abcd', quantity: 2 },
+      'courier-1',
+    );
+    expect(rec.depositRefunded).toBe(GALLON_DEPOSIT_IDR * 2);
+    expect(rec.orderId).toBe('00000000-0000-4000-8000-00000000abcd');
+    expect(rec.actorId).toBe('courier-1');
+  });
+
+  it('refunds nothing for a DAMAGED courier return but still records the empties', async () => {
+    const rec = await service.recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000abce', quantity: 3, condition: GallonCondition.DAMAGED },
+      'courier-1',
+    );
+    expect(rec.depositRefunded).toBe(0);
+    expect(rec.quantity).toBe(3);
+  });
+
+  it('rejects a courier return against an unknown depot', async () => {
+    await expect(
+      service.recordFromCourier(
+        '00000000-0000-4000-8000-000000000000',
+        { orderId: '00000000-0000-4000-8000-00000000abcf', quantity: 1 },
+        'courier-1',
+      ),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 });

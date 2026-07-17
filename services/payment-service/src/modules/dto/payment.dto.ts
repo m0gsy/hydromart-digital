@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsDateString,
   IsEnum,
   IsIn,
@@ -68,6 +70,36 @@ export class UnsettledByMethodQueryDto {
   @IsOptional()
   @IsDateString()
   to?: string;
+}
+
+export class CashCollectedQueryDto {
+  @ApiProperty({
+    description: 'Comma-separated order UUIDs to sum PAID cash over (max 500).',
+    example: '1a2b…,3c4d…',
+  })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      : value,
+  )
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  orderIds!: string[];
+}
+
+export class ConfirmPaymentDto {
+  @ApiPropertyOptional({
+    example: 50000,
+    description: 'COD cash handed over (IDR). Change owed back is computed and returned.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsPositive()
+  cashReceived?: number;
 }
 
 export class RefundPaymentDto {

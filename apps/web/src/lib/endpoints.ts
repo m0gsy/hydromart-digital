@@ -7,7 +7,6 @@ export const endpoints = {
     verifyOtp: '/auth/api/v1/auth/otp/verify',
     resendOtp: '/auth/api/v1/auth/otp/resend',
     login: '/auth/api/v1/auth/login',
-    google: '/auth/api/v1/auth/google',
     refresh: '/auth/api/v1/auth/token/refresh',
     me: '/auth/api/v1/auth/me',
     // PATCH: update own name/email.
@@ -44,6 +43,20 @@ export const endpoints = {
     me: '/crm/api/v1/notifications/me',
     // Staff operational feed: recent ops alerts (low stock, …).
     ops: '/crm/api/v1/notifications/ops',
+  },
+  // Web Push (crm-service, design 7b transport). vapidKey → browser subscribe; subscribe/
+  // unsubscribe register a device endpoint (DELETE takes { endpoint } in the body).
+  push: {
+    vapidKey: '/crm/api/v1/push/vapid-public-key',
+    subscribe: '/crm/api/v1/push/subscriptions',
+    unsubscribe: '/crm/api/v1/push/subscriptions',
+  },
+  // Depot broadcasts (design 8a). Courier lists their depot's announcements + marks read;
+  // depot ops (depotBroadcast cap) posts via POST.
+  broadcasts: {
+    forDepot: (depotId: string) => `/crm/api/v1/broadcasts?depotId=${encodeURIComponent(depotId)}`,
+    create: '/crm/api/v1/broadcasts',
+    read: (id: string) => `/crm/api/v1/broadcasts/${id}/read`,
   },
   // Saved payment instruments (customer-service). Management-only.
   paymentMethods: {
@@ -125,11 +138,54 @@ export const endpoints = {
         const base = '/deliveries/api/v1/driver/deliveries';
         return status ? `${base}?status=${status}` : base;
       },
+      get: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}`,
+      // pickup/start/fail are PATCH on the service — use api.patch, not api.post.
       pickup: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/pickup`,
       start: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/start`,
       complete: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/complete`,
+      fail: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/fail`,
+      // No-show gate (5a): POST records a contact attempt → { attempts, eligibleAt,
+      // canMarkNoShow }; PATCH no-show fails the delivery once the gate is met.
+      contactAttempts: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/contact-attempts`,
+      noShow: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/no-show`,
+      // Reschedule (3c): PATCH { rescheduledFor, slot?, note? } → RESCHEDULED.
+      reschedule: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/reschedule`,
+      // Position ping while ON_DELIVERY; overwrites, no history.
+      location: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/location`,
       // Multipart PoD upload (photo + signature); returns { url }.
       upload: '/deliveries/api/v1/driver/deliveries/uploads',
+    },
+    // Courier shift (design 3a/3b). check-in/out are POST; status is PATCH.
+    shifts: {
+      current: '/deliveries/api/v1/driver/shifts/current',
+      history: '/deliveries/api/v1/driver/shifts',
+      checkIn: '/deliveries/api/v1/driver/shifts/check-in',
+      checkOut: (id: string) => `/deliveries/api/v1/driver/shifts/${id}/check-out`,
+      status: (id: string) => `/deliveries/api/v1/driver/shifts/${id}/status`,
+    },
+    // Courier field incident reporting (design 4b). POST reports; HIGH alerts ops.
+    incidents: {
+      list: '/deliveries/api/v1/driver/incidents',
+      create: '/deliveries/api/v1/driver/incidents',
+    },
+    // Courier end-of-shift COD settlement (design 2d/9a). POST deposits a shift's cash;
+    // the expected total is snapshotted server-side from payment-service.
+    settlement: {
+      history: '/deliveries/api/v1/driver/settlement',
+      get: (id: string) => `/deliveries/api/v1/driver/settlement/${id}`,
+      submit: '/deliveries/api/v1/driver/settlement',
+    },
+    // Courier empty-gallon return at handover (design 2e, depot-service). Deposit refund
+    // is derived server-side (GALLON_DEPOSIT_IDR × qty) — the client never sends an amount.
+    gallonReturns: {
+      create: '/depots/api/v1/driver/gallon-returns',
+    },
+    // Courier weekly performance card (design 4c). Local delivery aggregates + rating
+    // batch; pass the courier's depot to get the depot leaderboard rank.
+    performance: (weekStart: string, depotId?: string) => {
+      const p = new URLSearchParams({ weekStart });
+      if (depotId) p.set('depotId', depotId);
+      return `/deliveries/api/v1/driver/performance?${p}`;
     },
   },
   payments: {
@@ -600,6 +656,50 @@ export const endpoints = {
     release: '/payout/api/v1/payout/hq/release',
     // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
     hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
+  },
+  // Courier earnings: balance, month earnings, ledger (payout-service, DRIVER). Design 2c.
+  courierPayout: {
+    summary: '/payout/api/v1/courier/earnings/summary',
+    ledger: (q: { page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
+    },
+    withdraw: '/payout/api/v1/courier/withdrawals',
+    withdrawals: '/payout/api/v1/courier/withdrawals',
+    expenses: '/payout/api/v1/courier/expenses',
+  },
+  // Courier earning-rule editor (payout-service, design 6b; FINANCE/SUPER_ADMIN). GET lists
+  // every rule, POST applies a new effective-dated one.
+  earningRules: {
+    list: '/payout/api/v1/courier-earning-rules',
+    apply: '/payout/api/v1/courier-earning-rules',
+  },
+  // Courier expense-claim approvals (payout-service, design 6a; expenseApprove cap).
+  expenseApprovals: {
+    list: (q: { depotId?: string; status?: string; page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.status) p.set('status', q.status);
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payout/api/v1/expenses${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/payout/api/v1/expenses/${id}/approve`,
+    reject: (id: string) => `/payout/api/v1/expenses/${id}/reject`,
+  },
+  // Courier COD settlement verification (delivery-service, design 2d/6a; courierSettle cap).
+  settlements: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/deliveries/api/v1/settlements?${p}`;
+    },
+    verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
+    dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
   },
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
   // propose is depot-manager (under the depots segment).

@@ -1,4 +1,5 @@
 import { DeliveryStatus } from '../../domain/delivery-status';
+import { ContactMethod, ContactState } from '../../domain/no-show';
 
 export interface ProofRecord {
   photoUrl: string;
@@ -36,6 +37,9 @@ export interface DeliveryRecord {
   deliveredAt: Date | null;
   failedAt: Date | null;
   failureReason: string | null;
+  rescheduledFor: Date | null;
+  rescheduleSlot: string | null;
+  rescheduleNote: string | null;
   proof: ProofRecord | null;
   history: DeliveryStatusHistoryRecord[];
   createdAt: Date;
@@ -58,6 +62,9 @@ export interface DeliveryTimestamps {
   deliveredAt?: Date;
   failedAt?: Date;
   failureReason?: string | null;
+  rescheduledFor?: Date;
+  rescheduleSlot?: string | null;
+  rescheduleNote?: string | null;
 }
 
 export interface DeliveryQuery {
@@ -71,6 +78,19 @@ export interface DeliveryQuery {
 export interface ReportRange {
   from?: Date;
   to?: Date;
+}
+
+/** A delivered delivery reduced to what the weekly performance roll-up needs (4c). */
+export interface DeliveredRow {
+  orderId: string;
+  assignedAt: Date;
+  deliveredAt: Date;
+}
+
+/** One depot-leaderboard row: a driver and their delivered count in the window (4c). */
+export interface DepotDeliveredCount {
+  driverId: string;
+  count: number;
 }
 
 /** Raw SLA aggregates over the delivery book; formatted into rates by ReportService. */
@@ -98,7 +118,38 @@ export interface DeliveryRepository {
   findById(id: string): Promise<DeliveryRecord | null>;
   findByOrder(orderId: string): Promise<DeliveryRecord | null>;
   countActiveByDriver(driverId: string): Promise<number>;
+  /** Append a contact attempt (design 5a) and return the updated contact state. */
+  recordContactAttempt(
+    deliveryId: string,
+    driverId: string,
+    method: ContactMethod,
+    note: string | null,
+  ): Promise<ContactState>;
+  /** Contact-attempt count + first attempt time, for the no-show gate. */
+  contactState(deliveryId: string): Promise<ContactState>;
   search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }>;
+  /**
+   * Order ids the driver DELIVERED with `deliveredAt` in [from, to] — the orders a
+   * shift's COD settlement is computed over. payment-service then filters these to
+   * PAID cash, so this returns every delivered order, cash or not.
+   */
+  deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]>;
+  /**
+   * Deliveries the driver DELIVERED in [from, to) — timestamps + order id, for the
+   * weekly performance roll-up (count, per-day bars, on-time rate, rating batch). 4c.
+   */
+  driverDeliveredInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredRow[]>;
+  /** How many of the driver's deliveries FAILED (failedAt) in [from, to). 4c. */
+  driverFailedCountInWindow(driverId: string, from: Date, to: Date): Promise<number>;
+  /**
+   * Delivered-count per driver at `depotId` in [from, to) — the depot leaderboard the
+   * courier's weekly rank is read off (design 4c). Only drivers with ≥1 delivery appear.
+   */
+  depotDeliveredCountsInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotDeliveredCount[]>;
   /** Overwrite the delivery's latest reported driver position (live tracking). */
   updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord>;
   /** Move the delivery to `status`, set the matching timestamp, append history. */

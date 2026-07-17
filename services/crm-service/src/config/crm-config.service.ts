@@ -45,4 +45,16 @@ export class CrmConfigService {
   get customerServiceUrl(): string {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '').trim();
   }
+
+  /**
+   * VAPID keypair + subject for Web Push (design 7b transport). Blank public/private keys
+   * disable push (the adapter no-ops); the app still stores notifications + sends WhatsApp.
+   */
+  get vapid(): { publicKey: string; privateKey: string; subject: string } {
+    return {
+      publicKey: this.config.get<string>('VAPID_PUBLIC_KEY', '').trim(),
+      privateKey: this.config.get<string>('VAPID_PRIVATE_KEY', '').trim(),
+      subject: this.config.get<string>('VAPID_SUBJECT', 'mailto:ops@hydromart.id').trim(),
+    };
+  }
 }

@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -62,6 +63,14 @@ export class UpdateNotificationsDto {
   @IsOptional()
   @IsBoolean()
   whatsapp?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Per-app fine-grained category mutes (design 7b). Merged over the stored map.',
+    example: { tasks: true, promo: false },
+  })
+  @IsOptional()
+  @IsObject()
+  categories?: Record<string, boolean>;
 }
 
 export class DirectoryQueryDto {

@@ -244,6 +244,9 @@ export interface Payment {
   amount: number;
   reference: string | null;
   instruction: string | null;
+  // COD only (design 7a): cash tendered + change given back, set on confirm.
+  cashReceived?: number | null;
+  changeGiven?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -381,6 +384,8 @@ export interface NotificationPreferences {
   push: boolean;
   email: boolean;
   whatsapp: boolean;
+  /** Per-app fine-grained category mutes (design 7b). Empty = all on. */
+  categories: Record<string, boolean>;
 }
 
 export type NotificationEvent =
@@ -801,7 +806,30 @@ export interface DepotPayload {
 }
 
 // Delivery (delivery-service). Live-tracking slice consumed by the ops console.
-export type DeliveryStatus = 'ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED' | 'FAILED';
+export type DeliveryStatus =
+  | 'ASSIGNED'
+  | 'PICKED_UP'
+  | 'ON_DELIVERY'
+  | 'DELIVERED'
+  | 'FAILED'
+  | 'RESCHEDULED';
+
+export interface DeliveryStatusHistoryEntry {
+  status: DeliveryStatus;
+  changedBy: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface ProofOfDelivery {
+  photoUrl: string;
+  signatureUrl: string;
+  recipientName: string;
+  latitude: number;
+  longitude: number;
+  note: string | null;
+  capturedAt: string;
+}
 
 export interface Delivery {
   id: string;
@@ -817,6 +845,197 @@ export interface Delivery {
   lastLng: number | null;
   lastLocationAt: string | null;
   assignedAt: string;
+  // Present on the driver detail read (getForDriver); absent from the tracking list.
+  pickedUpAt?: string | null;
+  startedAt?: string | null;
+  deliveredAt?: string | null;
+  failedAt?: string | null;
+  failureReason?: string | null;
+  rescheduledFor?: string | null;
+  rescheduleSlot?: string | null;
+  rescheduleNote?: string | null;
+  proof?: ProofOfDelivery | null;
+  history?: DeliveryStatusHistoryEntry[];
+}
+
+/** No-show gate status returned by the contact-attempt endpoint (design 5a). */
+export interface NoShowStatus {
+  attempts: number;
+  eligibleAt: string | null;
+  canMarkNoShow: boolean;
+}
+
+// Courier shift (delivery-service). Front door of the driver app (design 3a/3b).
+export type ShiftStatus = 'ONLINE' | 'BREAK' | 'OFFLINE' | 'ENDED';
+
+export interface Shift {
+  id: string;
+  driverId: string;
+  depotId: string;
+  status: ShiftStatus;
+  checkInAt: string;
+  checkInLat: number;
+  checkInLng: number;
+  expectedEndAt: string;
+  checkOutAt: string | null;
+  checkOutLat: number | null;
+  checkOutLng: number | null;
+  breakSecondsUsed: number;
+  breakStartedAt: string | null;
+  // Derived by the service, shown but never stored.
+  breakSecondsRemaining: number;
+  acceptsAssignments: boolean;
+}
+
+// Courier end-of-shift COD settlement (delivery-service, design 2d/9a).
+export type SettlementStatus = 'SUBMITTED' | 'VERIFIED' | 'DISPUTED';
+
+export interface CashSettlement {
+  id: string;
+  shiftId: string;
+  driverId: string;
+  depotId: string;
+  status: SettlementStatus;
+  orderIds: string[];
+  // Whole IDR. Expected is the PAID-cash total snapshotted at submit.
+  expectedAmount: number;
+  depositedAmount: number;
+  // depositedAmount - expectedAmount. Negative = shortfall (courier owes).
+  variance: number;
+  chargedToDriver: boolean;
+  note: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Courier earnings ledger (payout-service, design 2c/6b).
+export type CourierLedgerEntryType =
+  | 'EARNING'
+  | 'DEDUCTION'
+  | 'CASH_VARIANCE'
+  | 'WITHDRAWAL'
+  | 'ADJUSTMENT';
+
+export interface CourierLedgerEntry {
+  id: string;
+  courierId: string;
+  depotId: string | null;
+  type: CourierLedgerEntryType;
+  // Signed IDR: positive = credit, negative = debit.
+  amount: number;
+  description: string;
+  sourceRef: string | null;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface CourierWithdrawal {
+  id: string;
+  courierId: string;
+  amount: number;
+  bankAccountRef: string;
+  status: WithdrawalStatus;
+  reference: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CourierEarningsSummary {
+  availableBalance: number;
+  monthEarnings: number;
+  recentEntries: CourierLedgerEntry[];
+  recentWithdrawals: CourierWithdrawal[];
+}
+
+// Courier weekly performance card (delivery-service, design 4c).
+export interface CourierPerformance {
+  weekStart: string;
+  delivered: number;
+  deliveredPrev: number;
+  perDay: number[];
+  onTime: number;
+  onTimeRate: number;
+  failed: number;
+  rating: number | null;
+  ratingPrev: number | null;
+  rank: number | null;
+  rankPrev: number | null;
+  depotCouriers: number;
+  target: number;
+  targetMet: boolean;
+}
+
+// Courier expense claims (payout-service, design 6a).
+export type ExpenseCategory = 'FUEL' | 'PARKING_TOLL' | 'VEHICLE_REPAIR' | 'OTHER';
+export type ExpenseClaimStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ExpenseClaim {
+  id: string;
+  courierId: string;
+  depotId: string | null;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  receiptUrl: string | null;
+  status: ExpenseClaimStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  ledgerEntryId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Courier earning rule (payout-service, design 6b). Effective-dated; depotId null = network default.
+export interface CourierEarningRule {
+  id: string;
+  depotId: string | null;
+  baseFare: number;
+  peakBonus: number;
+  onTimeBonus: number;
+  peakStartHour: number;
+  peakEndHour: number;
+  effectiveDate: string;
+  createdAt: string;
+}
+
+// Courier field incident (delivery-service, design 4b). HIGH alerts ops.
+// Named Courier* to avoid the HQ admin IncidentSeverity below.
+export type CourierIncidentCategory =
+  | 'ACCIDENT'
+  | 'VEHICLE_BREAKDOWN'
+  | 'THEFT_OR_THREAT'
+  | 'CUSTOMER_DISPUTE'
+  | 'PRODUCT_DAMAGE'
+  | 'OTHER';
+
+export type CourierIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface FieldIncident {
+  id: string;
+  deliveryId: string | null;
+  category: CourierIncidentCategory;
+  severity: CourierIncidentSeverity;
+  description: string;
+  photoUrl: string | null;
+  createdAt: string;
+}
+
+// Depot broadcast (crm-service, design 8a). In-app ops announcement for couriers at a depot.
+export type BroadcastLevel = 'INFO' | 'URGENT';
+
+export interface Broadcast {
+  id: string;
+  depotId: string;
+  title: string;
+  body: string;
+  level: BroadcastLevel;
+  createdBy: string;
+  createdAt: string;
+  read: boolean;
+  readAt: string | null;
 }
 
 // Ops notification (crm-service). Operational alert feed for staff.

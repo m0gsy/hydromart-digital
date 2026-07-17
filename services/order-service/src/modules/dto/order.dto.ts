@@ -136,6 +136,15 @@ export class InternalRefundDto {
   amount!: number;
 }
 
+/** Internal: batch-read the mean rating over a courier's delivered orders (design 4c). */
+export class RatingBatchDto {
+  @ApiProperty({ type: [String], format: 'uuid', description: 'Order ids to average reviews over.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  orderIds!: string[];
+}
+
 /** Spec 7b: set up a recurring galon delivery. */
 export class CreateSubscriptionDto {
   @ApiProperty({ format: 'uuid' })

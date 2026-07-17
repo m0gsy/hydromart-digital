@@ -241,6 +241,31 @@ describe('OrderService', () => {
     );
   });
 
+  it('averages ratings over a batch of orders, null when none reviewed (design 4c)', async () => {
+    const deliver = async (rating: number): Promise<string> => {
+      await addToCart(20000, 1);
+      const o = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+      ]) {
+        await service.updateStatus(o.id, s, 'staff');
+      }
+      await service.reviewOrder(customer, o.id, { rating, aspects: [] });
+      return o.id;
+    };
+    const a = await deliver(5);
+    const b = await deliver(4);
+
+    expect(await service.ratingSummary([a, b])).toEqual({ average: 4.5, count: 2 });
+    expect(await service.ratingSummary([])).toEqual({ average: null, count: 0 });
+    expect(await service.ratingSummary([randomUUID()])).toEqual({ average: null, count: 0 });
+  });
+
   it('reminds only customers whose last order is older than the window (spec 5h)', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });

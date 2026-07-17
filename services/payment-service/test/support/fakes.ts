@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PaymentConfigService } from '../../src/config/payment-config.service';
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
 import {
+  CashCollectedSummary,
   CreatePaymentData,
   DateRange,
   PaymentQuery,
@@ -41,6 +42,8 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundReason: null,
       refundedAmount: null,
       refundApproval: RefundApproval.NONE,
+      cashReceived: null,
+      changeGiven: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -107,6 +110,17 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       map.set(r.method, e);
     }
     return [...map.entries()].map(([method, v]) => ({ method, ...v }));
+  }
+
+  async sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
+    const set = new Set(orderIds);
+    const matched = this.rows.filter(
+      (r) =>
+        set.has(r.orderId) &&
+        r.method === PaymentMethod.CASH &&
+        r.status === PaymentStatus.PAID,
+    );
+    return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
   }
 
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {

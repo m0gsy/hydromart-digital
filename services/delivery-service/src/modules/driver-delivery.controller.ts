@@ -13,14 +13,20 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
-import { DeliveryService } from '../application/services/delivery.service';
+import {
+  DeliveryService,
+  NoShowStatus,
+} from '../application/services/delivery.service';
+import { ContactMethod } from '../domain/no-show';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import {
   FailDeliveryDto,
   ListDeliveriesQueryDto,
   ProofOfDeliveryDto,
+  RecordContactAttemptDto,
   ReportLocationDto,
+  RescheduleDeliveryDto,
 } from './dto/delivery.dto';
 
 /** Driver-facing view: a driver only ever sees and acts on their own deliveries. */
@@ -110,5 +116,43 @@ export class DriverDeliveryController {
     @Body() dto: FailDeliveryDto,
   ): Promise<DeliveryRecord> {
     return this.deliveries.fail(user.sub, id, dto.reason);
+  }
+
+  @Post(':id/contact-attempts')
+  @ApiOperation({ summary: 'Record a contact attempt; returns the no-show gate status (5a)' })
+  recordContactAttempt(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RecordContactAttemptDto,
+  ): Promise<NoShowStatus> {
+    return this.deliveries.recordContactAttempt(
+      user.sub,
+      id,
+      dto.method ?? ContactMethod.CALL,
+      dto.note,
+    );
+  }
+
+  @Patch(':id/no-show')
+  @ApiOperation({ summary: 'Fail the delivery as a no-show (gated on attempts + wait, 5a)' })
+  markNoShow(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.markNoShow(user.sub, id);
+  }
+
+  @Patch(':id/reschedule')
+  @ApiOperation({ summary: 'Reschedule the delivery to a later slot (3c)' })
+  reschedule(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RescheduleDeliveryDto,
+  ): Promise<DeliveryRecord> {
+    return this.deliveries.reschedule(user.sub, id, {
+      rescheduledFor: new Date(dto.rescheduledFor),
+      slot: dto.slot,
+      note: dto.note,
+    });
   }
 }

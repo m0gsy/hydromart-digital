@@ -2,12 +2,15 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
+import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
+  DeliveredRow,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotDeliveredCount,
   DepotSlaStats,
   ProofRecord,
   ReportRange,
@@ -51,6 +54,9 @@ interface DeliveryRow {
   deliveredAt: Date | null;
   failedAt: Date | null;
   failureReason: string | null;
+  rescheduledFor: Date | null;
+  rescheduleSlot: string | null;
+  rescheduleNote: string | null;
   proof: ProofRow | null;
   history: HistoryRow[];
   createdAt: Date;
@@ -93,6 +99,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       deliveredAt: row.deliveredAt,
       failedAt: row.failedAt,
       failureReason: row.failureReason,
+      rescheduledFor: row.rescheduledFor,
+      rescheduleSlot: row.rescheduleSlot,
+      rescheduleNote: row.rescheduleNote,
       proof: row.proof
         ? {
             photoUrl: row.proof.photoUrl,
@@ -143,6 +152,28 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     });
   }
 
+  async recordContactAttempt(
+    deliveryId: string,
+    driverId: string,
+    method: ContactMethod,
+    note: string | null,
+  ): Promise<ContactState> {
+    await this.prisma.contactAttempt.create({ data: { deliveryId, driverId, method, note } });
+    return this.contactState(deliveryId);
+  }
+
+  async contactState(deliveryId: string): Promise<ContactState> {
+    const [attempts, first] = await Promise.all([
+      this.prisma.contactAttempt.count({ where: { deliveryId } }),
+      this.prisma.contactAttempt.findFirst({
+        where: { deliveryId },
+        orderBy: { createdAt: 'asc' },
+        select: { createdAt: true },
+      }),
+    ]);
+    return { attempts, firstAttemptAt: first?.createdAt ?? null };
+  }
+
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
@@ -159,6 +190,53 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       this.prisma.delivery.count({ where }),
     ]);
     return { items: rows.map((r) => this.toRecord(r)), total };
+  }
+
+  async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
+    const rows = await this.prisma.delivery.findMany({
+      where: {
+        driverId,
+        status: DeliveryStatus.DELIVERED,
+        deliveredAt: { gte: from, lte: to },
+      },
+      select: { orderId: true },
+    });
+    return rows.map((r) => r.orderId);
+  }
+
+  async driverDeliveredInWindow(
+    driverId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DeliveredRow[]> {
+    const rows = await this.prisma.delivery.findMany({
+      where: { driverId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      select: { orderId: true, assignedAt: true, deliveredAt: true },
+    });
+    return rows.map((r) => ({
+      orderId: r.orderId,
+      assignedAt: r.assignedAt,
+      deliveredAt: r.deliveredAt!,
+    }));
+  }
+
+  async driverFailedCountInWindow(driverId: string, from: Date, to: Date): Promise<number> {
+    return this.prisma.delivery.count({
+      where: { driverId, failedAt: { gte: from, lt: to } },
+    });
+  }
+
+  async depotDeliveredCountsInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotDeliveredCount[]> {
+    const rows = await this.prisma.delivery.groupBy({
+      by: ['driverId'],
+      where: { depotId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
+      _count: { _all: true },
+    });
+    return rows.map((r) => ({ driverId: r.driverId, count: r._count._all }));
   }
 
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {

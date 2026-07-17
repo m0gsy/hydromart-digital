@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, Package, Truck } from '@phosphor-icons/react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { MapPin, Package, Pause, Storefront } from '@phosphor-icons/react';
 
+import { DriverShell } from '@/components/driver/driver-shell';
+import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
-import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
-import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
+import type { Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
 
@@ -20,16 +22,28 @@ const STATUS_LABEL: Record<DeliveryStatus, string> = {
   ON_DELIVERY: 'Diantar',
   DELIVERED: 'Selesai',
   FAILED: 'Gagal',
+  RESCHEDULED: 'Dijadwalkan ulang',
 };
 
 function DriverConsole() {
-  const list = useAsync<Page<Delivery>>(
-    () => api.get(endpoints.deliveries.driver.list(), true),
-    [],
-  );
+  const router = useRouter();
+  const shift = useAsync<Shift | null>(() => api.get(endpoints.deliveries.shifts.current, true), []);
+  const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState<string | null>(null);
+
+  // First-ever launch → run the 4-step walkthrough before anything else (design 6c).
+  // localStorage read in an effect to avoid an SSR/hydration mismatch.
+  useEffect(() => {
+    if (localStorage.getItem(ONBOARDED_KEY) !== '1') router.replace('/driver/onboarding');
+  }, [router]);
+
+  // No open shift → the task list is meaningless. Send the courier to check in.
+  if (!shift.loading && !shift.error && !shift.data) {
+    router.replace('/driver/shift/check-in');
+    return <div className="p-5"><Skeleton className="h-40 w-full" /></div>;
+  }
 
   const act = async (fn: () => Promise<unknown>, id: string) => {
     setBusy(id);
@@ -45,12 +59,21 @@ function DriverConsole() {
   };
 
   const deliveries = (list.data?.items ?? []).filter((d) => ACTIVE.includes(d.status));
+  const onBreak = shift.data?.status === 'BREAK' || shift.data?.status === 'OFFLINE';
 
   return (
-    <div className="mx-auto max-w-lg space-y-4 px-4 py-6">
-      <header className="flex items-center gap-2">
-        <Truck size={24} className="text-brand-600" />
-        <h1 className="text-xl font-bold">Pengantaran saya</h1>
+    <div className="space-y-4 px-4 py-6">
+      <header className="flex items-center justify-between">
+        <h1 className="text-xl font-extrabold tracking-tight">Pengantaran saya</h1>
+        <Link
+          href="/driver/shift/status"
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+            onBreak ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
+          }`}
+        >
+          {onBreak ? <Pause size={13} weight="fill" /> : <Storefront size={13} weight="fill" />}
+          {shift.data ? (onBreak ? 'Istirahat' : 'Online') : '…'}
+        </Link>
       </header>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -60,12 +83,16 @@ function DriverConsole() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : deliveries.length === 0 ? (
-        <CenterState icon={<Package size={32} />} title="Belum ada tugas aktif" />
+        <CenterState icon={<Package size={32} />} title="Belum ada tugas aktif">
+          Tugas baru akan muncul di sini saat admin depot menugaskan pesanan kepada kamu.
+        </CenterState>
       ) : (
         deliveries.map((d) => (
           <Card key={d.id} className="space-y-3 p-5">
             <div className="flex items-center justify-between">
-              <span className="font-semibold">{d.orderNumber}</span>
+              <Link href={`/driver/deliveries/${d.id}`} className="font-semibold tabular-nums">
+                {d.orderNumber}
+              </Link>
               <Badge>{STATUS_LABEL[d.status]}</Badge>
             </div>
             <p className="flex items-start gap-1.5 text-sm text-[color:var(--muted)]">
@@ -75,7 +102,7 @@ function DriverConsole() {
 
             {d.status === 'ASSIGNED' && (
               <Button
-                onClick={() => act(() => api.post(endpoints.deliveries.driver.pickup(d.id), undefined, true), d.id)}
+                onClick={() => act(() => api.patch(endpoints.deliveries.driver.pickup(d.id), undefined, true), d.id)}
                 loading={busy === d.id}
                 className="w-full"
               >
@@ -84,7 +111,7 @@ function DriverConsole() {
             )}
             {d.status === 'PICKED_UP' && (
               <Button
-                onClick={() => act(() => api.post(endpoints.deliveries.driver.start(d.id), undefined, true), d.id)}
+                onClick={() => act(() => api.patch(endpoints.deliveries.driver.start(d.id), undefined, true), d.id)}
                 loading={busy === d.id}
                 className="w-full"
               >
@@ -113,19 +140,11 @@ function DriverConsole() {
   );
 }
 
-/** Driver-facing delivery console: lifecycle actions + Proof-of-Delivery capture. */
+/** Driver-facing delivery console: shift-gated task list + lifecycle actions. */
 export default function DriverPage() {
-  const { customer } = useAuth();
-
   return (
-    <RequireAuth>
-      {customer?.role === 'DRIVER' ? (
-        <DriverConsole />
-      ) : (
-        <CenterState icon={<Truck size={32} />} title="Halaman khusus kurir">
-          Akun ini bukan kurir.
-        </CenterState>
-      )}
-    </RequireAuth>
+    <DriverShell>
+      <DriverConsole />
+    </DriverShell>
   );
 }

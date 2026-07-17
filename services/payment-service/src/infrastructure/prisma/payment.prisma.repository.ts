@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
+  CashCollectedSummary,
   CreatePaymentData,
   DateRange,
   PaymentQuery,
@@ -30,6 +31,8 @@ interface PaymentRow {
   refundReason: string | null;
   refundedAmount: Decimalish | null;
   refundApproval: string;
+  cashReceived: Decimalish | null;
+  changeGiven: Decimalish | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +60,8 @@ export class PaymentPrismaRepository implements PaymentRepository {
       refundReason: row.refundReason,
       refundedAmount: row.refundedAmount ? row.refundedAmount.toNumber() : null,
       refundApproval: row.refundApproval as RefundApproval,
+      cashReceived: row.cashReceived ? row.cashReceived.toNumber() : null,
+      changeGiven: row.changeGiven ? row.changeGiven.toNumber() : null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -154,6 +159,22 @@ export class PaymentPrismaRepository implements PaymentRepository {
       amount: g._sum.amount ? Number(g._sum.amount) : 0,
       count: g._count._all,
     }));
+  }
+
+  async sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
+    if (orderIds.length === 0) {
+      return { total: 0, count: 0 };
+    }
+    const agg = await this.prisma.payment.aggregate({
+      where: {
+        orderId: { in: orderIds },
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
   }
 
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {

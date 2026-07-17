@@ -6,7 +6,6 @@ import { Suspense, useState } from 'react';
 import { ArrowRight, Drop } from '@phosphor-icons/react';
 
 import { Button, Card, Skeleton } from '@/components/ui';
-import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -130,9 +129,6 @@ function LoginForm() {
         {t('auth.login.submit')}
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
-
-      {/* Only providers the app supports render; GoogleSignInButton yields null without a client id. */}
-      <GoogleSignInButton next={next} />
 
       <p className="text-center text-[11.5px] leading-relaxed text-muted">{t('auth.register.terms')}</p>
     </form>

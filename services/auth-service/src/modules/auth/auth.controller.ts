@@ -8,7 +8,6 @@ import { RegistrationService } from '../../application/services/registration.ser
 import { TokenService } from '../../application/services/token.service';
 import { getRequestContext } from '../../common/http/request-context';
 import { Public } from '../../common/decorators/public.decorator';
-import { GoogleSignInDto } from './dto/google-signin.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -84,19 +83,6 @@ export class AuthController {
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);
-  }
-
-  @Public()
-  @Post('google')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Sign in with Google and receive an authenticated session' })
-  @ApiOkResponse({ type: SessionResponseDto })
-  async google(@Body() dto: GoogleSignInDto, @Req() req: Request): Promise<SessionResponseDto> {
-    const session = await this.loginService.googleSignIn({
-      idToken: dto.idToken,
-      context: getRequestContext(req),
-    });
-    return SessionResponseDto.from(session);
   }
 
   @Public()

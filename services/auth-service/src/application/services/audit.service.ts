@@ -15,7 +15,6 @@ export enum AuditAction {
   OTP_RESENT = 'auth.otp.resent',
   LOGIN_REQUESTED = 'auth.login.requested',
   LOGIN_SUCCEEDED = 'auth.login.succeeded',
-  GOOGLE_SIGNIN = 'auth.google.signin',
   TOKEN_REFRESHED = 'auth.token.refreshed',
   TOKEN_REUSE_DETECTED = 'auth.token.reuse_detected',
   LOGOUT = 'auth.logout',

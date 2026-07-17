@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { GallonCondition } from '../../domain/gallon-return';
 import { DepotNotFoundError } from '../../domain/errors';
+import { DepotConfigService } from '../../config/depot-config.service';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import {
@@ -19,6 +20,15 @@ export interface RecordReturnInput {
   note?: string | null;
 }
 
+/** Courier handover return (design 2e): linked to an order, deposit derived from config. */
+export interface CourierReturnInput {
+  orderId: string;
+  customerId?: string | null;
+  quantity: number;
+  condition?: GallonCondition;
+  note?: string | null;
+}
+
 /**
  * Empty-gallon returns / deposit refunds (PRD Module 11 retur galon). A depot-scoped
  * append-only ledger of empties handed back and the deposit refunded. Standalone —
@@ -32,6 +42,7 @@ export class GallonReturnService {
   constructor(
     @Inject(DEPOT_TOKENS.GallonReturnRepository) private readonly returns: GallonReturnRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    private readonly config: DepotConfigService,
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
@@ -45,11 +56,38 @@ export class GallonReturnService {
     return this.returns.create({
       depotId,
       customerId: input.customerId ?? null,
+      orderId: null,
       quantity: input.quantity,
       condition: input.condition ?? GallonCondition.GOOD,
       depositRefunded: input.depositRefunded ?? 0,
       note: input.note ?? null,
       actorId,
+    });
+  }
+
+  /**
+   * Courier records an empty-gallon return at delivery handover (design 2e). The refund is
+   * derived server-side (GALLON_DEPOSIT_IDR × quantity) — the courier never supplies an
+   * amount. DAMAGED empties still count for stock reconciliation but refund nothing.
+   */
+  async recordFromCourier(
+    depotId: string,
+    input: CourierReturnInput,
+    courierId: string,
+  ): Promise<GallonReturnRecord> {
+    await this.requireDepot(depotId);
+    const condition = input.condition ?? GallonCondition.GOOD;
+    const depositRefunded =
+      condition === GallonCondition.GOOD ? this.config.gallonDepositIdr * input.quantity : 0;
+    return this.returns.create({
+      depotId,
+      customerId: input.customerId ?? null,
+      orderId: input.orderId,
+      quantity: input.quantity,
+      condition,
+      depositRefunded,
+      note: input.note ?? null,
+      actorId: courierId,
     });
   }
 

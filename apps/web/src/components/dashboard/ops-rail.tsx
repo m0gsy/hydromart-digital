@@ -11,6 +11,9 @@ import {
   ChatCircleText,
   CheckCircle,
   ClipboardText,
+  Coins,
+  HandCoins,
+  Receipt,
   MagnifyingGlass,
   MapPin,
   Megaphone,
@@ -41,10 +44,13 @@ import {
   canViewFranchise,
   canViewInventory,
   canViewOpsNotifications,
+  canApproveExpense,
+  canManageEarningRules,
   canViewPayout,
   canViewReturns,
   canViewTracking,
   canViewVouchers,
+  canVerifySettlement,
   isStaff,
 } from '@/lib/roles';
 
@@ -82,6 +88,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/inventory', labelKey: 'inventory', icon: Package, show: canViewInventory },
       { href: '/dashboard/returns', labelKey: 'returns', icon: Recycle, show: canViewReturns },
       { href: '/dashboard/notifications', labelKey: 'notifications', icon: Bell, show: canViewOpsNotifications },
+      { href: '/dashboard/settlements', labelKey: 'settlements', icon: HandCoins, show: canVerifySettlement },
       { href: '/dashboard/forecast', labelKey: 'forecast', icon: TrendUp, show: canViewForecast },
     ],
   },
@@ -104,7 +111,11 @@ const GROUPS: RailGroup[] = [
   },
   {
     headKey: 'finance',
-    items: [{ href: '/dashboard/payout', labelKey: 'payout', icon: Wallet, show: canViewPayout }],
+    items: [
+      { href: '/dashboard/payout', labelKey: 'payout', icon: Wallet, show: canViewPayout },
+      { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', icon: Receipt, show: canApproveExpense },
+      { href: '/dashboard/earning-rules', labelKey: 'earningRules', icon: Coins, show: canManageEarningRules },
+    ],
   },
 ];
 

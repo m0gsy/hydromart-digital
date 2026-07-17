@@ -4,6 +4,7 @@ export interface GallonReturnRecord {
   id: string;
   depotId: string;
   customerId: string | null;
+  orderId: string | null;
   quantity: number;
   condition: GallonCondition;
   depositRefunded: number;
@@ -15,6 +16,7 @@ export interface GallonReturnRecord {
 export interface CreateGallonReturnData {
   depotId: string;
   customerId: string | null;
+  orderId: string | null;
   quantity: number;
   condition: GallonCondition;
   depositRefunded: number;

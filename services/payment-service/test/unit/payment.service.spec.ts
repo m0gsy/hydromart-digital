@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 
 import { PaymentService } from '../../src/application/services/payment.service';
 import {
+  CashShortError,
   GatewayUnavailableError,
   InvalidWebhookSignatureError,
   PaymentAlreadyExistsError,
@@ -80,6 +81,21 @@ describe('PaymentService', () => {
     expect(confirmed.paidAt).not.toBeNull();
     // A settled payment confirms its order (CREATED→CONFIRMED).
     expect(orders.confirmedOrderIds).toEqual([confirmed.orderId]);
+  });
+
+  it('records cash tendered and change owed when confirming a COD payment (7a)', async () => {
+    const payment = await initiate(PaymentMethod.CASH, 45000);
+    const confirmed = await service.confirm(payment.id, 'driver', 50000);
+    expect(confirmed.status).toBe(PaymentStatus.PAID);
+    expect(confirmed.cashReceived).toBe(50000);
+    expect(confirmed.changeGiven).toBe(5000);
+  });
+
+  it('rejects a COD confirm when the cash handed over is short', async () => {
+    const payment = await initiate(PaymentMethod.CASH, 45000);
+    await expect(service.confirm(payment.id, 'driver', 40000)).rejects.toBeInstanceOf(CashShortError);
+    // Payment stays PENDING — nothing settled.
+    expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
   });
 
   it('refunds a paid online payment via the gateway (BR: online-paid cancel needs refund)', async () => {
@@ -223,5 +239,39 @@ describe('PaymentService', () => {
     const signature = createHmac('sha256', WEBHOOK_SECRET).update('nope.PAID').digest('hex');
     const result = await service.handleWebhook({ reference: 'nope', event: 'PAID', signature });
     expect(result.handled).toBe(false);
+  });
+
+  describe('cashCollected (courier COD deposit)', () => {
+    const settleCash = async (amount: number) => {
+      const orderId = randomUUID();
+      const p = await initiate(PaymentMethod.CASH, amount, orderId);
+      await service.confirm(p.id, customer);
+      return orderId;
+    };
+
+    it('sums only PAID cash over the requested orders', async () => {
+      const a = await settleCash(45000);
+      const b = await settleCash(30000);
+      // Excluded: a different order not requested.
+      await settleCash(99000);
+
+      expect(await service.cashCollected([a, b])).toEqual({ total: 75000, count: 2 });
+    });
+
+    it('ignores unpaid cash and non-cash methods', async () => {
+      const pendingCash = randomUUID();
+      await initiate(PaymentMethod.CASH, 45000, pendingCash); // stays PENDING
+      const va = await initiate(PaymentMethod.VA, 45000);
+      await service.confirm(va.id, customer); // PAID but not cash
+
+      expect(await service.cashCollected([pendingCash, va.orderId])).toEqual({
+        total: 0,
+        count: 0,
+      });
+    });
+
+    it('returns zero for an empty order set', async () => {
+      expect(await service.cashCollected([])).toEqual({ total: 0, count: 0 });
+    });
   });
 });

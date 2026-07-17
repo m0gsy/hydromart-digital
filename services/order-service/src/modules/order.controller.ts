@@ -31,6 +31,7 @@ import {
   OrderRecord,
   OrderReviewRecord,
   OrderStatusHistoryRecord,
+  RatingSummary,
 } from '../application/ports/order.repository';
 import { Page } from '../application/pagination';
 import {
@@ -39,6 +40,7 @@ import {
   CreateReviewDto,
   InternalRefundDto,
   ListOrdersQueryDto,
+  RatingBatchDto,
   UpdateOrderStatusDto,
 } from './dto/order.dto';
 
@@ -281,6 +283,18 @@ export class OrderController {
   ): Promise<{ orderId: string }> {
     await this.orders.recordRefund(id, dto.amount);
     return { orderId: id };
+  }
+
+  // Service-to-service: delivery-service reads a courier's mean rating over the orders
+  // delivered in a week (design 4c). Internal key auth, same fail-closed path as above.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('reviews/ratings/internal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mean rating over a set of orders (internal service auth)' })
+  ratingBatch(@Body() dto: RatingBatchDto): Promise<RatingSummary> {
+    return this.orders.ratingSummary(dto.orderIds);
   }
 
   @Patch(':id/status')

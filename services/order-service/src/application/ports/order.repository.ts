@@ -145,6 +145,14 @@ export interface DepotRating {
   reviewCount: number;
 }
 
+/** Mean rating over a set of orders (courier weekly performance, design 4c). */
+export interface RatingSummary {
+  /** Mean of the reviews found, 1..5; null when none of the orders were reviewed. */
+  average: number | null;
+  /** How many of the orders had a review. */
+  count: number;
+}
+
 /**
  * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
  * productName but NOT a category, so this groups by product — a true category
@@ -221,6 +229,8 @@ export interface OrderRepository {
   createReview(data: CreateReviewData): Promise<OrderReviewRecord>;
   /** The review for an order, or null if not yet rated. */
   findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null>;
+  /** Mean rating over the given orders (courier weekly performance, design 4c). */
+  avgRatingForOrders(orderIds: string[]): Promise<RatingSummary>;
   /** Atomically move the order to `status` and append a history row. Sets driverName when given. */
   applyStatus(
     id: string,

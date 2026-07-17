@@ -15,9 +15,15 @@ import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PaymentService } from '../application/services/payment.service';
-import { PaymentRecord, UnsettledMethodAggregate } from '../application/ports/payment.repository';
+import {
+  CashCollectedSummary,
+  PaymentRecord,
+  UnsettledMethodAggregate,
+} from '../application/ports/payment.repository';
 import { Page } from '../application/pagination';
 import {
+  CashCollectedQueryDto,
+  ConfirmPaymentDto,
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentWebhookDto,
@@ -94,6 +100,17 @@ export class PaymentController {
     });
   }
 
+  // Courier COD deposit (design 2d/slice 9): sum of PAID cash over the courier's
+  // delivered orders — the "how much" for an end-of-shift settlement. Bearer is
+  // forwarded from delivery-service; settlement roles (incl. DRIVER) may read.
+  // Declared before ':id' so the static segment wins.
+  @Get('cash-collected')
+  @Roles(...CAPABILITIES.paymentSettle)
+  @ApiOperation({ summary: 'Sum PAID cash over a set of orders (courier COD deposit)' })
+  cashCollected(@Query() query: CashCollectedQueryDto): Promise<CashCollectedSummary> {
+    return this.payments.cashCollected(query.orderIds);
+  }
+
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
   // threshold, newest first. Declared before ':id' so the static segment wins.
   @Get('refunds/queue')
@@ -118,8 +135,9 @@ export class PaymentController {
   confirm(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConfirmPaymentDto,
   ): Promise<PaymentRecord> {
-    return this.payments.confirm(id, user.sub);
+    return this.payments.confirm(id, user.sub, dto.cashReceived);
   }
 
   @Post(':id/fail')

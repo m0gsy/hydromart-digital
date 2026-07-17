@@ -24,6 +24,9 @@ export const ops = {
     vouchers: 'Vouchers',
     churn: 'Churn risk',
     payout: 'Payout & commission',
+    settlements: 'COD settlements',
+    expenseClaims: 'Expense claims',
+    earningRules: 'Earning rules',
   },
   switcher: {
     all: 'All depots',

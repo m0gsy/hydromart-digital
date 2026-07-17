@@ -32,4 +32,8 @@ export class PayoutConfigService {
   get commissionRate(): number {
     return Number(this.config.get<string>('PAYOUT_COMMISSION_RATE', '0.05'));
   }
+  /** Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer). */
+  get expenseAutoApproveMaxIdr(): number {
+    return this.num('EXPENSE_AUTO_APPROVE_MAX_IDR');
+  }
 }

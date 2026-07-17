@@ -62,3 +62,112 @@ export class OrderCoordinationError extends DomainError {
     super('Could not update the order for this delivery. Please try again.');
   }
 }
+
+export class ShiftNotFoundError extends DomainError {
+  readonly code = 'SHIFT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('No open shift found.');
+  }
+}
+
+/** A courier tried to check in while a shift is still open (they must check out first). */
+export class ShiftAlreadyOpenError extends DomainError {
+  readonly code = 'SHIFT_ALREADY_OPEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('You already have an open shift. Check out before starting a new one.');
+  }
+}
+
+/** Check-in was attempted away from the depot (design 3a: "Di lokasi depot · 12 m"). */
+export class NotAtDepotError extends DomainError {
+  readonly code = 'SHIFT_NOT_AT_DEPOT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(distanceMeters: number, radiusMeters: number) {
+    super(
+      `You are ${Math.round(distanceMeters)} m from the depot. Check in within ${radiusMeters} m.`,
+    );
+  }
+}
+
+export class InvalidShiftTransitionError extends DomainError {
+  readonly code = 'SHIFT_INVALID_TRANSITION';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(from: string, to: string) {
+    super(`Cannot move a shift from ${from} to ${to}.`);
+  }
+}
+
+/** Dispatch tried to assign a courier who is not checked in and ONLINE. */
+export class DriverNotOnShiftError extends DomainError {
+  readonly code = 'DELIVERY_DRIVER_NOT_ON_SHIFT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This courier is not checked in and available.');
+  }
+}
+
+/** A no-show was declared before enough contact attempts / wait time (design 5a). */
+export class NoShowNotEligibleError extends DomainError {
+  readonly code = 'DELIVERY_NO_SHOW_NOT_ELIGIBLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(minAttempts: number, minWaitSeconds: number) {
+    super(
+      `A no-show needs at least ${minAttempts} contact attempts and ${minWaitSeconds}s of waiting.`,
+    );
+  }
+}
+
+/** Settlement was attempted on a shift that has not been checked out yet. */
+export class ShiftNotEndedError extends DomainError {
+  readonly code = 'SHIFT_NOT_ENDED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Check out of the shift before settling its cash.');
+  }
+}
+
+/** A shift already has a cash settlement (one per shift). */
+export class SettlementAlreadyExistsError extends DomainError {
+  readonly code = 'SETTLEMENT_ALREADY_EXISTS';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This shift has already been settled.');
+  }
+}
+
+export class SettlementNotFoundError extends DomainError {
+  readonly code = 'SETTLEMENT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Settlement not found.');
+  }
+}
+
+/** Verify/dispute was attempted on a settlement that is no longer awaiting a ruling. */
+export class SettlementNotSubmittedError extends DomainError {
+  readonly code = 'SETTLEMENT_NOT_SUBMITTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This settlement has already been resolved.');
+  }
+}
+
+/** The PAID-cash total could not be read from payment-service — fail closed (money). */
+export class SettlementSyncError extends DomainError {
+  readonly code = 'SETTLEMENT_SYNC_FAILED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Could not compute the expected cash total. Please try again.');
+  }
+}
+
+/** The depot could not be read, so check-in location cannot be verified. */
+export class DepotLookupError extends DomainError {
+  readonly code = 'SHIFT_DEPOT_LOOKUP_FAILED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Could not verify the depot location. Please try again.');
+  }
+}

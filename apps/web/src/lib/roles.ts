@@ -16,9 +16,9 @@ export function isStaff(role: string | null | undefined): boolean {
 
 /**
  * HQ console gate (SUPER_ADMIN + HEAD_OFFICE only). Deliberately NOT a capability
- * in @hydromart/access — the "Peran & hak akses" matrix must stay 20×8, and
- * DEPOT_MANAGER holds `dashboard` but is denied HQ (design 20c). So HQ reach is
- * its own coarse gate over these two head-of-network roles.
+ * in @hydromart/access — HQ reach is not a depot power, and DEPOT_MANAGER holds
+ * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate
+ * over these two head-of-network roles.
  */
 export function isHq(role: string | null | undefined): boolean {
   return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN';
@@ -43,3 +43,10 @@ export const canViewTracking = (role: string | null | undefined) => can('trackin
 export const canViewForecast = (role: string | null | undefined) => can('forecast', role);
 export const canViewChurn = (role: string | null | undefined) => can('churn', role);
 export const canConfirmPayment = (role: string | null | undefined) => can('paymentSettle', role);
+export const canVerifySettlement = (role: string | null | undefined) => can('courierSettle', role);
+export const canApproveExpense = (role: string | null | undefined) => can('expenseApprove', role);
+export const canBroadcastToCouriers = (role: string | null | undefined) => can('depotBroadcast', role);
+// Courier earning-rule editor (design 6b). Finance config, role-gated directly (like
+// commission schemes) — not part of the per-depot capability matrix.
+export const canManageEarningRules = (role: string | null | undefined) =>
+  role === 'FINANCE' || role === 'SUPER_ADMIN';

@@ -9,17 +9,34 @@ export enum DeliveryStatus {
   ON_DELIVERY = 'ON_DELIVERY',
   DELIVERED = 'DELIVERED',
   FAILED = 'FAILED',
+  // Courier could not deliver but the order lives on for a later attempt (design
+  // 3c). Non-active: it frees the driver and does NOT advance the order — dispatch
+  // re-assigns it later (ops-side; Delivery.orderId is @unique so it reuses this row).
+  RESCHEDULED = 'RESCHEDULED',
 }
 
 /** Order statuses the delivery-service drives on order-service (BR-012). */
 export type OrderFulfilmentStatus = 'DRIVER_ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED';
 
 const TRANSITIONS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
-  [DeliveryStatus.ASSIGNED]: [DeliveryStatus.PICKED_UP, DeliveryStatus.FAILED],
-  [DeliveryStatus.PICKED_UP]: [DeliveryStatus.ON_DELIVERY, DeliveryStatus.FAILED],
-  [DeliveryStatus.ON_DELIVERY]: [DeliveryStatus.DELIVERED, DeliveryStatus.FAILED],
+  [DeliveryStatus.ASSIGNED]: [
+    DeliveryStatus.PICKED_UP,
+    DeliveryStatus.FAILED,
+    DeliveryStatus.RESCHEDULED,
+  ],
+  [DeliveryStatus.PICKED_UP]: [
+    DeliveryStatus.ON_DELIVERY,
+    DeliveryStatus.FAILED,
+    DeliveryStatus.RESCHEDULED,
+  ],
+  [DeliveryStatus.ON_DELIVERY]: [
+    DeliveryStatus.DELIVERED,
+    DeliveryStatus.FAILED,
+    DeliveryStatus.RESCHEDULED,
+  ],
   [DeliveryStatus.DELIVERED]: [],
   [DeliveryStatus.FAILED]: [],
+  [DeliveryStatus.RESCHEDULED]: [],
 };
 
 /** The order status that each delivery status corresponds to, if any. */

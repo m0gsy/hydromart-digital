@@ -27,6 +27,7 @@ import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
 import { PricingController } from './pricing.controller';
 import { GallonReturnController } from './gallon-return.controller';
+import { DriverGallonReturnController } from './driver-gallon-return.controller';
 import { GallonIssueController } from './gallon-issue.controller';
 import { GallonNetworkController } from './gallon-network.controller';
 import { FranchiseApplicationController } from './franchise-application.controller';
@@ -72,6 +73,7 @@ const providers: Provider[] = [
     InventoryController,
     PricingController,
     GallonReturnController,
+    DriverGallonReturnController,
     GallonIssueController,
     GallonNetworkController,
     FranchiseApplicationController,

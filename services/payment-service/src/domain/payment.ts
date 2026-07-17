@@ -62,3 +62,12 @@ export function canTransition(from: PaymentStatus, to: PaymentStatus): boolean {
 export function isRefundable(status: PaymentStatus): boolean {
   return canTransition(status, PaymentStatus.REFUNDED);
 }
+
+/**
+ * Change owed back to the customer for a COD payment: cash handed over minus the
+ * amount due, rounded to whole rupiah. Negative means the customer underpaid,
+ * which the caller rejects — you cannot settle a COD payment short.
+ */
+export function computeChange(amount: number, cashReceived: number): number {
+  return Math.round((cashReceived - amount) * 100) / 100;
+}

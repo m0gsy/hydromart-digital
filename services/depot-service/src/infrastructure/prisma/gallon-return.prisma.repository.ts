@@ -14,6 +14,7 @@ interface ReturnRow {
   id: string;
   depotId: string;
   customerId: string | null;
+  orderId: string | null;
   quantity: number;
   condition: string;
   depositRefunded: unknown; // Prisma Decimal

@@ -42,4 +42,9 @@ export class DepotConfigService {
   get pricingTimeZone(): string {
     return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
   }
+  /** Per-gallon deposit refunded on a courier-recorded return (design 2e). Server derives
+   *  the refund as GALLON_DEPOSIT_IDR × quantity — the courier never enters an amount. */
+  get gallonDepositIdr(): number {
+    return this.num('GALLON_DEPOSIT_IDR');
+  }
 }

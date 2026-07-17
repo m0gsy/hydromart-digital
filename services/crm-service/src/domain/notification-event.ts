@@ -14,6 +14,10 @@ export enum NotificationEvent {
   // Operational (not customer-facing): fired by depot-service when a stock line crosses
   // below its minimum. Recipient is an ops/warehouse number, not the customer.
   STOCK_LOW = 'STOCK_LOW',
+  // Operational (not customer-facing): fired by delivery-service when a courier
+  // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
+  // {{category}}, {{note}}. Recipient is the ops number.
+  COURIER_INCIDENT = 'COURIER_INCIDENT',
   // Account: fired by auth-service (via internal service auth) when a new customer
   // completes phone verification. Token: {{name}}.
   CUSTOMER_REGISTERED = 'CUSTOMER_REGISTERED',
@@ -42,6 +46,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
+  [NotificationEvent.COURIER_INCIDENT]:
+    '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
     'Selamat datang di Hydromart, {{name}}! 💧 Akunmu sudah aktif. Pesan air bersih kapan saja lewat aplikasi kami. Terima kasih sudah bergabung!',
   [NotificationEvent.POINTS_EARNED]:
@@ -55,7 +61,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
 // Operational (staff-facing) events surfaced in the ops notification center (PRD 10d),
 // as opposed to the customer inbox. STOCK_LOW is the operational alert today; add more
 // staff-targeted events here as they are introduced.
-export const OPS_EVENTS: NotificationEvent[] = [NotificationEvent.STOCK_LOW];
+export const OPS_EVENTS: NotificationEvent[] = [
+  NotificationEvent.STOCK_LOW,
+  NotificationEvent.COURIER_INCIDENT,
+];
 
 export function templateFor(event: NotificationEvent): string {
   return NOTIFICATION_TEMPLATES[event];

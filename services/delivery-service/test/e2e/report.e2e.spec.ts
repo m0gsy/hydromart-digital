@@ -37,6 +37,7 @@ describe('Delivery SLA report (e2e)', () => {
               DELIVERY_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
               ORDER_SERVICE_URL: 'http://localhost:3004',
+              PAYMENT_SERVICE_URL: 'http://localhost:3005',
               MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1,
               DELIVERY_SLA_MINUTES: 120,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',

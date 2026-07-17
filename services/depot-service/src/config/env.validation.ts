@@ -13,6 +13,9 @@ export const envValidationSchema = Joi.object({
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
+  // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
+  // business; the courier never enters the amount — the server computes deposit × qty.
+  GALLON_DEPOSIT_IDR: Joi.number().integer().min(0).default(20000),
   // Shared service-to-service secret authenticating the low-stock alert call to crm's
   // internal notification endpoint. Blank = alerting disabled (fail-open).
   INTERNAL_SERVICE_KEY: optionalSecret(16),

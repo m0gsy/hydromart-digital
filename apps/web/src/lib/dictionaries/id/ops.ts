@@ -27,6 +27,9 @@ export const ops = {
     vouchers: 'Voucher',
     churn: 'Risiko churn',
     payout: 'Payout & komisi',
+    settlements: 'Setoran COD',
+    expenseClaims: 'Klaim pengeluaran',
+    earningRules: 'Aturan penghasilan',
   },
   switcher: {
     all: 'Semua depot',
