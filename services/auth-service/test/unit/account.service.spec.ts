@@ -55,6 +55,8 @@ describe('AccountService', () => {
       'fullName',
       'role',
       'status',
+      'avatarUrl',
+      'assignedDepotId',
       'createdAt',
     ]);
   });
@@ -129,6 +131,17 @@ describe('AccountService', () => {
     const staff = await service.listStaff(1, 20);
     expect(staff.total).toBe(2);
     expect(staff.items.every((s) => s.role !== Role.CUSTOMER)).toBe(true);
+  });
+
+  it('assigns an invited staff member to a depot and filters by it', async () => {
+    const staff = await service.inviteStaff('+628990007777', Role.DEPOT_OPERATOR, 'Rina', 'depot-1');
+    expect(staff.assignedDepotId).toBe('depot-1');
+    // A staff member at another depot is excluded by the filter.
+    await service.inviteStaff('+628990008888', Role.DEPOT_OPERATOR, 'Ari', 'depot-2');
+
+    const atDepot1 = await service.listStaff(1, 20, undefined, 'depot-1');
+    expect(atDepot1.total).toBe(1);
+    expect(atDepot1.items[0].assignedDepotId).toBe('depot-1');
   });
 
   it('counts only end-customers created within the window', async () => {

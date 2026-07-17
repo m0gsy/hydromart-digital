@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import type { DepotAdmin, Page } from '@/lib/types';
 
 // Staff roles assignable from HQ (CUSTOMER is never assignable here). Same set as the
 // ops staff console — this just restyles role selection as buttons (design 4b) and
@@ -27,8 +29,10 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<string>('DEPOT_OPERATOR');
+  const [depotId, setDepotId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
 
   async function submit() {
     if (phone.trim() === '') {
@@ -40,11 +44,12 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
     try {
       await api.post(
         endpoints.auth.inviteStaff,
-        { phone: phone.trim(), role, fullName: fullName || undefined },
+        { phone: phone.trim(), role, fullName: fullName || undefined, depotId: depotId || undefined },
         true,
       );
       setPhone('');
       setFullName('');
+      setDepotId('');
       setOpen(false);
       onSaved();
     } catch (err) {
@@ -102,6 +107,21 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
           ))}
         </div>
       </div>
+      <Field label={t('hq.staff.form.depot')} htmlFor="hq-st-depot">
+        <select
+          id="hq-st-depot"
+          value={depotId}
+          onChange={(e) => setDepotId(e.target.value)}
+          className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+        >
+          <option value="">{t('hq.staff.form.depotNone')}</option>
+          {(depots.data?.items ?? []).map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </select>
+      </Field>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}

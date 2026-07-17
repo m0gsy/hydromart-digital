@@ -11,6 +11,7 @@ export interface CustomerProps {
   status: CustomerStatus;
   googleSub: string | null;
   avatarUrl: string | null;
+  assignedDepotId: string | null;
   phoneVerifiedAt: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -53,6 +54,9 @@ export class Customer {
   }
   get avatarUrl(): string | null {
     return this.props.avatarUrl;
+  }
+  get assignedDepotId(): string | null {
+    return this.props.assignedDepotId;
   }
   get phoneVerifiedAt(): Date | null {
     return this.props.phoneVerifiedAt;
@@ -115,8 +119,11 @@ export class Customer {
    * An invited/promoted staff member is pre-trusted, so a still-pending account is
    * activated immediately (they sign in by phone OTP; no self-verification needed).
    */
-  promoteToStaff(role: Role): void {
+  promoteToStaff(role: Role, depotId?: string | null): void {
     this.props.role = role;
+    if (depotId !== undefined) {
+      this.props.assignedDepotId = depotId;
+    }
     if (this.props.status === CustomerStatus.PENDING_VERIFICATION) {
       this.props.status = CustomerStatus.ACTIVE;
     }

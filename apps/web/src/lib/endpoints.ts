@@ -22,11 +22,12 @@ export const endpoints = {
     sessions: '/auth/api/v1/sessions',
     revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,
     // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
-    staff: (q: { page?: number; limit?: number; role?: string } = {}) => {
+    staff: (q: { page?: number; limit?: number; role?: string; depotId?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.role) p.set('role', q.role);
+      if (q.depotId) p.set('depotId', q.depotId);
       const qs = p.toString();
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },

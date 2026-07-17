@@ -158,6 +158,7 @@ export class InMemoryCustomerRepository implements CustomerRepository {
       status: CustomerStatus.PENDING_VERIFICATION,
       googleSub: null,
       avatarUrl: null,
+      assignedDepotId: data.assignedDepotId ?? null,
       phoneVerifiedAt: null,
       lastLoginAt: null,
       createdAt: now,
@@ -174,10 +175,12 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     page: number,
     limit: number,
     role?: Role,
+    depotId?: string,
   ): Promise<{ items: Customer[]; total: number }> {
     const all = [...this.rows.values()]
       .filter((p) => p.status !== CustomerStatus.DELETED)
       .filter((p) => (role ? p.role === role : p.role !== Role.CUSTOMER))
+      .filter((p) => (depotId ? p.assignedDepotId === depotId : true))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const items = all
       .slice((page - 1) * limit, page * limit)
@@ -382,6 +385,7 @@ export function makeCustomer(overrides: Partial<ReturnType<Customer['toProps']>>
     status: CustomerStatus.ACTIVE,
     googleSub: null,
     avatarUrl: null,
+    assignedDepotId: null,
     phoneVerifiedAt: now,
     lastLoginAt: null,
     createdAt: now,

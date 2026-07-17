@@ -309,7 +309,7 @@ export const hq = {
       radiusKm: '{n} km',
     },
     stock: { title: 'Stock health', empty: 'No stock data.', low: 'low' },
-    staff: { title: 'Depot staff', stub: 'Per-depot staff filter is not available in Milestone A.' },
+    staff: { title: 'Depot staff', empty: 'No staff assigned to this depot yet.' },
     orders: { title: 'Recent orders', empty: 'No orders yet.' },
     payout: {
       title: 'Pending franchise payout',
@@ -350,6 +350,8 @@ export const hq = {
       phone: 'Phone number',
       name: 'Name (for a new account)',
       role: 'Role',
+      depot: 'Assigned depot (optional)',
+      depotNone: 'No depot',
       cancel: 'Cancel',
       submit: 'Send invite',
       phoneRequired: 'Enter a phone number.',

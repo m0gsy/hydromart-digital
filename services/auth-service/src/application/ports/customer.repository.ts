@@ -6,6 +6,7 @@ export interface CreateCustomerData {
   email: string | null;
   fullName: string | null;
   role: Role;
+  assignedDepotId?: string | null;
 }
 
 /**
@@ -24,7 +25,7 @@ export interface CustomerRepository {
    * Staff directory (PRD Module 7): non-customer accounts, newest first, paginated.
    * Excludes DELETED accounts; filters to one role when given.
    */
-  listStaff(page: number, limit: number, role?: Role): Promise<{ items: Customer[]; total: number }>;
+  listStaff(page: number, limit: number, role?: Role, depotId?: string): Promise<{ items: Customer[]; total: number }>;
   /**
    * HQ metric: count of end-customer (role CUSTOMER, non-DELETED) accounts created
    * in the optional [from, to] window. Both bounds inclusive-of-start / exclusive-of-end.

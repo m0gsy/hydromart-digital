@@ -8,13 +8,12 @@ import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-ic
 import { DepotForm } from '@/components/hq/depot-form';
 import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
 import { StockBar } from '@/components/hq/charts';
-import { StubBadge } from '@/lib/hq/stubs';
 import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, InventoryItem, NetworkDashboard, Order, OwnerPayoutBalance, Page } from '@/lib/types';
+import type { Customer, DepotAdmin, InventoryItem, NetworkDashboard, Order, OwnerPayoutBalance, Page } from '@/lib/types';
 
 function range30(): { from: string; to: string } {
   const to = new Date();
@@ -45,6 +44,10 @@ export default function HqDepotDetailPage() {
   const depot = useAsync<DepotAdmin>(() => api.get(endpoints.depots.detail(id), true), [id]);
   const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range30()), true));
   const inv = useAsync<InventoryItem[]>(() => api.get(endpoints.inventory.lines(id), true), [id]);
+  const staff = useAsync<{ items: Customer[] }>(
+    () => api.get<{ items: Customer[] }>(endpoints.auth.staff({ limit: 50, depotId: id }), true).catch(() => ({ items: [] as Customer[] })),
+    [id],
+  );
   const orders = useAsync<Page<Order>>(() =>
     api.get(endpoints.orders.manage({ depotId: id, limit: 5 }), true),
   );
@@ -217,14 +220,26 @@ export default function HqDepotDetailPage() {
           )}
         </Card>
 
-        {/* Depot staff — no per-depot filter yet */}
+        {/* Depot staff — real per-depot roster (auth-service staff filtered by depot). */}
         <Card className="flex flex-col gap-3 p-5">
           <h2 className="flex items-center gap-2 font-semibold">
             <Users size={18} weight="fill" className="text-brand-500" />
             {t('hq.depotDetail.staff.title')}
-            <StubBadge />
           </h2>
-          <p className="text-sm text-muted">{t('hq.depotDetail.staff.stub')}</p>
+          {staff.loading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : (staff.data?.items ?? []).length === 0 ? (
+            <p className="text-sm text-muted">{t('hq.depotDetail.staff.empty')}</p>
+          ) : (
+            <ul className="divide-y divide-[color:var(--border)]">
+              {(staff.data?.items ?? []).map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                  <span className="min-w-0 truncate font-medium">{s.fullName || s.phone}</span>
+                  <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         {/* Recent orders */}

@@ -52,6 +52,9 @@ model Customer {
   googleSub    String?        @unique
   /// Public URL of the customer's uploaded avatar image (null = default avatar).
   avatarUrl    String?
+  /// Depot a staff member is assigned to (null for customers / unassigned staff). Used
+  /// by the HQ depot-detail staff roster. No FK — depots live in depot-service.
+  assignedDepotId String?     @db.Uuid
   phoneVerifiedAt DateTime?
   lastLoginAt  DateTime?
   createdAt    DateTime       @default(now())
@@ -61,6 +64,7 @@ model Customer {
   refreshTokens RefreshToken[]
 
   @@index([status])
+  @@index([assignedDepotId])
   @@map("customers")
 }
 

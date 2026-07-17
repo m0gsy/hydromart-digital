@@ -73,7 +73,7 @@ export class AccountController {
     page: number;
     limit: number;
   }> {
-    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role);
+    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, query.depotId);
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 
@@ -112,7 +112,7 @@ export class AccountController {
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName);
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
     return PublicCustomerDto.from(staff);
   }
 

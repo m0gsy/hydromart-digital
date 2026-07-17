@@ -26,6 +26,7 @@ const activeCustomer = (): Customer =>
     status: CustomerStatus.ACTIVE,
     googleSub: null,
     avatarUrl: null,
+    assignedDepotId: null,
     phoneVerifiedAt: new Date(),
     lastLoginAt: null,
     createdAt: new Date(),

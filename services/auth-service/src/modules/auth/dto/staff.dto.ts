@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 import { Role } from '../../../domain/customer/role.enum';
 
@@ -23,6 +23,11 @@ export class ListStaffQueryDto {
   @IsOptional()
   @IsEnum(Role)
   role?: Role;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Filter to staff assigned to one depot.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }
 
 export class InviteStaffDto {
@@ -39,4 +44,9 @@ export class InviteStaffDto {
   @IsString()
   @MaxLength(120)
   fullName?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to assign the staff member to.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }

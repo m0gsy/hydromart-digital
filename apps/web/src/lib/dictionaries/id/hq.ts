@@ -312,7 +312,7 @@ export const hq = {
       radiusKm: '{n} km',
     },
     stock: { title: 'Kesehatan stok', empty: 'Tidak ada data stok.', low: 'menipis' },
-    staff: { title: 'Staf depot', stub: 'Filter staf per depot belum tersedia di Milestone A.' },
+    staff: { title: 'Staf depot', empty: 'Belum ada staf yang ditugaskan ke depot ini.' },
     orders: { title: 'Pesanan terbaru', empty: 'Belum ada pesanan.' },
     payout: {
       title: 'Payout waralaba tertunda',
@@ -353,6 +353,8 @@ export const hq = {
       phone: 'Nomor telepon',
       name: 'Nama (untuk akun baru)',
       role: 'Peran',
+      depot: 'Depot penugasan (opsional)',
+      depotNone: 'Tanpa depot',
       cancel: 'Batal',
       submit: 'Kirim undangan',
       phoneRequired: 'Masukkan nomor telepon.',

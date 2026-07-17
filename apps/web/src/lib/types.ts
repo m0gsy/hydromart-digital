@@ -24,6 +24,7 @@ export interface Customer {
   role: string;
   status: string;
   avatarUrl: string | null;
+  assignedDepotId?: string | null;
   createdAt: string;
 }
 
