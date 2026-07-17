@@ -45,6 +45,13 @@ export const endpoints = {
     // Staff operational feed: recent ops alerts (low stock, …).
     ops: '/crm/api/v1/notifications/ops',
   },
+  // Depot broadcasts (design 8a). Courier lists their depot's announcements + marks read;
+  // depot ops (depotBroadcast cap) posts via POST.
+  broadcasts: {
+    forDepot: (depotId: string) => `/crm/api/v1/broadcasts?depotId=${encodeURIComponent(depotId)}`,
+    create: '/crm/api/v1/broadcasts',
+    read: (id: string) => `/crm/api/v1/broadcasts/${id}/read`,
+  },
   // Saved payment instruments (customer-service). Management-only.
   paymentMethods: {
     list: '/customers/api/v1/payment-methods',

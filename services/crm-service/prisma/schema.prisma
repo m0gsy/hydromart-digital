@@ -85,6 +85,44 @@ model CampaignRecipient {
   @@map("campaign_recipients")
 }
 
+/// Urgency of a depot broadcast — URGENT surfaces a banner in the courier inbox (design 8a).
+enum BroadcastLevel {
+  INFO
+  URGENT
+}
+
+/// An operational announcement pushed by depot ops to every courier at a depot (design 8a).
+/// Unlike a Campaign (customer WhatsApp blast to an explicit list), this is an in-app inbox
+/// message scoped by `depotId`; couriers read it in the app and their reads are tracked.
+model DepotBroadcast {
+  id        String               @id @default(uuid())
+  depotId   String
+  title     String
+  body      String
+  level     BroadcastLevel       @default(INFO)
+  /// Auth subject (depot-ops user id) that posted the broadcast.
+  createdBy String
+  createdAt DateTime             @default(now())
+
+  reads DepotBroadcastRead[]
+
+  @@index([depotId, createdAt])
+  @@map("depot_broadcasts")
+}
+
+/// One row per courier who has opened a broadcast — the read receipt (created lazily on read).
+model DepotBroadcastRead {
+  id          String         @id @default(uuid())
+  broadcast   DepotBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  broadcastId String
+  courierId   String
+  readAt      DateTime       @default(now())
+
+  @@unique([broadcastId, courierId])
+  @@index([courierId])
+  @@map("depot_broadcast_reads")
+}
+
 /// An event-triggered transactional WhatsApp notification (FR-093/FR-094). Append-only
 /// audit trail of automated messages fired by upstream services on lifecycle events.
 model Notification {

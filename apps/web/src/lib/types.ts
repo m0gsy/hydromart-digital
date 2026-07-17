@@ -907,6 +907,21 @@ export interface FieldIncident {
   createdAt: string;
 }
 
+// Depot broadcast (crm-service, design 8a). In-app ops announcement for couriers at a depot.
+export type BroadcastLevel = 'INFO' | 'URGENT';
+
+export interface Broadcast {
+  id: string;
+  depotId: string;
+  title: string;
+  body: string;
+  level: BroadcastLevel;
+  createdBy: string;
+  createdAt: string;
+  read: boolean;
+  readAt: string | null;
+}
+
 // Ops notification (crm-service). Operational alert feed for staff.
 export interface OpsNotification {
   id: string;

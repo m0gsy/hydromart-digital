@@ -9,6 +9,12 @@ import {
   CampaignRepository,
   CreateCampaignData,
 } from '../../src/application/ports/campaign.repository';
+import {
+  BroadcastForCourier,
+  BroadcastRecord,
+  BroadcastRepository,
+  CreateBroadcastData,
+} from '../../src/application/ports/broadcast.repository';
 import { SegmentUnavailableError } from '../../src/domain/errors';
 import { WhatsappBroadcastPort } from '../../src/application/ports/whatsapp-broadcast.port';
 import {
@@ -125,6 +131,39 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     c.sentAt = sentAt;
     c.updatedAt = nextDate();
     return this.clone(c);
+  }
+}
+
+export class InMemoryBroadcastRepository implements BroadcastRepository {
+  broadcasts: BroadcastRecord[] = [];
+  private readonly reads = new Map<string, Date>(); // key: `${broadcastId}:${courierId}`
+
+  async create(data: CreateBroadcastData): Promise<BroadcastRecord> {
+    const record: BroadcastRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
+    this.broadcasts.push(record);
+    return { ...record };
+  }
+
+  async findById(id: string): Promise<BroadcastRecord | null> {
+    const b = this.broadcasts.find((x) => x.id === id);
+    return b ? { ...b } : null;
+  }
+
+  async listForCourier(
+    depotId: string,
+    courierId: string,
+    limit: number,
+  ): Promise<BroadcastForCourier[]> {
+    return this.broadcasts
+      .filter((b) => b.depotId === depotId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((b) => ({ ...b, readAt: this.reads.get(`${b.id}:${courierId}`) ?? null }));
+  }
+
+  async markRead(broadcastId: string, courierId: string, readAt: Date): Promise<void> {
+    const key = `${broadcastId}:${courierId}`;
+    if (!this.reads.has(key)) this.reads.set(key, readAt); // upsert: first read wins
   }
 }
 

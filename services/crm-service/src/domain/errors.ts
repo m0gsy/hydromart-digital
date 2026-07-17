@@ -24,6 +24,14 @@ export class NoRecipientsError extends DomainError {
   }
 }
 
+export class BroadcastNotFoundError extends DomainError {
+  readonly code = 'BROADCAST_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Broadcast not found.');
+  }
+}
+
 export class SegmentUnavailableError extends DomainError {
   readonly code = 'CAMPAIGN_SEGMENT_UNAVAILABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
