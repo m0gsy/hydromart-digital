@@ -22,6 +22,7 @@ import { HqPayoutController } from './hq-payout.controller';
 import { CommissionController } from './commission.controller';
 import { CourierPayoutController } from './courier-payout.controller';
 import { ExpenseApprovalController } from './expense-approval.controller';
+import { EarningRuleController } from './earning-rule.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -48,6 +49,7 @@ const providers: Provider[] = [
     CommissionController,
     CourierPayoutController,
     ExpenseApprovalController,
+    EarningRuleController,
   ],
   providers,
   exports: [PrismaService, PayoutConfigService],

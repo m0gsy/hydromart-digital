@@ -1,13 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { ArrowLeft, Warning } from '@phosphor-icons/react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Camera, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, Input } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { compressImage } from '@/lib/image';
 import type { CourierIncidentCategory, CourierIncidentSeverity } from '@/lib/types';
 
 const CATEGORIES: { value: CourierIncidentCategory; label: string }[] = [
@@ -30,18 +31,42 @@ function NewIncident() {
   const [category, setCategory] = useState<CourierIncidentCategory | ''>('');
   const [severity, setSeverity] = useState<CourierIncidentSeverity>('MEDIUM');
   const [description, setDescription] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setPhoto(file);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(file ? URL.createObjectURL(file) : null);
+  };
 
   const submit = async () => {
     if (!category || description.trim().length < 3) return;
     setBusy(true);
     setError(null);
     try {
+      let photoUrl: string | undefined;
+      if (photo) {
+        const blob = await compressImage(photo);
+        const res = await uploadFile(
+          endpoints.deliveries.driver.upload,
+          new File([blob], 'incident.jpg', { type: blob.type || 'image/jpeg' }),
+        );
+        photoUrl = res.url;
+      }
       await api.post(
         endpoints.deliveries.incidents.create,
-        { category, severity, description: description.trim() },
+        { category, severity, description: description.trim(), photoUrl },
         true,
       );
       setDone(true);
@@ -124,6 +149,17 @@ function NewIncident() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </Field>
+
+        <Field label="Foto bukti (opsional)">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-[color:var(--border)] px-4 py-5 text-sm font-bold text-[color:var(--muted)]">
+            <Camera size={19} />
+            {photo ? 'Ganti foto' : 'Ambil foto'}
+            <input type="file" accept="image/*" capture="environment" onChange={pickPhoto} className="hidden" />
+          </label>
+          {photoPreview && (
+            <img src={photoPreview} alt="Pratinjau foto insiden" className="mt-2 max-h-44 rounded-xl object-cover" />
+          )}
         </Field>
       </Card>
 

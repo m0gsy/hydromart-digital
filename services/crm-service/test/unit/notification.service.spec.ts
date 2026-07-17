@@ -1,20 +1,34 @@
 import { NotificationService } from '../../src/application/services/notification.service';
+import { PushService } from '../../src/application/services/push.service';
 import { NotificationEvent } from '../../src/domain/notification-event';
 import { NotificationStatus } from '../../src/domain/notification-status';
-import { FakeWhatsappBroadcast, InMemoryNotificationRepository } from '../support/fakes';
+import { InMemoryNotificationRepository } from '../support/fakes';
+
+class FakePush {
+  pushed: string[] = [];
+  async sendToCustomer(customerId: string): Promise<void> {
+    this.pushed.push(customerId);
+  }
+}
 
 describe('NotificationService', () => {
   let repo: InMemoryNotificationRepository;
-  let whatsapp: FakeWhatsappBroadcast;
+  let push: FakePush;
   let service: NotificationService;
 
   beforeEach(() => {
     repo = new InMemoryNotificationRepository();
-    whatsapp = new FakeWhatsappBroadcast();
-    service = new NotificationService(repo, whatsapp);
+    push = new FakePush();
+    service = new NotificationService(repo, push as unknown as PushService);
   });
 
-  it('renders the event template with vars and sends via WhatsApp', async () => {
+  it('pushes to the customer devices when a customerId is present, skips otherwise', async () => {
+    await service.notify(NotificationEvent.ORDER_CONFIRMED, '+62800', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
+    await service.notify(NotificationEvent.STOCK_LOW, '+62800', { depot: 'D', item: 'G', quantity: '1', minimum: '5' });
+    expect(push.pushed).toEqual(['cust-1']);
+  });
+
+  it('renders the event template with vars and stores it SENT in the inbox', async () => {
     const rec = await service.notify(
       NotificationEvent.ORDER_CONFIRMED,
       '+6281234567890',
@@ -22,21 +36,9 @@ describe('NotificationService', () => {
       'cust-1',
     );
     expect(rec.status).toBe(NotificationStatus.SENT);
-    expect(whatsapp.sent).toHaveLength(1);
-    expect(whatsapp.sent[0].message).toContain('Budi');
-    expect(whatsapp.sent[0].message).toContain('HM-1');
+    expect(rec.message).toContain('Budi');
+    expect(rec.message).toContain('HM-1');
     expect(rec.customerId).toBe('cust-1');
-  });
-
-  it('records FAILED (never throws) when WhatsApp delivery fails', async () => {
-    whatsapp.failOn('+6281234567890');
-    const rec = await service.notify(
-      NotificationEvent.ORDER_DELIVERED,
-      '+6281234567890',
-      { name: 'Siti', orderNumber: 'HM-2' },
-    );
-    expect(rec.status).toBe(NotificationStatus.FAILED);
-    expect(rec.error).toBeTruthy();
     expect(repo.records).toHaveLength(1);
   });
 

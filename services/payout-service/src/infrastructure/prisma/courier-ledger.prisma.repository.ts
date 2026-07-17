@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { CourierEarningRule, CourierLedgerEntryType } from '../../domain/courier-earning';
 import {
+  CourierEarningRuleRecord,
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
   CreateCourierLedgerData,
+  CreateEarningRuleData,
 } from '../../application/ports/courier-ledger.repository';
 import { PrismaService } from './prisma.service';
 
@@ -26,6 +28,13 @@ interface RuleRow {
   onTimeBonus: unknown;
   peakStartHour: number;
   peakEndHour: number;
+}
+
+interface FullRuleRow extends RuleRow {
+  id: string;
+  depotId: string | null;
+  effectiveDate: Date;
+  createdAt: Date;
 }
 
 @Injectable()
@@ -116,5 +125,41 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
       peakStartHour: r.peakStartHour,
       peakEndHour: r.peakEndHour,
     };
+  }
+
+  private toRule(r: FullRuleRow): CourierEarningRuleRecord {
+    return {
+      id: r.id,
+      depotId: r.depotId,
+      effectiveDate: r.effectiveDate,
+      createdAt: r.createdAt,
+      baseFare: Number(r.baseFare),
+      peakBonus: Number(r.peakBonus),
+      onTimeBonus: Number(r.onTimeBonus),
+      peakStartHour: r.peakStartHour,
+      peakEndHour: r.peakEndHour,
+    };
+  }
+
+  async listRules(): Promise<CourierEarningRuleRecord[]> {
+    const rows = await this.prisma.courierEarningRule.findMany({
+      orderBy: { effectiveDate: 'desc' },
+    });
+    return rows.map((row) => this.toRule(row as unknown as FullRuleRow));
+  }
+
+  async createRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord> {
+    const row = await this.prisma.courierEarningRule.create({
+      data: {
+        depotId: data.depotId,
+        baseFare: data.baseFare,
+        peakBonus: data.peakBonus,
+        onTimeBonus: data.onTimeBonus,
+        peakStartHour: data.peakStartHour,
+        peakEndHour: data.peakEndHour,
+        effectiveDate: data.effectiveDate,
+      },
+    });
+    return this.toRule(row as unknown as FullRuleRow);
   }
 }

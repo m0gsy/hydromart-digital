@@ -92,6 +92,9 @@ model NotificationPreference {
   push       Boolean  @default(true)
   email      Boolean  @default(true)
   whatsapp   Boolean  @default(true)
+  /// Per-app fine-grained category mutes (design 7b courier toggles). Keyed map of
+  /// category id → enabled, e.g. { "tasks": true, "promo": false }. Empty = all on.
+  categories Json     @default("{}")
   updatedAt  DateTime @updatedAt
 
   @@map("notification_preferences")

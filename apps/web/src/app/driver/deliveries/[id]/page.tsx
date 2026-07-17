@@ -61,7 +61,19 @@ function Detail() {
         <Badge>{delivery.status}</Badge>
       </header>
 
-      <Card className="p-4">
+      <Card className="overflow-hidden p-0">
+        {delivery.destinationLat != null && delivery.destinationLng != null && (
+          // ponytail: keyless Google Maps embed iframe — a live map with no SDK/API key.
+          // Swap for the Maps JS SDK (turn-by-turn) once a billing key is provisioned.
+          <iframe
+            title="Peta tujuan"
+            aria-label={`Peta lokasi ${delivery.destinationAddress}`}
+            loading="lazy"
+            className="h-44 w-full border-0"
+            src={`https://maps.google.com/maps?q=${delivery.destinationLat},${delivery.destinationLng}&z=16&output=embed`}
+          />
+        )}
+        <div className="p-4">
         <div className="text-sm font-bold">{delivery.destinationAddress}</div>
         <div className="mt-3 flex gap-2">
           <a
@@ -77,6 +89,7 @@ function Detail() {
             <Phone size={16} className="text-brand-700" weight="fill" />
             Telepon
           </span>
+        </div>
         </div>
       </Card>
 

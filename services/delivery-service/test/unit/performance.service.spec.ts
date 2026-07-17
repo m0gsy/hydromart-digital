@@ -105,10 +105,27 @@ describe('PerformanceService.weekly', () => {
     expect(r.depotCouriers).toBe(2);
   });
 
+  it('computes the prior-week rank for the week-over-week delta (design 4c)', async () => {
+    const rival = randomUUID();
+    // Prev week (Mon 6 Jul): driver 2, rival 1 → prev rank #1. This week: rival 3, driver 1 → #2.
+    seed(repo, { driverId: driver, deliveredAt: new Date('2026-07-06T05:00:00Z') });
+    seed(repo, { driverId: driver, deliveredAt: new Date('2026-07-07T05:00:00Z') });
+    seed(repo, { driverId: rival, deliveredAt: new Date('2026-07-06T05:00:00Z') });
+    for (let i = 0; i < 3; i++) {
+      seed(repo, { driverId: rival, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+    }
+    seed(repo, { driverId: driver, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+
+    const r = await service.weekly(driver, '2026-07-13', DEPOT);
+    expect(r.rank).toBe(2);
+    expect(r.rankPrev).toBe(1);
+  });
+
   it('omits rank when no depot is given, and reports null rating with no reviews', async () => {
     seed(repo, { driverId: driver, deliveredAt: new Date('2026-07-14T05:00:00Z') });
     const r = await service.weekly(driver, '2026-07-13');
     expect(r.rank).toBeNull();
+    expect(r.rankPrev).toBeNull();
     expect(r.rating).toBeNull();
   });
 });

@@ -1,10 +1,16 @@
-import { InsufficientBalanceError, InvalidWithdrawalAmountError } from '../src/domain/errors';
+import {
+  InsufficientBalanceError,
+  InvalidEarningRuleError,
+  InvalidWithdrawalAmountError,
+} from '../src/domain/errors';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
 import type { CourierEarningRule, CourierLedgerEntryType } from '../src/domain/courier-earning';
 import type {
+  CourierEarningRuleRecord,
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
   CreateCourierLedgerData,
+  CreateEarningRuleData,
 } from '../src/application/ports/courier-ledger.repository';
 import type {
   CourierWithdrawalRecord,
@@ -62,6 +68,19 @@ class FakeCourierLedger implements CourierLedgerRepository {
   }
   async currentRule(): Promise<CourierEarningRule | null> {
     return this.rule;
+  }
+  rules: CourierEarningRuleRecord[] = [];
+  async listRules(): Promise<CourierEarningRuleRecord[]> {
+    return this.rules;
+  }
+  async createRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord> {
+    const row: CourierEarningRuleRecord = {
+      id: `r-${this.rules.length}`,
+      createdAt: new Date(),
+      ...data,
+    };
+    this.rules.push(row);
+    return row;
   }
 }
 
@@ -178,6 +197,36 @@ describe('CourierPayoutService', () => {
       expect(withdrawals.created).toHaveLength(1);
       expect(await ledger.balanceFor(COURIER)).toBe(0);
       expect((await service.summary(COURIER)).recentWithdrawals).toHaveLength(1);
+    });
+  });
+
+  describe('earning-rule editor (design 6b)', () => {
+    const validRule = {
+      depotId: null,
+      baseFare: 5000,
+      peakBonus: 2000,
+      onTimeBonus: 1000,
+      peakStartHour: 17,
+      peakEndHour: 20,
+      effectiveDate: new Date('2026-08-01'),
+    };
+
+    it('appends a rule and lists it back', async () => {
+      const created = await service.applyEarningRule(validRule);
+      expect(created.id).toBeDefined();
+      expect(await service.listEarningRules()).toHaveLength(1);
+    });
+
+    it('rejects a negative fare', async () => {
+      await expect(service.applyEarningRule({ ...validRule, baseFare: -1 })).rejects.toBeInstanceOf(
+        InvalidEarningRuleError,
+      );
+    });
+
+    it('rejects an empty peak window (start ≥ end)', async () => {
+      await expect(
+        service.applyEarningRule({ ...validRule, peakStartHour: 20, peakEndHour: 17 }),
+      ).rejects.toBeInstanceOf(InvalidEarningRuleError);
     });
   });
 });

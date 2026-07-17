@@ -50,6 +50,12 @@ class FakeLedger implements CourierLedgerRepository {
   async currentRule() {
     return null;
   }
+  async listRules() {
+    return [];
+  }
+  createRule(): Promise<never> {
+    throw new Error('not used');
+  }
 }
 
 class FakeClaims implements ExpenseClaimRepository {

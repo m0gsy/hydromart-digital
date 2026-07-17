@@ -138,3 +138,18 @@ model Notification {
   @@index([customerId, createdAt])
   @@map("notifications")
 }
+
+/// A browser Web Push subscription (RFC 8291) owned by a customer/driver. One row per
+/// device endpoint; the keys encrypt the push payload. Pruned when the push service
+/// reports the endpoint gone (404/410).
+model WebPushSubscription {
+  id         String   @id @default(uuid())
+  customerId String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
+  @@map("web_push_subscriptions")
+}

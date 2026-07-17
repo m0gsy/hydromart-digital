@@ -279,6 +279,10 @@ services:
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Web Push (design 7b). Blank = push disabled; the app still stores + WhatsApps.
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@hydromart.id}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3012/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -399,7 +403,6 @@ services:
         # the wrong host, and only a rebuild fixes it. REQUIRED, no default: an
         # unset PUBLIC_API_URL fails the build rather than silently baking localhost.
         NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:?set PUBLIC_API_URL to the PUBLIC gateway origin (e.g. https://api.example.com or http://<vps-ip>:8080) before building}
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
     depends_on:
       - gateway

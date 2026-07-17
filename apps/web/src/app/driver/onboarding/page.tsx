@@ -17,7 +17,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
-export const ONBOARDED_KEY = 'hydromart_driver_onboarded';
+import { ONBOARDED_KEY } from './constants';
 
 interface Step {
   icon: Icon;

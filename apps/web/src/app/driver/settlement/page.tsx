@@ -130,7 +130,7 @@ function Settlement() {
   );
 }
 
-export function SettlementReceipt({
+function SettlementReceipt({
   settlement,
   onDone,
 }: {

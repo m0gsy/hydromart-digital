@@ -40,6 +40,16 @@ export class ExpenseClaimNotPendingError extends DomainError {
   }
 }
 
+export class InvalidEarningRuleError extends DomainError {
+  readonly code = 'EARNING_RULE_INVALID';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(
+    message = 'Earning rule needs non-negative fares and a valid peak window (0 ≤ start < end ≤ 24).',
+  ) {
+    super(message);
+  }
+}
+
 export class InvalidCommissionSchemeError extends DomainError {
   readonly code = 'COMMISSION_INVALID_SCHEME';
   readonly status = HTTP_STATUS.BAD_REQUEST;

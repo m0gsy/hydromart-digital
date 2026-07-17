@@ -1,10 +1,16 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { computeEarning } from '../../domain/courier-earning';
-import { InsufficientBalanceError, InvalidWithdrawalAmountError } from '../../domain/errors';
 import {
+  InsufficientBalanceError,
+  InvalidEarningRuleError,
+  InvalidWithdrawalAmountError,
+} from '../../domain/errors';
+import {
+  CourierEarningRuleRecord,
   CourierLedgerEntryRecord,
   CourierLedgerRepository,
+  CreateEarningRuleData,
 } from '../ports/courier-ledger.repository';
 import {
   CourierWithdrawalRecord,
@@ -166,6 +172,29 @@ export class CourierPayoutService {
   ): Promise<Page<CourierLedgerEntryRecord>> {
     const { items, total } = await this.ledger.listForCourier(courierId, page, limit);
     return buildPage(items, total, page, limit);
+  }
+
+  /** Every earning rule, newest effective first (rule editor, design 6b). */
+  listEarningRules(): Promise<CourierEarningRuleRecord[]> {
+    return this.ledger.listRules();
+  }
+
+  /**
+   * Append a new effective-dated earning rule (network default when depotId is null).
+   * Rules are never edited in place — a new row supersedes the old one, so pay for past
+   * deliveries stays reproducible. Rejects a peak window that would never fire.
+   */
+  async applyEarningRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord> {
+    const { baseFare, peakBonus, onTimeBonus, peakStartHour, peakEndHour } = data;
+    if ([baseFare, peakBonus, onTimeBonus].some((v) => v < 0)) throw new InvalidEarningRuleError();
+    const hoursValid =
+      Number.isInteger(peakStartHour) &&
+      Number.isInteger(peakEndHour) &&
+      peakStartHour >= 0 &&
+      peakEndHour <= 24 &&
+      peakStartHour < peakEndHour;
+    if (!hoursValid) throw new InvalidEarningRuleError();
+    return this.ledger.createRule(data);
   }
 }
 

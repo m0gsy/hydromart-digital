@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { MapPin, Package, Pause, Storefront } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { ONBOARDED_KEY } from './onboarding/page';
+import { ONBOARDED_KEY } from './onboarding/constants';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';

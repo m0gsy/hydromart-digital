@@ -23,6 +23,18 @@ export interface CreateCourierLedgerData {
   occurredAt?: Date;
 }
 
+export interface CourierEarningRuleRecord extends CourierEarningRule {
+  id: string;
+  depotId: string | null;
+  effectiveDate: Date;
+  createdAt: Date;
+}
+
+export interface CreateEarningRuleData extends CourierEarningRule {
+  depotId: string | null;
+  effectiveDate: Date;
+}
+
 export interface CourierLedgerRepository {
   create(data: CreateCourierLedgerData): Promise<CourierLedgerEntryRecord>;
   /** The entry with this idempotency ref, if one was already posted. */
@@ -41,4 +53,8 @@ export interface CourierLedgerRepository {
    * default (depotId NULL) when the depot has none. Null if neither exists.
    */
   currentRule(depotId: string | null): Promise<CourierEarningRule | null>;
+  /** Every earning rule, newest effective first (rule editor, design 6b). */
+  listRules(): Promise<CourierEarningRuleRecord[]>;
+  /** Append a new effective-dated rule (network default when depotId is null). */
+  createRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord>;
 }

@@ -24,6 +24,8 @@ export interface CourierPerformance {
   ratingPrev: number | null;
   /** 1-based rank among the depot's couriers by delivered count; null with no depot. */
   rank: number | null;
+  /** Prior week's rank on the same leaderboard; null with no depot or no prior activity. */
+  rankPrev: number | null;
   /** Couriers at the depot with ≥1 delivery this week (the rank denominator). */
   depotCouriers: number;
   target: number;
@@ -48,12 +50,15 @@ export class PerformanceService {
     const prev = previousWeek(week);
     const sla = this.config.slaMinutes;
 
-    const [rows, prevRows, failed, depotCounts] = await Promise.all([
+    const [rows, prevRows, failed, depotCounts, depotCountsPrev] = await Promise.all([
       this.deliveries.driverDeliveredInWindow(driverId, week.from, week.to),
       this.deliveries.driverDeliveredInWindow(driverId, prev.from, prev.to),
       this.deliveries.driverFailedCountInWindow(driverId, week.from, week.to),
       depotId
         ? this.deliveries.depotDeliveredCountsInWindow(depotId, week.from, week.to)
+        : Promise.resolve([]),
+      depotId
+        ? this.deliveries.depotDeliveredCountsInWindow(depotId, prev.from, prev.to)
         : Promise.resolve([]),
     ]);
 
@@ -74,6 +79,12 @@ export class PerformanceService {
       depotId === undefined
         ? null
         : 1 + depotCounts.filter((c) => c.count > delivered).length;
+    // Prior-week rank on the same board (own prior count = prevRows.length). Null when
+    // the courier had no delivery last week — there's no meaningful rank to compare to.
+    const rankPrev =
+      depotId === undefined || prevRows.length === 0
+        ? null
+        : 1 + depotCountsPrev.filter((c) => c.count > prevRows.length).length;
     const target = this.config.courierWeeklyTarget;
 
     return {
@@ -87,6 +98,7 @@ export class PerformanceService {
       rating: round1(rating.average),
       ratingPrev: round1(ratingPrev.average),
       rank,
+      rankPrev,
       depotCouriers: depotCounts.length,
       target,
       targetMet: delivered >= target,

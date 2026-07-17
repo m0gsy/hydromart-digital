@@ -46,3 +46,7 @@ export const canConfirmPayment = (role: string | null | undefined) => can('payme
 export const canVerifySettlement = (role: string | null | undefined) => can('courierSettle', role);
 export const canApproveExpense = (role: string | null | undefined) => can('expenseApprove', role);
 export const canBroadcastToCouriers = (role: string | null | undefined) => can('depotBroadcast', role);
+// Courier earning-rule editor (design 6b). Finance config, role-gated directly (like
+// commission schemes) — not part of the per-depot capability matrix.
+export const canManageEarningRules = (role: string | null | undefined) =>
+  role === 'FINANCE' || role === 'SUPER_ADMIN';

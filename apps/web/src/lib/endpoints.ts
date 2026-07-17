@@ -7,7 +7,6 @@ export const endpoints = {
     verifyOtp: '/auth/api/v1/auth/otp/verify',
     resendOtp: '/auth/api/v1/auth/otp/resend',
     login: '/auth/api/v1/auth/login',
-    google: '/auth/api/v1/auth/google',
     refresh: '/auth/api/v1/auth/token/refresh',
     me: '/auth/api/v1/auth/me',
     // PATCH: update own name/email.
@@ -44,6 +43,13 @@ export const endpoints = {
     me: '/crm/api/v1/notifications/me',
     // Staff operational feed: recent ops alerts (low stock, …).
     ops: '/crm/api/v1/notifications/ops',
+  },
+  // Web Push (crm-service, design 7b transport). vapidKey → browser subscribe; subscribe/
+  // unsubscribe register a device endpoint (DELETE takes { endpoint } in the body).
+  push: {
+    vapidKey: '/crm/api/v1/push/vapid-public-key',
+    subscribe: '/crm/api/v1/push/subscriptions',
+    unsubscribe: '/crm/api/v1/push/subscriptions',
   },
   // Depot broadcasts (design 8a). Courier lists their depot's announcements + marks read;
   // depot ops (depotBroadcast cap) posts via POST.
@@ -664,6 +670,36 @@ export const endpoints = {
     withdraw: '/payout/api/v1/courier/withdrawals',
     withdrawals: '/payout/api/v1/courier/withdrawals',
     expenses: '/payout/api/v1/courier/expenses',
+  },
+  // Courier earning-rule editor (payout-service, design 6b; FINANCE/SUPER_ADMIN). GET lists
+  // every rule, POST applies a new effective-dated one.
+  earningRules: {
+    list: '/payout/api/v1/courier-earning-rules',
+    apply: '/payout/api/v1/courier-earning-rules',
+  },
+  // Courier expense-claim approvals (payout-service, design 6a; expenseApprove cap).
+  expenseApprovals: {
+    list: (q: { depotId?: string; status?: string; page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.status) p.set('status', q.status);
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/payout/api/v1/expenses${qs ? `?${qs}` : ''}`;
+    },
+    approve: (id: string) => `/payout/api/v1/expenses/${id}/approve`,
+    reject: (id: string) => `/payout/api/v1/expenses/${id}/reject`,
+  },
+  // Courier COD settlement verification (delivery-service, design 2d/6a; courierSettle cap).
+  settlements: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/deliveries/api/v1/settlements?${p}`;
+    },
+    verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
+    dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
   },
   // HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
   // propose is depot-manager (under the depots segment).

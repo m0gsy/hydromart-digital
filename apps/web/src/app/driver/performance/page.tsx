@@ -111,6 +111,13 @@ function Body({ p }: { p: CourierPerformance }) {
             <span className="text-3xl font-extrabold tabular-nums">#{p.rank}</span>
             <span className="text-sm opacity-85">dari {p.depotCouriers} kurir</span>
           </div>
+          {p.rankPrev !== null && p.rankPrev !== p.rank && (
+            <div className="mt-1 text-xs font-bold opacity-90">
+              {p.rankPrev > p.rank
+                ? `↑ naik ${p.rankPrev - p.rank} peringkat dari minggu lalu`
+                : `↓ turun ${p.rank - p.rankPrev} peringkat dari minggu lalu`}
+            </div>
+          )}
         </Card>
       )}
 

@@ -384,6 +384,8 @@ export interface NotificationPreferences {
   push: boolean;
   email: boolean;
   whatsapp: boolean;
+  /** Per-app fine-grained category mutes (design 7b). Empty = all on. */
+  categories: Record<string, boolean>;
 }
 
 export type NotificationEvent =
@@ -959,6 +961,7 @@ export interface CourierPerformance {
   rating: number | null;
   ratingPrev: number | null;
   rank: number | null;
+  rankPrev: number | null;
   depotCouriers: number;
   target: number;
   targetMet: boolean;
@@ -983,6 +986,19 @@ export interface ExpenseClaim {
   ledgerEntryId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Courier earning rule (payout-service, design 6b). Effective-dated; depotId null = network default.
+export interface CourierEarningRule {
+  id: string;
+  depotId: string | null;
+  baseFare: number;
+  peakBonus: number;
+  onTimeBonus: number;
+  peakStartHour: number;
+  peakEndHour: number;
+  effectiveDate: string;
+  createdAt: string;
 }
 
 // Courier field incident (delivery-service, design 4b). HIGH alerts ops.

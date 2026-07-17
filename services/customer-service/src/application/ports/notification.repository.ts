@@ -3,6 +3,8 @@ export interface NotificationPreferenceRecord {
   push: boolean;
   email: boolean;
   whatsapp: boolean;
+  /** Per-app fine-grained category mutes (design 7b). Empty = all on. */
+  categories: Record<string, boolean>;
 }
 
 export interface NotificationPreferenceRepository {
