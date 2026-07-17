@@ -187,7 +187,8 @@ async function depotRoutedLoop(staff) {
   ok(checkout, 'dr: checkout');
   const order = checkout.body;
   assert(order.depotId === depot.id, `dr: routed to ${order.depotId}, expected ${depot.id}`);
-  assert(order.deliveryFee === 7000, `dr: per-depot fee ${order.deliveryFee} != 7000 (flat is 5000)`);
+  // Delivery fee is per-galon (perUnitFee 7000 x 2 galons ordered), not flat.
+  assert(order.deliveryFee === 7000 * 2, `dr: per-depot fee ${order.deliveryFee} != ${7000 * 2} (7000/galon x 2)`);
   const subtotal = basePrice * 2;
   assert(order.subtotal === subtotal, `dr: subtotal ${order.subtotal} != ${subtotal}`);
   assert(order.total === subtotal + order.deliveryFee - order.discount, `dr: total ${order.total} mismatch`);
