@@ -34,6 +34,7 @@ import {
 import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
 import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
 import {
+  CashVarianceChargedEvent,
   CourierPayoutPort,
   DeliveryCompletedEvent,
 } from '../../src/application/ports/courier-payout.port';
@@ -428,8 +429,12 @@ export class InMemorySettlementRepository implements SettlementRepository {
 
 export class FakeCourierPayout implements CourierPayoutPort {
   events: DeliveryCompletedEvent[] = [];
+  variances: CashVarianceChargedEvent[] = [];
   async deliveryCompleted(event: DeliveryCompletedEvent): Promise<void> {
     this.events.push(event);
+  }
+  async cashVarianceCharged(event: CashVarianceChargedEvent): Promise<void> {
+    this.variances.push(event);
   }
 }
 

@@ -11,6 +11,7 @@ import {
 import { SettlementStatus, canResolve, computeVariance, isShortfall } from '../../domain/settlement';
 import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
+import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DeliveryRepository } from '../ports/delivery.repository';
 import { SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
@@ -32,6 +33,7 @@ export class SettlementService {
     @Inject(DELIVERY_TOKENS.ShiftRepository) private readonly shifts: ShiftRepository,
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
     @Inject(DELIVERY_TOKENS.CashCollection) private readonly cash: CashCollectionPort,
+    @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
   ) {}
 
   /**
@@ -94,13 +96,24 @@ export class SettlementService {
     // Only a genuine shortfall can be charged; an exact or over deposit never is.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
     this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=${charged})`);
-    return this.settlements.resolve(id, {
+    const resolved = await this.settlements.resolve(id, {
       status: SettlementStatus.VERIFIED,
       chargedToDriver: charged,
       note: input.note ?? null,
       verifiedBy: actorId,
       verifiedAt: new Date(),
     });
+    // Debit the courier's payout ledger for the shortfall (design 2d→2c). Fire-and-forget,
+    // fail-open + idempotent by settlement id — the charge is already persisted here.
+    if (charged) {
+      void this.payout.cashVarianceCharged({
+        courierId: resolved.driverId,
+        depotId: resolved.depotId,
+        settlementId: resolved.id,
+        amount: Math.abs(resolved.variance),
+      });
+    }
+    return resolved;
   }
 
   /** Cashier disputes the deposit (design 6a): parks it for offline resolution. */

@@ -135,6 +135,28 @@ describe('CourierPayoutService', () => {
     expect(summary.recentEntries).toHaveLength(2);
   });
 
+  describe('recordCashVariance', () => {
+    const variance = (settlementId: string, amount: number) => ({
+      courierId: COURIER,
+      depotId: null,
+      settlementId,
+      amount,
+    });
+
+    it('posts a negative CASH_VARIANCE debit for a shortfall', async () => {
+      const entry = await service.recordCashVariance(variance('s1', 15000));
+      expect(entry.type).toBe('CASH_VARIANCE');
+      expect(entry.amount).toBe(-15000);
+      expect(await ledger.balanceFor(COURIER)).toBe(-15000);
+    });
+
+    it('is idempotent per settlement id', async () => {
+      await service.recordCashVariance(variance('s2', 15000));
+      await service.recordCashVariance(variance('s2', 15000));
+      expect(ledger.entries).toHaveLength(1);
+    });
+  });
+
   describe('requestWithdrawal', () => {
     it('rejects a non-positive amount', async () => {
       await expect(service.requestWithdrawal(COURIER, 0, 'BCA')).rejects.toBeInstanceOf(

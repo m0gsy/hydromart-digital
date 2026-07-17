@@ -28,7 +28,11 @@ import { CourierLedgerEntryRecord } from '../application/ports/courier-ledger.re
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
-import { CourierLedgerQueryDto, DeliveryCompletedEventDto } from './dto/courier-payout.dto';
+import {
+  CashVarianceEventDto,
+  CourierLedgerQueryDto,
+  DeliveryCompletedEventDto,
+} from './dto/courier-payout.dto';
 import { ExpenseQueryDto, SubmitExpenseDto } from './dto/expense-claim.dto';
 import { RequestWithdrawalDto } from './dto/payout.dto';
 
@@ -115,6 +119,24 @@ export class CourierPayoutController {
       deliveryId: dto.deliveryId,
       deliveredAt: dto.deliveredAt,
       onTime: dto.onTime,
+    });
+    return { recorded: entry !== null };
+  }
+
+  // System-triggered: delivery-service posts a COD deposit shortfall charged at settlement
+  // verify (design 2d). Same internal-key auth; idempotent by settlementId.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('ledger/variance/internal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Debit a courier for a COD deposit shortfall (internal service auth)' })
+  async recordVariance(@Body() dto: CashVarianceEventDto): Promise<{ recorded: boolean }> {
+    const entry = await this.payout.recordCashVariance({
+      courierId: dto.courierId,
+      depotId: dto.depotId ?? null,
+      settlementId: dto.settlementId,
+      amount: dto.amount,
     });
     return { recorded: entry !== null };
   }

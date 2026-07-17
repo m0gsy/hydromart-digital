@@ -14,6 +14,7 @@ import { ShiftStatus } from '../../src/domain/shift';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import {
   FakeCashCollection,
+  FakeCourierPayout,
   InMemoryDeliveryRepository,
   InMemorySettlementRepository,
   InMemoryShiftRepository,
@@ -27,6 +28,7 @@ describe('SettlementService', () => {
   let shiftRepo: InMemoryShiftRepository;
   let deliveryRepo: InMemoryDeliveryRepository;
   let cash: FakeCashCollection;
+  let payout: FakeCourierPayout;
   let service: SettlementService;
   const driver = randomUUID();
 
@@ -35,7 +37,8 @@ describe('SettlementService', () => {
     shiftRepo = new InMemoryShiftRepository();
     deliveryRepo = new InMemoryDeliveryRepository();
     cash = new FakeCashCollection();
-    service = new SettlementService(settlementRepo, shiftRepo, deliveryRepo, cash);
+    payout = new FakeCourierPayout();
+    service = new SettlementService(settlementRepo, shiftRepo, deliveryRepo, cash, payout);
   });
 
   // An ended shift with a window wide enough to hold every delivery made in the test.
@@ -141,12 +144,17 @@ describe('SettlementService', () => {
       expect(verified.status).toBe(SettlementStatus.VERIFIED);
       expect(verified.chargedToDriver).toBe(true);
       expect(verified.verifiedBy).not.toBeNull();
+      // The shortfall is pushed to payout as a positive magnitude keyed by settlement id.
+      expect(payout.variances).toEqual([
+        expect.objectContaining({ courierId: driver, settlementId: s.id, amount: 15000 }),
+      ]);
     });
 
     it('never charges when the deposit covers the expected total', async () => {
       const s = await submit(75000, 75000); // variance 0
       const verified = await service.verify(randomUUID(), s.id, { chargedToDriver: true });
       expect(verified.chargedToDriver).toBe(false);
+      expect(payout.variances).toHaveLength(0);
     });
 
     it('rejects verifying an already-resolved settlement', async () => {

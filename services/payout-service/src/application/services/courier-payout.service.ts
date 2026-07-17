@@ -84,6 +84,34 @@ export class CourierPayoutService {
     return entry;
   }
 
+  /**
+   * Records a COD deposit shortfall as a debit on the courier's ledger (design 2d, slice
+   * 13). Idempotent by settlement id: a retried verify posts nothing new. Amount is the
+   * positive shortfall magnitude; stored as a negative CASH_VARIANCE entry.
+   */
+  async recordCashVariance(event: {
+    courierId: string;
+    depotId: string | null;
+    settlementId: string;
+    amount: number;
+  }): Promise<CourierLedgerEntryRecord> {
+    const sourceRef = `variance:${event.settlementId}`;
+    const existing = await this.ledger.findBySourceRef(sourceRef);
+    if (existing) return existing;
+    const entry = await this.ledger.create({
+      courierId: event.courierId,
+      depotId: event.depotId,
+      type: 'CASH_VARIANCE',
+      amount: -Math.abs(event.amount),
+      description: 'Selisih kurang setoran COD',
+      sourceRef,
+    });
+    this.logger.log(
+      `Courier ${event.courierId} charged ${event.amount} for settlement ${event.settlementId}`,
+    );
+    return entry;
+  }
+
   async summary(courierId: string): Promise<CourierEarningsSummary> {
     const monthStart = startOfMonth(new Date());
     const [availableBalance, monthEarnings, recent, recentWithdrawals] = await Promise.all([
