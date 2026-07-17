@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Rebuild service images in SMALL SERIAL batches so the 58G Lite VPS never hits
-# ENOSPC/OOM. `docker compose up --build` of all services builds them CONCURRENTLY
-# — each bakes the full monorepo node_modules, so parallel builds spike RAM (OOM)
-# and pile up orphan layers (ENOSPC). This builds a few at a time, prunes between
-# batches (docker-gc.sh), then starts them.
+# Rebuild service images in SMALL SERIAL batches so the VPS never hits ENOSPC/OOM.
+# `docker compose up --build` of all services builds them CONCURRENTLY — each bakes
+# the full monorepo node_modules, so parallel builds spike RAM (OOM) and pile up
+# orphan layers (ENOSPC). This builds a few at a time, prunes between batches
+# (docker-gc.sh), then starts them.
 #
 # Usage:
 #   bash scripts/rebuild-stale.sh                 # rebuild the known-stale set
 #   bash scripts/rebuild-stale.sh crm payout      # rebuild only these
 #   BATCH=1 bash scripts/rebuild-stale.sh         # one image at a time (tightest disk/RAM)
+#   BATCH=6 bash scripts/rebuild-stale.sh         # more parallelism (bigger VPS)
 #
 # Safe to re-run: it only builds + `up -d` the named services; volumes untouched.
 set -euo pipefail
@@ -16,7 +17,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
-BATCH="${BATCH:-2}"
+# ponytail: 4 fits the current 16GB/8vCPU VPS (a build peaks ~1.5GB). Lower it to
+# 1-2 if the host is ever downsized again.
+BATCH="${BATCH:-4}"
 
 # Services still on old images (current as of the last deploy: auth product order
 # payment delivery depot gateway web were already rebuilt). Override via args.
