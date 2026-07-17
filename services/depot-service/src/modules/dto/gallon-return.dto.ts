@@ -45,6 +45,39 @@ export class CreateGallonReturnDto {
   note?: string;
 }
 
+/** Courier handover return (design 2e). No deposit field — it is derived server-side. */
+export class CreateCourierReturnDto {
+  @ApiProperty({ format: 'uuid', description: "Depot the courier's delivery belongs to." })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'Order the empties were collected against.' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Customer returning the empties.' })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiProperty({ example: 2, description: 'Number of empty gallons handed back.' })
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  quantity!: number;
+
+  @ApiPropertyOptional({ enum: GallonCondition, default: GallonCondition.GOOD })
+  @IsOptional()
+  @IsEnum(GallonCondition)
+  condition?: GallonCondition;
+
+  @ApiPropertyOptional({ example: 'Galon retak' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string;
+}
+
 export class ListReturnsQueryDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

@@ -162,6 +162,11 @@ export const endpoints = {
       list: '/deliveries/api/v1/driver/incidents',
       create: '/deliveries/api/v1/driver/incidents',
     },
+    // Courier empty-gallon return at handover (design 2e, depot-service). Deposit refund
+    // is derived server-side (GALLON_DEPOSIT_IDR × qty) — the client never sends an amount.
+    gallonReturns: {
+      create: '/depots/api/v1/driver/gallon-returns',
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',

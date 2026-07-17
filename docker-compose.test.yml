@@ -156,6 +156,7 @@ services:
       DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
       DEPOT_ALERT_PHONE: ""
+      GALLON_DEPOSIT_IDR: 20000
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3007/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

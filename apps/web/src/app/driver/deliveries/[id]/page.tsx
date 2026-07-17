@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeft, Check, Coins, NavigationArrow, Phone, SealCheck, Truck } from '@phosphor-icons/react';
+import { ArrowLeft, Check, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { PodCapture } from '@/components/driver/pod-capture';
@@ -129,6 +129,14 @@ function Detail() {
             >
               <Coins size={18} weight="fill" className="text-brand-700" />
               Terima pembayaran tunai (COD)
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/driver/deliveries/${id}/returns`)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold"
+            >
+              <Recycle size={18} weight="fill" className="text-brand-700" />
+              Retur galon kosong
             </button>
             <Button className="flex w-full items-center justify-center gap-2" onClick={() => setCapturing(true)}>
               <SealCheck size={19} weight="fill" />

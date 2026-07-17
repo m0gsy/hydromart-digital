@@ -103,17 +103,22 @@ model GallonReturn {
   depot           Depot           @relation(fields: [depotId], references: [id], onDelete: Cascade)
   /// Customer who returned the empties (optional — walk-ins may be anonymous).
   customerId      String?         @db.Uuid
+  /// Order the return happened against (set when a courier records it at delivery
+  /// handover, design 2e; null for a walk-in counter return).
+  orderId         String?         @db.Uuid
   /// Number of empty gallons handed back.
   quantity        Int
   condition       GallonCondition @default(GOOD)
   /// Deposit refunded to the customer in IDR (0 = no deposit / store credit).
+  /// Courier-recorded returns derive this server-side (GALLON_DEPOSIT_IDR × quantity).
   depositRefunded Decimal         @db.Decimal(12, 2) @default(0)
   note            String?
-  /// Staff member who recorded the return.
+  /// Staff member (or courier) who recorded the return.
   actorId         String
   createdAt       DateTime        @default(now())
 
   @@index([depotId, createdAt])
+  @@index([orderId])
   @@map("gallon_returns")
 }
 
