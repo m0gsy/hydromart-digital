@@ -9,4 +9,6 @@ export const DEPOT_TOKENS = {
   PriceOverrideProposalRepository: Symbol('PriceOverrideProposalRepository'),
   IncidentRepository: Symbol('IncidentRepository'),
   ApprovalRepository: Symbol('ApprovalRepository'),
+  SupplierRepository: Symbol('SupplierRepository'),
+  PurchaseOrderRepository: Symbol('PurchaseOrderRepository'),
 } as const;

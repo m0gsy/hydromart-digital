@@ -454,6 +454,39 @@ export class InventoryService {
     return { orderId, depotId, consumed, skipped };
   }
 
+  /**
+   * Procurement goods-receipt: append a RECEIPT movement of `quantity` to the depot's
+   * raw stock line for `itemType` (Air/Galon/Tutup/Segel singleton, productId null).
+   * Called in-process by PurchaseOrderService.receive — a direct method call, no HTTP.
+   * Throws InventoryItemNotFoundError if the depot has no such line; the caller receives
+   * best-effort, so a missing line does not fail the whole PO.
+   * ponytail: targets the raw singleton line only. A PRODUK line needs a productId a PO
+   * line does not carry — give PoLine a productId if PRODUK procurement must land too.
+   */
+  async receiveStock(
+    depotId: string,
+    itemType: InventoryItemType,
+    quantity: number,
+    actorId: string,
+    reason: string,
+  ): Promise<ItemView> {
+    const line = await this.inventory.findLine(depotId, itemType, null);
+    if (!line) {
+      throw new InventoryItemNotFoundError();
+    }
+    const next = line.quantity + quantity;
+    const updated = await this.inventory.applyMovement(line.id, next, {
+      itemId: line.id,
+      type: StockMovementType.RECEIPT,
+      delta: quantity,
+      quantityBefore: line.quantity,
+      quantityAfter: next,
+      reason,
+      actorId,
+    });
+    return this.toView(updated);
+  }
+
   async movements(itemId: string): Promise<StockMovementRecord[]> {
     await this.require(itemId);
     return this.inventory.listMovements(itemId);

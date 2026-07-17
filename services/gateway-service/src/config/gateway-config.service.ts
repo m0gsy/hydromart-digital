@@ -29,6 +29,9 @@ const SEGMENT_ENV: Record<string, string> = {
   forecast: 'FORECAST_SERVICE_URL',
   payout: 'PAYOUT_SERVICE_URL',
   admin: 'ADMIN_SERVICE_URL',
+  // Depot procurement: purchase orders + supplier directory (depot-service, design 7a/9d/11b).
+  // Own public segment; reuses the depot-service upstream (no new env var).
+  procurement: 'DEPOT_SERVICE_URL',
 };
 
 @Injectable()

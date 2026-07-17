@@ -1123,6 +1123,43 @@ export interface StockMovement {
   createdAt: string;
 }
 
+// Procurement — supplier directory + purchase orders (depot-service, design 7a/9d/11b).
+export interface Supplier {
+  id: string;
+  depotId: string;
+  name: string;
+  code: string;
+  contactPhone: string | null;
+  categories: string[];
+  onTimeRate: number | null;
+  createdAt: string;
+}
+
+export type PoStatus = 'DRAFT' | 'SENT' | 'RECEIVED';
+
+export interface PoLine {
+  itemType: InventoryItemType;
+  label: string;
+  quantity: number;
+  unitCostIdr: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  depotId: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName: string;
+  status: PoStatus;
+  lines: PoLine[];
+  subtotalIdr: number;
+  shippingIdr: number;
+  totalIdr: number;
+  expectedAt: string | null;
+  receivedAt: string | null;
+  createdAt: string;
+}
+
 // Per-depot resolved price for one product (depot-service resolvePrices, 11a).
 // Both fields optional: override-only, rule-only, or both. Neither = catalog base.
 export interface ResolvedPrice {

@@ -37,6 +37,14 @@ import {
   PendingCounts,
   UpdateApprovalData,
 } from '../../src/application/ports/approval.repository';
+import { Supplier } from '../../src/domain/supplier';
+import { CreateSupplierData, SupplierRepository } from '../../src/application/ports/supplier.repository';
+import { PoStatus, PurchaseOrder } from '../../src/domain/purchase-order';
+import {
+  CreatePurchaseOrderData,
+  PurchaseOrderRepository,
+  UpdatePurchaseOrderData,
+} from '../../src/application/ports/purchase-order.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -311,6 +319,61 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
       if (r.depotId === depotId && r.status === ApprovalStatus.PENDING) counts[r.type] += 1;
     }
     return counts;
+  }
+}
+
+export class InMemorySupplierRepository implements SupplierRepository {
+  rows: Supplier[] = [];
+
+  async create(data: CreateSupplierData): Promise<Supplier> {
+    const row: Supplier = { id: randomUUID(), ...data, createdAt: nextDate() };
+    this.rows.push(row);
+    return { ...row };
+  }
+  async listForDepot(depotId: string): Promise<Supplier[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r }));
+  }
+  async findById(id: string): Promise<Supplier | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async findByCode(depotId: string, code: string): Promise<Supplier | null> {
+    const r = this.rows.find((x) => x.depotId === depotId && x.code === code);
+    return r ? { ...r } : null;
+  }
+}
+
+export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository {
+  rows: PurchaseOrder[] = [];
+
+  async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {
+    const row: PurchaseOrder = {
+      id: randomUUID(),
+      ...data,
+      status: PoStatus.DRAFT,
+      receivedAt: null,
+      createdAt: nextDate(),
+    };
+    this.rows.push(row);
+    return { ...row };
+  }
+  async listForDepot(depotId: string, status?: PoStatus): Promise<PurchaseOrder[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && (!status || r.status === status))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r }));
+  }
+  async findById(id: string): Promise<PurchaseOrder | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder> {
+    const rec = this.rows.find((x) => x.id === id)!;
+    Object.assign(rec, data);
+    return { ...rec };
   }
 }
 

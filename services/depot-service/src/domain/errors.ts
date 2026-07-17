@@ -118,6 +118,39 @@ export class ApprovalAlreadyDecidedError extends DomainError {
   }
 }
 
+export class SupplierNotFoundError extends DomainError {
+  readonly code = 'SUPPLIER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Supplier not found.');
+  }
+}
+
+export class DuplicateSupplierCodeError extends DomainError {
+  readonly code = 'SUPPLIER_CODE_TAKEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('A supplier with this code already exists at this depot.');
+  }
+}
+
+export class PurchaseOrderNotFoundError extends DomainError {
+  readonly code = 'PURCHASE_ORDER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Purchase order not found.');
+  }
+}
+
+/** send/receive attempted from a status that does not allow it (DRAFT→SENT→RECEIVED only). */
+export class InvalidPurchaseOrderTransitionError extends DomainError {
+  readonly code = 'PURCHASE_ORDER_INVALID_TRANSITION';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(message = 'This purchase order cannot make that transition.') {
+    super(message);
+  }
+}
+
 export class PriceOverrideProposalNotFoundError extends DomainError {
   readonly code = 'PRICE_OVERRIDE_PROPOSAL_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

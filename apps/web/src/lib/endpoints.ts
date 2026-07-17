@@ -783,6 +783,27 @@ export const endpoints = {
       return `/auth/api/v1/auth/customers/count${qs ? `?${qs}` : ''}`;
     },
   },
+  // Depot procurement — suppliers + purchase orders (depot-service, design 7a/9d/11b).
+  // Own gateway segment (proxied to depot-service). depotId scopes lists; status filters POs.
+  procurement: {
+    suppliers: {
+      list: (depotId: string) =>
+        `/procurement/api/v1/suppliers?depotId=${encodeURIComponent(depotId)}`,
+      detail: (id: string) => `/procurement/api/v1/suppliers/${id}`,
+      create: '/procurement/api/v1/suppliers',
+    },
+    purchaseOrders: {
+      list: (q: { depotId: string; status?: string }) => {
+        const p = new URLSearchParams({ depotId: q.depotId });
+        if (q.status) p.set('status', q.status);
+        return `/procurement/api/v1/purchase-orders?${p}`;
+      },
+      detail: (id: string) => `/procurement/api/v1/purchase-orders/${id}`,
+      create: '/procurement/api/v1/purchase-orders',
+      send: (id: string) => `/procurement/api/v1/purchase-orders/${id}/send`,
+      receive: (id: string) => `/procurement/api/v1/purchase-orders/${id}/receive`,
+    },
+  },
   // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).
   depotCrm: {
     list: (depotId: string, q?: string) => {

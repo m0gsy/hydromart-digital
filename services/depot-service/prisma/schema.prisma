@@ -370,6 +370,59 @@ model Incident {
   @@map("incidents")
 }
 
+/// Purchase-order lifecycle (design 7a/9d): drafted → sent to supplier → goods received.
+enum PoStatus {
+  DRAFT
+  SENT
+  RECEIVED
+}
+
+/// A depot's supplier directory entry (design 11b): a vendor of raw stock
+/// (galon/segel/air baku). categories is a free-text list, e.g. ["Galon 19L","Segel"].
+model Supplier {
+  id           String   @id @default(uuid()) @db.Uuid
+  depotId      String   @db.Uuid
+  name         String
+  /// Short human code, unique within a depot.
+  code         String
+  contactPhone String?
+  /// What they supply, e.g. ["Galon 19L","Segel","Air baku"].
+  categories   String[]
+  /// On-time delivery rate 0..1; null until enough POs land (denormalized metric).
+  onTimeRate   Float?
+  createdAt    DateTime @default(now())
+
+  @@unique([depotId, code])
+  @@index([depotId])
+  @@map("suppliers")
+}
+
+/// A depot purchase order (design 7a/9d). `lines` is a JSON array of
+/// { itemType, label, quantity, unitCostIdr }. Receiving a SENT PO posts a RECEIPT stock
+/// movement per line into the depot's inventory. supplierName is a denormalized snapshot
+/// so list/detail render without a supplier join.
+model PurchaseOrder {
+  id           String    @id @default(uuid()) @db.Uuid
+  depotId      String    @db.Uuid
+  /// Human PO reference, unique within a depot (e.g. "PO-A1B2C3D4").
+  poNumber     String
+  supplierId   String    @db.Uuid
+  supplierName String
+  status       PoStatus  @default(DRAFT)
+  lines        Json      @default("[]")
+  /// Whole IDR. subtotal = Σ(qty×unitCost); total = subtotal + shipping.
+  subtotalIdr  Int
+  shippingIdr  Int       @default(0)
+  totalIdr     Int
+  expectedAt   DateTime?
+  receivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([depotId, poNumber])
+  @@index([depotId, status, createdAt])
+  @@map("purchase_orders")
+}
+
 /// Kind of manager approval item (design 1c/2a-2c/10c/12a).
 enum ApprovalType {
   OPNAME_VARIANCE
