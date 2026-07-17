@@ -885,6 +885,29 @@ export interface Shift {
   acceptsAssignments: boolean;
 }
 
+// Courier end-of-shift COD settlement (delivery-service, design 2d/9a).
+export type SettlementStatus = 'SUBMITTED' | 'VERIFIED' | 'DISPUTED';
+
+export interface CashSettlement {
+  id: string;
+  shiftId: string;
+  driverId: string;
+  depotId: string;
+  status: SettlementStatus;
+  orderIds: string[];
+  // Whole IDR. Expected is the PAID-cash total snapshotted at submit.
+  expectedAmount: number;
+  depositedAmount: number;
+  // depositedAmount - expectedAmount. Negative = shortfall (courier owes).
+  variance: number;
+  chargedToDriver: boolean;
+  note: string | null;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Courier field incident (delivery-service, design 4b). HIGH alerts ops.
 // Named Courier* to avoid the HQ admin IncidentSeverity below.
 export type CourierIncidentCategory =

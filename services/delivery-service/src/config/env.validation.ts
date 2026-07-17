@@ -15,6 +15,8 @@ export const envValidationSchema = Joi.object({
   ORDER_SERVICE_URL: Joi.string().uri().required(),
   // Read for the depot's coordinates when a courier checks in (GET /depots/:id is public).
   DEPOT_SERVICE_URL: Joi.string().uri().required(),
+  // Read for the PAID-cash total when a courier settles a shift's COD (fail-closed).
+  PAYMENT_SERVICE_URL: Joi.string().uri().required(),
   // crm-service base URL for pushing HIGH field incidents to the ops feed (design 4b).
   // Blank = incident ops alerting disabled (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),

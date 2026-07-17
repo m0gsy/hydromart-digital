@@ -24,6 +24,10 @@ export class DeliveryConfigService {
   get depotServiceUrl(): string {
     return this.config.getOrThrow<string>('DEPOT_SERVICE_URL').replace(/\/+$/, '');
   }
+  /** payment-service base URL for the COD cash-collected read (settlement, fail-closed). */
+  get paymentServiceUrl(): string {
+    return this.config.getOrThrow<string>('PAYMENT_SERVICE_URL').replace(/\/+$/, '');
+  }
   /** crm-service base URL for the internal ops-incident push. Blank = disabled. */
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');

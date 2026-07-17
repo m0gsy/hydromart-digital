@@ -119,6 +119,50 @@ export class NoShowNotEligibleError extends DomainError {
   }
 }
 
+/** Settlement was attempted on a shift that has not been checked out yet. */
+export class ShiftNotEndedError extends DomainError {
+  readonly code = 'SHIFT_NOT_ENDED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Check out of the shift before settling its cash.');
+  }
+}
+
+/** A shift already has a cash settlement (one per shift). */
+export class SettlementAlreadyExistsError extends DomainError {
+  readonly code = 'SETTLEMENT_ALREADY_EXISTS';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This shift has already been settled.');
+  }
+}
+
+export class SettlementNotFoundError extends DomainError {
+  readonly code = 'SETTLEMENT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Settlement not found.');
+  }
+}
+
+/** Verify/dispute was attempted on a settlement that is no longer awaiting a ruling. */
+export class SettlementNotSubmittedError extends DomainError {
+  readonly code = 'SETTLEMENT_NOT_SUBMITTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This settlement has already been resolved.');
+  }
+}
+
+/** The PAID-cash total could not be read from payment-service — fail closed (money). */
+export class SettlementSyncError extends DomainError {
+  readonly code = 'SETTLEMENT_SYNC_FAILED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Could not compute the expected cash total. Please try again.');
+  }
+}
+
 /** The depot could not be read, so check-in location cannot be verified. */
 export class DepotLookupError extends DomainError {
   readonly code = 'SHIFT_DEPOT_LOOKUP_FAILED';

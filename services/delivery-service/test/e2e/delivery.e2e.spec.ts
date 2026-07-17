@@ -54,6 +54,7 @@ describe('Delivery HTTP flows (e2e)', () => {
               JWT_ACCESS_SECRET: SECRET,
               ORDER_SERVICE_URL: 'http://localhost:3004',
               DEPOT_SERVICE_URL: 'http://localhost:3007',
+              PAYMENT_SERVICE_URL: 'http://localhost:3005',
               MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1,
               SHIFT_CHECKIN_RADIUS_M: 200,
               SHIFT_LENGTH_HOURS: 8,

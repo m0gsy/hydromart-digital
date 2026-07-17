@@ -160,6 +160,8 @@ services:
       DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public
       ORDER_SERVICE_URL: http://order:3004
       DEPOT_SERVICE_URL: http://depot:3007
+      # PAID-cash total for COD settlement (design 2d, fail-closed).
+      PAYMENT_SERVICE_URL: http://payment:3005
       # HIGH field incidents (4b) push to the ops feed via crm; reuses DEPOT_ALERT_PHONE.
       CRM_SERVICE_URL: http://crm:3012
       OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}

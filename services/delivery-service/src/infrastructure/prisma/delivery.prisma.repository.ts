@@ -190,6 +190,18 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return { items: rows.map((r) => this.toRecord(r)), total };
   }
 
+  async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
+    const rows = await this.prisma.delivery.findMany({
+      where: {
+        driverId,
+        status: DeliveryStatus.DELIVERED,
+        deliveredAt: { gte: from, lte: to },
+      },
+      select: { orderId: true },
+    });
+    return rows.map((r) => r.orderId);
+  }
+
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
     const row = await this.prisma.delivery.update({
       where: { id },

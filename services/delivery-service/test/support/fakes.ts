@@ -32,6 +32,15 @@ import {
   IncidentRepository,
 } from '../../src/application/ports/incident.repository';
 import { OpsIncidentAlert, OpsNotifierPort } from '../../src/application/ports/ops-notifier.port';
+import { CashCollected, CashCollectionPort } from '../../src/application/ports/cash-collection.port';
+import {
+  CreateSettlementData,
+  ResolveSettlementPatch,
+  SettlementQuery,
+  SettlementRecord,
+  SettlementRepository,
+} from '../../src/application/ports/settlement.repository';
+import { SettlementStatus } from '../../src/domain/settlement';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -124,6 +133,18 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       items: all.slice(start, start + query.limit).map((r) => clone(r)),
       total: all.length,
     };
+  }
+  async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
+    return this.rows
+      .filter(
+        (r) =>
+          r.driverId === driverId &&
+          r.status === DeliveryStatus.DELIVERED &&
+          r.deliveredAt !== null &&
+          r.deliveredAt.getTime() >= from.getTime() &&
+          r.deliveredAt.getTime() <= to.getTime(),
+      )
+      .map((r) => r.orderId);
   }
   async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
     const row = this.rows.find((r) => r.id === id)!;
@@ -329,6 +350,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
     ORDER_SERVICE_URL: 'http://localhost:3004',
     DEPOT_SERVICE_URL: 'http://localhost:3007',
+    PAYMENT_SERVICE_URL: 'http://localhost:3005',
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
     SHIFT_CHECKIN_RADIUS_M: '200',
     SHIFT_LENGTH_HOURS: '8',
@@ -350,4 +372,66 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     },
   };
   return new DeliveryConfigService(fake as unknown as ConfigService);
+}
+
+export class InMemorySettlementRepository implements SettlementRepository {
+  rows: SettlementRecord[] = [];
+
+  async create(data: CreateSettlementData): Promise<SettlementRecord> {
+    const now = nextDate();
+    const rec: SettlementRecord = {
+      ...data,
+      id: randomUUID(),
+      status: SettlementStatus.SUBMITTED,
+      chargedToDriver: false,
+      note: null,
+      verifiedBy: null,
+      verifiedAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.rows.push(rec);
+    return clone(rec);
+  }
+  async findById(id: string): Promise<SettlementRecord | null> {
+    const row = this.rows.find((r) => r.id === id);
+    return row ? clone(row) : null;
+  }
+  async findByShift(shiftId: string): Promise<SettlementRecord | null> {
+    const row = this.rows.find((r) => r.shiftId === shiftId);
+    return row ? clone(row) : null;
+  }
+  async listByDriver(driverId: string, limit: number): Promise<SettlementRecord[]> {
+    return this.rows
+      .filter((r) => r.driverId === driverId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit)
+      .map((r) => clone(r));
+  }
+  async search(query: SettlementQuery): Promise<SettlementRecord[]> {
+    return this.rows
+      .filter((r) => r.depotId === query.depotId)
+      .filter((r) => !query.status || r.status === query.status)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => clone(r));
+  }
+  async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, patch, { updatedAt: nextDate() });
+    return clone(row);
+  }
+}
+
+export class FakeCashCollection implements CashCollectionPort {
+  throwOnRead = false;
+  result: CashCollected = { total: 0, count: 0 };
+  calls: { orderIds: string[]; authorization: string }[] = [];
+
+  async sumCollected(orderIds: string[], authorization: string): Promise<CashCollected> {
+    this.calls.push({ orderIds, authorization });
+    if (this.throwOnRead) {
+      throw new Error('payment-service down');
+    }
+    return this.result;
+  }
 }

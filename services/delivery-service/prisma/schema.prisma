@@ -40,6 +40,14 @@ enum ShiftStatus {
   ENDED
 }
 
+/// Lifecycle of a courier's end-of-shift COD deposit (design 2d). SUBMITTED once
+/// the courier hands cash to the cashier; the cashier then VERIFIED or DISPUTED it.
+enum SettlementStatus {
+  SUBMITTED
+  VERIFIED
+  DISPUTED
+}
+
 /// What a courier reports from the field (design 4b).
 enum IncidentCategory {
   ACCIDENT
@@ -136,6 +144,41 @@ model Delivery {
   @@index([status])
   @@index([depotId])
   @@map("deliveries")
+}
+
+/// A courier's end-of-shift cash-on-delivery deposit (design 2d/9a). Computed over
+/// exactly one ended shift: expectedAmount is snapshotted from payment-service at
+/// submit time (source of truth for "how much"), so a later refund cannot silently
+/// move the debt the courier settled against. The cashier verifies or disputes it.
+model CashSettlement {
+  id       String           @id @default(uuid()) @db.Uuid
+  shiftId  String           @unique @db.Uuid
+  driverId String           @db.Uuid
+  depotId  String           @db.Uuid
+  status   SettlementStatus @default(SUBMITTED)
+
+  /// COD orders counted in this settlement (DELIVERED within the shift window).
+  orderIds String[] @db.Uuid
+  /// Snapshot of the PAID cash total over orderIds at submit time (whole IDR).
+  expectedAmount  Int
+  /// Cash the courier actually handed the cashier (whole IDR).
+  depositedAmount Int
+  /// depositedAmount - expectedAmount. Negative = shortfall (courier owes).
+  variance Int
+  /// The cashier's call on a shortfall: whether it is charged to the courier
+  /// (pushed to payout as CASH_VARIANCE in slice 13). Only meaningful once VERIFIED.
+  chargedToDriver Boolean @default(false)
+  note            String?
+
+  verifiedBy String?   @db.Uuid
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([depotId, status])
+  @@index([driverId, createdAt])
+  @@map("cash_settlements")
 }
 
 /// Mandatory proof captured at completion: photo, GPS, timestamp, signature

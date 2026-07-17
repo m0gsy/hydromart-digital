@@ -132,6 +132,7 @@ services:
       STORAGE_PUBLIC_BASE_URL: http://storage.test/pod
       ORDER_SERVICE_URL: http://order:3004
       DEPOT_SERVICE_URL: http://depot:3007
+      PAYMENT_SERVICE_URL: http://payment:3005
       CRM_SERVICE_URL: http://crm:3012
       OPS_ALERT_PHONE: ""
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1

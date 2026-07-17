@@ -162,6 +162,13 @@ export const endpoints = {
       list: '/deliveries/api/v1/driver/incidents',
       create: '/deliveries/api/v1/driver/incidents',
     },
+    // Courier end-of-shift COD settlement (design 2d/9a). POST deposits a shift's cash;
+    // the expected total is snapshotted server-side from payment-service.
+    settlement: {
+      history: '/deliveries/api/v1/driver/settlement',
+      get: (id: string) => `/deliveries/api/v1/driver/settlement/${id}`,
+      submit: '/deliveries/api/v1/driver/settlement',
+    },
     // Courier empty-gallon return at handover (design 2e, depot-service). Deposit refund
     // is derived server-side (GALLON_DEPOSIT_IDR × qty) — the client never sends an amount.
     gallonReturns: {

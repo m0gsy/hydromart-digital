@@ -115,6 +115,12 @@ export interface DeliveryRepository {
   /** Contact-attempt count + first attempt time, for the no-show gate. */
   contactState(deliveryId: string): Promise<ContactState>;
   search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }>;
+  /**
+   * Order ids the driver DELIVERED with `deliveredAt` in [from, to] — the orders a
+   * shift's COD settlement is computed over. payment-service then filters these to
+   * PAID cash, so this returns every delivered order, cash or not.
+   */
+  deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]>;
   /** Overwrite the delivery's latest reported driver position (live tracking). */
   updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord>;
   /** Move the delivery to `status`, set the matching timestamp, append history. */
