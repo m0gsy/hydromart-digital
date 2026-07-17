@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { CaretRight, ChartBar, Coins, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Wallet, Warning } from '@phosphor-icons/react';
+import { CaretRight, ChartBar, Coins, GearSix, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Wallet, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
@@ -80,7 +80,16 @@ function Profile() {
           label="Lapor insiden"
           onClick={() => router.push('/driver/incidents/new')}
         />
-        <Row icon={<Question size={19} weight="fill" />} label="Bantuan & kebijakan privasi" />
+        <Row
+          icon={<GearSix size={19} weight="fill" />}
+          label="Pengaturan"
+          onClick={() => router.push('/driver/settings')}
+        />
+        <Row
+          icon={<Question size={19} weight="fill" />}
+          label="Bantuan & FAQ"
+          onClick={() => router.push('/driver/help')}
+        />
       </Card>
 
       <button

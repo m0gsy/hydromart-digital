@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MapPin, Package, Pause, Storefront } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
+import { ONBOARDED_KEY } from './onboarding/page';
 import { PodCapture } from '@/components/driver/pod-capture';
 import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -31,6 +32,12 @@ function DriverConsole() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState<string | null>(null);
+
+  // First-ever launch → run the 4-step walkthrough before anything else (design 6c).
+  // localStorage read in an effect to avoid an SSR/hydration mismatch.
+  useEffect(() => {
+    if (localStorage.getItem(ONBOARDED_KEY) !== '1') router.replace('/driver/onboarding');
+  }, [router]);
 
   // No open shift → the task list is meaningless. Send the courier to check in.
   if (!shift.loading && !shift.error && !shift.data) {
