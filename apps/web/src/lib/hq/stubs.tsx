@@ -83,12 +83,9 @@ export function stubSegmentEstimate(conditionCount: number): number {
 
 // Avg delivery time (14d) is now REAL: dashboard-service network roll-up forwards
 // delivery-service avgMinutes per depot. Gallon-outstanding (14d) is now REAL:
-// depot-service GET /gallon-outstanding (issued − returned). Only the customer RATING
-// has no source (no depot-review model) → stays a badged stub.
-/** Sample customer rating (1–5) for a depot, stable per id. */
-export function stubDepotRating(depotId: string): number {
-  return Math.round((4.2 + (hash(depotId) % 8) / 10) * 10) / 10; // 4.2..4.9
-}
+// depot-service GET /gallon-outstanding (issued − returned). Customer RATING (14d) is
+// now REAL too: dashboard roll-up forwards order-service rating-by-depot (AVG over
+// OrderReview joined to the order's depot). The old stubDepotRating was removed.
 
 // STUB: forecast-service returns no confidence score — Milestone D. Sampled per product.
 export function stubForecastConfidence(productId: string): number {

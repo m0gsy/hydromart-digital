@@ -3,6 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   CustomerSales,
   DepotSales,
+  DepotRating,
   DepotShipping,
   OrderRepository,
   ProductRevenue,
@@ -89,6 +90,11 @@ export class ReportService {
 
   async shippingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotShipping[] }> {
     const items = await this.orders.shippingByDepot(range);
+    return { ...ReportService.rangeView(range), items };
+  }
+
+  async ratingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotRating[] }> {
+    const items = await this.orders.ratingByDepot(range);
     return { ...ReportService.rangeView(range), items };
   }
 

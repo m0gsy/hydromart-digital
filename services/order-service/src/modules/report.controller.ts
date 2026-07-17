@@ -57,6 +57,12 @@ export class ReportController {
     return this.reports.shippingByDepot(toRange(q));
   }
 
+  @Get('rating-by-depot')
+  @ApiOperation({ summary: 'Average customer rating per depot (compare 14d)' })
+  ratingByDepot(@Query() q: RangeReportQueryDto) {
+    return this.reports.ratingByDepot(toRange(q));
+  }
+
   @Get('revenue-by-category')
   @ApiOperation({ summary: 'Revenue share per product (22b; per-product — no category column)' })
   revenueByCategory(@Query() q: TopReportQueryDto) {

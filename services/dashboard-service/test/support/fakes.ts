@@ -2,6 +2,7 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotRatingByDepot,
   DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
@@ -54,6 +55,10 @@ const SLA_BY_DEPOT: DepotSlaByDepot = {
   depots: [{ depotId: 'depot-1', slaRate: 0.9, avgMinutes: 32 }],
 };
 
+const RATING_BY_DEPOT: DepotRatingByDepot = {
+  items: [{ depotId: 'depot-1', rating: 4.6, reviewCount: 12 }],
+};
+
 const DELIVERY_SLA: DeliverySla = {
   from: null,
   to: null,
@@ -103,5 +108,8 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   }
   async slaByDepot(_range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {
     return SLA_BY_DEPOT;
+  }
+  async ratingByDepot(_range: DateRange, _token: string): Promise<DepotRatingByDepot | null> {
+    return this.orderDown ? null : RATING_BY_DEPOT;
   }
 }

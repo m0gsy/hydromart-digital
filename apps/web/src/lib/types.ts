@@ -583,6 +583,7 @@ export interface NetworkDepotRow {
   orderCount: number;
   slaRate: number | null;
   avgMinutes: number | null;
+  rating: number | null;
   lowStockCount: number;
 }
 

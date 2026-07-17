@@ -5,7 +5,6 @@ import { ChartBar } from '@phosphor-icons/react';
 
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { StubBadge, stubDepotRating } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
@@ -24,14 +23,13 @@ function range30(): { from: string; to: string } {
 interface Metric {
   key: string;
   higher: boolean;
-  stub: boolean;
   value: (depotId: string) => number | null;
   format: (n: number) => string;
 }
 
-// Design 14d — compare up to 3 depots. Revenue/Orders/SLA/avg-delivery/gallon-outstanding
-// are all real (network roll-up + gallon rollup). Only the customer rating has no source
-// yet → stays a badged stub.
+// Design 14d — compare up to 3 depots. Every metric (revenue/orders/SLA/avg-delivery/
+// rating/gallon-outstanding) is real: network roll-up (rating = order-service
+// rating-by-depot) + gallon rollup.
 export default function HqComparePage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -60,12 +58,12 @@ export default function HqComparePage() {
   }
 
   const metrics: Metric[] = [
-    { key: 'revenue', higher: true, stub: false, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
-    { key: 'orders', higher: true, stub: false, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
-    { key: 'sla', higher: true, stub: false, value: (id) => perf.get(id)?.slaRate ?? null, format: (n) => `${Math.round(n * 100)}%` },
-    { key: 'avgDelivery', higher: false, stub: false, value: (id) => perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
-    { key: 'rating', higher: true, stub: true, value: (id) => stubDepotRating(id), format: (n) => n.toFixed(1) },
-    { key: 'gallonReturn', higher: false, stub: false, value: (id) => outstanding.get(id) ?? null, format: (n) => String(n) },
+    { key: 'revenue', higher: true, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
+    { key: 'orders', higher: true, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
+    { key: 'sla', higher: true, value: (id) => perf.get(id)?.slaRate ?? null, format: (n) => `${Math.round(n * 100)}%` },
+    { key: 'avgDelivery', higher: false, value: (id) => perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
+    { key: 'rating', higher: true, value: (id) => perf.get(id)?.rating ?? null, format: (n) => n.toFixed(1) },
+    { key: 'gallonReturn', higher: false, value: (id) => outstanding.get(id) ?? null, format: (n) => String(n) },
   ];
 
   const chosen = selected.map((id) => depots.find((d) => d.id === id)).filter((d): d is DepotAdmin => !!d);
@@ -130,7 +128,6 @@ export default function HqComparePage() {
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1.5 font-medium">
                         {t(`hq.compare.rows.${m.key}`)}
-                        {m.stub && <StubBadge />}
                       </span>
                     </td>
                     {chosen.map((d) => {

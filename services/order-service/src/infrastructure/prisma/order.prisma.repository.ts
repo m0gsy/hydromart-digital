@@ -8,6 +8,7 @@ import {
   CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotRating,
   DepotShipping,
   OrderQuery,
   OrderRecord,
@@ -363,6 +364,31 @@ export class OrderPrismaRepository implements OrderRepository {
     return rows.map((r) => ({
       depotId: r.depotId as string,
       shippingBilled: r._sum.deliveryFee ? r._sum.deliveryFee.toNumber() : 0,
+    }));
+  }
+
+  async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
+    // OrderReview has no depotId, so join through the parent order. Range filters
+    // the order's createdAt to match every other by-depot report's semantics.
+    const conds: Prisma.Sql[] = [Prisma.sql`o."depotId" IS NOT NULL`];
+    if (range.from) conds.push(Prisma.sql`o."createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`o."createdAt" < ${range.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const rows = await this.prisma.$queryRaw<
+      { depotId: string; rating: number; reviewCount: bigint }[]
+    >(Prisma.sql`
+      SELECT o."depotId" AS "depotId",
+             AVG(r.rating)::float AS rating,
+             COUNT(*)::bigint AS "reviewCount"
+      FROM "order_reviews" r
+      JOIN "orders" o ON o.id = r."orderId"
+      WHERE ${where}
+      GROUP BY o."depotId"
+    `);
+    return rows.map((r) => ({
+      depotId: r.depotId,
+      rating: r.rating,
+      reviewCount: Number(r.reviewCount),
     }));
   }
 

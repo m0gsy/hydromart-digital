@@ -132,6 +132,13 @@ export interface DepotShipping {
   shippingBilled: number;
 }
 
+/** Average customer rating (1..5) per depot over a range — depot compare 14d. */
+export interface DepotRating {
+  depotId: string;
+  rating: number;
+  reviewCount: number;
+}
+
 /**
  * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
  * productName but NOT a category, so this groups by product — a true category
@@ -219,6 +226,8 @@ export interface OrderRepository {
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number): Promise<DepotSales[]>;
   shippingByDepot(range: ReportRange): Promise<DepotShipping[]>;
+  /** Average rating per depot (orders in-window that have a review), 14d. */
+  ratingByDepot(range: ReportRange): Promise<DepotRating[]>;
   /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
   revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
   /**

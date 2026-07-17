@@ -11,6 +11,7 @@ import {
   CustomerLifetime,
   CustomerSales,
   DepotSales,
+  DepotRating,
   DepotShipping,
   OrderQuery,
   OrderRecord,
@@ -256,6 +257,24 @@ export class InMemoryOrderRepository implements OrderRepository {
       agg.set(r.depotId, (agg.get(r.depotId) ?? 0) + r.deliveryFee);
     }
     return [...agg.entries()].map(([depotId, shippingBilled]) => ({ depotId, shippingBilled }));
+  }
+
+  async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
+    const inRange = new Set(this.reportRows(range).map((r) => r.id));
+    const byDepot = new Map<string, { sum: number; count: number }>();
+    for (const rev of this.reviews) {
+      const order = this.rows.find((o) => o.id === rev.orderId);
+      if (!order?.depotId || !inRange.has(order.id)) continue;
+      const a = byDepot.get(order.depotId) ?? { sum: 0, count: 0 };
+      a.sum += rev.rating;
+      a.count += 1;
+      byDepot.set(order.depotId, a);
+    }
+    return [...byDepot.entries()].map(([depotId, v]) => ({
+      depotId,
+      rating: v.sum / v.count,
+      reviewCount: v.count,
+    }));
   }
 
   async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {

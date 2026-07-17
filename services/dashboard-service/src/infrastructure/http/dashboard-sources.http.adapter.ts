@@ -5,6 +5,7 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotRatingByDepot,
   DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
@@ -154,6 +155,15 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const query = params.toString();
     return this.getInternal<DepotSlaByDepot>(
       `${this.config.deliveryServiceUrl}/api/v1/reports/sla-by-depot${query ? `?${query}` : ''}`,
+    );
+  }
+
+  async ratingByDepot(range: DateRange, _token: string): Promise<DepotRatingByDepot | null> {
+    const params = new URLSearchParams();
+    this.applyRange(params, range);
+    const query = params.toString();
+    return this.getInternal<DepotRatingByDepot>(
+      `${this.config.orderServiceUrl}/api/v1/reports/rating-by-depot${query ? `?${query}` : ''}`,
     );
   }
 }

@@ -22,6 +22,8 @@ export interface NetworkDepotRow {
   slaRate: number | null;
   /** Average delivered-order lead time in minutes, or null when none delivered. */
   avgMinutes: number | null;
+  /** Average customer rating 1..5, or null when the depot has no reviews in range. */
+  rating: number | null;
   lowStockCount: number;
 }
 
@@ -124,10 +126,11 @@ export class DashboardService {
    * as 0/null rather than failing the whole response (same pattern as executive).
    */
   async network(range: DateRange, token: string): Promise<NetworkDashboard> {
-    const [depots, topDepots, slaByDepot] = await Promise.all([
+    const [depots, topDepots, slaByDepot, ratingByDepot] = await Promise.all([
       this.sources.allDepots(token),
       this.sources.topDepots(range, DashboardService.NETWORK_TOP_LIMIT, token),
       this.sources.slaByDepot(range, token),
+      this.sources.ratingByDepot(range, token),
     ]);
 
     const revenueByDepot = new Map<string, { orderCount: number; revenue: number }>();
@@ -139,6 +142,10 @@ export class DashboardService {
     for (const row of slaByDepot?.depots ?? []) {
       slaByDepotId.set(row.depotId, row.slaRate);
       avgMinutesByDepot.set(row.depotId, row.avgMinutes);
+    }
+    const ratingByDepotId = new Map<string, number>();
+    for (const row of ratingByDepot?.items ?? []) {
+      ratingByDepotId.set(row.depotId, row.rating);
     }
 
     // Low-stock fan-out per depot (same shape as franchise()).
@@ -161,6 +168,7 @@ export class DashboardService {
         orderCount: rev?.orderCount ?? 0,
         slaRate: slaByDepotId.has(d.id) ? slaByDepotId.get(d.id)! : null,
         avgMinutes: avgMinutesByDepot.has(d.id) ? avgMinutesByDepot.get(d.id)! : null,
+        rating: ratingByDepotId.has(d.id) ? ratingByDepotId.get(d.id)! : null,
         lowStockCount: low?.length ?? 0,
       };
     });
