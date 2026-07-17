@@ -3,7 +3,7 @@
 // (`npm run test:integration`). Covers four scenarios end to end:
 //   1. core loop      — register -> checkout -> cash pay/confirm -> complete -> loyalty
 //   2. depot-routed    — per-depot delivery fee + stock reserve at checkout + deduct on complete
-//   3. online webhook  — QRIS charge (stubbed gateway) -> signed PAID webhook -> order CONFIRMED
+//   3. online webhook  — EWALLET charge (stubbed gateway) -> signed PAID webhook -> order CONFIRMED
 //   4. failure paths   — below-minimum / out-of-service-area / insufficient-stock all rejected 422
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -207,8 +207,10 @@ async function depotRoutedLoop(staff) {
   console.log(`PASSED depot-routed: order ${order.id} -> depot ${depot.id}, fee ${order.deliveryFee}, stock 100->98`);
 }
 
-// 3. Online payment: QRIS charge succeeds via the gateway stub (PENDING+reference);
+// 3. Online payment: an EWALLET charge succeeds via the gateway stub (PENDING+reference);
 //    a bad-signature webhook is rejected; a signed PAID webhook confirms the order.
+//    (QRIS is now offline/direct-to-depot — staff-confirmed, no gateway — so the online
+//    webhook path uses a genuinely-online method: EWALLET or VA.)
 async function onlineWebhookLoop(staff) {
   const { productId } = await createProduct(staff);
   const { phone, token } = await registerCustomer();
@@ -220,7 +222,7 @@ async function onlineWebhookLoop(staff) {
   ok(checkout, 'ow: checkout');
   const orderId = checkout.body.id;
 
-  const pay = await api('POST', '/payments/api/v1/payments', { token, body: { orderId, method: 'QRIS', amount: checkout.body.total } });
+  const pay = await api('POST', '/payments/api/v1/payments', { token, body: { orderId, method: 'EWALLET', amount: checkout.body.total } });
   ok(pay, 'ow: initiate online payment');
   const reference = pay.body.reference;
   assert(pay.body.status === 'PENDING' && reference, `ow: expected PENDING+reference, got ${JSON.stringify(pay.body)}`);
