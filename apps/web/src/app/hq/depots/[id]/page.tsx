@@ -142,7 +142,10 @@ export default function HqDepotDetailPage() {
           label={t('hq.depotDetail.kpi.sla')}
           value={slaPct != null ? `${slaPct}%` : t('hq.common.dash')}
         />
-        <Tile label={t('hq.depotDetail.kpi.rating')} value="4.6" badge={<StubBadge />} />
+        <Tile
+          label={t('hq.depotDetail.kpi.rating')}
+          value={perf?.rating != null ? perf.rating.toFixed(1) : t('hq.common.dash')}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
