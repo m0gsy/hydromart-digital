@@ -62,6 +62,12 @@ export interface UnsettledMethodAggregate {
   count: number;
 }
 
+/** COD cash a courier owes: PAID cash payments summed over a set of orders. */
+export interface CashCollectedSummary {
+  total: number;
+  count: number;
+}
+
 export interface DateRange {
   from?: Date;
   to?: Date;
@@ -83,5 +89,7 @@ export interface PaymentRepository {
   aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /** Network-wide collected (PAID) revenue grouped by method over a date range. */
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
+  /** Sum of PAID cash payments over the given orders — the courier's COD deposit due. */
+  sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

@@ -24,6 +24,7 @@ import {
 import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
 import {
+  CashCollectedSummary,
   CreatePaymentData,
   DateRange,
   PaymentRecord,
@@ -226,6 +227,15 @@ export class PaymentService {
    */
   async revenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     return this.payments.aggregateRevenueByMethod(range);
+  }
+
+  /**
+   * COD deposit total (design 2d/slice 9): sum of PAID cash payments over the
+   * courier's delivered orders. This is payment-service's word on "how much" —
+   * the settlement snapshots it so a later refund can't silently move the debt.
+   */
+  async cashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
+    return this.payments.sumCashCollected(orderIds);
   }
 
   /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */

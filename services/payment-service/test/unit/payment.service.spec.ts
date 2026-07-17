@@ -240,4 +240,38 @@ describe('PaymentService', () => {
     const result = await service.handleWebhook({ reference: 'nope', event: 'PAID', signature });
     expect(result.handled).toBe(false);
   });
+
+  describe('cashCollected (courier COD deposit)', () => {
+    const settleCash = async (amount: number) => {
+      const orderId = randomUUID();
+      const p = await initiate(PaymentMethod.CASH, amount, orderId);
+      await service.confirm(p.id, customer);
+      return orderId;
+    };
+
+    it('sums only PAID cash over the requested orders', async () => {
+      const a = await settleCash(45000);
+      const b = await settleCash(30000);
+      // Excluded: a different order not requested.
+      await settleCash(99000);
+
+      expect(await service.cashCollected([a, b])).toEqual({ total: 75000, count: 2 });
+    });
+
+    it('ignores unpaid cash and non-cash methods', async () => {
+      const pendingCash = randomUUID();
+      await initiate(PaymentMethod.CASH, 45000, pendingCash); // stays PENDING
+      const va = await initiate(PaymentMethod.VA, 45000);
+      await service.confirm(va.id, customer); // PAID but not cash
+
+      expect(await service.cashCollected([pendingCash, va.orderId])).toEqual({
+        total: 0,
+        count: 0,
+      });
+    });
+
+    it('returns zero for an empty order set', async () => {
+      expect(await service.cashCollected([])).toEqual({ total: 0, count: 0 });
+    });
+  });
 });
