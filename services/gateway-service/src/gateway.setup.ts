@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import type { Express, RequestHandler } from 'express';
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
@@ -22,6 +23,23 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
   app.use(helmet());
   app.enableCors({ origin: config.corsOrigins, credentials: true });
+
+  // SEC-3: edge rate-limit at the single public ingress (per-IP), using the RATE_LIMIT_*
+  // config that was already carried here for this purpose. /health is exempt so probes
+  // never trip it. ponytail: default in-memory store — correct for the current single
+  // gateway instance; swap in a Redis store (rate-limit-redis) once the gateway scales
+  // horizontally so counters are shared across instances (this also gives the idle Redis
+  // container a job — see OPS-2).
+  app.use(
+    rateLimit({
+      windowMs: config.rateLimit.ttlSeconds * 1000,
+      limit: config.rateLimit.limit,
+      standardHeaders: true,
+      legacyHeaders: false,
+      skip: (req) => req.path === '/health',
+      message: { statusCode: 429, message: 'Too many requests' },
+    }),
+  );
 
   const upstreams = config.upstreams();
   const proxies = new Map<string, RequestHandler>();
