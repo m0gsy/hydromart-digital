@@ -28,7 +28,7 @@ const TYPE_LABEL: Record<ApprovalType, string> = {
 const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
 
 /** One-line summary of the decision snapshot, per type. */
-export function metaLine(a: Approval): string {
+function metaLine(a: Approval): string {
   const p = a.payload ?? {};
   if (a.type === 'OPNAME_VARIANCE') {
     return `Sistem ${idr(p.system)} · fisik ${idr(p.physical)} · selisih ${idr(p.variance)}`;
