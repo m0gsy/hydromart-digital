@@ -134,6 +134,9 @@ jobs:
       JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
       GATEWAY_URL: http://localhost:8080
       NEXT_PUBLIC_API_URL: http://localhost:8080
+      # authed.spec reads the OTP back from the auth-service log (console channel).
+      # Deterministic under compose regardless of the runner's project name.
+      E2E_OTP_LOG_CMD: docker compose logs --no-color auth
     steps:
       - uses: actions/checkout@v4
 
