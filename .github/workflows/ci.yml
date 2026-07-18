@@ -80,8 +80,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      # Runs jest with --coverage so the per-service coverageThreshold gates fail CI on
+      # a coverage regression (QG-1). Thresholds are a ratchet floor at current levels
+      # on the money-critical services; raise them toward 90% as tests are added.
+      - name: Test (with coverage gate)
+        run: npm run test:cov
 
       - name: Build
         run: npm run build
