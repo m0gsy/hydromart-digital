@@ -5,11 +5,12 @@ import { useEffect } from 'react';
 import { ChartLineUp, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { OperatorRingkasan } from '@/components/operator/operator-ringkasan';
 import { Card, CenterState, ErrorState, Money, Skeleton, Spinner } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canViewDashboard, canViewFranchise } from '@/lib/roles';
+import { canViewDashboard, canViewFranchise, isDepotOperator } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ExecutiveDashboard } from '@/lib/types';
 
@@ -174,6 +175,9 @@ function Gate() {
       </div>
     );
   }
+  // Depot operators land on their own action-oriented daily summary (design 1a),
+  // not the executive dashboard (which they can't view).
+  if (isDepotOperator(customer?.role)) return <OperatorRingkasan />;
   if (!canViewDashboard(customer?.role)) {
     return (
       <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
