@@ -31,6 +31,10 @@ export class ForecastConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** depot-service base URL; used to resolve a franchise owner's depots for the ownership check. */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

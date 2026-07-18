@@ -13,12 +13,13 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
@@ -63,6 +64,21 @@ export class DepotController {
   @ApiOperation({ summary: 'Find active depots near a coordinate (nearest first)' })
   nearby(@Query() query: NearbyDepotsQueryDto): Promise<NearbyDepot[]> {
     return this.depots.findNearby(query.lat, query.lng, query.limit ?? 10);
+  }
+
+  // Service-to-service: forecast-service resolves which depots a franchise owner owns so it
+  // can reject a forecast query for a depot they don't own (forecast has no ownership data of
+  // its own). No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY. Declared
+  // before `:id` so it is not swallowed by that param route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/owned/:ownerId')
+  @ApiOperation({ summary: 'Depot IDs owned by a franchise owner (internal service auth)' })
+  async internalOwned(
+    @Param('ownerId', ParseUUIDPipe) ownerId: string,
+  ): Promise<{ depotIds: string[] }> {
+    const depots = await this.depots.listMine(ownerId);
+    return { depotIds: depots.map((d) => d.id) };
   }
 
   // Admin listing includes inactive depots (public browse is active-only), so a

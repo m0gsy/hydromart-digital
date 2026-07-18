@@ -11,6 +11,7 @@ import { RebuildService } from '../application/services/rebuild.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { ForecastPrismaRepository } from '../infrastructure/prisma/forecast.prisma.repository';
 import { OrderFeedHttpAdapter } from '../infrastructure/http/order-feed.http.adapter';
+import { DepotOwnershipHttpAdapter } from '../infrastructure/http/depot-ownership.http.adapter';
 import { IngestController } from './ingest.controller';
 import { ForecastController } from './forecast.controller';
 
@@ -21,6 +22,7 @@ const providers: Provider[] = [
   RebuildService,
   { provide: FORECAST_TOKENS.Repository, useClass: ForecastPrismaRepository },
   { provide: FORECAST_TOKENS.OrderFeed, useClass: OrderFeedHttpAdapter },
+  { provide: FORECAST_TOKENS.DepotOwnership, useClass: DepotOwnershipHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

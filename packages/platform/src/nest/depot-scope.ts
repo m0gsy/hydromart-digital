@@ -39,6 +39,29 @@ export function assertDepotAccess(
 }
 
 /**
+ * Assert a FRANCHISE_OWNER only touches a depot they OWN. Unlike depot staff (operator/
+ * manager, handled by DepotScopeGuard/assertDepotAccess via the token's `depotId`), an
+ * owner has no single assigned depot — they own a SET — so ownership can't be read from the
+ * JWT. Call this after loading the depot's `ownerId`: for FRANCHISE_OWNER the depot's owner
+ * must be the caller (`user.sub`); otherwise Forbidden. No-op for every other role (HQ,
+ * finance, marketing, super-admin, system, and depot staff whose own guard already applies).
+ *
+ * Fail-closed: a null/unknown owner never matches, so an owner is denied a depot with no
+ * recorded owner rather than granted it.
+ */
+export function assertDepotOwnership(
+  user: Pick<AuthenticatedUser, 'role' | 'sub'> | undefined,
+  depotOwnerId: string | null | undefined,
+): void {
+  if (!user || user.role !== Role.FRANCHISE_OWNER) {
+    return;
+  }
+  if (!depotOwnerId || depotOwnerId !== user.sub) {
+    throw new ForbiddenException('Akun waralaba ini hanya boleh mengakses depot miliknya.');
+  }
+}
+
+/**
  * Resolve which depot a LIST query must be scoped to for the caller. Use on staff list
  * endpoints that carry no mandatory depotId param (e.g. `GET orders/manage`, `GET deliveries`)
  * so a depot-locked role only ever lists its OWN depot's rows — closing the list-without-filter

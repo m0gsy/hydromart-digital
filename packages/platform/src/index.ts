@@ -14,6 +14,7 @@ export { RolesGuard } from './nest/roles.guard';
 export { DepotScopeGuard } from './nest/depot-scope.guard';
 export {
   assertDepotAccess,
+  assertDepotOwnership,
   depotScopeFilter,
   isDepotLocked,
   DEPOT_LOCKED_ROLES,

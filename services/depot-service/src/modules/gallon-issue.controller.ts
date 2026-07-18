@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotOwnership } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
+import { DepotService } from '../application/services/depot.service';
 import { GallonIssueRecord, GallonIssueSummary } from '../application/ports/gallon-issue.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto';
@@ -14,7 +15,10 @@ import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto
 @ApiBearerAuth()
 @Controller({ path: 'depots/:depotId/gallon-issues', version: '1' })
 export class GallonIssueController {
-  constructor(private readonly issues: GallonIssueService) {}
+  constructor(
+    private readonly issues: GallonIssueService,
+    private readonly depots: DepotService,
+  ) {}
 
   @Roles(...CAPABILITIES.returnsWrite)
   @Post()
@@ -40,17 +44,23 @@ export class GallonIssueController {
   @Roles(...CAPABILITIES.returnsRead)
   @Get('summary')
   @ApiOperation({ summary: "A depot's issue totals (count, gallons, deposit held)" })
-  summary(@Param('depotId', ParseUUIDPipe) depotId: string): Promise<GallonIssueSummary> {
+  async summary(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<GallonIssueSummary> {
+    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
     return this.issues.summary(depotId);
   }
 
   @Roles(...CAPABILITIES.returnsRead)
   @Get()
   @ApiOperation({ summary: "List a depot's gallon issues (paginated, newest first)" })
-  list(
+  async list(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query() query: ListIssuesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<Page<GallonIssueRecord>> {
+    assertDepotOwnership(user, (await this.depots.get(depotId, false)).ownerId);
     return this.issues.list(depotId, query.page ?? 1, query.limit ?? 20);
   }
 }
