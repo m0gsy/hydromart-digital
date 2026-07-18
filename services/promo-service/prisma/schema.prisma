@@ -59,7 +59,10 @@ model Voucher {
 /// this customer was given it — unique per (voucher, customer) so notifications fire once.
 model VoucherGrant {
   id         String   @id @default(uuid())
-  voucher    Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: a grant is an audit record that a customer received a voucher.
+  // Deleting a voucher must not silently erase who was given it (DB-10). Retire vouchers
+  // via `active = false`; hard-delete only after grants are archived.
+  voucher    Voucher  @relation(fields: [voucherId], references: [id], onDelete: Restrict)
   voucherId  String
   customerId String
   createdAt  DateTime @default(now())
@@ -121,7 +124,9 @@ model Promotion {
 /// One row per voucher redemption. Unique per order makes redeem idempotent.
 model VoucherRedemption {
   id              String   @id @default(uuid())
-  voucher         Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: redemptions are financial audit rows (discount actually burned).
+  // Deleting a voucher must never cascade them away (DB-10). Retire via `active = false`.
+  voucher         Voucher  @relation(fields: [voucherId], references: [id], onDelete: Restrict)
   voucherId       String
   voucherCode     String
   customerId      String
