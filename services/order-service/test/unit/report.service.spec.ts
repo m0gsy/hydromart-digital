@@ -240,4 +240,45 @@ describe('ReportService', () => {
     expect(rep.topCourier).toEqual({ name: 'Budi', delivered: 2 }); // most deliveries
     expect(rep.slaOnTimePct).toBeUndefined();
   });
+
+  it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
+    const empty = randomUUID();
+    const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});
+    const byId = Object.fromEntries(cmp.depots.map((d) => [d.depotId, d]));
+    expect(byId[DEPOT_A]).toMatchObject({ orders: 2, revenueIdr: 80000 });
+    expect(byId[DEPOT_B]).toMatchObject({ orders: 1, revenueIdr: 20000 }); // 999999 cancelled excluded
+    expect(byId[empty]).toMatchObject({ orders: 0, revenueIdr: 0 }); // requested depot with no orders
+  });
+
+  it('composes a depot monthly review: real orders/revenue/activeCustomers, null sla/profit', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    const custX = randomUUID();
+    const custY = randomUUID();
+    const mk = async (customerId: string, total: number, driver: string | null, status: OrderStatus) => {
+      const o = await r.create(orderData({ depotId: depot, customerId, total }));
+      const row = r.rows.find((x) => x.id === o.id)!;
+      row.createdAt = new Date('2026-05-10T00:00:00.000Z');
+      row.status = status;
+      row.driverName = driver;
+    };
+    await mk(custX, 50000, 'Budi', OrderStatus.DELIVERED);
+    await mk(custX, 30000, 'Budi', OrderStatus.DELIVERED);
+    await mk(custY, 20000, 'Sari', OrderStatus.COMPLETED);
+    // A cancelled in-month order and a live out-of-month order must both be excluded.
+    const cancelled = await r.create(orderData({ depotId: depot, customerId: custY, total: 99999 }));
+    r.rows.find((x) => x.id === cancelled.id)!.createdAt = new Date('2026-05-11T00:00:00.000Z');
+    await r.applyStatus(cancelled.id, OrderStatus.CANCELLED, null, null);
+    const other = await r.create(orderData({ depotId: depot, customerId: custX, total: 70000 }));
+    r.rows.find((x) => x.id === other.id)!.createdAt = new Date('2026-06-02T00:00:00.000Z');
+
+    const rep = await svc.reportsDepotMonthly(depot, '2026-05');
+    expect(rep.orders).toBe(3);
+    expect(rep.revenueIdr).toBe(100000);
+    expect(rep.activeCustomers).toBe(2); // distinct non-cancelled customers
+    expect(rep.topCourier).toEqual({ name: 'Budi', delivered: 2 });
+    expect(rep.netProfitIdr).toBeNull();
+    expect(rep.slaPct).toBeNull();
+  });
 });

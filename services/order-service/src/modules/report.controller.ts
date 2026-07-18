@@ -7,7 +7,9 @@ import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
+  DepotCompareQueryDto,
   DepotDailyQueryDto,
+  DepotMonthlyQueryDto,
   DepotWeeklyQueryDto,
   RangeReportQueryDto,
   SalesReportQueryDto,
@@ -102,6 +104,19 @@ export class ReportController {
       q.from ? new Date(q.from) : undefined,
       q.to ? new Date(q.to) : undefined,
     );
+  }
+
+  @Get('depot-compare')
+  @ApiOperation({ summary: 'Cross-depot comparison: orders + revenue per depot (design 14d)' })
+  depotCompare(@Query() q: DepotCompareQueryDto) {
+    const ids = q.depotIds.split(',').map((s) => s.trim()).filter(Boolean);
+    return this.reports.reportsDepotCompare(ids, toRange(q));
+  }
+
+  @Get('depot-monthly')
+  @ApiOperation({ summary: "One depot's monthly ops review (orders/revenue/active customers)" })
+  depotMonthly(@Query() q: DepotMonthlyQueryDto) {
+    return this.reports.reportsDepotMonthly(q.depotId, q.month);
   }
 
   @Roles(...AUDIENCE_ROLES)

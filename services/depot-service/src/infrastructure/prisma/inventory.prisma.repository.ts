@@ -167,6 +167,31 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return rows.map((r) => this.toMovement(r));
   }
 
+  async wastageAdjustments(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]> {
+    const createdAt =
+      range.from || range.to
+        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lt: range.to } : {}) }
+        : undefined;
+    const rows = await this.prisma.stockMovement.findMany({
+      where: {
+        type: StockMovementType.ADJUSTMENT,
+        delta: { lt: 0 },
+        item: { depotId },
+        ...(createdAt ? { createdAt } : {}),
+      },
+      select: { itemId: true, delta: true, item: { select: { label: true, sellPrice: true } } },
+    });
+    return rows.map((r) => ({
+      itemId: r.itemId,
+      label: r.item.label,
+      sellPrice: r.item.sellPrice === null || r.item.sellPrice === undefined ? null : Number(r.item.sellPrice),
+      delta: r.delta,
+    }));
+  }
+
   private toReservation(row: ReservationRow): ReservationRecord {
     return { ...row, status: row.status as ReservationStatus };
   }

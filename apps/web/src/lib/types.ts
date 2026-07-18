@@ -1729,3 +1729,44 @@ export interface DepotWeeklyReport {
   topProducts: { label: string; qty: number }[];
   topCourier?: { name: string; delivered: number; rating?: number };
 }
+
+// Cross-depot comparison (order-service reports depot-compare, design 14d). orders/revenue
+// are real; SLA/wastage/net-profit have no order-service source so the compare page shows "—".
+export interface ReportDepotCompareRow {
+  depotId: string;
+  orders: number;
+  revenueIdr: number;
+}
+export interface ReportDepotCompare {
+  from: string | null;
+  to: string | null;
+  depots: ReportDepotCompareRow[];
+}
+
+// One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
+// activeCustomers are real; netProfitIdr/slaPct are null (no source); topCourier from driverName.
+export interface ReportDepotMonthly {
+  depotId: string;
+  month: string;
+  orders: number;
+  revenueIdr: number;
+  activeCustomers: number;
+  netProfitIdr: number | null;
+  slaPct: number | null;
+  topCourier?: { name: string; delivered: number };
+}
+
+// Depot wastage summary (depot-service inventory wastage). qty is real lost quantity per
+// item; lossIdr/totalLossIdr present only where the line carries a sellPrice.
+export interface InventoryWastageItem {
+  label: string;
+  qty: number;
+  lossIdr?: number;
+}
+export interface InventoryWastageSummary {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  totalLossIdr?: number;
+  byItem: InventoryWastageItem[];
+}

@@ -81,6 +81,38 @@ export interface DepotDailyReport {
   perCourier: DepotCourierDaily[];
 }
 
+/** One depot's row in the cross-depot comparison (design 14d compare). */
+export interface DepotCompareRow {
+  depotId: string;
+  orders: number;
+  revenueIdr: number;
+}
+
+/** Cross-depot comparison over a window (design 14d). SLA/wastage are omitted — no order source. */
+export interface DepotCompareReport extends ReportRangeView {
+  depots: DepotCompareRow[];
+}
+
+/**
+ * Depot "Tinjauan ops bulanan" composite for the monthly review screen. orders/revenue/
+ * activeCustomers are real order-service figures; netProfit + SLA are null (no source);
+ * topCourier is derived from the order's own driverName (delivered count, no rating).
+ */
+export interface DepotMonthlyReport {
+  depotId: string;
+  /** Reported month, 'YYYY-MM'. */
+  month: string;
+  orders: number;
+  revenueIdr: number;
+  /** Distinct customers with a non-cancelled order in the month. */
+  activeCustomers: number;
+  /** Null — net profit needs cost-of-goods + expenses (payout/procurement), not joinable here. */
+  netProfitIdr: number | null;
+  /** Null — SLA on-time needs delivery-service timings, no order-service source. */
+  slaPct: number | null;
+  topCourier?: { name: string; delivered: number };
+}
+
 /** Depot Operator "Laporan mingguan" composite (design cell 7d). */
 export interface DepotWeeklyReport {
   depotId: string;
@@ -313,6 +345,56 @@ export class ReportService {
         .map(([day, r]) => ({ day, revenueIdr: Math.round(r) })),
       topProducts,
       // topCourier from order-owned driverName (real delivered count); rating is review-owned.
+      ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
+    };
+  }
+
+  /**
+   * Cross-depot comparison (design 14d). One row per requested depot with real
+   * orders/revenue (cancelled excluded); depots with no orders come back as zeroes so
+   * every requested column renders. SLA/wastage are intentionally absent (no order source).
+   */
+  async reportsDepotCompare(depotIds: string[], range: ReportRange): Promise<DepotCompareReport> {
+    const depots = await Promise.all(
+      depotIds.map(async (depotId) => {
+        const rows = await this.orders.ordersForDepot(depotId, range);
+        const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+        return {
+          depotId,
+          orders: live.length,
+          revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+        };
+      }),
+    );
+    return { ...ReportService.rangeView(range), depots };
+  }
+
+  /**
+   * One depot's monthly ops review (monthly-review screen). `month` is 'YYYY-MM'; the
+   * window is [first-of-month, first-of-next-month). orders/revenue/activeCustomers are
+   * real; topCourier is derived from driverName. netProfit + SLA are null (see interface).
+   */
+  async reportsDepotMonthly(depotId: string, month: string): Promise<DepotMonthlyReport> {
+    const from = new Date(`${month}-01T00:00:00.000Z`);
+    const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
+    const rows = await this.orders.ordersForDepot(depotId, { from, to });
+    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const byCourier = new Map<string, number>();
+    for (const o of live) {
+      if (isDelivered(o.status) && o.driverName)
+        byCourier.set(o.driverName, (byCourier.get(o.driverName) ?? 0) + 1);
+    }
+    const top = [...byCourier.entries()].sort((a, b) => b[1] - a[1])[0];
+    return {
+      depotId,
+      month,
+      orders: live.length,
+      revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+      activeCustomers: new Set(live.map((r) => r.customerId)).size,
+      // TODO: net profit needs cost-of-goods + expenses (payout/procurement) — not joinable here.
+      netProfitIdr: null,
+      // TODO: SLA on-time needs delivery-service timings — no order-service source.
+      slaPct: null,
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
   }

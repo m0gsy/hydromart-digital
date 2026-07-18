@@ -46,6 +46,23 @@ export interface ItemView extends InventoryItemRecord {
   available: number;
 }
 
+export interface WastageItem {
+  label: string;
+  /** Total units lost (absolute sum of negative ADJUSTMENT deltas). */
+  qty: number;
+  /** qty × sellPrice; omitted for raw lines with no price. */
+  lossIdr?: number;
+}
+
+export interface WastageSummary {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  /** Sum of every priced item's lossIdr; omitted when no wasted line has a price. */
+  totalLossIdr?: number;
+  byItem: WastageItem[];
+}
+
 export interface ReserveResult {
   orderId: string;
   depotId: string;
@@ -485,6 +502,42 @@ export class InventoryService {
       actorId,
     });
     return this.toView(updated);
+  }
+
+  /**
+   * Depot wastage from the movement ledger: every negative-delta ADJUSTMENT in the window,
+   * grouped by line. qty is the real lost quantity; lossIdr values it at the line's sellPrice
+   * (ponytail: raw lines like Galon/Air carry no price → qty only, no rupiah — give them a
+   * per-unit value if their wastage must be costed too). Window bounds are optional.
+   */
+  async wastageSummary(depotId: string, from?: Date, to?: Date): Promise<WastageSummary> {
+    const rows = await this.inventory.wastageAdjustments(depotId, { from, to });
+    const byItem = new Map<string, { label: string; qty: number; sellPrice: number | null }>();
+    for (const r of rows) {
+      const cur = byItem.get(r.itemId) ?? { label: r.label, qty: 0, sellPrice: r.sellPrice };
+      cur.qty += Math.abs(r.delta);
+      byItem.set(r.itemId, cur);
+    }
+    let totalLoss = 0;
+    let anyPriced = false;
+    const items: WastageItem[] = [...byItem.values()]
+      .sort((a, b) => b.qty - a.qty)
+      .map((i) => {
+        if (i.sellPrice != null) {
+          const lossIdr = Math.round(i.qty * i.sellPrice);
+          totalLoss += lossIdr;
+          anyPriced = true;
+          return { label: i.label, qty: i.qty, lossIdr };
+        }
+        return { label: i.label, qty: i.qty };
+      });
+    return {
+      depotId,
+      from: from ? from.toISOString() : null,
+      to: to ? to.toISOString() : null,
+      byItem: items,
+      ...(anyPriced ? { totalLossIdr: totalLoss } : {}),
+    };
   }
 
   async movements(itemId: string): Promise<StockMovementRecord[]> {

@@ -311,6 +311,16 @@ export const endpoints = {
       if (q.to) p.set('to', q.to);
       return `/orders/api/v1/reports/depot-weekly?${p}`;
     },
+    // Cross-depot comparison (design 14d): real orders + revenue per depot over a window.
+    depotCompare: (depotIds: string[], q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotIds: depotIds.join(',') });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-compare?${p}`;
+    },
+    // One depot's monthly ops review (orders/revenue/active customers). month = 'YYYY-MM'.
+    depotMonthly: (depotId: string, month: string) =>
+      `/orders/api/v1/reports/depot-monthly?${new URLSearchParams({ depotId, month })}`,
   },
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).
@@ -536,6 +546,13 @@ export const endpoints = {
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
     // Append-only stock movement history for one line (opname/adjust/sale/restock).
     movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    // Depot wastage summary from negative ADJUSTMENT movements (real lost qty per item).
+    wastage: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/depots/api/v1/inventory/wastage?${p}`;
+    },
     // Per-depot resolved prices (override + winning active rule) for products.
     prices: (depotId: string, productIds: string[]) =>
       `/depots/api/v1/depots/${depotId}/inventory/prices?productIds=${encodeURIComponent(productIds.join(','))}`,

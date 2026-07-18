@@ -384,4 +384,39 @@ describe('InventoryService', () => {
     const prices = await inventory.pricesForProducts(depotId, [PRODUCT_ID]);
     expect(prices).toEqual([{ productId: PRODUCT_ID, sellPrice: 18000 }]);
   });
+
+  it('summarizes wastage from negative ADJUSTMENT movements, valuing only priced lines', async () => {
+    const produk = await inventory.createLine(
+      depotId,
+      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 100, minimumStock: 0, sellPrice: 5000 },
+      ACTOR,
+    );
+    const galon = await inventory.createLine(depotId, raw(), ACTOR); // GALON 'Galon 19L', no sellPrice
+    await inventory.adjust(produk.id, -4, 'pecah', ACTOR); // priced loss
+    await inventory.adjust(produk.id, -1, 'pecah', ACTOR); // priced loss (5 total)
+    await inventory.adjust(galon.id, -3, 'bocor', ACTOR); // unpriced loss
+    await inventory.adjust(galon.id, 10, 'restock', ACTOR); // positive adjust must be ignored
+
+    const summary = await inventory.wastageSummary(depotId);
+    expect(summary.totalLossIdr).toBe(25000); // 5 units × 5000; galon has no price
+    const byLabel = Object.fromEntries(summary.byItem.map((i) => [i.label, i]));
+    expect(byLabel['Air RO']).toEqual({ label: 'Air RO', qty: 5, lossIdr: 25000 });
+    expect(byLabel['Galon 19L']).toEqual({ label: 'Galon 19L', qty: 3 }); // qty only, no lossIdr
+    // Sorted by lost quantity, descending.
+    expect(summary.byItem[0].label).toBe('Air RO');
+  });
+
+  it('returns an empty wastage summary (no priced total) when nothing was adjusted down', async () => {
+    await inventory.createLine(depotId, raw(), ACTOR);
+    const summary = await inventory.wastageSummary(depotId);
+    expect(summary.byItem).toEqual([]);
+    expect(summary.totalLossIdr).toBeUndefined();
+  });
+
+  it('windows wastage to the given range', async () => {
+    const line = await produkLine(PRODUCT_ID, 100);
+    await inventory.adjust(line.id, -2, 'pecah', ACTOR);
+    const summary = await inventory.wastageSummary(depotId, new Date('2099-01-01T00:00:00.000Z'));
+    expect(summary.byItem).toEqual([]);
+  });
 });

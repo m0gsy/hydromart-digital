@@ -28,7 +28,7 @@ import {
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
-import { available, ReservationStatus } from '../../src/domain/inventory';
+import { available, ReservationStatus, StockMovementType } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
 import { Approval, ApprovalStatus, ApprovalType } from '../../src/domain/approval';
 import {
@@ -205,6 +205,23 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((m) => ({ ...m }));
   }
+  async wastageAdjustments(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]> {
+    return this.moves
+      .filter((m) => m.type === StockMovementType.ADJUSTMENT && m.delta < 0)
+      .filter((m) => (!range.from || m.createdAt >= range.from) && (!range.to || m.createdAt < range.to))
+      .map((m) => ({ move: m, item: this.items.find((x) => x.id === m.itemId) }))
+      .filter((x) => x.item?.depotId === depotId)
+      .map(({ move, item }) => ({
+        itemId: move.itemId,
+        label: item!.label,
+        sellPrice: item!.sellPrice,
+        delta: move.delta,
+      }));
+  }
+
   async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {
     const r = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
     return r ? { ...r } : null;

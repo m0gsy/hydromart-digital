@@ -106,6 +106,15 @@ export interface InventoryRepository {
   /** True if a movement for this item already recorded the given order (SALE idempotency). */
   hasMovementForOrder(itemId: string, orderId: string): Promise<boolean>;
   listMovements(itemId: string): Promise<StockMovementRecord[]>;
+  /**
+   * Negative-delta ADJUSTMENT movements for a depot's lines in the window, each joined
+   * with its line's label + sellPrice. Backs the depot wastage summary — the service
+   * groups by item, sums the (absolute) lost quantity, and values it at sellPrice.
+   */
+  wastageAdjustments(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]>;
 
   /** The reservation this order holds on this line, if any (any status). */
   findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null>;

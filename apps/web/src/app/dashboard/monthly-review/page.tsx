@@ -3,35 +3,21 @@
 import { DownloadSimple, Lock, PaperPlaneTilt } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState } from '@/components/ui';
+import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { formatIDR } from '@/lib/format';
 import { isDepotManager } from '@/lib/roles';
+import { useAsync } from '@/lib/use-async';
+import type { ReportDepotMonthly } from '@/lib/types';
 
 const MONTH = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date());
+const MONTH_KEY = new Date().toISOString().slice(0, 7); // YYYY-MM
 
 type Stat = { label: string; value: string; caption: string };
 type Row = { label: string; value: string };
-
-// TODO: wire to monthly-review backend (dashboard-service ops summary). Static shape.
-const STATS: Stat[] = [
-  { label: 'Order', value: '2.418', caption: '+6% vs bulan lalu' },
-  { label: 'Pendapatan', value: 'Rp128jt', caption: '+4% vs bulan lalu' },
-  { label: 'SLA rata2', value: '94%', caption: '−1 poin vs target 96%' },
-  { label: 'Laba bersih', value: 'Rp34jt', caption: '+3% vs bulan lalu' },
-];
-
-const GOVERNANCE: Row[] = [
-  { label: 'Approval ditinjau', value: '47 · 3 ditolak' },
-  { label: 'Selisih opname nilai', value: 'Rp420rb' },
-  { label: 'Setoran selisih', value: 'Rp180rb kurang' },
-];
-
-const TEAM: Row[] = [
-  { label: 'Kurir teratas', value: 'Budi · 312 antar' },
-  { label: 'Pelanggan aktif', value: '1.184' },
-  { label: 'Dipulihkan dari churn', value: '23 pelanggan' },
-];
 
 function Panel({ title, rows }: { title: string; rows: Row[] }) {
   return (
@@ -55,6 +41,39 @@ function MonthlyReviewBody() {
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
   const depotName = depot ? `${depot.name}` : 'Depot';
 
+  const review = useAsync<ReportDepotMonthly | null>(
+    () =>
+      depot ? api.get(endpoints.reports.depotMonthly(depot.id, MONTH_KEY), true) : Promise.resolve(null),
+    [depot?.id],
+  );
+
+  const r = review.data;
+  // orders/revenue/activeCustomers/topCourier are real; SLA + net profit have no source ("—").
+  const stats: Stat[] = [
+    { label: 'Order', value: r ? r.orders.toLocaleString('id-ID') : '—', caption: 'bulan berjalan' },
+    { label: 'Pendapatan', value: r ? formatIDR(r.revenueIdr) : '—', caption: 'non-batal' },
+    { label: 'SLA rata2', value: r?.slaPct != null ? `${r.slaPct}%` : '—', caption: 'butuh data pengiriman' },
+    {
+      label: 'Laba bersih',
+      value: r?.netProfitIdr != null ? formatIDR(r.netProfitIdr) : '—',
+      caption: 'butuh HPP + biaya',
+    },
+  ];
+
+  // Governance (approval/opname/setoran) is owned by depot-service/payout — no order-service
+  // source, so these stay "—" until wired.
+  const governance: Row[] = [
+    { label: 'Approval ditinjau', value: '—' },
+    { label: 'Selisih opname nilai', value: '—' },
+    { label: 'Setoran selisih', value: '—' },
+  ];
+
+  const team: Row[] = [
+    { label: 'Kurir teratas', value: r?.topCourier ? `${r.topCourier.name} · ${r.topCourier.delivered} antar` : '—' },
+    { label: 'Pelanggan aktif', value: r ? r.activeCustomers.toLocaleString('id-ID') : '—' },
+    { label: 'Dipulihkan dari churn', value: '—' },
+  ];
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       <Card elevated className="flex flex-col gap-1 bg-brand-700 p-6 text-on-brand">
@@ -67,20 +86,28 @@ function MonthlyReviewBody() {
         </p>
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {STATS.map((s) => (
-          <Card key={s.label} className="flex flex-col gap-1 p-4">
-            <p className="text-xs text-[color:var(--text-muted)]">{s.label}</p>
-            <p className="text-lg font-bold tabular-nums">{s.value}</p>
-            <p className="text-[11px] text-[color:var(--text-muted)]">{s.caption}</p>
-          </Card>
-        ))}
-      </div>
+      {review.loading ? (
+        <Skeleton className="h-72 w-full" />
+      ) : review.error ? (
+        <ErrorState message={review.error} onRetry={review.reload} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {stats.map((s) => (
+              <Card key={s.label} className="flex flex-col gap-1 p-4">
+                <p className="text-xs text-[color:var(--text-muted)]">{s.label}</p>
+                <p className="text-lg font-bold tabular-nums">{s.value}</p>
+                <p className="text-[11px] text-[color:var(--text-muted)]">{s.caption}</p>
+              </Card>
+            ))}
+          </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Panel title="Governance" rows={GOVERNANCE} />
-        <Panel title="Tim & pelanggan" rows={TEAM} />
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Panel title="Governance" rows={governance} />
+            <Panel title="Tim & pelanggan" rows={team} />
+          </div>
+        </>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <button

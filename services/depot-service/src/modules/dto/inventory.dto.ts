@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -30,6 +31,22 @@ export class ListInventoryQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   lowStockOnly?: boolean;
+}
+
+export class WastageQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot to summarize wastage for.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
 }
 
 export class CreateInventoryItemDto {
