@@ -1638,11 +1638,12 @@ export interface DepotCustomer {
   fullName: string | null;
   phone: string | null;
   membershipTier: string;
-  orderCount: number;
-  gallonsOnLoan: number;
-  depositHeldIdr: number;
+  // null = aggregate not computed yet (cross-service unwired); render as "—".
+  orderCount: number | null;
+  gallonsOnLoan: number | null;
+  depositHeldIdr: number | null;
   lastOrderAt: string | null;
-  isSubscriber: boolean;
+  isSubscriber: boolean | null;
 }
 
 export interface DepotCustomerAddress {
@@ -1682,11 +1683,12 @@ export interface DepotCustomerDetail {
     fullName: string | null;
     phone: string | null;
     membershipTier: string;
-    isSubscriber: boolean;
-    orderCount: number;
-    totalSpentIdr: number;
-    gallonsOnLoan: number;
-    depositHeldIdr: number;
+    // null = aggregate not computed yet (cross-service unwired); render as "—".
+    isSubscriber: boolean | null;
+    orderCount: number | null;
+    totalSpentIdr: number | null;
+    gallonsOnLoan: number | null;
+    depositHeldIdr: number | null;
     churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   };
   addresses: DepotCustomerAddress[];

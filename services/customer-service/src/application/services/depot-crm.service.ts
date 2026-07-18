@@ -6,17 +6,21 @@ import { ProfileRepository } from '../ports/profile.repository';
 import { MembershipTier } from '../../domain/membership-tier.enum';
 import { CUSTOMER_TOKENS } from '../tokens';
 
-/** One directory row for the depot CRM list (6a). */
+/**
+ * One directory row for the depot CRM list (6a). The cross-service aggregates
+ * (order/gallon/deposit) are `null` — "not computed yet", not zero — until the
+ * order/depot ports are wired; the FE renders null as "—".
+ */
 export interface DepotCustomerListItem {
   id: string;
   fullName: string | null;
   phone: string | null;
   membershipTier: MembershipTier;
-  orderCount: number;
-  gallonsOnLoan: number;
-  depositHeldIdr: number;
+  orderCount: number | null;
+  gallonsOnLoan: number | null;
+  depositHeldIdr: number | null;
   lastOrderAt: string | null;
-  isSubscriber: boolean;
+  isSubscriber: boolean | null;
 }
 
 export interface DepotCrmAddress {
@@ -56,11 +60,12 @@ export interface DepotCustomerDetail {
     fullName: string | null;
     phone: string | null;
     membershipTier: MembershipTier;
-    isSubscriber: boolean;
-    orderCount: number;
-    totalSpentIdr: number;
-    gallonsOnLoan: number;
-    depositHeldIdr: number;
+    /** null = "not computed yet" (cross-service aggregate unwired), not zero. */
+    isSubscriber: boolean | null;
+    orderCount: number | null;
+    totalSpentIdr: number | null;
+    gallonsOnLoan: number | null;
+    depositHeldIdr: number | null;
     /** Manager churn-risk panel (12b); null while the forecast aggregate is unwired. */
     churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   };
@@ -94,12 +99,12 @@ export class DepotCrmService {
       fullName: r.fullName,
       phone: r.phone,
       membershipTier: r.membershipTier,
-      // TODO wire order/depot aggregate (see class doc).
-      orderCount: 0,
-      gallonsOnLoan: 0,
-      depositHeldIdr: 0,
+      // Cross-service aggregates unwired — null ("unknown"), never a fabricated 0/false.
+      orderCount: null,
+      gallonsOnLoan: null,
+      depositHeldIdr: null,
       lastOrderAt: null,
-      isSubscriber: false,
+      isSubscriber: null,
     }));
   }
 
@@ -121,12 +126,12 @@ export class DepotCrmService {
         fullName: primary?.recipientName ?? null,
         phone: primary?.phone ?? null,
         membershipTier: profile?.membershipTier ?? MembershipTier.BASIC,
-        // TODO wire order/depot aggregate (see class doc).
-        isSubscriber: false,
-        orderCount: 0,
-        totalSpentIdr: 0,
-        gallonsOnLoan: 0,
-        depositHeldIdr: 0,
+        // Cross-service aggregates unwired — null ("unknown"), never a fabricated 0/false.
+        isSubscriber: null,
+        orderCount: null,
+        totalSpentIdr: null,
+        gallonsOnLoan: null,
+        depositHeldIdr: null,
         churnRisk: null,
       },
       addresses: addressRecords.map((a) => this.toAddress(a)),
