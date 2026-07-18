@@ -77,6 +77,10 @@ model Payment {
   @@index([customerId])
   @@index([status])
   @@index([refundApproval])
+  // Audit DB-1: a partial UNIQUE index enforcing one active (PENDING/PAID) payment
+  // per order is added by migration 20260718140500_payment_one_active_per_order
+  // (Prisma can't express a partial unique index here). The initiate() pre-check is
+  // the fast path; this index is the real race guard.
   @@map("payments")
 }
 

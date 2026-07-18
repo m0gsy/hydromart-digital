@@ -92,6 +92,11 @@ model Order {
   @@index([customerId])
   @@index([status])
   @@index([depotId])
+  // Reporting + paginated list all filter/sort on createdAt; composites back the
+  // status- and depot-scoped report predicates (audit DB-3).
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([depotId, createdAt])
   @@map("orders")
 }
 

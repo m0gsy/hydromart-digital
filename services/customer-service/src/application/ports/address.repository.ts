@@ -29,6 +29,12 @@ export interface AddressRepository {
   /** Clear the primary flag on all of a customer's addresses. */
   unsetPrimary(customerId: string): Promise<void>;
   markPrimary(customerId: string, id: string): Promise<void>;
+  /**
+   * Atomically make `id` the sole primary (clear all, then set one) in a single
+   * transaction — audit DB-2: avoids the non-transactional two-step that could leave
+   * a customer with zero or two primaries under a crash/race.
+   */
+  setPrimaryExclusive(customerId: string, id: string): Promise<void>;
   delete(customerId: string, id: string): Promise<void>;
   /** Most recently created address, optionally excluding one id (for promote-on-delete). */
   findMostRecent(customerId: string, exceptId?: string): Promise<AddressRecord | null>;

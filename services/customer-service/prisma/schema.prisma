@@ -64,6 +64,9 @@ model Address {
   updatedAt     DateTime @updatedAt
 
   @@index([customerId])
+  // Audit DB-2: a partial UNIQUE index enforcing one primary per customer is added by
+  // migration 20260718141000_one_primary_address (Prisma can't express a partial
+  // unique index here). Pairs with the transactional AddressRepository.setPrimaryExclusive.
   @@map("addresses")
 }
 

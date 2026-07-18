@@ -143,6 +143,9 @@ model Delivery {
   @@index([driverId])
   @@index([status])
   @@index([depotId])
+  // Every SLA aggregate filters on deliveredAt (+ depot scope); back it (audit DB-4).
+  @@index([deliveredAt])
+  @@index([depotId, deliveredAt])
   @@map("deliveries")
 }
 
