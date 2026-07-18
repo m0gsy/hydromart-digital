@@ -628,6 +628,70 @@ export const endpoints = {
       `/approvals/api/v1/approvals/counts?depotId=${encodeURIComponent(depotId)}`,
     create: '/approvals/api/v1/approvals',
   },
+  // Depot-manager console features (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b).
+  // All reuse the existing `depots` gateway segment (no new segment/env) — the segment strips
+  // `/depots` and forwards `/api/v1/<controller>` straight to depot-service.
+  depotTargets: {
+    // GET the target row for one month (null if unset).
+    get: (q: { depotId: string; month: string }) =>
+      `/depots/api/v1/depot-targets?depotId=${encodeURIComponent(q.depotId)}&month=${encodeURIComponent(q.month)}`,
+    upsert: '/depots/api/v1/depot-targets', // PUT
+  },
+  cashbook: {
+    list: (q: { depotId: string; from?: string; to?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/depots/api/v1/cashbook?${p}`;
+    },
+    create: '/depots/api/v1/cashbook',
+  },
+  disputes: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/depots/api/v1/order-disputes?${p}`;
+    },
+    create: '/depots/api/v1/order-disputes',
+    resolve: (id: string) => `/depots/api/v1/order-disputes/${id}/resolve`,
+  },
+  maintenance: {
+    list: (depotId: string) =>
+      `/depots/api/v1/maintenance-items?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/maintenance-items',
+    serviced: (id: string) => `/depots/api/v1/maintenance-items/${id}/serviced`,
+  },
+  wholesale: {
+    list: (depotId: string) =>
+      `/depots/api/v1/wholesale-tiers?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/wholesale-tiers',
+    detail: (id: string) => `/depots/api/v1/wholesale-tiers/${id}`, // PATCH / DELETE
+  },
+  // Manager-managed standing orders (depot-service). Distinct from customer self-service
+  // recurring orders under the `subscriptions` key above (order-service, spec 7b).
+  depotSubscriptions: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/depots/api/v1/subscriptions?${p}`;
+    },
+    create: '/depots/api/v1/subscriptions',
+    pause: (id: string) => `/depots/api/v1/subscriptions/${id}/pause`,
+    resume: (id: string) => `/depots/api/v1/subscriptions/${id}/resume`,
+  },
+  huddle: {
+    list: (depotId: string) =>
+      `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(depotId)}`,
+    get: (q: { depotId: string; weekStart: string }) =>
+      `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(q.depotId)}&weekStart=${encodeURIComponent(q.weekStart)}`,
+    upsert: '/depots/api/v1/huddle-notes', // PUT
+  },
+  handover: {
+    list: (depotId: string) =>
+      `/depots/api/v1/shift-handovers?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/shift-handovers',
+    sign: (id: string) => `/depots/api/v1/shift-handovers/${id}/sign`,
+  },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,

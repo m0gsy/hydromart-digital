@@ -1,70 +1,112 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Lock, Megaphone, CheckCircle, Users } from '@phosphor-icons/react';
+import { Lock, Megaphone } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, Money, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton, Toggle } from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { isStaff } from '@/lib/roles';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion } from '@/lib/types';
 
-// Analytics are local + TODO keyed by the route id — no promo-analytics backend yet.
-// TODO: wire to promotions/vouchers analytics backend.
-const USAGE_7D = [4, 9, 6, 12, 8, 15, 11];
-const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+// ponytail: no promo-usage analytics endpoint — omitted. promo-service stores no
+// per-voucher redemption telemetry, so the old USAGE_7D / TERMS / TOP_USERS blocks were
+// fabricated. Dropped rather than faked; add back when an analytics endpoint lands.
 
-const TERMS = [
-  { label: 'Minimum belanja Rp50.000', met: true },
-  { label: 'Maksimum 1× per pelanggan', met: true },
-  { label: 'Hanya produk Galon 19L', met: false },
-];
+// Date fields are stored as ISO datetimes; <input type="date"> wants YYYY-MM-DD.
+const toDateInput = (iso: string | null): string => (iso ? iso.slice(0, 10) : '');
 
-const TOP_USERS = [
-  { name: 'Budi Santoso', uses: 6 },
-  { name: 'Toko Jaya', uses: 5 },
-  { name: 'Siti Aminah', uses: 3 },
-];
+/** Real editable form for one promotion (PATCH promotions.detail). */
+function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void }) {
+  const [title, setTitle] = useState(promo.title);
+  const [subtitle, setSubtitle] = useState(promo.subtitle ?? '');
+  const [voucherCode, setVoucherCode] = useState(promo.voucherCode ?? '');
+  const [active, setActive] = useState(promo.active);
+  const [startsAt, setStartsAt] = useState(toDateInput(promo.startsAt));
+  const [endsAt, setEndsAt] = useState(toDateInput(promo.endsAt));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-function Stat({ label, value }: { label: string; value: string }) {
+  async function submit() {
+    if (title.trim().length < 3) {
+      setError('Judul promo minimal 3 karakter.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await api.patch(
+        endpoints.promotions.detail(promo.id),
+        {
+          title: title.trim(),
+          subtitle: subtitle.trim() || null,
+          voucherCode: voucherCode.trim() || null,
+          active,
+          startsAt: startsAt || null,
+          endsAt: endsAt || null,
+        },
+        true,
+      );
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan promo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Card className="flex flex-col gap-1 p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-    </Card>
-  );
-}
-
-function UsageChart() {
-  const max = Math.max(...USAGE_7D);
-  return (
-    <Card className="flex flex-col gap-3 p-5">
-      <h2 className="font-semibold">Pemakaian 7 hari</h2>
-      <div className="flex items-end justify-between gap-2" style={{ height: 140 }}>
-        {USAGE_7D.map((v, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1.5">
-            <span className="text-xs font-semibold tabular-nums text-muted">{v}</span>
-            <div
-              className="w-full rounded-t-md bg-brand-500"
-              style={{ height: `${Math.max(6, (v / max) * 100)}%` }}
-            />
-            <span className="text-xs text-muted">{DAY_LABELS[i]}</span>
-          </div>
-        ))}
+    <Card className="flex flex-col gap-4 p-5">
+      <h2 className="font-semibold">Ubah promo</h2>
+      <Field label="Judul" htmlFor="promo-title">
+        <Input id="promo-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </Field>
+      <Field label="Subjudul" htmlFor="promo-subtitle">
+        <Input id="promo-subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
+      </Field>
+      <Field label="Kode voucher" htmlFor="promo-code" hint="Kosongkan jika promo tanpa voucher.">
+        <Input id="promo-code" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value)} />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Mulai" htmlFor="promo-start">
+          <Input id="promo-start" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        </Field>
+        <Field label="Selesai" htmlFor="promo-end">
+          <Input id="promo-end" type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">Aktif</span>
+        <Toggle on={active} onChange={setActive} label="Aktifkan promo" />
+      </div>
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      {saved && !error && <p className="text-sm font-medium text-[color:var(--success)]">Tersimpan.</p>}
+      <div className="flex justify-end">
+        <Button onClick={submit} loading={busy}>
+          Simpan
+        </Button>
       </div>
     </Card>
   );
 }
 
 function PromoDetailBody({ id }: { id: string }) {
-  // REAL — find this promo in the admin list for its code / active state (header).
+  // REAL — promo-service has no GET-one route, so read the admin list and pick this id.
   const promos = useAsync<Promotion[]>(() => api.get<Promotion[]>(endpoints.promotions.manage, true), []);
   const promo = (promos.data ?? []).find((p) => p.id === id) ?? null;
   const code = promo?.voucherCode ?? promo?.title ?? id.slice(0, 8).toUpperCase();
-  const active = promo?.active ?? true;
+  const active = promo?.active ?? false;
 
   return (
     <div className="flex flex-col gap-5">
@@ -80,61 +122,22 @@ function PromoDetailBody({ id }: { id: string }) {
                 <Badge tone={active ? 'success' : 'neutral'}>{active ? 'AKTIF' : 'NONAKTIF'}</Badge>
               </h1>
             )}
-            <p className="text-sm text-muted">Detail promo &amp; analitik</p>
+            <p className="text-sm text-muted">Detail &amp; pengaturan promo</p>
           </div>
         </div>
-        {/* TODO: wire to promo editor (endpoints.promotions.detail PATCH). */}
-        <Button variant="secondary">Ubah</Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Dipakai" value="65×" />
-        <Stat label="Penghematan diberikan" value="Rp 1.300.000" />
-        <Stat label="Order terpengaruh" value="58" />
-        <Stat label="Nilai order" value="Rp 4.720.000" />
-      </div>
-
-      <UsageChart />
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="flex flex-col gap-3 p-5">
-          <h2 className="font-semibold">Syarat</h2>
-          <ul className="flex flex-col gap-2.5">
-            {TERMS.map((tm) => (
-              <li key={tm.label} className="flex items-center gap-2 text-sm">
-                <CheckCircle
-                  size={18}
-                  weight="fill"
-                  className={tm.met ? 'text-[color:var(--success)]' : 'text-muted'}
-                />
-                <span className={tm.met ? '' : 'text-muted'}>{tm.label}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card className="flex flex-col gap-3 p-5">
-          <h2 className="flex items-center gap-2 font-semibold">
-            <Users size={18} weight="fill" className="text-brand-600" /> Pengguna teratas
-          </h2>
-          <ul className="flex flex-col">
-            {TOP_USERS.map((u) => (
-              <li
-                key={u.name}
-                className="flex items-center justify-between gap-3 border-b border-app py-2.5 text-sm last:border-0"
-              >
-                <span className="font-medium">{u.name}</span>
-                <span className="tabular-nums text-muted">{u.uses}× pakai</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </div>
-
-      <p className="text-xs text-muted">
-        {/* Analytics figures are placeholders until the promo-analytics backend lands. */}
-        Analitik pemakaian masih contoh — menunggu backend analitik promo.
-      </p>
+      {promos.loading ? (
+        <Skeleton className="h-96 w-full" />
+      ) : promos.error ? (
+        <ErrorState message={promos.error} onRetry={promos.reload} />
+      ) : !promo ? (
+        <CenterState title="Promo tak ditemukan" icon={<Megaphone size={40} weight="fill" />}>
+          Promo ini mungkin sudah dihapus.
+        </CenterState>
+      ) : (
+        <PromoEditor key={promo.id} promo={promo} onSaved={promos.reload} />
+      )}
     </div>
   );
 }
@@ -143,10 +146,10 @@ function Gate() {
   const { customer } = useAuth();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
-  if (!isStaff(customer?.role)) {
+  if (!can('voucherWrite', customer?.role)) {
     return (
       <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Analitik promo hanya untuk staf depot.
+        Pengelolaan promo hanya untuk staf pemasaran &amp; manajer depot.
       </CenterState>
     );
   }

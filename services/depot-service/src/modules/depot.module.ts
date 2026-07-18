@@ -19,6 +19,14 @@ import { ApprovalService } from '../application/services/approval.service';
 import { SupplierService } from '../application/services/supplier.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { RosterService } from '../application/services/roster.service';
+import { DepotTargetService } from '../application/services/depot-target.service';
+import { CashbookService } from '../application/services/cashbook.service';
+import { DisputeService } from '../application/services/dispute.service';
+import { MaintenanceService } from '../application/services/maintenance.service';
+import { WholesaleTierService } from '../application/services/wholesale-tier.service';
+import { SubscriptionService } from '../application/services/subscription.service';
+import { HuddleService } from '../application/services/huddle.service';
+import { HandoverService } from '../application/services/handover.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
@@ -32,6 +40,14 @@ import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.pris
 import { SupplierPrismaRepository } from '../infrastructure/prisma/supplier.prisma.repository';
 import { PurchaseOrderPrismaRepository } from '../infrastructure/prisma/purchase-order.prisma.repository';
 import { RosterPrismaRepository } from '../infrastructure/prisma/roster.prisma.repository';
+import { DepotTargetPrismaRepository } from '../infrastructure/prisma/depot-target.prisma.repository';
+import { CashbookPrismaRepository } from '../infrastructure/prisma/cashbook.prisma.repository';
+import { DisputePrismaRepository } from '../infrastructure/prisma/dispute.prisma.repository';
+import { MaintenancePrismaRepository } from '../infrastructure/prisma/maintenance.prisma.repository';
+import { WholesaleTierPrismaRepository } from '../infrastructure/prisma/wholesale-tier.prisma.repository';
+import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
+import { HuddlePrismaRepository } from '../infrastructure/prisma/huddle.prisma.repository';
+import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
@@ -50,6 +66,14 @@ import { ApprovalController } from './approval.controller';
 import { SupplierController } from './supplier.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
+import { DepotTargetController } from './depot-target.controller';
+import { CashbookController } from './cashbook.controller';
+import { DisputeController } from './dispute.controller';
+import { MaintenanceController } from './maintenance.controller';
+import { WholesaleTierController } from './wholesale-tier.controller';
+import { SubscriptionController } from './subscription.controller';
+import { HuddleController } from './huddle.controller';
+import { HandoverController } from './handover.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -67,6 +91,14 @@ const providers: Provider[] = [
   SupplierService,
   PurchaseOrderService,
   RosterService,
+  DepotTargetService,
+  CashbookService,
+  DisputeService,
+  MaintenanceService,
+  WholesaleTierService,
+  SubscriptionService,
+  HuddleService,
+  HandoverService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
@@ -85,6 +117,14 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.SupplierRepository, useClass: SupplierPrismaRepository },
   { provide: DEPOT_TOKENS.PurchaseOrderRepository, useClass: PurchaseOrderPrismaRepository },
   { provide: DEPOT_TOKENS.RosterRepository, useClass: RosterPrismaRepository },
+  { provide: DEPOT_TOKENS.DepotTargetRepository, useClass: DepotTargetPrismaRepository },
+  { provide: DEPOT_TOKENS.CashbookRepository, useClass: CashbookPrismaRepository },
+  { provide: DEPOT_TOKENS.DisputeRepository, useClass: DisputePrismaRepository },
+  { provide: DEPOT_TOKENS.MaintenanceRepository, useClass: MaintenancePrismaRepository },
+  { provide: DEPOT_TOKENS.WholesaleTierRepository, useClass: WholesaleTierPrismaRepository },
+  { provide: DEPOT_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
+  { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
+  { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -109,6 +149,14 @@ const providers: Provider[] = [
     SupplierController,
     PurchaseOrderController,
     RosterController,
+    DepotTargetController,
+    CashbookController,
+    DisputeController,
+    MaintenanceController,
+    WholesaleTierController,
+    SubscriptionController,
+    HuddleController,
+    HandoverController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],

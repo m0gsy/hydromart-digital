@@ -12,4 +12,12 @@ export const DEPOT_TOKENS = {
   SupplierRepository: Symbol('SupplierRepository'),
   PurchaseOrderRepository: Symbol('PurchaseOrderRepository'),
   RosterRepository: Symbol('RosterRepository'),
+  DepotTargetRepository: Symbol('DepotTargetRepository'),
+  CashbookRepository: Symbol('CashbookRepository'),
+  DisputeRepository: Symbol('DisputeRepository'),
+  MaintenanceRepository: Symbol('MaintenanceRepository'),
+  WholesaleTierRepository: Symbol('WholesaleTierRepository'),
+  SubscriptionRepository: Symbol('SubscriptionRepository'),
+  HuddleRepository: Symbol('HuddleRepository'),
+  HandoverRepository: Symbol('HandoverRepository'),
 } as const;

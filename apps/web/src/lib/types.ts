@@ -1802,3 +1802,159 @@ export interface InventoryWastageSummary {
   totalLossIdr?: number;
   byItem: InventoryWastageItem[];
 }
+
+// ── Depot-manager console (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b) ──
+
+// Monthly depot targets (13a). Actuals are derived in the page from order/delivery reports.
+export interface DepotTarget {
+  id: string;
+  depotId: string;
+  month: string;
+  revenueTargetIdr: number;
+  ordersTarget: number;
+  slaTargetPct: number;
+  newCustomersTarget: number;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Depot cashbook (14c). direction IN/OUT; summary is computed server-side over the window.
+export type CashDirection = 'IN' | 'OUT';
+export interface CashbookEntry {
+  id: string;
+  depotId: string;
+  direction: CashDirection;
+  category: string;
+  label: string;
+  amountIdr: number;
+  occurredAt: string;
+  sourceRef: string | null;
+  actorId: string;
+  createdAt: string;
+}
+export interface CashbookResponse {
+  entries: CashbookEntry[];
+  summary: { inIdr: number; outIdr: number; netIdr: number };
+}
+
+// Order disputes (15c).
+export type DisputeCategory = 'WRONG_ITEM' | 'NOT_RECEIVED' | 'OVERCHARGED' | 'QUALITY' | 'OTHER';
+export type DisputeStatus = 'OPEN' | 'RESOLVED' | 'REJECTED';
+export type DisputeResolution = 'REFUND' | 'RESEND' | 'REJECTED';
+export interface OrderDispute {
+  id: string;
+  depotId: string;
+  orderRef: string;
+  customerName: string;
+  category: DisputeCategory;
+  description: string;
+  amountIdr: number;
+  courierName: string | null;
+  status: DisputeStatus;
+  resolution: DisputeResolution | null;
+  resolutionNote: string | null;
+  raisedBy: string;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Equipment maintenance (14a). status derived from nextDueAt at read time.
+export type MaintenanceStatus = 'DUE' | 'SOON' | 'HEALTHY' | 'NEW';
+export interface MaintenanceItem {
+  id: string;
+  depotId: string;
+  name: string;
+  category: string;
+  intervalDays: number;
+  lastServicedAt: string | null;
+  nextDueAt: string;
+  status: MaintenanceStatus;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// B2B wholesale price tiers (15d).
+export interface WholesaleTier {
+  id: string;
+  depotId: string;
+  productId: string | null;
+  label: string;
+  minQty: number;
+  maxQty: number | null;
+  priceIdr: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Manager-managed standing orders (16b). Distinct from the customer `Subscription` above.
+export type DepotSubscriptionCadence =
+  | 'DAILY'
+  | 'EVERY_3_DAYS'
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY';
+export type DepotSubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+export interface DepotSubscription {
+  id: string;
+  depotId: string;
+  customerId: string | null;
+  customerName: string;
+  productLabel: string;
+  quantity: number;
+  cadence: DepotSubscriptionCadence;
+  status: DepotSubscriptionStatus;
+  nextRunAt: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Weekly team huddle (13c).
+export interface HuddleAgendaItem {
+  title: string;
+  note: string;
+}
+export interface HuddleActionItem {
+  text: string;
+  assignee: string;
+  done: boolean;
+}
+export interface HuddleNote {
+  id: string;
+  depotId: string;
+  weekStart: string;
+  heldAt: string;
+  attendance: string | null;
+  agenda: HuddleAgendaItem[];
+  actionItems: HuddleActionItem[];
+  recordedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Shift handover checklist (14d).
+export type HandoverItemState = 'DONE' | 'PARTIAL' | 'PENDING';
+export interface HandoverItem {
+  title: string;
+  subtext: string;
+  state: HandoverItemState;
+}
+export interface ShiftHandover {
+  id: string;
+  depotId: string;
+  fromShift: string;
+  toShift: string;
+  fromStaff: string;
+  toStaff: string;
+  items: HandoverItem[];
+  note: string | null;
+  signedAt: string | null;
+  recordedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}

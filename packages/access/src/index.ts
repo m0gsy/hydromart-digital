@@ -89,6 +89,10 @@ export const CAPABILITIES = {
   // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
   // courier commission runs, monthly ops review. Manager-exclusive finance view.
   depotFinance: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // depot-service — team & culture ops: monthly targets/goals, weekly huddle notes,
+  // shift-handover checklists, equipment maintenance, wholesale tiers, subscriptions,
+  // order disputes. Manager-exclusive depot management (like depotAdmin).
+  depotTeam: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

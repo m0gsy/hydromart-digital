@@ -1,38 +1,37 @@
 'use client';
 
-import { ArrowDown, ArrowUp, BookOpen, Export, Lock, type Icon } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { ArrowDown, ArrowUp, BookOpen, Export, Lock, Plus, type Icon } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, Chip, Money } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CenterState,
+  Chip,
+  ErrorState,
+  Field,
+  Input,
+  Money,
+  Skeleton,
+} from '@/components/ui';
+import { api, ApiError } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { isDepotManager } from '@/lib/roles';
-
-type Entry = {
-  id: string;
-  direction: 'in' | 'out';
-  label: string;
-  detail: string;
-  time: string;
-  amount: number;
-};
+import { useDepot } from '@/lib/depot-context';
+import { can } from '@/lib/roles';
+import { useAsync } from '@/lib/use-async';
+import type { CashDirection, CashbookResponse } from '@/lib/types';
 
 const TODAY = new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }).format(
   new Date(),
 );
-
-// TODO: wire to cashbook backend (depot cash ledger). Static seed.
-const OPENING = 1_250_000;
-const ENTRIES: Entry[] = [
-  { id: 'e1', direction: 'in', label: 'Penjualan galon', detail: 'Order #0231 · tunai', time: '08.15', amount: 60_000 },
-  { id: 'e2', direction: 'in', label: 'Isi ulang', detail: 'Order #0232 · QRIS', time: '09.40', amount: 25_000 },
-  { id: 'e3', direction: 'out', label: 'Beli tutup galon', detail: 'Toko Makmur', time: '10.05', amount: 85_000 },
-  { id: 'e4', direction: 'in', label: 'Setoran kurir', detail: 'Shift pagi · Budi', time: '12.30', amount: 340_000 },
-  { id: 'e5', direction: 'out', label: 'Bensin genset', detail: 'SPBU', time: '13.10', amount: 50_000 },
-];
-
-const IN = ENTRIES.filter((e) => e.direction === 'in').reduce((s, e) => s + e.amount, 0);
-const OUT = ENTRIES.filter((e) => e.direction === 'out').reduce((s, e) => s + e.amount, 0);
-const CLOSING = OPENING + IN - OUT;
+const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+const startOfTodayIso = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+};
 
 function StatCard({
   label,
@@ -63,7 +62,104 @@ function StatCard({
   );
 }
 
+/** Inline "Catat kas" form → POST an entry, then reload the ledger. */
+function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const [direction, setDirection] = useState<CashDirection>('IN');
+  const [category, setCategory] = useState('');
+  const [label, setLabel] = useState('');
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const amountIdr = Number(amount);
+    if (!category.trim() || !label.trim() || !Number.isFinite(amountIdr) || amountIdr <= 0) {
+      setError('Isi kategori, keterangan, dan nominal (> 0).');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        endpoints.cashbook.create,
+        { depotId, direction, category: category.trim(), label: label.trim(), amountIdr },
+        true,
+      );
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal mencatat kas.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col gap-3 p-4">
+      <div className="flex gap-2">
+        {(['IN', 'OUT'] as const).map((d) => (
+          <button key={d} type="button" onClick={() => setDirection(d)} aria-pressed={direction === d}>
+            <Chip tone={direction === d ? 'ink' : 'outline'}>{d === 'IN' ? 'Masuk' : 'Keluar'}</Chip>
+          </button>
+        ))}
+      </div>
+      <Field label="Kategori" htmlFor="cb-category">
+        <Input
+          id="cb-category"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          placeholder="mis. Penjualan, Belanja"
+        />
+      </Field>
+      <Field label="Keterangan" htmlFor="cb-label">
+        <Input
+          id="cb-label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="mis. Penjualan galon tunai"
+        />
+      </Field>
+      <Field label="Nominal (Rp)" htmlFor="cb-amount">
+        <Input
+          id="cb-amount"
+          type="number"
+          inputMode="numeric"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0"
+        />
+      </Field>
+      {error && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end">
+        <Button onClick={submit} loading={busy}>
+          Simpan
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function CashbookBody() {
+  const { scopedId } = useDepot();
+  const [showForm, setShowForm] = useState(false);
+
+  const book = useAsync<CashbookResponse>(
+    () =>
+      scopedId
+        ? api.get(endpoints.cashbook.list({ depotId: scopedId, from: startOfTodayIso() }), true)
+        : Promise.resolve({ entries: [], summary: { inIdr: 0, outIdr: 0, netIdr: 0 } }),
+    [scopedId],
+  );
+
+  const summary = book.data?.summary ?? { inIdr: 0, outIdr: 0, netIdr: 0 };
+  // Newest first — server order isn't guaranteed, sort by occurredAt desc.
+  const entries = [...(book.data?.entries ?? [])].sort(
+    (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
@@ -71,54 +167,82 @@ function CashbookBody() {
           <BookOpen size={24} weight="fill" className="text-brand-500" />
           <div>
             <h1 className="text-2xl font-bold">Buku kas</h1>
-            <p className="text-sm text-[color:var(--text-muted)]">
-              {TODAY} · saldo awal <Money amount={OPENING} className="font-semibold" />
-            </p>
+            <p className="text-sm text-[color:var(--text-muted)]">{TODAY}</p>
           </div>
         </div>
         <Chip tone="tint">Hari ini</Chip>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Masuk" amount={IN} variant="in" />
-        <StatCard label="Keluar" amount={OUT} variant="out" />
-        <StatCard label="Saldo akhir" amount={CLOSING} variant="balance" />
+        <StatCard label="Masuk" amount={summary.inIdr} variant="in" />
+        <StatCard label="Keluar" amount={summary.outIdr} variant="out" />
+        {/* ponytail: opening balance not tracked server-side, so this is net today (in − out), not a running balance. */}
+        <StatCard label="Kas bersih" amount={summary.netIdr} variant="balance" />
       </div>
 
-      <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
-        {ENTRIES.map((e) => {
-          const ArrowIcon: Icon = e.direction === 'in' ? ArrowDown : ArrowUp;
-          const isIn = e.direction === 'in';
-          return (
-            <div key={e.id} className="flex items-center gap-3 p-4">
-              <span
-                className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
-                  isIn
-                    ? 'bg-[color:var(--success-bg)] text-[color:var(--success)]'
-                    : 'bg-[color:var(--surface-soft)] text-[color:var(--danger)]'
-                }`}
-              >
-                <ArrowIcon size={16} weight="bold" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">{e.label}</p>
-                <p className="text-xs text-[color:var(--text-muted)]">
-                  {e.time} · {e.detail}
-                </p>
-              </div>
-              <span
-                className={`shrink-0 text-sm font-semibold tabular-nums ${
-                  isIn ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'
-                }`}
-              >
-                {isIn ? '+' : '−'}
-                <Money amount={e.amount} />
-              </span>
-            </div>
-          );
-        })}
-      </Card>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold">Transaksi hari ini</p>
+        <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
+          <Plus size={16} weight="bold" />
+          Catat kas
+        </Button>
+      </div>
 
+      {showForm && scopedId && (
+        <CreateForm
+          depotId={scopedId}
+          onDone={() => {
+            setShowForm(false);
+            book.reload();
+          }}
+        />
+      )}
+
+      {book.loading ? (
+        <Skeleton className="h-64 w-full" />
+      ) : book.error ? (
+        <ErrorState message={book.error} onRetry={book.reload} />
+      ) : entries.length === 0 ? (
+        <CenterState title="Belum ada transaksi" icon={<BookOpen size={40} weight="fill" />}>
+          Belum ada kas masuk atau keluar yang tercatat hari ini.
+        </CenterState>
+      ) : (
+        <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
+          {entries.map((e) => {
+            const isIn = e.direction === 'IN';
+            const ArrowIcon: Icon = isIn ? ArrowDown : ArrowUp;
+            return (
+              <div key={e.id} className="flex items-center gap-3 p-4">
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
+                    isIn
+                      ? 'bg-[color:var(--success-bg)] text-[color:var(--success)]'
+                      : 'bg-[color:var(--surface-soft)] text-[color:var(--danger)]'
+                  }`}
+                >
+                  <ArrowIcon size={16} weight="bold" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{e.label}</p>
+                  <p className="text-xs text-[color:var(--text-muted)]">
+                    {timeFmt.format(new Date(e.occurredAt))} · {e.category}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 text-sm font-semibold tabular-nums ${
+                    isIn ? 'text-[color:var(--success)]' : 'text-[color:var(--danger)]'
+                  }`}
+                >
+                  {isIn ? '+' : '−'}
+                  <Money amount={e.amountIdr} />
+                </span>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {/* ponytail: export + close-book are static no-ops until those flows are specced. */}
       <div className="flex gap-3">
         <Button variant="secondary" className="flex-1">
           <Export size={16} weight="bold" />
@@ -132,7 +256,7 @@ function CashbookBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!can('depotFinance', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Buku kas depot hanya untuk Manajer depot.

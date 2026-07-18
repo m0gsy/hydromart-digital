@@ -167,3 +167,60 @@ export class PriceOverrideProposalDecidedError extends DomainError {
     super('This price-override proposal has already been approved or rejected.');
   }
 }
+
+export class DisputeNotFoundError extends DomainError {
+  readonly code = 'DISPUTE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Order dispute not found.');
+  }
+}
+
+/** Resolve/reject attempted on an already-terminal (RESOLVED/REJECTED) dispute. */
+export class DisputeAlreadyResolvedError extends DomainError {
+  readonly code = 'DISPUTE_ALREADY_RESOLVED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This dispute has already been resolved or rejected.');
+  }
+}
+
+export class MaintenanceItemNotFoundError extends DomainError {
+  readonly code = 'MAINTENANCE_ITEM_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Maintenance item not found.');
+  }
+}
+
+export class WholesaleTierNotFoundError extends DomainError {
+  readonly code = 'WHOLESALE_TIER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Wholesale tier not found.');
+  }
+}
+
+export class SubscriptionNotFoundError extends DomainError {
+  readonly code = 'SUBSCRIPTION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Subscription not found.');
+  }
+}
+
+export class HuddleNoteNotFoundError extends DomainError {
+  readonly code = 'HUDDLE_NOTE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Huddle note not found.');
+  }
+}
+
+export class HandoverNotFoundError extends DomainError {
+  readonly code = 'HANDOVER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Shift handover not found.');
+  }
+}
