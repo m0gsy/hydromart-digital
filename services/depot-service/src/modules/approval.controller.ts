@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { ApprovalService } from '../application/services/approval.service';
@@ -51,17 +51,23 @@ export class ApprovalController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get one approval item' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<Approval> {
-    return this.approvals.get(id);
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Approval> {
+    const approval = await this.approvals.get(id);
+    assertDepotAccess(user, approval.depotId);
+    return approval;
   }
 
   @Patch(':id/decide')
   @ApiOperation({ summary: 'Decide an approval item: APPROVE / REJECT / HOLD' })
-  decide(
+  async decide(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: DecideApprovalDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Approval> {
+    assertDepotAccess(user, (await this.approvals.get(id)).depotId);
     return this.approvals.decide(id, dto.decision, dto.note ?? null, user.sub);
   }
 }

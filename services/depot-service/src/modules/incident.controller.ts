@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { IncidentService } from '../application/services/incident.service';
@@ -41,17 +41,23 @@ export class IncidentController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get one incident' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<Incident> {
-    return this.incidents.get(id);
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Incident> {
+    const incident = await this.incidents.get(id);
+    assertDepotAccess(user, incident.depotId);
+    return incident;
   }
 
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve an incident with a resolution note' })
-  resolve(
+  async resolve(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveIncidentDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Incident> {
+    assertDepotAccess(user, (await this.incidents.get(id)).depotId);
     return this.incidents.resolve(id, dto.note, user.sub);
   }
 }

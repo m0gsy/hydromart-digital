@@ -29,7 +29,7 @@ export class SettlementController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: VerifySettlementDto,
   ): Promise<SettlementRecord> {
-    return this.settlements.verify(user.sub, id, dto);
+    return this.settlements.verify(user, id, dto);
   }
 
   @Post(':id/dispute')
@@ -39,6 +39,6 @@ export class SettlementController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: DisputeSettlementDto,
   ): Promise<SettlementRecord> {
-    return this.settlements.dispute(user.sub, id, dto.note);
+    return this.settlements.dispute(user, id, dto.note);
   }
 }

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { MaintenanceService } from '../application/services/maintenance.service';
@@ -38,7 +38,11 @@ export class MaintenanceController {
 
   @Patch(':id/serviced')
   @ApiOperation({ summary: 'Mark serviced now (bumps next-due by the interval)' })
-  markServiced(@Param('id', ParseUUIDPipe) id: string): Promise<MaintenanceItem> {
+  async markServiced(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MaintenanceItem> {
+    assertDepotAccess(user, (await this.maintenance.get(id)).depotId);
     return this.maintenance.markServiced(id);
   }
 }

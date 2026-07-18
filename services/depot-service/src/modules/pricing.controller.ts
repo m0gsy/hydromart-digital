@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PricingService } from '../application/services/pricing.service';
@@ -59,10 +59,12 @@ export class PricingController {
   @Roles(...CAPABILITIES.depotAdmin)
   @Patch('rules/:ruleId')
   @ApiOperation({ summary: 'Update a pricing rule (staff)' })
-  update(
+  async update(
     @Param('ruleId', ParseUUIDPipe) ruleId: string,
     @Body() dto: UpdatePricingRuleDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<PricingRuleRecord> {
+    assertDepotAccess(user, (await this.pricing.get(ruleId)).depotId);
     const patch: UpdatePricingRuleData = {};
     if (dto.productId !== undefined) patch.productId = dto.productId ?? null;
     if (dto.adjustType !== undefined) patch.adjustType = dto.adjustType;
@@ -80,7 +82,11 @@ export class PricingController {
   @Roles(...CAPABILITIES.depotAdmin)
   @Delete('rules/:ruleId')
   @ApiOperation({ summary: 'Delete a pricing rule (staff)' })
-  async remove(@Param('ruleId', ParseUUIDPipe) ruleId: string): Promise<{ deleted: boolean }> {
+  async remove(
+    @Param('ruleId', ParseUUIDPipe) ruleId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ deleted: boolean }> {
+    assertDepotAccess(user, (await this.pricing.get(ruleId)).depotId);
     await this.pricing.remove(ruleId);
     return { deleted: true };
   }

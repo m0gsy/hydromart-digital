@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+
 import {
   SettlementAlreadyExistsError,
   SettlementNotFoundError,
@@ -91,8 +93,9 @@ export class SettlementService {
   }
 
   /** Cashier accepts the deposit (design 6a). A shortfall may be charged to the courier. */
-  async verify(actorId: string, id: string, input: ResolveInput): Promise<SettlementRecord> {
-    const settlement = await this.resolvable(id);
+  async verify(user: AuthenticatedUser, id: string, input: ResolveInput): Promise<SettlementRecord> {
+    const actorId = user.sub;
+    const settlement = await this.resolvable(id, user);
     // Only a genuine shortfall can be charged; an exact or over deposit never is.
     const charged = (input.chargedToDriver ?? false) && isShortfall(settlement.variance);
     this.logger.log(`Settlement ${id} verified by ${actorId} (chargedToDriver=${charged})`);
@@ -117,8 +120,9 @@ export class SettlementService {
   }
 
   /** Cashier disputes the deposit (design 6a): parks it for offline resolution. */
-  async dispute(actorId: string, id: string, note: string): Promise<SettlementRecord> {
-    await this.resolvable(id);
+  async dispute(user: AuthenticatedUser, id: string, note: string): Promise<SettlementRecord> {
+    const actorId = user.sub;
+    await this.resolvable(id, user);
     this.logger.log(`Settlement ${id} disputed by ${actorId}`);
     return this.settlements.resolve(id, {
       status: SettlementStatus.DISPUTED,
@@ -147,11 +151,13 @@ export class SettlementService {
     return this.settlements.search({ depotId, status });
   }
 
-  private async resolvable(id: string): Promise<SettlementRecord> {
+  private async resolvable(id: string, user: AuthenticatedUser): Promise<SettlementRecord> {
     const settlement = await this.settlements.findById(id);
     if (!settlement) {
       throw new SettlementNotFoundError();
     }
+    // Close the by-id vector: a depot-locked cashier may only resolve their own depot's settlement.
+    assertDepotAccess(user, settlement.depotId);
     if (!canResolve(settlement.status)) {
       throw new SettlementNotSubmittedError();
     }

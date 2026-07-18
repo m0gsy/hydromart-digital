@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { SubscriptionService } from '../application/services/subscription.service';
@@ -39,13 +39,21 @@ export class SubscriptionController {
 
   @Patch(':id/pause')
   @ApiOperation({ summary: 'Pause a subscription' })
-  pause(@Param('id', ParseUUIDPipe) id: string): Promise<Subscription> {
+  async pause(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Subscription> {
+    assertDepotAccess(user, (await this.subscriptions.get(id)).depotId);
     return this.subscriptions.pause(id);
   }
 
   @Patch(':id/resume')
   @ApiOperation({ summary: 'Resume a subscription' })
-  resume(@Param('id', ParseUUIDPipe) id: string): Promise<Subscription> {
+  async resume(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Subscription> {
+    assertDepotAccess(user, (await this.subscriptions.get(id)).depotId);
     return this.subscriptions.resume(id);
   }
 }

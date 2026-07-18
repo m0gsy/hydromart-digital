@@ -74,6 +74,13 @@ export class PricingService {
     return this.rules.listForDepot(depotId);
   }
 
+  /** Load one rule (for by-id depot-scope assertion in the controller). */
+  async get(id: string): Promise<PricingRuleRecord> {
+    const found = await this.rules.findById(id);
+    if (!found) throw new PricingRuleNotFoundError();
+    return found;
+  }
+
   async update(id: string, patch: UpdatePricingRuleData): Promise<PricingRuleRecord> {
     const existing = await this.rules.findById(id);
     if (!existing) {

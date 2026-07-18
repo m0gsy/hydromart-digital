@@ -56,6 +56,11 @@ export class WholesaleTierService {
     return this.tiers.listForDepot(depotId);
   }
 
+  /** Load one tier (for by-id depot-scope assertion in the controller). */
+  get(id: string): Promise<WholesaleTier> {
+    return this.require(id);
+  }
+
   async update(id: string, patch: UpdateWholesaleTierData): Promise<WholesaleTier> {
     await this.require(id);
     return this.tiers.update(id, patch);

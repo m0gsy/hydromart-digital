@@ -60,6 +60,13 @@ export class MaintenanceService {
     return items.map((i) => this.withStatus(i, now));
   }
 
+  /** Load one item (for by-id depot-scope assertion in the controller). */
+  async get(id: string): Promise<MaintenanceItem> {
+    const found = await this.items.findById(id);
+    if (!found) throw new MaintenanceItemNotFoundError();
+    return found;
+  }
+
   /** Mark serviced now: lastServicedAt = now, nextDueAt = now + intervalDays. */
   async markServiced(id: string, now = new Date()): Promise<MaintenanceItem> {
     const current = await this.items.findById(id);

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { WholesaleTierService } from '../application/services/wholesale-tier.service';
@@ -41,16 +41,22 @@ export class WholesaleTierController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a wholesale tier' })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateWholesaleTierDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<WholesaleTier> {
+    assertDepotAccess(user, (await this.tiers.get(id)).depotId);
     return this.tiers.update(id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove a wholesale tier' })
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ deleted: boolean }> {
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ deleted: boolean }> {
+    assertDepotAccess(user, (await this.tiers.get(id)).depotId);
     await this.tiers.remove(id);
     return { deleted: true };
   }

@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { DeliveryService } from '../application/services/delivery.service';
@@ -47,7 +47,13 @@ export class DeliveryController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get any delivery by id (staff)' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<DeliveryRecord> {
-    return this.deliveries.getAny(id);
+  async get(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DeliveryRecord> {
+    const delivery = await this.deliveries.getAny(id);
+    // Close the by-id vector: a depot-locked operator/manager may only read their own depot's delivery.
+    assertDepotAccess(user, delivery.depotId);
+    return delivery;
   }
 }

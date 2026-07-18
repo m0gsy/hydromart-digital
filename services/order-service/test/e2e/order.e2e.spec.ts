@@ -41,6 +41,9 @@ describe('Order HTTP flows (e2e)', () => {
   let app: INestApplication;
   let customerToken: string;
   let staffToken: string;
+  // HQ actor: a bypass role for the by-id depot guard, so it can drive an unrouted
+  // order (this e2e's ADDRESS has no coords, so orders never resolve a depot).
+  let adminToken: string;
   let catalog: FakeProductCatalog;
   const productId = randomUUID();
 
@@ -122,6 +125,10 @@ describe('Order HTTP flows (e2e)', () => {
       { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
       { secret },
     );
+    adminToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret },
+    );
   });
 
   afterAll(async () => {
@@ -190,14 +197,14 @@ describe('Order HTTP flows (e2e)', () => {
 
     await request(server())
       .patch(`/api/v1/orders/${id}/status`)
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .send({ status: 'CONFIRMED' })
       .expect(200);
 
     // Illegal jump is rejected (409).
     await request(server())
       .patch(`/api/v1/orders/${id}/status`)
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .send({ status: 'PICKED_UP' })
       .expect(409);
   });
@@ -244,7 +251,7 @@ describe('Order HTTP flows (e2e)', () => {
     for (const status of flow) {
       await request(server())
         .patch(`/api/v1/orders/${id}/status`)
-        .set(auth(staffToken))
+        .set(auth(adminToken))
         .send({ status })
         .expect(200);
     }

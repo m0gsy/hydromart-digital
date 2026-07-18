@@ -2,9 +2,9 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { IS_PUBLIC_KEY } from './decorators';
+import { isDepotLocked } from './depot-scope';
 
 /**
  * Depot tenant isolation (business rule: a depot's staff must never see another depot's
@@ -26,11 +26,6 @@ import { IS_PUBLIC_KEY } from './decorators';
  */
 @Injectable()
 export class DepotScopeGuard implements CanActivate {
-  private static readonly LOCKED: ReadonlySet<Role> = new Set([
-    Role.DEPOT_OPERATOR,
-    Role.DEPOT_MANAGER,
-  ]);
-
   constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -45,7 +40,7 @@ export class DepotScopeGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const user = request.user as AuthenticatedUser | undefined;
     // No identity to scope (defensive — JwtAuthGuard already ran on non-public routes).
-    if (!user || !DepotScopeGuard.LOCKED.has(user.role)) {
+    if (!user || !isDepotLocked(user.role)) {
       return true;
     }
 

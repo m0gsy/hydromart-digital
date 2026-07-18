@@ -90,7 +90,8 @@ describe('Delivery HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     staffToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      // Depot-assigned manager: depotId gates the depot-scoped shift/dispatch routes.
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: DEPOT_ID },
       { secret },
     );
     driverToken = jwt.sign({ sub: driverId, role: Role.DRIVER, phone: '+62' }, { secret });

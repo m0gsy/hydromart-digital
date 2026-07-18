@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
@@ -36,22 +36,32 @@ export class PurchaseOrderController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get one purchase order' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<PurchaseOrder> {
-    return this.orders.get(id);
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PurchaseOrder> {
+    const order = await this.orders.get(id);
+    assertDepotAccess(user, order.depotId);
+    return order;
   }
 
   @Post(':id/send')
   @ApiOperation({ summary: 'Send a DRAFT purchase order to the supplier (DRAFT → SENT)' })
-  send(@Param('id', ParseUUIDPipe) id: string): Promise<PurchaseOrder> {
+  async send(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PurchaseOrder> {
+    assertDepotAccess(user, (await this.orders.get(id)).depotId);
     return this.orders.send(id);
   }
 
   @Post(':id/receive')
   @ApiOperation({ summary: 'Receive goods (SENT → RECEIVED); posts a RECEIPT per line to inventory' })
-  receive(
+  async receive(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PurchaseOrder> {
+    assertDepotAccess(user, (await this.orders.get(id)).depotId);
     return this.orders.receive(id, user.sub);
   }
 }

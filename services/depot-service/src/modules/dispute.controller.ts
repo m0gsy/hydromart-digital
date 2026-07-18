@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { DisputeService } from '../application/services/dispute.service';
@@ -41,11 +41,12 @@ export class DisputeController {
 
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve a dispute (refund / resend / reject)' })
-  resolve(
+  async resolve(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ResolveDisputeDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<OrderDispute> {
+    assertDepotAccess(user, (await this.disputes.get(id)).depotId);
     return this.disputes.resolve(id, dto.resolution, dto.resolutionNote ?? null, user.sub);
   }
 }

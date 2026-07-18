@@ -35,6 +35,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
   let customerToken: string;
+  let signStaff: (role: Role, depotId?: string | null) => string;
   let rulesRepo: FakePricingRuleRepository;
 
   beforeAll(async () => {
@@ -81,7 +82,11 @@ describe('Pricing rules HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    // Depot managers are locked to their assignedDepotId by DepotScopeGuard — bind the token
+    // to the depot under test for the `/depots/:depotId/...` routes.
+    signStaff = (role, depotId) =>
+      jwt.sign({ sub: 's', role, phone: '+62', depotId: depotId ?? null }, { secret });
+    managerToken = signStaff(Role.DEPOT_MANAGER);
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
 
@@ -100,11 +105,12 @@ describe('Pricing rules HTTP flows (e2e)', () => {
         .send(depotBody)
         .expect(201)
     ).body.id;
+    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
 
     // manager creates a rule
     const created = await request(server())
       .post(`/api/v1/depots/${depotId}/pricing/rules`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .send({ adjustType: 'PERCENT', value: -10 })
       .expect(201);
     expect(created.body.adjustType).toBe('PERCENT');
@@ -121,7 +127,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     // manager lists the rule
     await request(server())
       .get(`/api/v1/depots/${depotId}/pricing/rules`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .expect(200)
       .expect((r) => {
         expect(r.body).toHaveLength(1);
@@ -131,7 +137,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     // manager patches the rule
     await request(server())
       .patch(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .send({ value: -20 })
       .expect(200)
       .expect((r) => expect(r.body.value).toBe(-20));
@@ -139,7 +145,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     // manager deletes the rule
     await request(server())
       .delete(`/api/v1/depots/${depotId}/pricing/rules/${ruleId}`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .expect(200)
       .expect((r) => expect(r.body).toEqual({ deleted: true }));
 

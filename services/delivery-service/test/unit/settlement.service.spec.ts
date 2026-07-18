@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
+import { ForbiddenException } from '@nestjs/common';
+import { AuthenticatedUser, Role } from '@hydromart/platform';
+
 import { SettlementService } from '../../src/application/services/settlement.service';
 import {
   SettlementAlreadyExistsError,
@@ -22,6 +25,8 @@ import {
 
 const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
 const AUTH = 'Bearer courier-token';
+// Cashier at the settlement's own depot (passes assertDepotAccess).
+const CASHIER: AuthenticatedUser = { sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: null, depotId: DEPOT_ID };
 
 describe('SettlementService', () => {
   let settlementRepo: InMemorySettlementRepository;
@@ -140,7 +145,7 @@ describe('SettlementService', () => {
 
     it('charges a shortfall to the courier only when asked', async () => {
       const s = await submit(60000, 75000); // variance -15000
-      const verified = await service.verify(randomUUID(), s.id, { chargedToDriver: true });
+      const verified = await service.verify(CASHIER, s.id, { chargedToDriver: true });
       expect(verified.status).toBe(SettlementStatus.VERIFIED);
       expect(verified.chargedToDriver).toBe(true);
       expect(verified.verifiedBy).not.toBeNull();
@@ -152,17 +157,29 @@ describe('SettlementService', () => {
 
     it('never charges when the deposit covers the expected total', async () => {
       const s = await submit(75000, 75000); // variance 0
-      const verified = await service.verify(randomUUID(), s.id, { chargedToDriver: true });
+      const verified = await service.verify(CASHIER, s.id, { chargedToDriver: true });
       expect(verified.chargedToDriver).toBe(false);
       expect(payout.variances).toHaveLength(0);
     });
 
     it('rejects verifying an already-resolved settlement', async () => {
       const s = await submit(75000, 75000);
-      await service.verify(randomUUID(), s.id, {});
-      await expect(service.verify(randomUUID(), s.id, {})).rejects.toBeInstanceOf(
+      await service.verify(CASHIER, s.id, {});
+      await expect(service.verify(CASHIER, s.id, {})).rejects.toBeInstanceOf(
         SettlementNotSubmittedError,
       );
+    });
+
+    it("forbids a cashier from another depot resolving this depot's settlement", async () => {
+      const s = await submit(75000, 75000);
+      const otherDepot: AuthenticatedUser = {
+        sub: randomUUID(),
+        role: Role.DEPOT_OPERATOR,
+        phone: null,
+        depotId: '00000000-0000-4000-8000-000000000099',
+      };
+      await expect(service.verify(otherDepot, s.id, {})).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(service.dispute(otherDepot, s.id, 'x')).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 
@@ -170,7 +187,7 @@ describe('SettlementService', () => {
     const shift = endShift();
     cash.result = { total: 50000, count: 1 };
     const s = await service.submit(driver, shift.id, 40000, AUTH);
-    const disputed = await service.dispute(randomUUID(), s.id, 'counts disagree');
+    const disputed = await service.dispute(CASHIER, s.id, 'counts disagree');
     expect(disputed.status).toBe(SettlementStatus.DISPUTED);
     expect(disputed.note).toBe('counts disagree');
   });

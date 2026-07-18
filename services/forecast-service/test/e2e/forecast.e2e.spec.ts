@@ -35,6 +35,7 @@ describe('Forecast HTTP flows (e2e)', () => {
   let app: INestApplication;
   let repo: FakeForecastRepository;
   let feed: FakeOrderFeed;
+  let signStaff: (role: Role, depotId?: string | null) => string;
   let managerToken: string;
   let customerToken: string;
   let superAdminToken: string;
@@ -94,7 +95,12 @@ describe('Forecast HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    // DEPOT_MANAGER is depot-locked by the platform DepotScopeGuard: a token acting on a specific
+    // depotId must carry that depotId claim. Tests that hit a runtime depotId mint a bound token
+    // via signStaff; the unbound managerToken is only for depot-agnostic routes (e.g. /sales).
+    signStaff = (role, depotId) =>
+      jwt.sign({ sub: randomUUID(), role, phone: '+62', depotId: depotId ?? null }, { secret });
+    managerToken = signStaff(Role.DEPOT_MANAGER);
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
@@ -120,6 +126,8 @@ describe('Forecast HTTP flows (e2e)', () => {
   it('accepts ingest with the right internal key and makes the data queryable', async () => {
     const productId = randomUUID();
     const depotId = randomUUID();
+    // Depot-locked manager may only query its own depot — bind the token to this depotId.
+    const depotManagerToken = signStaff(Role.DEPOT_MANAGER, depotId);
     const body = ingestBody({
       depotId,
       items: [{ productId, productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 4 }],
@@ -134,7 +142,7 @@ describe('Forecast HTTP flows (e2e)', () => {
     const demand = await request(server())
       .get('/api/v1/forecast/demand')
       .query({ productId, depotId })
-      .set(auth(managerToken))
+      .set(auth(depotManagerToken))
       .expect(200);
     expect(demand.body.productId).toBe(productId);
     expect(demand.body.name).toBe('Aqua 19L');
@@ -142,7 +150,7 @@ describe('Forecast HTTP flows (e2e)', () => {
 
     const rollup = await request(server())
       .get(`/api/v1/forecast/depot/${depotId}`)
-      .set(auth(managerToken))
+      .set(auth(depotManagerToken))
       .expect(200);
     expect(rollup.body.map((i: { productId: string }) => i.productId)).toContain(productId);
   });

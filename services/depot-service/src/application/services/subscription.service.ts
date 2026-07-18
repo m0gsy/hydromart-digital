@@ -65,6 +65,11 @@ export class SubscriptionService {
     return this.subscriptions.listForDepot(depotId, filters.status);
   }
 
+  /** Load one subscription (for by-id depot-scope assertion in the controller). */
+  get(id: string): Promise<Subscription> {
+    return this.require(id);
+  }
+
   async pause(id: string): Promise<Subscription> {
     await this.require(id);
     return this.subscriptions.update(id, { status: SubscriptionStatus.PAUSED });

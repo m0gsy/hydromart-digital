@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { HandoverService } from '../application/services/handover.service';
@@ -44,7 +44,11 @@ export class HandoverController {
 
   @Patch(':id/sign')
   @ApiOperation({ summary: 'Sign a shift handover (stamps signedAt)' })
-  sign(@Param('id', ParseUUIDPipe) id: string): Promise<ShiftHandover> {
+  async sign(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ShiftHandover> {
+    assertDepotAccess(user, (await this.handovers.get(id)).depotId);
     return this.handovers.sign(id);
   }
 }

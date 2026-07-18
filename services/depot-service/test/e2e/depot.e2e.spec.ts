@@ -32,6 +32,10 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   let operatorToken: string;
   let customerToken: string;
   let ownerToken: string;
+  // Mint a staff token optionally bound to a depot — depot operators/managers are locked to
+  // their assignedDepotId by the platform DepotScopeGuard, so `:depotId`/`?depotId` calls need
+  // a token carrying the depot they act on.
+  let signStaff: (role: Role, depotId?: string | null) => string;
   const OWNER_SUB = '99999999-9999-4999-8999-999999999999';
 
   beforeAll(async () => {
@@ -75,8 +79,10 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
-    operatorToken = jwt.sign({ sub: 'o', role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
+    signStaff = (role, depotId) =>
+      jwt.sign({ sub: 's', role, phone: '+62', depotId: depotId ?? null }, { secret });
+    managerToken = signStaff(Role.DEPOT_MANAGER);
+    operatorToken = signStaff(Role.DEPOT_OPERATOR);
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
     ownerToken = jwt.sign({ sub: OWNER_SUB, role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
   });
@@ -119,6 +125,9 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .expect(201);
     const depotId = created.body.id;
     expect(created.body.deliveryFee).toBe(5000);
+    // Depot staff are now locked to their own depot — bind tokens to the created depot.
+    const oprAt = signStaff(Role.DEPOT_OPERATOR, depotId);
+    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
 
     // depot shows in public browse
     await request(server()).get('/api/v1/depots?search=cikini').expect(200).expect((r) => {
@@ -128,7 +137,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // operator adds a galon stock line with opening balance
     const line = await request(server())
       .post(`/api/v1/depots/${depotId}/inventory`)
-      .set(auth(operatorToken))
+      .set(auth(oprAt))
       .send({ itemType: 'GALON', label: 'Galon 19L', unit: 'unit', quantity: 100, minimumStock: 20 })
       .expect(201);
     const itemId = line.body.id;
@@ -155,7 +164,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // low-stock report surfaces the line
     await request(server())
       .get(`/api/v1/inventory/low-stock?depotId=${depotId}`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .expect(200)
       .expect((r) => {
         expect(r.body).toHaveLength(1);
@@ -189,10 +198,11 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .send({ ...depotBody, code: 'CONS-01' })
         .expect(201)
     ).body.id;
+    const oprAt = signStaff(Role.DEPOT_OPERATOR, depotId);
     const itemId = (
       await request(server())
         .post(`/api/v1/depots/${depotId}/inventory`)
-        .set(auth(operatorToken))
+        .set(auth(oprAt))
         .send({ itemType: 'PRODUK', productId, label: 'Air RO', unit: 'unit', quantity: 50, minimumStock: 0 })
         .expect(201)
     ).body.id;
@@ -207,7 +217,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // operator (order-completion token) consumes; unstocked product is skipped
     await request(server())
       .post(`/api/v1/depots/${depotId}/inventory/consume`)
-      .set(auth(operatorToken))
+      .set(auth(oprAt))
       .send({
         orderId,
         items: [
@@ -273,7 +283,10 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .send({ ...depotBody, code: 'OWN-C', ownerId: OTHER_OWNER })
       .expect(201);
     // deactivate one of the owner's depots — listMine still returns it
-    await request(server()).delete(`/api/v1/depots/${b.id}`).set(auth(managerToken)).expect(200);
+    await request(server())
+      .delete(`/api/v1/depots/${b.id}`)
+      .set(auth(signStaff(Role.DEPOT_MANAGER, b.id)))
+      .expect(200);
 
     await request(server())
       .get('/api/v1/depots/mine')
@@ -298,9 +311,10 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .send({ ...depotBody, code: 'MNG-01', name: 'Depot Manage' })
         .expect(201)
     ).body.id;
+    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
 
     // deactivate (soft delete)
-    await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(managerToken)).expect(200);
+    await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(mgrAt)).expect(200);
 
     // public browse no longer surfaces it
     await request(server())
@@ -324,7 +338,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // reactivate via PATCH
     await request(server())
       .patch(`/api/v1/depots/${depotId}`)
-      .set(auth(managerToken))
+      .set(auth(mgrAt))
       .send({ active: true })
       .expect(200)
       .expect((r) => expect(r.body.active).toBe(true));

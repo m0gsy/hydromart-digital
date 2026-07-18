@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { SupplierService } from '../application/services/supplier.service';
@@ -37,7 +37,12 @@ export class SupplierController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get one supplier' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<Supplier> {
-    return this.suppliers.get(id);
+  async get(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Supplier> {
+    const supplier = await this.suppliers.get(id);
+    assertDepotAccess(user, supplier.depotId);
+    return supplier;
   }
 }
