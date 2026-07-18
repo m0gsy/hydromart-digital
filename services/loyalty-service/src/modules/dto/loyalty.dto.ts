@@ -62,6 +62,12 @@ export class RewardPointsDto {
   reason!: string;
 }
 
+export class DepotSummaryQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot to aggregate loyalty over.' })
+  @IsUUID()
+  depotId!: string;
+}
+
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsInt()

@@ -21,6 +21,8 @@ import {
   Public,
   Role,
   Roles,
+  assertDepotAccess,
+  depotScopeFilter,
 } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
@@ -116,15 +118,27 @@ export class OrderController {
   @Get('manage')
   @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
-  listManaged(@Query() query: ListOrdersQueryDto): Promise<Page<OrderRecord>> {
-    return this.orders.listAll(query);
+  listManaged(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListOrdersQueryDto,
+  ): Promise<Page<OrderRecord>> {
+    // Scope the list to the caller's depot for depot-locked roles (operator/manager can't
+    // see other depots); HQ/finance/etc. keep the optional ?depotId filter, undefined = all.
+    const depotId = depotScopeFilter(user, query.depotId);
+    return this.orders.listAll({ ...query, depotId });
   }
 
   @Get('manage/:id')
   @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff: read any order by id' })
-  getManaged(@Param('id', ParseUUIDPipe) id: string): Promise<OrderRecord> {
-    return this.orders.getAny(id);
+  async getManaged(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderRecord> {
+    const order = await this.orders.getAny(id);
+    // Close the by-id vector: a depot-locked operator/manager may only read their own depot's order.
+    assertDepotAccess(user, order.depotId);
+    return order;
   }
 
   // Service-to-service: recommendation-service pulls completed orders for its rebuild
@@ -300,12 +314,16 @@ export class OrderController {
   @Patch(':id/status')
   @Roles(...FULFILMENT_ROLES)
   @ApiOperation({ summary: 'Advance an order to the next status (staff, BR-012)' })
-  updateStatus(
+  async updateStatus(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrderStatusDto,
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
+    // Close the by-id vector: a depot-locked operator/manager may only advance their own
+    // depot's order. No-op for DRIVER/SUPER_ADMIN. Load first so the check precedes the mutation.
+    const existing = await this.orders.getAny(id);
+    assertDepotAccess(user, existing.depotId);
     // Forward the caller's token so order-service can award loyalty points on
     // completion (BR-013); loyalty-service enforces its own RBAC on the earn.
     return this.orders.updateStatus(id, dto.status, user.sub, dto.note, authorization, dto.driverName);

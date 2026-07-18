@@ -4,29 +4,48 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import {
+  ArrowsClockwise,
   Bell,
   Buildings,
+  CalendarCheck,
   CaretUpDown,
   ChartLineUp,
+  ChartPieSlice,
   ChatCircleText,
   CheckCircle,
   ClipboardText,
   Coins,
+  Cube,
+  FirstAid,
+  Gavel,
+  Gift,
   HandCoins,
+  Medal,
+  Notebook,
   Receipt,
+  Factory,
   MagnifyingGlass,
   MapPin,
   Megaphone,
   Package,
+  QrCode,
   Recycle,
+  Scales,
+  Scroll,
   ShieldCheck,
+  Sparkle,
+  Stack,
+  Star,
   Storefront,
+  Target,
+  Truck,
   UserGear,
   Tag,
   Ticket,
   TrendUp,
   UsersThree,
   Wallet,
+  Wrench,
   type Icon,
 } from '@phosphor-icons/react';
 
@@ -51,6 +70,14 @@ import {
   canViewTracking,
   canViewVouchers,
   canVerifySettlement,
+  canReviewApprovals,
+  canManageProcurement,
+  canViewIncidents,
+  canViewAudit,
+  canViewDepotCrm,
+  canViewDepotFinance,
+  canBroadcastToCouriers,
+  isDepotManager,
   isStaff,
 } from '@/lib/roles';
 
@@ -58,14 +85,18 @@ type Role = string | null | undefined;
 
 interface RailItem {
   href: string;
-  // i18n key under ops.nav.* — resolved at render via t().
-  labelKey: string;
+  // i18n key under ops.nav.* — resolved at render via t(). Newer depot-console
+  // items carry a literal `label` instead (avoids a dictionary migration for the
+  // large batch of manager screens); render prefers `label` when present.
+  labelKey?: string;
+  label?: string;
   icon: Icon;
   show: (role: Role) => boolean;
 }
 interface RailGroup {
-  // i18n key under ops.groups.*
+  // i18n key under ops.groups.* — or a literal headLabel for newer groups.
   headKey: string;
+  headLabel?: string;
   items: RailItem[];
 }
 
@@ -110,11 +141,76 @@ const GROUPS: RailGroup[] = [
     ],
   },
   {
+    headKey: 'approvals',
+    headLabel: 'Approval & supervisi',
+    items: [
+      { href: '/dashboard/approvals', label: 'Antrean approval', icon: Gavel, show: canReviewApprovals },
+      { href: '/dashboard/incidents', label: 'Insiden', icon: FirstAid, show: canViewIncidents },
+      { href: '/dashboard/disputes', label: 'Sengketa order', icon: Scales, show: isDepotManager },
+    ],
+  },
+  {
+    headKey: 'procurement',
+    headLabel: 'Pengadaan',
+    items: [
+      { href: '/dashboard/purchase-orders', label: 'Pesanan pembelian', icon: Truck, show: canManageProcurement },
+      { href: '/dashboard/suppliers', label: 'Pemasok', icon: Factory, show: canManageProcurement },
+    ],
+  },
+  {
+    headKey: 'people',
+    headLabel: 'Tim & jadwal',
+    items: [
+      { href: '/dashboard/shift', label: 'Jadwal shift', icon: CalendarCheck, show: isStaff },
+      { href: '/dashboard/targets', label: 'Target & goals', icon: Target, show: isDepotManager },
+      { href: '/dashboard/huddle', label: 'Huddle mingguan', icon: UsersThree, show: isDepotManager },
+      { href: '/dashboard/handover', label: 'Serah terima shift', icon: ClipboardText, show: isDepotManager },
+      { href: '/dashboard/maintenance', label: 'Perawatan alat', icon: Wrench, show: isDepotManager },
+    ],
+  },
+  {
+    headKey: 'customers',
+    headLabel: 'Pelanggan & pertumbuhan',
+    items: [
+      { href: '/dashboard/customers', label: 'Pelanggan', icon: UsersThree, show: canViewDepotCrm },
+      { href: '/dashboard/broadcast', label: 'Broadcast', icon: Megaphone, show: canBroadcastToCouriers },
+      { href: '/dashboard/loyalty', label: 'Loyalty & poin', icon: Medal, show: isDepotManager },
+      { href: '/dashboard/referral', label: 'Referral', icon: Gift, show: isDepotManager },
+      { href: '/dashboard/recommendations', label: 'Rekomendasi', icon: Sparkle, show: isDepotManager },
+      { href: '/dashboard/ratings', label: 'Rating & ulasan', icon: Star, show: isDepotManager },
+      { href: '/dashboard/subscriptions', label: 'Langganan', icon: ArrowsClockwise, show: isDepotManager },
+    ],
+  },
+  {
+    headKey: 'catalog',
+    headLabel: 'Produk & harga',
+    items: [
+      { href: '/dashboard/products/manage', label: 'Kelola produk', icon: Cube, show: isDepotManager },
+      { href: '/dashboard/wholesale', label: 'Harga borongan', icon: Stack, show: canManagePricing },
+      { href: '/dashboard/payments', label: 'Pembayaran & QRIS', icon: QrCode, show: canManageDepots },
+    ],
+  },
+  {
     headKey: 'finance',
     items: [
       { href: '/dashboard/payout', labelKey: 'payout', icon: Wallet, show: canViewPayout },
       { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', icon: Receipt, show: canApproveExpense },
       { href: '/dashboard/earning-rules', labelKey: 'earningRules', icon: Coins, show: canManageEarningRules },
+      { href: '/dashboard/cashbook', label: 'Buku kas', icon: Notebook, show: canViewDepotFinance },
+      { href: '/dashboard/payment-recon', label: 'Rekonsiliasi bayar', icon: Scales, show: canViewDepotFinance },
+      { href: '/dashboard/commission', label: 'Komisi kurir', icon: HandCoins, show: canViewDepotFinance },
+      { href: '/dashboard/reports', label: 'Laporan', icon: ChartPieSlice, show: isStaff },
+      { href: '/dashboard/monthly-review', label: 'Tinjauan bulanan', icon: ClipboardText, show: canViewDepotFinance },
+      { href: '/dashboard/compare', label: 'Banding depot', icon: Scales, show: isDepotManager },
+    ],
+  },
+  {
+    headKey: 'reference',
+    headLabel: 'Referensi',
+    items: [
+      { href: '/dashboard/roles', label: 'Peran & akses', icon: ShieldCheck, show: isStaff },
+      { href: '/dashboard/audit', label: 'Audit log', icon: Scroll, show: canViewAudit },
+      { href: '/dashboard/profile', label: 'Profil', icon: UserGear, show: isDepotManager },
     ],
   },
 ];
@@ -246,7 +342,7 @@ export function OpsRail() {
           return (
             <div key={group.headKey}>
               <p className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
-                {t(`ops.groups.${group.headKey}`)}
+                {group.headLabel ?? t(`ops.groups.${group.headKey}`)}
               </p>
               {items.map((item) => {
                 const on = isActive(item.href);
@@ -263,7 +359,7 @@ export function OpsRail() {
                     }
                   >
                     <Ic size={18} weight="fill" className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'} />
-                    <span className="flex-1">{t(`ops.nav.${item.labelKey}`)}</span>
+                    <span className="flex-1">{item.label ?? t(`ops.nav.${item.labelKey}`)}</span>
                   </Link>
                 );
               })}

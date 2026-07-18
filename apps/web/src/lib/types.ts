@@ -1123,6 +1123,43 @@ export interface StockMovement {
   createdAt: string;
 }
 
+// Procurement — supplier directory + purchase orders (depot-service, design 7a/9d/11b).
+export interface Supplier {
+  id: string;
+  depotId: string;
+  name: string;
+  code: string;
+  contactPhone: string | null;
+  categories: string[];
+  onTimeRate: number | null;
+  createdAt: string;
+}
+
+export type PoStatus = 'DRAFT' | 'SENT' | 'RECEIVED';
+
+export interface PoLine {
+  itemType: InventoryItemType;
+  label: string;
+  quantity: number;
+  unitCostIdr: number;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  depotId: string;
+  poNumber: string;
+  supplierId: string;
+  supplierName: string;
+  status: PoStatus;
+  lines: PoLine[];
+  subtotalIdr: number;
+  shippingIdr: number;
+  totalIdr: number;
+  expectedAt: string | null;
+  receivedAt: string | null;
+  createdAt: string;
+}
+
 // Per-depot resolved price for one product (depot-service resolvePrices, 11a).
 // Both fields optional: override-only, rule-only, or both. Neither = catalog base.
 export interface ResolvedPrice {
@@ -1448,6 +1485,82 @@ export interface SystemHealth {
   checkedAt: string;
 }
 
+// Depot operational incidents inbox (depot-service, design 6b operator + 13b manager).
+// Prefixed Depot* to avoid the admin-service HQ Incident/IncidentSeverity/IncidentStatus
+// types above (same collision reason the courier FieldIncident is Courier*-prefixed).
+export type DepotIncidentType =
+  | 'COURIER_FALL'
+  | 'VEHICLE_BREAKDOWN'
+  | 'CUSTOMER_CONFLICT'
+  | 'POWER_OUTAGE'
+  | 'GALLON_DAMAGE'
+  | 'OTHER';
+export type DepotIncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH';
+export type DepotIncidentStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+
+export interface DepotIncident {
+  id: string;
+  depotId: string;
+  type: DepotIncidentType;
+  severity: DepotIncidentSeverity;
+  status: DepotIncidentStatus;
+  title: string;
+  description: string | null;
+  reportedBy: string;
+  courierName: string | null;
+  orderRef: string | null;
+  resolutionNote: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Courier shift roster (depot-service, design 6d/7b). One cell per (staff, day) of a week.
+export type ShiftKind = 'MORNING' | 'EVENING' | 'OFF';
+
+export interface ShiftAssignment {
+  id: string;
+  depotId: string;
+  staffId: string;
+  staffName: string;
+  /** ISO date of the week's Monday, e.g. "2026-07-14". */
+  weekStart: string;
+  /** 0=Mon .. 6=Sun. */
+  day: number;
+  shift: ShiftKind;
+}
+
+// Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). A depot-scoped
+// inbox of value decisions (opname loss, deposit refund, COD shortfall). No collision with
+// the admin RefundApproval string-union above, so these keep the plain Approval* names.
+export type ApprovalType = 'OPNAME_VARIANCE' | 'DEPOSIT_REFUND' | 'COD_VARIANCE';
+export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'HELD';
+
+export interface Approval {
+  id: string;
+  depotId: string;
+  type: ApprovalType;
+  status: ApprovalStatus;
+  title: string;
+  submittedBy: string;
+  subjectRef: string | null;
+  /** Signed rupiah at stake (loss/refund/shortfall). */
+  amountIdr: number;
+  /** Per-type snapshot: {system,physical,variance} | {condition,deposit} | {expected,received}. */
+  payload: Record<string, unknown>;
+  autoPassThreshold: number;
+  decisionNote: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+}
+
+export interface ApprovalCounts {
+  total: number;
+  byType: Record<ApprovalType, number>;
+}
+
 // Governance & config (0004_admin_config) — admin-service.
 // SLA policy (19d).
 export interface SlaPolicy {
@@ -1514,5 +1627,358 @@ export interface OnboardingState {
   inviteHeadOffice: boolean;
   setPricingTax: boolean;
   enablePayments: boolean;
+  updatedAt: string;
+}
+
+// Depot CRM — depot-scoped customer directory (Depot Operator 6a/7a, Manager 12b).
+// `Customer` and `MembershipTier` are already taken, so these are prefixed and the tier is
+// left as a plain string (customer-service uses BASIC/SILVER/GOLD).
+export interface DepotCustomer {
+  id: string;
+  fullName: string | null;
+  phone: string | null;
+  membershipTier: string;
+  orderCount: number;
+  gallonsOnLoan: number;
+  depositHeldIdr: number;
+  lastOrderAt: string | null;
+  isSubscriber: boolean;
+}
+
+export interface DepotCustomerAddress {
+  id: string;
+  label: string;
+  recipientName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  province: string;
+  latitude: number | null;
+  longitude: number | null;
+  isPrimary: boolean;
+  /** null while the depot serviceRadiusKm port is unwired. */
+  inRadius: boolean | null;
+  distanceKm: number | null;
+}
+
+export interface DepotDepositLedgerEntry {
+  id: string;
+  type: 'ISSUE' | 'RETURN';
+  quantity: number;
+  amountIdr: number;
+  at: string;
+}
+
+export interface DepotRecentOrder {
+  id: string;
+  status: string;
+  totalIdr: number;
+  placedAt: string;
+}
+
+export interface DepotCustomerDetail {
+  profile: {
+    id: string;
+    fullName: string | null;
+    phone: string | null;
+    membershipTier: string;
+    isSubscriber: boolean;
+    orderCount: number;
+    totalSpentIdr: number;
+    gallonsOnLoan: number;
+    depositHeldIdr: number;
+    churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  };
+  addresses: DepotCustomerAddress[];
+  depositLedger: DepotDepositLedgerEntry[];
+  recentOrders: DepotRecentOrder[];
+}
+
+// Depot Operator reports (design 2d Laporan harian / 7d Laporan mingguan). orders/
+// revenue/gallonsDelivered/revenueByDay/topProducts are real order-service figures;
+// cod/gallon returned-damaged/perCourier/sla are best-effort or omitted server-side.
+export interface DepotDailyCourier {
+  name: string;
+  completed: number;
+  failed: number;
+  codIdr: number;
+}
+
+export interface DepotDailyReport {
+  depotId: string;
+  date: string;
+  orders: number;
+  revenueIdr: number;
+  gallonsDelivered: number;
+  gallonsReturned: number;
+  gallonsDamaged: number;
+  codCollectedIdr: number;
+  failedDeliveries: number;
+  perCourier: DepotDailyCourier[];
+}
+
+export interface DepotWeeklyReport {
+  depotId: string;
+  from: string;
+  to: string;
+  orders: number;
+  revenueIdr: number;
+  avgPerDayIdr: number;
+  slaOnTimePct?: number;
+  revenueByDay: { day: string; revenueIdr: number }[];
+  topProducts: { label: string; qty: number }[];
+  topCourier?: { name: string; delivered: number; rating?: number };
+}
+
+// Cross-depot comparison (order-service reports depot-compare, design 14d). orders/revenue
+// are real; SLA/wastage/net-profit have no order-service source so the compare page shows "—".
+export interface ReportDepotCompareRow {
+  depotId: string;
+  orders: number;
+  revenueIdr: number;
+}
+export interface ReportDepotCompare {
+  from: string | null;
+  to: string | null;
+  depots: ReportDepotCompareRow[];
+}
+
+// Per-courier commission for a depot over a window (delivery-service commission, design 11c).
+// delivered + shortfallIdr are real; ratePerDeliveryIdr is a config default. courierId is the
+// driver id — the console resolves the display name from the active drivers roster.
+export interface CommissionCourier {
+  courierId: string;
+  delivered: number;
+  ratePerDeliveryIdr: number;
+  grossIdr: number;
+  shortfallIdr: number;
+  netIdr: number;
+}
+export interface CommissionRun {
+  depotId: string;
+  from: string;
+  to: string;
+  ratePerDeliveryIdr: number;
+  couriers: CommissionCourier[];
+  totalIdr: number;
+}
+
+// One depot's customer ratings aggregate (order-service reports depot-ratings, design 14b).
+// average/count/distribution/recent are all real order-review data.
+export interface DepotRatingsReport {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  average: number | null;
+  count: number;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
+}
+
+// One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
+// activeCustomers are real; netProfitIdr/slaPct are null (no source); topCourier from driverName.
+export interface ReportDepotMonthly {
+  depotId: string;
+  month: string;
+  orders: number;
+  revenueIdr: number;
+  activeCustomers: number;
+  netProfitIdr: number | null;
+  slaPct: number | null;
+  topCourier?: { name: string; delivered: number };
+}
+
+// Depot wastage summary (depot-service inventory wastage). qty is real lost quantity per
+// item; lossIdr/totalLossIdr present only where the line carries a sellPrice.
+export interface InventoryWastageItem {
+  label: string;
+  qty: number;
+  lossIdr?: number;
+}
+export interface InventoryWastageSummary {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  totalLossIdr?: number;
+  byItem: InventoryWastageItem[];
+}
+
+// ── Depot-manager console (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b) ──
+
+// Monthly depot targets (13a). Actuals are derived in the page from order/delivery reports.
+export interface DepotTarget {
+  id: string;
+  depotId: string;
+  month: string;
+  revenueTargetIdr: number;
+  ordersTarget: number;
+  slaTargetPct: number;
+  newCustomersTarget: number;
+  updatedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Depot cashbook (14c). direction IN/OUT; summary is computed server-side over the window.
+export type CashDirection = 'IN' | 'OUT';
+export interface CashbookEntry {
+  id: string;
+  depotId: string;
+  direction: CashDirection;
+  category: string;
+  label: string;
+  amountIdr: number;
+  occurredAt: string;
+  sourceRef: string | null;
+  actorId: string;
+  createdAt: string;
+}
+export interface CashbookResponse {
+  entries: CashbookEntry[];
+  summary: { inIdr: number; outIdr: number; netIdr: number };
+}
+
+// Order disputes (15c).
+export type DisputeCategory = 'WRONG_ITEM' | 'NOT_RECEIVED' | 'OVERCHARGED' | 'QUALITY' | 'OTHER';
+export type DisputeStatus = 'OPEN' | 'RESOLVED' | 'REJECTED';
+export type DisputeResolution = 'REFUND' | 'RESEND' | 'REJECTED';
+export interface OrderDispute {
+  id: string;
+  depotId: string;
+  orderRef: string;
+  customerName: string;
+  category: DisputeCategory;
+  description: string;
+  amountIdr: number;
+  courierName: string | null;
+  status: DisputeStatus;
+  resolution: DisputeResolution | null;
+  resolutionNote: string | null;
+  raisedBy: string;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Equipment maintenance (14a). status derived from nextDueAt at read time.
+export type MaintenanceStatus = 'DUE' | 'SOON' | 'HEALTHY' | 'NEW';
+export interface MaintenanceItem {
+  id: string;
+  depotId: string;
+  name: string;
+  category: string;
+  intervalDays: number;
+  lastServicedAt: string | null;
+  nextDueAt: string;
+  status: MaintenanceStatus;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// B2B wholesale price tiers (15d).
+export interface WholesaleTier {
+  id: string;
+  depotId: string;
+  productId: string | null;
+  label: string;
+  minQty: number;
+  maxQty: number | null;
+  priceIdr: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Manager-managed standing orders (16b). Distinct from the customer `Subscription` above.
+export type DepotSubscriptionCadence =
+  | 'DAILY'
+  | 'EVERY_3_DAYS'
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY';
+export type DepotSubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+export interface DepotSubscription {
+  id: string;
+  depotId: string;
+  customerId: string | null;
+  customerName: string;
+  productLabel: string;
+  quantity: number;
+  cadence: DepotSubscriptionCadence;
+  status: DepotSubscriptionStatus;
+  nextRunAt: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Weekly team huddle (13c).
+export interface HuddleAgendaItem {
+  title: string;
+  note: string;
+}
+export interface HuddleActionItem {
+  text: string;
+  assignee: string;
+  done: boolean;
+}
+export interface HuddleNote {
+  id: string;
+  depotId: string;
+  weekStart: string;
+  heldAt: string;
+  attendance: string | null;
+  agenda: HuddleAgendaItem[];
+  actionItems: HuddleActionItem[];
+  recordedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Depot-scoped loyalty rollup (17a) — aggregated over the depot's own customers.
+export interface DepotLoyaltySummary {
+  depotId: string;
+  totalMembers: number;
+  pointsOutstanding: number;
+  redeemedThisMonth: number;
+  tiers: { REGULAR: number; SILVER: number; GOLD: number; PLATINUM: number };
+}
+
+// Depot-scoped referral rollup (17b). topReferrers carry customerId only (no name source).
+export interface DepotReferralTopReferrer {
+  customerId: string;
+  referralCount: number;
+  pointsEarned: number;
+}
+export interface DepotReferralSummary {
+  depotId: string;
+  invited: number;
+  qualified: number;
+  conversionPct: number;
+  pointsAwarded: number;
+  topReferrers: DepotReferralTopReferrer[];
+}
+
+// Shift handover checklist (14d).
+export type HandoverItemState = 'DONE' | 'PARTIAL' | 'PENDING';
+export interface HandoverItem {
+  title: string;
+  subtext: string;
+  state: HandoverItemState;
+}
+export interface ShiftHandover {
+  id: string;
+  depotId: string;
+  fromShift: string;
+  toShift: string;
+  fromStaff: string;
+  toStaff: string;
+  items: HandoverItem[];
+  note: string | null;
+  signedAt: string | null;
+  recordedBy: string;
+  createdAt: string;
   updatedAt: string;
 }

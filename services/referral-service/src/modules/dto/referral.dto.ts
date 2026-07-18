@@ -3,7 +3,10 @@ import { Type } from 'class-transformer';
 import { IsInt, IsNotEmpty, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 import { ReferralStatus } from '../../domain/referral-status';
-import { ReferralSummary } from '../../application/services/referral.service';
+import {
+  DepotReferralSummary,
+  ReferralSummary,
+} from '../../application/services/referral.service';
 import { ReferralCodeRecord, ReferralRecord } from '../../application/ports/referral.repository';
 
 /* ---------- Requests ---------- */
@@ -41,7 +44,41 @@ export class ReferralPageQueryDto {
   limit?: number = 20;
 }
 
+export class DepotSummaryQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot whose referral aggregate is requested.' })
+  @IsUUID()
+  depotId!: string;
+}
+
 /* ---------- Responses ---------- */
+
+export class TopReferrerDto {
+  @ApiProperty({ format: 'uuid', description: 'Referrer customerId (no name — see depot summary).' })
+  customerId!: string;
+  @ApiProperty({ example: 3, description: 'Qualified referrals by this customer.' })
+  referralCount!: number;
+  @ApiProperty({ example: 1500, description: 'Referrer points earned from those referrals.' })
+  pointsEarned!: number;
+}
+
+export class DepotReferralSummaryDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ example: 20, description: 'Total referrals made by the depot\'s customers.' })
+  invited!: number;
+  @ApiProperty({ example: 8, description: 'Referrals that qualified.' })
+  qualified!: number;
+  @ApiProperty({ example: 40, description: 'qualified/invited as a rounded percentage (0 if none).' })
+  conversionPct!: number;
+  @ApiProperty({ example: 4000, description: 'Referrer points awarded across qualified referrals.' })
+  pointsAwarded!: number;
+  @ApiProperty({ type: [TopReferrerDto] })
+  topReferrers!: TopReferrerDto[];
+
+  static from(summary: DepotReferralSummary): DepotReferralSummaryDto {
+    return { ...summary };
+  }
+}
 
 export class ReferralCodeDto {
   @ApiProperty({ format: 'uuid' })

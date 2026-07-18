@@ -25,6 +25,9 @@ import {
 import { DepotRepository } from '../ports/depot.repository';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
+import { ApprovalType, needsApproval } from '../../domain/approval';
+import { ApprovalService } from './approval.service';
+import { DepotConfigService } from '../../config/depot-config.service';
 
 export interface CreateLineInput {
   itemType: InventoryItemType;
@@ -41,6 +44,23 @@ export interface ItemView extends InventoryItemRecord {
   lowStock: boolean;
   /** Sellable stock = quantity - reserved. */
   available: number;
+}
+
+export interface WastageItem {
+  label: string;
+  /** Total units lost (absolute sum of negative ADJUSTMENT deltas). */
+  qty: number;
+  /** qty × sellPrice; omitted for raw lines with no price. */
+  lossIdr?: number;
+}
+
+export interface WastageSummary {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  /** Sum of every priced item's lossIdr; omitted when no wasted line has a price. */
+  totalLossIdr?: number;
+  byItem: WastageItem[];
 }
 
 export interface ReserveResult {
@@ -61,6 +81,8 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(DEPOT_TOKENS.LowStockAlert) private readonly lowStockAlert: LowStockAlertPort,
+    private readonly approvals: ApprovalService,
+    private readonly config: DepotConfigService,
   ) {}
 
   private toView(item: InventoryItemRecord): ItemView {
@@ -237,7 +259,46 @@ export class InventoryService {
       available(countedQuantity, item.reserved),
       authorization,
     );
+    await this.emitVarianceApproval(item, variance, reason, actorId);
     return this.toView(updated);
+  }
+
+  /**
+   * Best-effort: raise an OPNAME_VARIANCE approval when the loss value clears the depot's
+   * threshold (the ApprovalService auto-passes anything under it, so this only surfaces the
+   * ones a manager must actually decide). ponytail: the rupiah value uses the PRODUK
+   * sellPrice; raw lines (no price) value to 0 and never emit — give raw types a per-unit
+   * value if their opname must be approvable too. Never blocks the opname on failure.
+   */
+  private async emitVarianceApproval(
+    item: InventoryItemRecord,
+    variance: number,
+    reason: string | null,
+    actorId: string,
+  ): Promise<void> {
+    if (variance === 0) return;
+    const amountIdr = Math.round(variance * (item.sellPrice ?? 0));
+    if (!needsApproval(amountIdr, this.config.approvalAutoPassIdr)) return;
+    try {
+      await this.approvals.create(
+        {
+          depotId: item.depotId,
+          type: ApprovalType.OPNAME_VARIANCE,
+          title: `Selisih opname ${item.label}`,
+          subjectRef: item.label,
+          amountIdr,
+          payload: {
+            system: item.quantity,
+            physical: item.quantity + variance,
+            variance,
+            reason: reason ?? undefined,
+          },
+        },
+        actorId,
+      );
+    } catch {
+      // Approval emission is a side channel — a failure here must not fail the opname.
+    }
   }
 
   /**
@@ -408,6 +469,75 @@ export class InventoryService {
       consumed.push(productId);
     }
     return { orderId, depotId, consumed, skipped };
+  }
+
+  /**
+   * Procurement goods-receipt: append a RECEIPT movement of `quantity` to the depot's
+   * raw stock line for `itemType` (Air/Galon/Tutup/Segel singleton, productId null).
+   * Called in-process by PurchaseOrderService.receive — a direct method call, no HTTP.
+   * Throws InventoryItemNotFoundError if the depot has no such line; the caller receives
+   * best-effort, so a missing line does not fail the whole PO.
+   * ponytail: targets the raw singleton line only. A PRODUK line needs a productId a PO
+   * line does not carry — give PoLine a productId if PRODUK procurement must land too.
+   */
+  async receiveStock(
+    depotId: string,
+    itemType: InventoryItemType,
+    quantity: number,
+    actorId: string,
+    reason: string,
+  ): Promise<ItemView> {
+    const line = await this.inventory.findLine(depotId, itemType, null);
+    if (!line) {
+      throw new InventoryItemNotFoundError();
+    }
+    const next = line.quantity + quantity;
+    const updated = await this.inventory.applyMovement(line.id, next, {
+      itemId: line.id,
+      type: StockMovementType.RECEIPT,
+      delta: quantity,
+      quantityBefore: line.quantity,
+      quantityAfter: next,
+      reason,
+      actorId,
+    });
+    return this.toView(updated);
+  }
+
+  /**
+   * Depot wastage from the movement ledger: every negative-delta ADJUSTMENT in the window,
+   * grouped by line. qty is the real lost quantity; lossIdr values it at the line's sellPrice
+   * (ponytail: raw lines like Galon/Air carry no price → qty only, no rupiah — give them a
+   * per-unit value if their wastage must be costed too). Window bounds are optional.
+   */
+  async wastageSummary(depotId: string, from?: Date, to?: Date): Promise<WastageSummary> {
+    const rows = await this.inventory.wastageAdjustments(depotId, { from, to });
+    const byItem = new Map<string, { label: string; qty: number; sellPrice: number | null }>();
+    for (const r of rows) {
+      const cur = byItem.get(r.itemId) ?? { label: r.label, qty: 0, sellPrice: r.sellPrice };
+      cur.qty += Math.abs(r.delta);
+      byItem.set(r.itemId, cur);
+    }
+    let totalLoss = 0;
+    let anyPriced = false;
+    const items: WastageItem[] = [...byItem.values()]
+      .sort((a, b) => b.qty - a.qty)
+      .map((i) => {
+        if (i.sellPrice != null) {
+          const lossIdr = Math.round(i.qty * i.sellPrice);
+          totalLoss += lossIdr;
+          anyPriced = true;
+          return { label: i.label, qty: i.qty, lossIdr };
+        }
+        return { label: i.label, qty: i.qty };
+      });
+    return {
+      depotId,
+      from: from ? from.toISOString() : null,
+      to: to ? to.toISOString() : null,
+      byItem: items,
+      ...(anyPriced ? { totalLossIdr: totalLoss } : {}),
+    };
   }
 
   async movements(itemId: string): Promise<StockMovementRecord[]> {

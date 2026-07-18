@@ -70,4 +70,22 @@ export interface LoyaltyRepository {
 
   /** Total enrolled loyalty accounts (HQ broadcast reach for the loyalty audience). */
   countAccounts(): Promise<number>;
+
+  /* ---------- Depot-scoped aggregates (over a customerId list) ---------- */
+  /** Members per tier for the given customers. Empty list → all zeros, no query. */
+  countByTier(customerIds: string[]): Promise<Record<MembershipTier, number>>;
+  /** Sum of current pointsBalance across the given customers. Empty list → 0, no query. */
+  sumPointsBalance(customerIds: string[]): Promise<number>;
+  /** Sum of RewardRedemption.pointsSpent for the given customers since `since`. Empty list → 0, no query. */
+  sumRedeemedSince(customerIds: string[], since: Date): Promise<number>;
+}
+
+/** All-tiers-zero record, the empty/degraded result for countByTier. */
+export function zeroTierCounts(): Record<MembershipTier, number> {
+  return {
+    [MembershipTier.REGULAR]: 0,
+    [MembershipTier.SILVER]: 0,
+    [MembershipTier.GOLD]: 0,
+    [MembershipTier.PLATINUM]: 0,
+  };
 }

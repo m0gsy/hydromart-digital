@@ -1,8 +1,19 @@
-import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import {
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
-import { Role, Roles } from '@hydromart/platform';
+import { CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
 
 import {
   ChurnItem,
@@ -11,6 +22,8 @@ import {
   ForecastService,
   SalesForecast,
 } from '../application/services/forecast.service';
+import { DepotOwnershipPort } from '../application/ports/depot-ownership.port';
+import { FORECAST_TOKENS } from '../application/tokens';
 import { RebuildService } from '../application/services/rebuild.service';
 import {
   ChurnQueryDto,
@@ -30,14 +43,36 @@ export class ForecastController {
   constructor(
     private readonly forecasts: ForecastService,
     private readonly rebuild: RebuildService,
+    @Inject(FORECAST_TOKENS.DepotOwnership) private readonly ownership: DepotOwnershipPort,
   ) {}
+
+  // A franchise owner may only forecast a depot they own — and must name one (no network-wide
+  // global forecast). Depot staff are already pinned by DepotScopeGuard; HQ/finance/super-admin
+  // are unrestricted. No-op for everyone but FRANCHISE_OWNER.
+  private async assertForecastDepot(
+    user: AuthenticatedUser,
+    depotId: string | undefined,
+  ): Promise<void> {
+    if (user.role !== Role.FRANCHISE_OWNER) return;
+    if (!depotId) {
+      throw new ForbiddenException('Akun waralaba harus memilih depot miliknya.');
+    }
+    const owned = await this.ownership.ownedDepotIds(user.sub);
+    if (!owned.includes(depotId)) {
+      throw new ForbiddenException('Akun waralaba ini hanya boleh mengakses depot miliknya.');
+    }
+  }
 
   // `demand` (static) is declared before `depot/:depotId` (param); distinct prefixes make
   // the order safe regardless, but static-first is kept as the convention.
 
   @Get('demand')
   @ApiOperation({ summary: 'Single-product demand forecast (omit depotId for a global forecast)' })
-  async demand(@Query() query: DemandQueryDto): Promise<ForecastResult> {
+  async demand(
+    @Query() query: DemandQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ForecastResult> {
+    await this.assertForecastDepot(user, query.depotId);
     return this.forecasts.demand({
       productId: query.productId,
       depotId: query.depotId, // omitted -> undefined -> global (all depots)
@@ -51,7 +86,9 @@ export class ForecastController {
   async depotRollup(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query() query: DepotRollupQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<ForecastItem[]> {
+    await this.assertForecastDepot(user, depotId);
     return this.forecasts.depotRollup({
       depotId,
       historyDays: query.historyDays,
@@ -62,7 +99,11 @@ export class ForecastController {
 
   @Get('sales')
   @ApiOperation({ summary: 'Daily revenue forecast (omit depotId for a global forecast)' })
-  async sales(@Query() query: SalesQueryDto): Promise<SalesForecast> {
+  async sales(
+    @Query() query: SalesQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SalesForecast> {
+    await this.assertForecastDepot(user, query.depotId);
     return this.forecasts.salesForecast({
       depotId: query.depotId, // omitted -> undefined -> global (all depots)
       historyDays: query.historyDays,

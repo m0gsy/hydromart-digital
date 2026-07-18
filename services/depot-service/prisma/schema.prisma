@@ -318,3 +318,407 @@ model PricingRule {
   @@index([depotId])
   @@map("pricing_rules")
 }
+
+/// Kind of depot operational incident (design 6b operator "Insiden depot" + 13b manager).
+enum IncidentType {
+  COURIER_FALL
+  VEHICLE_BREAKDOWN
+  CUSTOMER_CONFLICT
+  POWER_OUTAGE
+  GALLON_DAMAGE
+  OTHER
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+/// OPEN → IN_PROGRESS → RESOLVED lifecycle for a depot incident.
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+/// Depot operational incidents inbox (design 6b/13b): one row per field/ops event
+/// (courier fall, breakdown, complaint, outage, gallon damage) with a resolution trail.
+model Incident {
+  id             String           @id @default(uuid()) @db.Uuid
+  depotId        String           @db.Uuid
+  type           IncidentType
+  severity       IncidentSeverity
+  status         IncidentStatus   @default(OPEN)
+  title          String
+  description    String?
+  /// Account id of the staff member who logged the incident.
+  reportedBy     String           @db.Uuid
+  /// Courier involved, if any (free text — courier need not be an account).
+  courierName    String?
+  /// Related order reference (e.g. "HM-...000476"), if any.
+  orderRef       String?
+  /// Resolution note + who/when, set when the incident is marked RESOLVED.
+  resolutionNote String?
+  resolvedBy     String?          @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Newest-first inbox reads by (depotId, status, createdAt).
+  @@index([depotId, status, createdAt])
+  @@map("incidents")
+}
+
+/// Purchase-order lifecycle (design 7a/9d): drafted → sent to supplier → goods received.
+enum PoStatus {
+  DRAFT
+  SENT
+  RECEIVED
+}
+
+/// A depot's supplier directory entry (design 11b): a vendor of raw stock
+/// (galon/segel/air baku). categories is a free-text list, e.g. ["Galon 19L","Segel"].
+model Supplier {
+  id           String   @id @default(uuid()) @db.Uuid
+  depotId      String   @db.Uuid
+  name         String
+  /// Short human code, unique within a depot.
+  code         String
+  contactPhone String?
+  /// What they supply, e.g. ["Galon 19L","Segel","Air baku"].
+  categories   String[]
+  /// On-time delivery rate 0..1; null until enough POs land (denormalized metric).
+  onTimeRate   Float?
+  createdAt    DateTime @default(now())
+
+  @@unique([depotId, code])
+  @@index([depotId])
+  @@map("suppliers")
+}
+
+/// A depot purchase order (design 7a/9d). `lines` is a JSON array of
+/// { itemType, label, quantity, unitCostIdr }. Receiving a SENT PO posts a RECEIPT stock
+/// movement per line into the depot's inventory. supplierName is a denormalized snapshot
+/// so list/detail render without a supplier join.
+model PurchaseOrder {
+  id           String    @id @default(uuid()) @db.Uuid
+  depotId      String    @db.Uuid
+  /// Human PO reference, unique within a depot (e.g. "PO-A1B2C3D4").
+  poNumber     String
+  supplierId   String    @db.Uuid
+  supplierName String
+  status       PoStatus  @default(DRAFT)
+  lines        Json      @default("[]")
+  /// Whole IDR. subtotal = Σ(qty×unitCost); total = subtotal + shipping.
+  subtotalIdr  Int
+  shippingIdr  Int       @default(0)
+  totalIdr     Int
+  expectedAt   DateTime?
+  receivedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@unique([depotId, poNumber])
+  @@index([depotId, status, createdAt])
+  @@map("purchase_orders")
+}
+
+/// Kind of manager approval item (design 1c/2a-2c/10c/12a).
+enum ApprovalType {
+  OPNAME_VARIANCE
+  DEPOSIT_REFUND
+  COD_VARIANCE
+}
+
+/// PENDING → APPROVED / REJECTED / HELD lifecycle for an approval item.
+/// HELD parks an item for later without a final decision.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HELD
+}
+
+/// Depot-manager approval queue (design 1c/2a-2c/10c/12a): one row per value decision a
+/// manager must sign off — stock-count loss (opname), deposit refund, COD shortfall. Small
+/// values auto-pass (APPROVED at create) under the depot's threshold; larger ones wait
+/// PENDING for a Tolak/Tahan/Setujui decision. payload is a per-type JSON snapshot rendered
+/// on the detail screen: {system,physical,variance} | {condition,deposit} | {expected,received}.
+model Approval {
+  id                String         @id @default(uuid()) @db.Uuid
+  depotId           String         @db.Uuid
+  type              ApprovalType
+  status            ApprovalStatus @default(PENDING)
+  title             String
+  /// Account id of the operator/system that raised the item.
+  submittedBy       String         @db.Uuid
+  /// Human subject of the decision (product / customer / courier name).
+  subjectRef        String?
+  /// Signed rupiah at stake: loss (opname), refund (deposit), shortfall (COD).
+  amountIdr         Int
+  /// Per-type snapshot for the detail view.
+  payload           Json           @default("{}")
+  /// At/under |amount| this item auto-passed without review (snapshot of the threshold).
+  autoPassThreshold Int
+  decisionNote      String?
+  decidedBy         String?        @db.Uuid
+  decidedAt         DateTime?
+  createdAt         DateTime       @default(now())
+
+  // Newest-first queue reads by (depotId, status, createdAt).
+  @@index([depotId, status, createdAt])
+  @@map("approvals")
+}
+
+/// Courier shift kind on a roster cell (design: operator 6d "Jadwal shift kurir" + manager 7b).
+enum ShiftKind {
+  MORNING
+  EVENING
+  OFF
+}
+
+/// Courier shift roster (design 6d/7b): one row per (staff, day) of a depot's week. weekStart
+/// is the ISO date string of that week's Monday (e.g. "2026-07-14"); day is 0=Mon..6=Sun. A
+/// week's grid is the set of rows sharing (depotId, weekStart).
+model ShiftAssignment {
+  id        String    @id @default(uuid()) @db.Uuid
+  depotId   String    @db.Uuid
+  staffId   String    @db.Uuid
+  staffName String
+  weekStart String
+  day       Int
+  shift     ShiftKind @default(OFF)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([depotId, weekStart, staffId, day])
+  @@index([depotId, weekStart])
+  @@map("shift_assignments")
+}
+
+/// Depot monthly targets (design 13a). One row per (depot, month=YYYY-MM). Actuals
+/// (revenue/orders/SLA/new customers) are derived at read time from order/delivery
+/// reports; this row stores only the goals a manager sets.
+model DepotTarget {
+  id                 String   @id @default(uuid()) @db.Uuid
+  depotId            String   @db.Uuid
+  /// ISO year-month, e.g. "2026-07".
+  month              String
+  revenueTargetIdr   Int      @default(0)
+  ordersTarget       Int      @default(0)
+  /// On-time SLA target as a whole percent (e.g. 96).
+  slaTargetPct       Int      @default(0)
+  newCustomersTarget Int      @default(0)
+  updatedBy          String   @db.Uuid
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([depotId, month])
+  @@index([depotId])
+  @@map("depot_targets")
+}
+
+/// Kind of manual cashbook movement (design 14c). Derived movements (COD settlement in,
+/// PO payment out) may be posted by other flows later; for now entries are manager-entered.
+enum CashDirection {
+  IN
+  OUT
+}
+
+/// Depot cashbook / daily cash flow ledger (design 14c). Append-only rows of cash in
+/// (COD settlement, walk-in sale) and out (PO payment, courier commission, expenses),
+/// summed per day for an opening/closing balance.
+model CashbookEntry {
+  id         String        @id @default(uuid()) @db.Uuid
+  depotId    String        @db.Uuid
+  direction  CashDirection
+  /// Short category, e.g. "COD", "PO", "KOMISI", "SEWA".
+  category   String
+  label      String
+  amountIdr  Int
+  occurredAt DateTime      @default(now())
+  /// Optional link to the source (settlement id, PO number) when auto-posted.
+  sourceRef  String?
+  actorId    String        @db.Uuid
+  createdAt  DateTime      @default(now())
+
+  @@index([depotId, occurredAt])
+  @@map("cashbook_entries")
+}
+
+/// Kind of customer order dispute (design 15c).
+enum DisputeCategory {
+  WRONG_ITEM
+  NOT_RECEIVED
+  OVERCHARGED
+  QUALITY
+  OTHER
+}
+
+/// OPEN → RESOLVED / REJECTED lifecycle of an order dispute.
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+/// How a resolved dispute was settled (design 15c).
+enum DisputeResolution {
+  REFUND
+  RESEND
+  REJECTED
+}
+
+/// Customer order disputes (design 15c): a claim against a delivered order (wrong item,
+/// not received, overcharged, quality) and the manager's resolution.
+model OrderDispute {
+  id             String             @id @default(uuid()) @db.Uuid
+  depotId        String             @db.Uuid
+  orderRef       String
+  customerName   String
+  category       DisputeCategory
+  description    String
+  /// Amount in dispute (IDR), for the resolution quote.
+  amountIdr      Int                @default(0)
+  courierName    String?
+  status         DisputeStatus      @default(OPEN)
+  resolution     DisputeResolution?
+  resolutionNote String?
+  raisedBy       String             @db.Uuid
+  resolvedBy     String?            @db.Uuid
+  resolvedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([depotId, status, createdAt])
+  @@map("order_disputes")
+}
+
+/// Equipment health for a maintenance item (design 14a). DUE = overdue; SOON = within
+/// the warning window; HEALTHY otherwise; NEW = recently replaced.
+enum MaintenanceStatus {
+  DUE
+  SOON
+  HEALTHY
+  NEW
+}
+
+/// Depot equipment maintenance schedule (design 14a): RO filter, refill machine, genset,
+/// UV lamp — each with a service interval and next-due date. `status` is derived from
+/// nextDueAt at write time and recomputed on read.
+model MaintenanceItem {
+  id            String            @id @default(uuid()) @db.Uuid
+  depotId       String            @db.Uuid
+  name          String
+  /// Short category label, e.g. "Filter RO", "Genset".
+  category      String
+  intervalDays  Int
+  lastServicedAt DateTime?
+  nextDueAt     DateTime
+  status        MaintenanceStatus @default(HEALTHY)
+  note          String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([depotId, nextDueAt])
+  @@map("maintenance_items")
+}
+
+/// B2B wholesale price tier (design 15d): a quantity band mapping to a per-unit price for
+/// bulk buyers (offices, restaurants). productId null = applies to the depot's default gallon.
+model WholesaleTier {
+  id        String   @id @default(uuid()) @db.Uuid
+  depotId   String   @db.Uuid
+  productId String?  @db.Uuid
+  label     String
+  /// Inclusive lower bound of the quantity band.
+  minQty    Int
+  /// Inclusive upper bound; null = open-ended (e.g. "50+").
+  maxQty    Int?
+  priceIdr  Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([depotId])
+  @@map("wholesale_tiers")
+}
+
+/// Recurring-order cadence (design 16b).
+enum SubscriptionCadence {
+  DAILY
+  EVERY_3_DAYS
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+/// Customer recurring subscription (design 16b): a standing order (N gallons on a cadence)
+/// that seeds an order in the queue on its run date. Auto-order generation is a scheduler
+/// follow-up; this row is the definition + status the manager manages.
+model Subscription {
+  id           String              @id @default(uuid()) @db.Uuid
+  depotId      String              @db.Uuid
+  customerId   String?             @db.Uuid
+  customerName String
+  productLabel String
+  quantity     Int
+  cadence      SubscriptionCadence
+  status       SubscriptionStatus  @default(ACTIVE)
+  nextRunAt    DateTime?
+  note         String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([depotId, status])
+  @@map("subscriptions")
+}
+
+/// Weekly team huddle (design 13c): one row per (depot, weekStart Monday). agenda and
+/// actionItems are JSON arrays — agenda [{title,note}], actionItems [{text,assignee,done}].
+model HuddleNote {
+  id          String   @id @default(uuid()) @db.Uuid
+  depotId     String   @db.Uuid
+  /// ISO date of the week's Monday, e.g. "2026-07-14".
+  weekStart   String
+  heldAt      DateTime @default(now())
+  /// "8 dari 9 hadir" style free text.
+  attendance  String?
+  agenda      Json     @default("[]")
+  actionItems Json     @default("[]")
+  recordedBy  String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([depotId, weekStart])
+  @@index([depotId])
+  @@map("huddle_notes")
+}
+
+/// Shift handover checklist (design 14d): a signed record passing a depot from one shift to
+/// the next. items is a JSON array of { title, subtext, state: DONE|PARTIAL|PENDING }.
+model ShiftHandover {
+  id        String    @id @default(uuid()) @db.Uuid
+  depotId   String    @db.Uuid
+  /// e.g. "Pagi", "Sore".
+  fromShift String
+  toShift   String
+  fromStaff String
+  toStaff   String
+  items     Json      @default("[]")
+  note      String?
+  /// Null until both operators sign the handover.
+  signedAt  DateTime?
+  recordedBy String   @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([depotId, createdAt])
+  @@map("shift_handovers")
+}

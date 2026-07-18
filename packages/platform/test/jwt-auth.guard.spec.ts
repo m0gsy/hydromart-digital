@@ -43,7 +43,7 @@ describe('JwtAuthGuard internal-key + bearer auth', () => {
     const { ctx, request } = makeContext({ 'x-internal-key': INTERNAL_KEY });
 
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
-    expect(request.user).toEqual({ sub: 'system', role: Role.SUPER_ADMIN, phone: null });
+    expect(request.user).toEqual({ sub: 'system', role: Role.SUPER_ADMIN, phone: null, depotId: null });
   });
 
   it('(b) rejects a wrong internal key with no bearer token', async () => {

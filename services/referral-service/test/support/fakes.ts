@@ -4,12 +4,14 @@ import { ConfigService } from '@nestjs/config';
 
 import { ReferralConfigService } from '../../src/config/referral-config.service';
 import { ReferralStatus } from '../../src/domain/referral-status';
+import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
 import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
 import {
   CreateReferralData,
   ReferralCodeRecord,
   ReferralRecord,
   ReferralRepository,
+  TopReferrer,
 } from '../../src/application/ports/referral.repository';
 
 let seq = 0;
@@ -89,6 +91,45 @@ export class InMemoryReferralRepository implements ReferralRepository {
     };
   }
 
+  async countReferrals(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    return this.referrals.filter((r) => referrerIds.includes(r.referrerCustomerId)).length;
+  }
+
+  async countQualified(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    return this.qualifiedIn(referrerIds).length;
+  }
+
+  async sumReferrerPoints(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    return this.qualifiedIn(referrerIds).reduce((sum, r) => sum + r.referrerPoints, 0);
+  }
+
+  async topReferrers(referrerIds: string[], limit = 5): Promise<TopReferrer[]> {
+    if (referrerIds.length === 0) return [];
+    const byReferrer = new Map<string, TopReferrer>();
+    for (const r of this.qualifiedIn(referrerIds)) {
+      const row = byReferrer.get(r.referrerCustomerId) ?? {
+        customerId: r.referrerCustomerId,
+        referralCount: 0,
+        pointsEarned: 0,
+      };
+      row.referralCount += 1;
+      row.pointsEarned += r.referrerPoints;
+      byReferrer.set(r.referrerCustomerId, row);
+    }
+    return [...byReferrer.values()]
+      .sort((a, b) => b.referralCount - a.referralCount)
+      .slice(0, limit);
+  }
+
+  private qualifiedIn(referrerIds: string[]): ReferralRecord[] {
+    return this.referrals.filter(
+      (r) => referrerIds.includes(r.referrerCustomerId) && r.status === ReferralStatus.QUALIFIED,
+    );
+  }
+
   async qualifyReferral(
     referralId: string,
     qualifyingOrderId: string,
@@ -126,6 +167,14 @@ export class FakeLoyaltyReward implements LoyaltyRewardPort {
   ): Promise<void> {
     this.calls.push({ customerId, points, reason, authorization });
     if (this.shouldThrow) throw new Error('loyalty down');
+  }
+}
+
+export class FakeCustomerDirectory implements CustomerDirectoryPort {
+  constructor(private readonly idsByDepot: Record<string, string[]> = {}) {}
+
+  async customerIdsForDepot(depotId: string): Promise<string[]> {
+    return this.idsByDepot[depotId] ?? [];
   }
 }
 

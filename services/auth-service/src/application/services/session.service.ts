@@ -149,6 +149,7 @@ export class SessionService {
       sub: customer.id,
       role: customer.role,
       phone: customer.phone,
+      depotId: customer.assignedDepotId ?? null,
     });
 
     return {

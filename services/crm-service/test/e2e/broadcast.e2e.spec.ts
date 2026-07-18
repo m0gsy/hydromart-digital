@@ -79,7 +79,9 @@ describe('Broadcast HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
+    // DEPOT_OPERATOR is depot-locked by the platform DepotScopeGuard: its token must carry the
+    // depotId it acts on, or broadcasts scoped to `depot-1` get 403.
+    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62', depotId }, { secret });
     driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
   });
 

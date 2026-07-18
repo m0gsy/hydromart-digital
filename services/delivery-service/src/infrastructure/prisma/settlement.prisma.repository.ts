@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { SettlementStatus } from '../../domain/settlement';
 import {
+  CourierShortfall,
   CreateSettlementData,
   ResolveSettlementPatch,
   SettlementQuery,
@@ -72,6 +73,20 @@ export class SettlementPrismaRepository implements SettlementRepository {
       take: SettlementPrismaRepository.HISTORY_LIMIT,
     });
     return rows.map((r) => this.toRecord(r));
+  }
+
+  async chargedShortfallByDriver(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<CourierShortfall[]> {
+    const rows = await this.prisma.cashSettlement.groupBy({
+      by: ['driverId'],
+      where: { depotId, chargedToDriver: true, createdAt: { gte: from, lt: to } },
+      _sum: { variance: true },
+    });
+    // variance is negative for a shortfall; report the positive amount owed.
+    return rows.map((r) => ({ driverId: r.driverId, shortfallIdr: Math.abs(r._sum.variance ?? 0) }));
   }
 
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {

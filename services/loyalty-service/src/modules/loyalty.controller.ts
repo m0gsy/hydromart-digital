@@ -7,6 +7,7 @@ import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
 import {
   AdjustPointsDto,
+  DepotSummaryQueryDto,
   EarnPointsDto,
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
@@ -98,6 +99,14 @@ export class LoyaltyController {
   @ApiOperation({ summary: 'HQ broadcast reach: total enrolled loyalty members' })
   async memberCount(): Promise<{ count: number }> {
     return { count: await this.loyalty.countMembers() };
+  }
+
+  @ApiBearerAuth()
+  @Roles(...READ_ROLES)
+  @Get('depot-summary')
+  @ApiOperation({ summary: 'Depot-scoped loyalty rollup: members, tiers, points outstanding, redeemed this month' })
+  depotSummary(@Query() query: DepotSummaryQueryDto) {
+    return this.loyalty.depotSummary(query.depotId);
   }
 
   @ApiBearerAuth()

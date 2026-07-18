@@ -14,6 +14,12 @@ const SEGMENT_ENV: Record<string, string> = {
   payments: 'PAYMENT_SERVICE_URL',
   deliveries: 'DELIVERY_SERVICE_URL',
   depots: 'DEPOT_SERVICE_URL',
+  // Depot operational incidents inbox (depot-service, design 6b/13b). Its own public
+  // segment; reuses the depot-service upstream (no new env var).
+  incidents: 'DEPOT_SERVICE_URL',
+  // Depot-manager approval queue (depot-service, design 1c/2a-2c). Own public segment,
+  // reuses the depot-service upstream (no new env var).
+  approvals: 'DEPOT_SERVICE_URL',
   dashboard: 'DASHBOARD_SERVICE_URL',
   loyalty: 'LOYALTY_SERVICE_URL',
   vouchers: 'PROMO_SERVICE_URL',
@@ -23,6 +29,12 @@ const SEGMENT_ENV: Record<string, string> = {
   forecast: 'FORECAST_SERVICE_URL',
   payout: 'PAYOUT_SERVICE_URL',
   admin: 'ADMIN_SERVICE_URL',
+  // Depot procurement: purchase orders + supplier directory (depot-service, design 7a/9d/11b).
+  // Own public segment; reuses the depot-service upstream (no new env var).
+  procurement: 'DEPOT_SERVICE_URL',
+  // Courier shift roster (depot-service, design 6d/7b). Own public segment; reuses the
+  // depot-service upstream (no new env var).
+  shifts: 'DEPOT_SERVICE_URL',
 };
 
 @Injectable()

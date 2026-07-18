@@ -14,4 +14,7 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret guarding /loyalty/earn + /loyalty/reward
   // (system-triggered). Blank = fail-closed (internal calls rejected).
   INTERNAL_SERVICE_KEY: optionalSecret(16),
+  // customer-service base URL, used to resolve a depot's customers for depot-scoped
+  // loyalty aggregates. Blank = no directory → depot summary returns zeros (fail-open).
+  CUSTOMER_SERVICE_URL: Joi.string().uri().optional().allow(''),
 });

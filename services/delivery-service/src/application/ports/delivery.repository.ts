@@ -69,6 +69,8 @@ export interface DeliveryTimestamps {
 
 export interface DeliveryQuery {
   driverId?: string;
+  /** Depot to scope to. When set, only that depot's deliveries match (null-depot rows excluded). */
+  depotId?: string;
   status?: DeliveryStatus;
   page: number;
   limit: number;

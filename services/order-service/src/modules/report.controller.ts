@@ -7,6 +7,11 @@ import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
 import {
   AudienceReachQueryDto,
+  DepotCompareQueryDto,
+  DepotDailyQueryDto,
+  DepotMonthlyQueryDto,
+  DepotRatingsQueryDto,
+  DepotWeeklyQueryDto,
   RangeReportQueryDto,
   SalesReportQueryDto,
   SegmentEstimateQueryDto,
@@ -14,6 +19,9 @@ import {
 } from './dto/report.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+// Depot daily/weekly (2d/7d) are the operator's own console screens, so DEPOT_OPERATOR
+// joins the reporting roles for these two depot-scoped routes only.
+const DEPOT_REPORT_ROLES = [...REPORT_ROLES, Role.DEPOT_OPERATOR] as const;
 // Customer 360 (17e) is HQ-only — no depot-manager access to a single customer's history.
 const HQ_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
 // Broadcast reach + segment sizing (10d/21d) are marketing-led audience tools.
@@ -69,6 +77,12 @@ export class ReportController {
     return this.reports.ratingByDepot(toRange(q));
   }
 
+  @Get('depot-ratings')
+  @ApiOperation({ summary: "One depot's ratings: average, star distribution, recent reviews (14b)" })
+  depotRatings(@Query() q: DepotRatingsQueryDto) {
+    return this.reports.depotRatings(q.depotId, toRange(q));
+  }
+
   @Get('revenue-by-category')
   @ApiOperation({ summary: 'Revenue share per product (22b; per-product — no category column)' })
   revenueByCategory(@Query() q: TopReportQueryDto) {
@@ -79,6 +93,37 @@ export class ReportController {
   @ApiOperation({ summary: 'Customer retention by first-order-month cohort (22b)' })
   retentionCohort(@Query() q: RangeReportQueryDto) {
     return this.reports.retentionCohort(toRange(q));
+  }
+
+  @Roles(...DEPOT_REPORT_ROLES)
+  @Get('depot-daily')
+  @ApiOperation({ summary: 'Depot daily operations report (design 2d Laporan harian)' })
+  depotDaily(@Query() q: DepotDailyQueryDto) {
+    return this.reports.depotDaily(q.depotId, q.date ?? new Date().toISOString().slice(0, 10));
+  }
+
+  @Roles(...DEPOT_REPORT_ROLES)
+  @Get('depot-weekly')
+  @ApiOperation({ summary: 'Depot weekly operations report (design 7d Laporan mingguan)' })
+  depotWeekly(@Query() q: DepotWeeklyQueryDto) {
+    return this.reports.depotWeekly(
+      q.depotId,
+      q.from ? new Date(q.from) : undefined,
+      q.to ? new Date(q.to) : undefined,
+    );
+  }
+
+  @Get('depot-compare')
+  @ApiOperation({ summary: 'Cross-depot comparison: orders + revenue per depot (design 14d)' })
+  depotCompare(@Query() q: DepotCompareQueryDto) {
+    const ids = q.depotIds.split(',').map((s) => s.trim()).filter(Boolean);
+    return this.reports.reportsDepotCompare(ids, toRange(q));
+  }
+
+  @Get('depot-monthly')
+  @ApiOperation({ summary: "One depot's monthly ops review (orders/revenue/active customers)" })
+  depotMonthly(@Query() q: DepotMonthlyQueryDto) {
+    return this.reports.reportsDepotMonthly(q.depotId, q.month);
   }
 
   @Roles(...AUDIENCE_ROLES)

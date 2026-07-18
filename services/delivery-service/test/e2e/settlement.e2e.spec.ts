@@ -124,8 +124,8 @@ describe('Cash settlement HTTP flows (e2e)', () => {
 
   const server = () => app.getHttpServer();
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
-  const token = (sub: string, role: Role) =>
-    app.get(JwtService).sign({ sub, role, phone: '+62' }, {
+  const token = (sub: string, role: Role, depotId?: string) =>
+    app.get(JwtService).sign({ sub, role, phone: '+62', depotId }, {
       secret: app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET'),
     });
 
@@ -157,7 +157,8 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   it('lets the depot cashier verify and charge the shortfall', async () => {
     const res = await request(server())
       .post(`/api/v1/settlements/${settlementId}/verify`)
-      .set(auth(token(randomUUID(), Role.DEPOT_MANAGER)))
+      // Cashier must be assigned to the settlement's own depot (by-id depot guard).
+      .set(auth(token(randomUUID(), Role.DEPOT_MANAGER, DEPOT_ID)))
       .send({ chargedToDriver: true })
       .expect(201);
     expect(res.body).toMatchObject({ status: 'VERIFIED', chargedToDriver: true });

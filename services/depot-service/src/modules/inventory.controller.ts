@@ -14,7 +14,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
-import { InventoryService, ItemView } from '../application/services/inventory.service';
+import { InventoryService, ItemView, WastageSummary } from '../application/services/inventory.service';
 import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
 import { StockMovementRecord } from '../application/ports/inventory.repository';
 import {
@@ -24,6 +24,7 @@ import {
   ListInventoryQueryDto,
   OpnameStockDto,
   UpdateInventoryItemDto,
+  WastageQueryDto,
 } from './dto/inventory.dto';
 
 // Stock consumption is triggered by order completion, which a driver can perform,
@@ -157,6 +158,18 @@ export class InventoryController {
   @ApiOperation({ summary: 'List low-stock lines, optionally for one depot (FR-074)' })
   lowStock(@Query('depotId') depotId?: string): Promise<ItemView[]> {
     return this.inventory.listLowStock(depotId);
+  }
+
+  // Static segment: declared before ':itemId' so it wins the route match.
+  @Roles(...CAPABILITIES.inventoryRead)
+  @Get('wastage')
+  @ApiOperation({ summary: 'Depot wastage summary from negative ADJUSTMENT movements' })
+  wastage(@Query() q: WastageQueryDto): Promise<WastageSummary> {
+    return this.inventory.wastageSummary(
+      q.depotId,
+      q.from ? new Date(q.from) : undefined,
+      q.to ? new Date(q.to) : undefined,
+    );
   }
 
   @Roles(...CAPABILITIES.inventoryRead)

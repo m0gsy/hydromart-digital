@@ -12,6 +12,7 @@ import {
   CustomerSales,
   DepotSales,
   DepotRating,
+  DepotRatingsDetail,
   DepotRefund,
   DepotShipping,
   OrderQuery,
@@ -306,6 +307,36 @@ export class InMemoryOrderRepository implements OrderRepository {
     }));
   }
 
+  async depotRatings(depotId: string, range: ReportRange): Promise<DepotRatingsDetail> {
+    const inWindow = (o: OrderRecord): boolean =>
+      o.depotId === depotId &&
+      (!range.from || o.createdAt >= range.from) &&
+      (!range.to || o.createdAt < range.to);
+    const joined = this.reviews
+      .map((rev) => ({ rev, order: this.rows.find((o) => o.id === rev.orderId) }))
+      .filter(
+        (x): x is { rev: OrderReviewRecord; order: OrderRecord } => !!x.order && inWindow(x.order),
+      );
+    const distribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+    let sum = 0;
+    for (const { rev } of joined) {
+      const star = String(rev.rating) as keyof typeof distribution;
+      if (star in distribution) distribution[star] += 1;
+      sum += rev.rating;
+    }
+    const count = joined.length;
+    const recent = [...joined]
+      .sort((a, b) => b.rev.createdAt.getTime() - a.rev.createdAt.getTime())
+      .slice(0, 8)
+      .map(({ rev, order }) => ({
+        customerName: order.recipientName,
+        stars: rev.rating,
+        comment: rev.comment,
+        createdAt: rev.createdAt,
+      }));
+    return { average: count === 0 ? null : sum / count, count, distribution, recent };
+  }
+
   async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {
     const agg = new Map<string, ProductRevenue>();
     for (const r of this.reportRows(range)) {
@@ -376,6 +407,15 @@ export class InMemoryOrderRepository implements OrderRepository {
         .map((r) => r.customerId),
     );
     return ids.size;
+  }
+
+  async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId)
+      .filter((r) => !range.from || r.createdAt >= range.from)
+      .filter((r) => !range.to || r.createdAt < range.to)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((r) => structuredClone(r));
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {

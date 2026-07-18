@@ -90,7 +90,8 @@ describe('Delivery HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     staffToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      // Depot-assigned manager: depotId gates the depot-scoped shift/dispatch routes.
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: DEPOT_ID },
       { secret },
     );
     driverToken = jwt.sign({ sub: driverId, role: Role.DRIVER, phone: '+62' }, { secret });
@@ -254,6 +255,45 @@ describe('Delivery HTTP flows (e2e)', () => {
       .get(`/api/v1/deliveries/${randomUUID()}`)
       .set(auth(staffToken))
       .expect(404);
+  });
+
+  it('scopes the staff list to a depot-locked role and lets SUPER_ADMIN see across depots', async () => {
+    const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
+    const jwt = app.get(JwtService);
+    const otherDepot = '00000000-0000-4000-8000-0000000000ff';
+    const otherDepotToken = jwt.sign(
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: otherDepot },
+      { secret },
+    );
+    const superToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret },
+    );
+
+    // A delivery attributed to DEPOT_ID (the depot-manager's own depot).
+    const courier = randomUUID();
+    await checkIn(courier);
+    const created = await request(server())
+      .post('/api/v1/deliveries')
+      .set(auth(staffToken))
+      .send({ ...assignBody(), driverId: courier, depotId: DEPOT_ID })
+      .expect(201);
+    const id = created.body.id;
+
+    // Own-depot manager sees it.
+    const own = await request(server()).get('/api/v1/deliveries').set(auth(staffToken)).expect(200);
+    expect(own.body.items.some((d: { id: string }) => d.id === id)).toBe(true);
+
+    // A manager locked to another depot sees none of DEPOT_ID's deliveries.
+    const other = await request(server())
+      .get('/api/v1/deliveries')
+      .set(auth(otherDepotToken))
+      .expect(200);
+    expect(other.body.items.some((d: { id: string }) => d.id === id)).toBe(false);
+
+    // SUPER_ADMIN (no depot) sees across depots.
+    const all = await request(server()).get('/api/v1/deliveries').set(auth(superToken)).expect(200);
+    expect(all.body.items.some((d: { id: string }) => d.id === id)).toBe(true);
   });
 
   describe('shifts', () => {

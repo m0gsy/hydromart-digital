@@ -72,6 +72,36 @@ export const CAPABILITIES = {
   // Narrower than returnsWrite: the refund amount is derived server-side from the
   // depot's deposit rate, never supplied by the courier.
   courierReturn: ['DRIVER'],
+  // crm-service — depot-scoped customer directory (CRM read: profiles, deposit
+  // ledger, order history). Depot staff see their own depot's customers.
+  depotCrm: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
+  // and follow-up. Operators log & triage, managers resolve.
+  incidents: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // auth-service — depot-scoped audit trail read (who did what at this depot).
+  auditRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // procurement-service — purchase orders + supplier directory (goods-in -> RECEIPT).
+  // Manager-exclusive depot power (like depotAdmin).
+  procurement: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // depot-service — the manager approval queue: opname-variance, deposit-refund and
+  // COD-settlement-variance decisions that exceed the depot's auto-pass thresholds.
+  approvals: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
+  // courier commission runs, monthly ops review. Depot manager + the office finance team.
+  depotFinance: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  // depot-service — team & culture ops, split per-feature (was one `depotTeam` cap)
+  // so each page can carry its own roles. Shift-floor ops (huddle/handover/maintenance)
+  // include the operator who runs the daily shift; pricing/B2B & targets stay
+  // manager-led. Each decoupled from the shared caps it used to borrow
+  // (depotAdmin/depotCrm/dashboard) so widening one never leaks into depot CRUD,
+  // the customer directory, or the exec dashboard.
+  depotHuddle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotMaintenance: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotTargets: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotWholesale: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotSubscriptions: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotDisputes: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

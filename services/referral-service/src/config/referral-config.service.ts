@@ -36,6 +36,11 @@ export class ReferralConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** customer-service base URL; depot referral aggregates resolve depot->customerIds there.
+   *  Blank = no directory lookup (aggregate degrades to zeros). */
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
+  }
   /** Points granted to the referrer when a referral qualifies (FR-092). */
   get referrerPoints(): number {
     return this.num('REFERRAL_REFERRER_POINTS');

@@ -47,4 +47,8 @@ export class DepotConfigService {
   get gallonDepositIdr(): number {
     return this.num('GALLON_DEPOSIT_IDR');
   }
+  /** Manager approval queue: value changes at/under this rupiah amount auto-pass without review. */
+  get approvalAutoPassIdr(): number {
+    return this.num('APPROVAL_AUTO_PASS_IDR');
+  }
 }

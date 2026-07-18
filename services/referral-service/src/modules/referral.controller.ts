@@ -16,6 +16,8 @@ import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles 
 
 import { ReferralService } from '../application/services/referral.service';
 import {
+  DepotReferralSummaryDto,
+  DepotSummaryQueryDto,
   QualifyReferralDto,
   RedeemReferralDto,
   ReferralCodeDto,
@@ -79,6 +81,14 @@ export class ReferralController {
   qualify(@Body() dto: QualifyReferralDto) {
     // Reward is awarded via referral's own internal-key call to loyalty (no forwarded token).
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
+  }
+
+  @ApiBearerAuth()
+  @Roles(...READ_ROLES)
+  @Get('depot-summary')
+  @ApiOperation({ summary: 'Depot-scoped referral aggregate (staff): invited/qualified/points + top referrers' })
+  async depotSummary(@Query() query: DepotSummaryQueryDto): Promise<DepotReferralSummaryDto> {
+    return DepotReferralSummaryDto.from(await this.referrals.depotSummary(query.depotId));
   }
 
   @ApiBearerAuth()

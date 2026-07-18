@@ -28,8 +28,25 @@ import {
   StockMovementRecord,
   UpdateInventoryItemData,
 } from '../../src/application/ports/inventory.repository';
-import { available, ReservationStatus } from '../../src/domain/inventory';
+import { available, ReservationStatus, StockMovementType } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
+import { Approval, ApprovalStatus, ApprovalType } from '../../src/domain/approval';
+import {
+  ApprovalRepository,
+  CreateApprovalData,
+  PendingCounts,
+  UpdateApprovalData,
+} from '../../src/application/ports/approval.repository';
+import { Supplier } from '../../src/domain/supplier';
+import { CreateSupplierData, SupplierRepository } from '../../src/application/ports/supplier.repository';
+import { PoStatus, PurchaseOrder } from '../../src/domain/purchase-order';
+import {
+  CreatePurchaseOrderData,
+  PurchaseOrderRepository,
+  UpdatePurchaseOrderData,
+} from '../../src/application/ports/purchase-order.repository';
+import { ShiftAssignment } from '../../src/domain/shift';
+import { RosterRepository, UpsertShiftData } from '../../src/application/ports/roster.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -188,6 +205,23 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((m) => ({ ...m }));
   }
+  async wastageAdjustments(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]> {
+    return this.moves
+      .filter((m) => m.type === StockMovementType.ADJUSTMENT && m.delta < 0)
+      .filter((m) => (!range.from || m.createdAt >= range.from) && (!range.to || m.createdAt < range.to))
+      .map((m) => ({ move: m, item: this.items.find((x) => x.id === m.itemId) }))
+      .filter((x) => x.item?.depotId === depotId)
+      .map(({ move, item }) => ({
+        itemId: move.itemId,
+        label: item!.label,
+        sellPrice: item!.sellPrice,
+        delta: move.delta,
+      }));
+  }
+
   async findReservation(itemId: string, orderId: string): Promise<ReservationRecord | null> {
     const r = this.reservations.find((x) => x.itemId === itemId && x.orderId === orderId);
     return r ? { ...r } : null;
@@ -272,6 +306,128 @@ export class FakePricingRuleRepository implements PricingRuleRepository {
   }
 }
 
+export class InMemoryApprovalRepository implements ApprovalRepository {
+  rows: Approval[] = [];
+
+  async create(data: CreateApprovalData): Promise<Approval> {
+    const at = nextDate();
+    const row: Approval = { id: randomUUID(), ...data, createdAt: at };
+    this.rows.push(row);
+    return row;
+  }
+  async listForDepot(depotId: string, status?: ApprovalStatus): Promise<Approval[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && (!status || r.status === status))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+  async findById(id: string): Promise<Approval | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async update(id: string, data: UpdateApprovalData): Promise<Approval> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, data);
+    return row;
+  }
+  async pendingCounts(depotId: string): Promise<PendingCounts> {
+    const counts: PendingCounts = {
+      [ApprovalType.OPNAME_VARIANCE]: 0,
+      [ApprovalType.DEPOSIT_REFUND]: 0,
+      [ApprovalType.COD_VARIANCE]: 0,
+    };
+    for (const r of this.rows) {
+      if (r.depotId === depotId && r.status === ApprovalStatus.PENDING) counts[r.type] += 1;
+    }
+    return counts;
+  }
+}
+
+export class InMemorySupplierRepository implements SupplierRepository {
+  rows: Supplier[] = [];
+
+  async create(data: CreateSupplierData): Promise<Supplier> {
+    const row: Supplier = { id: randomUUID(), ...data, createdAt: nextDate() };
+    this.rows.push(row);
+    return { ...row };
+  }
+  async listForDepot(depotId: string): Promise<Supplier[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r }));
+  }
+  async findById(id: string): Promise<Supplier | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async findByCode(depotId: string, code: string): Promise<Supplier | null> {
+    const r = this.rows.find((x) => x.depotId === depotId && x.code === code);
+    return r ? { ...r } : null;
+  }
+}
+
+export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository {
+  rows: PurchaseOrder[] = [];
+
+  async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {
+    const row: PurchaseOrder = {
+      id: randomUUID(),
+      ...data,
+      status: PoStatus.DRAFT,
+      receivedAt: null,
+      createdAt: nextDate(),
+    };
+    this.rows.push(row);
+    return { ...row };
+  }
+  async listForDepot(depotId: string, status?: PoStatus): Promise<PurchaseOrder[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && (!status || r.status === status))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => ({ ...r }));
+  }
+  async findById(id: string): Promise<PurchaseOrder | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder> {
+    const rec = this.rows.find((x) => x.id === id)!;
+    Object.assign(rec, data);
+    return { ...rec };
+  }
+}
+
+export class InMemoryRosterRepository implements RosterRepository {
+  rows: ShiftAssignment[] = [];
+
+  private key(a: Pick<UpsertShiftData, 'depotId' | 'weekStart' | 'staffId' | 'day'>): string {
+    return `${a.depotId}|${a.weekStart}|${a.staffId}|${a.day}`;
+  }
+
+  async listForWeek(depotId: string, weekStart: string): Promise<ShiftAssignment[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && r.weekStart === weekStart)
+      .map((r) => ({ ...r }));
+  }
+
+  async upsertCell(a: UpsertShiftData): Promise<ShiftAssignment> {
+    const existing = this.rows.find((r) => this.key(r) === this.key(a));
+    if (existing) {
+      existing.shift = a.shift;
+      existing.staffName = a.staffName;
+      return { ...existing };
+    }
+    const row: ShiftAssignment = { id: randomUUID(), ...a };
+    this.rows.push(row);
+    return { ...row };
+  }
+
+  async bulkUpsert(assignments: UpsertShiftData[]): Promise<ShiftAssignment[]> {
+    const out: ShiftAssignment[] = [];
+    for (const a of assignments) out.push(await this.upsertCell(a));
+    return out;
+  }
+}
+
 export function buildTestConfig(overrides: Record<string, string> = {}): DepotConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
@@ -281,6 +437,8 @@ export function buildTestConfig(overrides: Record<string, string> = {}): DepotCo
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',
+    GALLON_DEPOSIT_IDR: '20000',
+    APPROVAL_AUTO_PASS_IDR: '100000',
     ...overrides,
   };
   const fake = {

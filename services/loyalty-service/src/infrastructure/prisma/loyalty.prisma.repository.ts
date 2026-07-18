@@ -9,6 +9,7 @@ import {
   LoyaltyAccountRecord,
   LoyaltyRepository,
   PointsTransactionRecord,
+  zeroTierCounts,
 } from '../../application/ports/loyalty.repository';
 import {
   MembershipTier as PrismaTier,
@@ -65,6 +66,36 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
 
   async countAccounts(): Promise<number> {
     return this.prisma.loyaltyAccount.count();
+  }
+
+  async countByTier(customerIds: string[]): Promise<Record<MembershipTier, number>> {
+    const counts = zeroTierCounts();
+    if (customerIds.length === 0) return counts;
+    const rows = await this.prisma.loyaltyAccount.groupBy({
+      by: ['tier'],
+      where: { customerId: { in: customerIds } },
+      _count: { _all: true },
+    });
+    for (const row of rows) counts[row.tier as MembershipTier] = row._count._all;
+    return counts;
+  }
+
+  async sumPointsBalance(customerIds: string[]): Promise<number> {
+    if (customerIds.length === 0) return 0;
+    const agg = await this.prisma.loyaltyAccount.aggregate({
+      where: { customerId: { in: customerIds } },
+      _sum: { pointsBalance: true },
+    });
+    return agg._sum.pointsBalance ?? 0;
+  }
+
+  async sumRedeemedSince(customerIds: string[], since: Date): Promise<number> {
+    if (customerIds.length === 0) return 0;
+    const agg = await this.prisma.rewardRedemption.aggregate({
+      where: { customerId: { in: customerIds }, createdAt: { gte: since } },
+      _sum: { pointsSpent: true },
+    });
+    return agg._sum.pointsSpent ?? 0;
   }
 
   async findEarnByOrder(orderId: string): Promise<PointsTransactionRecord | null> {

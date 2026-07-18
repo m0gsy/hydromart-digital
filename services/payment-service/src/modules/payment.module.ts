@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
 
 import { PaymentConfigService } from '../config/payment-config.service';
 import { PAYMENT_TOKENS } from '../application/tokens';
@@ -27,6 +27,7 @@ const providers: Provider[] = [
   { provide: PAYMENT_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({

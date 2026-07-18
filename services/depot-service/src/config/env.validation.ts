@@ -16,6 +16,9 @@ export const envValidationSchema = Joi.object({
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.
   GALLON_DEPOSIT_IDR: Joi.number().integer().min(0).default(20000),
+  // Manager approval queue: value changes at/under this rupiah amount auto-pass without a
+  // manager decision (mirrors payout's expense auto-approve). Tune per business.
+  APPROVAL_AUTO_PASS_IDR: Joi.number().integer().min(0).default(100000),
   // Shared service-to-service secret authenticating the low-stock alert call to crm's
   // internal notification endpoint. Blank = alerting disabled (fail-open).
   INTERNAL_SERVICE_KEY: optionalSecret(16),

@@ -10,6 +10,9 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
   LOYALTY_SERVICE_URL: Joi.string().uri().required(),
+  // customer-service base URL for depot->customerIds lookup (depot referral aggregate).
+  // Blank = directory lookup disabled; the aggregate degrades to zeros (fail-open).
+  CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   REFERRAL_REFERRER_POINTS: Joi.number().integer().positive().default(500),
   REFERRAL_REFEREE_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret: guards /referrals/qualify (order-service triggers

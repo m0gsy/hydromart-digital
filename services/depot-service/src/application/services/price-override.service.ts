@@ -79,6 +79,11 @@ export class PriceOverrideService {
     return this.proposals.countByProduct(status);
   }
 
+  /** Load one proposal (for by-id depot-scope assertion in the controller). */
+  get(id: string): Promise<PriceOverrideProposalRecord> {
+    return this.require(id);
+  }
+
   async approve(id: string, decidedBy: string): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();

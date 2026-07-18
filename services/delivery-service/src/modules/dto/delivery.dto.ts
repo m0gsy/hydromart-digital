@@ -156,6 +156,14 @@ export class ListDeliveriesQueryDto {
   @IsEnum(DeliveryStatus)
   status?: DeliveryStatus;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Filter to one depot (HQ/finance/marketing only; depot-locked roles are forced to their own depot).',
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

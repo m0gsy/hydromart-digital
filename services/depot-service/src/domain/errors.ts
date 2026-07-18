@@ -93,6 +93,64 @@ export class ApplicationAlreadyDecidedError extends DomainError {
   }
 }
 
+export class IncidentNotFoundError extends DomainError {
+  readonly code = 'INCIDENT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Incident not found.');
+  }
+}
+
+export class ApprovalNotFoundError extends DomainError {
+  readonly code = 'APPROVAL_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Approval item not found.');
+  }
+}
+
+/** Decide attempted on an already-terminal (APPROVED/REJECTED) approval item. */
+export class ApprovalAlreadyDecidedError extends DomainError {
+  readonly code = 'APPROVAL_ALREADY_DECIDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This approval item has already been approved or rejected.');
+  }
+}
+
+export class SupplierNotFoundError extends DomainError {
+  readonly code = 'SUPPLIER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Supplier not found.');
+  }
+}
+
+export class DuplicateSupplierCodeError extends DomainError {
+  readonly code = 'SUPPLIER_CODE_TAKEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('A supplier with this code already exists at this depot.');
+  }
+}
+
+export class PurchaseOrderNotFoundError extends DomainError {
+  readonly code = 'PURCHASE_ORDER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Purchase order not found.');
+  }
+}
+
+/** send/receive attempted from a status that does not allow it (DRAFT→SENT→RECEIVED only). */
+export class InvalidPurchaseOrderTransitionError extends DomainError {
+  readonly code = 'PURCHASE_ORDER_INVALID_TRANSITION';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(message = 'This purchase order cannot make that transition.') {
+    super(message);
+  }
+}
+
 export class PriceOverrideProposalNotFoundError extends DomainError {
   readonly code = 'PRICE_OVERRIDE_PROPOSAL_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
@@ -107,5 +165,62 @@ export class PriceOverrideProposalDecidedError extends DomainError {
   readonly status = HTTP_STATUS.CONFLICT;
   constructor() {
     super('This price-override proposal has already been approved or rejected.');
+  }
+}
+
+export class DisputeNotFoundError extends DomainError {
+  readonly code = 'DISPUTE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Order dispute not found.');
+  }
+}
+
+/** Resolve/reject attempted on an already-terminal (RESOLVED/REJECTED) dispute. */
+export class DisputeAlreadyResolvedError extends DomainError {
+  readonly code = 'DISPUTE_ALREADY_RESOLVED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This dispute has already been resolved or rejected.');
+  }
+}
+
+export class MaintenanceItemNotFoundError extends DomainError {
+  readonly code = 'MAINTENANCE_ITEM_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Maintenance item not found.');
+  }
+}
+
+export class WholesaleTierNotFoundError extends DomainError {
+  readonly code = 'WHOLESALE_TIER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Wholesale tier not found.');
+  }
+}
+
+export class SubscriptionNotFoundError extends DomainError {
+  readonly code = 'SUBSCRIPTION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Subscription not found.');
+  }
+}
+
+export class HuddleNoteNotFoundError extends DomainError {
+  readonly code = 'HUDDLE_NOTE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Huddle note not found.');
+  }
+}
+
+export class HandoverNotFoundError extends DomainError {
+  readonly code = 'HANDOVER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Shift handover not found.');
   }
 }

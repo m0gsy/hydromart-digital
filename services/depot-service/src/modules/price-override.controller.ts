@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Role, Roles, assertDepotAccess } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PriceOverrideService } from '../application/services/price-override.service';
@@ -85,20 +85,22 @@ export class PriceOverrideController {
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → applies the override as a winning pricing rule' })
-  approve(
+  async approve(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PriceOverrideProposalRecord> {
+    assertDepotAccess(user, (await this.overrides.get(id)).depotId);
     return this.overrides.approve(id, user.sub);
   }
 
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject an override proposal (no price change)' })
-  reject(
+  async reject(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PriceOverrideProposalRecord> {
+    assertDepotAccess(user, (await this.overrides.get(id)).depotId);
     return this.overrides.reject(id, user.sub);
   }
 }

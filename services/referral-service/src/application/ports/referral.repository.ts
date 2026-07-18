@@ -28,6 +28,13 @@ export interface CreateReferralData {
   code: string;
 }
 
+/** One row of a depot's top-referrer leaderboard (qualified referrals only). */
+export interface TopReferrer {
+  customerId: string;
+  referralCount: number;
+  pointsEarned: number;
+}
+
 export interface ReferralRepository {
   findCodeByCustomer(customerId: string): Promise<ReferralCodeRecord | null>;
   createCode(customerId: string, code: string): Promise<ReferralCodeRecord>;
@@ -46,6 +53,18 @@ export interface ReferralRepository {
   summarizeReferrer(
     referrerCustomerId: string,
   ): Promise<{ referredCount: number; qualifiedCount: number; pointsEarned: number }>;
+
+  /* ---- Depot-scoped aggregates: fan in over a list of referrers (a depot's customers).
+     Empty list => zeros/[] without touching the DB (no `IN ()` query). ---- */
+
+  /** All referrals whose referrer is in the list (any status). */
+  countReferrals(referrerIds: string[]): Promise<number>;
+  /** Referrals in the list that reached QUALIFIED. */
+  countQualified(referrerIds: string[]): Promise<number>;
+  /** Sum of referrerPoints over QUALIFIED referrals in the list. */
+  sumReferrerPoints(referrerIds: string[]): Promise<number>;
+  /** Top referrers in the list by qualified-referral count (desc), capped at `limit`. */
+  topReferrers(referrerIds: string[], limit?: number): Promise<TopReferrer[]>;
 
   /**
    * Atomically flip a referral PENDING -> QUALIFIED (only if currently PENDING), setting

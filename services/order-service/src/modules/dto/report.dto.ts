@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsISO8601, IsUUID, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsISO8601, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
 
 export class SalesReportQueryDto {
   @ApiPropertyOptional({ enum: ['daily', 'monthly'], default: 'daily' })
@@ -71,6 +71,75 @@ export class SegmentEstimateQueryDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+}
+
+export class DepotDailyQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Reported day (ISO 8601); defaults to today (UTC).' })
+  @IsOptional()
+  @IsISO8601()
+  date?: string;
+}
+
+export class DepotWeeklyQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601); defaults to 7 days ago.' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601); defaults to now.' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class DepotCompareQueryDto {
+  @ApiPropertyOptional({ description: 'Comma-separated depot ids to compare.' })
+  @IsString()
+  depotIds!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class DepotRatingsQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report ratings for.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
+export class DepotMonthlyQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Reported month, YYYY-MM.' })
+  @Matches(/^\d{4}-\d{2}$/, { message: 'month must be YYYY-MM' })
+  month!: string;
 }
 
 export class TopReportQueryDto {

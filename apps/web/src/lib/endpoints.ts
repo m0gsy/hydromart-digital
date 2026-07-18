@@ -187,6 +187,14 @@ export const endpoints = {
       if (depotId) p.set('depotId', depotId);
       return `/deliveries/api/v1/driver/performance?${p}`;
     },
+    // Depot courier commission run (design 11c, courierSettle cap). Per-courier delivered ×
+    // flat rate − charged COD shortfall; window defaults to the current month server-side.
+    commission: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/deliveries/api/v1/commission?${p}`;
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',
@@ -222,6 +230,15 @@ export const endpoints = {
       if (q.actorId) p.set('actorId', q.actorId);
       const qs = p.toString();
       return `/auth/api/v1/auth/audit${qs ? `?${qs}` : ''}`;
+    },
+    // Depot-scoped trail (design 8b, auditRead). depotId required; type = category chip
+    // (OPNAME/RECEIPT/HARGA/SETORAN/STAF). Paginated → { items, ... }.
+    forDepot: (depotId: string, q: { type?: string; page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.type) p.set('type', q.type);
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      return `/auth/api/v1/auth/audit/depot?${p}`;
     },
   },
   // HQ tax & invoice settings (payment-service, FINANCE/SUPER_ADMIN). GET current, PUT to save.
@@ -289,6 +306,36 @@ export const endpoints = {
     // (distinct customers with a non-cancelled order); optional per-depot scope.
     audienceReach: (depotId?: string) =>
       `/orders/api/v1/reports/audience-reach${depotId ? `?depotId=${depotId}` : ''}`,
+    // Depot daily ops report (design 2d Laporan harian). date defaults to today (UTC) server-side.
+    depotDaily: (depotId: string, date?: string) => {
+      const p = new URLSearchParams({ depotId });
+      if (date) p.set('date', date);
+      return `/orders/api/v1/reports/depot-daily?${p}`;
+    },
+    // Depot weekly ops report (design 7d Laporan mingguan). Window defaults to trailing 7 days.
+    depotWeekly: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-weekly?${p}`;
+    },
+    // Cross-depot comparison (design 14d): real orders + revenue per depot over a window.
+    depotCompare: (depotIds: string[], q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotIds: depotIds.join(',') });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-compare?${p}`;
+    },
+    // One depot's monthly ops review (orders/revenue/active customers). month = 'YYYY-MM'.
+    depotMonthly: (depotId: string, month: string) =>
+      `/orders/api/v1/reports/depot-monthly?${new URLSearchParams({ depotId, month })}`,
+    // One depot's customer ratings (14b): average, star distribution, recent reviews.
+    depotRatings: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-ratings?${p}`;
+    },
   },
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).
@@ -319,6 +366,10 @@ export const endpoints = {
     byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
     // Total enrolled members (HQ broadcast reach for the loyalty audience).
     memberCount: '/loyalty/api/v1/loyalty/members/count',
+    // Depot-scoped loyalty rollup (design 17a): tier counts + points outstanding +
+    // redeemed-this-month for the depot's own customers (favoriteDepotId).
+    depotSummary: (depotId: string) =>
+      `/loyalty/api/v1/loyalty/depot-summary?depotId=${encodeURIComponent(depotId)}`,
     transactions: (q: { page?: number; limit?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
@@ -372,6 +423,10 @@ export const endpoints = {
   referrals: {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
+    // Depot-scoped referral rollup (design 17b): invited/qualified/conversion + top
+    // referrers among the depot's own customers.
+    depotSummary: (depotId: string) =>
+      `/referrals/api/v1/referrals/depot-summary?depotId=${encodeURIComponent(depotId)}`,
   },
   // Platform administration (admin-service). Feature flags (8b), system settings (8b),
   // and the aggregate per-service health roll-up (13b). SUPER_ADMIN / HEAD_OFFICE gated.
@@ -496,6 +551,8 @@ export const endpoints = {
     create: '/depots/api/v1/depots',
     // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
+    // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
+    uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
   },
   inventory: {
     // Stock lines for one depot (staff).
@@ -512,6 +569,13 @@ export const endpoints = {
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
     // Append-only stock movement history for one line (opname/adjust/sale/restock).
     movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    // Depot wastage summary from negative ADJUSTMENT movements (real lost qty per item).
+    wastage: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/depots/api/v1/inventory/wastage?${p}`;
+    },
     // Per-depot resolved prices (override + winning active rule) for products.
     prices: (depotId: string, productIds: string[]) =>
       `/depots/api/v1/depots/${depotId}/inventory/prices?productIds=${encodeURIComponent(productIds.join(','))}`,
@@ -545,6 +609,96 @@ export const endpoints = {
   // empties + net deposit held (issued − returned), one grouped call.
   gallonNetwork: {
     outstanding: '/depots/api/v1/gallon-outstanding',
+  },
+  // Depot operational incidents inbox (depot-service, design 6b/13b). Its own gateway
+  // segment (proxied to depot-service). depotId scopes the list; status filters it.
+  incidents: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/incidents/api/v1/incidents?${p}`;
+    },
+    detail: (id: string) => `/incidents/api/v1/incidents/${id}`,
+    create: () => '/incidents/api/v1/incidents',
+    resolve: (id: string) => `/incidents/api/v1/incidents/${id}/resolve`,
+  },
+  // Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). Own gateway
+  // segment (proxied to depot-service). depotId scopes the list/counts; status filters.
+  approvals: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/approvals/api/v1/approvals?${p}`;
+    },
+    detail: (id: string) => `/approvals/api/v1/approvals/${id}`,
+    decide: (id: string) => `/approvals/api/v1/approvals/${id}/decide`,
+    counts: (depotId: string) =>
+      `/approvals/api/v1/approvals/counts?depotId=${encodeURIComponent(depotId)}`,
+    create: '/approvals/api/v1/approvals',
+  },
+  // Depot-manager console features (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b).
+  // All reuse the existing `depots` gateway segment (no new segment/env) — the segment strips
+  // `/depots` and forwards `/api/v1/<controller>` straight to depot-service.
+  depotTargets: {
+    // GET the target row for one month (null if unset).
+    get: (q: { depotId: string; month: string }) =>
+      `/depots/api/v1/depot-targets?depotId=${encodeURIComponent(q.depotId)}&month=${encodeURIComponent(q.month)}`,
+    upsert: '/depots/api/v1/depot-targets', // PUT
+  },
+  cashbook: {
+    list: (q: { depotId: string; from?: string; to?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/depots/api/v1/cashbook?${p}`;
+    },
+    create: '/depots/api/v1/cashbook',
+  },
+  disputes: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/depots/api/v1/order-disputes?${p}`;
+    },
+    create: '/depots/api/v1/order-disputes',
+    resolve: (id: string) => `/depots/api/v1/order-disputes/${id}/resolve`,
+  },
+  maintenance: {
+    list: (depotId: string) =>
+      `/depots/api/v1/maintenance-items?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/maintenance-items',
+    serviced: (id: string) => `/depots/api/v1/maintenance-items/${id}/serviced`,
+  },
+  wholesale: {
+    list: (depotId: string) =>
+      `/depots/api/v1/wholesale-tiers?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/wholesale-tiers',
+    detail: (id: string) => `/depots/api/v1/wholesale-tiers/${id}`, // PATCH / DELETE
+  },
+  // Manager-managed standing orders (depot-service). Distinct from customer self-service
+  // recurring orders under the `subscriptions` key above (order-service, spec 7b).
+  depotSubscriptions: {
+    list: (q: { depotId: string; status?: string }) => {
+      const p = new URLSearchParams({ depotId: q.depotId });
+      if (q.status) p.set('status', q.status);
+      return `/depots/api/v1/subscriptions?${p}`;
+    },
+    create: '/depots/api/v1/subscriptions',
+    pause: (id: string) => `/depots/api/v1/subscriptions/${id}/pause`,
+    resume: (id: string) => `/depots/api/v1/subscriptions/${id}/resume`,
+  },
+  huddle: {
+    list: (depotId: string) =>
+      `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(depotId)}`,
+    get: (q: { depotId: string; weekStart: string }) =>
+      `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(q.depotId)}&weekStart=${encodeURIComponent(q.weekStart)}`,
+    upsert: '/depots/api/v1/huddle-notes', // PUT
+  },
+  handover: {
+    list: (depotId: string) =>
+      `/depots/api/v1/shift-handovers?depotId=${encodeURIComponent(depotId)}`,
+    create: '/depots/api/v1/shift-handovers',
+    sign: (id: string) => `/depots/api/v1/shift-handovers/${id}/sign`,
   },
   pricing: {
     // Dynamic pricing rules for one depot (staff). All under the depots segment.
@@ -756,5 +910,44 @@ export const endpoints = {
       const qs = p.toString();
       return `/auth/api/v1/auth/customers/count${qs ? `?${qs}` : ''}`;
     },
+  },
+  // Depot procurement — suppliers + purchase orders (depot-service, design 7a/9d/11b).
+  // Own gateway segment (proxied to depot-service). depotId scopes lists; status filters POs.
+  procurement: {
+    suppliers: {
+      list: (depotId: string) =>
+        `/procurement/api/v1/suppliers?depotId=${encodeURIComponent(depotId)}`,
+      detail: (id: string) => `/procurement/api/v1/suppliers/${id}`,
+      create: '/procurement/api/v1/suppliers',
+    },
+    purchaseOrders: {
+      list: (q: { depotId: string; status?: string }) => {
+        const p = new URLSearchParams({ depotId: q.depotId });
+        if (q.status) p.set('status', q.status);
+        return `/procurement/api/v1/purchase-orders?${p}`;
+      },
+      detail: (id: string) => `/procurement/api/v1/purchase-orders/${id}`,
+      create: '/procurement/api/v1/purchase-orders',
+      send: (id: string) => `/procurement/api/v1/purchase-orders/${id}/send`,
+      receive: (id: string) => `/procurement/api/v1/purchase-orders/${id}/receive`,
+    },
+  },
+  // Courier shift roster (depot-service, design 6d/7b). Own gateway segment (proxied to
+  // depot-service). week reads a depot's grid; setCell/bulk write it (driverRoster cap).
+  roster: {
+    week: (depotId: string, weekStart: string) =>
+      `/shifts/api/v1/shifts?depotId=${encodeURIComponent(depotId)}&weekStart=${encodeURIComponent(weekStart)}`,
+    setCell: () => '/shifts/api/v1/shifts',
+    bulk: () => '/shifts/api/v1/shifts/bulk',
+  },
+  // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).
+  depotCrm: {
+    list: (depotId: string, q?: string) => {
+      const p = new URLSearchParams({ depotId });
+      if (q) p.set('q', q);
+      return `/customers/api/v1/customers/depot?${p}`;
+    },
+    detail: (id: string, depotId: string) =>
+      `/customers/api/v1/customers/${id}/depot-detail?depotId=${encodeURIComponent(depotId)}`,
   },
 } as const;

@@ -7,6 +7,7 @@ import { PointsTxnType } from '../../src/domain/points';
 import { LoyaltyService } from '../../src/application/services/loyalty.service';
 import { RewardService } from '../../src/application/services/reward.service';
 import {
+  InMemoryCustomerDirectory,
   InMemoryLoyaltyRepository,
   InMemoryRewardRepository,
   buildTestConfig,
@@ -22,13 +23,13 @@ describe('RewardService', () => {
   beforeEach(() => {
     loyaltyRepo = new InMemoryLoyaltyRepository();
     rewardRepo = new InMemoryRewardRepository(loyaltyRepo);
-    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig());
+    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory());
     service = new RewardService(rewardRepo, loyalty);
   });
 
   /** Give the customer a starting balance via a system reward grant. */
   async function seedBalance(points: number): Promise<void> {
-    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig());
+    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory());
     await loyalty.reward(CUSTOMER, points, 'seed');
   }
 

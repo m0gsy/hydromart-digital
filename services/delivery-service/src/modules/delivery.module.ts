@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DELIVERY_TOKENS } from '../application/tokens';
@@ -12,6 +12,7 @@ import { ShiftService } from '../application/services/shift.service';
 import { IncidentService } from '../application/services/incident.service';
 import { SettlementService } from '../application/services/settlement.service';
 import { PerformanceService } from '../application/services/performance.service';
+import { CommissionService } from '../application/services/commission.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../infrastructure/prisma/delivery.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
@@ -34,6 +35,7 @@ import { DriverSettlementController } from './driver-settlement.controller';
 import { DriverPerformanceController } from './driver-performance.controller';
 import { ShiftController } from './shift.controller';
 import { SettlementController } from './settlement.controller';
+import { CommissionController } from './commission.controller';
 import { ReportController } from './report.controller';
 import { UploadController } from './upload.controller';
 import { RetentionController } from './retention.controller';
@@ -47,6 +49,7 @@ const providers: Provider[] = [
   IncidentService,
   SettlementService,
   PerformanceService,
+  CommissionService,
   { provide: DELIVERY_TOKENS.DeliveryRepository, useClass: DeliveryPrismaRepository },
   { provide: DELIVERY_TOKENS.ShiftRepository, useClass: ShiftPrismaRepository },
   { provide: DELIVERY_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
@@ -67,6 +70,7 @@ const providers: Provider[] = [
   },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({
@@ -80,6 +84,7 @@ const providers: Provider[] = [
     DriverPerformanceController,
     ShiftController,
     SettlementController,
+    CommissionController,
     ReportController,
     UploadController,
     RetentionController,

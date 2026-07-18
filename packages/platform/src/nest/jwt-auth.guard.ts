@@ -52,7 +52,7 @@ export class JwtAuthGuard implements CanActivate {
       typeof providedKey === 'string' &&
       JwtAuthGuard.safeEqual(providedKey, configuredKey)
     ) {
-      request.user = { sub: 'system', role: Role.SUPER_ADMIN, phone: null };
+      request.user = { sub: 'system', role: Role.SUPER_ADMIN, phone: null, depotId: null };
       return true;
     }
 
@@ -65,7 +65,12 @@ export class JwtAuthGuard implements CanActivate {
       const payload = await this.jwt.verifyAsync<AuthenticatedUser>(token, {
         secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'),
       });
-      request.user = { sub: payload.sub, role: payload.role, phone: payload.phone };
+      request.user = {
+        sub: payload.sub,
+        role: payload.role,
+        phone: payload.phone,
+        depotId: payload.depotId ?? null,
+      };
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired access token.');

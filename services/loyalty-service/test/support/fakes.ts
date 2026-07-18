@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { LoyaltyConfigService } from '../../src/config/loyalty-config.service';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
+import { CustomerDirectory } from '../../src/application/ports/customer-directory.port';
 import {
   AccountMutation,
   EarnMutation,
@@ -12,6 +13,7 @@ import {
   LoyaltyAccountRecord,
   LoyaltyRepository,
   PointsTransactionRecord,
+  zeroTierCounts,
 } from '../../src/application/ports/loyalty.repository';
 import {
   RedeemMutation,
@@ -34,6 +36,32 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
 
   async countAccounts(): Promise<number> {
     return this.accounts.length;
+  }
+
+  async countByTier(customerIds: string[]): Promise<Record<MembershipTier, number>> {
+    const counts = zeroTierCounts();
+    if (customerIds.length === 0) return counts;
+    const set = new Set(customerIds);
+    for (const a of this.accounts) if (set.has(a.customerId)) counts[a.tier] += 1;
+    return counts;
+  }
+
+  async sumPointsBalance(customerIds: string[]): Promise<number> {
+    if (customerIds.length === 0) return 0;
+    const set = new Set(customerIds);
+    return this.accounts
+      .filter((a) => set.has(a.customerId))
+      .reduce((sum, a) => sum + a.pointsBalance, 0);
+  }
+
+  async sumRedeemedSince(customerIds: string[], since: Date): Promise<number> {
+    if (customerIds.length === 0) return 0;
+    const set = new Set(customerIds);
+    // Mirrors Prisma summing RewardRedemption.pointsSpent: redemptions land as negative
+    // REDEEM ledger entries (see InMemoryRewardRepository), so sum their magnitude.
+    return this.txns
+      .filter((t) => t.type === PointsTxnType.REDEEM && set.has(t.customerId) && t.createdAt >= since)
+      .reduce((sum, t) => sum + Math.abs(t.points), 0);
   }
 
   async createAccount(customerId: string): Promise<LoyaltyAccountRecord> {
@@ -206,6 +234,13 @@ export class InMemoryRewardRepository implements RewardRepository {
       item.stock = (item.stock ?? 0) - 1;
     }
     return { ...redemption };
+  }
+}
+
+export class InMemoryCustomerDirectory implements CustomerDirectory {
+  constructor(public ids: string[] = []) {}
+  async customerIdsForDepot(): Promise<string[]> {
+    return [...this.ids];
   }
 }
 

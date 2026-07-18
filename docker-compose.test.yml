@@ -216,6 +216,7 @@ services:
       REFERRAL_SERVICE_PORT: 3011
       REFERRAL_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_referral?schema=public
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      CUSTOMER_SERVICE_URL: http://customer:3002
       REFERRAL_REFERRER_POINTS: 500
       REFERRAL_REFEREE_POINTS: 250
     healthcheck:
@@ -262,6 +263,7 @@ services:
       FORECAST_SERVICE_PORT: 3014
       FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_forecast?schema=public
       CHURN_WINDOW_DAYS: 45
+      DEPOT_SERVICE_URL: http://depot:3007
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3014/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

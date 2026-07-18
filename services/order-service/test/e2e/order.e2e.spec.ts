@@ -41,6 +41,9 @@ describe('Order HTTP flows (e2e)', () => {
   let app: INestApplication;
   let customerToken: string;
   let staffToken: string;
+  // HQ actor: a bypass role for the by-id depot guard, so it can drive an unrouted
+  // order (this e2e's ADDRESS has no coords, so orders never resolve a depot).
+  let adminToken: string;
   let catalog: FakeProductCatalog;
   const productId = randomUUID();
 
@@ -122,6 +125,10 @@ describe('Order HTTP flows (e2e)', () => {
       { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
       { secret },
     );
+    adminToken = jwt.sign(
+      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
+      { secret },
+    );
   });
 
   afterAll(async () => {
@@ -190,14 +197,14 @@ describe('Order HTTP flows (e2e)', () => {
 
     await request(server())
       .patch(`/api/v1/orders/${id}/status`)
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .send({ status: 'CONFIRMED' })
       .expect(200);
 
     // Illegal jump is rejected (409).
     await request(server())
       .patch(`/api/v1/orders/${id}/status`)
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .send({ status: 'PICKED_UP' })
       .expect(409);
   });
@@ -244,7 +251,7 @@ describe('Order HTTP flows (e2e)', () => {
     for (const status of flow) {
       await request(server())
         .patch(`/api/v1/orders/${id}/status`)
-        .set(auth(staffToken))
+        .set(auth(adminToken))
         .send({ status })
         .expect(200);
     }
@@ -283,20 +290,23 @@ describe('Order HTTP flows (e2e)', () => {
       .expect(404);
   });
 
-  it('gates the staff order queue: customer 403, staff 200 sees all customers', async () => {
+  it('gates the staff order queue: customer 403, cross-depot admin 200 sees all customers', async () => {
     await request(server()).get('/api/v1/orders/manage').set(auth(customerToken)).expect(403);
 
+    // A cross-depot role (SUPER_ADMIN) sees every depot's orders. A depot-locked manager
+    // token carries no depotId here, so depotScopeFilter fail-closes it — asserting "sees all"
+    // requires the unscoped admin token (the e2e orders route to a null/other depot).
     const res = await request(server())
       .get('/api/v1/orders/manage')
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .expect(200);
-    // Prior tests placed orders for the customer; staff sees them cross-tenant.
+    // Prior tests placed orders for the customer; a cross-depot role sees them cross-tenant.
     expect(res.body.total).toBeGreaterThan(0);
 
     // Status filter is honoured.
     const cancelled = await request(server())
       .get('/api/v1/orders/manage?status=CANCELLED')
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .expect(200);
     expect(cancelled.body.items.every((o: { status: string }) => o.status === 'CANCELLED')).toBe(true);
 

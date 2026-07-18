@@ -230,6 +230,9 @@ services:
       LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public
       LOYALTY_EARN_RATE_RUPIAH: 1000
       LOYALTY_POINT_EXPIRY_MONTHS: 12
+      # Depot-scoped loyalty summary resolves a depot's customers via customer-service
+      # (x-internal-key from *shared). Blank/unreachable → summary returns zeros (fail-open).
+      CUSTOMER_SERVICE_URL: http://customer:3002
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3009/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -261,6 +264,7 @@ services:
       REFERRAL_SERVICE_PORT: 3011
       REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      CUSTOMER_SERVICE_URL: http://customer:3002
       REFERRAL_REFERRER_POINTS: 500
       REFERRAL_REFEREE_POINTS: 250
     healthcheck:
@@ -311,6 +315,7 @@ services:
       FORECAST_SERVICE_PORT: 3014
       FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public
       CHURN_WINDOW_DAYS: 45
+      DEPOT_SERVICE_URL: http://depot:3007
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3014/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

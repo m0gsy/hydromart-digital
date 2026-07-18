@@ -145,6 +145,24 @@ export interface DepotRating {
   reviewCount: number;
 }
 
+/** One recent review card for the depot ratings screen (design 14b). */
+export interface DepotRatingRecent {
+  /** The order's recipient name (customer name is not stored on the review). */
+  customerName: string;
+  stars: number;
+  comment: string | null;
+  createdAt: Date;
+}
+
+/** One depot's ratings aggregate: average, count, star distribution + recent reviews (14b). */
+export interface DepotRatingsDetail {
+  /** Mean 1..5; null when the depot has no reviews in the window. */
+  average: number | null;
+  count: number;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  recent: DepotRatingRecent[];
+}
+
 /** Mean rating over a set of orders (courier weekly performance, design 4c). */
 export interface RatingSummary {
   /** Mean of the reviews found, 1..5; null when none of the orders were reviewed. */
@@ -252,6 +270,12 @@ export interface OrderRepository {
   recordRefund(orderId: string, amount: number): Promise<void>;
   /** Average rating per depot (orders in-window that have a review), 14d. */
   ratingByDepot(range: ReportRange): Promise<DepotRating[]>;
+  /**
+   * One depot's ratings detail: average, count, star distribution, and the most recent
+   * reviews (design 14b). Reviews are joined to their parent order for depot + createdAt
+   * scoping (OrderReview has no depotId of its own).
+   */
+  depotRatings(depotId: string, range: ReportRange): Promise<DepotRatingsDetail>;
   /** Revenue per product in the window (CANCELLED excluded), highest first (22b). */
   revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]>;
   /**
@@ -269,4 +293,10 @@ export interface OrderRepository {
   audienceReach(depotId?: string): Promise<number>;
   /** Distinct customers matching all activity-based segment conditions (design 21d). */
   segmentEstimate(conditions: SegmentConditions): Promise<number>;
+  /**
+   * Every order (INCLUDING cancelled) for one depot within the range, oldest first.
+   * Backs the depot daily/weekly composites (design 2d/7d) — the service partitions
+   * cancelled vs live itself (orders/revenue exclude cancelled; failed counts them).
+   */
+  ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]>;
 }

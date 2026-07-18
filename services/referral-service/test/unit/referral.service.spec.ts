@@ -7,7 +7,12 @@ import {
   SelfReferralError,
 } from '../../src/domain/errors';
 import { ReferralService } from '../../src/application/services/referral.service';
-import { FakeLoyaltyReward, InMemoryReferralRepository, buildTestConfig } from '../support/fakes';
+import {
+  FakeCustomerDirectory,
+  FakeLoyaltyReward,
+  InMemoryReferralRepository,
+  buildTestConfig,
+} from '../support/fakes';
 
 describe('ReferralService', () => {
   let repo: InMemoryReferralRepository;
@@ -17,7 +22,7 @@ describe('ReferralService', () => {
   beforeEach(() => {
     repo = new InMemoryReferralRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ReferralService(repo, loyalty, buildTestConfig());
+    service = new ReferralService(repo, loyalty, new FakeCustomerDirectory(), buildTestConfig());
   });
 
   describe('getOrCreateMyCode', () => {
