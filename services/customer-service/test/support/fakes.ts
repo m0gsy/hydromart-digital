@@ -194,6 +194,11 @@ export class InMemoryPaymentMethodRepository implements PaymentMethodRepository 
     const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
     if (rec) rec.isDefault = true;
   }
+  async setDefaultExclusive(customerId: string, id: string): Promise<void> {
+    this.rows.filter((r) => r.customerId === customerId).forEach((r) => (r.isDefault = false));
+    const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
+    if (rec) rec.isDefault = true;
+  }
   async delete(customerId: string, id: string): Promise<void> {
     this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));
   }

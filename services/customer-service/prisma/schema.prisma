@@ -86,6 +86,9 @@ model SavedPaymentMethod {
   updatedAt        DateTime         @updatedAt
 
   @@index([customerId])
+  // Audit (DB-2 pattern): a partial UNIQUE index enforcing one default per customer is
+  // added by migration 20260718150000_one_default_payment_method (Prisma can't express a
+  // partial unique index here). Pairs with PaymentMethodRepository.setDefaultExclusive.
   @@map("saved_payment_methods")
 }
 

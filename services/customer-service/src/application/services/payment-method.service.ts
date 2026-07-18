@@ -69,8 +69,7 @@ export class PaymentMethodService {
 
   async setDefault(customerId: string, id: string): Promise<PaymentMethodRecord> {
     await this.getOrThrow(customerId, id);
-    await this.methods.unsetDefault(customerId);
-    await this.methods.markDefault(customerId, id);
+    await this.methods.setDefaultExclusive(customerId, id);
     return this.getOrThrow(customerId, id);
   }
 
