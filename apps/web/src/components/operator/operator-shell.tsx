@@ -41,8 +41,11 @@ const manageTabs: Tab[] = [
   { label: 'Broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
   { label: 'Shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
   { label: 'Kelola depot', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
+  { label: 'Pembayaran', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments') },
   { label: 'Notifikasi', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
   { label: 'Laporan', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
+  { label: 'Audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
+  { label: 'Pengaturan', href: '/dashboard/operator-settings', match: (p) => p.startsWith('/dashboard/operator-settings') },
 ];
 
 function TabLink({ tab, active }: { tab: Tab; active: boolean }) {

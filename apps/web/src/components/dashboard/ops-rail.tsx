@@ -28,8 +28,10 @@ import {
   MapPin,
   Megaphone,
   Package,
+  QrCode,
   Recycle,
   Scales,
+  Scroll,
   ShieldCheck,
   Sparkle,
   Stack,
@@ -71,6 +73,7 @@ import {
   canReviewApprovals,
   canManageProcurement,
   canViewIncidents,
+  canViewAudit,
   canViewDepotCrm,
   canViewDepotFinance,
   canBroadcastToCouriers,
@@ -184,6 +187,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/products/manage', label: 'Kelola produk', icon: Cube, show: isDepotManager },
       { href: '/dashboard/wholesale', label: 'Harga borongan', icon: Stack, show: canManagePricing },
+      { href: '/dashboard/payments', label: 'Pembayaran & QRIS', icon: QrCode, show: canManageDepots },
     ],
   },
   {
@@ -205,6 +209,7 @@ const GROUPS: RailGroup[] = [
     headLabel: 'Referensi',
     items: [
       { href: '/dashboard/roles', label: 'Peran & akses', icon: ShieldCheck, show: isStaff },
+      { href: '/dashboard/audit', label: 'Audit log', icon: Scroll, show: canViewAudit },
       { href: '/dashboard/profile', label: 'Profil', icon: UserGear, show: isDepotManager },
     ],
   },
