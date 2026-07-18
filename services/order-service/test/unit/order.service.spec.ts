@@ -120,6 +120,22 @@ describe('OrderService', () => {
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
   });
 
+  it('round-trips an optional delivery window, defaulting to null when omitted', async () => {
+    await addToCart(20000, 1);
+    const withWindow = await service.checkout(customer, {
+      deliveryAddress: address,
+      deliveryWindow: '2026-07-20 09:00-12:00',
+    });
+    expect(withWindow.deliveryWindow).toBe('2026-07-20 09:00-12:00');
+    expect((await service.getForCustomer(customer, withWindow.id)).deliveryWindow).toBe(
+      '2026-07-20 09:00-12:00',
+    );
+
+    await addToCart(20000, 1);
+    const without = await service.checkout(customer, { deliveryAddress: address });
+    expect(without.deliveryWindow).toBeNull();
+  });
+
   it('clears the cart after a successful checkout', async () => {
     await addToCart(20000, 1);
     await service.checkout(customer, { deliveryAddress: address });

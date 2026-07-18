@@ -74,6 +74,13 @@ export const endpoints = {
     detail: (id: string) => `/customers/api/v1/addresses/${id}`,
     primary: (id: string) => `/customers/api/v1/addresses/${id}/primary`,
   },
+  favorites: {
+    // Wishlist (customer-service, via the `customers` gateway segment). GET returns
+    // { productIds }, POST { productId } adds (idempotent), DELETE removes.
+    list: '/customers/api/v1/favorites',
+    add: '/customers/api/v1/favorites',
+    remove: (productId: string) => `/customers/api/v1/favorites/${productId}`,
+  },
   products: {
     browse: (q: { page?: number; limit?: number; search?: string; categoryId?: string }) => {
       const p = new URLSearchParams();

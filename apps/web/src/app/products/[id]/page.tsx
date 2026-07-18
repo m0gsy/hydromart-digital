@@ -14,6 +14,7 @@ import {
   Trophy,
 } from '@phosphor-icons/react';
 
+import { FavoriteButton } from '@/components/favorite-button';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { Button, Chip, ErrorState, MemberPrice, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -250,6 +251,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   </>
                 )}
               </Button>
+              <FavoriteButton productId={id} className="h-[54px] w-[54px]" />
             </div>
 
             {added && (

@@ -84,6 +84,7 @@ export class OrderController {
           notes: dto.deliveryAddress.notes ?? null,
         },
         voucherCode: dto.voucherCode ?? null,
+        deliveryWindow: dto.deliveryWindow ?? null,
       },
       authorization,
     );

@@ -42,6 +42,7 @@ export const en: Dictionary = {
       payments: 'Payments',
       orders: 'Orders',
       rewards: 'Rewards',
+      favorites: 'Favorites',
       referral: 'Invite friends',
       prefs: 'Notifications',
     },

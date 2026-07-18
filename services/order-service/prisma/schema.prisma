@@ -71,6 +71,10 @@ model Order {
   longitude     Float?
   notes         String?
 
+  /// Customer's preferred delivery time-window, a free-form client label
+  /// (e.g. "2026-07-20 09:00-12:00"). Not slot-checked — display/reference only.
+  deliveryWindow String?
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 

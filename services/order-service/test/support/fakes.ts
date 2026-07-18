@@ -146,6 +146,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       status: OrderStatus.CREATED,
       items: items.map((i) => ({ ...i, id: randomUUID() })),
       history: [{ status: OrderStatus.CREATED, changedBy: null, note: null, createdAt: now }],
+      deliveryWindow: rest.deliveryWindow ?? null,
       driverName: null,
       reviewed: false,
       createdAt: now,

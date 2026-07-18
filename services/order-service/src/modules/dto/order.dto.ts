@@ -88,6 +88,15 @@ export class CheckoutDto {
   @IsString()
   @MaxLength(40)
   voucherCode?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-07-20 09:00-12:00',
+    description: 'Optional customer-preferred delivery time-window (free-form label, not slot-checked).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  deliveryWindow?: string;
 }
 
 export class ListOrdersQueryDto {

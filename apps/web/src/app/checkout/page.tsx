@@ -73,6 +73,8 @@ function CheckoutInner() {
     notes: '',
   });
   const [method, setMethod] = useState<PaymentMethod>('CASH');
+  // Preferred delivery window (gap 13b). '' = Secepatnya (ASAP) → sent as undefined.
+  const [deliveryWindow, setDeliveryWindow] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState(false);
@@ -182,6 +184,7 @@ function CheckoutInner() {
           // order-service re-validates the voucher (fail-closed) and applies the
           // membership discount itself; sending the raw code is enough.
           voucherCode: voucherCode.trim() || undefined,
+          deliveryWindow: deliveryWindow || undefined,
         },
         true,
       );
@@ -419,6 +422,35 @@ function CheckoutInner() {
                       <span className="block text-xs text-muted">{m.hint}</span>
                     </span>
                   </RadioCard>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Delivery window (gap 13b) — preferred slot, purely advisory to the depot */}
+          <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
+            <h2 className="text-base font-extrabold">{t('order.checkout.deliveryWindow')}</h2>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { v: '', label: t('order.checkout.slotAsap') },
+                { v: 'Pagi (08.00–11.00)', label: t('order.checkout.slotMorning') },
+                { v: 'Siang (11.00–14.00)', label: t('order.checkout.slotNoon') },
+                { v: 'Sore (14.00–17.00)', label: t('order.checkout.slotAfternoon') },
+                { v: 'Malam (17.00–20.00)', label: t('order.checkout.slotEvening') },
+              ].map((s) => {
+                const on = deliveryWindow === s.v;
+                return (
+                  <button
+                    key={s.v || 'asap'}
+                    type="button"
+                    onClick={() => setDeliveryWindow(s.v)}
+                    aria-pressed={on}
+                    className={`rounded-full border-2 px-4 py-2 text-[13px] font-extrabold transition-colors ${
+                      on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:border-brand-300'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
                 );
               })}
             </div>

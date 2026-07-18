@@ -77,6 +77,7 @@ interface OrderRow {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  deliveryWindow: string | null;
   driverName: string | null;
   items: ItemRow[];
   history: HistoryRow[];
@@ -115,6 +116,7 @@ export class OrderPrismaRepository implements OrderRepository {
       latitude: row.latitude,
       longitude: row.longitude,
       notes: row.notes,
+      deliveryWindow: row.deliveryWindow,
       driverName: row.driverName,
       items: row.items.map((i) => ({
         id: i.id,

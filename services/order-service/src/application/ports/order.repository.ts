@@ -42,6 +42,8 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   total: number;
   /** Display name of the assigned courier (null until DRIVER_ASSIGNED). */
   driverName: string | null;
+  /** Customer's preferred delivery time-window (free-form label), null when not given. */
+  deliveryWindow: string | null;
   items: OrderItemRecord[];
   history: OrderStatusHistoryRecord[];
   /** Whether the customer has already rated this order (spec 7c). */
@@ -90,6 +92,8 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   deliveryFee: number;
   discount: number;
   total: number;
+  /** Optional customer-preferred delivery time-window (free-form label). */
+  deliveryWindow?: string | null;
   items: CreateOrderItemData[];
 }
 

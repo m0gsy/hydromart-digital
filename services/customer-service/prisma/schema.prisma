@@ -86,6 +86,19 @@ model SavedPaymentMethod {
   @@map("saved_payment_methods")
 }
 
+/// A favorited (wishlisted) product. One row per (customer, product). Scoped to the
+/// caller's customerId; productId references a product owned by another service.
+model Favorite {
+  id         String   @id @default(uuid())
+  customerId String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@map("favorites")
+}
+
 /// Per-customer notification channel preferences (PRD §27).
 model NotificationPreference {
   customerId String   @id @db.Uuid

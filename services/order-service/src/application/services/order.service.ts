@@ -52,6 +52,8 @@ export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
   /** Optional voucher code to apply (validated against the promo-service). */
   voucherCode?: string | null;
+  /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
+  deliveryWindow?: string | null;
 }
 
 export interface ListOrdersInput {
@@ -200,6 +202,7 @@ export class OrderService {
       deliveryFee,
       discount,
       total,
+      deliveryWindow: input.deliveryWindow ?? null,
       ...input.deliveryAddress,
       items,
     });

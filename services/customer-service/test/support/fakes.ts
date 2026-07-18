@@ -27,6 +27,7 @@ import {
   UpdatePaymentMethodData,
 } from '../../src/application/ports/payment-method.repository';
 import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
+import { FavoriteRepository } from '../../src/application/ports/favorite.repository';
 
 let seq = 0;
 // Monotonic createdAt so "most recent" ordering is deterministic in tests.
@@ -209,6 +210,27 @@ export class InMemoryNotificationRepository implements NotificationPreferenceRep
   async upsert(record: NotificationPreferenceRecord): Promise<NotificationPreferenceRecord> {
     this.rows.set(record.customerId, { ...record });
     return { ...record };
+  }
+}
+
+export class InMemoryFavoriteRepository implements FavoriteRepository {
+  // { customerId, productId, createdAt } rows; createdAt orders "newest first".
+  rows: { customerId: string; productId: string; createdAt: Date }[] = [];
+
+  async listProductIds(customerId: string): Promise<string[]> {
+    return this.rows
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => r.productId);
+  }
+  async add(customerId: string, productId: string): Promise<void> {
+    if (this.rows.some((r) => r.customerId === customerId && r.productId === productId)) return;
+    this.rows.push({ customerId, productId, createdAt: nextDate() });
+  }
+  async remove(customerId: string, productId: string): Promise<void> {
+    this.rows = this.rows.filter(
+      (r) => !(r.customerId === customerId && r.productId === productId),
+    );
   }
 }
 
