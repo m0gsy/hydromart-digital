@@ -91,6 +91,11 @@ export const id = {
       saveError: 'Gagal menyimpan preferensi.',
     },
     languageBody: 'Bahasa aplikasi',
+    theme: 'Tema',
+    themeBody: 'Tampilan terang atau gelap',
+    theme_light: 'Terang',
+    theme_dark: 'Gelap',
+    theme_system: 'Sistem',
   },
   common: {
     back: 'Kembali',

@@ -19,6 +19,7 @@ import {
   MapPin,
   Medal,
   Money,
+  Moon,
   PencilSimple,
   Plus,
   QrCode,
@@ -35,6 +36,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
@@ -341,6 +343,7 @@ function PaymentsSection() {
 /* ---------- Preferences (notifications + language) ---------- */
 function PrefsSection() {
   const { t, locale, toggle } = useT();
+  const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<NotificationPreferences>(() =>
     api.get(endpoints.preferences.notifications, true),
@@ -410,6 +413,30 @@ function PrefsSection() {
                   className={`rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${locale === lng ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
                 >
                   {lng}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Theme (light / dark / follow system) — provider already app-wide, this is the customer toggle */}
+          <div className="flex items-center gap-3.5 py-3.5">
+            <span className={tileIcon}>
+              <Moon size={18} weight="fill" className="text-brand-600" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13.5px] font-extrabold">{t('account.theme')}</div>
+              <div className="mt-0.5 text-xs text-muted">{t('account.themeBody')}</div>
+            </div>
+            <div className="flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]">
+              {(['light', 'dark', 'system'] as const).map((th) => (
+                <button
+                  key={th}
+                  type="button"
+                  onClick={() => setTheme(th)}
+                  aria-pressed={theme === th}
+                  className={`rounded-full px-3 py-[5px] text-xs font-extrabold transition-colors ${theme === th ? 'bg-brand-600 text-on-brand' : 'text-muted'}`}
+                >
+                  {t(`account.theme_${th}`)}
                 </button>
               ))}
             </div>

@@ -90,6 +90,11 @@ export const en: Dictionary = {
       saveError: 'Could not save preferences.',
     },
     languageBody: 'App language',
+    theme: 'Theme',
+    themeBody: 'Light or dark appearance',
+    theme_light: 'Light',
+    theme_dark: 'Dark',
+    theme_system: 'System',
   },
   common: {
     back: 'Back',
