@@ -1712,9 +1712,11 @@ export interface DepotDailyReport {
   orders: number;
   revenueIdr: number;
   gallonsDelivered: number;
-  gallonsReturned: number;
-  gallonsDamaged: number;
-  codCollectedIdr: number;
+  // null = order-service can't join the source yet (depot gallon-returns / payment COD);
+  // render "—", never a fabricated 0.
+  gallonsReturned: number | null;
+  gallonsDamaged: number | null;
+  codCollectedIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotDailyCourier[];
 }

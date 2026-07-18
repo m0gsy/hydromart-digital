@@ -83,9 +83,12 @@ export interface DepotDailyReport {
   orders: number;
   revenueIdr: number;
   gallonsDelivered: number;
-  gallonsReturned: number;
-  gallonsDamaged: number;
-  codCollectedIdr: number;
+  // null (not 0) for aggregates order-service can't join — depot-service gallon-returns and
+  // payment-service COD settlement. Consistent with ARCH-1: emit null so the FE renders "—"
+  // rather than a fabricated zero that reads as a real measurement.
+  gallonsReturned: number | null;
+  gallonsDamaged: number | null;
+  codCollectedIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotCourierDaily[];
 }
@@ -326,11 +329,11 @@ export class ReportService {
       orders: live.length,
       revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
       gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
-      gallonsReturned: 0, // TODO: join depot-service gallon-returns (retur masuk)
-      gallonsDamaged: 0, // TODO: join depot-service gallon-returns (rusak)
-      codCollectedIdr: 0, // TODO: join payment-service COD settlement
+      gallonsReturned: null, // TODO: join depot-service gallon-returns (retur masuk)
+      gallonsDamaged: null, // TODO: join depot-service gallon-returns (rusak)
+      codCollectedIdr: null, // TODO: join payment-service COD settlement
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
-      perCourier: [], // TODO: join delivery-service performance
+      perCourier: [], // TODO: join delivery-service performance (empty = unavailable, not zero couriers)
     };
   }
 

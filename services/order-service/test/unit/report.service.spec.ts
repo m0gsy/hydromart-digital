@@ -205,7 +205,9 @@ describe('ReportService', () => {
     expect(rep.gallonsDelivered).toBe(6); // 3 + 3 on the two delivered orders
     expect(rep.failedDeliveries).toBe(1); // the cancelled order
     expect(rep.perCourier).toEqual([]); // TODO: delivery-service join
-    expect(rep.codCollectedIdr).toBe(0);
+    expect(rep.codCollectedIdr).toBeNull(); // unwired: payment COD not joinable here
+    expect(rep.gallonsReturned).toBeNull();
+    expect(rep.gallonsDamaged).toBeNull();
   });
 
   it('composes a depot weekly report: revenueByDay, topProducts and a driverName topCourier', async () => {

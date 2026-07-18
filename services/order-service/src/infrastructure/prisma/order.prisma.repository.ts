@@ -81,7 +81,8 @@ interface OrderRow {
   driverName: string | null;
   items: ItemRow[];
   history: HistoryRow[];
-  review: ReviewRow | null;
+  // id-only: toRecord derives just the `reviewed` flag (INCLUDE selects id alone, DB-9).
+  review: { id: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,7 +90,11 @@ interface OrderRow {
 const INCLUDE = {
   items: true,
   history: { orderBy: { createdAt: 'asc' as const } },
-  review: true,
+  // toRecord only needs `review != null` (the `reviewed` flag) — never the review body,
+  // which is fetched on demand via findReviewByOrderId. id-only keeps list/detail reads
+  // from hauling the comment/aspects text for every row (DB-9). ponytail: history stays
+  // full — it's bounded (status transitions) and serialized to the order card/timeline.
+  review: { select: { id: true } },
 };
 
 @Injectable()
