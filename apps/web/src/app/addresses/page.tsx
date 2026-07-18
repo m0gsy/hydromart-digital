@@ -1,9 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Crosshair, MapPin, PencilSimple, Plus, Star, Trash, X } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+
+// Leaflet touches window — load client-only so `next build` doesn't SSR it (gap 13c).
+const AddressMapPicker = dynamic(() => import('@/components/address-map-picker'), {
+  ssr: false,
+  loading: () => <div className="h-[220px] w-full animate-pulse rounded-2xl bg-[color:var(--surface-muted)]" />,
+});
 import { ConfirmDialog, Sheet } from '@/components/overlay';
 import { Button, Card, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -306,6 +313,7 @@ function AddressForm({
           {t('profile.addresses.pin.title')}
           <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.optional')}</span>
         </div>
+        <AddressMapPicker lat={form.latitude} lng={form.longitude} onChange={setCoords} />
         {pinned ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--success)]">

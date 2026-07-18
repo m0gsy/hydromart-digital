@@ -13,13 +13,17 @@
   },
   "dependencies": {
     "@hydromart/access": "*",
+    "@phosphor-icons/react": "^2.1.7",
+    "framer-motion": "^11.18.2",
+    "leaflet": "^1.9.4",
     "next": "15.5.20",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "@phosphor-icons/react": "^2.1.7",
-    "framer-motion": "^11.18.2"
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
@@ -29,9 +33,8 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.37.3",
     "eslint-plugin-react-hooks": "^5.1.0",
-    "tailwindcss": "^4.0.0",
-    "@tailwindcss/postcss": "^4.0.0",
     "postcss": "^8.4.49",
+    "tailwindcss": "^4.0.0",
     "typescript": "^5.6.2",
     "vitest": "^2.1.8"
   }
