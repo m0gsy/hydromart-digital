@@ -469,3 +469,29 @@ model Approval {
   @@index([depotId, status, createdAt])
   @@map("approvals")
 }
+
+/// Courier shift kind on a roster cell (design: operator 6d "Jadwal shift kurir" + manager 7b).
+enum ShiftKind {
+  MORNING
+  EVENING
+  OFF
+}
+
+/// Courier shift roster (design 6d/7b): one row per (staff, day) of a depot's week. weekStart
+/// is the ISO date string of that week's Monday (e.g. "2026-07-14"); day is 0=Mon..6=Sun. A
+/// week's grid is the set of rows sharing (depotId, weekStart).
+model ShiftAssignment {
+  id        String    @id @default(uuid()) @db.Uuid
+  depotId   String    @db.Uuid
+  staffId   String    @db.Uuid
+  staffName String
+  weekStart String
+  day       Int
+  shift     ShiftKind @default(OFF)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([depotId, weekStart, staffId, day])
+  @@index([depotId, weekStart])
+  @@map("shift_assignments")
+}

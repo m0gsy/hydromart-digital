@@ -45,6 +45,8 @@ import {
   PurchaseOrderRepository,
   UpdatePurchaseOrderData,
 } from '../../src/application/ports/purchase-order.repository';
+import { ShiftAssignment } from '../../src/domain/shift';
+import { RosterRepository, UpsertShiftData } from '../../src/application/ports/roster.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -374,6 +376,38 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
     const rec = this.rows.find((x) => x.id === id)!;
     Object.assign(rec, data);
     return { ...rec };
+  }
+}
+
+export class InMemoryRosterRepository implements RosterRepository {
+  rows: ShiftAssignment[] = [];
+
+  private key(a: Pick<UpsertShiftData, 'depotId' | 'weekStart' | 'staffId' | 'day'>): string {
+    return `${a.depotId}|${a.weekStart}|${a.staffId}|${a.day}`;
+  }
+
+  async listForWeek(depotId: string, weekStart: string): Promise<ShiftAssignment[]> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && r.weekStart === weekStart)
+      .map((r) => ({ ...r }));
+  }
+
+  async upsertCell(a: UpsertShiftData): Promise<ShiftAssignment> {
+    const existing = this.rows.find((r) => this.key(r) === this.key(a));
+    if (existing) {
+      existing.shift = a.shift;
+      existing.staffName = a.staffName;
+      return { ...existing };
+    }
+    const row: ShiftAssignment = { id: randomUUID(), ...a };
+    this.rows.push(row);
+    return { ...row };
+  }
+
+  async bulkUpsert(assignments: UpsertShiftData[]): Promise<ShiftAssignment[]> {
+    const out: ShiftAssignment[] = [];
+    for (const a of assignments) out.push(await this.upsertCell(a));
+    return out;
   }
 }
 

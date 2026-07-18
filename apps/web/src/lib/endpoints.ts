@@ -817,6 +817,14 @@ export const endpoints = {
       receive: (id: string) => `/procurement/api/v1/purchase-orders/${id}/receive`,
     },
   },
+  // Courier shift roster (depot-service, design 6d/7b). Own gateway segment (proxied to
+  // depot-service). week reads a depot's grid; setCell/bulk write it (driverRoster cap).
+  roster: {
+    week: (depotId: string, weekStart: string) =>
+      `/shifts/api/v1/shifts?depotId=${encodeURIComponent(depotId)}&weekStart=${encodeURIComponent(weekStart)}`,
+    setCell: () => '/shifts/api/v1/shifts',
+    bulk: () => '/shifts/api/v1/shifts/bulk',
+  },
   // Depot CRM — depot-scoped customer directory + detail (customer-service, depotCrm cap).
   depotCrm: {
     list: (depotId: string, q?: string) => {

@@ -32,6 +32,9 @@ const SEGMENT_ENV: Record<string, string> = {
   // Depot procurement: purchase orders + supplier directory (depot-service, design 7a/9d/11b).
   // Own public segment; reuses the depot-service upstream (no new env var).
   procurement: 'DEPOT_SERVICE_URL',
+  // Courier shift roster (depot-service, design 6d/7b). Own public segment; reuses the
+  // depot-service upstream (no new env var).
+  shifts: 'DEPOT_SERVICE_URL',
 };
 
 @Injectable()

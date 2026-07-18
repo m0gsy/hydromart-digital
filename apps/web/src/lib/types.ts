@@ -1516,6 +1516,21 @@ export interface DepotIncident {
   updatedAt: string;
 }
 
+// Courier shift roster (depot-service, design 6d/7b). One cell per (staff, day) of a week.
+export type ShiftKind = 'MORNING' | 'EVENING' | 'OFF';
+
+export interface ShiftAssignment {
+  id: string;
+  depotId: string;
+  staffId: string;
+  staffName: string;
+  /** ISO date of the week's Monday, e.g. "2026-07-14". */
+  weekStart: string;
+  /** 0=Mon .. 6=Sun. */
+  day: number;
+  shift: ShiftKind;
+}
+
 // Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). A depot-scoped
 // inbox of value decisions (opname loss, deposit refund, COD shortfall). No collision with
 // the admin RefundApproval string-union above, so these keep the plain Approval* names.

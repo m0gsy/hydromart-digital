@@ -18,6 +18,7 @@ import { IncidentService } from '../application/services/incident.service';
 import { ApprovalService } from '../application/services/approval.service';
 import { SupplierService } from '../application/services/supplier.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
+import { RosterService } from '../application/services/roster.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
@@ -30,6 +31,7 @@ import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.pris
 import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.prisma.repository';
 import { SupplierPrismaRepository } from '../infrastructure/prisma/supplier.prisma.repository';
 import { PurchaseOrderPrismaRepository } from '../infrastructure/prisma/purchase-order.prisma.repository';
+import { RosterPrismaRepository } from '../infrastructure/prisma/roster.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
@@ -47,6 +49,7 @@ import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
 import { SupplierController } from './supplier.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
+import { RosterController } from './roster.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -63,6 +66,7 @@ const providers: Provider[] = [
   ApprovalService,
   SupplierService,
   PurchaseOrderService,
+  RosterService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
@@ -80,6 +84,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.ApprovalRepository, useClass: ApprovalPrismaRepository },
   { provide: DEPOT_TOKENS.SupplierRepository, useClass: SupplierPrismaRepository },
   { provide: DEPOT_TOKENS.PurchaseOrderRepository, useClass: PurchaseOrderPrismaRepository },
+  { provide: DEPOT_TOKENS.RosterRepository, useClass: RosterPrismaRepository },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -103,6 +108,7 @@ const providers: Provider[] = [
     ApprovalController,
     SupplierController,
     PurchaseOrderController,
+    RosterController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],

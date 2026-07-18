@@ -11,4 +11,5 @@ export const DEPOT_TOKENS = {
   ApprovalRepository: Symbol('ApprovalRepository'),
   SupplierRepository: Symbol('SupplierRepository'),
   PurchaseOrderRepository: Symbol('PurchaseOrderRepository'),
+  RosterRepository: Symbol('RosterRepository'),
 } as const;
