@@ -6,6 +6,7 @@ import { createProxyMiddleware } from 'http-proxy-middleware';
 
 import { GatewayConfigService } from './config/gateway-config.service';
 import { resolveRoute } from './routing/route-table';
+import { AT_COOKIE, createSessionRouter, readCookie } from './routing/session-bff';
 
 // Kept in sync with @hydromart/platform's INTERNAL_KEY_HEADER. Inlined so the
 // gateway (a pure proxy) doesn't import the platform barrel, which transitively
@@ -60,12 +61,23 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() });
   });
 
+  // SEC-4: BFF session lifecycle (login-verify/refresh/logout) — owns httpOnly cookies.
+  // Mounted ahead of the proxy; non-session /auth/* paths fall through untouched.
+  instance.use('/auth', createSessionRouter(upstreams.auth, config.isProduction));
+
   instance.use((req, res, next) => {
     // Defense-in-depth: the internal service key authenticates trusted service-to-service
     // calls as a SUPER_ADMIN system principal (platform JwtAuthGuard). Those calls go
     // direct via *_SERVICE_URL and never transit the gateway, so strip any client-supplied
     // header here — a browser must never be able to inject it and escalate.
     delete req.headers[INTERNAL_KEY_HEADER];
+    // SEC-4: translate the httpOnly access cookie into the bearer header services expect,
+    // so the browser holds no readable token. An explicit Authorization header (none from
+    // the SPA now) is left intact.
+    if (!req.headers.authorization) {
+      const at = readCookie(req, AT_COOKIE);
+      if (at) req.headers.authorization = `Bearer ${at}`;
+    }
     const route = resolveRoute(req.path, upstreams);
     const proxy = route ? proxies.get(route.segment) : undefined;
     if (!proxy) {

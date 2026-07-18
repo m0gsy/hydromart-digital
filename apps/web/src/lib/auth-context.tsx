@@ -48,8 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ready,
       signIn: (s) => setSession(s),
       signOut: () => {
-        const refreshToken = getSession()?.refreshToken;
-        if (refreshToken) api.post(endpoints.auth.logout, { refreshToken }, true).catch(() => {});
+        // Gateway reads the refresh cookie and clears both session cookies; body-less.
+        api.post(endpoints.auth.logout, undefined, true).catch(() => {});
         setSession(null);
       },
     }),

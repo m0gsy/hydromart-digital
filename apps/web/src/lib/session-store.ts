@@ -2,12 +2,13 @@
 
 import type { Session } from './types';
 
-// Single source of truth for the auth session, shared by the API client (which
-// needs the token to attach headers and rotate on refresh) and the React auth
-// context (which needs to re-render on change). Persisted to localStorage.
+// Cached view of the signed-in session, shared by the API client and the React auth
+// context (which re-renders on change). Persisted to localStorage.
 //
-// ponytail: localStorage bearer tokens, not httpOnly cookies. Fine for this
-// customer app; upgrade to a cookie-based BFF session if the XSS surface grows.
+// SEC-4: this holds ONLY the public customer profile — never tokens. The real
+// credential is an httpOnly cookie the gateway sets/reads (see session-bff.ts), so
+// XSS can't read it here. localStorage is just a UX cache to avoid a logged-out flash
+// on load; auth-context revalidates it against `/auth/me` on mount and clears it on 401.
 
 const KEY = 'hm.session';
 type Listener = (session: Session | null) => void;

@@ -28,11 +28,10 @@ export interface Customer {
   createdAt: string;
 }
 
+// SEC-4: the access/refresh tokens now live in httpOnly cookies the gateway sets and
+// reads — JS never sees them. The client-visible session is just the cached profile;
+// the cookie is the real credential (validated on every request server-side).
 export interface Session {
-  tokenType: 'Bearer';
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string;
   customer: Customer;
 }
 
