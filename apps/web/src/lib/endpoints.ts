@@ -289,6 +289,19 @@ export const endpoints = {
     // (distinct customers with a non-cancelled order); optional per-depot scope.
     audienceReach: (depotId?: string) =>
       `/orders/api/v1/reports/audience-reach${depotId ? `?depotId=${depotId}` : ''}`,
+    // Depot daily ops report (design 2d Laporan harian). date defaults to today (UTC) server-side.
+    depotDaily: (depotId: string, date?: string) => {
+      const p = new URLSearchParams({ depotId });
+      if (date) p.set('date', date);
+      return `/orders/api/v1/reports/depot-daily?${p}`;
+    },
+    // Depot weekly ops report (design 7d Laporan mingguan). Window defaults to trailing 7 days.
+    depotWeekly: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-weekly?${p}`;
+    },
   },
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).

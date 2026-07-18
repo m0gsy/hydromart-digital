@@ -1678,3 +1678,39 @@ export interface DepotCustomerDetail {
   depositLedger: DepotDepositLedgerEntry[];
   recentOrders: DepotRecentOrder[];
 }
+
+// Depot Operator reports (design 2d Laporan harian / 7d Laporan mingguan). orders/
+// revenue/gallonsDelivered/revenueByDay/topProducts are real order-service figures;
+// cod/gallon returned-damaged/perCourier/sla are best-effort or omitted server-side.
+export interface DepotDailyCourier {
+  name: string;
+  completed: number;
+  failed: number;
+  codIdr: number;
+}
+
+export interface DepotDailyReport {
+  depotId: string;
+  date: string;
+  orders: number;
+  revenueIdr: number;
+  gallonsDelivered: number;
+  gallonsReturned: number;
+  gallonsDamaged: number;
+  codCollectedIdr: number;
+  failedDeliveries: number;
+  perCourier: DepotDailyCourier[];
+}
+
+export interface DepotWeeklyReport {
+  depotId: string;
+  from: string;
+  to: string;
+  orders: number;
+  revenueIdr: number;
+  avgPerDayIdr: number;
+  slaOnTimePct?: number;
+  revenueByDay: { day: string; revenueIdr: number }[];
+  topProducts: { label: string; qty: number }[];
+  topCourier?: { name: string; delivered: number; rating?: number };
+}

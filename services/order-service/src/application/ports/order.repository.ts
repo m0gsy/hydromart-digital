@@ -269,4 +269,10 @@ export interface OrderRepository {
   audienceReach(depotId?: string): Promise<number>;
   /** Distinct customers matching all activity-based segment conditions (design 21d). */
   segmentEstimate(conditions: SegmentConditions): Promise<number>;
+  /**
+   * Every order (INCLUDING cancelled) for one depot within the range, oldest first.
+   * Backs the depot daily/weekly composites (design 2d/7d) — the service partitions
+   * cancelled vs live itself (orders/revenue exclude cancelled; failed counts them).
+   */
+  ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]>;
 }

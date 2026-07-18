@@ -73,6 +73,33 @@ export class SegmentEstimateQueryDto {
   depotId?: string;
 }
 
+export class DepotDailyQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Reported day (ISO 8601); defaults to today (UTC).' })
+  @IsOptional()
+  @IsISO8601()
+  date?: string;
+}
+
+export class DepotWeeklyQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601); defaults to 7 days ago.' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601); defaults to now.' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
 export class TopReportQueryDto {
   @ApiPropertyOptional({ default: 10, minimum: 1, maximum: 100 })
   @IsOptional()

@@ -1,11 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { OrderStatus } from '../../domain/order-status';
 import {
   CustomerSales,
   DepotSales,
   DepotRating,
   DepotRefund,
   DepotShipping,
+  OrderRecord,
   OrderRepository,
   ProductRevenue,
   ReportRange,
@@ -55,6 +57,55 @@ export interface CustomerSummary {
     createdAt: string;
   }[];
 }
+
+/** One courier's line in the depot daily report (design 2d). */
+export interface DepotCourierDaily {
+  name: string;
+  completed: number;
+  failed: number;
+  codIdr: number;
+}
+
+/** Depot Operator "Laporan harian" composite (design cell 2d). */
+export interface DepotDailyReport {
+  depotId: string;
+  /** The reported day, 'YYYY-MM-DD' (UTC). */
+  date: string;
+  orders: number;
+  revenueIdr: number;
+  gallonsDelivered: number;
+  gallonsReturned: number;
+  gallonsDamaged: number;
+  codCollectedIdr: number;
+  failedDeliveries: number;
+  perCourier: DepotCourierDaily[];
+}
+
+/** Depot Operator "Laporan mingguan" composite (design cell 7d). */
+export interface DepotWeeklyReport {
+  depotId: string;
+  from: string;
+  to: string;
+  orders: number;
+  revenueIdr: number;
+  avgPerDayIdr: number;
+  /** Omitted — SLA on-time needs delivery-service data (no order-service source). */
+  slaOnTimePct?: number;
+  revenueByDay: { day: string; revenueIdr: number }[];
+  topProducts: { label: string; qty: number }[];
+  topCourier?: { name: string; delivered: number; rating?: number };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** A line item counts as a gallon (galon) when its unit or product name says so. */
+function isGallon(unit: string, productName: string): boolean {
+  return /galon/i.test(unit) || /galon/i.test(productName);
+}
+function gallonQty(order: OrderRecord): number {
+  return order.items.reduce((s, i) => s + (isGallon(i.unit, i.productName) ? i.quantity : 0), 0);
+}
+const isDelivered = (s: OrderStatus): boolean =>
+  s === OrderStatus.DELIVERED || s === OrderStatus.COMPLETED;
 
 /** Sales/customer/depot aggregates over the order book (PRD Module 13, FR-095..098). */
 @Injectable()
@@ -192,6 +243,77 @@ export class ReportService {
         total: o.total,
         createdAt: o.createdAt.toISOString(),
       })),
+    };
+  }
+
+  /**
+   * Depot daily report (design 2d). orders/revenue/gallonsDelivered are real order-service
+   * figures; failedDeliveries is a best-effort cancelled-count. codCollected, gallon
+   * returned/damaged and the per-courier breakdown need delivery/depot/payment-service
+   * data order-service can't join here (see the TODOs).
+   */
+  async depotDaily(depotId: string, date: string): Promise<DepotDailyReport> {
+    const from = new Date(`${date}T00:00:00.000Z`);
+    const to = new Date(from.getTime() + DAY_MS);
+    const rows = await this.orders.ordersForDepot(depotId, { from, to });
+    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const delivered = live.filter((r) => isDelivered(r.status));
+    return {
+      depotId,
+      date,
+      orders: live.length,
+      revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+      gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
+      gallonsReturned: 0, // TODO: join depot-service gallon-returns (retur masuk)
+      gallonsDamaged: 0, // TODO: join depot-service gallon-returns (rusak)
+      codCollectedIdr: 0, // TODO: join payment-service COD settlement
+      failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
+      perCourier: [], // TODO: join delivery-service performance
+    };
+  }
+
+  /**
+   * Depot weekly report (design 7d). Defaults to the trailing 7 days when the window is
+   * open. orders/revenue/revenueByDay/topProducts are real; topCourier is derived from the
+   * order's own driverName (delivered count, no rating). slaOnTimePct is omitted (no source).
+   */
+  async depotWeekly(depotId: string, from?: Date, to?: Date): Promise<DepotWeeklyReport> {
+    const toDate = to ?? new Date();
+    const fromDate = from ?? new Date(toDate.getTime() - 7 * DAY_MS);
+    const rows = await this.orders.ordersForDepot(depotId, { from: fromDate, to: toDate });
+    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+    const revenueIdr = Math.round(live.reduce((s, r) => s + r.total, 0));
+    const days = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS));
+
+    const byDay = new Map<string, number>();
+    const byProduct = new Map<string, number>();
+    const byCourier = new Map<string, number>();
+    for (const o of live) {
+      const day = o.createdAt.toISOString().slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? 0) + o.total);
+      for (const i of o.items) byProduct.set(i.productName, (byProduct.get(i.productName) ?? 0) + i.quantity);
+      if (isDelivered(o.status) && o.driverName)
+        byCourier.set(o.driverName, (byCourier.get(o.driverName) ?? 0) + 1);
+    }
+    const topProducts = [...byProduct.entries()]
+      .map(([label, qty]) => ({ label, qty }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+    const top = [...byCourier.entries()].sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      depotId,
+      from: fromDate.toISOString(),
+      to: toDate.toISOString(),
+      orders: live.length,
+      revenueIdr,
+      avgPerDayIdr: Math.round(revenueIdr / days),
+      revenueByDay: [...byDay.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, r]) => ({ day, revenueIdr: Math.round(r) })),
+      topProducts,
+      // topCourier from order-owned driverName (real delivered count); rating is review-owned.
+      ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
   }
 

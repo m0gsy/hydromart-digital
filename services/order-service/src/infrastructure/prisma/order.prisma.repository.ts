@@ -510,6 +510,19 @@ export class OrderPrismaRepository implements OrderRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
+    const createdAt = {
+      ...(range.from ? { gte: range.from } : {}),
+      ...(range.to ? { lt: range.to } : {}),
+    };
+    const rows = await this.prisma.order.findMany({
+      where: { depotId, ...(range.from || range.to ? { createdAt } : {}) },
+      include: INCLUDE,
+      orderBy: { createdAt: 'asc' },
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
     // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
     // frequency/recency are HAVING predicates over the per-customer aggregate.
