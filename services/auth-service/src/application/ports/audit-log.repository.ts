@@ -15,6 +15,10 @@ export interface AuditLogQuery {
   action?: string;
   /** Filter to one actor. */
   customerId?: string;
+  /** Depot-scoped list (design 8b): matches `metadata.depotId`. */
+  depotId?: string;
+  /** Category chip (design 8b): OPNAME/RECEIPT/HARGA/SETORAN/STAF → action substrings. */
+  type?: string;
 }
 
 /**

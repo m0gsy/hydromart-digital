@@ -7,6 +7,7 @@ import {
   AuditLogQuery,
   AuditLogRepository,
 } from '../../../application/ports/audit-log.repository';
+import { AUDIT_CATEGORIES } from '../../../application/services/audit.service';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -27,9 +28,17 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
   }
 
   async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
-    const where = {
+    const category = query.type ? AUDIT_CATEGORIES[query.type] : undefined;
+    const where: Prisma.AuditLogWhereInput = {
       ...(query.action ? { action: query.action } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
+      // Depot scope lives in the JSON metadata (folded in on cross-service ingest).
+      ...(query.depotId
+        ? { metadata: { path: ['depotId'], equals: query.depotId } }
+        : {}),
+      ...(category
+        ? { OR: category.map((s) => ({ action: { contains: s, mode: 'insensitive' as const } })) }
+        : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({

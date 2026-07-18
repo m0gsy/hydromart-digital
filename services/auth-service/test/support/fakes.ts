@@ -34,6 +34,7 @@ import {
   AuditLogQuery,
   AuditLogRepository,
 } from '../../src/application/ports/audit-log.repository';
+import { AUDIT_CATEGORIES } from '../../src/application/services/audit.service';
 
 let idCounter = 0;
 const nextId = (prefix: string): string => `${prefix}-${(idCounter += 1)}`;
@@ -308,9 +309,18 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     this.entries.push(entry);
   }
   async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+    const category = query.type ? AUDIT_CATEGORIES[query.type] : undefined;
     const all = this.entries
       .filter((e) => !query.action || e.action === query.action)
       .filter((e) => !query.customerId || e.customerId === query.customerId)
+      .filter(
+        (e) =>
+          !query.depotId ||
+          (e.metadata as { depotId?: string } | undefined)?.depotId === query.depotId,
+      )
+      .filter(
+        (e) => !category || category.some((s) => e.action.toLowerCase().includes(s)),
+      )
       .map(
         (e, i): AuditLogListItem => ({
           id: `audit-${i}`,

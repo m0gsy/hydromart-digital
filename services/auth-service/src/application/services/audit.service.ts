@@ -7,6 +7,19 @@ import {
 } from '../ports/audit-log.repository';
 import { AUTH_TOKENS } from '../tokens';
 
+/**
+ * Depot audit category (design 8b filter chips) → action substrings matched
+ * case-insensitively. Single source shared by the Prisma repo (server filter) and
+ * the in-memory fake; the web console mirrors the keys for its chip labels.
+ */
+export const AUDIT_CATEGORIES: Record<string, string[]> = {
+  OPNAME: ['opname', 'stock'],
+  RECEIPT: ['receipt', 'restock', 'purchase'],
+  HARGA: ['price', 'pricing', 'harga'],
+  SETORAN: ['settlement', 'cod', 'deposit', 'payout', 'setoran'],
+  STAF: ['staff', 'role', 'invite', 'login', 'logout'],
+};
+
 /** Security-relevant actions recorded to the audit trail. */
 export enum AuditAction {
   REGISTER_REQUESTED = 'auth.register.requested',
@@ -54,6 +67,8 @@ export class AuditService {
     limit: number;
     action?: string;
     customerId?: string;
+    depotId?: string;
+    type?: string;
   }): Promise<{ items: AuditLogListItem[]; total: number; page: number; limit: number }> {
     const page = Math.max(1, input.page);
     const limit = Math.min(AuditService.MAX_LIMIT, Math.max(1, input.limit));
@@ -62,6 +77,8 @@ export class AuditService {
       limit,
       action: input.action,
       customerId: input.customerId,
+      depotId: input.depotId,
+      type: input.type,
     });
     return { items, total, page, limit };
   }

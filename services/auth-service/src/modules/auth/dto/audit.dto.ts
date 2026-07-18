@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
@@ -12,6 +13,9 @@ import {
 } from 'class-validator';
 
 import { AuditLogListItem } from '../../../application/ports/audit-log.repository';
+import { AUDIT_CATEGORIES } from '../../../application/services/audit.service';
+
+const AUDIT_CATEGORY_KEYS = Object.keys(AUDIT_CATEGORIES);
 
 export class AuditQueryDto {
   @ApiPropertyOptional({ default: 1 })
@@ -38,6 +42,32 @@ export class AuditQueryDto {
   @IsOptional()
   @IsUUID()
   actorId?: string;
+}
+
+/** Depot-scoped audit list (design 8b). depotId is required; type is a category chip. */
+export class DepotAuditQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot to scope the trail to.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ enum: AUDIT_CATEGORY_KEYS, description: 'Category chip filter.' })
+  @IsOptional()
+  @IsIn(AUDIT_CATEGORY_KEYS)
+  type?: string;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number;
 }
 
 /** Cross-service audit event posted by another service (internal auth). */

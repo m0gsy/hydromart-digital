@@ -223,6 +223,15 @@ export const endpoints = {
       const qs = p.toString();
       return `/auth/api/v1/auth/audit${qs ? `?${qs}` : ''}`;
     },
+    // Depot-scoped trail (design 8b, auditRead). depotId required; type = category chip
+    // (OPNAME/RECEIPT/HARGA/SETORAN/STAF). Paginated → { items, ... }.
+    forDepot: (depotId: string, q: { type?: string; page?: number; limit?: number } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.type) p.set('type', q.type);
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      return `/auth/api/v1/auth/audit/depot?${p}`;
+    },
   },
   // HQ tax & invoice settings (payment-service, FINANCE/SUPER_ADMIN). GET current, PUT to save.
   tax: {
@@ -509,6 +518,8 @@ export const endpoints = {
     create: '/depots/api/v1/depots',
     // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
+    // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
+    uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
   },
   inventory: {
     // Stock lines for one depot (staff).

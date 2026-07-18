@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,10 +9,14 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  PayloadTooLargeException,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
@@ -25,6 +30,20 @@ import {
   NearbyDepotsQueryDto,
   UpdateDepotDto,
 } from './dto/depot.dto';
+
+// Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
+const QRIS_MAX_BYTES = 5 * 1024 * 1024;
+const QRIS_ALLOWED: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+interface UploadedImage {
+  buffer: Buffer;
+  mimetype: string;
+  size: number;
+  originalname: string;
+}
 
 @ApiTags('Depots')
 @Controller({ path: 'depots', version: '1' })
@@ -109,6 +128,32 @@ export class DepotController {
     @Body() dto: UpdateDepotDto,
   ): Promise<DepotRecord> {
     return this.depots.update(id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles(...CAPABILITIES.depotAdmin)
+  @Post(':id/qris')
+  @ApiOperation({ summary: 'Upload the depot static QRIS image (admin); returns the updated depot' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: QRIS_MAX_BYTES } }))
+  async uploadQris(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: UploadedImage,
+  ): Promise<DepotRecord> {
+    if (!file) {
+      throw new BadRequestException('file is required');
+    }
+    const ext = QRIS_ALLOWED[file.mimetype];
+    if (!ext) {
+      throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
+    }
+    if (file.size > QRIS_MAX_BYTES) {
+      throw new PayloadTooLargeException('file exceeds 5MB');
+    }
+    // TODO wire object storage — persist file.buffer via a StoragePort and store its
+    // public URL. Until then we record a deterministic path so the config UI has a value.
+    const url = `/uploads/qris/${id}.${ext}`;
+    return this.depots.update(id, { paymentQrisImageUrl: url });
   }
 
   @ApiBearerAuth()

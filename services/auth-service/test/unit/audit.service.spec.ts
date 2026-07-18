@@ -69,4 +69,23 @@ describe('AuditService', () => {
     expect(filtered.total).toBe(2);
     expect(filtered.items.every((i) => i.action === 'depot.suspend')).toBe(true);
   });
+
+  it('scopes a depot audit list by depotId and category (design 8b)', async () => {
+    const repo = new InMemoryAuditLogRepository();
+    const service = new AuditService(repo);
+    await service.ingest({ actorId: 'a', action: 'inventory.opname', metadata: { depotId: 'd1' } });
+    await service.ingest({ actorId: 'b', action: 'pricing.update', metadata: { depotId: 'd1' } });
+    await service.ingest({ actorId: 'c', action: 'inventory.opname', metadata: { depotId: 'd2' } });
+
+    const d1 = await service.list({ page: 1, limit: 10, depotId: 'd1' });
+    expect(d1.total).toBe(2);
+
+    const opname = await service.list({ page: 1, limit: 10, depotId: 'd1', type: 'OPNAME' });
+    expect(opname.total).toBe(1);
+    expect(opname.items[0].action).toBe('inventory.opname');
+
+    const harga = await service.list({ page: 1, limit: 10, depotId: 'd1', type: 'HARGA' });
+    expect(harga.total).toBe(1);
+    expect(harga.items[0].action).toBe('pricing.update');
+  });
 });

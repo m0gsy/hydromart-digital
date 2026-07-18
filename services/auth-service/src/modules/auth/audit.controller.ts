@@ -1,12 +1,14 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
+import { CAPABILITIES } from '@hydromart/access';
+
 import { AuditService } from '../../application/services/audit.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { Role } from '../../domain/customer/role.enum';
-import { AuditLogDto, AuditQueryDto, IngestAuditDto } from './dto/audit.dto';
+import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from './dto/audit.dto';
 
 @ApiTags('Audit')
 @ApiBearerAuth()
@@ -30,6 +32,27 @@ export class AuditController {
       limit: query.limit ?? 20,
       action: query.action,
       customerId: query.actorId,
+    });
+    return { ...result, items: result.items.map(AuditLogDto.from) };
+  }
+
+  // Depot-scoped audit trail (design 8b): a depot operator/manager sees their own
+  // depot's privileged actions. auditRead spans depot roles + HQ. depotId is required
+  // by the DTO, so this route can never fan out to the whole network.
+  @Roles(...CAPABILITIES.auditRead)
+  @Get('auth/audit/depot')
+  @ApiOperation({ summary: 'List a depot-scoped audit trail (newest first, category chips)' })
+  async listForDepot(@Query() query: DepotAuditQueryDto): Promise<{
+    items: AuditLogDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const result = await this.audit.list({
+      page: query.page ?? 1,
+      limit: query.limit ?? 50,
+      depotId: query.depotId,
+      type: query.type,
     });
     return { ...result, items: result.items.map(AuditLogDto.from) };
   }
