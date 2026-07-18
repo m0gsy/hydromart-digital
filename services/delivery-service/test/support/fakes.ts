@@ -135,6 +135,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
     const all = this.rows
       .filter((r) => !query.driverId || r.driverId === query.driverId)
+      .filter((r) => !query.depotId || r.depotId === query.depotId)
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
     const start = (query.page - 1) * query.limit;

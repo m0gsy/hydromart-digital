@@ -177,6 +177,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
+      ...(query.depotId ? { depotId: query.depotId } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
     const [rows, total] = await Promise.all([

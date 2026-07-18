@@ -290,20 +290,23 @@ describe('Order HTTP flows (e2e)', () => {
       .expect(404);
   });
 
-  it('gates the staff order queue: customer 403, staff 200 sees all customers', async () => {
+  it('gates the staff order queue: customer 403, cross-depot admin 200 sees all customers', async () => {
     await request(server()).get('/api/v1/orders/manage').set(auth(customerToken)).expect(403);
 
+    // A cross-depot role (SUPER_ADMIN) sees every depot's orders. A depot-locked manager
+    // token carries no depotId here, so depotScopeFilter fail-closes it — asserting "sees all"
+    // requires the unscoped admin token (the e2e orders route to a null/other depot).
     const res = await request(server())
       .get('/api/v1/orders/manage')
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .expect(200);
-    // Prior tests placed orders for the customer; staff sees them cross-tenant.
+    // Prior tests placed orders for the customer; a cross-depot role sees them cross-tenant.
     expect(res.body.total).toBeGreaterThan(0);
 
     // Status filter is honoured.
     const cancelled = await request(server())
       .get('/api/v1/orders/manage?status=CANCELLED')
-      .set(auth(staffToken))
+      .set(auth(adminToken))
       .expect(200);
     expect(cancelled.body.items.every((o: { status: string }) => o.status === 'CANCELLED')).toBe(true);
 

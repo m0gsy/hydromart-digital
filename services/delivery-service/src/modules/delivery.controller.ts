@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Roles, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { DeliveryService } from '../application/services/delivery.service';
@@ -41,8 +41,13 @@ export class DeliveryController {
 
   @Get()
   @ApiOperation({ summary: 'List all deliveries (staff), optionally filtered by status' })
-  list(@Query() query: ListDeliveriesQueryDto): Promise<Page<DeliveryRecord>> {
-    return this.deliveries.listAll(query);
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListDeliveriesQueryDto,
+  ): Promise<Page<DeliveryRecord>> {
+    // Depot-locked operator/manager are forced to their own depot; HQ keeps the optional ?depotId.
+    const depotId = depotScopeFilter(user, query.depotId);
+    return this.deliveries.listAll({ ...query, depotId });
   }
 
   @Get(':id')

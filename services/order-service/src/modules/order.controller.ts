@@ -22,6 +22,7 @@ import {
   Role,
   Roles,
   assertDepotAccess,
+  depotScopeFilter,
 } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
@@ -117,8 +118,14 @@ export class OrderController {
   @Get('manage')
   @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
-  listManaged(@Query() query: ListOrdersQueryDto): Promise<Page<OrderRecord>> {
-    return this.orders.listAll(query);
+  listManaged(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListOrdersQueryDto,
+  ): Promise<Page<OrderRecord>> {
+    // Scope the list to the caller's depot for depot-locked roles (operator/manager can't
+    // see other depots); HQ/finance/etc. keep the optional ?depotId filter, undefined = all.
+    const depotId = depotScopeFilter(user, query.depotId);
+    return this.orders.listAll({ ...query, depotId });
   }
 
   @Get('manage/:id')

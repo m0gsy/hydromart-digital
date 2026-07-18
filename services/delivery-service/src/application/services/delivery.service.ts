@@ -55,6 +55,8 @@ export interface ListDeliveriesInput {
   status?: DeliveryStatus;
   page?: number;
   limit?: number;
+  /** Depot scope for staff lists; set by the controller from depotScopeFilter (undefined = all). */
+  depotId?: string;
 }
 
 /** No-show gate view for the app timer (design 5a). */
@@ -381,6 +383,7 @@ export class DeliveryService {
       page,
       limit,
       driverId: input.driverId,
+      depotId: input.depotId,
       status: input.status,
     });
     return buildPage(items, total, page, limit);

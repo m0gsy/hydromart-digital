@@ -37,3 +37,31 @@ export function assertDepotAccess(
     throw new ForbiddenException('Akun ini hanya boleh mengakses depotnya sendiri.');
   }
 }
+
+/**
+ * Resolve which depot a LIST query must be scoped to for the caller. Use on staff list
+ * endpoints that carry no mandatory depotId param (e.g. `GET orders/manage`, `GET deliveries`)
+ * so a depot-locked role only ever lists its OWN depot's rows — closing the list-without-filter
+ * vector that DepotScopeGuard can't see (no depotId in the request to compare).
+ *
+ * - Depot-locked role (operator/manager): returns their own `depotId` (the query MUST filter by
+ *   it). Throws if the account has no depot (fail-closed) or asked for a different depot. Rows
+ *   with a null depot never match this filter → correctly invisible to locked staff (HQ-only).
+ * - Everyone else (HQ/finance/marketing/super-admin, system): returns the requested depotId if
+ *   given, else `undefined` (no filter — sees all depots).
+ */
+export function depotScopeFilter(
+  user: Pick<AuthenticatedUser, 'role' | 'depotId'> | undefined,
+  requestedDepotId?: string | null,
+): string | undefined {
+  if (!user || !isDepotLocked(user.role)) {
+    return requestedDepotId ?? undefined;
+  }
+  if (!user.depotId) {
+    throw new ForbiddenException('Akun ini belum terikat ke depot manapun.');
+  }
+  if (requestedDepotId && requestedDepotId !== user.depotId) {
+    throw new ForbiddenException('Akun ini hanya boleh mengakses depotnya sendiri.');
+  }
+  return user.depotId;
+}
