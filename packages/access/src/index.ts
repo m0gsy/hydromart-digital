@@ -87,8 +87,8 @@ export const CAPABILITIES = {
   // COD-settlement-variance decisions that exceed the depot's auto-pass thresholds.
   approvals: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
   // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
-  // courier commission runs, monthly ops review. Manager-exclusive finance view.
-  depotFinance: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // courier commission runs, monthly ops review. Depot manager + the office finance team.
+  depotFinance: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // depot-service — team & culture ops: monthly targets/goals, weekly huddle notes,
   // shift-handover checklists, equipment maintenance, wholesale tiers, subscriptions,
   // order disputes. Manager-exclusive depot management (like depotAdmin).
