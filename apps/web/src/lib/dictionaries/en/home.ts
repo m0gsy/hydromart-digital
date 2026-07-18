@@ -42,6 +42,7 @@ export const home: typeof base = {
     copyCode: 'Copy code',
     copied: 'Copied',
     shopNow: 'Shop now',
+    seeAll: 'See all promos',
   },
   loyalty: {
     membership: 'Membership',

@@ -452,6 +452,7 @@ export default function AccountPage() {
     { href: '/orders', label: t('account.nav.orders'), icon: Receipt, active: false },
     { href: '/rewards', label: t('account.nav.rewards'), icon: Medal, active: false },
     { href: '/subscriptions', label: t('subscriptions.title'), icon: ArrowsClockwise, active: false },
+    { href: '/referral', label: t('account.nav.referral'), icon: Gift, active: false },
     { href: '#prefs', label: t('account.nav.prefs'), icon: Bell, active: false },
     { href: '/help', label: t('help.title'), icon: Headset, active: false },
     ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp, active: false }] : []),

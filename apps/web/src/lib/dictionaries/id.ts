@@ -43,6 +43,7 @@ export const id = {
       payments: 'Pembayaran',
       orders: 'Pesanan',
       rewards: 'Rewards',
+      referral: 'Ajak teman',
       prefs: 'Notifikasi',
     },
     profileCard: {
