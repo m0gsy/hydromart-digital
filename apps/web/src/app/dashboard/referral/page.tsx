@@ -3,35 +3,33 @@
 import { Gift, Lock, ShareNetwork } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, Chip } from '@/components/ui';
+import { Card, CenterState, Chip, ErrorState, Skeleton } from '@/components/ui';
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { isDepotManager } from '@/lib/roles';
+import { useAsync } from '@/lib/use-async';
+import type { DepotReferralSummary } from '@/lib/types';
 
-// TODO: wire to referrals backend depot aggregate (referrals.me is customer-scoped only).
-type TopReferrer = { name: string; joined: number; reward: string };
-const TOP_REFERRERS: TopReferrer[] = [
-  { name: 'Sari Wulandari', joined: 8, reward: 'Rp80.000' },
-  { name: 'Budi Santoso', joined: 5, reward: 'Rp50.000' },
-  { name: 'Dewi Lestari', joined: 4, reward: 'Rp40.000' },
-  { name: 'Andi Pratama', joined: 3, reward: 'Rp30.000' },
-];
-
-const STATS: { label: string; value: string }[] = [
-  { label: 'Undangan', value: '312' },
-  { label: 'Berhasil', value: '128' },
-  { label: 'Konversi', value: '41%' },
-];
-
-function initials(name: string) {
-  return name
-    .split(' ')
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join('')
-    .toUpperCase();
+// referral-service has no customer names — top referrers show a short id + points.
+function shortId(id: string) {
+  return id.slice(0, 6).toUpperCase();
 }
 
 function ReferralBody() {
+  const { scopedId } = useDepot();
+  const summary = useAsync<DepotReferralSummary | null>(
+    () => (scopedId ? api.get(endpoints.referrals.depotSummary(scopedId), true) : Promise.resolve(null)),
+    [scopedId],
+  );
+  const s = summary.data;
+  const stats = [
+    { label: 'Undangan', value: (s?.invited ?? 0).toLocaleString('id-ID') },
+    { label: 'Berhasil', value: (s?.qualified ?? 0).toLocaleString('id-ID') },
+    { label: 'Konversi', value: `${s?.conversionPct ?? 0}%` },
+  ];
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
@@ -39,7 +37,7 @@ function ReferralBody() {
           <ShareNetwork size={24} weight="fill" className="text-brand-500" />
           <div>
             <h1 className="text-2xl font-bold">Referral</h1>
-            <p className="text-sm text-[color:var(--text-muted)]">&quot;Ajak teman&quot; · aktif</p>
+            <p className="text-sm text-[color:var(--text-muted)]">&quot;Ajak teman&quot; · pelanggan depot ini</p>
           </div>
         </div>
         <Chip tone="success">Aktif</Chip>
@@ -48,37 +46,53 @@ function ReferralBody() {
       <Card className="flex items-center gap-3 bg-brand-800 p-5" elevated={false}>
         <Gift size={26} weight="fill" className="shrink-0 text-on-brand" />
         <div className="text-on-brand">
-          <p className="font-semibold">Pengajak Rp10.000 · diajak Rp10.000</p>
-          <p className="text-[12.5px] opacity-80">Kredit masuk otomatis setelah order pertama teman.</p>
+          <p className="font-semibold">Pengajak &amp; diajak dapat poin</p>
+          <p className="text-[12.5px] opacity-80">Poin masuk otomatis setelah order pertama teman.</p>
         </div>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {STATS.map((s) => (
-          <Card key={s.label} className="flex flex-col gap-1 p-4">
-            <span className="text-xs text-[color:var(--text-muted)]">{s.label}</span>
-            <span className="text-2xl font-bold tabular-nums">{s.value}</span>
-          </Card>
-        ))}
-      </div>
+      {summary.loading ? (
+        <Skeleton className="h-56 w-full" />
+      ) : summary.error ? (
+        <ErrorState message={summary.error} onRetry={summary.reload} />
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {stats.map((st) => (
+              <Card key={st.label} className="flex flex-col gap-1 p-4">
+                <span className="text-xs text-[color:var(--text-muted)]">{st.label}</span>
+                <span className="text-2xl font-bold tabular-nums">{st.value}</span>
+              </Card>
+            ))}
+          </div>
 
-      <Card className="flex flex-col gap-1 p-5">
-        <h2 className="mb-2 font-semibold">Pengajak teratas</h2>
-        <ul className="divide-y divide-[color:var(--border)]">
-          {TOP_REFERRERS.map((r) => (
-            <li key={r.name} className="flex items-center gap-3 py-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">
-                {initials(r.name)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{r.name}</p>
-                <p className="text-xs text-[color:var(--text-muted)]">{r.joined} teman bergabung</p>
-              </div>
-              <span className="shrink-0 font-bold tabular-nums text-[color:var(--success)]">{r.reward}</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+          <Card className="flex flex-col gap-1 p-5">
+            <h2 className="mb-2 font-semibold">Pengajak teratas</h2>
+            {(s?.topReferrers ?? []).length === 0 ? (
+              <p className="py-3 text-sm text-[color:var(--text-muted)]">
+                Belum ada referral berhasil di depot ini.
+              </p>
+            ) : (
+              <ul className="divide-y divide-[color:var(--border)]">
+                {(s?.topReferrers ?? []).map((r) => (
+                  <li key={r.customerId} className="flex items-center gap-3 py-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-bold text-brand-800">
+                      {shortId(r.customerId).slice(0, 2)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">Pelanggan {shortId(r.customerId)}</p>
+                      <p className="text-xs text-[color:var(--text-muted)]">{r.referralCount} teman bergabung</p>
+                    </div>
+                    <span className="shrink-0 font-bold tabular-nums text-[color:var(--success)]">
+                      {r.pointsEarned.toLocaleString('id-ID')} poin
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </>
+      )}
     </div>
   );
 }

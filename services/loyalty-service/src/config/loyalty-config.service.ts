@@ -36,4 +36,12 @@ export class LoyaltyConfigService {
   get pointExpiryMonths(): number {
     return this.num('LOYALTY_POINT_EXPIRY_MONTHS');
   }
+  /** customer-service base URL for depot-scoped aggregates; blank = no directory (returns zeros). */
+  get customerServiceUrl(): string {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  /** Shared service-to-service secret (x-internal-key). Blank = internal calls disabled. */
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
 }

@@ -2,15 +2,25 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
 import { InvalidAdjustmentError } from '../../domain/errors';
-import { TIER_BENEFITS, TierBenefit, tierFor } from '../../domain/membership';
+import { MembershipTier, TIER_BENEFITS, TierBenefit, tierFor } from '../../domain/membership';
 import { PointsTxnType, expiryFrom, pointsForOrder } from '../../domain/points';
 import { Page, buildPage } from '../pagination';
+import { CustomerDirectory } from '../ports/customer-directory.port';
 import {
   LoyaltyAccountRecord,
   LoyaltyRepository,
   PointsTransactionRecord,
+  zeroTierCounts,
 } from '../ports/loyalty.repository';
 import { LOYALTY_TOKENS } from '../tokens';
+
+export interface DepotLoyaltySummary {
+  depotId: string;
+  totalMembers: number;
+  pointsOutstanding: number;
+  redeemedThisMonth: number;
+  tiers: Record<MembershipTier, number>;
+}
 
 export interface EarnResult {
   account: LoyaltyAccountRecord;
@@ -33,6 +43,7 @@ export class LoyaltyService {
   constructor(
     @Inject(LOYALTY_TOKENS.LoyaltyRepository) private readonly repo: LoyaltyRepository,
     private readonly config: LoyaltyConfigService,
+    @Inject(LOYALTY_TOKENS.CustomerDirectory) private readonly customers: CustomerDirectory,
   ) {}
 
   /** Read a customer's account, lazily creating it on first touch. */
@@ -47,6 +58,27 @@ export class LoyaltyService {
   /** HQ broadcast reach: how many customers are enrolled in loyalty. */
   async countMembers(): Promise<number> {
     return this.repo.countAccounts();
+  }
+
+  /**
+   * Depot-scoped loyalty rollup. Loyalty rows key only on customerId, so we ask
+   * customer-service which customers belong to the depot, then aggregate over them.
+   * Directory unreachable/empty → zeroed summary (no aggregate queries). `redeemedThisMonth`
+   * is measured from the start of the current UTC month.
+   */
+  async depotSummary(depotId: string, now: Date = new Date()): Promise<DepotLoyaltySummary> {
+    const ids = await this.customers.customerIdsForDepot(depotId);
+    if (ids.length === 0) {
+      return { depotId, totalMembers: 0, pointsOutstanding: 0, redeemedThisMonth: 0, tiers: zeroTierCounts() };
+    }
+    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [tiers, pointsOutstanding, redeemedThisMonth] = await Promise.all([
+      this.repo.countByTier(ids),
+      this.repo.sumPointsBalance(ids),
+      this.repo.sumRedeemedSince(ids, since),
+    ]);
+    const totalMembers = Object.values(tiers).reduce((sum, n) => sum + n, 0);
+    return { depotId, totalMembers, pointsOutstanding, redeemedThisMonth, tiers };
   }
 
   async listTransactions(

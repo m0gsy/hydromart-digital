@@ -1937,6 +1937,30 @@ export interface HuddleNote {
   updatedAt: string;
 }
 
+// Depot-scoped loyalty rollup (17a) — aggregated over the depot's own customers.
+export interface DepotLoyaltySummary {
+  depotId: string;
+  totalMembers: number;
+  pointsOutstanding: number;
+  redeemedThisMonth: number;
+  tiers: { REGULAR: number; SILVER: number; GOLD: number; PLATINUM: number };
+}
+
+// Depot-scoped referral rollup (17b). topReferrers carry customerId only (no name source).
+export interface DepotReferralTopReferrer {
+  customerId: string;
+  referralCount: number;
+  pointsEarned: number;
+}
+export interface DepotReferralSummary {
+  depotId: string;
+  invited: number;
+  qualified: number;
+  conversionPct: number;
+  pointsAwarded: number;
+  topReferrers: DepotReferralTopReferrer[];
+}
+
 // Shift handover checklist (14d).
 export type HandoverItemState = 'DONE' | 'PARTIAL' | 'PENDING';
 export interface HandoverItem {

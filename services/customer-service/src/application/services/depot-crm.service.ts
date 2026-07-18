@@ -103,6 +103,11 @@ export class DepotCrmService {
     }));
   }
 
+  /** Ids of all customers whose favourite depot is this one (service-to-service). */
+  listCustomerIdsByDepot(depotId: string): Promise<string[]> {
+    return this.crm.findIdsByDepot(depotId);
+  }
+
   async getDepotDetail(customerId: string, _depotId: string): Promise<DepotCustomerDetail> {
     const [profile, addressRecords] = await Promise.all([
       this.profiles.findByCustomerId(customerId),

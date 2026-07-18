@@ -6,6 +6,7 @@ import {
   ReferralCodeRecord,
   ReferralRecord,
   ReferralRepository,
+  TopReferrer,
 } from '../../application/ports/referral.repository';
 import { ReferralStatus as PrismaReferralStatus } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
@@ -88,6 +89,44 @@ export class ReferralPrismaRepository implements ReferralRepository {
       }),
     ]);
     return { referredCount, qualifiedCount, pointsEarned: aggregate._sum.referrerPoints ?? 0 };
+  }
+
+  async countReferrals(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    return this.prisma.referral.count({ where: { referrerCustomerId: { in: referrerIds } } });
+  }
+
+  async countQualified(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    return this.prisma.referral.count({
+      where: { referrerCustomerId: { in: referrerIds }, status: PrismaReferralStatus.QUALIFIED },
+    });
+  }
+
+  async sumReferrerPoints(referrerIds: string[]): Promise<number> {
+    if (referrerIds.length === 0) return 0;
+    const aggregate = await this.prisma.referral.aggregate({
+      where: { referrerCustomerId: { in: referrerIds }, status: PrismaReferralStatus.QUALIFIED },
+      _sum: { referrerPoints: true },
+    });
+    return aggregate._sum.referrerPoints ?? 0;
+  }
+
+  async topReferrers(referrerIds: string[], limit = 5): Promise<TopReferrer[]> {
+    if (referrerIds.length === 0) return [];
+    const rows = await this.prisma.referral.groupBy({
+      by: ['referrerCustomerId'],
+      where: { referrerCustomerId: { in: referrerIds }, status: PrismaReferralStatus.QUALIFIED },
+      _count: { referrerCustomerId: true },
+      _sum: { referrerPoints: true },
+      orderBy: { _count: { referrerCustomerId: 'desc' } },
+      take: limit,
+    });
+    return rows.map((r) => ({
+      customerId: r.referrerCustomerId,
+      referralCount: r._count.referrerCustomerId,
+      pointsEarned: r._sum.referrerPoints ?? 0,
+    }));
   }
 
   async qualifyReferral(

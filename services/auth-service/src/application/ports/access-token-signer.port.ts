@@ -6,6 +6,10 @@ export interface AccessTokenClaims {
   sub: string;
   role: Role;
   phone: string;
+  /** Depot this staff account is assigned to (design: depot tenant isolation). Null for
+   * customers, HQ/finance/marketing, and unassigned accounts. Depot operators/managers are
+   * locked to this depot server-side by the platform DepotScopeGuard. */
+  depotId?: string | null;
 }
 
 export interface SignedAccessToken {

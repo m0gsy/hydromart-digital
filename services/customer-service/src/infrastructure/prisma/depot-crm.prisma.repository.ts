@@ -33,4 +33,13 @@ export class DepotCrmPrismaRepository implements DepotCrmRepository {
     `;
     return rows.map((r) => ({ ...r, membershipTier: r.membershipTier as MembershipTier }));
   }
+
+  async findIdsByDepot(depotId: string): Promise<string[]> {
+    const rows = await this.prisma.$queryRaw<{ customerId: string }[]>`
+      SELECT p."customerId" AS "customerId"
+      FROM "customer_profiles" p
+      WHERE p."favoriteDepotId" = ${depotId}::uuid
+    `;
+    return rows.map((r) => r.customerId);
+  }
 }

@@ -9,11 +9,13 @@ import {
   SelfReferralError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { LoyaltyRewardPort } from '../ports/loyalty-reward.port';
 import {
   ReferralCodeRecord,
   ReferralRecord,
   ReferralRepository,
+  TopReferrer,
 } from '../ports/referral.repository';
 import { REFERRAL_TOKENS } from '../tokens';
 
@@ -33,6 +35,15 @@ export interface QualifyResult {
   referral?: ReferralRecord;
 }
 
+export interface DepotReferralSummary {
+  depotId: string;
+  invited: number;
+  qualified: number;
+  conversionPct: number;
+  pointsAwarded: number;
+  topReferrers: TopReferrer[];
+}
+
 @Injectable()
 export class ReferralService {
   private static readonly MAX_LIMIT = 100;
@@ -42,8 +53,39 @@ export class ReferralService {
   constructor(
     @Inject(REFERRAL_TOKENS.ReferralRepository) private readonly repo: ReferralRepository,
     @Inject(REFERRAL_TOKENS.LoyaltyReward) private readonly loyalty: LoyaltyRewardPort,
+    @Inject(REFERRAL_TOKENS.CustomerDirectory)
+    private readonly customerDirectory: CustomerDirectoryPort,
     private readonly config: ReferralConfigService,
   ) {}
+
+  /**
+   * Depot-scoped referral aggregate (staff read). Resolves the depot's customerIds from
+   * customer-service, then fans the referral aggregates in over them as referrers. A depot
+   * with no customers (or an unreachable directory — the port fails open) returns zeros.
+   * ponytail: names would need a customer-service lookup per referrer — topReferrers carries
+   * customerId only; the web renders a short id/placeholder.
+   */
+  async depotSummary(depotId: string): Promise<DepotReferralSummary> {
+    const zero: DepotReferralSummary = {
+      depotId,
+      invited: 0,
+      qualified: 0,
+      conversionPct: 0,
+      pointsAwarded: 0,
+      topReferrers: [],
+    };
+    const referrerIds = await this.customerDirectory.customerIdsForDepot(depotId);
+    if (referrerIds.length === 0) return zero;
+
+    const [invited, qualified, pointsAwarded, topReferrers] = await Promise.all([
+      this.repo.countReferrals(referrerIds),
+      this.repo.countQualified(referrerIds),
+      this.repo.sumReferrerPoints(referrerIds),
+      this.repo.topReferrers(referrerIds),
+    ]);
+    const conversionPct = invited === 0 ? 0 : Math.round((qualified / invited) * 100);
+    return { depotId, invited, qualified, conversionPct, pointsAwarded, topReferrers };
+  }
 
   /** Read a customer's referral code, lazily creating a unique one on first touch. */
   async getOrCreateMyCode(customerId: string): Promise<ReferralCodeRecord> {

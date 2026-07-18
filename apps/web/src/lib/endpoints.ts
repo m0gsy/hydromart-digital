@@ -366,6 +366,10 @@ export const endpoints = {
     byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
     // Total enrolled members (HQ broadcast reach for the loyalty audience).
     memberCount: '/loyalty/api/v1/loyalty/members/count',
+    // Depot-scoped loyalty rollup (design 17a): tier counts + points outstanding +
+    // redeemed-this-month for the depot's own customers (favoriteDepotId).
+    depotSummary: (depotId: string) =>
+      `/loyalty/api/v1/loyalty/depot-summary?depotId=${encodeURIComponent(depotId)}`,
     transactions: (q: { page?: number; limit?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
@@ -419,6 +423,10 @@ export const endpoints = {
   referrals: {
     me: '/referrals/api/v1/referrals/me',
     redeem: '/referrals/api/v1/referrals',
+    // Depot-scoped referral rollup (design 17b): invited/qualified/conversion + top
+    // referrers among the depot's own customers.
+    depotSummary: (depotId: string) =>
+      `/referrals/api/v1/referrals/depot-summary?depotId=${encodeURIComponent(depotId)}`,
   },
   // Platform administration (admin-service). Feature flags (8b), system settings (8b),
   // and the aggregate per-service health roll-up (13b). SUPER_ADMIN / HEAD_OFFICE gated.

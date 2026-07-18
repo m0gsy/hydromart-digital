@@ -4,7 +4,7 @@ import { InvalidAdjustmentError } from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 import { LoyaltyService } from '../../src/application/services/loyalty.service';
-import { InMemoryLoyaltyRepository, buildTestConfig } from '../support/fakes';
+import { InMemoryCustomerDirectory, InMemoryLoyaltyRepository, buildTestConfig } from '../support/fakes';
 
 describe('LoyaltyService', () => {
   let repo: InMemoryLoyaltyRepository;
@@ -12,7 +12,7 @@ describe('LoyaltyService', () => {
 
   beforeEach(() => {
     repo = new InMemoryLoyaltyRepository();
-    service = new LoyaltyService(repo, buildTestConfig());
+    service = new LoyaltyService(repo, buildTestConfig(), new InMemoryCustomerDirectory());
   });
 
   it('lazily creates a REGULAR account on first read', async () => {
@@ -78,7 +78,7 @@ describe('LoyaltyService', () => {
 
   it('sweeps expired lots into negative EXPIRE entries (BR-014)', async () => {
     // Earn with an already-past expiry so the lot is immediately due.
-    const expired = new LoyaltyService(repo, buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }));
+    const expired = new LoyaltyService(repo, buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }), new InMemoryCustomerDirectory());
     await expired.earnForOrder('cust-1', randomUUID(), 60000); // 60 pts, expiry in the past
 
     const result = await service.runExpiry(new Date());
@@ -91,7 +91,7 @@ describe('LoyaltyService', () => {
   });
 
   it('does not re-expire an already swept lot', async () => {
-    const expired = new LoyaltyService(repo, buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }));
+    const expired = new LoyaltyService(repo, buildTestConfig({ LOYALTY_POINT_EXPIRY_MONTHS: '-1' }), new InMemoryCustomerDirectory());
     await expired.earnForOrder('cust-1', randomUUID(), 60000);
     await service.runExpiry(new Date());
     const second = await service.runExpiry(new Date());

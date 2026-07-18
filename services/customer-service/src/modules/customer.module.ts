@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../config/customer-config.service';
 import { CUSTOMER_TOKENS } from '../application/tokens';
@@ -22,6 +22,7 @@ import { AddressController } from './address.controller';
 import { PaymentMethodController } from './payment-method.controller';
 import { ProfileController } from './profile.controller';
 import { DepotCrmController } from './depot-crm.controller';
+import { InternalController } from './internal.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -39,11 +40,18 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.DepotCrmRepository, useClass: DepotCrmPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [ProfileController, AddressController, PaymentMethodController, DepotCrmController],
+  controllers: [
+    ProfileController,
+    AddressController,
+    PaymentMethodController,
+    DepotCrmController,
+    InternalController,
+  ],
   providers,
   exports: [PrismaService, CustomerConfigService],
 })

@@ -10,17 +10,17 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { isDepotManager } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { TierBenefit } from '@/lib/types';
+import type { DepotLoyaltySummary, TierBenefit } from '@/lib/types';
 
-// Static tier presentation (labels + local member counts). The real thresholds come from
-// loyalty.tiers when available; member-per-tier splits have no endpoint yet.
-// TODO: wire per-tier member counts + poin beredar/ditukar to a loyalty depot summary backend.
-type TierCard = { label: string; range: string; members: string; icon: 'bronze' | 'silver' | 'gold' };
-const FALLBACK_TIERS: TierCard[] = [
-  { label: 'Perunggu', range: '0–999 poin', members: '612 anggota', icon: 'bronze' },
-  { label: 'Perak', range: '1.000–4.999 poin', members: '198 anggota', icon: 'silver' },
-  { label: 'Emas', range: '5.000+ poin', members: '74 anggota', icon: 'gold' },
-];
+// Tier thresholds come from loyalty.tiers (network-wide, real); per-tier member counts +
+// points-outstanding + redeemed-this-month come from the depot-scoped summary (this depot's
+// own customers only).
+type TierCard = {
+  label: string;
+  range: string;
+  members: string;
+  icon: 'bronze' | 'silver' | 'gold';
+};
 
 function tierIcon(kind: TierCard['icon']) {
   if (kind === 'gold') return <Crown size={22} weight="fill" className="text-brand-600" />;
@@ -39,29 +39,33 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function LoyaltyBody() {
-  const { selected, depots } = useDepot();
-  const depotName = (selected ?? depots[0])?.name ?? 'Semua depot';
+  const { scopedId, selected, depots } = useDepot();
+  const depotName = (selected ?? depots.find((d) => d.id === scopedId) ?? depots[0])?.name ?? 'Depot';
 
-  const members = useAsync<{ count: number }>(() => api.get(endpoints.loyalty.memberCount, true), []);
+  const summary = useAsync<DepotLoyaltySummary | null>(
+    () => (scopedId ? api.get(endpoints.loyalty.depotSummary(scopedId), true) : Promise.resolve(null)),
+    [scopedId],
+  );
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers, true), []);
 
-  // Build tier cards from real thresholds when present; else the static fallback.
+  const s = summary.data;
+  const idr = (n: number | undefined) => (n ?? 0).toLocaleString('id-ID');
+
+  // Tier cards: real thresholds (loyalty.tiers) + this depot's member count per tier (summary).
   const ladder = [...(tiers.data ?? [])].sort((a, b) => a.threshold - b.threshold);
-  const cards: TierCard[] =
-    ladder.length >= 2
-      ? ladder.map((tier, i) => {
-          const next = ladder[i + 1];
-          const range = next
-            ? `${tier.threshold.toLocaleString('id-ID')}–${(next.threshold - 1).toLocaleString('id-ID')} poin`
-            : `${tier.threshold.toLocaleString('id-ID')}+ poin`;
-          return {
-            label: tier.tier,
-            range,
-            members: FALLBACK_TIERS[i]?.members ?? '—',
-            icon: i === ladder.length - 1 ? 'gold' : i === 0 ? 'bronze' : 'silver',
-          };
-        })
-      : FALLBACK_TIERS;
+  const cards: TierCard[] = ladder.map((tier, i) => {
+    const next = ladder[i + 1];
+    const range = next
+      ? `${tier.threshold.toLocaleString('id-ID')}–${(next.threshold - 1).toLocaleString('id-ID')} poin`
+      : `${tier.threshold.toLocaleString('id-ID')}+ poin`;
+    const count = s?.tiers?.[tier.tier as keyof DepotLoyaltySummary['tiers']];
+    return {
+      label: tier.tier,
+      range,
+      members: count != null ? `${count.toLocaleString('id-ID')} anggota` : '—',
+      icon: i === ladder.length - 1 ? 'gold' : i === 0 ? 'bronze' : 'silver',
+    };
+  });
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -77,15 +81,9 @@ function LoyaltyBody() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat
-          label="Anggota"
-          value={
-            members.loading ? '…' : members.error ? '—' : (members.data?.count ?? 0).toLocaleString('id-ID')
-          }
-        />
-        {/* TODO: wire to loyalty depot summary backend */}
-        <Stat label="Poin beredar" value="128.400" />
-        <Stat label="Ditukar / bulan" value="41.200" />
+        <Stat label="Anggota" value={summary.loading ? '…' : idr(s?.totalMembers)} />
+        <Stat label="Poin beredar" value={summary.loading ? '…' : idr(s?.pointsOutstanding)} />
+        <Stat label="Ditukar / bulan" value={summary.loading ? '…' : idr(s?.redeemedThisMonth)} />
       </div>
 
       <Card className="flex flex-col gap-3 p-5">

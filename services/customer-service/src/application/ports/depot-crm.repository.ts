@@ -14,4 +14,7 @@ export interface DepotCrmRepository {
    * Optional `q` filters on primary-address name or phone (case-insensitive). Ordered by name.
    */
   listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerRow[]>;
+
+  /** Ids of every customer whose profile favouriteDepotId is this depot (service-to-service lookup). */
+  findIdsByDepot(depotId: string): Promise<string[]>;
 }

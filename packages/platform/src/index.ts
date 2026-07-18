@@ -11,6 +11,7 @@ export {
 } from './nest/decorators';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
+export { DepotScopeGuard } from './nest/depot-scope.guard';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
