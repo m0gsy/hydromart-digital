@@ -386,7 +386,7 @@ function ActionForm({
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotTeam', customer?.role)) {
+  if (!can('depotHuddle', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Huddle tim mingguan hanya untuk Manajer depot.

@@ -11,7 +11,7 @@ import { ListHuddleQueryDto, UpsertHuddleNoteDto } from './dto/huddle.dto';
 /** Weekly depot team huddle notes (design depotTeam). */
 @ApiTags('Huddle notes')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotTeam)
+@Roles(...CAPABILITIES.depotHuddle)
 @Controller({ path: 'huddle-notes', version: '1' })
 export class HuddleController {
   constructor(private readonly huddles: HuddleService) {}

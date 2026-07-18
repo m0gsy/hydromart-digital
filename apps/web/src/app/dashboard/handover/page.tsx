@@ -300,7 +300,7 @@ function HandoverBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotTeam', customer?.role)) {
+  if (!can('depotHandover', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Checklist serah terima shift hanya untuk Manajer depot.

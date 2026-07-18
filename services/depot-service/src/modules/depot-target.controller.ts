@@ -11,7 +11,7 @@ import { GetDepotTargetQueryDto, UpsertDepotTargetDto } from './dto/depot-target
 /** Per-depot monthly performance targets (manager dashboard). */
 @ApiTags('Depot Targets')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.dashboard)
+@Roles(...CAPABILITIES.depotTargets)
 @Controller({ path: 'depot-targets', version: '1' })
 export class DepotTargetController {
   constructor(private readonly targets: DepotTargetService) {}

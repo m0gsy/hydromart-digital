@@ -89,10 +89,19 @@ export const CAPABILITIES = {
   // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
   // courier commission runs, monthly ops review. Depot manager + the office finance team.
   depotFinance: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
-  // depot-service — team & culture ops: monthly targets/goals, weekly huddle notes,
-  // shift-handover checklists, equipment maintenance, wholesale tiers, subscriptions,
-  // order disputes. Manager-exclusive depot management (like depotAdmin).
-  depotTeam: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // depot-service — team & culture ops, split per-feature (was one `depotTeam` cap)
+  // so each page can carry its own roles. Shift-floor ops (huddle/handover/maintenance)
+  // include the operator who runs the daily shift; pricing/B2B & targets stay
+  // manager-led. Each decoupled from the shared caps it used to borrow
+  // (depotAdmin/depotCrm/dashboard) so widening one never leaks into depot CRUD,
+  // the customer directory, or the exec dashboard.
+  depotHuddle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotMaintenance: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotTargets: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotWholesale: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotSubscriptions: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotDisputes: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

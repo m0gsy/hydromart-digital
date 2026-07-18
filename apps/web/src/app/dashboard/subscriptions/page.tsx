@@ -293,7 +293,7 @@ function SubscriptionsBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotCrm', customer?.role)) {
+  if (!can('depotSubscriptions', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Langganan pelanggan hanya untuk Manajer depot.

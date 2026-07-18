@@ -11,7 +11,7 @@ import { CreateDisputeDto, ListDisputeQueryDto, ResolveDisputeDto } from './dto/
 /** Customer order disputes inbox (depot CRM). */
 @ApiTags('Order Disputes')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotCrm)
+@Roles(...CAPABILITIES.depotDisputes)
 @Controller({ path: 'order-disputes', version: '1' })
 export class DisputeController {
   constructor(private readonly disputes: DisputeService) {}

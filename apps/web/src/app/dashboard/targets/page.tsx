@@ -292,7 +292,7 @@ function TargetsBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('dashboard', customer?.role)) {
+  if (!can('depotTargets', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Target & goals depot hanya untuk Manajer depot.

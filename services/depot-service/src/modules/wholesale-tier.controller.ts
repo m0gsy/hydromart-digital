@@ -15,7 +15,7 @@ import {
 /** Depot wholesale pricing tiers (design 16b). */
 @ApiTags('Wholesale Tiers')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotAdmin)
+@Roles(...CAPABILITIES.depotWholesale)
 @Controller({ path: 'wholesale-tiers', version: '1' })
 export class WholesaleTierController {
   constructor(private readonly tiers: WholesaleTierService) {}

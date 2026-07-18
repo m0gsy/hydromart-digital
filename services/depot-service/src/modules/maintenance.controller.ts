@@ -11,7 +11,7 @@ import { CreateMaintenanceDto, ListMaintenanceQueryDto } from './dto/maintenance
 /** Depot equipment/vehicle maintenance schedule (depot admin). */
 @ApiTags('Maintenance')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotAdmin)
+@Roles(...CAPABILITIES.depotMaintenance)
 @Controller({ path: 'maintenance-items', version: '1' })
 export class MaintenanceController {
   constructor(private readonly maintenance: MaintenanceService) {}

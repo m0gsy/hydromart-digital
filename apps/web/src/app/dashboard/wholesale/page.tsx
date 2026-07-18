@@ -295,7 +295,7 @@ function WholesaleBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotAdmin', customer?.role)) {
+  if (!can('depotWholesale', customer?.role)) {
     return (
       <CenterState title="Manajer depot saja" icon={<Lock size={40} weight="fill" />}>
         Harga borongan hanya dapat diatur oleh manajer depot.

@@ -11,7 +11,7 @@ import { CreateSubscriptionDto, ListSubscriptionQueryDto } from './dto/subscript
 /** Customer recurring subscriptions (design 16b). */
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotCrm)
+@Roles(...CAPABILITIES.depotSubscriptions)
 @Controller({ path: 'subscriptions', version: '1' })
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}

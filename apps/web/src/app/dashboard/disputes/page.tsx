@@ -374,7 +374,7 @@ function DisputesBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotCrm', customer?.role)) {
+  if (!can('depotDisputes', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Sengketa order hanya untuk Manajer depot.

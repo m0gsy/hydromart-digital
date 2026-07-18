@@ -232,7 +232,7 @@ function MaintenanceBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!can('depotAdmin', customer?.role)) {
+  if (!can('depotMaintenance', customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Perawatan alat hanya untuk Manajer depot.

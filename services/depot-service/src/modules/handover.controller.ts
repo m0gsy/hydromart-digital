@@ -11,7 +11,7 @@ import { CreateHandoverDto, ListHandoverQueryDto } from './dto/handover.dto';
 /** Shift handover checklist (design 14d). */
 @ApiTags('Shift handovers')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotTeam)
+@Roles(...CAPABILITIES.depotHandover)
 @Controller({ path: 'shift-handovers', version: '1' })
 export class HandoverController {
   constructor(private readonly handovers: HandoverService) {}
