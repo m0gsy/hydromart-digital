@@ -250,6 +250,40 @@ describe('ReportService', () => {
     expect(byId[empty]).toMatchObject({ orders: 0, revenueIdr: 0 }); // requested depot with no orders
   });
 
+  it('aggregates depot ratings: average, star distribution, and recent review cards', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    const other = randomUUID();
+    const review = async (depotId: string, rating: number, comment: string | null) => {
+      const o = await r.create(orderData({ depotId }));
+      await r.createReview({ orderId: o.id, customerId: o.customerId, rating, aspects: [], comment, tipAmount: 0 });
+    };
+    await review(depot, 5, 'Mantap!');
+    await review(depot, 5, 'Cepat');
+    await review(depot, 4, null);
+    await review(depot, 2, 'Galon bocor');
+    await review(other, 1, 'not this depot'); // different depot, excluded
+
+    const rep = await svc.depotRatings(depot, {});
+
+    expect(rep.count).toBe(4);
+    expect(rep.average).toBe(4); // (5+5+4+2)/4
+    expect(rep.distribution).toEqual({ '1': 0, '2': 1, '3': 0, '4': 1, '5': 2 });
+    // Recent is newest-first; the last review seeded (2★) leads.
+    expect(rep.recent).toHaveLength(4);
+    expect(rep.recent[0]).toMatchObject({ stars: 2, comment: 'Galon bocor' });
+    expect(rep.recent[0].customerName).toBe('x');
+  });
+
+  it('returns a null average and zeroed distribution for a depot with no reviews', async () => {
+    const rep = await reports.depotRatings(randomUUID(), {});
+    expect(rep.average).toBeNull();
+    expect(rep.count).toBe(0);
+    expect(rep.distribution).toEqual({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 });
+    expect(rep.recent).toEqual([]);
+  });
+
   it('composes a depot monthly review: real orders/revenue/activeCustomers, null sla/profit', async () => {
     const r = new InMemoryOrderRepository();
     const svc = new ReportService(r);

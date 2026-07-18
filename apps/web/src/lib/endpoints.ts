@@ -187,6 +187,14 @@ export const endpoints = {
       if (depotId) p.set('depotId', depotId);
       return `/deliveries/api/v1/driver/performance?${p}`;
     },
+    // Depot courier commission run (design 11c, courierSettle cap). Per-courier delivered ×
+    // flat rate − charged COD shortfall; window defaults to the current month server-side.
+    commission: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/deliveries/api/v1/commission?${p}`;
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',
@@ -321,6 +329,13 @@ export const endpoints = {
     // One depot's monthly ops review (orders/revenue/active customers). month = 'YYYY-MM'.
     depotMonthly: (depotId: string, month: string) =>
       `/orders/api/v1/reports/depot-monthly?${new URLSearchParams({ depotId, month })}`,
+    // One depot's customer ratings (14b): average, star distribution, recent reviews.
+    depotRatings: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/orders/api/v1/reports/depot-ratings?${p}`;
+    },
   },
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).

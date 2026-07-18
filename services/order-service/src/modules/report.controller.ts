@@ -10,6 +10,7 @@ import {
   DepotCompareQueryDto,
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
+  DepotRatingsQueryDto,
   DepotWeeklyQueryDto,
   RangeReportQueryDto,
   SalesReportQueryDto,
@@ -74,6 +75,12 @@ export class ReportController {
   @ApiOperation({ summary: 'Average customer rating per depot (compare 14d)' })
   ratingByDepot(@Query() q: RangeReportQueryDto) {
     return this.reports.ratingByDepot(toRange(q));
+  }
+
+  @Get('depot-ratings')
+  @ApiOperation({ summary: "One depot's ratings: average, star distribution, recent reviews (14b)" })
+  depotRatings(@Query() q: DepotRatingsQueryDto) {
+    return this.reports.depotRatings(q.depotId, toRange(q));
   }
 
   @Get('revenue-by-category')

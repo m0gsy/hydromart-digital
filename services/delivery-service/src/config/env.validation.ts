@@ -44,6 +44,9 @@ export const envValidationSchema = Joi.object({
   // A display/goal only — nothing is blocked when unmet. Default fills it, so no
   // compose change is needed.
   COURIER_WEEKLY_TARGET: Joi.number().integer().positive().default(45),
+  // Flat per-delivery commission paid to couriers from depot cash (design 11c). A pay/
+  // display figure only; the default fills it, so no compose change is needed.
+  COURIER_RATE_PER_DELIVERY_IDR: Joi.number().integer().positive().default(12000),
   // UU PDP retention window for proof-of-delivery data (photo/signature/name/GPS).
   // The scheduler purges rows older than this daily; the storage bucket must carry
   // a matching lifecycle rule to expire the image files.

@@ -9,6 +9,7 @@ import {
   CustomerSales,
   DepotSales,
   DepotRating,
+  DepotRatingsDetail,
   DepotRefund,
   DepotShipping,
   OrderQuery,
@@ -429,6 +430,54 @@ export class OrderPrismaRepository implements OrderRepository {
       rating: r.rating,
       reviewCount: Number(r.reviewCount),
     }));
+  }
+
+  async depotRatings(depotId: string, range: ReportRange): Promise<DepotRatingsDetail> {
+    // OrderReview has no depotId, so join through the parent order and window on the
+    // order's createdAt (same semantics as ratingByDepot).
+    const conds: Prisma.Sql[] = [Prisma.sql`o."depotId" = ${depotId}::uuid`];
+    if (range.from) conds.push(Prisma.sql`o."createdAt" >= ${range.from}`);
+    if (range.to) conds.push(Prisma.sql`o."createdAt" < ${range.to}`);
+    const where = Prisma.join(conds, ' AND ');
+    const [dist, recent] = await Promise.all([
+      this.prisma.$queryRaw<{ rating: number; n: bigint }[]>(Prisma.sql`
+        SELECT r.rating AS rating, COUNT(*)::bigint AS n
+        FROM "order_reviews" r JOIN "orders" o ON o.id = r."orderId"
+        WHERE ${where}
+        GROUP BY r.rating
+      `),
+      this.prisma.$queryRaw<
+        { customerName: string; stars: number; comment: string | null; createdAt: Date }[]
+      >(Prisma.sql`
+        SELECT o."recipientName" AS "customerName", r.rating AS stars,
+               r.comment AS comment, r."createdAt" AS "createdAt"
+        FROM "order_reviews" r JOIN "orders" o ON o.id = r."orderId"
+        WHERE ${where}
+        ORDER BY r."createdAt" DESC
+        LIMIT 8
+      `),
+    ]);
+    const distribution = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+    let count = 0;
+    let sum = 0;
+    for (const d of dist) {
+      const n = Number(d.n);
+      const star = String(d.rating) as keyof typeof distribution;
+      if (star in distribution) distribution[star] = n;
+      count += n;
+      sum += d.rating * n;
+    }
+    return {
+      average: count === 0 ? null : sum / count,
+      count,
+      distribution,
+      recent: recent.map((x) => ({
+        customerName: x.customerName,
+        stars: Number(x.stars),
+        comment: x.comment,
+        createdAt: x.createdAt,
+      })),
+    };
   }
 
   async revenueByProduct(range: ReportRange, limit: number): Promise<ProductRevenue[]> {

@@ -116,6 +116,22 @@ export class DepotCompareQueryDto {
   to?: string;
 }
 
+export class DepotRatingsQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report ratings for.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+}
+
 export class DepotMonthlyQueryDto {
   @ApiPropertyOptional({ format: 'uuid', description: 'Depot to report on.' })
   @IsUUID()

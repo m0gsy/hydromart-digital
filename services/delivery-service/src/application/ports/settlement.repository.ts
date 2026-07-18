@@ -42,6 +42,12 @@ export interface SettlementQuery {
   status?: SettlementStatus;
 }
 
+/** One courier's charged COD shortfall total at a depot in a window (design 11c). */
+export interface CourierShortfall {
+  driverId: string;
+  shortfallIdr: number;
+}
+
 export interface SettlementRepository {
   create(data: CreateSettlementData): Promise<SettlementRecord>;
   findById(id: string): Promise<SettlementRecord | null>;
@@ -50,5 +56,11 @@ export interface SettlementRepository {
   listByDriver(driverId: string, limit: number): Promise<SettlementRecord[]>;
   /** Cashier queue: settlements at a depot, optionally filtered by status. */
   search(query: SettlementQuery): Promise<SettlementRecord[]>;
+  /**
+   * Charged COD shortfalls per courier at `depotId` whose settlement was created in
+   * [from, to) — the amount to deduct from that courier's commission (design 11c). Only
+   * settlements with chargedToDriver=true (a genuine, cashier-accepted shortfall) count.
+   */
+  chargedShortfallByDriver(depotId: string, from: Date, to: Date): Promise<CourierShortfall[]>;
   resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord>;
 }

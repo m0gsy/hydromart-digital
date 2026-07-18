@@ -72,6 +72,13 @@ export class DeliveryConfigService {
   get courierWeeklyTarget(): number {
     return this.num('COURIER_WEEKLY_TARGET');
   }
+  /**
+   * Flat per-delivery commission paid to a courier from depot cash (design 11c).
+   * A pay/display figure only; the default fills it so no compose change is needed.
+   */
+  get courierRatePerDeliveryIdr(): number {
+    return Number(this.config.get('COURIER_RATE_PER_DELIVERY_IDR', 12000));
+  }
   /** UU PDP retention window for proof-of-delivery records, in days. */
   get podRetentionDays(): number {
     return this.num('POD_RETENTION_DAYS');

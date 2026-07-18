@@ -1743,6 +1743,38 @@ export interface ReportDepotCompare {
   depots: ReportDepotCompareRow[];
 }
 
+// Per-courier commission for a depot over a window (delivery-service commission, design 11c).
+// delivered + shortfallIdr are real; ratePerDeliveryIdr is a config default. courierId is the
+// driver id — the console resolves the display name from the active drivers roster.
+export interface CommissionCourier {
+  courierId: string;
+  delivered: number;
+  ratePerDeliveryIdr: number;
+  grossIdr: number;
+  shortfallIdr: number;
+  netIdr: number;
+}
+export interface CommissionRun {
+  depotId: string;
+  from: string;
+  to: string;
+  ratePerDeliveryIdr: number;
+  couriers: CommissionCourier[];
+  totalIdr: number;
+}
+
+// One depot's customer ratings aggregate (order-service reports depot-ratings, design 14b).
+// average/count/distribution/recent are all real order-review data.
+export interface DepotRatingsReport {
+  depotId: string;
+  from: string | null;
+  to: string | null;
+  average: number | null;
+  count: number;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
+}
+
 // One depot's monthly ops review (order-service reports depot-monthly). orders/revenue/
 // activeCustomers are real; netProfitIdr/slaPct are null (no source); topCourier from driverName.
 export interface ReportDepotMonthly {

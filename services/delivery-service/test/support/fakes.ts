@@ -42,6 +42,7 @@ import {
   DeliveryCompletedEvent,
 } from '../../src/application/ports/courier-payout.port';
 import {
+  CourierShortfall,
   CreateSettlementData,
   ResolveSettlementPatch,
   SettlementQuery,
@@ -467,6 +468,24 @@ export class InMemorySettlementRepository implements SettlementRepository {
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((r) => clone(r));
+  }
+  async chargedShortfallByDriver(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<CourierShortfall[]> {
+    const byDriver = new Map<string, number>();
+    for (const r of this.rows) {
+      if (
+        r.depotId === depotId &&
+        r.chargedToDriver &&
+        r.createdAt.getTime() >= from.getTime() &&
+        r.createdAt.getTime() < to.getTime()
+      ) {
+        byDriver.set(r.driverId, (byDriver.get(r.driverId) ?? 0) + Math.abs(r.variance));
+      }
+    }
+    return [...byDriver].map(([driverId, shortfallIdr]) => ({ driverId, shortfallIdr }));
   }
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;

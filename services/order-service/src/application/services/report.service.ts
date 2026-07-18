@@ -58,6 +58,15 @@ export interface CustomerSummary {
   }[];
 }
 
+/** One depot's customer ratings aggregate for the ratings screen (design 14b). */
+export interface DepotRatingsReport extends ReportRangeView {
+  depotId: string;
+  average: number | null;
+  count: number;
+  distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
+  recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
+}
+
 /** One courier's line in the depot daily report (design 2d). */
 export interface DepotCourierDaily {
   name: string;
@@ -185,6 +194,27 @@ export class ReportService {
   async ratingByDepot(range: ReportRange): Promise<ReportRangeView & { items: DepotRating[] }> {
     const items = await this.orders.ratingByDepot(range);
     return { ...ReportService.rangeView(range), items };
+  }
+
+  /**
+   * One depot's customer ratings for the ratings screen (design 14b): average, review
+   * count, star distribution, and recent review cards — all real order-review data.
+   */
+  async depotRatings(depotId: string, range: ReportRange): Promise<DepotRatingsReport> {
+    const d = await this.orders.depotRatings(depotId, range);
+    return {
+      depotId,
+      ...ReportService.rangeView(range),
+      average: d.average === null ? null : Math.round(d.average * 10) / 10,
+      count: d.count,
+      distribution: d.distribution,
+      recent: d.recent.map((r) => ({
+        customerName: r.customerName,
+        stars: r.stars,
+        comment: r.comment,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
   }
 
   async revenueByProduct(range: ReportRange, limit: number): Promise<RevenueByProductReport> {
