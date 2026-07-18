@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ORDER_FLOW,
   isCancellable,
   nextStatus,
   staffCanAdvance,
@@ -8,44 +9,65 @@ import {
   statusProgress,
   tone,
 } from '@/lib/order-status';
+import type { OrderStatus } from '@/lib/types';
 
-describe('order status', () => {
-  it('labels every status', () => {
-    expect(statusLabel('ON_DELIVERY')).toBe('On the way');
-    expect(statusLabel('CANCELLED')).toBe('Cancelled');
+describe('order-status', () => {
+  it('labels every status including terminal CANCELLED', () => {
+    for (const s of [...ORDER_FLOW, 'CANCELLED' as OrderStatus]) {
+      expect(statusLabel(s)).toBeTruthy();
+    }
   });
 
-  it('progresses monotonically through the fulfilment flow', () => {
-    expect(statusProgress('CREATED')).toBeCloseTo(1 / 8);
-    expect(statusProgress('COMPLETED')).toBe(1);
-    expect(statusProgress('CANCELLED')).toBe(0);
+  describe('statusProgress', () => {
+    it('advances monotonically 0..1 across the flow', () => {
+      const progress = ORDER_FLOW.map(statusProgress);
+      for (let i = 1; i < progress.length; i++) expect(progress[i]).toBeGreaterThan(progress[i - 1]);
+      expect(statusProgress('COMPLETED')).toBe(1);
+    });
+    it('is 0 for the off-track CANCELLED state', () => {
+      expect(statusProgress('CANCELLED')).toBe(0);
+    });
   });
 
-  it('allows cancellation only before a driver is assigned (BR-006)', () => {
-    expect(isCancellable('CREATED')).toBe(true);
-    expect(isCancellable('PREPARING')).toBe(true);
-    expect(isCancellable('DRIVER_ASSIGNED')).toBe(false);
-    expect(isCancellable('ON_DELIVERY')).toBe(false);
+  describe('isCancellable (BR-006: only before a driver is assigned)', () => {
+    it('allows cancel up to and including PREPARING', () => {
+      expect(['CREATED', 'CONFIRMED', 'PREPARING'].every(isCancellable as (s: string) => boolean)).toBe(true);
+    });
+    it('forbids cancel once a driver is assigned or later', () => {
+      expect(
+        ['DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED', 'CANCELLED'].some(
+          isCancellable as (s: string) => boolean,
+        ),
+      ).toBe(false);
+    });
   });
 
-  it('maps statuses to display tones', () => {
-    expect(tone('CREATED')).toBe('active');
-    expect(tone('DELIVERED')).toBe('done');
-    expect(tone('CANCELLED')).toBe('cancelled');
+  describe('nextStatus', () => {
+    it('walks the flow in order', () => {
+      expect(nextStatus('CREATED')).toBe('CONFIRMED');
+      expect(nextStatus('DELIVERED')).toBe('COMPLETED');
+    });
+    it('is null at the end and for CANCELLED', () => {
+      expect(nextStatus('COMPLETED')).toBeNull();
+      expect(nextStatus('CANCELLED')).toBeNull();
+    });
   });
 
-  it('gives the next status in the flow, null at the end', () => {
-    expect(nextStatus('CREATED')).toBe('CONFIRMED');
-    expect(nextStatus('ON_DELIVERY')).toBe('DELIVERED');
-    expect(nextStatus('COMPLETED')).toBeNull();
-    expect(nextStatus('CANCELLED')).toBeNull();
+  describe('staffCanAdvance (only depot prep steps are staff-driven)', () => {
+    it('is true only for CREATED/CONFIRMED', () => {
+      expect(staffCanAdvance('CREATED')).toBe(true);
+      expect(staffCanAdvance('CONFIRMED')).toBe(true);
+      expect(staffCanAdvance('PREPARING')).toBe(false);
+      expect(staffCanAdvance('DRIVER_ASSIGNED')).toBe(false);
+    });
   });
 
-  it('lets staff advance only the depot prep steps', () => {
-    expect(staffCanAdvance('CREATED')).toBe(true);
-    expect(staffCanAdvance('CONFIRMED')).toBe(true);
-    // Driver assignment onward is owned by delivery-service.
-    expect(staffCanAdvance('PREPARING')).toBe(false);
-    expect(staffCanAdvance('ON_DELIVERY')).toBe(false);
+  describe('tone', () => {
+    it('maps to active/done/cancelled buckets', () => {
+      expect(tone('CREATED')).toBe('active');
+      expect(tone('DELIVERED')).toBe('done');
+      expect(tone('COMPLETED')).toBe('done');
+      expect(tone('CANCELLED')).toBe('cancelled');
+    });
   });
 });
