@@ -185,8 +185,11 @@ model InventoryItem {
   movements    StockMovement[]
   reservations StockReservation[]
 
-  // Best-effort DB uniqueness. Non-PRODUK singletons (productId NULL) are also
-  // enforced in the service layer since Postgres treats NULLs as distinct.
+  // Best-effort DB uniqueness for PRODUK lines (productId set). Non-PRODUK singletons
+  // (productId NULL) slip past this because Postgres treats NULLs as distinct — they're
+  // now also enforced by a partial unique index on (depotId, itemType) WHERE productId IS
+  // NULL, added in migration 20260718170000_inventory_singleton_unique (DB-11; Prisma DSL
+  // can't express a partial unique index, so it lives in raw SQL there).
   @@unique([depotId, itemType, productId])
   @@index([depotId])
   @@map("inventory_items")
