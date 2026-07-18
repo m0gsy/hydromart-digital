@@ -122,3 +122,68 @@ jobs:
 
       - name: Integration test (build + boot all 15 images, drive core loop)
         run: npm run test:integration
+
+  # Browser E2E (QG-1): boots the same test backend the integration job uses, serves
+  # the web app locally against the gateway, and drives the public flows with Playwright.
+  # The web app isn't in the CI compose (prod-only), so we `next start` it here instead of
+  # containerising it — same gateway, no extra image to build.
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      # Must match docker-compose.test.yml so seed.mjs can mint an admin token the stack trusts.
+      JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
+      GATEWAY_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Start infra + wait for Postgres
+        run: |
+          docker compose up -d postgres redis
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then break; fi
+            sleep 2
+          done
+
+      - name: Migrate + boot services
+        run: |
+          npm run db:migrate
+          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+          for i in $(seq 1 45); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+
+      - name: Seed catalog + staff
+        run: node scripts/seed.mjs
+
+      - name: Build + serve web
+        run: |
+          npm run build --workspace @hydromart/web
+          nohup npm run start --workspace @hydromart/web >/tmp/web.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000 >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+
+      - name: Install Playwright browser
+        run: npm run test:e2e:install --workspace @hydromart/web
+
+      - name: Run E2E
+        run: npm run test:e2e --workspace @hydromart/web
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7
