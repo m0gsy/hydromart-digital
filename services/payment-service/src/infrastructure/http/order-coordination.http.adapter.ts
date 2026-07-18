@@ -15,6 +15,33 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
 
   constructor(private readonly config: PaymentConfigService) {}
 
+  async getOrderTotal(orderId: string): Promise<number | null> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey) {
+      return null; // coordination disabled in this environment → skip validation
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(
+        `${orderServiceUrl}/api/v1/orders/${orderId}/internal-total`,
+        { headers: { 'x-internal-key': internalServiceKey }, signal: controller.signal },
+      );
+      if (!res.ok) {
+        throw new Error(`order-service responded ${res.status}`);
+      }
+      const body = (await res.json()) as { total?: number };
+      if (typeof body.total !== 'number') {
+        throw new Error('order-service returned no total');
+      }
+      return body.total;
+      // Fail CLOSED (unlike the notify paths): a failed total fetch throws so we never
+      // create a payment at an unvalidated amount.
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async confirmPaid(orderId: string): Promise<void> {
     await this.post(`/api/v1/orders/${orderId}/internal-confirm`, undefined, `Order confirm skipped for ${orderId}`);
   }

@@ -300,6 +300,21 @@ export class OrderController {
     return { orderId: id };
   }
 
+  // Service-to-service: payment-service validates a client-supplied payment amount
+  // against the authoritative order total before charging (SEC-1, price-tampering).
+  // Internal key auth, same fail-closed path as internal-confirm.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get(':id/internal-total')
+  @ApiOperation({ summary: 'Read an order total for payment validation (internal service auth)' })
+  async internalTotal(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ orderId: string; total: number }> {
+    const order = await this.orders.getAny(id);
+    return { orderId: order.id, total: order.total };
+  }
+
   // Service-to-service: delivery-service reads a courier's mean rating over the orders
   // delivered in a week (design 4c). Internal key auth, same fail-closed path as above.
   @Public()

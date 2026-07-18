@@ -62,6 +62,15 @@ export class CashShortError extends DomainError {
   }
 }
 
+/** Client-supplied amount does not match the authoritative order total (SEC-1). */
+export class PaymentAmountMismatchError extends DomainError {
+  readonly code = 'PAYMENT_AMOUNT_MISMATCH';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(expected: number, provided: number) {
+    super(`Payment amount (${provided}) does not match the order total (${expected}).`);
+  }
+}
+
 /** Webhook signature did not verify. */
 export class InvalidWebhookSignatureError extends DomainError {
   readonly code = 'PAYMENT_INVALID_SIGNATURE';
