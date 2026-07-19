@@ -13,6 +13,8 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryDepotRepository, InMemoryInventoryRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const INTERNAL_KEY = 'test-internal-service-key-01';
+const internalKey = () => ({ 'x-internal-key': INTERNAL_KEY });
 
 const depotBody = {
   code: 'JKT-01',
@@ -39,6 +41,12 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   const OWNER_SUB = '99999999-9999-4999-8999-999999999999';
 
   beforeAll(async () => {
+    process.env.DEPOT_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.JWT_ACCESS_SECRET = SECRET;
+    // The validation schema defaults INTERNAL_SERVICE_KEY to '' and that shadows the
+    // load() value, so set it on the env too (same as promo/order e2e) — otherwise the
+    // InternalAuthGuard reads the empty default and rejects.
+    process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [
@@ -53,6 +61,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
               DEPOT_SERVICE_PORT: 3007,
               DEPOT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
+              INTERNAL_SERVICE_KEY: INTERNAL_KEY,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
@@ -187,7 +196,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .expect((r) => expect(r.body).toHaveLength(3));
   });
 
-  it('deducts PRODUK stock on order completion (consume), customer forbidden', async () => {
+  it('deducts PRODUK stock on order completion (consume), needs internal key (SEC-2)', async () => {
     const productId = '44444444-4444-4444-8444-444444444444';
     const unstockedId = '66666666-6666-4666-8666-666666666666';
     const orderId = '55555555-5555-4555-8555-555555555555';
@@ -207,17 +216,18 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .expect(201)
     ).body.id;
 
-    // a customer cannot trigger consumption
+    // a forwarded end-user token (even a customer's) can no longer trigger consumption —
+    // only the internal service key is accepted (SEC-2)
     await request(server())
       .post(`/api/v1/depots/${depotId}/inventory/consume`)
       .set(auth(customerToken))
       .send({ orderId, items: [{ productId, quantity: 4 }] })
-      .expect(403);
+      .expect(401);
 
-    // operator (order-completion token) consumes; unstocked product is skipped
+    // order-service consumes with the internal key; unstocked product is skipped
     await request(server())
       .post(`/api/v1/depots/${depotId}/inventory/consume`)
-      .set(auth(oprAt))
+      .set(internalKey())
       .send({
         orderId,
         items: [

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { HandCoins, Package, Storefront, Truck, Warning } from '@phosphor-icons/react';
+import { HandCoins, Package, Storefront, Warning } from '@phosphor-icons/react';
 
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';

@@ -49,6 +49,21 @@ export class PaymentMethodPrismaRepository implements PaymentMethodRepository {
     });
   }
 
+  async setDefaultExclusive(customerId: string, id: string): Promise<void> {
+    // Audit (DB-2 pattern): clear-all then set-one in one transaction so the invariant
+    // "exactly one default" holds even under a crash/concurrent setDefault.
+    await this.prisma.$transaction([
+      this.prisma.savedPaymentMethod.updateMany({
+        where: { customerId, isDefault: true },
+        data: { isDefault: false },
+      }),
+      this.prisma.savedPaymentMethod.updateMany({
+        where: { id, customerId },
+        data: { isDefault: true },
+      }),
+    ]);
+  }
+
   async delete(customerId: string, id: string): Promise<void> {
     await this.prisma.savedPaymentMethod.deleteMany({ where: { id, customerId } });
   }

@@ -11,7 +11,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { ReferralModule } from '../../src/modules/referral.module';
 import { REFERRAL_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import { FakeLoyaltyReward, InMemoryReferralRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
@@ -34,8 +33,6 @@ describe('Referral HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',

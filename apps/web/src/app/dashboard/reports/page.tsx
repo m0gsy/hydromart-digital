@@ -62,7 +62,7 @@ function Harian({ depotId }: { depotId: string }) {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatCard label="Pesanan selesai" value={String(rep.data.orders)} hint="Diproses hari ini" />
             <StatCard label="Pendapatan" value={formatIDR(rep.data.revenueIdr)} />
-            <StatCard label="COD disetor" value={formatIDR(rep.data.codCollectedIdr)} hint="Selisih —" />
+            <StatCard label="COD disetor" value={rep.data.codCollectedIdr === null ? '—' : formatIDR(rep.data.codCollectedIdr)} hint="Selisih —" />
             <StatCard label="Gagal antar" value={String(rep.data.failedDeliveries)} />
           </div>
 
@@ -102,14 +102,14 @@ function Harian({ depotId }: { depotId: string }) {
                 <Drop size={18} weight="fill" className="text-brand-500" /> Galon
               </div>
               <div className="grid grid-cols-3 gap-2 text-center">
-                {[
+                {([
                   ['Retur masuk', rep.data.gallonsReturned],
                   ['Keluar', rep.data.gallonsDelivered],
                   ['Rusak', rep.data.gallonsDamaged],
-                ].map(([label, n]) => (
-                  <div key={label as string} className="rounded-xl bg-[color:var(--surface-soft)] py-3">
-                    <div className="text-lg font-extrabold tabular-nums">{n as number}</div>
-                    <div className="text-[11px] text-muted">{label as string}</div>
+                ] as [string, number | null][]).map(([label, n]) => (
+                  <div key={label} className="rounded-xl bg-[color:var(--surface-soft)] py-3">
+                    <div className="text-lg font-extrabold tabular-nums">{n === null ? '—' : n}</div>
+                    <div className="text-[11px] text-muted">{label}</div>
                   </div>
                 ))}
               </div>

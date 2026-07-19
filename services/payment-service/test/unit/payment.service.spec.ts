@@ -6,6 +6,7 @@ import {
   GatewayUnavailableError,
   InvalidWebhookSignatureError,
   PaymentAlreadyExistsError,
+  PaymentAmountMismatchError,
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
@@ -64,6 +65,20 @@ describe('PaymentService', () => {
     gateway.throwOnCharge = true;
     await expect(initiate(PaymentMethod.VA)).rejects.toBeInstanceOf(GatewayUnavailableError);
     expect(repo.rows[0].status).toBe(PaymentStatus.FAILED);
+  });
+
+  it('rejects a payment whose amount differs from the order total (SEC-1)', async () => {
+    orders.orderTotal = 45000;
+    await expect(initiate(PaymentMethod.CASH, 1000)).rejects.toBeInstanceOf(
+      PaymentAmountMismatchError,
+    );
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it('accepts a payment whose amount matches the order total (SEC-1)', async () => {
+    orders.orderTotal = 45000;
+    const payment = await initiate(PaymentMethod.CASH, 45000);
+    expect(payment.status).toBe(PaymentStatus.PENDING);
   });
 
   it('rejects a second active payment for the same order', async () => {

@@ -8,6 +8,7 @@ import {
   InvalidPaymentTransitionError,
   InvalidWebhookSignatureError,
   PaymentAlreadyExistsError,
+  PaymentAmountMismatchError,
   PaymentNotFoundError,
   PaymentNotRefundableError,
   RefundNotPendingError,
@@ -87,6 +88,15 @@ export class PaymentService {
     }
 
     const amount = money(input.amount);
+    // SEC-1: the amount is client-supplied. Validate it against the authoritative order
+    // total before charging so a tampered price can't be paid. getOrderTotal returns null
+    // only when coordination is disabled (dev); a configured-but-unreachable order-service
+    // throws (fail closed) — we never create a payment at an unvalidated amount.
+    const orderTotal = await this.orderCoordination.getOrderTotal(input.orderId);
+    if (orderTotal !== null && money(orderTotal) !== amount) {
+      throw new PaymentAmountMismatchError(money(orderTotal), amount);
+    }
+
     const base: CreatePaymentData = {
       orderId: input.orderId,
       customerId,

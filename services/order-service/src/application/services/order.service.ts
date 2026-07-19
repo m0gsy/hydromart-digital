@@ -34,7 +34,7 @@ import {
   OrderReviewRecord,
   RatingSummary,
 } from '../ports/order.repository';
-import { ProductCatalogPort } from '../ports/product-catalog.port';
+import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
 import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
@@ -52,6 +52,8 @@ export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
   /** Optional voucher code to apply (validated against the promo-service). */
   voucherCode?: string | null;
+  /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
+  deliveryWindow?: string | null;
 }
 
 export interface ListOrdersInput {
@@ -64,6 +66,14 @@ export interface ListOrdersInput {
 /** Rounds to 2 decimals (IDR minor units) to keep money arithmetic exact. */
 function money(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+// loyalty-service is the source of truth for the balance (BR-013: 1 pt / Rp 1.000 subtotal).
+// This mirrors that rate ONLY to render the "points earned" notification copy without a
+// round-trip. Single definition so the magic divisor can't silently drift (ARCH-2).
+const RUPIAH_PER_POINT = 1000;
+function pointsForSubtotal(subtotal: number): number {
+  return Math.floor(subtotal / RUPIAH_PER_POINT);
 }
 
 @Injectable()
@@ -125,9 +135,10 @@ export class OrderService {
         )
       : new Map<string, DepotPrice>();
 
+    const productById = await this.pricedAll(lines.map((l) => l.productId));
     const items: CreateOrderItemData[] = [];
     for (const line of lines) {
-      const product = await this.priced(line.productId);
+      const product = productById.get(line.productId)!;
       const priceRow = prices.get(product.id);
       const base = priceRow?.sellPrice ?? product.basePrice;
       const adj = priceRow?.adjustType
@@ -200,6 +211,7 @@ export class OrderService {
       deliveryFee,
       discount,
       total,
+      deliveryWindow: input.deliveryWindow ?? null,
       ...input.deliveryAddress,
       items,
     });
@@ -241,9 +253,10 @@ export class OrderService {
       ? await this.depotPricing.getPrices(depot.id, lines.map((l) => l.productId))
       : new Map<string, DepotPrice>();
 
+    const productById = await this.pricedAll(lines.map((l) => l.productId));
     const items: CreateOrderItemData[] = [];
     for (const line of lines) {
-      const product = await this.priced(line.productId);
+      const product = productById.get(line.productId)!;
       const priceRow = prices.get(product.id);
       const base = priceRow?.sellPrice ?? product.basePrice;
       const adj = priceRow?.adjustType
@@ -483,7 +496,7 @@ export class OrderService {
       // Notify the customer of the points they just earned (spec 5h feed). Points mirror
       // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
       // message copy — loyalty-service remains the source of truth for the balance.
-      const pointsEarned = Math.floor(updated.subtotal / 1000);
+      const pointsEarned = pointsForSubtotal(updated.subtotal);
       if (pointsEarned > 0) {
         await this.notification
           .notify(
@@ -591,7 +604,7 @@ export class OrderService {
     return depot;
   }
 
-  private async priced(productId: string) {
+  private async priced(productId: string): Promise<CatalogProduct> {
     let product;
     try {
       product = await this.catalog.getProduct(productId);
@@ -602,6 +615,19 @@ export class OrderService {
       throw new ProductUnavailableError(productId);
     }
     return product;
+  }
+
+  /**
+   * Resolve + validate every line's product in ONE parallel fan-out instead of N sequential
+   * awaits (DB-7). Same fail semantics as priced(): CatalogUnavailableError on a fetch
+   * failure, ProductUnavailableError for a missing/inactive product. ponytail: N parallel
+   * HTTP calls, not a product-service bulk endpoint — carts are small; add getProducts(ids)
+   * upstream only if catalog fan-out ever dominates checkout latency.
+   */
+  private async pricedAll(productIds: string[]): Promise<Map<string, CatalogProduct>> {
+    const unique = [...new Set(productIds)];
+    const products = await Promise.all(unique.map((id) => this.priced(id)));
+    return new Map(unique.map((id, i) => [id, products[i]]));
   }
 
   private async search(

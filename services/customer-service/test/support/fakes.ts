@@ -27,6 +27,7 @@ import {
   UpdatePaymentMethodData,
 } from '../../src/application/ports/payment-method.repository';
 import { LoyaltyRewardPort } from '../../src/application/ports/loyalty-reward.port';
+import { FavoriteRepository } from '../../src/application/ports/favorite.repository';
 
 let seq = 0;
 // Monotonic createdAt so "most recent" ordering is deterministic in tests.
@@ -146,6 +147,9 @@ export class InMemoryAddressRepository implements AddressRepository {
     const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
     if (rec) rec.isPrimary = true;
   }
+  async setPrimaryExclusive(customerId: string, id: string): Promise<void> {
+    this.rows.filter((r) => r.customerId === customerId).forEach((r) => (r.isPrimary = r.id === id));
+  }
   async delete(customerId: string, id: string): Promise<void> {
     this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));
   }
@@ -190,6 +194,11 @@ export class InMemoryPaymentMethodRepository implements PaymentMethodRepository 
     const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
     if (rec) rec.isDefault = true;
   }
+  async setDefaultExclusive(customerId: string, id: string): Promise<void> {
+    this.rows.filter((r) => r.customerId === customerId).forEach((r) => (r.isDefault = false));
+    const rec = this.rows.find((r) => r.id === id && r.customerId === customerId);
+    if (rec) rec.isDefault = true;
+  }
   async delete(customerId: string, id: string): Promise<void> {
     this.rows = this.rows.filter((r) => !(r.id === id && r.customerId === customerId));
   }
@@ -209,6 +218,27 @@ export class InMemoryNotificationRepository implements NotificationPreferenceRep
   async upsert(record: NotificationPreferenceRecord): Promise<NotificationPreferenceRecord> {
     this.rows.set(record.customerId, { ...record });
     return { ...record };
+  }
+}
+
+export class InMemoryFavoriteRepository implements FavoriteRepository {
+  // { customerId, productId, createdAt } rows; createdAt orders "newest first".
+  rows: { customerId: string; productId: string; createdAt: Date }[] = [];
+
+  async listProductIds(customerId: string): Promise<string[]> {
+    return this.rows
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => r.productId);
+  }
+  async add(customerId: string, productId: string): Promise<void> {
+    if (this.rows.some((r) => r.customerId === customerId && r.productId === productId)) return;
+    this.rows.push({ customerId, productId, createdAt: nextDate() });
+  }
+  async remove(customerId: string, productId: string): Promise<void> {
+    this.rows = this.rows.filter(
+      (r) => !(r.customerId === customerId && r.productId === productId),
+    );
   }
 }
 

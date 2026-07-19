@@ -93,14 +93,18 @@ function DetailBody({ id }: { id: string }) {
 
               {/* Stats */}
               <div className="grid grid-cols-3 gap-3">
-                <Stat label="Total pesanan">{profile.orderCount}</Stat>
+                <Stat label="Total pesanan">{profile.orderCount ?? '—'}</Stat>
                 <Stat label="Nilai belanja">
-                  <Money amount={profile.totalSpentIdr} />
+                  {profile.totalSpentIdr == null ? '—' : <Money amount={profile.totalSpentIdr} />}
                 </Stat>
                 <Stat label="Galon dipinjam">
-                  <span className={profile.gallonsOnLoan >= 3 ? 'text-red-600' : ''}>
-                    {profile.gallonsOnLoan}
-                  </span>
+                  {profile.gallonsOnLoan == null ? (
+                    '—'
+                  ) : (
+                    <span className={profile.gallonsOnLoan >= 3 ? 'text-red-600' : ''}>
+                      {profile.gallonsOnLoan}
+                    </span>
+                  )}
                 </Stat>
               </div>
 

@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Lock, Info, Wallet, CheckCircle, Warning, LinkSimple } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, Money } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Money } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -101,10 +101,7 @@ function PaymentReconBody() {
   // REAL — network revenue by method (payment-service). Falls back to 0 while loading /
   // if the role is not permitted to read the HQ aggregate.
   const methods = useAsync<UnsettledMethodBucket[]>(
-    () =>
-      api
-        .get<UnsettledMethodBucket[]>(endpoints.payments.revenueByMethod(), true)
-        .catch(() => [] as UnsettledMethodBucket[]),
+    () => api.get<UnsettledMethodBucket[]>(endpoints.payments.revenueByMethod(), true),
     [],
   );
   const rows = methods.data ?? [];
@@ -121,6 +118,10 @@ function PaymentReconBody() {
           </p>
         </div>
       </div>
+
+      {methods.error && !methods.loading ? (
+        <ErrorState message={methods.error} onRetry={methods.reload} />
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <MethodCard label="COD" value={methodTotal(rows, 'CASH')} loading={methods.loading} />

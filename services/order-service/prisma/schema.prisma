@@ -71,6 +71,10 @@ model Order {
   longitude     Float?
   notes         String?
 
+  /// Customer's preferred delivery time-window, a free-form client label
+  /// (e.g. "2026-07-20 09:00-12:00"). Not slot-checked — display/reference only.
+  deliveryWindow String?
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 
@@ -88,6 +92,11 @@ model Order {
   @@index([customerId])
   @@index([status])
   @@index([depotId])
+  // Reporting + paginated list all filter/sort on createdAt; composites back the
+  // status- and depot-scoped report predicates (audit DB-3).
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([depotId, createdAt])
   @@map("orders")
 }
 

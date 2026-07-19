@@ -88,14 +88,30 @@ export class CheckoutDto {
   @IsString()
   @MaxLength(40)
   voucherCode?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-07-20 09:00-12:00',
+    description: 'Optional customer-preferred delivery time-window (free-form label, not slot-checked).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  deliveryWindow?: string;
 }
 
 export class ListOrdersQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  // Bound the OFFSET skip: page*limit is a keyset-free offset, so an unbounded page
+  // (page=1e6) would make Postgres walk ~100M rows. With limit<=100 and the
+  // (status|depot, createdAt) composite indexes, page<=1000 caps the skip at ~100k
+  // rows (sub-100ms index walk). No list UI paginates past page 1, so this is a pure
+  // DoS guard. ponytail: bounded offset; swap to a cursor param only if an
+  // infinite-scroll UI ever needs to page deeper than this (DB-6).
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })

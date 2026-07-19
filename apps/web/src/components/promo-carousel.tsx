@@ -101,9 +101,17 @@ export function PromoCarousel() {
   const second = data[1];
 
   return (
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2" aria-label={t('home.promo.aria')}>
-      <TealCard promo={first} />
-      {second && <AmberCard promo={second} />}
+    <section className="flex flex-col gap-3" aria-label={t('home.promo.aria')}>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <TealCard promo={first} />
+        {second && <AmberCard promo={second} />}
+      </div>
+      {/* ponytail: only link out when the carousel doesn't already show every promo */}
+      {data.length > 2 && (
+        <Link href="/promo" className="self-end text-sm font-extrabold text-brand-700 hover:underline">
+          {t('home.promo.seeAll')}
+        </Link>
+      )}
     </section>
   );
 }

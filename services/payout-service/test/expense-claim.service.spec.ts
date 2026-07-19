@@ -184,4 +184,33 @@ describe('ExpenseClaimService', () => {
   it('throws for an unknown claim id', async () => {
     await expect(service.approve('nope', REVIEWER)).rejects.toBeInstanceOf(ExpenseClaimNotFoundError);
   });
+
+  it('cannot reject a claim that is not pending', async () => {
+    const claim = await service.submit(COURIER, input(25000)); // auto-approved
+    await expect(service.reject(claim.id, REVIEWER)).rejects.toBeInstanceOf(
+      ExpenseClaimNotPendingError,
+    );
+  });
+
+  it('paginates a courier own claims', async () => {
+    await service.submit(COURIER, input(80000));
+    await service.submit(COURIER, input(90000));
+    const page = await service.listForCourier(COURIER, 1, 10);
+    expect(page).toMatchObject({ page: 1, limit: 10, total: 2, totalPages: 1 });
+    expect(page.items).toHaveLength(2);
+  });
+
+  it('searches depot claims filtered by status', async () => {
+    const pending = await service.submit(COURIER, input(80000)); // PENDING
+    await service.reject(pending.id, REVIEWER); // -> REJECTED
+    await service.submit(COURIER, input(70000)); // PENDING
+
+    const rejected = await service.searchForDepot('depot-1', 'REJECTED', 1, 10);
+    expect(rejected.total).toBe(1);
+    expect(rejected.items[0].status).toBe('REJECTED');
+
+    // Null filters return everything for the depot.
+    const all = await service.searchForDepot(null, null, 1, 10);
+    expect(all.total).toBe(2);
+  });
 });

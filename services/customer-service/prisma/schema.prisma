@@ -64,6 +64,9 @@ model Address {
   updatedAt     DateTime @updatedAt
 
   @@index([customerId])
+  // Audit DB-2: a partial UNIQUE index enforcing one primary per customer is added by
+  // migration 20260718141000_one_primary_address (Prisma can't express a partial
+  // unique index here). Pairs with the transactional AddressRepository.setPrimaryExclusive.
   @@map("addresses")
 }
 
@@ -83,7 +86,23 @@ model SavedPaymentMethod {
   updatedAt        DateTime         @updatedAt
 
   @@index([customerId])
+  // Audit (DB-2 pattern): a partial UNIQUE index enforcing one default per customer is
+  // added by migration 20260718150000_one_default_payment_method (Prisma can't express a
+  // partial unique index here). Pairs with PaymentMethodRepository.setDefaultExclusive.
   @@map("saved_payment_methods")
+}
+
+/// A favorited (wishlisted) product. One row per (customer, product). Scoped to the
+/// caller's customerId; productId references a product owned by another service.
+model Favorite {
+  id         String   @id @default(uuid())
+  customerId String
+  productId  String
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+  @@index([customerId])
+  @@map("favorites")
 }
 
 /// Per-customer notification channel preferences (PRD §27).

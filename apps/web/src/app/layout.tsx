@@ -35,6 +35,16 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="id" className={jakarta.variable}>
+      <head>
+        {/* No-flash theme bootstrap: stamp data-theme before first paint so a saved
+            light/dark choice doesn't flash the OS theme. Mirrors applyAttr() in
+            theme-context.tsx; `system`/absent falls through to the CSS media query. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('hydromart.theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="min-h-[100dvh] overflow-x-hidden">
         <ThemeProvider>
           <LocaleProvider>

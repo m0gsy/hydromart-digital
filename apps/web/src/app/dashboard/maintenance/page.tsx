@@ -12,10 +12,7 @@ import { can } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useAsync } from '@/lib/use-async';
-import type { MaintenanceItem, MaintenanceStatus } from '@/lib/types';
-
-const inputClass =
-  'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
+import type { MaintenanceItem } from '@/lib/types';
 
 /** Days between now and nextDueAt — drives the SOON "N hari lagi" label. */
 function daysUntil(iso: string): number {

@@ -8,9 +8,10 @@ import { InventoryPort, SoldLine } from '../../application/ports/inventory.port'
 
 /**
  * Deducts sold quantities from the fulfilling depot's PRODUK stock on the
- * depot-service when an order completes. Fails OPEN: any error (depot-service
- * down, non-2xx, missing token) logs and returns, so completing an order is
- * never blocked. depot-service skips products it does not stock.
+ * depot-service when an order completes. Authenticated service-to-service with the
+ * shared INTERNAL_SERVICE_KEY (SEC-2) — not a forwarded end-user token. Fails OPEN:
+ * any error (depot-service down, non-2xx, no key) logs and returns, so completing an
+ * order is never blocked. depot-service skips products it does not stock.
  */
 @Injectable()
 export class InventoryHttpAdapter implements InventoryPort {
@@ -19,14 +20,24 @@ export class InventoryHttpAdapter implements InventoryPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
+  /** Internal-key header for depot-service stock calls, or null when unconfigured (skip). */
+  private internalHeaders(): Record<string, string> | null {
+    const key = this.config.internalServiceKey;
+    if (!key) {
+      return null;
+    }
+    return { 'content-type': 'application/json', 'x-internal-key': key };
+  }
+
   async consume(
     depotId: string,
     orderId: string,
     items: SoldLine[],
-    authorization: string,
+    _authorization: string,
   ): Promise<void> {
-    if (!authorization) {
-      this.logger.warn(`No caller token; skipped stock consume for order ${orderId}`);
+    const headers = this.internalHeaders();
+    if (!headers) {
+      this.logger.warn(`No internal key; skipped stock consume for order ${orderId}`);
       return;
     }
     if (items.length === 0) {
@@ -38,7 +49,7 @@ export class InventoryHttpAdapter implements InventoryPort {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
+        headers,
         body: JSON.stringify({ orderId, items }),
         signal: controller.signal,
       });
@@ -58,10 +69,11 @@ export class InventoryHttpAdapter implements InventoryPort {
     depotId: string,
     orderId: string,
     items: SoldLine[],
-    authorization: string,
+    _authorization: string,
   ): Promise<void> {
-    if (!authorization || items.length === 0) {
-      return; // no token / nothing to reserve — fail open
+    const headers = this.internalHeaders();
+    if (!headers || items.length === 0) {
+      return; // no key / nothing to reserve — fail open
     }
     const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/reserve`;
     const controller = new AbortController();
@@ -69,7 +81,7 @@ export class InventoryHttpAdapter implements InventoryPort {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
+        headers,
         body: JSON.stringify({ orderId, items }),
         signal: controller.signal,
       });
@@ -97,9 +109,10 @@ export class InventoryHttpAdapter implements InventoryPort {
     depotId: string,
     orderId: string,
     items: SoldLine[],
-    authorization: string,
+    _authorization: string,
   ): Promise<void> {
-    if (!authorization || items.length === 0) {
+    const headers = this.internalHeaders();
+    if (!headers || items.length === 0) {
       return;
     }
     const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/release`;
@@ -108,7 +121,7 @@ export class InventoryHttpAdapter implements InventoryPort {
     try {
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
+        headers,
         body: JSON.stringify({ orderId, items }),
         signal: controller.signal,
       });

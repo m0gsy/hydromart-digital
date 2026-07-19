@@ -11,9 +11,17 @@ import {
   PaymentStatusPatch,
   UnsettledMethodAggregate,
 } from '../../application/ports/payment.repository';
+import { PaymentAlreadyExistsError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
 
 type Decimalish = { toNumber(): number };
+
+/** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002'
+  );
+}
 
 interface PaymentRow {
   id: string;
@@ -68,8 +76,19 @@ export class PaymentPrismaRepository implements PaymentRepository {
   }
 
   async create(data: CreatePaymentData): Promise<PaymentRecord> {
-    const row = await this.prisma.payment.create({ data });
-    return this.toRecord(row);
+    try {
+      const row = await this.prisma.payment.create({ data });
+      return this.toRecord(row);
+    } catch (error) {
+      // Audit DB-1: the partial unique index (one active PENDING/PAID payment per
+      // order) is the real guard against the initiate() check-then-act race; the
+      // loser of a concurrent double-initiate hits P2002 here — translate it to the
+      // same conflict the pre-check raises so a race can never double-create.
+      if (isUniqueViolation(error)) {
+        throw new PaymentAlreadyExistsError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<PaymentRecord | null> {

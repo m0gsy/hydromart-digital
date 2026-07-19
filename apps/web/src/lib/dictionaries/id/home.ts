@@ -40,6 +40,7 @@ export const home = {
     copyCode: 'Salin kode',
     copied: 'Tersalin',
     shopNow: 'Belanja sekarang',
+    seeAll: 'Lihat semua promo',
   },
   loyalty: {
     membership: 'Membership',

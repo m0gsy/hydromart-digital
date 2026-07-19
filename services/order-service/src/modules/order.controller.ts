@@ -84,6 +84,7 @@ export class OrderController {
           notes: dto.deliveryAddress.notes ?? null,
         },
         voucherCode: dto.voucherCode ?? null,
+        deliveryWindow: dto.deliveryWindow ?? null,
       },
       authorization,
     );
@@ -297,6 +298,21 @@ export class OrderController {
   ): Promise<{ orderId: string }> {
     await this.orders.recordRefund(id, dto.amount);
     return { orderId: id };
+  }
+
+  // Service-to-service: payment-service validates a client-supplied payment amount
+  // against the authoritative order total before charging (SEC-1, price-tampering).
+  // Internal key auth, same fail-closed path as internal-confirm.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get(':id/internal-total')
+  @ApiOperation({ summary: 'Read an order total for payment validation (internal service auth)' })
+  async internalTotal(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ orderId: string; total: number }> {
+    const order = await this.orders.getAny(id);
+    return { orderId: order.id, total: order.total };
   }
 
   // Service-to-service: delivery-service reads a courier's mean rating over the orders

@@ -7,7 +7,8 @@ import { envValidationSchema } from './config/env.validation';
 
 // ponytail: no ThrottlerModule/swagger/auth guards — every route is an
 // Express-level proxy, so Nest guards/filters would never fire on them.
-// RATE_LIMIT_* stays in config for a future edge rate-limiter.
+// The edge rate-limiter (express-rate-limit, reads RATE_LIMIT_*) is wired at the
+// Express layer in gateway.setup.ts, ahead of the proxies (SEC-3).
 @Module({
   imports: [
     ConfigModule.forRoot({

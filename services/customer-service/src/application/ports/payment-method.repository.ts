@@ -27,6 +27,8 @@ export interface PaymentMethodRepository {
   /** Clear the default flag on all of a customer's methods. */
   unsetDefault(customerId: string): Promise<void>;
   markDefault(customerId: string, id: string): Promise<void>;
+  /** Clear-all then set-one in a single transaction so "exactly one default" holds under a race. */
+  setDefaultExclusive(customerId: string, id: string): Promise<void>;
   delete(customerId: string, id: string): Promise<void>;
   /** Most recently created method, optionally excluding one id (promote-on-delete). */
   findMostRecent(customerId: string, exceptId?: string): Promise<PaymentMethodRecord | null>;

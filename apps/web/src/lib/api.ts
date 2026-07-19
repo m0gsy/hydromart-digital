@@ -39,13 +39,11 @@ interface RequestOptions {
 let refreshing: Promise<Session | null> | null = null;
 
 async function refreshSession(): Promise<Session | null> {
-  const session = getSession();
-  if (!session?.refreshToken) return null;
+  // The refresh token rides in an httpOnly cookie the gateway reads — nothing to send.
+  // If we hold no cached session there's no cookie to refresh against either.
+  if (!getSession()) return null;
   if (!refreshing) {
-    refreshing = rawRequest<Session>(endpoints.auth.refresh, {
-      method: 'POST',
-      body: { refreshToken: session.refreshToken },
-    })
+    refreshing = rawRequest<Session>(endpoints.auth.refresh, { method: 'POST' })
       .then((next) => {
         setSession(next);
         return next;
@@ -62,19 +60,19 @@ async function refreshSession(): Promise<Session | null> {
 }
 
 async function rawRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, auth = false } = options;
+  const { method = 'GET', body } = options;
   const headers: Record<string, string> = {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (auth) {
-    const token = getSession()?.accessToken;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
 
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method,
       headers,
+      // SEC-4: the session cookie is httpOnly, so it only travels when the browser is
+      // told to send credentials. No Authorization header — the gateway attaches the
+      // bearer from the cookie downstream.
+      credentials: 'include',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -112,13 +110,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export async function uploadFile<T = { url: string }>(path: string, file: File | Blob): Promise<T> {
   const form = new FormData();
   form.append('file', file);
-  const token = getSession()?.accessToken;
 
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      // SEC-4: httpOnly session cookie carries auth; let the browser set the multipart boundary.
+      credentials: 'include',
       body: form,
     });
   } catch {

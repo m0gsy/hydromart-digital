@@ -81,8 +81,7 @@ export class AddressService {
 
   async setPrimary(customerId: string, id: string): Promise<AddressRecord> {
     await this.getOrThrow(customerId, id);
-    await this.addresses.unsetPrimary(customerId);
-    await this.addresses.markPrimary(customerId, id);
+    await this.addresses.setPrimaryExclusive(customerId, id);
     return this.getOrThrow(customerId, id);
   }
 

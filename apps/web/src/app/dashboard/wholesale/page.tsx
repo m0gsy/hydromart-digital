@@ -23,9 +23,6 @@ import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { WholesaleTier } from '@/lib/types';
 
-const inputClass =
-  'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
-
 /** "1–9 galon" / "50+ galon" from a tier's quantity band. */
 function rangeLabel(tier: WholesaleTier): string {
   return tier.maxQty == null ? `${tier.minQty}+ galon` : `${tier.minQty}–${tier.maxQty} galon`;

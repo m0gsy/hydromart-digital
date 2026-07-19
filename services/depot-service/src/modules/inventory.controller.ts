@@ -8,10 +8,17 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Public, Role, Roles } from '@hydromart/platform';
+import {
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  Roles,
+} from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { InventoryService, ItemView, WastageSummary } from '../application/services/inventory.service';
@@ -27,25 +34,11 @@ import {
   WastageQueryDto,
 } from './dto/inventory.dto';
 
-// Stock consumption is triggered by order completion, which a driver can perform,
-// so the forwarded completing-staff token may be a DRIVER.
-const INVENTORY_CONSUME_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.SUPER_ADMIN,
-] as const;
-// Reserve/release are driven by checkout/cancel, which the customer performs, so the
-// forwarded token may be a CUSTOMER. NOTE (MVP ceiling, same as promo/referral): this
-// trusts the forwarded token — a customer could hold stock against invented order ids;
-// proper hardening is service-to-service auth.
-const INVENTORY_RESERVE_ROLES = [
-  Role.CUSTOMER,
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
-  Role.SUPER_ADMIN,
-] as const;
+// SEC-2: reserve/consume/release are service-to-service (order-service on checkout /
+// cancel / completion), NOT end-user actions. They authenticate with the shared
+// INTERNAL_SERVICE_KEY (fail-closed InternalAuthGuard) instead of trusting a forwarded
+// customer/driver token — closing the stock-DoS and irreversible-deduct vectors.
+const INVENTORY_ACTOR = 'order-service';
 
 /** Stock lines nested under a depot (create + list). */
 @ApiTags('Inventory')
@@ -110,33 +103,35 @@ export class DepotInventoryController {
     });
   }
 
-  @Roles(...INVENTORY_CONSUME_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('consume')
-  @ApiOperation({ summary: 'Deduct sold quantities from PRODUK stock on order completion' })
+  @ApiOperation({ summary: 'Deduct sold quantities from PRODUK stock on order completion (internal service auth)' })
   consume(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
-    @CurrentUser() user: AuthenticatedUser,
-    @Headers('authorization') authorization: string,
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
-    return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, user.sub, authorization);
+    return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
   }
 
-  @Roles(...INVENTORY_RESERVE_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('reserve')
-  @ApiOperation({ summary: 'Hold PRODUK stock for an order at checkout (rejects on insufficient stock)' })
+  @ApiOperation({ summary: 'Hold PRODUK stock for an order at checkout (internal service auth)' })
   reserve(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
-    @CurrentUser() user: AuthenticatedUser,
-    @Headers('authorization') authorization: string,
   ): Promise<{ orderId: string; depotId: string; reserved: string[]; skipped: string[] }> {
-    return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, user.sub, authorization);
+    return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
   }
 
-  @Roles(...INVENTORY_RESERVE_ROLES)
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('release')
-  @ApiOperation({ summary: "Release an order's PRODUK stock holds on cancellation" })
+  @ApiOperation({ summary: "Release an order's PRODUK stock holds on cancellation (internal service auth)" })
   release(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,

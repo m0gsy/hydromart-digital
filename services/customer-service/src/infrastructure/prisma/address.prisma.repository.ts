@@ -46,6 +46,18 @@ export class AddressPrismaRepository implements AddressRepository {
     await this.prisma.address.updateMany({ where: { id, customerId }, data: { isPrimary: true } });
   }
 
+  async setPrimaryExclusive(customerId: string, id: string): Promise<void> {
+    // Audit DB-2: clear-all then set-one in one transaction so the invariant
+    // "exactly one primary" holds even under a crash/concurrent setPrimary.
+    await this.prisma.$transaction([
+      this.prisma.address.updateMany({
+        where: { customerId, isPrimary: true },
+        data: { isPrimary: false },
+      }),
+      this.prisma.address.updateMany({ where: { id, customerId }, data: { isPrimary: true } }),
+    ]);
+  }
+
   async delete(customerId: string, id: string): Promise<void> {
     await this.prisma.address.deleteMany({ where: { id, customerId } });
   }

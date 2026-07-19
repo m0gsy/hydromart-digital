@@ -11,8 +11,7 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { PaymentModule } from '../../src/modules/payment.module';
 import { PAYMENT_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
-import { FakeGateway, InMemoryPaymentRepository } from '../support/fakes';
+import { FakeGateway, FakeOrderCoordination, InMemoryPaymentRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 
@@ -29,8 +28,6 @@ describe('Payment HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',
@@ -55,6 +52,11 @@ describe('Payment HTTP flows (e2e)', () => {
       .useValue(new InMemoryPaymentRepository())
       .overrideProvider(PAYMENT_TOKENS.PaymentGateway)
       .useValue(new FakeGateway())
+      // Keep the e2e hermetic: the real coordination adapter would try a live
+      // order-service fetch (SEC-1 total lookup) if ORDER_SERVICE_URL/INTERNAL_SERVICE_KEY
+      // leak in from the environment. The fake returns null → validation skipped.
+      .overrideProvider(PAYMENT_TOKENS.OrderCoordination)
+      .useValue(new FakeOrderCoordination())
       .compile();
 
     app = moduleRef.createNestApplication();

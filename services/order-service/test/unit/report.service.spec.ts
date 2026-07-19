@@ -205,7 +205,9 @@ describe('ReportService', () => {
     expect(rep.gallonsDelivered).toBe(6); // 3 + 3 on the two delivered orders
     expect(rep.failedDeliveries).toBe(1); // the cancelled order
     expect(rep.perCourier).toEqual([]); // TODO: delivery-service join
-    expect(rep.codCollectedIdr).toBe(0);
+    expect(rep.codCollectedIdr).toBeNull(); // unwired: payment COD not joinable here
+    expect(rep.gallonsReturned).toBeNull();
+    expect(rep.gallonsDamaged).toBeNull();
   });
 
   it('composes a depot weekly report: revenueByDay, topProducts and a driverName topCourier', async () => {
@@ -314,5 +316,32 @@ describe('ReportService', () => {
     expect(rep.topCourier).toEqual({ name: 'Budi', delivered: 2 });
     expect(rep.netProfitIdr).toBeNull();
     expect(rep.slaPct).toBeNull();
+  });
+
+  it('sums shipping billed per depot, ignoring unrouted orders', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 5000 });
+    await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 7000 });
+    await r.create({ ...orderData({ depotId: null, total: 10000 }), deliveryFee: 9000 }); // unrouted, excluded
+
+    const { items } = await svc.shippingByDepot({});
+    expect(items).toEqual([{ depotId: depot, shippingBilled: 12000 }]);
+  });
+
+  it('averages ratings per depot from real reviews', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    const review = async (rating: number) => {
+      const o = await r.create(orderData({ depotId: depot }));
+      await r.createReview({ orderId: o.id, customerId: o.customerId, rating, aspects: [], comment: null, tipAmount: 0 });
+    };
+    await review(5);
+    await review(3);
+
+    const { items } = await svc.ratingByDepot({});
+    expect(items).toEqual([{ depotId: depot, rating: 4, reviewCount: 2 }]);
   });
 });

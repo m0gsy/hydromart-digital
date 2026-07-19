@@ -28,11 +28,10 @@ export interface Customer {
   createdAt: string;
 }
 
+// SEC-4: the access/refresh tokens now live in httpOnly cookies the gateway sets and
+// reads — JS never sees them. The client-visible session is just the cached profile;
+// the cookie is the real credential (validated on every request server-side).
 export interface Session {
-  tokenType: 'Bearer';
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string;
   customer: Customer;
 }
 
@@ -1638,11 +1637,12 @@ export interface DepotCustomer {
   fullName: string | null;
   phone: string | null;
   membershipTier: string;
-  orderCount: number;
-  gallonsOnLoan: number;
-  depositHeldIdr: number;
+  // null = aggregate not computed yet (cross-service unwired); render as "—".
+  orderCount: number | null;
+  gallonsOnLoan: number | null;
+  depositHeldIdr: number | null;
   lastOrderAt: string | null;
-  isSubscriber: boolean;
+  isSubscriber: boolean | null;
 }
 
 export interface DepotCustomerAddress {
@@ -1682,11 +1682,12 @@ export interface DepotCustomerDetail {
     fullName: string | null;
     phone: string | null;
     membershipTier: string;
-    isSubscriber: boolean;
-    orderCount: number;
-    totalSpentIdr: number;
-    gallonsOnLoan: number;
-    depositHeldIdr: number;
+    // null = aggregate not computed yet (cross-service unwired); render as "—".
+    isSubscriber: boolean | null;
+    orderCount: number | null;
+    totalSpentIdr: number | null;
+    gallonsOnLoan: number | null;
+    depositHeldIdr: number | null;
     churnRisk: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   };
   addresses: DepotCustomerAddress[];
@@ -1710,9 +1711,11 @@ export interface DepotDailyReport {
   orders: number;
   revenueIdr: number;
   gallonsDelivered: number;
-  gallonsReturned: number;
-  gallonsDamaged: number;
-  codCollectedIdr: number;
+  // null = order-service can't join the source yet (depot gallon-returns / payment COD);
+  // render "—", never a fabricated 0.
+  gallonsReturned: number | null;
+  gallonsDamaged: number | null;
+  codCollectedIdr: number | null;
   failedDeliveries: number;
   perCourier: DepotDailyCourier[];
 }

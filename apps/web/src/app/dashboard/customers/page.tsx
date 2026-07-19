@@ -32,11 +32,12 @@ function Avatar({ name }: { name: string | null }) {
   );
 }
 
-function GallonCell({ gallons, deposit }: { gallons: number; deposit: number }) {
-  if (gallons === 0) return <span className="text-[color:var(--text-muted)]">—</span>;
+function GallonCell({ gallons, deposit }: { gallons: number | null; deposit: number | null }) {
+  if (!gallons) return <span className="text-[color:var(--text-muted)]">—</span>;
   return (
     <span className={gallons >= HIGH_LOAN ? 'font-semibold text-red-600' : ''}>
-      {gallons} · {formatIDR(deposit)}
+      {gallons}
+      {deposit != null && ` · ${formatIDR(deposit)}`}
     </span>
   );
 }
@@ -61,7 +62,7 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
           <p className="truncate text-xs text-[color:var(--text-muted)]">{c.phone ?? '—'}</p>
         </div>
       </div>
-      <span className="tabular-nums">{c.orderCount}</span>
+      <span className="tabular-nums">{c.orderCount ?? '—'}</span>
       <GallonCell gallons={c.gallonsOnLoan} deposit={c.depositHeldIdr} />
       <span className="text-[color:var(--text-muted)]">
         {c.lastOrderAt ? formatDateTime(c.lastOrderAt) : '—'}

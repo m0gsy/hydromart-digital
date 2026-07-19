@@ -120,6 +120,22 @@ describe('OrderService', () => {
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
   });
 
+  it('round-trips an optional delivery window, defaulting to null when omitted', async () => {
+    await addToCart(20000, 1);
+    const withWindow = await service.checkout(customer, {
+      deliveryAddress: address,
+      deliveryWindow: '2026-07-20 09:00-12:00',
+    });
+    expect(withWindow.deliveryWindow).toBe('2026-07-20 09:00-12:00');
+    expect((await service.getForCustomer(customer, withWindow.id)).deliveryWindow).toBe(
+      '2026-07-20 09:00-12:00',
+    );
+
+    await addToCart(20000, 1);
+    const without = await service.checkout(customer, { deliveryAddress: address });
+    expect(without.deliveryWindow).toBeNull();
+  });
+
   it('clears the cart after a successful checkout', async () => {
     await addToCart(20000, 1);
     await service.checkout(customer, { deliveryAddress: address });
@@ -735,5 +751,77 @@ describe('OrderService', () => {
     await addToCart(20000, 1);
     await service.checkout(customer, { deliveryAddress: address }); // no coords → unrouted
     expect(pricing.calls).toHaveLength(0);
+  });
+
+  const coordAddress: DeliveryAddressSnapshot = { ...address, latitude: -6.91, longitude: 107.61 };
+
+  it('placeScheduled routes to a depot: reserves stock, uses depot pricing and the discount rate', async () => {
+    depots.depots = [
+      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+    ];
+    const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    pricing.setPrice('depot-near', p.id, 22000); // depot sells at 22000
+
+    const order = await service.placeScheduled(
+      customer,
+      [{ productId: p.id, quantity: 2 }],
+      coordAddress,
+      0.05, // 5% subscription discount
+    );
+
+    expect(order.depotId).toBe('depot-near');
+    expect(order.subtotal).toBe(44000); // 22000 × 2 (depot price, not catalog base)
+    expect(order.discount).toBe(2200); // 5% of 44000
+    expect(order.deliveryFee).toBe(5000 * 2); // 2 galons
+    expect(order.total).toBe(44000 + 10000 - 2200);
+    // routed → stock reserved for oversell prevention
+    expect(inventory.reserveCalls).toHaveLength(1);
+    expect(inventory.reserveCalls[0]).toMatchObject({ depotId: 'depot-near', orderId: order.id });
+    expect(inventory.reserveCalls[0].items).toEqual([{ productId: p.id, quantity: 2 }]);
+  });
+
+  it('placeScheduled rejects an empty line list', async () => {
+    await expect(
+      service.placeScheduled(customer, [], coordAddress, 0),
+    ).rejects.toBeInstanceOf(EmptyCartError);
+  });
+
+  const deliver = async (): Promise<string> => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    for (const s of [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+    ]) {
+      await service.updateStatus(order.id, s, 'staff');
+    }
+    return order.id;
+  };
+
+  it('getReview returns null before a review exists, then the review once submitted', async () => {
+    const orderId = await deliver();
+    expect(await service.getReview(customer, orderId)).toBeNull();
+
+    await service.reviewOrder(customer, orderId, { rating: 5, aspects: [], comment: 'Cepat' });
+    const review = await service.getReview(customer, orderId);
+    expect(review).toMatchObject({ rating: 5, comment: 'Cepat' });
+  });
+
+  it('getReview enforces ownership (404 for another customer)', async () => {
+    const orderId = await deliver();
+    await expect(
+      service.getReview(randomUUID(), orderId),
+    ).rejects.toBeInstanceOf(OrderNotFoundError);
+  });
+
+  it('recordRefund persists a refund amount and 404s on an unknown order', async () => {
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    await expect(service.recordRefund(order.id, 15000)).resolves.toBeUndefined();
+    await expect(service.recordRefund(randomUUID(), 15000)).rejects.toBeInstanceOf(OrderNotFoundError);
   });
 });

@@ -38,6 +38,11 @@ describe('Delivery HTTP flows (e2e)', () => {
   const driverId = randomUUID();
 
   beforeAll(async () => {
+    process.env.DELIVERY_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.JWT_ACCESS_SECRET = SECRET;
+    process.env.ORDER_SERVICE_URL = "http://localhost:3004";
+    process.env.DEPOT_SERVICE_URL = "http://localhost:3007";
+    process.env.PAYMENT_SERVICE_URL = "http://localhost:3005";
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       imports: [

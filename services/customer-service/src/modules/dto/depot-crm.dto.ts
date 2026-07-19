@@ -30,16 +30,16 @@ export class DepotCustomerDto {
   phone!: string | null;
   @ApiProperty({ enum: MembershipTier })
   membershipTier!: MembershipTier;
-  @ApiProperty({ example: 0 })
-  orderCount!: number;
-  @ApiProperty({ example: 0 })
-  gallonsOnLoan!: number;
-  @ApiProperty({ example: 0 })
-  depositHeldIdr!: number;
+  @ApiProperty({ nullable: true, example: null, description: 'null while cross-service aggregate is unwired.' })
+  orderCount!: number | null;
+  @ApiProperty({ nullable: true, example: null })
+  gallonsOnLoan!: number | null;
+  @ApiProperty({ nullable: true, example: null })
+  depositHeldIdr!: number | null;
   @ApiProperty({ nullable: true, example: null })
   lastOrderAt!: string | null;
-  @ApiProperty({ example: false })
-  isSubscriber!: boolean;
+  @ApiProperty({ nullable: true, example: null })
+  isSubscriber!: boolean | null;
 }
 
 export class DepotCrmAddressDto {
@@ -102,16 +102,16 @@ export class DepotCustomerDetailProfileDto {
   phone!: string | null;
   @ApiProperty({ enum: MembershipTier })
   membershipTier!: MembershipTier;
-  @ApiProperty({ example: false })
-  isSubscriber!: boolean;
-  @ApiProperty({ example: 0 })
-  orderCount!: number;
-  @ApiProperty({ example: 0 })
-  totalSpentIdr!: number;
-  @ApiProperty({ example: 0 })
-  gallonsOnLoan!: number;
-  @ApiProperty({ example: 0 })
-  depositHeldIdr!: number;
+  @ApiProperty({ nullable: true, example: null, description: 'null while cross-service aggregate is unwired.' })
+  isSubscriber!: boolean | null;
+  @ApiProperty({ nullable: true, example: null })
+  orderCount!: number | null;
+  @ApiProperty({ nullable: true, example: null })
+  totalSpentIdr!: number | null;
+  @ApiProperty({ nullable: true, example: null })
+  gallonsOnLoan!: number | null;
+  @ApiProperty({ nullable: true, example: null })
+  depositHeldIdr!: number | null;
   @ApiProperty({ enum: ['LOW', 'MEDIUM', 'HIGH'], nullable: true })
   churnRisk!: 'LOW' | 'MEDIUM' | 'HIGH' | null;
 }

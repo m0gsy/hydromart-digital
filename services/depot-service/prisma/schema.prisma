@@ -81,6 +81,23 @@ model Depot {
   inventory      InventoryItem[]
   gallonReturns  GallonReturn[]
   gallonIssues   GallonIssue[]
+  // Console/manager models (DB-5): FK back-relations. Config models cascade on depot
+  // delete; financial/audit models (POs, approvals, cashbook, disputes) restrict.
+  priceOverrideProposals PriceOverrideProposal[]
+  pricingRules           PricingRule[]
+  incidents              Incident[]
+  suppliers              Supplier[]
+  purchaseOrders         PurchaseOrder[]
+  approvals              Approval[]
+  shiftAssignments       ShiftAssignment[]
+  depotTargets           DepotTarget[]
+  cashbookEntries        CashbookEntry[]
+  orderDisputes          OrderDispute[]
+  maintenanceItems       MaintenanceItem[]
+  wholesaleTiers         WholesaleTier[]
+  subscriptions          Subscription[]
+  huddleNotes            HuddleNote[]
+  shiftHandovers         ShiftHandover[]
 
   @@index([active])
   @@index([ownershipType])
@@ -168,8 +185,11 @@ model InventoryItem {
   movements    StockMovement[]
   reservations StockReservation[]
 
-  // Best-effort DB uniqueness. Non-PRODUK singletons (productId NULL) are also
-  // enforced in the service layer since Postgres treats NULLs as distinct.
+  // Best-effort DB uniqueness for PRODUK lines (productId set). Non-PRODUK singletons
+  // (productId NULL) slip past this because Postgres treats NULLs as distinct — they're
+  // now also enforced by a partial unique index on (depotId, itemType) WHERE productId IS
+  // NULL, added in migration 20260718170000_inventory_singleton_unique (DB-11; Prisma DSL
+  // can't express a partial unique index, so it lives in raw SQL there).
   @@unique([depotId, itemType, productId])
   @@index([depotId])
   @@map("inventory_items")
@@ -277,6 +297,7 @@ enum PriceOverrideStatus {
 model PriceOverrideProposal {
   id           String              @id @default(uuid()) @db.Uuid
   depotId      String              @db.Uuid
+  depot        Depot               @relation(fields: [depotId], references: [id], onDelete: Cascade)
   depotName    String
   productId    String              @db.Uuid
   productName  String
@@ -302,6 +323,7 @@ model PriceOverrideProposal {
 model PricingRule {
   id          String            @id @default(uuid()) @db.Uuid
   depotId     String            @db.Uuid
+  depot       Depot             @relation(fields: [depotId], references: [id], onDelete: Cascade)
   productId   String?           @db.Uuid
   adjustType  PricingAdjustType
   value       Decimal           @db.Decimal(12, 2)
@@ -347,6 +369,7 @@ enum IncidentStatus {
 model Incident {
   id             String           @id @default(uuid()) @db.Uuid
   depotId        String           @db.Uuid
+  depot          Depot            @relation(fields: [depotId], references: [id], onDelete: Cascade)
   type           IncidentType
   severity       IncidentSeverity
   status         IncidentStatus   @default(OPEN)
@@ -382,6 +405,7 @@ enum PoStatus {
 model Supplier {
   id           String   @id @default(uuid()) @db.Uuid
   depotId      String   @db.Uuid
+  depot        Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
   name         String
   /// Short human code, unique within a depot.
   code         String
@@ -404,6 +428,7 @@ model Supplier {
 model PurchaseOrder {
   id           String    @id @default(uuid()) @db.Uuid
   depotId      String    @db.Uuid
+  depot        Depot     @relation(fields: [depotId], references: [id], onDelete: Restrict)
   /// Human PO reference, unique within a depot (e.g. "PO-A1B2C3D4").
   poNumber     String
   supplierId   String    @db.Uuid
@@ -447,6 +472,7 @@ enum ApprovalStatus {
 model Approval {
   id                String         @id @default(uuid()) @db.Uuid
   depotId           String         @db.Uuid
+  depot             Depot          @relation(fields: [depotId], references: [id], onDelete: Restrict)
   type              ApprovalType
   status            ApprovalStatus @default(PENDING)
   title             String
@@ -483,6 +509,7 @@ enum ShiftKind {
 model ShiftAssignment {
   id        String    @id @default(uuid()) @db.Uuid
   depotId   String    @db.Uuid
+  depot     Depot     @relation(fields: [depotId], references: [id], onDelete: Cascade)
   staffId   String    @db.Uuid
   staffName String
   weekStart String
@@ -502,6 +529,7 @@ model ShiftAssignment {
 model DepotTarget {
   id                 String   @id @default(uuid()) @db.Uuid
   depotId            String   @db.Uuid
+  depot              Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
   /// ISO year-month, e.g. "2026-07".
   month              String
   revenueTargetIdr   Int      @default(0)
@@ -531,6 +559,7 @@ enum CashDirection {
 model CashbookEntry {
   id         String        @id @default(uuid()) @db.Uuid
   depotId    String        @db.Uuid
+  depot      Depot         @relation(fields: [depotId], references: [id], onDelete: Restrict)
   direction  CashDirection
   /// Short category, e.g. "COD", "PO", "KOMISI", "SEWA".
   category   String
@@ -574,6 +603,7 @@ enum DisputeResolution {
 model OrderDispute {
   id             String             @id @default(uuid()) @db.Uuid
   depotId        String             @db.Uuid
+  depot          Depot              @relation(fields: [depotId], references: [id], onDelete: Restrict)
   orderRef       String
   customerName   String
   category       DisputeCategory
@@ -609,6 +639,7 @@ enum MaintenanceStatus {
 model MaintenanceItem {
   id            String            @id @default(uuid()) @db.Uuid
   depotId       String            @db.Uuid
+  depot         Depot             @relation(fields: [depotId], references: [id], onDelete: Cascade)
   name          String
   /// Short category label, e.g. "Filter RO", "Genset".
   category      String
@@ -629,6 +660,7 @@ model MaintenanceItem {
 model WholesaleTier {
   id        String   @id @default(uuid()) @db.Uuid
   depotId   String   @db.Uuid
+  depot     Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
   productId String?  @db.Uuid
   label     String
   /// Inclusive lower bound of the quantity band.
@@ -665,6 +697,7 @@ enum SubscriptionStatus {
 model Subscription {
   id           String              @id @default(uuid()) @db.Uuid
   depotId      String              @db.Uuid
+  depot        Depot               @relation(fields: [depotId], references: [id], onDelete: Cascade)
   customerId   String?             @db.Uuid
   customerName String
   productLabel String
@@ -685,6 +718,7 @@ model Subscription {
 model HuddleNote {
   id          String   @id @default(uuid()) @db.Uuid
   depotId     String   @db.Uuid
+  depot       Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
   /// ISO date of the week's Monday, e.g. "2026-07-14".
   weekStart   String
   heldAt      DateTime @default(now())
@@ -706,6 +740,7 @@ model HuddleNote {
 model ShiftHandover {
   id        String    @id @default(uuid()) @db.Uuid
   depotId   String    @db.Uuid
+  depot     Depot     @relation(fields: [depotId], references: [id], onDelete: Cascade)
   /// e.g. "Pagi", "Sore".
   fromShift String
   toShift   String
