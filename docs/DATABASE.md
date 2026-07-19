@@ -47,6 +47,29 @@ npm run db:migrate            # apply every service's migrations (prisma migrate
 Each migration directory ships a hand-written `rollback.sql` alongside Prisma's
 `migration.sql` for manual, reviewed rollbacks (Prisma has no built-in `down`).
 
+## Adding an enum value (convention)
+
+Adding a value to an existing Prisma `enum` must be its **own dedicated migration** —
+Postgres cannot use a newly added enum value in the same transaction that creates it,
+and Prisma wraps each migration in a transaction. Follow the pattern already used by
+`delivery-service/prisma/migrations/0005_delivery_rescheduled_status` and
+`depot-service/prisma/migrations/0002_add_sale_movement`:
+
+```sql
+-- one ALTER TYPE per migration, idempotent, additive/non-destructive
+ALTER TYPE "DeliveryStatus" ADD VALUE IF NOT EXISTS 'RESCHEDULED';
+```
+
+Rules:
+
+- **One enum add per migration.** Do not mix an `ADD VALUE` with table DDL that
+  references the new value — split them into separate migrations.
+- **`IF NOT EXISTS`** so re-running `migrate deploy` is idempotent.
+- **`rollback.sql`** documents that removing a *shipped* enum value is a data
+  migration (recreate the type without it, re-cast the column once no rows reference
+  it), not a plain DDL undo — Postgres cannot `DROP` a single enum value. See the
+  0005 rollback for the worked example.
+
 ## Notes
 
 - **Schemas are validated in CI** (`db:validate`) but migrations are applied only
