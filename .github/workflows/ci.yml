@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # feat/dep-1-nest11 is temporary: it forces the e2e job to run on this branch's
+    # push (the PR to main is conflict-blocked, so no merge-ref pull_request run).
+    # Remove once the branch merges. ponytail: throwaway trigger, delete on merge.
+    branches: [main, feat/dep-1-nest11]
   pull_request:
     branches: [main]
 
