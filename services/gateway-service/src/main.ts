@@ -3,6 +3,11 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
 
+// Deep import (not the '@hydromart/platform' barrel): the barrel re-exports the
+// JWT guard, transitively pulling @nestjs/jwt — a dep the gateway (pure proxy)
+// deliberately avoids (see gateway.setup.ts). metrics.ts only needs prom-client.
+import { enableMetrics } from '@hydromart/platform/dist/nest/metrics';
+
 import { AppModule } from './app.module';
 import { GatewayConfigService } from './config/gateway-config.service';
 import { configureGateway } from './gateway.setup';
@@ -18,6 +23,7 @@ async function bootstrap(): Promise<void> {
   configureGateway(app, config);
   app.enableShutdownHooks();
 
+  enableMetrics(app, 'gateway-service');
   await app.listen(config.port, '0.0.0.0');
   logger.log(`gateway-service listening on port ${config.port}`, 'Bootstrap');
 }

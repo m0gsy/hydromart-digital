@@ -9,6 +9,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
+import { enableMetrics } from '@hydromart/platform';
+
 import { AppModule } from './app.module';
 import { AuthConfigService } from './config/auth-config.service';
 
@@ -46,6 +48,7 @@ async function bootstrap(): Promise<void> {
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
+  enableMetrics(app, 'auth-service');
   await app.listen(config.port, '0.0.0.0');
   logger.log(`auth-service listening on port ${config.port}`, 'Bootstrap');
 }

@@ -1,0 +1,62 @@
+name: Deploy
+
+# Deploys to the single production VPS by SSHing in and running scripts/deploy.sh,
+# which rebuilds only changed services (serial, memory-safe), health-checks the
+# gateway, and auto-rolls-back on failure.
+#
+# Fires automatically only after the CI workflow succeeds on main, so a red build
+# never reaches prod. Also exposes a manual button for force-full-deploy and for
+# rollback.
+#
+# Required repo secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY (private key),
+# and VPS_REPO_PATH (absolute path to the checkout on the box).
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "deploy (changed), deploy-all (force full), or rollback"
+        type: choice
+        default: deploy
+        options: [deploy, deploy-all, rollback]
+      sha:
+        description: "rollback target SHA (blank = previous good)"
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Auto-runs only on a green CI; manual dispatch always allowed.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Resolve command
+        id: cmd
+        run: |
+          case "${{ github.event.inputs.mode }}" in
+            rollback)    echo "run=bash scripts/rollback.sh ${{ github.event.inputs.sha }}" >> "$GITHUB_OUTPUT" ;;
+            deploy-all)  echo "run=bash scripts/deploy.sh --all" >> "$GITHUB_OUTPUT" ;;
+            *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 40m
+          script: |
+            set -e
+            cd "${{ secrets.VPS_REPO_PATH }}"
+            ${{ steps.cmd.outputs.run }}
