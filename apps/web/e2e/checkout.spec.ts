@@ -16,8 +16,12 @@ import { loginWithOtp } from './helpers/auth';
 test('an authenticated customer can place an order through manual checkout', async ({ page }) => {
   await loginWithOtp(page);
 
-  // Add the first seeded product to the cart (seeded ids are valid v4 UUIDs).
-  await page.getByRole('button', { name: /tambah|keranjang|add/i }).first().click();
+  // Add the first seeded product to the cart (seeded ids are valid v4 UUIDs). Wait for
+  // the cart write to land before navigating, else /checkout can read an empty cart.
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/cart/items') && r.request().method() === 'POST' && r.ok()),
+    page.getByRole('button', { name: /tambah|keranjang|add/i }).first().click(),
+  ]);
 
   await page.goto('/checkout');
 

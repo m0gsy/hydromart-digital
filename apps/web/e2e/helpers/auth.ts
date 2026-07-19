@@ -11,7 +11,9 @@ export const E2E_PHONE = process.env.E2E_LOGIN_PHONE ?? '81100000001';
 export async function loginWithOtp(page: Page, phone = E2E_PHONE) {
   await page.goto('/login');
   await page.getByPlaceholder('81234567890').fill(phone);
-  await page.getByRole('button', { name: /masuk|lanjut|kirim|sign in|continue/i }).first().click();
+  // The submit label is locale-driven ("Kirim kode" / "Send code"), so target the
+  // form's only submit button by type rather than an accessible-name regex.
+  await page.locator('button[type=submit]').click();
   await expect(page).toHaveURL(/\/verify\?/, { timeout: 15_000 });
 
   const code = await readLatestOtp(phone, 'LOGIN');
