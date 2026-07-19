@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { readLatestOtp } from './helpers/otp';
+import { loginWithOtp } from './helpers/auth';
 
 // The OTP-gated journey smoke.spec deliberately skips: full login through the httpOnly
 // cookie session (SEC-4), then a cookie-authenticated read + an authenticated cart
@@ -10,21 +10,6 @@ import { readLatestOtp } from './helpers/otp';
 // Checkout past the cart is NOT covered here: it is address-gated and the seed creates
 // no customer delivery address / depot-coverage geocoding. That needs fulfilment seed
 // state and belongs in its own spec once seeded.
-
-const PHONE = process.env.E2E_LOGIN_PHONE ?? '81100000001'; // seeded SUPER_ADMIN
-
-async function loginWithOtp(page: import('@playwright/test').Page) {
-  await page.goto('/login');
-  await page.getByPlaceholder('81234567890').fill(PHONE);
-  await page.getByRole('button', { name: /masuk|lanjut|kirim|sign in|continue/i }).first().click();
-  await expect(page).toHaveURL(/\/verify\?/, { timeout: 15_000 });
-
-  const code = await readLatestOtp(PHONE, 'LOGIN');
-  // Focus the first OTP box; typing the whole string cascades across the segmented
-  // inputs and auto-submits on the 6th digit (OtpInput.onComplete).
-  await page.getByLabel('Digit 1').click();
-  await page.keyboard.type(code);
-}
 
 test('OTP login establishes an authenticated cookie session', async ({ page }) => {
   await loginWithOtp(page);
