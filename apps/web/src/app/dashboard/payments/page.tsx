@@ -83,7 +83,6 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
         Gambar QRIS ini ditampilkan ke pelanggan saat pembayaran. Format JPG, PNG, atau WEBP (maks 5MB).
       </p>
       {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt="QRIS depot"

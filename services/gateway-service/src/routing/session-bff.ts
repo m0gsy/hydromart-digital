@@ -63,7 +63,7 @@ async function callAuth(
   authBase: string,
   path: string,
   opts: { token?: string; body?: unknown } = {},
-): Promise<{ status: number; data: any }> {
+): Promise<{ status: number; data: unknown }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
   const res = await fetch(`${authBase}${path}`, {
@@ -75,8 +75,10 @@ async function callAuth(
   return { status: res.status, data: text ? JSON.parse(text) : undefined };
 }
 
-const isSession = (status: number, data: any): data is UpstreamSession =>
-  status >= 200 && status < 300 && typeof data?.accessToken === 'string';
+const isSession = (status: number, data: unknown): data is UpstreamSession =>
+  status >= 200 &&
+  status < 300 &&
+  typeof (data as { accessToken?: unknown } | undefined)?.accessToken === 'string';
 
 /**
  * Router owning the browser's session lifecycle. Mounted at `/auth`; each route uses

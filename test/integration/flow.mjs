@@ -41,10 +41,19 @@ async function api(method, path, { token, body } = {}) {
   });
   const text = await res.text();
   let json; try { json = text ? JSON.parse(text) : undefined; } catch { json = text; }
-  return { status: res.status, body: json };
+  // SEC-4: the gateway moves login tokens into Set-Cookie, so expose them for the
+  // callers that need the raw access JWT (registerCustomer reads hm_at).
+  const cookies = res.headers.getSetCookie ? res.headers.getSetCookie() : [];
+  return { status: res.status, body: json, cookies };
 }
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
+
+/** Pull a cookie value out of a response's Set-Cookie list (name=value; ...). */
+function cookieValue(cookies, name) {
+  const hit = cookies.find((c) => c.startsWith(`${name}=`));
+  return hit ? hit.slice(name.length + 1).split(';')[0] : undefined;
+}
 function ok(res, step) { assert(res.status >= 200 && res.status < 300, `${step}: HTTP ${res.status} — ${JSON.stringify(res.body)}`); }
 
 // The console OTP adapter logs (pino JSON): "[DEV OTP] REGISTRATION code for <phone>: NNNNNN (valid ...)"
@@ -128,8 +137,11 @@ async function registerCustomer() {
   const code = await readOtp(phone);
   const verify = await api('POST', '/auth/api/v1/auth/otp/verify', { body: { phone, code, purpose: 'REGISTRATION' } });
   ok(verify, 'verify otp');
-  assert(verify.body.accessToken, `no accessToken: ${JSON.stringify(verify.body)}`);
-  return { phone, token: verify.body.accessToken };
+  // SEC-4: the access JWT now rides in the httpOnly hm_at cookie, not the JSON body.
+  // Extract it and use it as the bearer for downstream calls (services still accept it).
+  const token = cookieValue(verify.cookies, 'hm_at');
+  assert(token, `no hm_at cookie: ${JSON.stringify(verify.body)}`);
+  return { phone, token };
 }
 
 // Walk an order from wherever it is to COMPLETED (BR-012 forward sequence). Read the

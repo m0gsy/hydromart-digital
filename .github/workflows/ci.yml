@@ -162,7 +162,9 @@ jobs:
       - name: Migrate + boot services
         run: |
           npm run db:migrate
-          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
+          # --wait blocks until every healthchecked service is healthy — the gateway
+          # /health alone can be up while product-service isn't, which 504'd the seed.
+          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build --wait --wait-timeout 300
           for i in $(seq 1 45); do
             if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
             sleep 2

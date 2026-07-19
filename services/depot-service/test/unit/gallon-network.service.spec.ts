@@ -1,11 +1,13 @@
 import { GallonNetworkService } from '../../src/application/services/gallon-network.service';
-import { GallonIssueDepotRow } from '../../src/application/ports/gallon-issue.repository';
-import { GallonReturnDepotRow } from '../../src/application/ports/gallon-return.repository';
+import { GallonIssueDepotRow, GallonIssueRepository } from '../../src/application/ports/gallon-issue.repository';
+import { GallonReturnDepotRow, GallonReturnRepository } from '../../src/application/ports/gallon-return.repository';
 
 // Only networkSummary() is exercised; the rest of each repo port is irrelevant to the
 // rollup, so the fakes stub just that one method.
-const issues = (rows: GallonIssueDepotRow[]) => ({ networkSummary: async () => rows }) as any;
-const returns = (rows: GallonReturnDepotRow[]) => ({ networkSummary: async () => rows }) as any;
+const issues = (rows: GallonIssueDepotRow[]) =>
+  ({ networkSummary: async () => rows }) as unknown as GallonIssueRepository;
+const returns = (rows: GallonReturnDepotRow[]) =>
+  ({ networkSummary: async () => rows }) as unknown as GallonReturnRepository;
 
 describe('GallonNetworkService.outstanding', () => {
   it('merges issue + return rows per depot into outstanding + net deposit', async () => {
