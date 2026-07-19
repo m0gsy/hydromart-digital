@@ -16,7 +16,9 @@ test('OTP login establishes an authenticated cookie session', async ({ page }) =
 
   // On success verify() calls router.replace(next) — default /products — and no error.
   await expect(page).toHaveURL(/\/products/, { timeout: 15_000 });
-  await expect(page.getByRole('alert')).toHaveCount(0);
+  // The toast provider mounts an always-present empty role=alert live region, so assert
+  // no alert carries actual error text rather than a zero count.
+  await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
 
   // The credential is an httpOnly cookie, unreadable by JS — assert it exists at the
   // browser-context level (this is what carries auth to the gateway now).

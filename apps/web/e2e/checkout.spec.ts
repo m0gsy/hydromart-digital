@@ -38,5 +38,7 @@ test('an authenticated customer can place an order through manual checkout', asy
   await page.locator('button[type=submit]').click();
 
   await expect(page).toHaveURL(/\/orders\/[^/?]+\?placed=1/, { timeout: 20_000 });
-  await expect(page.getByRole('alert')).toHaveCount(0);
+  // Toast provider keeps an always-present empty role=alert region; assert no alert has
+  // actual error text rather than a zero count.
+  await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toHaveCount(0);
 });
