@@ -29,7 +29,10 @@ services:
       OTP_TTL_SECONDS: 300
       OTP_LENGTH: 6
       OTP_MAX_ATTEMPTS: 5
-      OTP_RESEND_COOLDOWN_SECONDS: 60
+      # Relaxed for E2E: the authed specs log in repeatedly with the same seeded phone.
+      # A 60s cooldown / low throttler would 429 later logins. Test stack only.
+      OTP_RESEND_COOLDOWN_SECONDS: 1
+      RATE_LIMIT_MAX: 1000
       OTP_DELIVERY_CHANNEL: console
       OTP_PEPPER: itest-otp-pepper-0123456789
       CRM_SERVICE_URL: http://crm:3012

@@ -11,9 +11,13 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
 export default defineConfig({
   testDir: './e2e',
-  fullyParallel: true,
+  // Serial, single worker, no retries: the authed journeys all log in with the same
+  // seeded phone, so parallel/retried runs stampede the auth-service OTP throttler +
+  // per-phone resend cooldown (429 → no OTP sent → log scrape finds nothing).
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,
