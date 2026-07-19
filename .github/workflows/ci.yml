@@ -139,7 +139,10 @@ jobs:
       NEXT_PUBLIC_API_URL: http://localhost:8080
       # authed.spec reads the OTP back from the auth-service log (console channel).
       # Deterministic under compose regardless of the runner's project name.
-      E2E_OTP_LOG_CMD: docker compose logs --no-color auth
+      # Playwright runs with cwd=apps/web (npm workspace), where `docker compose` finds
+      # no compose file — so point at the running container by name (compose project =
+      # checkout dir "hydromart-digital"). cwd-independent; the OTP scraper execSyncs this.
+      E2E_OTP_LOG_CMD: docker logs --tail 4000 hydromart-digital-auth-1
     steps:
       - uses: actions/checkout@v4
 
