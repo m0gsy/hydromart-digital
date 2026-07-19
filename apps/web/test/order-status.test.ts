@@ -21,7 +21,7 @@ describe('order-status', () => {
   describe('statusProgress', () => {
     it('advances monotonically 0..1 across the flow', () => {
       const progress = ORDER_FLOW.map(statusProgress);
-      for (let i = 1; i < progress.length; i++) expect(progress[i]).toBeGreaterThan(progress[i - 1]);
+      for (let i = 1; i < progress.length; i++) expect(progress[i]!).toBeGreaterThan(progress[i - 1]!);
       expect(statusProgress('COMPLETED')).toBe(1);
     });
     it('is 0 for the off-track CANCELLED state', () => {

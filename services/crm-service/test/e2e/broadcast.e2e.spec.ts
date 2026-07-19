@@ -11,7 +11,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { CampaignModule } from '../../src/modules/campaign.module';
 import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeCustomerDirectory,
   FakeWhatsappBroadcast,
@@ -36,8 +35,6 @@ describe('Broadcast HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',

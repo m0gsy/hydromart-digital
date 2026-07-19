@@ -33,6 +33,13 @@
     "gen:vapid": "node scripts/gen-vapid.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "prisma": "5.22.0",
+    "@prisma/client": "5.22.0"
+  },
+  "overrides": {
+    "@nestjs/core": "^11.0.0",
+    "@prisma/client": "5.22.0",
+    "prisma": "5.22.0"
   }
 }

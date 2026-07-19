@@ -41,6 +41,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   const OWNER_SUB = '99999999-9999-4999-8999-999999999999';
 
   beforeAll(async () => {
+    process.env.DEPOT_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.JWT_ACCESS_SECRET = SECRET;
     // The validation schema defaults INTERNAL_SERVICE_KEY to '' and that shadows the
     // load() value, so set it on the env too (same as promo/order e2e) — otherwise the
     // InternalAuthGuard reads the empty default and rejects.

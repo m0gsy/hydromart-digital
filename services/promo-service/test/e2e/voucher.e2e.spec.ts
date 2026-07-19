@@ -11,7 +11,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { PromoModule } from '../../src/modules/promo.module';
 import { PROMO_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryVoucherRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
@@ -32,8 +31,6 @@ describe('Voucher HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',

@@ -9,7 +9,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { ProductModule } from '../../src/modules/product.module';
 import { PRODUCT_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryCategoryRepository, InMemoryProductRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
@@ -26,8 +25,6 @@ describe('Product HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',

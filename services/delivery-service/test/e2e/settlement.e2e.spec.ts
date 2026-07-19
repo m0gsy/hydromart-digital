@@ -34,6 +34,11 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   const cash = new FakeCashCollection();
 
   beforeAll(async () => {
+    process.env.DELIVERY_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.JWT_ACCESS_SECRET = SECRET;
+    process.env.ORDER_SERVICE_URL = "http://localhost:3004";
+    process.env.DEPOT_SERVICE_URL = "http://localhost:3007";
+    process.env.PAYMENT_SERVICE_URL = "http://localhost:3005";
     // An ended shift with one delivered order — the settlement window.
     shifts.rows.push({
       id: shiftId,

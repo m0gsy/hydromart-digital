@@ -11,7 +11,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { PaymentModule } from '../../src/modules/payment.module';
 import { PAYMENT_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import { FakeGateway, FakeOrderCoordination, InMemoryPaymentRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
@@ -29,8 +28,6 @@ describe('Payment HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',

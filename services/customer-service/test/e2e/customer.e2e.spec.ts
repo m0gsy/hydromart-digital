@@ -10,7 +10,6 @@ import { CustomerModule } from '../../src/modules/customer.module';
 import { CUSTOMER_TOKENS } from '../../src/application/tokens';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeLoyaltyReward,
   InMemoryAddressRepository,
@@ -35,8 +34,6 @@ describe('Customer HTTP flows (e2e)', () => {
         ConfigModule.forRoot({
           isGlobal: true,
           ignoreEnvFile: true,
-          validationSchema: envValidationSchema,
-          validationOptions: { allowUnknown: true },
           load: [
             () => ({
               NODE_ENV: 'test',
