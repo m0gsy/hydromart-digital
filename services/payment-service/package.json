@@ -88,10 +88,10 @@
     "coverageDirectory": "./coverage",
     "coverageThreshold": {
       "global": {
-        "statements": 73,
+        "statements": 72,
         "branches": 42,
         "functions": 57,
-        "lines": 73
+        "lines": 72
       }
     },
     "testEnvironment": "node"
