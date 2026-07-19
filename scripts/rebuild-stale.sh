@@ -24,8 +24,14 @@ BATCH="${BATCH:-4}"
 # Services still on old images (current as of the last deploy: auth product order
 # payment delivery depot gateway web were already rebuilt). Override via args.
 DEFAULT_STALE=(customer dashboard loyalty promo referral crm recommendation forecast payout scheduler)
+# Every deployable service, for `rebuild-stale.sh --all` (used by deploy.sh on a
+# shared-package change). Order is build order; gateway/web last so upstreams exist.
+ALL_SERVICES=(auth customer product order payment delivery depot dashboard loyalty \
+  promo referral crm recommendation forecast payout admin scheduler gateway web)
 
-if [ "$#" -gt 0 ]; then
+if [ "${1:-}" = "--all" ]; then
+  SERVICES=("${ALL_SERVICES[@]}")
+elif [ "$#" -gt 0 ]; then
   SERVICES=("$@")
 else
   SERVICES=("${DEFAULT_STALE[@]}")
