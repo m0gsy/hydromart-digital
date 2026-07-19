@@ -19,11 +19,14 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(GatewayConfigService);
 
+  // Before configureGateway: it registers a catch-all 404 for unknown routes, so
+  // GET /metrics must be mounted first or the proxy swallows it (Prometheus 404).
+  enableMetrics(app, 'gateway-service');
+
   // Wire before listen() so the proxies/health/404 precede Nest's own router.
   configureGateway(app, config);
   app.enableShutdownHooks();
 
-  enableMetrics(app, 'gateway-service');
   await app.listen(config.port, '0.0.0.0');
   logger.log(`gateway-service listening on port ${config.port}`, 'Bootstrap');
 }
