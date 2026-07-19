@@ -99,6 +99,31 @@ describe('PayoutService.requestWithdrawal', () => {
   });
 });
 
+describe('PayoutService.summary', () => {
+  it('reports available balance, recent entries and the next payout date', async () => {
+    const ledger = new FakeLedger([300000, -50000]);
+    const svc = new PayoutService(ledger, new FakeWithdrawals());
+
+    const s = await svc.summary('owner-1');
+    expect(s.availableBalance).toBe(250000);
+    // COMMISSION magnitude is reported unsigned.
+    expect(s.monthCommission).toBeGreaterThanOrEqual(0);
+    expect(s.recentEntries).toHaveLength(2);
+    expect(s.nextPayoutDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('PayoutService.ledgerPage', () => {
+  it('wraps entries in a page envelope', async () => {
+    const ledger = new FakeLedger([100000, 200000]);
+    const svc = new PayoutService(ledger, new FakeWithdrawals());
+
+    const page = await svc.ledgerPage('owner-1', 1, 10);
+    expect(page).toMatchObject({ page: 1, limit: 10, total: 2, totalPages: 1 });
+    expect(page.items).toHaveLength(2);
+  });
+});
+
 describe('PayoutService HQ release queue', () => {
   it('lists every owner with a positive balance, highest first', async () => {
     const ledger = new FakeLedger();

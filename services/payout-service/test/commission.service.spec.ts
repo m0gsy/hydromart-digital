@@ -53,6 +53,14 @@ describe('CommissionService', () => {
     expect(current[0].pct).toBe(22);
   });
 
+  it('defaults a missing ownerName to null', async () => {
+    const repo = new FakeSchemes();
+    const svc = new CommissionService(repo);
+    await svc.apply({ effectiveDate: new Date('2026-07-01'), items: [{ depotId: 'd2', pct: 15 }] });
+    const current = await svc.listCurrent();
+    expect(current[0].ownerName).toBeNull();
+  });
+
   it('is a no-op for an empty item list', async () => {
     const svc = new CommissionService(new FakeSchemes());
     expect(await svc.apply({ effectiveDate: new Date(), items: [] })).toEqual([]);

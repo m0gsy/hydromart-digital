@@ -317,4 +317,31 @@ describe('ReportService', () => {
     expect(rep.netProfitIdr).toBeNull();
     expect(rep.slaPct).toBeNull();
   });
+
+  it('sums shipping billed per depot, ignoring unrouted orders', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 5000 });
+    await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 7000 });
+    await r.create({ ...orderData({ depotId: null, total: 10000 }), deliveryFee: 9000 }); // unrouted, excluded
+
+    const { items } = await svc.shippingByDepot({});
+    expect(items).toEqual([{ depotId: depot, shippingBilled: 12000 }]);
+  });
+
+  it('averages ratings per depot from real reviews', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    const review = async (rating: number) => {
+      const o = await r.create(orderData({ depotId: depot }));
+      await r.createReview({ orderId: o.id, customerId: o.customerId, rating, aspects: [], comment: null, tipAmount: 0 });
+    };
+    await review(5);
+    await review(3);
+
+    const { items } = await svc.ratingByDepot({});
+    expect(items).toEqual([{ depotId: depot, rating: 4, reviewCount: 2 }]);
+  });
 });

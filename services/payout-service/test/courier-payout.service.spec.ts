@@ -200,6 +200,24 @@ describe('CourierPayoutService', () => {
     });
   });
 
+  describe('ledger + withdrawal history', () => {
+    it('paginates the courier ledger', async () => {
+      await service.recordDeliveryEarning(event('d1', OFFPEAK_UTC, false)); // 5000
+      await service.recordDeliveryEarning(event('d2', OFFPEAK_UTC, false)); // 5000
+      const page = await service.ledgerPage(COURIER, 1, 1);
+      expect(page).toMatchObject({ page: 1, limit: 1, total: 2, totalPages: 2 });
+      expect(page.items).toHaveLength(1);
+    });
+
+    it('returns the withdrawal history for the courier', async () => {
+      await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
+      await service.requestWithdrawal(COURIER, 8000, 'BCA');
+      const history = await service.withdrawalHistory(COURIER);
+      expect(history).toHaveLength(1);
+      expect(history[0].amount).toBe(8000);
+    });
+  });
+
   describe('earning-rule editor (design 6b)', () => {
     const validRule = {
       depotId: null,

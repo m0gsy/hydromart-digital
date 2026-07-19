@@ -3,6 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
+import {
+  ProductUnavailableError,
+  SubscriptionNotFoundError,
+} from '../../src/domain/errors';
 import { SubscriptionNotActionableError } from '../../src/domain/errors';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
@@ -124,5 +128,83 @@ describe('SubscriptionService', () => {
     // a paused subscription is not swept.
     await service.pause(customer, sub.id);
     expect((await service.processDue(new Date('2026-08-01T00:00:00Z'))).placed).toBe(0);
+  });
+
+  it('refuses to subscribe to an inactive/unknown product', async () => {
+    const inactive = catalog.seed({ id: randomUUID(), basePrice: 8000, active: false });
+    await expect(
+      service.create(customer, {
+        productId: inactive.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+        address,
+      }),
+    ).rejects.toBeInstanceOf(ProductUnavailableError);
+    await expect(
+      service.create(customer, {
+        productId: randomUUID(),
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+        address,
+      }),
+    ).rejects.toBeInstanceOf(ProductUnavailableError);
+  });
+
+  it('404s when acting on a subscription the caller does not own', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'MONTHLY',
+      firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+      address,
+    });
+    await expect(service.pause(randomUUID(), sub.id)).rejects.toBeInstanceOf(SubscriptionNotFoundError);
+    await expect(service.cancel(customer, randomUUID())).rejects.toBeInstanceOf(SubscriptionNotFoundError);
+  });
+
+  it('estimates monthly network delivery volume by cadence (18c)', async () => {
+    const p = seedProduct();
+    const mk = (frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY') =>
+      service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency,
+        firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
+        address,
+      });
+    await mk('WEEKLY'); // 30/7 ≈ 4.286 deliveries/mo
+    await mk('BIWEEKLY'); // 30/14 ≈ 2.143
+    await mk('MONTHLY'); // 1
+
+    const summary = await service.networkSummary();
+    expect(summary.activeSubscriptions).toBe(3);
+    expect(summary.activeSubscribers).toBe(1); // all one customer
+    // rounded sum: 4.286 + 2.143 + 1 = 7.43 → 7
+    expect(summary.estMonthlyDeliveries).toBe(7);
+  });
+
+  it('processDue isolates failures: a placement error skips that sub without advancing it', async () => {
+    // Product exists at subscribe time but is later pulled → placeScheduled throws inside the sweep.
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+    catalog.throwOnGet = true; // pricing lookup now fails for this product
+
+    const before = (await service.list(customer))[0].nextDeliveryAt.getTime();
+    const result = await service.processDue(new Date('2026-07-13T00:00:00Z'));
+
+    expect(result.placed).toBe(0);
+    expect(orders.rows).toHaveLength(0);
+    // schedule NOT advanced — the sub stays due for the next sweep.
+    expect((await service.list(customer))[0].nextDeliveryAt.getTime()).toBe(before);
+    expect(sub.status).toBe('ACTIVE');
   });
 });
