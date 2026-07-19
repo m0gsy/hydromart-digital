@@ -86,6 +86,14 @@
       "!src/**/index.ts"
     ],
     "coverageDirectory": "./coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 76,
+        "branches": 71,
+        "functions": 53,
+        "lines": 76
+      }
+    },
     "testEnvironment": "node"
   }
 }
