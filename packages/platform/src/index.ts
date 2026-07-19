@@ -23,4 +23,5 @@ export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.gua
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { GlobalValidationPipe } from './nest/validation.pipe';
+export { enableMetrics } from './nest/metrics';
 export { requiredSecret, optionalSecret } from './config/env-secret';

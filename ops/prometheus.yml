@@ -1,0 +1,46 @@
+# Prometheus scrape config for the single-VPS stack. Each service exposes
+# /metrics on its internal compose port (see docker-compose.prod.yml). The
+# `service` label is already set on every series by enableMetrics(), so we keep
+# one job and let the target-level `service` label below match it for clarity.
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: hydromart
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auth:3001']
+        labels: { service: auth-service }
+      - targets: ['customer:3002']
+        labels: { service: customer-service }
+      - targets: ['product:3003']
+        labels: { service: product-service }
+      - targets: ['order:3004']
+        labels: { service: order-service }
+      - targets: ['payment:3005']
+        labels: { service: payment-service }
+      - targets: ['delivery:3006']
+        labels: { service: delivery-service }
+      - targets: ['depot:3007']
+        labels: { service: depot-service }
+      - targets: ['dashboard:3008']
+        labels: { service: dashboard-service }
+      - targets: ['loyalty:3009']
+        labels: { service: loyalty-service }
+      - targets: ['promo:3010']
+        labels: { service: promo-service }
+      - targets: ['referral:3011']
+        labels: { service: referral-service }
+      - targets: ['crm:3012']
+        labels: { service: crm-service }
+      - targets: ['recommendation:3013']
+        labels: { service: recommendation-service }
+      - targets: ['forecast:3014']
+        labels: { service: forecast-service }
+      - targets: ['payout:3016']
+        labels: { service: payout-service }
+      - targets: ['admin:3017']
+        labels: { service: admin-service }
+      - targets: ['gateway:8080']
+        labels: { service: gateway-service }

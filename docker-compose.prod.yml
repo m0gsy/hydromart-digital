@@ -438,6 +438,33 @@ services:
       - ./scripts/scheduler:/scripts:ro
     command: ["sh", "/scripts/entrypoint.sh"]
 
+  # Prometheus scrapes every service's /metrics (enableMetrics()). Bound to
+  # loopback only — reach the UI via SSH tunnel, never expose to the internet.
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  # Grafana dashboards over Prometheus. Loopback only (SSH tunnel to view).
+  # Set GRAFANA_ADMIN_PASSWORD in .env; defaults to admin on first boot otherwise.
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3300:3000"
+
   # Opt-in TLS reverse proxy. Enable with `--profile tls`; without the profile the
   # stack serves plain HTTP on the published :3000/:8080 (fine behind your own proxy
   # or for a bare-IP test). With it, Caddy terminates HTTPS on 80/443 and reaches
@@ -467,3 +494,5 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:

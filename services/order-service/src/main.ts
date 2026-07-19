@@ -6,6 +6,8 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
+import { enableMetrics } from '@hydromart/platform';
+
 import { AppModule } from './app.module';
 import { OrderConfigService } from './config/order-config.service';
 
@@ -30,6 +32,7 @@ async function bootstrap(): Promise<void> {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
 
+  enableMetrics(app, 'order-service');
   await app.listen(config.port, '0.0.0.0');
   logger.log(`order-service listening on port ${config.port}`, 'Bootstrap');
 }
