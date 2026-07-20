@@ -471,6 +471,8 @@ export class OrderService {
     note?: string,
     authorization = '',
     driverName?: string,
+    driverPhone?: string,
+    estimatedArrivalAt?: string,
   ): Promise<OrderRecord> {
     const order = await this.getAny(orderId);
     if (!canTransition(order.status, to)) {
@@ -482,6 +484,10 @@ export class OrderService {
       changedBy,
       note ?? null,
       to === OrderStatus.DRIVER_ASSIGNED ? driverName ?? null : undefined,
+      to === OrderStatus.DRIVER_ASSIGNED ? driverPhone ?? null : undefined,
+      to === OrderStatus.ON_DELIVERY && estimatedArrivalAt
+        ? new Date(estimatedArrivalAt)
+        : undefined,
     );
     // Post-completion coordination (both fail-open — a downstream outage never
     // blocks completion, and both are idempotent on the downstream side).

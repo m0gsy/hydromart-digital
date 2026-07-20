@@ -148,6 +148,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       history: [{ status: OrderStatus.CREATED, changedBy: null, note: null, createdAt: now }],
       deliveryWindow: rest.deliveryWindow ?? null,
       driverName: null,
+      driverPhone: null,
+      estimatedArrivalAt: null,
       reviewed: false,
       createdAt: now,
       updatedAt: now,
@@ -200,10 +202,14 @@ export class InMemoryOrderRepository implements OrderRepository {
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
+    driverPhone?: string | null,
+    estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     row.status = status;
     if (driverName != null) row.driverName = driverName;
+    if (driverPhone != null) row.driverPhone = driverPhone;
+    if (estimatedArrivalAt != null) row.estimatedArrivalAt = estimatedArrivalAt;
     row.updatedAt = nextDate();
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return structuredClone(row);

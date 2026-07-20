@@ -114,6 +114,7 @@ export const order: typeof base = {
     successBody: 'The depot is preparing your order. We’ll let you know when the driver leaves.',
     eta: 'Estimated arrival',
     etaValue: '±30–45 min',
+    callDriver: 'Call the driver',
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Cancel this order?',
     cancelIntro: 'Still cancellable — the depot hasn’t prepared it yet. Any amount already paid will be refunded.',

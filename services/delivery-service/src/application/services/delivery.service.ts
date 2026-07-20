@@ -33,8 +33,10 @@ import {
   DeliveryTimestamps,
   ProofRecord,
 } from '../ports/delivery.repository';
-import { OrderCoordinationPort } from '../ports/order-coordination.port';
+import { OrderAdvanceMeta, OrderCoordinationPort } from '../ports/order-coordination.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
+import { DepotLocationPort } from '../ports/depot-location.port';
+import { haversineMeters } from '../../domain/geo';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 
@@ -48,6 +50,7 @@ export interface AssignInput {
   destinationLat?: number;
   destinationLng?: number;
   recipientPhone?: string;
+  driverPhone?: string;
   items?: { name: string; qty: number }[];
   codAmount?: number;
 }
@@ -86,6 +89,7 @@ export class DeliveryService {
     @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
     private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
+    @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
   ) {}
 
   /**
@@ -112,7 +116,11 @@ export class DeliveryService {
       throw new DriverBusyError();
     }
 
-    await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization, input.driverName);
+    const assignMeta: OrderAdvanceMeta | undefined =
+      input.driverName || input.driverPhone
+        ? { driverName: input.driverName, driverPhone: input.driverPhone }
+        : undefined;
+    await this.advanceOrder(input.orderId, 'DRIVER_ASSIGNED', authorization, assignMeta);
 
     const data: CreateDeliveryData = {
       orderId: input.orderId,
@@ -339,11 +347,56 @@ export class DeliveryService {
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, to);
+    // At ON_DELIVERY start, compute the customer-facing ETA once and both persist it
+    // locally and push it onto the order payload the customer reads.
+    const eta =
+      to === DeliveryStatus.ON_DELIVERY ? await this.estimateArrival(delivery) : undefined;
     const orderStatus = orderStatusFor(to);
     if (orderStatus) {
-      await this.advanceOrder(delivery.orderId, orderStatus, authorization);
+      await this.advanceOrder(
+        delivery.orderId,
+        orderStatus,
+        authorization,
+        eta ? { estimatedArrivalAt: eta } : undefined,
+      );
     }
-    return this.deliveries.applyStatus(id, to, timestamps, driverId, null);
+    return this.deliveries.applyStatus(
+      id,
+      to,
+      eta ? { ...timestamps, estimatedArrivalAt: eta } : timestamps,
+      driverId,
+      null,
+    );
+  }
+
+  /**
+   * Estimates arrival at ON_DELIVERY start: straight-line distance ÷ an assumed
+   * urban speed. Origin = the driver's last GPS ping if we have one, else the
+   * depot's coordinates. Returns undefined (no estimate) when the destination has
+   * no coordinates or no origin can be resolved — the customer UI falls back
+   * gracefully. Best-effort: a depot-lookup failure never blocks the transition.
+   */
+  private async estimateArrival(delivery: DeliveryRecord): Promise<Date | undefined> {
+    if (delivery.destinationLat == null || delivery.destinationLng == null) return undefined;
+    let originLat = delivery.lastLat;
+    let originLng = delivery.lastLng;
+    if (originLat == null || originLng == null) {
+      const depot = delivery.depotId
+        ? await this.depots.find(delivery.depotId).catch(() => null)
+        : null;
+      if (!depot) return undefined;
+      originLat = depot.lat;
+      originLng = depot.lng;
+    }
+    const meters = haversineMeters(
+      originLat,
+      originLng,
+      delivery.destinationLat,
+      delivery.destinationLng,
+    );
+    const metersPerMinute = (this.config.urbanSpeedKmph * 1000) / 60;
+    const minutes = meters / metersPerMinute;
+    return new Date(Date.now() + minutes * 60_000);
   }
 
   private async ownedByDriver(driverId: string, id: string): Promise<DeliveryRecord> {
@@ -368,10 +421,10 @@ export class DeliveryService {
     orderId: string,
     status: OrderFulfilmentStatus,
     authorization: string,
-    driverName?: string,
+    meta?: OrderAdvanceMeta,
   ): Promise<void> {
     try {
-      await this.orders.advanceStatus(orderId, status, authorization, driverName);
+      await this.orders.advanceStatus(orderId, status, authorization, meta);
     } catch (error) {
       this.logger.error(
         `Order sync to ${status} failed for order ${orderId}: ${(error as Error).message}`,

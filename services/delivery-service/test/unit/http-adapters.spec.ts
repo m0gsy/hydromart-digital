@@ -53,23 +53,33 @@ describe('OrderCoordinationHttpAdapter', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('PATCHes order status on happy path, forwarding driverName when given', async () => {
+  it('PATCHes order status on happy path, forwarding driver name + phone when given', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus(
-      'o1',
-      'DELIVERED',
-      'Bearer x',
-      'Budi',
-    );
+    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'DELIVERED', 'Bearer x', {
+      driverName: 'Budi',
+      driverPhone: '081298765432',
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       'http://order:3005/api/v1/orders/o1/status',
       expect.objectContaining({ method: 'PATCH' }),
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toEqual({ status: 'DELIVERED', driverName: 'Budi' });
+    expect(body).toEqual({ status: 'DELIVERED', driverName: 'Budi', driverPhone: '081298765432' });
   });
 
-  it('omits driverName when not provided', async () => {
+  it('serialises the ETA as an ISO string when given', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    const eta = new Date('2026-07-20T10:30:00.000Z');
+    await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'ON_DELIVERY', 'Bearer x', {
+      estimatedArrivalAt: eta,
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      status: 'ON_DELIVERY',
+      estimatedArrivalAt: eta.toISOString(),
+    });
+  });
+
+  it('omits meta fields when not provided', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'PICKED_UP', 'Bearer x');
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ status: 'PICKED_UP' });

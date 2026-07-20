@@ -40,6 +40,7 @@ export interface DeliveryRecord {
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
+  estimatedArrivalAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -71,6 +72,7 @@ export interface CreateDeliveryData {
 export interface DeliveryTimestamps {
   pickedUpAt?: Date;
   startedAt?: Date;
+  estimatedArrivalAt?: Date;
   deliveredAt?: Date;
   failedAt?: Date;
   failureReason?: string | null;

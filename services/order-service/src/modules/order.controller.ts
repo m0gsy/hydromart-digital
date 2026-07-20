@@ -342,6 +342,15 @@ export class OrderController {
     assertDepotAccess(user, existing.depotId);
     // Forward the caller's token so order-service can award loyalty points on
     // completion (BR-013); loyalty-service enforces its own RBAC on the earn.
-    return this.orders.updateStatus(id, dto.status, user.sub, dto.note, authorization, dto.driverName);
+    return this.orders.updateStatus(
+      id,
+      dto.status,
+      user.sub,
+      dto.note,
+      authorization,
+      dto.driverName,
+      dto.driverPhone,
+      dto.estimatedArrivalAt,
+    );
   }
 }

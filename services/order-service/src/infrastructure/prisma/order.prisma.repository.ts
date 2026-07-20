@@ -79,6 +79,8 @@ interface OrderRow {
   notes: string | null;
   deliveryWindow: string | null;
   driverName: string | null;
+  driverPhone: string | null;
+  estimatedArrivalAt: Date | null;
   items: ItemRow[];
   history: HistoryRow[];
   // id-only: toRecord derives just the `reviewed` flag (INCLUDE selects id alone, DB-9).
@@ -123,6 +125,8 @@ export class OrderPrismaRepository implements OrderRepository {
       notes: row.notes,
       deliveryWindow: row.deliveryWindow,
       driverName: row.driverName,
+      driverPhone: row.driverPhone,
+      estimatedArrivalAt: row.estimatedArrivalAt,
       items: row.items.map((i) => ({
         id: i.id,
         productId: i.productId,
@@ -290,12 +294,16 @@ export class OrderPrismaRepository implements OrderRepository {
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
+    driverPhone?: string | null,
+    estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord> {
     const row = await this.prisma.order.update({
       where: { id },
       data: {
         status,
         ...(driverName != null ? { driverName } : {}),
+        ...(driverPhone != null ? { driverPhone } : {}),
+        ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
         history: { create: { status, changedBy, note } },
       },
       include: INCLUDE,

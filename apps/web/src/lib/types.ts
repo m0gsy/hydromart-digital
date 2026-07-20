@@ -205,6 +205,10 @@ export interface Order extends DeliveryAddress {
   history: OrderStatusEvent[];
   reviewed: boolean;
   driverName: string | null;
+  /** Assigned courier's phone (null until DRIVER_ASSIGNED) — lets the customer call the driver. */
+  driverPhone: string | null;
+  /** Customer-facing ETA ISO string (null until ON_DELIVERY), set by delivery-service. */
+  estimatedArrivalAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -860,6 +864,8 @@ export interface Delivery {
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: string | null;
+  /** Customer-facing ETA ISO string, computed at ON_DELIVERY start. */
+  estimatedArrivalAt?: string | null;
   assignedAt: string;
   // Present on the driver detail read (getForDriver); absent from the tracking list.
   pickedUpAt?: string | null;

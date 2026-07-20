@@ -113,6 +113,7 @@ export const order = {
     successBody: 'Depot sedang menyiapkan pesananmu. Kami kabari saat kurir berangkat.',
     eta: 'Estimasi tiba',
     etaValue: '±30–45 menit',
+    callDriver: 'Telepon kurir',
     // Cancel-with-reason (spec 10b)
     cancelTitle: 'Batalkan pesanan?',
     cancelIntro: 'Masih bisa dibatalkan karena depot belum menyiapkan pesanan. Dana yang sudah dibayar akan direfund.',

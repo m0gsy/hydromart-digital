@@ -129,6 +129,11 @@ model Delivery {
   lastLng        Float?
   lastLocationAt DateTime?
 
+  // Customer-facing ETA, computed at ON_DELIVERY start from straight-line distance
+  // ÷ an assumed urban speed and pushed onto the order payload. Null = not yet
+  // started / uncomputable (no destination or origin coords).
+  estimatedArrivalAt DateTime?
+
   assignedAt    DateTime  @default(now())
   pickedUpAt    DateTime?
   startedAt     DateTime?

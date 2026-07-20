@@ -230,4 +230,18 @@ export class UpdateOrderStatusDto {
   @IsString()
   @MaxLength(120)
   driverName?: string;
+
+  @ApiPropertyOptional({ description: "Courier phone (set on DRIVER_ASSIGNED); lets the customer call the driver." })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  driverPhone?: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'Customer-facing ETA (set on ON_DELIVERY by delivery-service).',
+  })
+  @IsOptional()
+  @IsDateString()
+  estimatedArrivalAt?: string;
 }

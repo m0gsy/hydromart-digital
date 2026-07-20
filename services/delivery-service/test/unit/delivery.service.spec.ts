@@ -51,8 +51,9 @@ describe('DeliveryService', () => {
     repo = new InMemoryDeliveryRepository();
     orders = new FakeOrderCoordination();
     const config = buildTestConfig();
-    shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
-    service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config);
+    const depots = new FakeDepotLocation();
+    shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
+    service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
@@ -94,6 +95,56 @@ describe('DeliveryService', () => {
     expect(d.recipientPhone).toBeNull();
     expect(d.items).toBeNull();
     expect(d.codAmount).toBeNull();
+  });
+
+  it('forwards the courier name + phone to order-service at DRIVER_ASSIGNED', async () => {
+    await service.assign(
+      staff,
+      {
+        orderId: randomUUID(),
+        orderNumber: 'HM-3',
+        driverId: driver,
+        destinationAddress: 'Jl. Merdeka 10',
+        driverName: 'Budi',
+        driverPhone: '081298765432',
+      },
+      AUTH,
+    );
+    expect(orders.calls[0]).toMatchObject({
+      status: 'DRIVER_ASSIGNED',
+      meta: { driverName: 'Budi', driverPhone: '081298765432' },
+    });
+  });
+
+  it('computes an ETA at ON_DELIVERY start and pushes it onto the order payload', async () => {
+    const d = await service.assign(
+      staff,
+      {
+        orderId: randomUUID(),
+        orderNumber: 'HM-4',
+        driverId: driver,
+        destinationAddress: 'Jl. Jauh',
+        destinationLat: -6.85,
+        destinationLng: 107.7,
+        depotId: DEPOT_ID,
+      },
+      AUTH,
+    );
+    await service.pickup(driver, d.id, AUTH);
+    const started = await service.start(driver, d.id, AUTH);
+    expect(started.estimatedArrivalAt).toBeInstanceOf(Date);
+    expect(started.estimatedArrivalAt!.getTime()).toBeGreaterThan(Date.now());
+    const onDelivery = orders.calls.find((c) => c.status === 'ON_DELIVERY');
+    expect(onDelivery?.meta?.estimatedArrivalAt).toBeInstanceOf(Date);
+  });
+
+  it('leaves the ETA unset (graceful) when the destination has no coordinates', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    const started = await service.start(driver, d.id, AUTH);
+    expect(started.estimatedArrivalAt).toBeNull();
+    const onDelivery = orders.calls.find((c) => c.status === 'ON_DELIVERY');
+    expect(onDelivery?.meta).toBeUndefined();
   });
 
   it('rejects a second delivery for the same order', async () => {
