@@ -44,6 +44,8 @@ export class CustomerPrismaRepository implements CustomerRepository {
         fullName: data.fullName,
         role: toPrismaRole(data.role),
         assignedDepotId: data.assignedDepotId ?? null,
+        vehicleType: data.vehicleType ?? null,
+        plateNumber: data.plateNumber ?? null,
       },
     });
     return toCustomerEntity(row);
@@ -97,6 +99,8 @@ export class CustomerPrismaRepository implements CustomerRepository {
           googleSub: props.googleSub,
           avatarUrl: props.avatarUrl,
           assignedDepotId: props.assignedDepotId,
+          vehicleType: props.vehicleType,
+          plateNumber: props.plateNumber,
           phoneVerifiedAt: props.phoneVerifiedAt,
           lastLoginAt: props.lastLoginAt,
         },

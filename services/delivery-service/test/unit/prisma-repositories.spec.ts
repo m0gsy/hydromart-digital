@@ -91,6 +91,7 @@ describe('DeliveryPrismaRepository', () => {
         destinationLat: -6.2,
         destinationLng: 106.8,
         status: DeliveryStatus.ASSIGNED,
+        items: expect.anything(),
         history: { create: { status: DeliveryStatus.ASSIGNED } },
       },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },

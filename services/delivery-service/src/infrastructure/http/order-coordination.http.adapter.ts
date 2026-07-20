@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { OrderFulfilmentStatus } from '../../domain/delivery-status';
-import { OrderCoordinationPort } from '../../application/ports/order-coordination.port';
+import {
+  OrderAdvanceMeta,
+  OrderCoordinationPort,
+} from '../../application/ports/order-coordination.port';
 
 /**
  * Advances an order on the order-service via its staff status endpoint,
@@ -20,7 +23,7 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     orderId: string,
     status: OrderFulfilmentStatus,
     authorization: string,
-    driverName?: string,
+    meta?: OrderAdvanceMeta,
   ): Promise<void> {
     if (!authorization) {
       throw new Error('missing caller authorization for order coordination');
@@ -35,7 +38,14 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
           'content-type': 'application/json',
           authorization,
         },
-        body: JSON.stringify({ status, ...(driverName ? { driverName } : {}) }),
+        body: JSON.stringify({
+          status,
+          ...(meta?.driverName ? { driverName: meta.driverName } : {}),
+          ...(meta?.driverPhone ? { driverPhone: meta.driverPhone } : {}),
+          ...(meta?.estimatedArrivalAt
+            ? { estimatedArrivalAt: meta.estimatedArrivalAt.toISOString() }
+            : {}),
+        }),
         signal: controller.signal,
       });
       if (!res.ok) {

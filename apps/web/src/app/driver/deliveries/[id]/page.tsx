@@ -5,7 +5,9 @@ import { useState } from 'react';
 import { ArrowLeft, Check, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
+import { LiveNav } from '@/components/driver/live-nav';
 import { PodCapture } from '@/components/driver/pod-capture';
+import { DELIVERY_STATUS_LABEL, DELIVERY_STATUS_TONE } from '@/components/driver/status';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -13,6 +15,8 @@ import { useAsync } from '@/lib/use-async';
 import type { Delivery, DeliveryStatus } from '@/lib/types';
 
 const TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+const IDR = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
+const STAMP = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 const STEPS: { status: DeliveryStatus; label: string; at: keyof Delivery }[] = [
   { status: 'ASSIGNED', label: 'Ditugaskan', at: 'assignedAt' },
   { status: 'PICKED_UP', label: 'Diambil', at: 'pickedUpAt' },
@@ -58,7 +62,7 @@ function Detail() {
           <div className="text-sm font-extrabold">Detail pengantaran</div>
           <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
         </div>
-        <Badge>{delivery.status}</Badge>
+        <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{DELIVERY_STATUS_LABEL[delivery.status]}</Badge>
       </header>
 
       <Card className="overflow-hidden p-0">
@@ -85,13 +89,48 @@ function Detail() {
             <NavigationArrow size={16} className="text-brand-700" weight="fill" />
             Navigasi
           </a>
-          <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold">
-            <Phone size={16} className="text-brand-700" weight="fill" />
-            Telepon
-          </span>
+          {delivery.recipientPhone ? (
+            <a
+              href={`tel:${delivery.recipientPhone}`}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
+            >
+              <Phone size={16} weight="fill" className="text-brand-700" />
+              Telepon
+            </a>
+          ) : (
+            // ponytail: recipientPhone absent on this (legacy) delivery — kept inert-but-visible.
+            <span className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold text-[color:var(--muted)]">
+              <Phone size={16} weight="fill" />
+              Telepon
+            </span>
+          )}
         </div>
         </div>
       </Card>
+
+      {(delivery.items?.length || (delivery.codAmount != null && delivery.codAmount > 0)) && (
+        <Card className="p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">Rincian pesanan</div>
+            {delivery.codAmount != null && delivery.codAmount > 0 && (
+              <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-extrabold text-amber-800">
+                <Coins size={13} weight="fill" />
+                COD {IDR.format(delivery.codAmount)}
+              </span>
+            )}
+          </div>
+          {delivery.items?.length ? (
+            <ul className="flex flex-col gap-1.5">
+              {delivery.items.map((it, i) => (
+                <li key={i} className="flex justify-between text-sm">
+                  <span className="font-medium">{it.name}</span>
+                  <span className="tabular-nums text-[color:var(--muted)]">×{it.qty}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+      )}
 
       <Card className="p-4">
         <div className="mb-3 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">Riwayat status</div>
@@ -135,6 +174,19 @@ function Detail() {
           <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={() => router.replace('/driver')} />
         ) : (
           <div className="space-y-2">
+            {delivery.destinationLat != null && delivery.destinationLng != null ? (
+              <LiveNav
+                deliveryId={id}
+                destinationLat={delivery.destinationLat}
+                destinationLng={delivery.destinationLng}
+                onArrive={() => setCapturing(true)}
+              />
+            ) : (
+              <Button className="flex w-full items-center justify-center gap-2" onClick={() => setCapturing(true)}>
+                <SealCheck size={19} weight="fill" />
+                Sampai tujuan · ambil bukti
+              </Button>
+            )}
             <button
               type="button"
               onClick={() => router.push(`/driver/deliveries/${id}/pay`)}
@@ -151,10 +203,6 @@ function Detail() {
               <Recycle size={18} weight="fill" className="text-brand-700" />
               Retur galon kosong
             </button>
-            <Button className="flex w-full items-center justify-center gap-2" onClick={() => setCapturing(true)}>
-              <SealCheck size={19} weight="fill" />
-              Selesaikan · ambil bukti
-            </Button>
             <div className="flex gap-2 pt-1 text-xs font-bold text-[color:var(--muted)]">
               <button type="button" onClick={() => router.push(`/driver/deliveries/${id}/no-show`)} className="flex-1 rounded-xl border border-[color:var(--border)] py-2">
                 Tidak di tempat
@@ -186,9 +234,38 @@ function Detail() {
         </Card>
       )}
       {delivery.status === 'DELIVERED' && delivery.proof && (
-        <Card className="flex items-center gap-2 p-4 text-sm text-green-700">
-          <SealCheck size={18} weight="fill" />
-          Diterima {delivery.proof.recipientName}
+        <Card className="space-y-3 p-4">
+          <div className="flex items-center gap-2 text-sm font-bold text-green-700">
+            <SealCheck size={18} weight="fill" />
+            Diterima {delivery.proof.recipientName}
+          </div>
+          <img
+            src={delivery.proof.photoUrl}
+            alt="Bukti foto pengantaran"
+            className="max-h-40 w-full rounded-xl object-cover"
+          />
+          <dl className="grid grid-cols-2 gap-2 text-[11px]">
+            <div>
+              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">Waktu</dt>
+              <dd className="tabular-nums">{STAMP.format(new Date(delivery.proof.capturedAt))}</dd>
+            </div>
+            <div>
+              <dt className="font-bold uppercase tracking-wide text-[color:var(--muted)]">GPS</dt>
+              <dd>
+                <a
+                  href={`https://maps.google.com/?q=${delivery.proof.latitude},${delivery.proof.longitude}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="tabular-nums text-brand-700 underline"
+                >
+                  {delivery.proof.latitude.toFixed(5)}, {delivery.proof.longitude.toFixed(5)}
+                </a>
+              </dd>
+            </div>
+          </dl>
+          <p className="text-[11px] leading-relaxed text-[color:var(--muted)]">
+            Bukti antar (foto, tanda tangan, GPS) disimpan selama 12 bulan sesuai UU PDP, lalu dihapus otomatis.
+          </p>
         </Card>
       )}
     </div>

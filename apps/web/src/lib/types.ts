@@ -25,6 +25,9 @@ export interface Customer {
   status: string;
   avatarUrl: string | null;
   assignedDepotId?: string | null;
+  // DRIVER-only vehicle info (null for customers / non-vehicle staff).
+  vehicleType?: string | null;
+  plateNumber?: string | null;
   createdAt: string;
 }
 
@@ -49,6 +52,8 @@ export interface Product {
   unit: string;
   basePrice: number;
   imageUrl: string | null;
+  /** Additional gallery images beyond the primary imageUrl. Gallery = [imageUrl, ...images]. */
+  images: string[];
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -200,6 +205,10 @@ export interface Order extends DeliveryAddress {
   history: OrderStatusEvent[];
   reviewed: boolean;
   driverName: string | null;
+  /** Assigned courier's phone (null until DRIVER_ASSIGNED) — lets the customer call the driver. */
+  driverPhone: string | null;
+  /** Customer-facing ETA ISO string (null until ON_DELIVERY), set by delivery-service. */
+  estimatedArrivalAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -830,6 +839,12 @@ export interface ProofOfDelivery {
   capturedAt: string;
 }
 
+/** One order line snapshotted onto the delivery for the courier manifest. */
+export interface DeliveryItem {
+  name: string;
+  qty: number;
+}
+
 export interface Delivery {
   id: string;
   orderId: string;
@@ -840,9 +855,17 @@ export interface Delivery {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  // Snapshotted at assignment (delivery-service). recipientPhone is the CUSTOMER's
+  // own number (courier → customer); items is the manifest; codAmount is whole-IDR
+  // cash to collect, null/0 = non-COD. Absent from legacy deliveries.
+  recipientPhone?: string | null;
+  items?: DeliveryItem[] | null;
+  codAmount?: number | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: string | null;
+  /** Customer-facing ETA ISO string, computed at ON_DELIVERY start. */
+  estimatedArrivalAt?: string | null;
   assignedAt: string;
   // Present on the driver detail read (getForDriver); absent from the tracking list.
   pickedUpAt?: string | null;
@@ -1023,7 +1046,7 @@ export interface FieldIncident {
 }
 
 // Depot broadcast (crm-service, design 8a). In-app ops announcement for couriers at a depot.
-export type BroadcastLevel = 'INFO' | 'URGENT';
+export type BroadcastLevel = 'INFO' | 'URGENT' | 'SCHEDULED';
 
 export interface Broadcast {
   id: string;

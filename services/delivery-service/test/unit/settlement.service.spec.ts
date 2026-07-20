@@ -76,6 +76,9 @@ describe('SettlementService', () => {
       destinationAddress: 'x',
       destinationLat: null,
       destinationLng: null,
+      recipientPhone: null,
+      items: null,
+      codAmount: null,
     });
     await deliveryRepo.applyStatus(d.id, DeliveryStatus.DELIVERED, { deliveredAt: new Date() }, driverId, null);
     return d.orderId;

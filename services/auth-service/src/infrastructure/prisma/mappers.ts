@@ -39,6 +39,8 @@ export function toCustomerEntity(row: PrismaCustomer): Customer {
     googleSub: row.googleSub,
     avatarUrl: row.avatarUrl,
     assignedDepotId: row.assignedDepotId,
+    vehicleType: row.vehicleType,
+    plateNumber: row.plateNumber,
     phoneVerifiedAt: row.phoneVerifiedAt,
     lastLoginAt: row.lastLoginAt,
     createdAt: row.createdAt,

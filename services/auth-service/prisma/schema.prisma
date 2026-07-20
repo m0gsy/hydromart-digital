@@ -55,6 +55,10 @@ model Customer {
   /// Depot a staff member is assigned to (null for customers / unassigned staff). Used
   /// by the HQ depot-detail staff roster. No FK — depots live in depot-service.
   assignedDepotId String?     @db.Uuid
+  /// DRIVER-only vehicle info: type (free text, e.g. "MOTOR"/"MOBIL") + plate number.
+  /// Null for customers and staff without a vehicle. Set by staff on the invite form.
+  vehicleType     String?
+  plateNumber     String?
   phoneVerifiedAt DateTime?
   lastLoginAt  DateTime?
   createdAt    DateTime       @default(now())

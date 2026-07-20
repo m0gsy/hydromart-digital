@@ -39,6 +39,9 @@ model Product {
   /// Catalog base price in IDR. Depot-specific overrides come later (M5).
   basePrice   Decimal  @db.Decimal(12, 2)
   imageUrl    String?
+  /// Additional gallery images beyond the primary `imageUrl` (ordered). The
+  /// customer gallery renders [imageUrl, ...images].
+  images      String[] @default([])
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

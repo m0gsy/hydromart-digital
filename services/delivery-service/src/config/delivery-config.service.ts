@@ -68,6 +68,18 @@ export class DeliveryConfigService {
   get slaMinutes(): number {
     return this.num('DELIVERY_SLA_MINUTES');
   }
+  /**
+   * Assumed average urban courier speed (km/h) for the customer-facing ETA at
+   * ON_DELIVERY start (straight-line distance ÷ this). Deliberately low to absorb
+   * the haversine underestimate vs. real road distance. Default fills it so no
+   * compose change is needed.
+   * // ponytail: flat constant — no traffic / time-of-day / road-network model.
+   * // Calibrate against real assignedAt→deliveredAt data once enough deliveries
+   * // exist (make it per-depot if speeds diverge across cities).
+   */
+  get urbanSpeedKmph(): number {
+    return Number(this.config.get('DELIVERY_URBAN_SPEED_KMPH', 18));
+  }
   /** Weekly delivered-orders target on the courier performance card (design 4c). */
   get courierWeeklyTarget(): number {
     return this.num('COURIER_WEEKLY_TARGET');

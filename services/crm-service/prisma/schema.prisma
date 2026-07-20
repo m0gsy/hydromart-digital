@@ -86,9 +86,11 @@ model CampaignRecipient {
 }
 
 /// Urgency of a depot broadcast — URGENT surfaces a banner in the courier inbox (design 8a).
+/// SCHEDULED ("Terjadwal") is a visual tier for planned notices (label only — no deferred send).
 enum BroadcastLevel {
   INFO
   URGENT
+  SCHEDULED
 }
 
 /// An operational announcement pushed by depot ops to every courier at a depot (design 8a).

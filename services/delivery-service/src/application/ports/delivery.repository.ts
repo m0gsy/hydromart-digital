@@ -11,6 +11,12 @@ export interface ProofRecord {
   capturedAt: Date;
 }
 
+/** One order line snapshotted onto the delivery for the courier manifest. */
+export interface DeliveryItem {
+  name: string;
+  qty: number;
+}
+
 export interface DeliveryStatusHistoryRecord {
   status: DeliveryStatus;
   changedBy: string | null;
@@ -28,9 +34,13 @@ export interface DeliveryRecord {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  recipientPhone: string | null;
+  items: DeliveryItem[] | null;
+  codAmount: number | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
+  estimatedArrivalAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -54,11 +64,15 @@ export interface CreateDeliveryData {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  recipientPhone: string | null;
+  items: DeliveryItem[] | null;
+  codAmount: number | null;
 }
 
 export interface DeliveryTimestamps {
   pickedUpAt?: Date;
   startedAt?: Date;
+  estimatedArrivalAt?: Date;
   deliveredAt?: Date;
   failedAt?: Date;
   failureReason?: string | null;

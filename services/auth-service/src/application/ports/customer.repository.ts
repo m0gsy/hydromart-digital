@@ -7,6 +7,8 @@ export interface CreateCustomerData {
   fullName: string | null;
   role: Role;
   assignedDepotId?: string | null;
+  vehicleType?: string | null;
+  plateNumber?: string | null;
 }
 
 /**

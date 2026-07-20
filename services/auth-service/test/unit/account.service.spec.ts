@@ -57,6 +57,8 @@ describe('AccountService', () => {
       'status',
       'avatarUrl',
       'assignedDepotId',
+      'vehicleType',
+      'plateNumber',
       'createdAt',
     ]);
   });
@@ -115,6 +117,22 @@ describe('AccountService', () => {
     const promoted = await service.inviteStaff('+628990002222', Role.DEPOT_MANAGER);
     expect(promoted.id).toBe(customer.id);
     expect(promoted.role).toBe(Role.DEPOT_MANAGER);
+  });
+
+  it('stores vehicle info for an invited DRIVER but ignores it for other roles', async () => {
+    const driver = await service.inviteStaff('+628990001212', Role.DRIVER, 'Joko', 'depot-1', {
+      vehicleType: 'MOTOR',
+      plateNumber: 'B 1234 ABC',
+    });
+    expect(driver).toMatchObject({ role: Role.DRIVER, vehicleType: 'MOTOR', plateNumber: 'B 1234 ABC' });
+
+    // Same vehicle payload on a non-driver role is dropped (not a courier).
+    const operator = await service.inviteStaff('+628990001313', Role.DEPOT_OPERATOR, 'Sari', 'depot-1', {
+      vehicleType: 'MOTOR',
+      plateNumber: 'B 9999 ZZ',
+    });
+    expect(operator.vehicleType).toBeNull();
+    expect(operator.plateNumber).toBeNull();
   });
 
   it('rejects assigning the CUSTOMER role via invite', async () => {

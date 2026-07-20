@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatDateTime } from '@/lib/format';
+import { useT } from '@/lib/locale-context';
 import { canViewChurn } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ChurnCustomer, ChurnRiskBand } from '@/lib/types';
@@ -25,6 +26,7 @@ function shortId(id: string): string {
 }
 
 function ChurnBody() {
+  const { t } = useT();
   // Global switcher drives scope: null selection = all depots (global list).
   const { selectedId, selected } = useDepot();
 
@@ -40,18 +42,18 @@ function ChurnBody() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <UsersThree size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Customer churn risk</h1>
+          <h1 className="text-2xl font-bold">{t('dashboard.churn.title')}</h1>
         </div>
         <Link href="/dashboard/campaigns" className="text-sm font-semibold text-brand-700 hover:underline">
-          Campaigns →
+          {t('dashboard.churn.campaignsLink')}
         </Link>
       </div>
 
       <p className="text-[12.5px] text-muted">
         <strong className="text-[color:var(--text)]">
-          {selected ? `${selected.name} · ${selected.code}` : 'Semua depot'}
-        </strong>{' '}
-        · pelanggan yang lama tidak memesan. Target langsung ke campaign reaktivasi.
+          {selected ? `${selected.name} · ${selected.code}` : t('dashboard.churn.allDepots')}
+        </strong>
+        {t('dashboard.churn.scopedSuffix')}
       </p>
 
       {rows.loading ? (
@@ -59,19 +61,19 @@ function ChurnBody() {
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : customers.length === 0 ? (
-        <CenterState title="No customers at risk" icon={<UsersThree size={40} weight="fill" />}>
-          No customers are flagged at risk for this selection.
+        <CenterState title={t('dashboard.churn.noRisk')} icon={<UsersThree size={40} weight="fill" />}>
+          {t('dashboard.churn.noRiskBody')}
         </CenterState>
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Last order</th>
-                <th className="px-4 py-3 text-right font-medium">Days since</th>
-                <th className="px-4 py-3 text-right font-medium">Orders</th>
-                <th className="px-4 py-3 font-medium">Risk</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.churn.colCustomer')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.churn.colLastOrder')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('dashboard.churn.colDaysSince')}</th>
+                <th className="px-4 py-3 text-right font-medium">{t('dashboard.churn.colOrders')}</th>
+                <th className="px-4 py-3 font-medium">{t('dashboard.churn.colRisk')}</th>
               </tr>
             </thead>
             <tbody>
@@ -95,11 +97,12 @@ function ChurnBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewChurn(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        Customer churn insights are staff-only — available to marketing and management staff.
+      <CenterState title={t('dashboard.churn.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashboard.churn.gateBody')}
       </CenterState>
     );
   }

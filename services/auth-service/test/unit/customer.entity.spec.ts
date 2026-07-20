@@ -13,6 +13,8 @@ const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
   googleSub: null,
   avatarUrl: null,
   assignedDepotId: null,
+  vehicleType: null,
+  plateNumber: null,
   phoneVerifiedAt: null,
   lastLoginAt: null,
   createdAt: new Date('2026-01-01T00:00:00Z'),

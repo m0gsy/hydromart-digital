@@ -48,11 +48,29 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'opsNotif',
       'driverRoster',
       'paymentSettle',
+      'incidents',
+      'approvals',
+      'procurement',
     ],
   },
-  { key: 'network', caps: ['dashboard', 'depotAdmin', 'staffAdmin'] },
+  {
+    key: 'courier',
+    caps: ['courierPayout', 'courierSettle', 'courierReturn', 'expenseApprove', 'depotBroadcast'],
+  },
+  {
+    key: 'depotTeam',
+    caps: [
+      'depotHuddle',
+      'depotHandover',
+      'depotMaintenance',
+      'depotTargets',
+      'depotWholesale',
+      'depotSubscriptions',
+    ],
+  },
+  { key: 'network', caps: ['dashboard', 'depotAdmin', 'staffAdmin', 'depotCrm', 'auditRead'] },
   { key: 'marketing', caps: ['campaignRead', 'campaignWrite', 'voucherRead', 'voucherWrite', 'churn'] },
-  { key: 'finance', caps: ['franchise', 'payout'] },
+  { key: 'finance', caps: ['franchise', 'payout', 'depotFinance', 'depotDisputes'] },
 ];
 
 type Grid = Record<Capability, Role[]>;

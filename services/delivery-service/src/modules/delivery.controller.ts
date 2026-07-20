@@ -34,6 +34,10 @@ export class DeliveryController {
         destinationAddress: dto.destinationAddress,
         destinationLat: dto.destinationLat,
         destinationLng: dto.destinationLng,
+        recipientPhone: dto.recipientPhone,
+        driverPhone: dto.driverPhone,
+        items: dto.items,
+        codAmount: dto.codAmount,
       },
       authorization,
     );

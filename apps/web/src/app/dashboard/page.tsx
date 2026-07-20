@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { ChartLineUp, Lock, Truck } from '@phosphor-icons/react';
+import { CaretRight, ChartLineUp, Gavel, Lock, Package, Truck, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { OperatorRingkasan } from '@/components/operator/operator-ringkasan';
@@ -10,9 +11,11 @@ import { Card, CenterState, ErrorState, Money, Skeleton, Spinner } from '@/compo
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canViewDashboard, canViewFranchise, isDepotOperator } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { ExecutiveDashboard } from '@/lib/types';
+import type { Approval, Delivery, ExecutiveDashboard, InventoryItem, Page } from '@/lib/types';
 
 // Default window: the trailing 30 days. Computed once per mount (client-only).
 function defaultRange(): { from: string; to: string } {
@@ -31,11 +34,143 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-function shortId(id: string): string {
-  return id.length > 8 ? `${id.slice(0, 8)}…` : id;
+// Approval queue for the scoped depot (falls back to the first depot when "All").
+function ApprovalsWidget() {
+  const { t } = useT();
+  const { scopedId } = useDepot();
+  const { data, loading } = useAsync<Approval[]>(
+    () => (scopedId ? api.get(endpoints.approvals.list({ depotId: scopedId, status: 'PENDING' }), true) : Promise.resolve([])),
+    [scopedId],
+  );
+  const items = data ?? [];
+  return (
+    <Card className="flex flex-col p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Gavel size={18} weight="fill" className="text-brand-500" />
+          {t('dashboard.landing.approvals.title')}
+        </h2>
+        {items.length > 0 && (
+          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700">
+            {t('dashboard.landing.approvals.waiting', { n: items.length })}
+          </span>
+        )}
+      </div>
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : items.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.approvals.empty')}</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-[color:var(--border)]">
+            {items.slice(0, 5).map((a) => (
+              <li key={a.id}>
+                <Link href={`/dashboard/approvals/${a.id}`} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:opacity-80">
+                  <span className="truncate">{a.title}</span>
+                  <Money amount={Math.abs(a.amountIdr)} className="shrink-0 font-medium text-[color:var(--danger)]" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link href="/dashboard/approvals" className="mt-3 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+            {t('dashboard.landing.approvals.viewAll')} <CaretRight size={13} weight="bold" />
+          </Link>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// Low-stock lines for the scoped depot.
+function LowStockWidget() {
+  const { t } = useT();
+  const { scopedId } = useDepot();
+  const { data, loading } = useAsync<InventoryItem[]>(
+    () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: true }), true) : Promise.resolve([])),
+    [scopedId],
+  );
+  const items = data ?? [];
+  return (
+    <Card className="flex flex-col p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Package size={18} weight="fill" className="text-brand-500" />
+          {t('dashboard.landing.lowStock.title')}
+        </h2>
+        {items.length > 0 && (
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700">{items.length}</span>
+        )}
+      </div>
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : items.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.lowStock.empty')}</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-[color:var(--border)]">
+            {items.slice(0, 5).map((it) => (
+              <li key={it.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="truncate">{it.label}</span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-amber-700">
+                  <Warning size={13} weight="fill" />
+                  {t('dashboard.landing.lowStock.belowMin', { qty: it.available, unit: it.unit, min: it.minimumStock })}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/dashboard/inventory" className="mt-3 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+            {t('dashboard.landing.lowStock.viewAll')} <CaretRight size={13} weight="bold" />
+          </Link>
+        </>
+      )}
+    </Card>
+  );
+}
+
+// Couriers currently on delivery (network-wide).
+function ActiveCouriersWidget() {
+  const { t } = useT();
+  const { data, loading } = useAsync<Page<Delivery>>(
+    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
+    [],
+  );
+  const items = data?.items ?? [];
+  return (
+    <Card className="flex flex-col p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="flex items-center gap-2 font-semibold">
+          <Truck size={18} weight="fill" className="text-brand-500" />
+          {t('dashboard.landing.couriers.title')}
+        </h2>
+        {items.length > 0 && (
+          <span className="text-xs text-muted">{t('dashboard.landing.couriers.subtitle', { n: items.length })}</span>
+        )}
+      </div>
+      {loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : items.length === 0 ? (
+        <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.couriers.empty')}</p>
+      ) : (
+        <>
+          <ul className="divide-y divide-[color:var(--border)]">
+            {items.slice(0, 5).map((d) => (
+              <li key={d.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="font-mono text-xs">{d.orderNumber}</span>
+                <span className="truncate text-right text-xs text-muted">{d.destinationAddress}</span>
+              </li>
+            ))}
+          </ul>
+          <Link href="/dashboard/tracking" className="mt-3 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+            {t('dashboard.landing.couriers.viewAll')} <CaretRight size={13} weight="bold" />
+          </Link>
+        </>
+      )}
+    </Card>
+  );
 }
 
 function DashboardBody() {
+  const { t } = useT();
   const range = defaultRange();
   const { data, error, loading, reload } = useAsync<ExecutiveDashboard>(() =>
     api.get(endpoints.dashboard.executive(range), true),
@@ -45,53 +180,59 @@ function DashboardBody() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { sales, topCustomers, topDepots, deliverySla, sources } = data;
+  const { sales, deliverySla, sources } = data;
   const totalRevenue = sales?.buckets.reduce((n, b) => n + b.revenue, 0) ?? 0;
   const totalOrders = sales?.buckets.reduce((n, b) => n + b.orderCount, 0) ?? 0;
   const maxRevenue = Math.max(1, ...(sales?.buckets ?? []).map((b) => b.revenue));
+
+  const partialWhich =
+    (sources.order === 'unavailable' ? t('dashboard.landing.partialSales') : '') +
+    (sources.delivery === 'unavailable' ? t('dashboard.landing.partialDelivery') : '');
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <div className="flex items-center gap-2">
           <ChartLineUp size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Operations</h1>
+          <h1 className="text-2xl font-bold">{t('dashboard.landing.title')}</h1>
         </div>
-        <p className="mt-1 text-sm text-muted">Last 30 days across sales and delivery.</p>
+        <p className="mt-1 text-sm text-muted">{t('dashboard.landing.subtitle')}</p>
       </div>
 
       {/* Headline stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Revenue" value={`Rp ${totalRevenue.toLocaleString('id-ID')}`} hint={`${totalOrders} orders`} />
         <Stat
-          label="SLA on-time"
+          label={t('dashboard.landing.revenue')}
+          value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
+          hint={t('dashboard.landing.orders', { n: totalOrders })}
+        />
+        <Stat
+          label={t('dashboard.landing.slaOnTime')}
           value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-          hint={deliverySla ? `${deliverySla.onTime}/${deliverySla.totalDelivered} delivered` : undefined}
+          hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
         />
         <Stat
-          label="Avg delivery"
-          value={deliverySla?.avgMinutes != null ? `${Math.round(deliverySla.avgMinutes)} min` : '—'}
-          hint={deliverySla ? `threshold ${deliverySla.thresholdMinutes} min` : undefined}
+          label={t('dashboard.landing.avgDelivery')}
+          value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
+          hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
         />
         <Stat
-          label="Breached / failed"
+          label={t('dashboard.landing.breachedFailed')}
           value={deliverySla ? `${deliverySla.breached} / ${deliverySla.failedCount}` : '—'}
         />
       </div>
 
       {(sources.order === 'unavailable' || sources.delivery === 'unavailable') && (
         <p className="text-sm text-amber-700" role="status">
-          Some data could not be loaded
-          {sources.order === 'unavailable' && ' (sales)'}
-          {sources.delivery === 'unavailable' && ' (delivery)'}. Showing what is available.
+          {t('dashboard.landing.partial', { which: partialWhich })}
         </p>
       )}
 
       {/* Sales trend */}
       <Card className="flex flex-col gap-3 p-5">
-        <h2 className="font-semibold">Sales trend</h2>
+        <h2 className="font-semibold">{t('dashboard.landing.salesTrend')}</h2>
         {!sales || sales.buckets.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted">No sales in this window.</p>
+          <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.noSales')}</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {sales.buckets.map((b) => (
@@ -110,55 +251,19 @@ function DashboardBody() {
         )}
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Top customers */}
-        <Card className="flex flex-col p-5">
-          <h2 className="mb-3 font-semibold">Top customers</h2>
-          {!topCustomers || topCustomers.items.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">No data.</p>
-          ) : (
-            <ul className="divide-y divide-[color:var(--border)]">
-              {topCustomers.items.map((c) => (
-                <li key={c.customerId} className="flex items-center justify-between py-2.5 text-sm">
-                  <span>
-                    <span className="block font-mono text-xs">{shortId(c.customerId)}</span>
-                    <span className="block text-xs text-muted">{c.orderCount} orders</span>
-                  </span>
-                  <Money amount={c.revenue} className="font-medium" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        {/* Top depots */}
-        <Card className="flex flex-col p-5">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold">
-            <Truck size={18} weight="fill" className="text-brand-500" />
-            Top depots
-          </h2>
-          {!topDepots || topDepots.items.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted">No data.</p>
-          ) : (
-            <ul className="divide-y divide-[color:var(--border)]">
-              {topDepots.items.map((d) => (
-                <li key={d.depotId} className="flex items-center justify-between py-2.5 text-sm">
-                  <span>
-                    <span className="block font-mono text-xs">{shortId(d.depotId)}</span>
-                    <span className="block text-xs text-muted">{d.orderCount} orders</span>
-                  </span>
-                  <Money amount={d.revenue} className="font-medium" />
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+      {/* Action widgets: approval queue · low stock · active couriers (spec 1a manager landing). */}
+      <p className="text-[12.5px] text-muted">{t('dashboard.landing.pickDepotHint')}</p>
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        <ApprovalsWidget />
+        <LowStockWidget />
+        <ActiveCouriersWidget />
       </div>
     </div>
   );
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   const router = useRouter();
 
@@ -180,8 +285,8 @@ function Gate() {
   if (isDepotOperator(customer?.role)) return <OperatorRingkasan />;
   if (!canViewDashboard(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        The operations dashboard is available to depot managers and head-office staff.
+      <CenterState title={t('dashboard.landing.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashboard.landing.gateBody')}
       </CenterState>
     );
   }

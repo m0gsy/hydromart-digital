@@ -10,6 +10,7 @@ import { api, ApiError } from '@/lib/api';
 import { parseRecipients } from '@/lib/campaigns';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { canManageCampaigns, canViewCampaigns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Campaign, CampaignStatus, Page } from '@/lib/types';
@@ -30,6 +31,7 @@ type Audience = 'list' | 'segment';
 
 /** Create-a-campaign form. Reloads the list on success. */
 function CreateForm({ onCreated }: { onCreated: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
@@ -52,20 +54,20 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
 
   async function submit() {
     if (!name.trim() || !message.trim()) {
-      setError('Name and message are required.');
+      setError(t('dashboard.campaigns.nameMsgRequired'));
       return;
     }
     const body: Record<string, unknown> = { name: name.trim(), messageTemplate: message };
     if (audience === 'list') {
       const parsed = parseRecipients(recipients);
       if (parsed.length === 0) {
-        setError('Add at least one recipient (one phone per line).');
+        setError(t('dashboard.campaigns.addRecipient'));
         return;
       }
       body.recipients = parsed;
     } else {
       if (!tier && !city.trim()) {
-        setError('Pick a tier or enter a city to target a segment.');
+        setError(t('dashboard.campaigns.pickSegment'));
         return;
       }
       body.segment = { tier: tier || undefined, city: city.trim() || undefined };
@@ -78,7 +80,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       setOpen(false);
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create the campaign.');
+      setError(err instanceof ApiError ? err.message : t('dashboard.campaigns.createError'));
     } finally {
       setBusy(false);
     }
@@ -88,21 +90,21 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
     return (
       <Button onClick={() => setOpen(true)}>
         <ChatCircleText size={18} weight="fill" />
-        New campaign
+        {t('dashboard.campaigns.newCampaign')}
       </Button>
     );
   }
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">New broadcast campaign</h2>
-      <Field label="Name" htmlFor="c-name">
-        <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ramadan Promo Blast" />
+      <h2 className="font-semibold">{t('dashboard.campaigns.newBroadcast')}</h2>
+      <Field label={t('dashboard.campaigns.nameLabel')} htmlFor="c-name">
+        <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('dashboard.campaigns.namePlaceholder')} />
       </Field>
       <Field
-        label="Message"
+        label={t('dashboard.campaigns.messageLabel')}
         htmlFor="c-msg"
-        hint="Supports {{name}} and {{phone}} tokens."
+        hint={t('dashboard.campaigns.messageHint')}
       >
         <textarea
           id="c-msg"
@@ -110,24 +112,24 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => setMessage(e.target.value)}
           rows={3}
           className={inputClass}
-          placeholder="Hi {{name}}, enjoy 20% off your next refill!"
+          placeholder={t('dashboard.campaigns.messagePlaceholder')}
         />
       </Field>
 
       <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Audience</span>
+        <span className="text-sm font-medium">{t('dashboard.campaigns.audience')}</span>
         <div className="flex gap-2">
           <Button variant={audience === 'list' ? 'primary' : 'secondary'} onClick={() => setAudience('list')}>
-            Phone list
+            {t('dashboard.campaigns.phoneList')}
           </Button>
           <Button variant={audience === 'segment' ? 'primary' : 'secondary'} onClick={() => setAudience('segment')}>
-            Segment
+            {t('dashboard.campaigns.segment')}
           </Button>
         </div>
       </div>
 
       {audience === 'list' ? (
-        <Field label="Recipients" htmlFor="c-rcp" hint="One per line: phone or phone,name">
+        <Field label={t('dashboard.campaigns.recipientsLabel')} htmlFor="c-rcp" hint={t('dashboard.campaigns.recipientsHint')}>
           <textarea
             id="c-rcp"
             value={recipients}
@@ -139,18 +141,18 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         </Field>
       ) : (
         <div className="flex flex-wrap gap-3">
-          <Field label="Tier" htmlFor="c-tier">
+          <Field label={t('dashboard.campaigns.tier')} htmlFor="c-tier">
             <select id="c-tier" value={tier} onChange={(e) => setTier(e.target.value)} className={`${inputClass} min-w-40`}>
-              <option value="">Any tier</option>
-              {TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
+              <option value="">{t('dashboard.campaigns.anyTier')}</option>
+              {TIERS.map((tierName) => (
+                <option key={tierName} value={tierName}>
+                  {tierName}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="City" htmlFor="c-city">
-            <Input id="c-city" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Bandung" />
+          <Field label={t('dashboard.campaigns.city')} htmlFor="c-city">
+            <Input id="c-city" value={city} onChange={(e) => setCity(e.target.value)} placeholder={t('dashboard.campaigns.cityPlaceholder')} />
           </Field>
         </div>
       )}
@@ -162,10 +164,10 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
-          Cancel
+          {t('dashboard.campaigns.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Create draft
+          {t('dashboard.campaigns.createDraft')}
         </Button>
       </div>
     </Card>
@@ -183,11 +185,12 @@ function CampaignCard({
   onReport: () => void;
   onChanged: () => void;
 }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function send() {
-    if (!window.confirm(`Send "${campaign.name}" to ${campaign.totalRecipients} recipient(s)? This cannot be undone.`)) {
+    if (!window.confirm(t('dashboard.campaigns.sendConfirm', { name: campaign.name, n: campaign.totalRecipients }))) {
       return;
     }
     setBusy(true);
@@ -196,7 +199,7 @@ function CampaignCard({
       await api.post(endpoints.crm.sendCampaign(campaign.id), undefined, true);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not send the campaign.');
+      setError(err instanceof ApiError ? err.message : t('dashboard.campaigns.sendError'));
     } finally {
       setBusy(false);
     }
@@ -215,15 +218,15 @@ function CampaignCard({
       </div>
       <dl className="grid grid-cols-3 gap-2 text-center text-sm">
         <div>
-          <dt className="text-xs text-muted">Recipients</dt>
+          <dt className="text-xs text-muted">{t('dashboard.campaigns.recipientsCol')}</dt>
           <dd className="font-semibold tabular-nums">{campaign.totalRecipients}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Sent</dt>
+          <dt className="text-xs text-muted">{t('dashboard.campaigns.sent')}</dt>
           <dd className="font-semibold tabular-nums text-green-700">{campaign.sentCount}</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Failed</dt>
+          <dt className="text-xs text-muted">{t('dashboard.campaigns.failed')}</dt>
           <dd className={`font-semibold tabular-nums ${campaign.failedCount > 0 ? 'text-red-600' : ''}`}>
             {campaign.failedCount}
           </dd>
@@ -236,12 +239,12 @@ function CampaignCard({
       )}
       <div className="flex justify-end gap-2 border-t border-app pt-2">
         <Button variant="ghost" onClick={onReport} disabled={busy}>
-          Lihat laporan
+          {t('dashboard.campaigns.viewReport')}
         </Button>
         {canManage && campaign.status === 'DRAFT' && (
           <Button onClick={send} loading={busy}>
             <PaperPlaneTilt size={16} weight="fill" />
-            Send now
+            {t('dashboard.campaigns.sendNow')}
           </Button>
         )}
       </div>
@@ -250,6 +253,7 @@ function CampaignCard({
 }
 
 function CampaignsBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const canManage = canManageCampaigns(customer?.role);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -261,7 +265,7 @@ function CampaignsBody() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <ChatCircleText size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Campaigns</h1>
+          <h1 className="text-2xl font-bold">{t('dashboard.campaigns.title')}</h1>
         </div>
         {canManage && <CreateForm onCreated={list.reload} />}
       </div>
@@ -271,8 +275,8 @@ function CampaignsBody() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
-        <CenterState title="No campaigns yet" icon={<ChatCircleText size={40} weight="fill" />}>
-          {canManage ? 'Create a draft to broadcast to your customers.' : 'No broadcast campaigns have been created.'}
+        <CenterState title={t('dashboard.campaigns.noCampaigns')} icon={<ChatCircleText size={40} weight="fill" />}>
+          {canManage ? t('dashboard.campaigns.noCampaignsManage') : t('dashboard.campaigns.noCampaignsView')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -294,11 +298,12 @@ function CampaignsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewCampaigns(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        Broadcast campaigns are available to marketing and head-office staff.
+      <CenterState title={t('dashboard.campaigns.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashboard.campaigns.gateBody')}
       </CenterState>
     );
   }

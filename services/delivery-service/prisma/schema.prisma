@@ -114,11 +114,25 @@ model Delivery {
   destinationLat     Float?
   destinationLng     Float?
 
+  // Snapshotted at assignment so the courier delivery-detail (design 4a) renders
+  // recipient contact + the order manifest + COD without a live cross-service call.
+  // recipientPhone is the CUSTOMER's number (courier → customer). items is a
+  // [{name, qty}] line-item snapshot. codAmount is whole-IDR cash to collect;
+  // null = non-COD / unknown (legacy rows, or payment method not yet joined).
+  recipientPhone String?
+  items          Json?
+  codAmount      Int?
+
   // Latest reported driver position (live tracking, PRD 10a). Overwritten on each
   // ping while en route; no history kept (MVP — "where is the driver now").
   lastLat        Float?
   lastLng        Float?
   lastLocationAt DateTime?
+
+  // Customer-facing ETA, computed at ON_DELIVERY start from straight-line distance
+  // ÷ an assumed urban speed and pushed onto the order payload. Null = not yet
+  // started / uncomputable (no destination or origin coords).
+  estimatedArrivalAt DateTime?
 
   assignedAt    DateTime  @default(now())
   pickedUpAt    DateTime?

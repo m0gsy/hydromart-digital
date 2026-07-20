@@ -10,7 +10,8 @@ const productRow = () => ({
   description: null,
   unit: 'galon',
   basePrice: { toNumber: () => 20000 },
-  imageUrl: null,
+  imageUrl: 'primary.jpg',
+  images: ['extra-1.jpg', 'extra-2.jpg'],
   active: true,
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
@@ -38,6 +39,7 @@ describe('ProductPrismaRepository', () => {
 
     expect(result.total).toBe(1);
     expect(result.items[0].basePrice).toBe(20000);
+    expect(result.items[0].images).toEqual(['extra-1.jpg', 'extra-2.jpg']);
     expect(model.findMany).toHaveBeenCalledWith({
       where: {},
       orderBy: { createdAt: 'desc' },
@@ -107,6 +109,7 @@ describe('ProductPrismaRepository', () => {
       unit: 'galon',
       basePrice: 20000,
       imageUrl: null,
+      images: [],
     };
     const record = await repo.create(data);
     expect(record.basePrice).toBe(20000);

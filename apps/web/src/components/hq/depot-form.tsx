@@ -134,6 +134,25 @@ export function DepotForm({
         </Field>
       </div>
 
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">{t('hq.depots.form.payment')}</span>
+        <p className="text-xs text-muted">{t('hq.depots.form.paymentHint')}</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('hq.depots.form.bankName')} htmlFor="d-bank">
+            <Input id="d-bank" value={form.paymentBankName} onChange={set('paymentBankName')} placeholder="BCA" />
+          </Field>
+          <Field label={t('hq.depots.form.accountNumber')} htmlFor="d-acct">
+            <Input id="d-acct" inputMode="numeric" value={form.paymentBankAccountNumber} onChange={set('paymentBankAccountNumber')} placeholder="1234567890" />
+          </Field>
+          <Field label={t('hq.depots.form.accountHolder')} htmlFor="d-holder">
+            <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder="PT Hydromart Cikini" />
+          </Field>
+          <Field label={t('hq.depots.form.qris')} htmlFor="d-qris" hint={t('hq.depots.form.qrisHint')}>
+            <Input id="d-qris" value={form.paymentQrisImageUrl} onChange={set('paymentQrisImageUrl')} placeholder="https://…/qris.png" />
+          </Field>
+        </div>
+      </div>
+
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}

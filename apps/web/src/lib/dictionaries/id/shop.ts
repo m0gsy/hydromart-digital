@@ -27,6 +27,7 @@ export const shop = {
     toCart: 'Ke keranjang →',
     addError: 'Gagal menambah ke keranjang.',
     related: 'Sering dibeli bersama',
+    viewImage: 'Lihat foto {n}',
   },
   card: {
     addAria: 'Tambah {name} ke keranjang',

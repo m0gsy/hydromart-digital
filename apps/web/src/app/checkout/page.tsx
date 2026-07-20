@@ -243,6 +243,8 @@ function CheckoutInner() {
   const estimatedTotal = cart.subtotal - totalDiscount;
 
   // Advisory only: display-only ongkir estimate, never part of the API payload.
+  // order-service computes the authoritative delivery fee + order total from the
+  // routed depot at checkout — this displayedTotal is just a pre-submit preview.
   const depot = nearbyDepots?.[0] ?? null;
   const deliveryFee = depot?.deliveryFee ?? 0;
   const displayedTotal = estimatedTotal + deliveryFee;

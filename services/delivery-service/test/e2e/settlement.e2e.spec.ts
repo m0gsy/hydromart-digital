@@ -63,6 +63,9 @@ describe('Cash settlement HTTP flows (e2e)', () => {
       destinationAddress: 'x',
       destinationLat: null,
       destinationLng: null,
+      recipientPhone: null,
+      items: null,
+      codAmount: null,
     });
     await deliveries.applyStatus(
       delivery.id,

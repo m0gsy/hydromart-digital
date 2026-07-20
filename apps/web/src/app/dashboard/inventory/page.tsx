@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { InventoryItem, StockMovement, StockMovementType } from '@/lib/types';
@@ -359,6 +360,7 @@ function Chip({
 }
 
 function InventoryBody() {
+  const { t } = useT();
   const { customer } = useAuth();
   const canWrite = canWriteInventory(customer?.role);
   const { scopedId, selected, depots, ready } = useDepot();
@@ -447,16 +449,16 @@ function InventoryBody() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="No depots" icon={<Package size={40} weight="fill" />}>
-          No depots are configured yet.
+        <CenterState title={t('dashboard.inventory.noDepots')} icon={<Package size={40} weight="fill" />}>
+          {t('dashboard.inventory.noDepotsBody')}
         </CenterState>
       ) : lines.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : lines.error ? (
         <ErrorState message={lines.error} onRetry={lines.reload} />
       ) : visible.length === 0 ? (
-        <CenterState title="No stock lines" icon={<Package size={40} weight="fill" />}>
-          {lowOnly ? 'Nothing is below its minimum here.' : 'This depot has no stock lines yet.'}
+        <CenterState title={t('dashboard.inventory.noLines')} icon={<Package size={40} weight="fill" />}>
+          {lowOnly ? t('dashboard.inventory.noLinesLow') : t('dashboard.inventory.noLinesAll')}
         </CenterState>
       ) : (
         <Card className="overflow-hidden p-0">
@@ -494,11 +496,12 @@ function InventoryBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewInventory(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        Inventory is available to depot staff and head office.
+      <CenterState title={t('dashboard.inventory.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashboard.inventory.gateBody')}
       </CenterState>
     );
   }

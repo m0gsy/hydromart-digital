@@ -6,6 +6,7 @@ import { ContactMethod, ContactState } from '../../domain/no-show';
 import {
   CreateDeliveryData,
   DeliveredRow,
+  DeliveryItem,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
@@ -45,9 +46,13 @@ interface DeliveryRow {
   destinationAddress: string;
   destinationLat: number | null;
   destinationLng: number | null;
+  recipientPhone: string | null;
+  items: Prisma.JsonValue | null;
+  codAmount: number | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
+  estimatedArrivalAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -90,9 +95,13 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       destinationAddress: row.destinationAddress,
       destinationLat: row.destinationLat,
       destinationLng: row.destinationLng,
+      recipientPhone: row.recipientPhone,
+      items: (row.items as DeliveryItem[] | null) ?? null,
+      codAmount: row.codAmount,
       lastLat: row.lastLat,
       lastLng: row.lastLng,
       lastLocationAt: row.lastLocationAt,
+      estimatedArrivalAt: row.estimatedArrivalAt,
       assignedAt: row.assignedAt,
       pickedUpAt: row.pickedUpAt,
       startedAt: row.startedAt,
@@ -125,9 +134,12 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   }
 
   async create(data: CreateDeliveryData): Promise<DeliveryRecord> {
+    const { items, ...rest } = data;
     const row = await this.prisma.delivery.create({
       data: {
-        ...data,
+        ...rest,
+        // Prisma Json column: a JS null must be Prisma.JsonNull, not raw null.
+        items: items ? (items as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         status: DeliveryStatus.ASSIGNED,
         history: { create: { status: DeliveryStatus.ASSIGNED } },
       },

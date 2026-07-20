@@ -5,6 +5,7 @@ import {
   HandDeposit,
   House,
   Package,
+  Phone,
   Receipt,
   Truck,
   type Icon,
@@ -41,7 +42,21 @@ const MILESTONES: { labelKey: string; status: OrderStatus; icon: Icon }[] = [
 ];
 
 /** Stepped node tracker through the fulfilment flow, with a status band. */
-export function OrderProgress({ status }: { status: OrderStatus }) {
+// Arrival clock time (id-ID) for the customer-facing ETA on the courier card.
+const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+export function OrderProgress({
+  status,
+  driverName,
+  driverPhone,
+  eta,
+}: {
+  status: OrderStatus;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  /** Customer-facing ETA ISO string (order.estimatedArrivalAt); shown while ON_DELIVERY. */
+  eta?: string | null;
+}) {
   const { t } = useT();
   if (status === 'CANCELLED') {
     return (
@@ -103,12 +118,40 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
         })}
       </div>
 
-      {/* Courier / status band. No courier name/ETA/phone exists in the order
-          payload, so we always show the generic localized status line. */}
-      <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
-        <Truck size={20} weight="fill" className="shrink-0 text-brand-600" />
-        <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
-      </div>
+      {/* Courier / status band. driverName + driverPhone ride on the order payload once a
+          courier is assigned (order-service snapshots them from dispatch) — surface a courier
+          card with a tel: link so the customer can call the DRIVER. Never the recipient's own
+          number (that is the customer themselves). */}
+      {driverName ? (
+        <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+            <Truck size={18} weight="fill" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold">{driverName}</p>
+            <p className="text-[12.5px] text-muted">{t(`order.banner.${status}`)}</p>
+            {eta && status === 'ON_DELIVERY' && (
+              <p className="text-[12px] font-bold text-deep-teal">
+                {t('order.detail.eta')} · ± {ETA_TIME.format(new Date(eta))}
+              </p>
+            )}
+          </div>
+          {driverPhone && (
+            <a
+              href={`tel:${driverPhone}`}
+              aria-label={t('order.detail.callDriver')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand transition-opacity hover:opacity-90"
+            >
+              <Phone size={17} weight="fill" />
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
+          <Truck size={20} weight="fill" className="shrink-0 text-brand-600" />
+          <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
+        </div>
+      )}
     </div>
   );
 }

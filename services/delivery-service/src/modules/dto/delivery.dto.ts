@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsDateString,
   IsEnum,
   IsInt,
@@ -13,6 +14,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -28,6 +30,21 @@ export class ReportLocationDto {
   @Type(() => Number)
   @IsLongitude()
   lng!: number;
+}
+
+/** One order line, snapshotted onto the delivery for the courier manifest. */
+export class DeliveryItemDto {
+  @ApiProperty({ example: 'Galon Le Minerale 19L' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  name!: string;
+
+  @ApiProperty({ example: 2 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  qty!: number;
 }
 
 export class AssignDeliveryDto {
@@ -74,6 +91,38 @@ export class AssignDeliveryDto {
   @IsOptional()
   @IsLongitude()
   destinationLng?: number;
+
+  @ApiPropertyOptional({
+    example: '081234567890',
+    description: "Recipient's phone, snapshotted so the courier can call without a cross-service lookup.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  recipientPhone?: string;
+
+  @ApiPropertyOptional({
+    example: '081298765432',
+    description: "Courier's phone, forwarded to order-service so the customer can call the driver.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  driverPhone?: string;
+
+  @ApiPropertyOptional({ type: [DeliveryItemDto], description: 'Order line-items ({name, qty}) for the courier manifest.' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DeliveryItemDto)
+  items?: DeliveryItemDto[];
+
+  @ApiPropertyOptional({ example: 84000, description: 'Whole-IDR cash to collect on delivery; null/0 = non-COD.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  codAmount?: number;
 }
 
 /** Proof of delivery — all fields mandatory except the note (BR: photo+GPS+timestamp+signature). */
