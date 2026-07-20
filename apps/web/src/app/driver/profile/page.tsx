@@ -47,8 +47,14 @@ function Profile() {
       </Card>
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
+        {/* ponytail: vehicle (kendaraan) info isn't on the Customer profile — add a
+            plateNumber/vehicleType field to auth-service to surface it here. */}
         {customer?.assignedDepotId && (
-          <Row icon={<Storefront size={19} weight="fill" />} label="Depot penempatan" />
+          <Row
+            icon={<Storefront size={19} weight="fill" />}
+            label="Depot penempatan"
+            onClick={() => router.push('/driver/announcements')}
+          />
         )}
         <Row
           icon={<ChartBar size={19} weight="fill" />}

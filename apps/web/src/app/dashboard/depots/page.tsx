@@ -12,6 +12,7 @@ import { api, ApiError } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin, Page } from '@/lib/types';
@@ -41,6 +42,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
 
 /** Create (depot=null) or edit form. Hours/holidays are omitted — see page ceiling note. */
 function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; onDone: () => void; onCancel: () => void }) {
+  const { t } = useT();
   const [form, setForm] = useState<DepotForm>(depot ? formFromDepot(depot) : EMPTY_DEPOT_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +61,7 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
       else await api.post(endpoints.depots.create, parsed.value, true);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save the depot.');
+      setError(err instanceof ApiError ? err.message : t('dashboard.depots.saveError'));
     } finally {
       setBusy(false);
     }
@@ -67,42 +69,42 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">{depot ? `Edit ${depot.name}` : 'New depot'}</h2>
+      <h2 className="font-semibold">{depot ? `${t('dashboard.depots.editPrefix')}${depot.name}` : t('dashboard.depots.newTitle')}</h2>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Code" htmlFor="d-code">
+        <Field label={t('dashboard.depots.code')} htmlFor="d-code">
           <Input id="d-code" value={form.code} onChange={set('code')} placeholder="JKT-01" />
         </Field>
-        <Field label="Name" htmlFor="d-name">
+        <Field label={t('dashboard.depots.name')} htmlFor="d-name">
           <Input id="d-name" value={form.name} onChange={set('name')} placeholder="Depot Cikini" />
         </Field>
-        <Field label="Ownership" htmlFor="d-own">
+        <Field label={t('dashboard.depots.ownership')} htmlFor="d-own">
           <select id="d-own" value={form.ownershipType} onChange={set('ownershipType')} className={inputClass}>
             <option value="HKP">HKP</option>
             <option value="WARALABA">WARALABA</option>
           </select>
         </Field>
-        <Field label="City" htmlFor="d-city">
+        <Field label={t('dashboard.depots.city')} htmlFor="d-city">
           <Input id="d-city" value={form.city} onChange={set('city')} placeholder="Jakarta Pusat" />
         </Field>
-        <Field label="Province" htmlFor="d-prov">
+        <Field label={t('dashboard.depots.province')} htmlFor="d-prov">
           <Input id="d-prov" value={form.province} onChange={set('province')} placeholder="DKI Jakarta" />
         </Field>
-        <Field label="Address" htmlFor="d-addr">
+        <Field label={t('dashboard.depots.address')} htmlFor="d-addr">
           <Input id="d-addr" value={form.address} onChange={set('address')} placeholder="Jl. Cikini Raya No. 1" />
         </Field>
-        <Field label="Latitude" htmlFor="d-lat">
+        <Field label={t('dashboard.depots.latitude')} htmlFor="d-lat">
           <Input id="d-lat" inputMode="decimal" value={form.lat} onChange={set('lat')} placeholder="-6.1944" />
         </Field>
-        <Field label="Longitude" htmlFor="d-lng">
+        <Field label={t('dashboard.depots.longitude')} htmlFor="d-lng">
           <Input id="d-lng" inputMode="decimal" value={form.lng} onChange={set('lng')} placeholder="106.8412" />
         </Field>
-        <Field label="Service radius (km)" htmlFor="d-rad" hint="Blank = default 5 km">
+        <Field label={t('dashboard.depots.serviceRadius')} htmlFor="d-rad" hint={t('dashboard.depots.serviceRadiusHint')}>
           <Input id="d-rad" inputMode="decimal" value={form.serviceRadiusKm} onChange={set('serviceRadiusKm')} placeholder="5" />
         </Field>
-        <Field label="Delivery fee (IDR)" htmlFor="d-fee">
+        <Field label={t('dashboard.depots.deliveryFee')} htmlFor="d-fee">
           <Input id="d-fee" inputMode="numeric" value={form.deliveryFee} onChange={set('deliveryFee')} placeholder="5000" />
         </Field>
-        <Field label="Min order (IDR)" htmlFor="d-min" hint="Blank = no minimum">
+        <Field label={t('dashboard.depots.minOrder')} htmlFor="d-min" hint={t('dashboard.depots.minOrderHint')}>
           <Input id="d-min" inputMode="numeric" value={form.minOrderAmount} onChange={set('minOrderAmount')} placeholder="20000" />
         </Field>
       </div>
@@ -134,10 +136,10 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t('dashboard.depots.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          {depot ? 'Save changes' : 'Create depot'}
+          {depot ? t('dashboard.depots.saveChanges') : t('dashboard.depots.createDepot')}
         </Button>
       </div>
     </Card>
@@ -157,6 +159,7 @@ function DepotCard({
   onDetail: () => void;
   onChanged: () => void;
 }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -168,7 +171,7 @@ function DepotCard({
       else await api.patch(endpoints.depots.detail(depot.id), { active: true }, true);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update the depot.');
+      setError(err instanceof ApiError ? err.message : t('dashboard.depots.updateError'));
     } finally {
       setBusy(false);
     }
@@ -183,19 +186,19 @@ function DepotCard({
             {depot.code} · {depot.city} · {depot.ownershipType}
           </p>
         </div>
-        <Badge tone={depot.active ? 'success' : 'neutral'}>{depot.active ? 'Active' : 'Inactive'}</Badge>
+        <Badge tone={depot.active ? 'success' : 'neutral'}>{depot.active ? t('dashboard.depots.active') : t('dashboard.depots.inactive')}</Badge>
       </div>
       <dl className="grid grid-cols-3 gap-2 text-center text-sm">
         <div>
-          <dt className="text-xs text-muted">Radius</dt>
+          <dt className="text-xs text-muted">{t('dashboard.depots.radius')}</dt>
           <dd className="font-semibold tabular-nums">{depot.serviceRadiusKm} km</dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Delivery</dt>
+          <dt className="text-xs text-muted">{t('dashboard.depots.delivery')}</dt>
           <dd className="font-semibold"><Money amount={depot.deliveryFee} /></dd>
         </div>
         <div>
-          <dt className="text-xs text-muted">Min order</dt>
+          <dt className="text-xs text-muted">{t('dashboard.depots.minOrderShort')}</dt>
           <dd className="font-semibold">{depot.minOrderAmount == null ? '—' : <Money amount={depot.minOrderAmount} />}</dd>
         </div>
       </dl>
@@ -206,17 +209,17 @@ function DepotCard({
       )}
       <div className="flex flex-wrap justify-end gap-2 border-t border-app pt-2">
         <Button variant="ghost" onClick={onDetail} disabled={busy}>
-          Detail
+          {t('dashboard.depots.detail')}
         </Button>
         <Button variant="ghost" onClick={onHours} disabled={busy}>
           <Clock size={16} weight="fill" />
-          Jam &amp; libur
+          {t('dashboard.depots.hours')}
         </Button>
         <Button variant="secondary" onClick={onEdit} disabled={busy}>
-          Edit
+          {t('dashboard.depots.edit')}
         </Button>
         <Button variant={depot.active ? 'danger' : 'primary'} onClick={toggleActive} loading={busy}>
-          {depot.active ? 'Deactivate' : 'Reactivate'}
+          {depot.active ? t('dashboard.depots.deactivate') : t('dashboard.depots.reactivate')}
         </Button>
       </div>
     </Card>
@@ -224,6 +227,7 @@ function DepotCard({
 }
 
 function DepotsBody() {
+  const { t } = useT();
   const [editing, setEditing] = useState<DepotAdmin | null | 'new'>(null);
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const [detail, setDetail] = useState<DepotAdmin | null>(null);
@@ -245,7 +249,7 @@ function DepotsBody() {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Buildings size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Depots</h1>
+          <h1 className="text-2xl font-bold">{t('dashboard.depots.title')}</h1>
         </div>
         <div className="flex gap-2">
           <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
@@ -258,11 +262,11 @@ function DepotsBody() {
                   view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
                 }`}
               >
-                {v === 'list' ? 'Daftar' : 'Peta'}
+                {v === 'list' ? t('dashboard.depots.list') : t('dashboard.depots.map')}
               </button>
             ))}
           </div>
-          {editing === null && <Button onClick={() => setEditing('new')}>New depot</Button>}
+          {editing === null && <Button onClick={() => setEditing('new')}>{t('dashboard.depots.newDepot')}</Button>}
         </div>
       </div>
 
@@ -289,8 +293,8 @@ function DepotsBody() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
-        <CenterState title="No depots yet" icon={<Buildings size={40} weight="fill" />}>
-          Create the first depot to start serving orders.
+        <CenterState title={t('dashboard.depots.noDepots')} icon={<Buildings size={40} weight="fill" />}>
+          {t('dashboard.depots.noDepotsBody')}
         </CenterState>
       ) : view === 'map' ? (
         <DepotMap depots={items} onSelect={setDetail} />
@@ -315,11 +319,12 @@ function DepotsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageDepots(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        Depot management is available to depot managers and head office.
+      <CenterState title={t('dashboard.depots.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashboard.depots.gateBody')}
       </CenterState>
     );
   }

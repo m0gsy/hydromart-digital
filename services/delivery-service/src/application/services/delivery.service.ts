@@ -47,6 +47,9 @@ export interface AssignInput {
   destinationAddress: string;
   destinationLat?: number;
   destinationLng?: number;
+  recipientPhone?: string;
+  items?: { name: string; qty: number }[];
+  codAmount?: number;
 }
 
 export type ProofInput = Omit<ProofRecord, 'capturedAt'>;
@@ -119,6 +122,9 @@ export class DeliveryService {
       destinationAddress: input.destinationAddress,
       destinationLat: input.destinationLat ?? null,
       destinationLng: input.destinationLng ?? null,
+      recipientPhone: input.recipientPhone ?? null,
+      items: input.items ?? null,
+      codAmount: input.codAmount ?? null,
     };
     const delivery = await this.deliveries.create(data);
     this.logger.log(`Delivery ${delivery.id} assigned to driver ${input.driverId} by ${actorId}`);

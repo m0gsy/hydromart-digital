@@ -41,7 +41,13 @@ const MILESTONES: { labelKey: string; status: OrderStatus; icon: Icon }[] = [
 ];
 
 /** Stepped node tracker through the fulfilment flow, with a status band. */
-export function OrderProgress({ status }: { status: OrderStatus }) {
+export function OrderProgress({
+  status,
+  driverName,
+}: {
+  status: OrderStatus;
+  driverName?: string | null;
+}) {
   const { t } = useT();
   if (status === 'CANCELLED') {
     return (
@@ -103,12 +109,30 @@ export function OrderProgress({ status }: { status: OrderStatus }) {
         })}
       </div>
 
-      {/* Courier / status band. No courier name/ETA/phone exists in the order
-          payload, so we always show the generic localized status line. */}
-      <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
-        <Truck size={20} weight="fill" className="shrink-0 text-brand-600" />
-        <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
-      </div>
+      {/* Courier / status band. driverName rides on the order payload once a courier
+          is assigned — surface it as a courier card. The customer order payload carries
+          NO courier phone or live ETA (deliveries.* is driver/staff-scoped, no customer
+          tracking endpoint), so those are omitted rather than fabricated.
+          // ponytail: the delivery now snapshots recipientPhone, but that is the CUSTOMER's
+          // OWN number — never the driver's, so it must not surface here. Showing the DRIVER's
+          // phone needs order-service to snapshot it onto the order at assign (the dispatch UI
+          // already has driver.phone) + expose it in the customer order payload. Blocked until then. */}
+      {driverName ? (
+        <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+            <Truck size={18} weight="fill" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold">{driverName}</p>
+            <p className="text-[12.5px] text-muted">{t(`order.banner.${status}`)}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">
+          <Truck size={20} weight="fill" className="shrink-0 text-brand-600" />
+          <span className="text-sm font-bold">{t(`order.banner.${status}`)}</span>
+        </div>
+      )}
     </div>
   );
 }

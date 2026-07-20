@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ClockCounterClockwise, ListChecks, Truck, User } from '@phosphor-icons/react';
+import { ClockCounterClockwise, ListChecks, Truck, User, Wallet } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { CenterState } from '@/components/ui';
@@ -14,12 +14,18 @@ const TABS = [
   { href: '/driver/profile', label: 'Profil', icon: User },
 ] as const;
 
-/** Bottom tab bar — 3 tabs per the courier design (not the ops OpsBottomNav). */
+// Wallet section (earnings/settlement/expenses) surfaces a 4th Dompet tab for quick return.
+const WALLET_TAB = { href: '/driver/earnings', label: 'Dompet', icon: Wallet } as const;
+const WALLET_ROUTES = ['/driver/earnings', '/driver/settlement', '/driver/expenses'];
+
+/** Bottom tab bar — 3 tabs per the courier design (+ Dompet on wallet screens). */
 function DriverNav() {
   const pathname = usePathname();
+  const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
+  const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[env(safe-area-inset-bottom)]">
-      {TABS.map(({ href, label, icon: Icon }) => {
+      {tabs.map(({ href, label, icon: Icon }) => {
         const active = href === '/driver' ? pathname === href : pathname.startsWith(href);
         return (
           <Link
@@ -53,7 +59,7 @@ export function DriverShell({
   return (
     <RequireAuth>
       {customer?.role === 'DRIVER' ? (
-        <div className="mx-auto flex min-h-dvh max-w-lg flex-col">
+        <div className="mx-auto flex min-h-dvh max-w-[384px] flex-col">
           <div className="flex-1">{children}</div>
           {nav && <DriverNav />}
         </div>

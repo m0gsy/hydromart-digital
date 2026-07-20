@@ -10,6 +10,7 @@ import { onboarding } from './en/onboarding';
 import { review } from './en/review';
 import { subscriptions } from './en/subscriptions';
 import { ops } from './en/ops';
+import { dashboard } from './en/dashboard';
 import { hq } from './en/hq';
 import { privacy } from './en/privacy';
 
@@ -113,6 +114,7 @@ export const en: Dictionary = {
   review,
   subscriptions,
   ops,
+  dashboard,
   hq,
   privacy,
 };

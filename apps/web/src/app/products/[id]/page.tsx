@@ -151,7 +151,10 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                 <Drop size={96} weight="thin" className="text-brand-300" />
               )}
             </div>
-            {/* single real thumbnail (selected) — no fabricated extra photos */}
+            {/* The product payload carries a single imageUrl (the product model has no
+                images[] array), so the thumbnail strip shows just the one real photo —
+                a multi-image gallery would need fabricated extras.
+                // ponytail: render a real strip here once the product model grows images[]. */}
             <div className="grid grid-cols-4 gap-3">
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[14px] border-2 border-brand-600 bg-[color:var(--surface-soft)]">
                 {product.imageUrl ? (

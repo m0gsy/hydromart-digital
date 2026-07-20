@@ -70,6 +70,32 @@ describe('DeliveryService', () => {
     expect(orders.calls).toEqual([{ orderId: d.orderId, status: 'DRIVER_ASSIGNED' }]);
   });
 
+  it('snapshots recipient phone, line-items and COD amount onto the delivery', async () => {
+    const d = await service.assign(
+      staff,
+      {
+        orderId: randomUUID(),
+        orderNumber: 'HM-2',
+        driverId: driver,
+        destinationAddress: 'Jl. Merdeka 10',
+        recipientPhone: '081234567890',
+        items: [{ name: 'Galon 19L', qty: 2 }],
+        codAmount: 84000,
+      },
+      AUTH,
+    );
+    expect(d.recipientPhone).toBe('081234567890');
+    expect(d.items).toEqual([{ name: 'Galon 19L', qty: 2 }]);
+    expect(d.codAmount).toBe(84000);
+  });
+
+  it('leaves snapshot fields null when the assign call omits them', async () => {
+    const d = await assign();
+    expect(d.recipientPhone).toBeNull();
+    expect(d.items).toBeNull();
+    expect(d.codAmount).toBeNull();
+  });
+
   it('rejects a second delivery for the same order', async () => {
     const orderId = randomUUID();
     await assign(driver, orderId);

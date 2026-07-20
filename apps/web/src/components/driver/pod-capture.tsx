@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, Eraser, PencilLine } from '@phosphor-icons/react';
+import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
@@ -102,6 +102,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [recipientName, setRecipientName] = useState('');
+  const [sealOk, setSealOk] = useState(false);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +125,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     setError(null);
     const canvas = canvasRef.current;
     if (!photo) return setError('Ambil foto bukti pengantaran dulu.');
+    if (!sealOk) return setError('Konfirmasi cek segel galon dulu.');
     if (!recipientName.trim()) return setError('Isi nama penerima.');
     if (!canvas || isCanvasBlank(canvas)) return setError('Minta penerima tanda tangan dulu.');
 
@@ -162,7 +164,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     } finally {
       setSubmitting(false);
     }
-  }, [photo, recipientName, note, deliveryId, onDone]);
+  }, [photo, sealOk, recipientName, note, deliveryId, onDone]);
 
   return (
     <Card className="space-y-4 p-5">
@@ -179,6 +181,22 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
           <img src={photoPreview} alt="Pratinjau foto pengantaran" className="max-h-48 rounded-xl object-cover" />
         )}
       </div>
+
+      {/* Seal-check gate (spec): courier must confirm the gallon seal is intact before
+          closing the delivery. ponytail: client-side gate only — ProofOfDeliveryDto has no
+          seal field yet, so it isn't persisted; add `sealIntact` to the proof DTO to record it. */}
+      <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-[color:var(--border)] p-3">
+        <input
+          type="checkbox"
+          checked={sealOk}
+          onChange={(e) => setSealOk(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-brand-600"
+        />
+        <span className="flex items-center gap-1.5 text-sm font-medium">
+          <SealCheck size={16} weight="fill" className="text-brand-700" />
+          Segel galon utuh & tidak bocor
+        </span>
+      </label>
 
       <Field label="Nama penerima">
         <Input value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="cth. Budi Santoso" maxLength={120} />

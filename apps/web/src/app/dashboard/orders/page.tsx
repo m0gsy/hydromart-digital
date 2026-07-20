@@ -120,6 +120,11 @@ function AssignPanel({
           destinationAddress: `${order.addressLine}, ${order.city}`,
           destinationLat: order.latitude ?? undefined,
           destinationLng: order.longitude ?? undefined,
+          recipientPhone: order.phone,
+          items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
+          // ponytail: codAmount not sent — the staff order payload has no payment
+          // method/amount (COD vs prepaid lives in payment-service, keyed by order).
+          // Wire once order-service joins payment or dispatch fetches the payment record.
         },
         true,
       );

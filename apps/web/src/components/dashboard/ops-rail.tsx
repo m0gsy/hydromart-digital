@@ -85,18 +85,14 @@ type Role = string | null | undefined;
 
 interface RailItem {
   href: string;
-  // i18n key under ops.nav.* — resolved at render via t(). Newer depot-console
-  // items carry a literal `label` instead (avoids a dictionary migration for the
-  // large batch of manager screens); render prefers `label` when present.
-  labelKey?: string;
-  label?: string;
+  // i18n key under ops.nav.* — resolved at render via t().
+  labelKey: string;
   icon: Icon;
   show: (role: Role) => boolean;
 }
 interface RailGroup {
-  // i18n key under ops.groups.* — or a literal headLabel for newer groups.
+  // i18n key under ops.groups.* — resolved at render via t().
   headKey: string;
-  headLabel?: string;
   items: RailItem[];
 }
 
@@ -142,52 +138,47 @@ const GROUPS: RailGroup[] = [
   },
   {
     headKey: 'approvals',
-    headLabel: 'Approval & supervisi',
     items: [
-      { href: '/dashboard/approvals', label: 'Antrean approval', icon: Gavel, show: canReviewApprovals },
-      { href: '/dashboard/incidents', label: 'Insiden', icon: FirstAid, show: canViewIncidents },
-      { href: '/dashboard/disputes', label: 'Sengketa order', icon: Scales, show: isDepotManager },
+      { href: '/dashboard/approvals', labelKey: 'approvalsQueue', icon: Gavel, show: canReviewApprovals },
+      { href: '/dashboard/incidents', labelKey: 'incidents', icon: FirstAid, show: canViewIncidents },
+      { href: '/dashboard/disputes', labelKey: 'disputes', icon: Scales, show: isDepotManager },
     ],
   },
   {
     headKey: 'procurement',
-    headLabel: 'Pengadaan',
     items: [
-      { href: '/dashboard/purchase-orders', label: 'Pesanan pembelian', icon: Truck, show: canManageProcurement },
-      { href: '/dashboard/suppliers', label: 'Pemasok', icon: Factory, show: canManageProcurement },
+      { href: '/dashboard/purchase-orders', labelKey: 'purchaseOrders', icon: Truck, show: canManageProcurement },
+      { href: '/dashboard/suppliers', labelKey: 'suppliers', icon: Factory, show: canManageProcurement },
     ],
   },
   {
     headKey: 'people',
-    headLabel: 'Tim & jadwal',
     items: [
-      { href: '/dashboard/shift', label: 'Jadwal shift', icon: CalendarCheck, show: isStaff },
-      { href: '/dashboard/targets', label: 'Target & goals', icon: Target, show: isDepotManager },
-      { href: '/dashboard/huddle', label: 'Huddle mingguan', icon: UsersThree, show: isDepotManager },
-      { href: '/dashboard/handover', label: 'Serah terima shift', icon: ClipboardText, show: isDepotManager },
-      { href: '/dashboard/maintenance', label: 'Perawatan alat', icon: Wrench, show: isDepotManager },
+      { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
+      { href: '/dashboard/targets', labelKey: 'targets', icon: Target, show: isDepotManager },
+      { href: '/dashboard/huddle', labelKey: 'huddle', icon: UsersThree, show: isDepotManager },
+      { href: '/dashboard/handover', labelKey: 'handover', icon: ClipboardText, show: isDepotManager },
+      { href: '/dashboard/maintenance', labelKey: 'maintenance', icon: Wrench, show: isDepotManager },
     ],
   },
   {
     headKey: 'customers',
-    headLabel: 'Pelanggan & pertumbuhan',
     items: [
-      { href: '/dashboard/customers', label: 'Pelanggan', icon: UsersThree, show: canViewDepotCrm },
-      { href: '/dashboard/broadcast', label: 'Broadcast', icon: Megaphone, show: canBroadcastToCouriers },
-      { href: '/dashboard/loyalty', label: 'Loyalty & poin', icon: Medal, show: isDepotManager },
-      { href: '/dashboard/referral', label: 'Referral', icon: Gift, show: isDepotManager },
-      { href: '/dashboard/recommendations', label: 'Rekomendasi', icon: Sparkle, show: isDepotManager },
-      { href: '/dashboard/ratings', label: 'Rating & ulasan', icon: Star, show: isDepotManager },
-      { href: '/dashboard/subscriptions', label: 'Langganan', icon: ArrowsClockwise, show: isDepotManager },
+      { href: '/dashboard/customers', labelKey: 'customers', icon: UsersThree, show: canViewDepotCrm },
+      { href: '/dashboard/broadcast', labelKey: 'broadcast', icon: Megaphone, show: canBroadcastToCouriers },
+      { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: isDepotManager },
+      { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: isDepotManager },
+      { href: '/dashboard/recommendations', labelKey: 'recommendations', icon: Sparkle, show: isDepotManager },
+      { href: '/dashboard/ratings', labelKey: 'ratings', icon: Star, show: isDepotManager },
+      { href: '/dashboard/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, show: isDepotManager },
     ],
   },
   {
     headKey: 'catalog',
-    headLabel: 'Produk & harga',
     items: [
-      { href: '/dashboard/products/manage', label: 'Kelola produk', icon: Cube, show: isDepotManager },
-      { href: '/dashboard/wholesale', label: 'Harga borongan', icon: Stack, show: canManagePricing },
-      { href: '/dashboard/payments', label: 'Pembayaran & QRIS', icon: QrCode, show: canManageDepots },
+      { href: '/dashboard/products/manage', labelKey: 'manageProducts', icon: Cube, show: isDepotManager },
+      { href: '/dashboard/wholesale', labelKey: 'wholesale', icon: Stack, show: canManagePricing },
+      { href: '/dashboard/payments', labelKey: 'payments', icon: QrCode, show: canManageDepots },
     ],
   },
   {
@@ -196,33 +187,23 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/payout', labelKey: 'payout', icon: Wallet, show: canViewPayout },
       { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', icon: Receipt, show: canApproveExpense },
       { href: '/dashboard/earning-rules', labelKey: 'earningRules', icon: Coins, show: canManageEarningRules },
-      { href: '/dashboard/cashbook', label: 'Buku kas', icon: Notebook, show: canViewDepotFinance },
-      { href: '/dashboard/payment-recon', label: 'Rekonsiliasi bayar', icon: Scales, show: canViewDepotFinance },
-      { href: '/dashboard/commission', label: 'Komisi kurir', icon: HandCoins, show: canViewDepotFinance },
-      { href: '/dashboard/reports', label: 'Laporan', icon: ChartPieSlice, show: isStaff },
-      { href: '/dashboard/monthly-review', label: 'Tinjauan bulanan', icon: ClipboardText, show: canViewDepotFinance },
-      { href: '/dashboard/compare', label: 'Banding depot', icon: Scales, show: isDepotManager },
+      { href: '/dashboard/cashbook', labelKey: 'cashbook', icon: Notebook, show: canViewDepotFinance },
+      { href: '/dashboard/payment-recon', labelKey: 'paymentRecon', icon: Scales, show: canViewDepotFinance },
+      { href: '/dashboard/commission', labelKey: 'commission', icon: HandCoins, show: canViewDepotFinance },
+      { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
+      { href: '/dashboard/monthly-review', labelKey: 'monthlyReview', icon: ClipboardText, show: canViewDepotFinance },
+      { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: isDepotManager },
     ],
   },
   {
     headKey: 'reference',
-    headLabel: 'Referensi',
     items: [
-      { href: '/dashboard/roles', label: 'Peran & akses', icon: ShieldCheck, show: isStaff },
-      { href: '/dashboard/audit', label: 'Audit log', icon: Scroll, show: canViewAudit },
-      { href: '/dashboard/profile', label: 'Profil', icon: UserGear, show: isDepotManager },
+      { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
+      { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
+      { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: isDepotManager },
     ],
   },
 ];
-
-const ROLE_LABELS: Record<string, string> = {
-  SUPER_ADMIN: 'Super admin',
-  HEAD_OFFICE: 'Head office',
-  DEPOT_MANAGER: 'Depot manager',
-  DEPOT_OPERATOR: 'Depot operator',
-  MARKETING: 'Marketing',
-  FRANCHISE_OWNER: 'Franchise owner',
-};
 
 function DepotSwitcher() {
   const { depots, selectedId, selected, setSelected } = useDepot();
@@ -342,7 +323,7 @@ export function OpsRail() {
           return (
             <div key={group.headKey}>
               <p className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
-                {group.headLabel ?? t(`ops.groups.${group.headKey}`)}
+                {t(`ops.groups.${group.headKey}`)}
               </p>
               {items.map((item) => {
                 const on = isActive(item.href);
@@ -359,7 +340,7 @@ export function OpsRail() {
                     }
                   >
                     <Ic size={18} weight="fill" className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'} />
-                    <span className="flex-1">{item.label ?? t(`ops.nav.${item.labelKey}`)}</span>
+                    <span className="flex-1">{t(`ops.nav.${item.labelKey}`)}</span>
                   </Link>
                 );
               })}
@@ -390,7 +371,7 @@ export function OpsRail() {
         {role && (
           <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-muted">
             <ShieldCheck size={15} className="text-brand-600" />
-            {t('ops.role')}: <strong className="text-[color:var(--text)]">{ROLE_LABELS[role] ?? role}</strong>
+            {t('ops.role')}: <strong className="text-[color:var(--text)]">{t(`ops.roles.${role}`) === `ops.roles.${role}` ? role : t(`ops.roles.${role}`)}</strong>
           </div>
         )}
       </div>

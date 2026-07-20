@@ -47,6 +47,8 @@ function Announcements({ depotId }: { depotId: string }) {
       ) : (
         <div className="flex flex-col gap-2.5">
           {items.map((b) => {
+            // Backend enum is INFO | URGENT only. The spec's third "Terjadwal" tier needs a
+            // SCHEDULED enum on broadcast-service — ponytail: map the two real levels for now.
             const urgent = b.level === 'URGENT';
             return (
               <div
@@ -63,6 +65,13 @@ function Announcements({ depotId }: { depotId: string }) {
                   ) : (
                     <Megaphone size={16} weight="fill" className="text-brand-700" />
                   )}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
+                      urgent ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-800'
+                    }`}
+                  >
+                    {urgent ? 'Mendesak' : 'Info'}
+                  </span>
                   <div className="flex-1 text-sm font-extrabold">{b.title}</div>
                   {!b.read && <span className="size-2 rounded-full bg-brand-600" aria-label="Belum dibaca" />}
                 </div>

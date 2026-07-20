@@ -229,7 +229,7 @@ function OrderDetailInner({ id }: { id: string }) {
 
       {/* progress stepper */}
       <div className={`${PANEL} px-4 py-5 sm:px-[30px] sm:py-[26px]`}>
-        <OrderProgress status={order.status} />
+        <OrderProgress status={order.status} driverName={order.driverName} />
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
