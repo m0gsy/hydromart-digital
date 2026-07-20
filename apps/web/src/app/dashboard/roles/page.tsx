@@ -5,59 +5,26 @@ import { Lock, ShieldCheck } from '@phosphor-icons/react';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, Chip } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
 import { CAPABILITIES } from '@hydromart/access';
 
 // Display roles (CUSTOMER holds no depot capability, so it is omitted). Order groups
 // depot staff first, then oversight/office roles. DEPOT_MANAGER is the highlighted row.
-const ROLES: { key: string; label: string }[] = [
-  { key: 'DEPOT_OPERATOR', label: 'Operator' },
-  { key: 'DEPOT_MANAGER', label: 'Manajer depot' },
-  { key: 'DRIVER', label: 'Kurir' },
-  { key: 'HEAD_OFFICE', label: 'Head office' },
-  { key: 'FRANCHISE_OWNER', label: 'Pemilik waralaba' },
-  { key: 'MARKETING', label: 'Marketing' },
-  { key: 'FINANCE', label: 'Finance' },
-  { key: 'SUPER_ADMIN', label: 'Super admin' },
+// Labels are resolved via t('dashC.roles.role.<KEY>').
+const ROLE_KEYS: string[] = [
+  'DEPOT_OPERATOR',
+  'DEPOT_MANAGER',
+  'DRIVER',
+  'HEAD_OFFICE',
+  'FRANCHISE_OWNER',
+  'MARKETING',
+  'FINANCE',
+  'SUPER_ADMIN',
 ];
 
-// Indonesian label per capability key. Falls back to the raw key for any capability
-// added to @hydromart/access before this map is updated.
-const CAP_LABEL: Record<string, string> = {
-  dashboard: 'Dashboard eksekutif',
-  orderQueue: 'Antrean pesanan',
-  inventoryRead: 'Inventory (lihat)',
-  inventoryWrite: 'Inventory (ubah)',
-  returnsRead: 'Retur galon (lihat)',
-  returnsWrite: 'Retur galon (ubah)',
-  campaignRead: 'Kampanye (lihat)',
-  campaignWrite: 'Kampanye (kelola)',
-  voucherRead: 'Voucher (lihat)',
-  voucherWrite: 'Voucher (kelola)',
-  depotAdmin: 'Harga dinamis / kelola depot',
-  franchise: 'Laporan waralaba',
-  payout: 'Payout waralaba',
-  staffAdmin: 'Staf & peran',
-  driverRoster: 'Roster kurir',
-  opsNotif: 'Notifikasi operasional',
-  tracking: 'Pelacakan & dispatch',
-  forecast: 'Perencanaan / forecast',
-  churn: 'Churn & re-engagement',
-  paymentSettle: 'Konfirmasi pembayaran',
-  courierPayout: 'Penghasilan kurir (milik sendiri)',
-  courierSettle: 'Setoran COD kurir',
-  expenseApprove: 'Setujui klaim biaya',
-  depotBroadcast: 'Broadcast ke kurir',
-  courierReturn: 'Ambil galon kosong (kurir)',
-  depotCrm: 'Direktori pelanggan (CRM)',
-  incidents: 'Insiden operasional',
-  auditRead: 'Jejak audit',
-  procurement: 'Pembelian & pemasok',
-  approvals: 'Antrean persetujuan',
-  depotFinance: 'Keuangan depot',
-};
-
 function MatrixBody() {
+  const { t } = useT();
   const caps = Object.keys(CAPABILITIES);
 
   return (
@@ -65,8 +32,8 @@ function MatrixBody() {
       <div className="flex items-center gap-2">
         <ShieldCheck size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Peran &amp; hak akses</h1>
-          <p className="text-sm text-[color:var(--text-muted)]">Peran Manajer depot disorot</p>
+          <h1 className="text-2xl font-bold">{t('dashC.roles.heading')}</h1>
+          <p className="text-sm text-[color:var(--text-muted)]">{t('dashC.roles.subtitle')}</p>
         </div>
       </div>
 
@@ -75,16 +42,16 @@ function MatrixBody() {
           const holders = CAPABILITIES[cap as keyof typeof CAPABILITIES] as readonly string[];
           return (
             <Card key={cap} className="flex flex-col gap-2 p-4">
-              <p className="text-sm font-semibold">{CAP_LABEL[cap] ?? cap}</p>
+              <p className="text-sm font-semibold">{t(`dashC.roles.cap.${cap}`)}</p>
               <div className="flex flex-wrap gap-1.5">
-                {ROLES.filter((r) => holders.includes(r.key)).map((r) =>
-                  r.key === 'DEPOT_MANAGER' ? (
-                    <Chip key={r.key} tone="tint" className="bg-brand-600 text-on-brand">
-                      {r.label}
+                {ROLE_KEYS.filter((key) => holders.includes(key)).map((key) =>
+                  key === 'DEPOT_MANAGER' ? (
+                    <Chip key={key} tone="tint" className="bg-brand-600 text-on-brand">
+                      {t(`dashC.roles.role.${key}`)}
                     </Chip>
                   ) : (
-                    <Chip key={r.key} tone="outline">
-                      {r.label}
+                    <Chip key={key} tone="outline">
+                      {t(`dashC.roles.role.${key}`)}
                     </Chip>
                   ),
                 )}
@@ -95,9 +62,9 @@ function MatrixBody() {
       </div>
 
       <Card className="flex flex-col gap-1 bg-brand-50 p-4">
-        <p className="text-sm font-semibold text-brand-800">Read-only</p>
+        <p className="text-sm font-semibold text-brand-800">{t('dashC.roles.readOnly')}</p>
         <p className="text-[12.5px] text-brand-800">
-          Matriks &amp; guard server membaca peta yang sama (CAPABILITIES) — tak bisa berbeda.
+          {t('dashC.roles.readOnlyBody')}
         </p>
       </Card>
     </div>
@@ -105,11 +72,12 @@ function MatrixBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isStaff(customer?.role)) {
     return (
-      <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Matriks peran hanya untuk staf depot dan kantor pusat.
+      <CenterState title={t('dashC.roles.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.roles.gateBody')}
       </CenterState>
     );
   }

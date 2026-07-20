@@ -8,6 +8,7 @@ import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import type { NoShowStatus } from '@/lib/types';
 
 function mmss(seconds: number): string {
@@ -17,6 +18,7 @@ function mmss(seconds: number): string {
 
 function NoShow() {
   const router = useRouter();
+  const { t } = useT();
   const id = String(useParams().id);
   const [status, setStatus] = useState<NoShowStatus | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -38,7 +40,7 @@ function NoShow() {
     try {
       setStatus(await api.post<NoShowStatus>(endpoints.deliveries.driver.contactAttempts(id), { method: 'CALL' }, true));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal mencatat. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.noShow.logError'));
     } finally {
       setBusy(false);
     }
@@ -51,7 +53,7 @@ function NoShow() {
       await api.patch(endpoints.deliveries.driver.noShow(id), undefined, true);
       router.replace('/driver');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menandai. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.noShow.markError'));
     } finally {
       setBusy(false);
     }
@@ -63,19 +65,19 @@ function NoShow() {
         <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
-        <div className="text-sm font-extrabold">Pelanggan tidak di tempat</div>
+        <div className="text-sm font-extrabold">{t('driver.noShow.title')}</div>
       </header>
 
       <Card className="flex flex-col items-center gap-2 p-6 text-center">
         <WarningCircle size={40} weight="fill" className="text-amber-500" />
         <div className="text-sm text-[color:var(--muted)]">
-          Hubungi pelanggan minimal 2 kali dan tunggu sebelum menandai tidak di tempat.
+          {t('driver.noShow.body')}
         </div>
         <div className="mt-1 text-3xl font-extrabold tabular-nums">
           {remaining !== null ? mmss(remaining) : '05:00'}
         </div>
         <div className="text-[11px] text-[color:var(--muted)]">
-          Percobaan menghubungi: {status?.attempts ?? 0}
+          {t('driver.noShow.attempts', { n: status?.attempts ?? 0 })}
         </div>
       </Card>
 
@@ -88,11 +90,11 @@ function NoShow() {
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] py-2.5 text-sm font-bold disabled:opacity-50"
       >
         <Phone size={18} weight="fill" className="text-brand-700" />
-        Catat percobaan menghubungi
+        {t('driver.noShow.logAttempt')}
       </button>
 
       <Button loading={busy} disabled={!ready} className="w-full" onClick={markNoShow}>
-        Tandai tidak di tempat
+        {t('driver.noShow.markNoShow')}
       </Button>
     </div>
   );

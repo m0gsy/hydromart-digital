@@ -12,6 +12,7 @@ import { statusLabel, tone } from '@/lib/order-status';
 import { isStaff } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
 
@@ -39,6 +40,7 @@ function QueueRow({ order, selected, onSelect, onDetail }: {
   onSelect: () => void;
   onDetail: () => void;
 }) {
+  const { t } = useT();
   const assignable = NEEDS_ASSIGN(order);
   return (
     <Card
@@ -51,18 +53,18 @@ function QueueRow({ order, selected, onSelect, onDetail }: {
           <Badge tone={TONE_BADGE[tone(order.status)]}>{statusLabel(order.status)}</Badge>
         </div>
         <p className="text-xs text-[color:var(--text-muted)]">
-          {order.recipientName} · {order.addressLine}, {order.city} · {order.items.length} item
+          {order.recipientName} · {order.addressLine}, {order.city} · {t('dashB.orders.itemCount', { n: order.items.length })}
         </p>
       </button>
       <div className="flex flex-col items-end justify-between gap-2 py-4 pr-4">
         <Money amount={order.total} className="text-sm font-semibold" />
         {assignable ? (
           <Button className="px-3 py-1.5" onClick={onSelect}>
-            Tugaskan
+            {t('dashB.orders.assign')}
           </Button>
         ) : (
           <Button variant="secondary" className="px-3 py-1.5" onClick={onDetail}>
-            Proses
+            {t('dashB.orders.process')}
           </Button>
         )}
       </div>
@@ -90,6 +92,7 @@ function AssignPanel({
   onAssigned: () => void;
   onOpenDetail: () => void;
 }) {
+  const { t } = useT();
   const [driverId, setDriverId] = useState('');
   const [busy, setBusy] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
@@ -110,7 +113,7 @@ function AssignPanel({
 
   async function assign() {
     if (!order || driverId === '') {
-      setAssignError('Pilih kurir yang tersedia.');
+      setAssignError(t('dashB.orders.pickCourierError'));
       return;
     }
     const driver = drivers.find((d) => d.id === driverId);
@@ -140,7 +143,7 @@ function AssignPanel({
       onAssigned();
     } catch (err) {
       // Surfaces the "1 kurir = 1 order aktif" DriverBusyError inline.
-      setAssignError(err instanceof ApiError ? err.message : 'Gagal menugaskan kurir.');
+      setAssignError(err instanceof ApiError ? err.message : t('dashB.orders.assignError'));
     } finally {
       setBusy(false);
     }
@@ -149,8 +152,8 @@ function AssignPanel({
   if (!order) {
     return (
       <Card className="p-4">
-        <CenterState title="Tugaskan kurir" icon={<Truck size={40} weight="fill" />}>
-          Pilih pesanan dari antrean untuk menugaskan kurir.
+        <CenterState title={t('dashB.orders.assignCourier')} icon={<Truck size={40} weight="fill" />}>
+          {t('dashB.orders.pickOrderHint')}
         </CenterState>
       </Card>
     );
@@ -161,7 +164,7 @@ function AssignPanel({
   return (
     <Card className="flex flex-col gap-4 p-4">
       <div>
-        <p className="text-sm font-semibold">Tugaskan kurir</p>
+        <p className="text-sm font-semibold">{t('dashB.orders.assignCourier')}</p>
         <p className="font-mono text-sm tabular-nums">{order.orderNumber}</p>
         <p className="text-xs text-[color:var(--text-muted)]">
           {order.addressLine}, {order.city}
@@ -171,22 +174,22 @@ function AssignPanel({
       {!NEEDS_ASSIGN(order) ? (
         <div className="flex flex-col gap-3 rounded-2xl bg-[color:var(--surface-soft)] p-3 text-sm">
           <p className="text-[color:var(--text-muted)]">
-            Pesanan harus disiapkan (status Preparing) sebelum kurir bisa ditugaskan.
+            {t('dashB.orders.mustPrepare')}
           </p>
           <Button variant="secondary" onClick={onOpenDetail}>
-            Buka detail pesanan
+            {t('dashB.orders.openOrderDetail')}
           </Button>
         </div>
       ) : (
         <>
-          <p className="text-sm font-semibold">Kurir tersedia</p>
+          <p className="text-sm font-semibold">{t('dashB.orders.availableCouriers')}</p>
           {loading ? (
             <Skeleton className="h-40 w-full" />
           ) : error ? (
             <ErrorState message={error} onRetry={onRetry} />
           ) : drivers.length === 0 ? (
             <p className="text-sm text-[color:var(--text-muted)]">
-              Belum ada kurir aktif. Undang kurir di menu Staf &amp; peran.
+              {t('dashB.orders.noCouriers')}
             </p>
           ) : (
             <ul className="flex flex-col gap-2">
@@ -219,7 +222,7 @@ function AssignPanel({
                             isBusy ? 'text-[color:var(--text-muted)]' : 'text-[color:var(--success)]'
                           }`}
                         >
-                          {isBusy ? `Sibuk · ${load} tugas aktif` : 'Tersedia · 0 tugas aktif'}
+                          {isBusy ? t('dashB.orders.courierBusy', { n: load }) : t('dashB.orders.courierAvailable')}
                         </span>
                       </span>
                       {isBusy ? (
@@ -239,7 +242,7 @@ function AssignPanel({
           )}
 
           <div className="rounded-2xl bg-[color:var(--surface-soft)] p-3 text-xs text-[color:var(--text-muted)]">
-            1 kurir hanya boleh 1 order aktif. Kurir sibuk terkunci.
+            {t('dashB.orders.oneOrderRule')}
           </div>
 
           {assignError && (
@@ -249,7 +252,7 @@ function AssignPanel({
           )}
 
           <Button onClick={assign} loading={busy} disabled={driverId === ''}>
-            {picked ? `Tugaskan ke ${picked.fullName || picked.phone}` : 'Tugaskan ke kurir'}
+            {picked ? t('dashB.orders.assignTo', { name: picked.fullName || picked.phone }) : t('dashB.orders.assignToCourier')}
           </Button>
         </>
       )}
@@ -258,6 +261,7 @@ function AssignPanel({
 }
 
 function QueueBody() {
+  const { t } = useT();
   const [group, setGroup] = useState<'assign' | 'process'>('assign');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
@@ -288,28 +292,28 @@ function QueueBody() {
   const selected = items.find((o) => o.id === selectedId) ?? null;
 
   const CHIPS: { value: 'assign' | 'process'; label: string; count: number }[] = [
-    { value: 'assign', label: 'Perlu ditugaskan', count: needAssign.length },
-    { value: 'process', label: 'Diproses', count: inProcess.length },
+    { value: 'assign', label: t('dashB.orders.chipAssign'), count: needAssign.length },
+    { value: 'process', label: t('dashB.orders.chipProcess'), count: inProcess.length },
   ];
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <ClipboardText size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Antrean pesanan</h1>
+        <h1 className="text-2xl font-bold">{t('dashB.orders.title')}</h1>
       </div>
 
       <p className="text-[12.5px] text-[color:var(--text-muted)]">
         {scopedDepot ? (
           <>
-            Antrean untuk{' '}
+            {t('dashB.orders.scopedBefore')}
             <strong className="text-[color:var(--text)]">
               {scopedDepot.name} · {scopedDepot.code}
-            </strong>{' '}
-            (dari switcher).
+            </strong>
+            {t('dashB.orders.scopedAfter')}
           </>
         ) : (
-          'Semua depot. Pilih satu depot dari switcher untuk memfilter.'
+          t('dashB.orders.allDepots')
         )}
       </p>
 
@@ -337,10 +341,10 @@ function QueueBody() {
           ) : error ? (
             <ErrorState message={error} onRetry={reload} />
           ) : list.length === 0 ? (
-            <CenterState title="Antrean kosong" icon={<ClipboardText size={40} weight="fill" />}>
+            <CenterState title={t('dashB.orders.emptyQueue')} icon={<ClipboardText size={40} weight="fill" />}>
               {group === 'assign'
-                ? 'Tidak ada pesanan yang menunggu penugasan kurir.'
-                : 'Tidak ada pesanan yang sedang diproses.'}
+                ? t('dashB.orders.emptyAssign')
+                : t('dashB.orders.emptyProcess')}
             </CenterState>
           ) : (
             <div className="overflow-x-auto">
@@ -391,11 +395,12 @@ function QueueBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isStaff(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        The order queue is available to depot staff.
+      <CenterState title={t('dashB.orders.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.orders.gateBody')}
       </CenterState>
     );
   }

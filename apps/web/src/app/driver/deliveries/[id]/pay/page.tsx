@@ -9,6 +9,7 @@ import { Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/compo
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Delivery, Payment } from '@/lib/types';
 
 // Common cash denominations offered as quick-fill chips (IDR).
@@ -16,6 +17,7 @@ const NOTES = [50000, 100000, 150000, 200000];
 
 function Pay() {
   const router = useRouter();
+  const { t } = useT();
   const id = String(useParams().id);
   const load = useAsync<{ delivery: Delivery; cod: Payment | null }>(async () => {
     const delivery = await api.get<Delivery>(endpoints.deliveries.driver.get(id), true);
@@ -39,7 +41,7 @@ function Pay() {
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-80 w-full" /></div>;
   if (load.error || !load.data) {
-    return <div className="p-5"><ErrorState message={load.error ?? 'Gagal memuat'} onRetry={load.reload} /></div>;
+    return <div className="p-5"><ErrorState message={load.error ?? t('driver.pay.loadError')} onRetry={load.reload} /></div>;
   }
 
   const { delivery, cod } = load.data;
@@ -52,7 +54,7 @@ function Pay() {
       const paid = await api.post<Payment>(endpoints.payments.confirm(cod.id), { cashReceived: received }, true);
       setDone(paid);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal konfirmasi. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.pay.confirmError'));
     } finally {
       setBusy(false);
     }
@@ -65,7 +67,7 @@ function Pay() {
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
-          <div className="text-sm font-extrabold">Pembayaran tunai (COD)</div>
+          <div className="text-sm font-extrabold">{t('driver.pay.title')}</div>
           <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
         </div>
       </header>
@@ -73,26 +75,26 @@ function Pay() {
       {done ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-green-600" />
-          <div className="text-base font-extrabold">Pembayaran diterima</div>
-          <div className="text-sm text-[color:var(--muted)]">Kembalian yang harus diberikan</div>
+          <div className="text-base font-extrabold">{t('driver.pay.doneTitle')}</div>
+          <div className="text-sm text-[color:var(--muted)]">{t('driver.pay.doneChangeLabel')}</div>
           <Money amount={done.changeGiven ?? 0} className="text-2xl font-extrabold" />
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/${id}`)}>
-            Lanjut ke bukti serah terima
+            {t('driver.pay.doneNext')}
           </Button>
         </Card>
       ) : !cod ? (
         <Card className="p-5 text-sm text-[color:var(--muted)]">
-          Tidak ada tagihan tunai yang menunggu untuk pesanan ini. Mungkin sudah dibayar atau bukan COD.
+          {t('driver.pay.noCod')}
         </Card>
       ) : (
         <>
           <Card className="flex items-center justify-between p-4">
-            <span className="text-sm font-bold">Total tagihan</span>
+            <span className="text-sm font-bold">{t('driver.pay.totalDue')}</span>
             <Money amount={amount} className="text-xl font-extrabold text-brand-700" />
           </Card>
 
           <Card className="space-y-3 p-4">
-            <Field label="Uang diterima dari pelanggan" htmlFor="cash" error={short ? 'Kurang dari total tagihan.' : undefined}>
+            <Field label={t('driver.pay.cashLabel')} htmlFor="cash" error={short ? t('driver.pay.shortError') : undefined}>
               <Input
                 id="cash"
                 inputMode="numeric"
@@ -103,7 +105,7 @@ function Pay() {
             </Field>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setCash(String(amount))} className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold">
-                Uang pas
+                {t('driver.pay.exact')}
               </button>
               {NOTES.filter((n) => n >= amount).map((n) => (
                 <button key={n} type="button" onClick={() => setCash(String(n))} className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold tabular-nums">
@@ -115,7 +117,7 @@ function Pay() {
 
           <Card className="flex items-center justify-between p-4">
             <span className="flex items-center gap-1.5 text-sm font-bold">
-              <Coins size={16} weight="fill" className="text-brand-700" /> Kembalian
+              <Coins size={16} weight="fill" className="text-brand-700" /> {t('driver.pay.change')}
             </span>
             <Money amount={change} className="text-xl font-extrabold" />
           </Card>
@@ -123,7 +125,7 @@ function Pay() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button loading={busy} disabled={received < amount} className="w-full" onClick={confirm}>
-            Konfirmasi pembayaran
+            {t('driver.pay.confirm')}
           </Button>
         </>
       )}

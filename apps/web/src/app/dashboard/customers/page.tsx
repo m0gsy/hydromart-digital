@@ -11,6 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canViewDepotCrm } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotCustomer } from '@/lib/types';
@@ -43,6 +44,7 @@ function GallonCell({ gallons, deposit }: { gallons: number | null; deposit: num
 }
 
 function CustomerRow({ c }: { c: DepotCustomer }) {
+  const { t } = useT();
   return (
     <Link
       href={`/dashboard/customers/${c.id}`}
@@ -52,10 +54,10 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
         <Avatar name={c.fullName} />
         <div className="min-w-0">
           <p className="truncate font-semibold">
-            {c.fullName ?? 'Tanpa nama'}
+            {c.fullName ?? t('dashA.customers.noName')}
             {c.isSubscriber && (
               <Badge tone="brand">
-                <span className="ml-1">Langganan</span>
+                <span className="ml-1">{t('dashA.customers.subscriber')}</span>
               </Badge>
             )}
           </p>
@@ -73,6 +75,7 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
 }
 
 function CustomersBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -98,7 +101,7 @@ function CustomersBody() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Users size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Pelanggan</h1>
+          <h1 className="text-2xl font-bold">{t('dashA.customers.title')}</h1>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -109,51 +112,51 @@ function CustomersBody() {
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Cari nama atau telepon"
+              placeholder={t('dashA.customers.searchPlaceholder')}
               className="pl-9"
-              aria-label="Cari pelanggan"
+              aria-label={t('dashA.customers.searchAria')}
             />
           </div>
           {/* ponytail: walk-in registration is a separate flow (out of this milestone); rendered
               for header parity with design 6a. */}
-          <Button variant="secondary" disabled title="Segera hadir">
+          <Button variant="secondary" disabled title={t('dashA.customers.walkInSoon')}>
             <UserPlus size={16} className="mr-1" />
-            Walk-in
+            {t('dashA.customers.walkIn')}
           </Button>
         </div>
       </div>
 
       {scopedDepot && (
         <p className="text-[12.5px] text-[color:var(--text-muted)]">
-          Pelanggan untuk{' '}
+          {t('dashA.customers.scopePrefix')}{' '}
           <strong className="text-[color:var(--text)]">
             {scopedDepot.name} · {scopedDepot.code}
           </strong>{' '}
-          (dari switcher).
+          {t('dashA.customers.scopeSuffix')}
         </p>
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Users size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashA.customers.noDepotTitle')} icon={<Users size={40} weight="fill" />}>
+          {t('dashA.customers.noDepotBody')}
         </CenterState>
       ) : rows.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : rows.error ? (
         <ErrorState message={rows.error} onRetry={rows.reload} />
       ) : !rows.data || rows.data.length === 0 ? (
-        <CenterState title="Tidak ada pelanggan" icon={<Users size={40} weight="fill" />}>
-          {q ? 'Tidak ada yang cocok dengan pencarian.' : 'Depot ini belum punya pelanggan terdaftar.'}
+        <CenterState title={t('dashA.customers.emptyTitle')} icon={<Users size={40} weight="fill" />}>
+          {q ? t('dashA.customers.emptySearch') : t('dashA.customers.emptyAll')}
         </CenterState>
       ) : (
         <Card className="overflow-x-auto p-0">
           <div className="min-w-[640px]">
             <div className="grid grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))_auto] gap-3 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
-              <span>Pelanggan</span>
-              <span>Pesanan</span>
-              <span>Galon dipinjam</span>
-              <span>Terakhir</span>
-              <span className="sr-only">Detail</span>
+              <span>{t('dashA.customers.colCustomer')}</span>
+              <span>{t('dashA.customers.colOrders')}</span>
+              <span>{t('dashA.customers.colGallons')}</span>
+              <span>{t('dashA.customers.colLast')}</span>
+              <span className="sr-only">{t('dashA.customers.colDetail')}</span>
             </div>
             {rows.data.map((c) => (
               <CustomerRow key={c.id} c={c} />
@@ -166,11 +169,12 @@ function CustomersBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewDepotCrm(customer?.role)) {
     return (
-      <CenterState title="Akses staf saja" icon={<Lock size={40} weight="fill" />}>
-        Direktori pelanggan tersedia untuk staf depot dan kantor pusat.
+      <CenterState title={t('dashA.customers.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.customers.gateBody')}
       </CenterState>
     );
   }

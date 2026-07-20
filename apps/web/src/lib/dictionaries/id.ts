@@ -13,6 +13,10 @@ import { review } from './id/review';
 import { subscriptions } from './id/subscriptions';
 import { ops } from './id/ops';
 import { dashboard } from './id/dashboard';
+import { dashA } from './id/dashA';
+import { dashB } from './id/dashB';
+import { dashC } from './id/dashC';
+import { driver } from './id/driver';
 import { hq } from './id/hq';
 import { privacy } from './id/privacy';
 
@@ -116,6 +120,10 @@ export const id = {
   subscriptions,
   ops,
   dashboard,
+  dashA,
+  dashB,
+  dashC,
+  driver,
   hq,
   privacy,
 };

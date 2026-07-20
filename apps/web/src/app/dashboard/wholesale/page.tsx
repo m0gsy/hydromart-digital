@@ -19,13 +19,16 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT, type TVars } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { WholesaleTier } from '@/lib/types';
 
 /** "1–9 galon" / "50+ galon" from a tier's quantity band. */
-function rangeLabel(tier: WholesaleTier): string {
-  return tier.maxQty == null ? `${tier.minQty}+ galon` : `${tier.minQty}–${tier.maxQty} galon`;
+function rangeLabel(tier: WholesaleTier, t: (key: string, vars?: TVars) => string): string {
+  return tier.maxQty == null
+    ? t('dashC.wholesale.rangeOpen', { min: tier.minQty })
+    : t('dashC.wholesale.rangeBand', { min: tier.minQty, max: tier.maxQty });
 }
 
 /** Shared create/edit form. `tier` present → PATCH; absent → POST. */
@@ -40,6 +43,7 @@ function TierForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [label, setLabel] = useState(tier?.label ?? '');
   const [minQty, setMinQty] = useState(tier ? String(tier.minQty) : '');
   const [maxQty, setMaxQty] = useState(tier?.maxQty != null ? String(tier.maxQty) : '');
@@ -51,12 +55,12 @@ function TierForm({
     const min = Number(minQty);
     const price = Number(priceIdr);
     if (!label.trim() || !Number.isFinite(min) || min < 1 || !Number.isFinite(price) || price <= 0) {
-      setError('Isi label, jumlah minimum (≥1), dan harga.');
+      setError(t('dashC.wholesale.invalidBasic'));
       return;
     }
     const max = maxQty.trim() ? Number(maxQty) : null;
     if (max != null && (!Number.isFinite(max) || max < min)) {
-      setError('Jumlah maksimum harus ≥ jumlah minimum (kosongkan untuk tak terbatas).');
+      setError(t('dashC.wholesale.invalidMax'));
       return;
     }
     setBusy(true);
@@ -77,7 +81,7 @@ function TierForm({
       }
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan tingkat.');
+      setError(err instanceof ApiError ? err.message : t('dashC.wholesale.saveError'));
     } finally {
       setBusy(false);
     }
@@ -85,12 +89,12 @@ function TierForm({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">{tier ? 'Ubah tingkat' : 'Tingkat baru'}</h2>
-      <Field label="Label" htmlFor="w-label" hint="mis. Grosir besar">
-        <Input id="w-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Grosir besar" />
+      <h2 className="font-semibold">{tier ? t('dashC.wholesale.editTitle') : t('dashC.wholesale.newTitle')}</h2>
+      <Field label={t('dashC.wholesale.label')} htmlFor="w-label" hint={t('dashC.wholesale.labelHint')}>
+        <Input id="w-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t('dashC.wholesale.labelPlaceholder')} />
       </Field>
       <div className="flex flex-wrap gap-3">
-        <Field label="Jumlah minimum" htmlFor="w-min">
+        <Field label={t('dashC.wholesale.minQty')} htmlFor="w-min">
           <Input
             id="w-min"
             type="number"
@@ -101,7 +105,7 @@ function TierForm({
             placeholder="10"
           />
         </Field>
-        <Field label="Jumlah maksimum" htmlFor="w-max" hint="Kosongkan untuk tak terbatas (50+)">
+        <Field label={t('dashC.wholesale.maxQty')} htmlFor="w-max" hint={t('dashC.wholesale.maxQtyHint')}>
           <Input
             id="w-max"
             type="number"
@@ -112,7 +116,7 @@ function TierForm({
           />
         </Field>
       </div>
-      <Field label="Harga per galon" htmlFor="w-price">
+      <Field label={t('dashC.wholesale.price')} htmlFor="w-price">
         <Input
           id="w-price"
           type="number"
@@ -130,10 +134,10 @@ function TierForm({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('dashC.wholesale.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Simpan
+          {t('dashC.wholesale.save')}
         </Button>
       </div>
     </Card>
@@ -141,6 +145,7 @@ function TierForm({
 }
 
 function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean; onChanged: () => void }) {
+  const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const { scopedId } = useDepot();
@@ -176,19 +181,19 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
       }`}
     >
       <div className="min-w-0">
-        <p className="font-semibold">{rangeLabel(tier)}</p>
+        <p className="font-semibold">{rangeLabel(tier, t)}</p>
         <p className="text-xs text-muted">
           {tier.label}
           {best && (
             <>
               {' · '}
-              <span className="font-semibold text-brand-700">TERLARIS B2B</span>
+              <span className="font-semibold text-brand-700">{t('dashC.wholesale.bestSeller')}</span>
             </>
           )}
           {!tier.active && (
             <>
               {' · '}
-              <span className="font-semibold text-[color:var(--text-muted)]">nonaktif</span>
+              <span className="font-semibold text-[color:var(--text-muted)]">{t('dashC.wholesale.inactive')}</span>
             </>
           )}
         </p>
@@ -196,10 +201,10 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
       <div className="flex shrink-0 items-center gap-3">
         <Money amount={tier.priceIdr} className="text-lg font-bold" />
         <Button variant="secondary" onClick={() => setEditing(true)}>
-          Ubah
+          {t('dashC.wholesale.edit')}
         </Button>
         <Button variant="ghost" onClick={remove} loading={busy}>
-          Hapus
+          {t('dashC.wholesale.remove')}
         </Button>
       </div>
     </div>
@@ -207,6 +212,7 @@ function TierRow({ tier, best, onChanged }: { tier: WholesaleTier; best: boolean
 }
 
 function WholesaleBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [creating, setCreating] = useState(false);
 
@@ -232,13 +238,13 @@ function WholesaleBody() {
         <div className="flex items-center gap-2">
           <Stack size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Harga borongan</h1>
+            <h1 className="text-2xl font-bold">{t('dashC.wholesale.heading')}</h1>
             <p className="text-sm text-muted">
-              {scopedDepot ? `${scopedDepot.name} · ` : ''}tingkat grosir · pelanggan B2B
+              {scopedDepot ? `${scopedDepot.name} · ` : ''}{t('dashC.wholesale.subtitle')}
             </p>
           </div>
         </div>
-        {!creating && <Button onClick={() => setCreating(true)}>Tingkat baru</Button>}
+        {!creating && <Button onClick={() => setCreating(true)}>{t('dashC.wholesale.newTitle')}</Button>}
       </div>
 
       {creating && (
@@ -253,22 +259,22 @@ function WholesaleBody() {
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Stack size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashC.wholesale.noDepotTitle')} icon={<Stack size={40} weight="fill" />}>
+          {t('dashC.wholesale.noDepotBody')}
         </CenterState>
       ) : list.loading ? (
         <Skeleton className="h-48 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : tiers.length === 0 ? (
-        <CenterState title="Belum ada tingkat" icon={<Stack size={40} weight="fill" />}>
-          Depot ini belum punya tingkat harga borongan. Tambahkan tingkat pertama.
+        <CenterState title={t('dashC.wholesale.emptyTitle')} icon={<Stack size={40} weight="fill" />}>
+          {t('dashC.wholesale.emptyBody')}
         </CenterState>
       ) : (
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Tingkat harga</h2>
-            <Badge tone="brand">{tiers.length} tingkat</Badge>
+            <h2 className="font-semibold">{t('dashC.wholesale.tiersTitle')}</h2>
+            <Badge tone="brand">{t('dashC.wholesale.tierCount', { n: tiers.length })}</Badge>
           </div>
           <div className="flex flex-col gap-2.5">
             {tiers.map((t) => (
@@ -281,9 +287,9 @@ function WholesaleBody() {
       <Card className="flex gap-3 bg-[color:var(--surface-soft)] p-4">
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
         <p className="text-sm text-muted">
-          Harga borongan menimpa harga eceran untuk pelanggan B2B. Saat aturan harga dinamis juga
-          aktif, <strong className="text-[color:var(--text)]">prioritas tertinggi yang menang</strong>{' '}
-          — atur prioritas tingkat borongan di atas aturan diskon agar harga grosir tidak tertimpa.
+          {t('dashC.wholesale.infoPart1')}
+          <strong className="text-[color:var(--text)]">{t('dashC.wholesale.infoStrong')}</strong>
+          {t('dashC.wholesale.infoPart2')}
         </p>
       </Card>
     </div>
@@ -291,11 +297,12 @@ function WholesaleBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotWholesale', customer?.role)) {
     return (
-      <CenterState title="Manajer depot saja" icon={<Lock size={40} weight="fill" />}>
-        Harga borongan hanya dapat diatur oleh manajer depot.
+      <CenterState title={t('dashC.wholesale.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.wholesale.gateBody')}
       </CenterState>
     );
   }

@@ -9,6 +9,7 @@ import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin } from '@/lib/types';
@@ -29,6 +30,7 @@ function MethodRow({
   desc: string;
   active: boolean;
 }) {
+  const { t } = useT();
   return (
     <div className="flex items-center gap-3 border-t border-app py-3 first:border-0 first:pt-0">
       <span className="text-brand-500">{icon}</span>
@@ -36,13 +38,14 @@ function MethodRow({
         <p className="font-medium">{title}</p>
         <p className="text-xs text-muted">{desc}</p>
       </div>
-      <Badge tone={active ? 'success' : 'neutral'}>{active ? 'Aktif' : 'Belum diatur'}</Badge>
+      <Badge tone={active ? 'success' : 'neutral'}>{active ? t('dashB.payments.active') : t('dashB.payments.notSet')}</Badge>
     </div>
   );
 }
 
 /** QRIS static-image panel: preview current + upload a replacement. */
 function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: DepotAdmin) => void }) {
+  const { t } = useT();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +55,7 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
     e.target.value = '';
     if (!file) return;
     if (file.size > QRIS_MAX_BYTES) {
-      setError('Ukuran gambar maksimal 5MB.');
+      setError(t('dashB.payments.imageTooLarge'));
       return;
     }
     setBusy(true);
@@ -61,7 +64,7 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
       const updated = await uploadFile<DepotAdmin>(endpoints.depots.uploadQris(depot.id), file);
       onUploaded(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mengunggah QRIS.');
+      setError(err instanceof ApiError ? err.message : t('dashB.payments.qrisUploadError'));
     } finally {
       setBusy(false);
     }
@@ -77,20 +80,20 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
     <Card className="flex flex-col gap-3 p-5">
       <div className="flex items-center gap-2">
         <QrCode size={20} weight="fill" className="text-brand-500" />
-        <h2 className="text-lg font-semibold">QRIS statis</h2>
+        <h2 className="text-lg font-semibold">{t('dashB.payments.qrisStatic')}</h2>
       </div>
       <p className="text-sm text-muted">
-        Gambar QRIS ini ditampilkan ke pelanggan saat pembayaran. Format JPG, PNG, atau WEBP (maks 5MB).
+        {t('dashB.payments.qrisHint')}
       </p>
       {src ? (
         <img
           src={src}
-          alt="QRIS depot"
+          alt={t('dashB.payments.qrisAlt')}
           className="mx-auto h-48 w-48 rounded-lg border border-app object-contain"
         />
       ) : (
         <div className="mx-auto flex h-48 w-48 items-center justify-center rounded-lg border border-dashed border-app text-sm text-muted">
-          Belum ada QRIS
+          {t('dashB.payments.noQris')}
         </div>
       )}
       {error && (
@@ -100,7 +103,7 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
       )}
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={onPick} />
       <Button variant="secondary" onClick={() => fileRef.current?.click()} loading={busy}>
-        {depot.paymentQrisImageUrl ? 'Ganti gambar QRIS' : 'Unggah gambar QRIS'}
+        {depot.paymentQrisImageUrl ? t('dashB.payments.replaceQris') : t('dashB.payments.uploadQris')}
       </Button>
     </Card>
   );
@@ -108,6 +111,7 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
 
 /** Bank-account form saved via the depot update endpoint. */
 function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdmin) => void }) {
+  const { t } = useT();
   const [bankName, setBankName] = useState(depot.paymentBankName ?? '');
   const [accountNumber, setAccountNumber] = useState(depot.paymentBankAccountNumber ?? '');
   const [accountHolder, setAccountHolder] = useState(depot.paymentBankAccountHolder ?? '');
@@ -132,7 +136,7 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
       onSaved(updated);
       setSaved(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan rekening.');
+      setError(err instanceof ApiError ? err.message : t('dashB.payments.bankSaveError'));
     } finally {
       setBusy(false);
     }
@@ -142,31 +146,31 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex items-center gap-2">
         <Bank size={20} weight="fill" className="text-brand-500" />
-        <h2 className="text-lg font-semibold">Rekening transfer bank</h2>
+        <h2 className="text-lg font-semibold">{t('dashB.payments.bankTitle')}</h2>
       </div>
-      <Field label="Bank" htmlFor="bank-name">
+      <Field label={t('dashB.payments.bankLabel')} htmlFor="bank-name">
         <Input
           id="bank-name"
           value={bankName}
           onChange={(e) => setBankName(e.target.value)}
-          placeholder="mis. BCA"
+          placeholder={t('dashB.payments.bankPlaceholder')}
         />
       </Field>
-      <Field label="No. rekening" htmlFor="bank-number">
+      <Field label={t('dashB.payments.accountNumber')} htmlFor="bank-number">
         <Input
           id="bank-number"
           inputMode="numeric"
           value={accountNumber}
           onChange={(e) => setAccountNumber(e.target.value)}
-          placeholder="mis. 1234567890"
+          placeholder={t('dashB.payments.accountNumberPlaceholder')}
         />
       </Field>
-      <Field label="Atas nama" htmlFor="bank-holder">
+      <Field label={t('dashB.payments.accountHolder')} htmlFor="bank-holder">
         <Input
           id="bank-holder"
           value={accountHolder}
           onChange={(e) => setAccountHolder(e.target.value)}
-          placeholder="mis. PT Hydromart Depot Cikini"
+          placeholder={t('dashB.payments.accountHolderPlaceholder')}
         />
       </Field>
       {error && (
@@ -174,10 +178,10 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
           {error}
         </p>
       )}
-      {saved && <p className="text-sm font-medium text-emerald-700">Rekening tersimpan.</p>}
+      {saved && <p className="text-sm font-medium text-emerald-700">{t('dashB.payments.bankSaved')}</p>}
       <div className="flex justify-end">
         <Button onClick={save} loading={busy}>
-          Simpan rekening
+          {t('dashB.payments.saveBank')}
         </Button>
       </div>
     </Card>
@@ -185,6 +189,7 @@ function BankForm({ depot, onSaved }: { depot: DepotAdmin; onSaved: (d: DepotAdm
 }
 
 function PaymentsBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const detail = useAsync<DepotAdmin>(
     () =>
@@ -204,22 +209,22 @@ function PaymentsBody() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <Wallet size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Pembayaran &amp; QRIS</h1>
+        <h1 className="text-2xl font-bold">{t('dashB.payments.title')}</h1>
       </div>
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">
-          Mengatur pembayaran untuk{' '}
+          {t('dashB.payments.scopedBefore')}
           <strong className="text-[color:var(--text)]">
             {scopedDepot.name} · {scopedDepot.code}
-          </strong>{' '}
-          (dari switcher).
+          </strong>
+          {t('dashB.payments.scopedAfter')}
         </p>
       )}
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Wallet size={40} weight="fill" />}>
-          Belum ada depot yang bisa diatur.
+        <CenterState title={t('dashB.payments.noDepots')} icon={<Wallet size={40} weight="fill" />}>
+          {t('dashB.payments.noDepotsBody')}
         </CenterState>
       ) : detail.loading || !depot ? (
         <Skeleton className="h-96 w-full" />
@@ -230,24 +235,24 @@ function PaymentsBody() {
           <Card className="p-5">
             <div className="mb-3 flex items-center gap-2">
               <CreditCard size={20} weight="fill" className="text-brand-500" />
-              <h2 className="text-lg font-semibold">Metode pembayaran</h2>
+              <h2 className="text-lg font-semibold">{t('dashB.payments.paymentMethods')}</h2>
             </div>
             <MethodRow
               icon={<Money size={20} weight="fill" />}
-              title="COD (bayar di tempat)"
-              desc="Kurir menerima tunai saat pengantaran."
+              title={t('dashB.payments.codTitle')}
+              desc={t('dashB.payments.codDesc')}
               active
             />
             <MethodRow
               icon={<QrCode size={20} weight="fill" />}
-              title="QRIS statis"
-              desc="Pelanggan scan QRIS depot untuk membayar."
+              title={t('dashB.payments.qrisStatic')}
+              desc={t('dashB.payments.qrisDesc')}
               active={!!depot.paymentQrisImageUrl}
             />
             <MethodRow
               icon={<Bank size={20} weight="fill" />}
-              title="Transfer bank"
-              desc="Transfer ke rekening depot, dikonfirmasi staf."
+              title={t('dashB.payments.bankMethodTitle')}
+              desc={t('dashB.payments.bankMethodDesc')}
               active={!!depot.paymentBankAccountNumber}
             />
           </Card>
@@ -263,11 +268,12 @@ function PaymentsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canManageDepots(customer?.role)) {
     return (
-      <CenterState title="Akses manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Pengaturan pembayaran hanya untuk manajer depot dan super admin.
+      <CenterState title={t('dashB.payments.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.payments.gateBody')}
       </CenterState>
     );
   }

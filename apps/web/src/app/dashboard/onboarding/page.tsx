@@ -6,27 +6,17 @@ import { CheckCircle, HandWaving, ChartLineUp, Lock, Tag, type Icon } from '@pho
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { isDepotManager } from '@/lib/roles';
 
-const DUTIES: { icon: Icon; title: string; desc: string }[] = [
-  {
-    icon: CheckCircle,
-    title: 'Setujui aksi operator',
-    desc: 'Tinjau opname, refund deposit & selisih COD yang melewati ambang depot.',
-  },
-  {
-    icon: Tag,
-    title: 'Atur harga & voucher',
-    desc: 'Kelola harga dinamis depot dan voucher lokal untuk pelangganmu.',
-  },
-  {
-    icon: ChartLineUp,
-    title: 'Pantau performa tim',
-    desc: 'Lihat kartu performa mingguan kurir & operator dari dashboard.',
-  },
+const DUTIES: { icon: Icon; titleKey: string; descKey: string }[] = [
+  { icon: CheckCircle, titleKey: 'dashB.onboarding.duty1Title', descKey: 'dashB.onboarding.duty1Desc' },
+  { icon: Tag, titleKey: 'dashB.onboarding.duty2Title', descKey: 'dashB.onboarding.duty2Desc' },
+  { icon: ChartLineUp, titleKey: 'dashB.onboarding.duty3Title', descKey: 'dashB.onboarding.duty3Desc' },
 ];
 
 function OnboardingBody() {
+  const { t } = useT();
   const { customer } = useAuth();
 
   return (
@@ -35,9 +25,9 @@ function OnboardingBody() {
         <span className="flex size-16 items-center justify-center rounded-full bg-white/15">
           <HandWaving size={34} weight="fill" />
         </span>
-        <h1 className="text-2xl font-bold">Selamat datang, {customer?.fullName ?? 'Manajer'}</h1>
+        <h1 className="text-2xl font-bold">{t('dashB.onboarding.welcome', { name: customer?.fullName ?? t('dashB.onboarding.managerFallback') })}</h1>
         <p className="text-sm text-white/85">
-          Ini panduan singkat peranmu sebagai Manajer depot. Yuk kenali tugas utamamu.
+          {t('dashB.onboarding.intro')}
         </p>
       </Card>
 
@@ -45,13 +35,13 @@ function OnboardingBody() {
         {DUTIES.map((d) => {
           const DIcon = d.icon;
           return (
-            <Card key={d.title} className="flex items-start gap-3 p-4">
+            <Card key={d.titleKey} className="flex items-start gap-3 p-4">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
                 <DIcon size={22} weight="fill" />
               </span>
               <div>
-                <p className="font-semibold">{d.title}</p>
-                <p className="text-[12.5px] text-[color:var(--text-muted)]">{d.desc}</p>
+                <p className="font-semibold">{t(d.titleKey)}</p>
+                <p className="text-[12.5px] text-[color:var(--text-muted)]">{t(d.descKey)}</p>
               </div>
             </Card>
           );
@@ -69,13 +59,13 @@ function OnboardingBody() {
           href="/dashboard"
           className="flex-1 rounded-lg border border-app px-4 py-2.5 text-center text-sm font-semibold text-[color:var(--text-muted)]"
         >
-          Lewati
+          {t('dashB.onboarding.skip')}
         </Link>
         <Link
           href="/dashboard"
           className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-on-brand hover:bg-brand-700"
         >
-          Mulai tur
+          {t('dashB.onboarding.startTour')}
         </Link>
       </div>
     </div>
@@ -83,11 +73,12 @@ function OnboardingBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isDepotManager(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Tur onboarding ini hanya untuk Manajer depot.
+      <CenterState title={t('dashB.onboarding.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.onboarding.gateBody')}
       </CenterState>
     );
   }

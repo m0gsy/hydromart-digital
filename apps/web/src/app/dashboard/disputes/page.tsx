@@ -22,6 +22,7 @@ import { formatDateTime, formatIDR } from '@/lib/format';
 import { can } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
   DisputeCategory,
@@ -33,30 +34,10 @@ import type {
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
-const CATEGORY_LABEL: Record<DisputeCategory, string> = {
-  WRONG_ITEM: 'Salah item',
-  NOT_RECEIVED: 'Tidak diterima',
-  OVERCHARGED: 'Lebih bayar',
-  QUALITY: 'Kualitas',
-  OTHER: 'Lainnya',
-};
-
-const STATUS_LABEL: Record<DisputeStatus, string> = {
-  OPEN: 'Terbuka',
-  RESOLVED: 'Selesai',
-  REJECTED: 'Ditolak',
-};
-
 const STATUS_BADGE: Record<DisputeStatus, 'warning' | 'success' | 'neutral'> = {
   OPEN: 'warning',
   RESOLVED: 'success',
   REJECTED: 'neutral',
-};
-
-const RESOLUTION_LABEL: Record<DisputeResolution, string> = {
-  REFUND: 'Refund',
-  RESEND: 'Kirim ulang',
-  REJECTED: 'Ditolak',
 };
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
@@ -70,6 +51,7 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 
 /** OPEN dispute resolution panel: optional note + three resolution actions. */
 function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () => void }) {
+  const { t } = useT();
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<DisputeResolution | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,19 +67,19 @@ function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () =
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyelesaikan sengketa.');
+      setError(err instanceof ApiError ? err.message : t('dashA.disputes.resolveError'));
       setBusy(null);
     }
   }
 
   return (
     <div className="flex flex-col gap-2 border-t border-app pt-3">
-      <Field label="Catatan (opsional)" htmlFor={`note-${dispute.id}`}>
+      <Field label={t('dashA.disputes.noteLabel')} htmlFor={`note-${dispute.id}`}>
         <Input
           id={`note-${dispute.id}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="mis. Sudah dihubungi, refund diproses"
+          placeholder={t('dashA.disputes.notePlaceholder')}
         />
       </Field>
       {error && (
@@ -113,7 +95,7 @@ function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () =
           disabled={busy != null}
           onClick={() => resolve('REFUND')}
         >
-          Refund ({formatIDR(dispute.amountIdr)})
+          {t('dashA.disputes.refund', { amount: formatIDR(dispute.amountIdr) })}
         </Button>
         <Button
           variant="secondary"
@@ -122,7 +104,7 @@ function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () =
           disabled={busy != null}
           onClick={() => resolve('RESEND')}
         >
-          Kirim ulang
+          {t('dashA.disputes.resend')}
         </Button>
         <Button
           variant="danger"
@@ -131,7 +113,7 @@ function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () =
           disabled={busy != null}
           onClick={() => resolve('REJECTED')}
         >
-          Tolak
+          {t('dashA.disputes.reject')}
         </Button>
       </div>
     </div>
@@ -139,6 +121,7 @@ function ResolvePanel({ dispute, onDone }: { dispute: OrderDispute; onDone: () =
 }
 
 function DisputeCard({ dispute, onChanged }: { dispute: OrderDispute; onChanged: () => void }) {
+  const { t } = useT();
   const open = dispute.status === 'OPEN';
   return (
     <Card className="flex flex-col gap-3 p-4">
@@ -146,13 +129,13 @@ function DisputeCard({ dispute, onChanged }: { dispute: OrderDispute; onChanged:
         <div>
           <div className="flex items-center gap-2">
             <p className="font-semibold">{dispute.orderRef}</p>
-            <Chip tone="outline">{CATEGORY_LABEL[dispute.category]}</Chip>
+            <Chip tone="outline">{t(`dashA.disputes.category.${dispute.category}`)}</Chip>
           </div>
           <p className="text-xs text-[color:var(--text-muted)]">
             {dispute.customerName} · {formatDateTime(dispute.createdAt)}
           </p>
         </div>
-        <Badge tone={STATUS_BADGE[dispute.status]}>{STATUS_LABEL[dispute.status]}</Badge>
+        <Badge tone={STATUS_BADGE[dispute.status]}>{t(`dashA.disputes.status.${dispute.status}`)}</Badge>
       </div>
 
       <p className="rounded-lg bg-[color:var(--surface-soft)] p-3 text-[12.5px] italic text-[color:var(--text-muted)]">
@@ -160,18 +143,18 @@ function DisputeCard({ dispute, onChanged }: { dispute: OrderDispute; onChanged:
       </p>
 
       <dl className="flex flex-col divide-y divide-[color:var(--border)] rounded-lg border border-app px-3">
-        <Fact label="Nilai">
+        <Fact label={t('dashA.disputes.factAmount')}>
           <Money amount={dispute.amountIdr} />
         </Fact>
-        <Fact label="Kurir">{dispute.courierName ?? '—'}</Fact>
+        <Fact label={t('dashA.disputes.factCourier')}>{dispute.courierName ?? '—'}</Fact>
       </dl>
 
       {open ? (
         <ResolvePanel dispute={dispute} onDone={onChanged} />
       ) : (
         <p className="border-t border-app pt-3 text-xs font-medium text-[color:var(--text-muted)]">
-          {dispute.resolution ? `${RESOLUTION_LABEL[dispute.resolution]} · ` : ''}
-          {dispute.resolutionNote || 'Sengketa sudah diselesaikan.'}
+          {dispute.resolution ? `${t(`dashA.disputes.resolution.${dispute.resolution}`)} · ` : ''}
+          {dispute.resolutionNote || t('dashA.disputes.resolvedFallback')}
         </p>
       )}
     </Card>
@@ -180,6 +163,7 @@ function DisputeCard({ dispute, onChanged }: { dispute: OrderDispute; onChanged:
 
 /** Collapsible "Catat sengketa" create form. */
 function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { t } = useT();
   const [orderRef, setOrderRef] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [category, setCategory] = useState<DisputeCategory>('NOT_RECEIVED');
@@ -191,7 +175,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
 
   async function submit() {
     if (!orderRef.trim() || !customerName.trim() || !description.trim()) {
-      setError('Nomor order, nama pelanggan, dan keterangan wajib diisi.');
+      setError(t('dashA.disputes.createRequired'));
       return;
     }
     setBusy(true);
@@ -212,67 +196,67 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       );
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mencatat sengketa.');
+      setError(err instanceof ApiError ? err.message : t('dashA.disputes.createError'));
       setBusy(false);
     }
   }
 
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <p className="font-semibold">Catat sengketa</p>
+      <p className="font-semibold">{t('dashA.disputes.createTitle')}</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Nomor order" htmlFor="d-ref">
-          <Input id="d-ref" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder="ORD-2418" />
+        <Field label={t('dashA.disputes.orderRef')} htmlFor="d-ref">
+          <Input id="d-ref" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder={t('dashA.disputes.orderRefPlaceholder')} />
         </Field>
-        <Field label="Nama pelanggan" htmlFor="d-cust">
+        <Field label={t('dashA.disputes.customerName')} htmlFor="d-cust">
           <Input
             id="d-cust"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="Rina Hapsari"
+            placeholder={t('dashA.disputes.customerNamePlaceholder')}
           />
         </Field>
-        <Field label="Kategori" htmlFor="d-cat">
+        <Field label={t('dashA.disputes.categoryLabel')} htmlFor="d-cat">
           <select
             id="d-cat"
             value={category}
             onChange={(e) => setCategory(e.target.value as DisputeCategory)}
             className={inputClass}
           >
-            {(Object.keys(CATEGORY_LABEL) as DisputeCategory[]).map((c) => (
+            {(['WRONG_ITEM', 'NOT_RECEIVED', 'OVERCHARGED', 'QUALITY', 'OTHER'] as DisputeCategory[]).map((c) => (
               <option key={c} value={c}>
-                {CATEGORY_LABEL[c]}
+                {t(`dashA.disputes.category.${c}`)}
               </option>
             ))}
           </select>
         </Field>
-        <Field label="Nilai (Rp, opsional)" htmlFor="d-amt">
+        <Field label={t('dashA.disputes.amountLabel')} htmlFor="d-amt">
           <Input
             id="d-amt"
             type="number"
             inputMode="numeric"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            placeholder="42000"
+            placeholder={t('dashA.disputes.amountPlaceholder')}
           />
         </Field>
-        <Field label="Kurir (opsional)" htmlFor="d-cour">
+        <Field label={t('dashA.disputes.courierLabel')} htmlFor="d-cour">
           <Input
             id="d-cour"
             value={courierName}
             onChange={(e) => setCourierName(e.target.value)}
-            placeholder="Budi Santoso"
+            placeholder={t('dashA.disputes.courierPlaceholder')}
           />
         </Field>
       </div>
-      <Field label="Keterangan" htmlFor="d-desc">
+      <Field label={t('dashA.disputes.descriptionLabel')} htmlFor="d-desc">
         <textarea
           id="d-desc"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
           className={inputClass}
-          placeholder="Ringkasan keluhan pelanggan"
+          placeholder={t('dashA.disputes.descriptionPlaceholder')}
         />
       </Field>
       {error && (
@@ -282,7 +266,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       )}
       <div className="flex justify-end">
         <Button onClick={submit} loading={busy}>
-          Simpan sengketa
+          {t('dashA.disputes.saveDispute')}
         </Button>
       </div>
     </Card>
@@ -292,6 +276,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
 type StatusFilter = 'ALL' | DisputeStatus;
 
 function DisputesBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [creating, setCreating] = useState(false);
@@ -307,10 +292,10 @@ function DisputesBody() {
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
 
   const CHIPS: { key: StatusFilter; label: string; count?: number }[] = [
-    { key: 'ALL', label: 'Semua', count: all.length },
-    { key: 'OPEN', label: 'Terbuka', count: openCount },
-    { key: 'RESOLVED', label: 'Selesai' },
-    { key: 'REJECTED', label: 'Ditolak' },
+    { key: 'ALL', label: t('dashA.disputes.chipAll'), count: all.length },
+    { key: 'OPEN', label: t('dashA.disputes.chipOpen'), count: openCount },
+    { key: 'RESOLVED', label: t('dashA.disputes.chipResolved') },
+    { key: 'REJECTED', label: t('dashA.disputes.chipRejected') },
   ];
 
   function afterMutation() {
@@ -324,15 +309,15 @@ function DisputesBody() {
         <div className="flex items-center gap-2">
           <Scales size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Sengketa order</h1>
+            <h1 className="text-2xl font-bold">{t('dashA.disputes.heading')}</h1>
             <p className="text-sm text-[color:var(--text-muted)]">
               {scopedDepot ? `${scopedDepot.name} · ` : ''}
-              {openCount} terbuka · klaim pelanggan
+              {t('dashA.disputes.subtitle', { n: openCount })}
             </p>
           </div>
         </div>
         <Button variant={creating ? 'ghost' : 'secondary'} onClick={() => setCreating((v) => !v)}>
-          {creating ? 'Tutup' : 'Catat sengketa'}
+          {creating ? t('dashA.disputes.close') : t('dashA.disputes.createTitle')}
         </Button>
       </div>
 
@@ -350,16 +335,16 @@ function DisputesBody() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Scales size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashA.disputes.noDepotTitle')} icon={<Scales size={40} weight="fill" />}>
+          {t('dashA.disputes.noDepotBody')}
         </CenterState>
       ) : list.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : shown.length === 0 ? (
-        <CenterState title="Tidak ada sengketa" icon={<Scales size={40} weight="fill" />}>
-          {filter === 'ALL' ? 'Depot ini belum punya catatan sengketa.' : 'Tidak ada sengketa untuk filter ini.'}
+        <CenterState title={t('dashA.disputes.emptyTitle')} icon={<Scales size={40} weight="fill" />}>
+          {filter === 'ALL' ? t('dashA.disputes.emptyAll') : t('dashA.disputes.emptyFilter')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-3">
@@ -373,11 +358,12 @@ function DisputesBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotDisputes', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Sengketa order hanya untuk Manajer depot.
+      <CenterState title={t('dashA.disputes.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.disputes.gateBody')}
       </CenterState>
     );
   }

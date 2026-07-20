@@ -11,6 +11,10 @@ import { review } from './en/review';
 import { subscriptions } from './en/subscriptions';
 import { ops } from './en/ops';
 import { dashboard } from './en/dashboard';
+import { dashA } from './en/dashA';
+import { dashB } from './en/dashB';
+import { dashC } from './en/dashC';
+import { driver } from './en/driver';
 import { hq } from './en/hq';
 import { privacy } from './en/privacy';
 
@@ -115,6 +119,10 @@ export const en: Dictionary = {
   subscriptions,
   ops,
   dashboard,
+  dashA,
+  dashB,
+  dashC,
+  driver,
   hq,
   privacy,
 };
