@@ -110,10 +110,14 @@ export class AccountService {
     role: Role,
     fullName?: string | null,
     depotId?: string | null,
+    vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
   ): Promise<PublicCustomer> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
+    // Vehicle info only applies to couriers; ignore it for other roles.
+    const vehicleType = role === Role.DRIVER ? vehicle?.vehicleType : undefined;
+    const plateNumber = role === Role.DRIVER ? vehicle?.plateNumber : undefined;
     const phone = PhoneNumber.create(rawPhone).value;
     const existing = await this.customers.findByPhone(phone);
     if (existing) {
@@ -121,6 +125,7 @@ export class AccountService {
       if (fullName !== undefined && fullName !== null && fullName !== '') {
         existing.updateProfile(fullName, undefined);
       }
+      existing.setVehicle(vehicleType, plateNumber);
       return toPublicCustomer(await this.customers.save(existing));
     }
     const created = await this.customers.create({
@@ -129,6 +134,8 @@ export class AccountService {
       fullName: fullName ?? null,
       role,
       assignedDepotId: depotId ?? null,
+      vehicleType: vehicleType ?? null,
+      plateNumber: plateNumber ?? null,
     });
     // create() defaults the account to PENDING; activate it so the invitee can sign in.
     created.promoteToStaff(role, depotId);

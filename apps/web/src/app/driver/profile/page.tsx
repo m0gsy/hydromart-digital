@@ -1,11 +1,20 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { CaretRight, ChartBar, Coins, GearSix, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Wallet, Warning } from '@phosphor-icons/react';
+import { CaretRight, ChartBar, Coins, GearSix, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Truck, Wallet, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+
+const VEHICLE_LABELS: Record<string, string> = { MOTOR: 'Motor', MOBIL: 'Mobil' };
+
+// "Motor · B 1234 ABC", or "Belum diatur" when the courier has no vehicle on file.
+function vehicleText(c: { vehicleType?: string | null; plateNumber?: string | null } | null): string {
+  const type = c?.vehicleType ? (VEHICLE_LABELS[c.vehicleType] ?? c.vehicleType) : null;
+  const parts = [type, c?.plateNumber].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'Belum diatur';
+}
 
 function initials(name: string | null): string {
   if (!name) return 'K';
@@ -47,6 +56,15 @@ function Profile() {
       </Card>
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
+        {customer?.role === 'DRIVER' && (
+          <div className="flex w-full items-center gap-3 p-4">
+            <span className="flex size-8 items-center justify-center rounded-xl bg-black/5 text-brand-700">
+              <Truck size={19} weight="fill" />
+            </span>
+            <span className="flex-1 text-sm font-medium">Kendaraan</span>
+            <span className="text-sm text-[color:var(--muted)]">{vehicleText(customer)}</span>
+          </div>
+        )}
         {customer?.assignedDepotId && (
           <Row icon={<Storefront size={19} weight="fill" />} label="Depot penempatan" />
         )}

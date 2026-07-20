@@ -49,4 +49,16 @@ export class InviteStaffDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+
+  @ApiPropertyOptional({ example: 'MOTOR', description: 'DRIVER vehicle type (free text). Ignored for non-driver roles.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  vehicleType?: string;
+
+  @ApiPropertyOptional({ example: 'B 1234 ABC', description: 'DRIVER vehicle plate number. Ignored for non-driver roles.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  plateNumber?: string;
 }

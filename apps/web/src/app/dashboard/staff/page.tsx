@@ -44,8 +44,12 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<string>('DEPOT_OPERATOR');
+  const [vehicleType, setVehicleType] = useState('MOTOR');
+  const [plateNumber, setPlateNumber] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isDriver = role === 'DRIVER';
 
   async function submit() {
     if (phone.trim() === '') {
@@ -55,9 +59,21 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.auth.inviteStaff, { phone: phone.trim(), role, fullName: fullName || undefined }, true);
+      await api.post(
+        endpoints.auth.inviteStaff,
+        {
+          phone: phone.trim(),
+          role,
+          fullName: fullName || undefined,
+          // Vehicle info is courier-only; the server ignores it for other roles.
+          vehicleType: isDriver ? vehicleType : undefined,
+          plateNumber: isDriver && plateNumber.trim() ? plateNumber.trim() : undefined,
+        },
+        true,
+      );
       setPhone('');
       setFullName('');
+      setPlateNumber('');
       setOpen(false);
       onSaved();
     } catch (err) {
@@ -99,6 +115,19 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
           ))}
         </select>
       </Field>
+      {isDriver && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Jenis kendaraan" htmlFor="st-vtype">
+            <select id="st-vtype" value={vehicleType} onChange={(e) => setVehicleType(e.target.value)} className={selectClass()}>
+              <option value="MOTOR">Motor</option>
+              <option value="MOBIL">Mobil</option>
+            </select>
+          </Field>
+          <Field label="Nomor polisi" htmlFor="st-plate">
+            <Input id="st-plate" value={plateNumber} onChange={(e) => setPlateNumber(e.target.value)} placeholder="mis. B 1234 ABC" />
+          </Field>
+        </div>
+      )}
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}

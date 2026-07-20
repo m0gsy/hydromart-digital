@@ -18,6 +18,8 @@ export interface PublicCustomer {
   status: CustomerStatus;
   avatarUrl: string | null;
   assignedDepotId: string | null;
+  vehicleType: string | null;
+  plateNumber: string | null;
   createdAt: Date;
 }
 
@@ -31,6 +33,8 @@ export function toPublicCustomer(customer: Customer): PublicCustomer {
     status: customer.status,
     avatarUrl: customer.avatarUrl,
     assignedDepotId: customer.assignedDepotId,
+    vehicleType: customer.vehicleType,
+    plateNumber: customer.plateNumber,
     createdAt: customer.createdAt,
   };
 }
