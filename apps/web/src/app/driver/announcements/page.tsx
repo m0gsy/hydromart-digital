@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Megaphone, Warning } from '@phosphor-icons/react';
+import { CalendarBlank, Megaphone, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -17,6 +17,13 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
   hour: '2-digit',
   minute: '2-digit',
 });
+
+// 3 tiers (design 8a): Mendesak (URGENT) / Terjadwal (SCHEDULED) / Info (INFO).
+const TIERS = {
+  URGENT: { label: 'Mendesak', icon: Warning, iconClass: 'text-red-600', card: 'border-red-200 bg-red-50', pill: 'bg-red-100 text-red-700' },
+  SCHEDULED: { label: 'Terjadwal', icon: CalendarBlank, iconClass: 'text-amber-600', card: 'border-amber-200 bg-amber-50', pill: 'bg-amber-100 text-amber-700' },
+  INFO: { label: 'Info', icon: Megaphone, iconClass: 'text-brand-700', card: 'border-[color:var(--border)] bg-[color:var(--surface)]', pill: 'bg-brand-50 text-brand-700' },
+} as const;
 
 function Announcements({ depotId }: { depotId: string }) {
   const feed = useAsync<Broadcast[]>(() => api.get(endpoints.broadcasts.forDepot(depotId), true), [depotId]);
@@ -47,30 +54,17 @@ function Announcements({ depotId }: { depotId: string }) {
       ) : (
         <div className="flex flex-col gap-2.5">
           {items.map((b) => {
-            // Backend enum is INFO | URGENT only. The spec's third "Terjadwal" tier needs a
-            // SCHEDULED enum on broadcast-service — ponytail: map the two real levels for now.
-            const urgent = b.level === 'URGENT';
+            const tier = TIERS[b.level] ?? TIERS.INFO;
+            const Icon = tier.icon;
             return (
               <div
                 key={b.id}
-                className={`rounded-2xl border p-4 ${
-                  urgent
-                    ? 'border-red-200 bg-red-50'
-                    : 'border-[color:var(--border)] bg-[color:var(--surface)]'
-                }`}
+                className={`rounded-2xl border p-4 ${tier.card}`}
               >
                 <div className="flex items-center gap-2">
-                  {urgent ? (
-                    <Warning size={16} weight="fill" className="text-red-600" />
-                  ) : (
-                    <Megaphone size={16} weight="fill" className="text-brand-700" />
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
-                      urgent ? 'bg-red-100 text-red-700' : 'bg-brand-100 text-brand-800'
-                    }`}
-                  >
-                    {urgent ? 'Mendesak' : 'Info'}
+                  <Icon size={16} weight="fill" className={tier.iconClass} />
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${tier.pill}`}>
+                    {tier.label}
                   </span>
                   <div className="flex-1 text-sm font-extrabold">{b.title}</div>
                   {!b.read && <span className="size-2 rounded-full bg-brand-600" aria-label="Belum dibaca" />}
