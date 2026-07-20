@@ -17,6 +17,9 @@ import { dashC } from './en/dashC';
 import { driver } from './en/driver';
 import { hq } from './en/hq';
 import { privacy } from './en/privacy';
+import { customerFix } from './en/customerFix';
+import { courierFix } from './en/courierFix';
+import { hqFix } from './en/hqFix';
 
 // English — mirrors the shape of id.ts (the source of truth for keys).
 export const en: Dictionary = {
@@ -125,4 +128,7 @@ export const en: Dictionary = {
   driver,
   hq,
   privacy,
+  customerFix,
+  courierFix,
+  hqFix,
 };

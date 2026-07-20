@@ -5,9 +5,13 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
 import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
-import { hqItemsForRole } from '@/components/hq/hq-rail';
+import { HQ_GROUPS, hqItemsForRole } from '@/components/hq/hq-rail';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { isHq } from '@/lib/roles';
+
+// Full rail size (every ready surface) — the denominator for the visible/total counter.
+const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
 
 const ROLES: Role[] = [
   'SUPER_ADMIN',
@@ -44,7 +48,13 @@ export default function HqLandingPage() {
   const { t } = useT();
   const [role, setRole] = useState<Role>('SUPER_ADMIN');
 
-  const menu = hqItemsForRole(role);
+  // Regroup the visible rail under its section headers (spec 9a railPreview), reading the
+  // same ready/isHq filter that drives the real rail. Non-HQ roles get no groups → noMenu.
+  const railGroups = HQ_GROUPS.map((g) => ({
+    headKey: g.headKey,
+    items: g.items.filter((i) => i.ready && isHq(role)),
+  })).filter((g) => g.items.length > 0);
+  const visibleCount = hqItemsForRole(role).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,18 +115,34 @@ export default function HqLandingPage() {
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted">
-              {t('hq.landing.menuSeen')}
-            </p>
-            {menu.length === 0 ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                {t('hq.landing.menuSeen')}
+              </p>
+              {railGroups.length > 0 && (
+                <span className="text-xs font-bold tabular-nums text-brand-600">
+                  {visibleCount}/{TOTAL_SURFACES} {t('hqFix.surfaces')}
+                </span>
+              )}
+            </div>
+            {railGroups.length === 0 ? (
               <p className="text-sm text-muted">{t('hq.landing.noMenu')}</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {menu.map((item) => (
-                  <Chip key={item.href} tone="outline">
-                    {t(`hq.nav.${item.labelKey}`)}
-                  </Chip>
+              <div className="flex flex-col gap-4">
+                {railGroups.map((g) => (
+                  <div key={g.headKey} className="flex flex-col gap-2">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-brand-600">
+                      {t(`hq.groups.${g.headKey}`)}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {g.items.map((item) => (
+                        <Chip key={item.href} tone="outline">
+                          {t(`hq.nav.${item.labelKey}`)}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

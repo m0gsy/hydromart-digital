@@ -111,12 +111,42 @@ export function RbacMatrix() {
     });
   }
 
+  // Column bulk-toggle: if the role already holds every capability, clear it from all;
+  // otherwise grant it to all. (spec 2a roleHeads.toggle)
+  function toggleRole(role: Role) {
+    setCopied(false);
+    setGrid((prev) => {
+      const caps = Object.keys(prev) as Capability[];
+      const hasAll = caps.every((c) => prev[c].includes(role));
+      const out = {} as Grid;
+      caps.forEach((c) => {
+        out[c] = hasAll
+          ? prev[c].filter((r) => r !== role)
+          : prev[c].includes(role)
+            ? prev[c]
+            : [...prev[c], role];
+      });
+      return out;
+    });
+  }
+
+  // Row bulk-toggle: grant the cap to every role, or clear it entirely if already full.
+  // (spec 2a cap.toggleRow)
+  function toggleCap(cap: Capability) {
+    setCopied(false);
+    setGrid((prev) => {
+      const hasAll = ROLES.every((r) => prev[cap].includes(r));
+      return { ...prev, [cap]: hasAll ? [] : [...ROLES] };
+    });
+  }
+
   function reset() {
     setGrid(cloneCaps());
     setShowDiff(false);
     setCopied(false);
   }
 
+  // ponytail: matrix save copies diff; RBAC is compile-time in @hydromart/access
   const diffText = changed
     .map((c) => {
       const roles = ROLES.filter((r) => grid[c].includes(r));
@@ -175,19 +205,28 @@ export function RbacMatrix() {
                 {t('hq.access.title')}
               </th>
               {ROLES.map((r) => (
-                <th
-                  key={r}
-                  title={t(`hq.roles.${r}`)}
-                  className="px-1.5 py-2.5 text-center text-[11px] font-bold text-muted"
-                >
-                  {ROLE_ABBR[r]}
+                <th key={r} className="px-1.5 py-2.5 text-center text-[11px] font-bold text-muted">
+                  <button
+                    type="button"
+                    onClick={() => toggleRole(r)}
+                    title={`${t(`hq.roles.${r}`)} — ${t('hqFix.toggleCol')}`}
+                    className="w-full rounded px-1 py-0.5 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    {ROLE_ABBR[r]}
+                  </button>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {CAP_SECTIONS.map((section) => (
-              <SectionRows key={section.key} section={section} grid={grid} onToggle={toggle} />
+              <SectionRows
+                key={section.key}
+                section={section}
+                grid={grid}
+                onToggle={toggle}
+                onToggleCap={toggleCap}
+              />
             ))}
           </tbody>
         </table>
@@ -202,10 +241,12 @@ function SectionRows({
   section,
   grid,
   onToggle,
+  onToggleCap,
 }: {
   section: { key: string; caps: Capability[] };
   grid: Grid;
   onToggle: (cap: Capability, role: Role) => void;
+  onToggleCap: (cap: Capability) => void;
 }) {
   const { t } = useT();
   return (
@@ -221,7 +262,14 @@ function SectionRows({
       {section.caps.map((cap) => (
         <tr key={cap} className="border-t border-app">
           <td className="sticky left-0 z-10 bg-[color:var(--surface)] px-3 py-2 font-medium">
-            {t(`hq.access.caps.${cap}`)}
+            <button
+              type="button"
+              onClick={() => onToggleCap(cap)}
+              title={t('hqFix.toggleRow')}
+              className="text-left transition-opacity hover:opacity-70"
+            >
+              {t(`hq.access.caps.${cap}`)}
+            </button>
           </td>
           {ROLES.map((role) => {
             const on = grid[cap].includes(role);
