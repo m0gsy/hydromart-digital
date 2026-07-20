@@ -1023,7 +1023,7 @@ export interface FieldIncident {
 }
 
 // Depot broadcast (crm-service, design 8a). In-app ops announcement for couriers at a depot.
-export type BroadcastLevel = 'INFO' | 'URGENT';
+export type BroadcastLevel = 'INFO' | 'URGENT' | 'SCHEDULED';
 
 export interface Broadcast {
   id: string;

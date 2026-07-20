@@ -1,0 +1,6 @@
+-- Manual rollback for 0005_broadcast_scheduled_level (crm-service).
+-- Postgres cannot DROP a single enum value. To remove SCHEDULED you must recreate the
+-- type without it, which requires no rows still referencing it:
+--   ALTER TABLE "depot_broadcasts" ALTER COLUMN "level" TYPE TEXT;
+--   -- ... then recreate "BroadcastLevel" without 'SCHEDULED' and cast back.
+-- Left as documentation: dropping a shipped enum value is a data migration, not a DDL undo.

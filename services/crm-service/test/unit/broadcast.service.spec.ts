@@ -17,6 +17,11 @@ describe('BroadcastService', () => {
     expect(b).toMatchObject({ depotId: 'depot-1', level: 'URGENT', createdBy: 'ops-1' });
   });
 
+  it('posts a SCHEDULED ("Terjadwal") broadcast', async () => {
+    const b = await service.create('ops-1', 'depot-1', 'Perawatan tangki', 'Besok pagi', BroadcastLevel.SCHEDULED);
+    expect(b.level).toBe('SCHEDULED');
+  });
+
   it('lists only the courier depot broadcasts, newest first, with read flags', async () => {
     await service.create('ops-1', 'depot-1', 'A', 'a');
     await service.create('ops-1', 'depot-1', 'B', 'b');
