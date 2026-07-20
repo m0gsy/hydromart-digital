@@ -32,6 +32,7 @@ function seedDelivered(
     recipientPhone: null,
     items: null,
     codAmount: null,
+    estimatedArrivalAt: null,
     lastLat: null,
     lastLng: null,
     lastLocationAt: null,

@@ -22,6 +22,7 @@ function seed(repo: InMemoryDeliveryRepository, over: Partial<DeliveryRecord>): 
     recipientPhone: null,
     items: null,
     codAmount: null,
+    estimatedArrivalAt: null,
     lastLat: null,
     lastLng: null,
     lastLocationAt: null,
