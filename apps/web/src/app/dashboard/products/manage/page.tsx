@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Lock, Info, Package, Plus } from '@phosphor-icons/react';
+import { ArrowDown, ArrowUp, Lock, Info, Package, Plus, Trash } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
@@ -29,8 +29,22 @@ function ProductForm({
   const [unit, setUnit] = useState(initial?.unit ?? '');
   const [basePrice, setBasePrice] = useState(initial ? String(initial.basePrice) : '');
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
+  // Additional gallery image URLs beyond the primary imageUrl.
+  const [images, setImages] = useState<string[]>(initial?.images ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const setImageAt = (i: number, v: string) =>
+    setImages((arr) => arr.map((u, j) => (j === i ? v : u)));
+  const removeImageAt = (i: number) => setImages((arr) => arr.filter((_, j) => j !== i));
+  const moveImage = (i: number, dir: -1 | 1) =>
+    setImages((arr) => {
+      const j = i + dir;
+      if (j < 0 || j >= arr.length) return arr;
+      const next = [...arr];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      return next;
+    });
 
   async function submit() {
     const price = Number(basePrice);
@@ -46,6 +60,7 @@ function ProductForm({
       unit: unit.trim(),
       basePrice: price,
       imageUrl: imageUrl.trim() || null,
+      images: images.map((u) => u.trim()).filter(Boolean),
     };
     try {
       if (initial) await api.patch(endpoints.products.update(initial.id), body, true);
@@ -82,8 +97,49 @@ function ProductForm({
           />
         </Field>
       </div>
-      <Field label="URL gambar" htmlFor="pf-image" hint="Opsional.">
+      <Field label="URL gambar utama" htmlFor="pf-image" hint="Opsional.">
         <Input id="pf-image" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://…" />
+      </Field>
+      <Field label="Gambar tambahan" hint="URL foto galeri lain. Urutan tampil sesuai daftar.">
+        <div className="flex flex-col gap-2">
+          {images.map((url, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <Input
+                value={url}
+                onChange={(e) => setImageAt(i, e.target.value)}
+                placeholder="https://…"
+                aria-label={`URL gambar tambahan ${i + 1}`}
+              />
+              <Button
+                variant="ghost"
+                onClick={() => moveImage(i, -1)}
+                disabled={i === 0}
+                aria-label="Naik"
+              >
+                <ArrowUp size={16} />
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => moveImage(i, 1)}
+                disabled={i === images.length - 1}
+                aria-label="Turun"
+              >
+                <ArrowDown size={16} />
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-red-600"
+                onClick={() => removeImageAt(i)}
+                aria-label="Hapus"
+              >
+                <Trash size={16} />
+              </Button>
+            </div>
+          ))}
+          <Button variant="ghost" className="w-fit" onClick={() => setImages((arr) => [...arr, ''])}>
+            <Plus size={16} /> Tambah gambar
+          </Button>
+        </div>
       </Field>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">

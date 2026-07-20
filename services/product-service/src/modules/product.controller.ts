@@ -55,6 +55,7 @@ export class ProductController {
       unit: dto.unit,
       basePrice: dto.basePrice,
       imageUrl: dto.imageUrl ?? null,
+      images: dto.images ?? [],
     });
   }
 

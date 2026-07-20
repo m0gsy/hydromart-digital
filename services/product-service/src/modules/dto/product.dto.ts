@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsInt,
   IsOptional,
@@ -77,6 +79,17 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(500)
   imageUrl?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Additional gallery image URLs beyond imageUrl (the primary).',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  @MaxLength(500, { each: true })
+  images?: string[];
 }
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {

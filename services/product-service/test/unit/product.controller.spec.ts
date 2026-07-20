@@ -48,6 +48,7 @@ describe('ProductController', () => {
       unit: 'Galon',
       basePrice: 20000,
       imageUrl: 'http://x/img.png',
+      images: [],
     });
   });
 
@@ -67,6 +68,7 @@ describe('ProductController', () => {
       unit: 'Galon',
       basePrice: 20000,
       imageUrl: null,
+      images: [],
     });
   });
 

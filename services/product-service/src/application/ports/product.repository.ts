@@ -7,6 +7,8 @@ export interface ProductRecord {
   unit: string;
   basePrice: number;
   imageUrl: string | null;
+  /** Additional gallery images beyond the primary imageUrl. */
+  images: string[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -29,6 +31,7 @@ export interface CreateProductData {
   unit: string;
   basePrice: number;
   imageUrl: string | null;
+  images: string[];
 }
 
 export type UpdateProductData = Partial<CreateProductData & { active: boolean }>;

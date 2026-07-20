@@ -49,6 +49,8 @@ export interface Product {
   unit: string;
   basePrice: number;
   imageUrl: string | null;
+  /** Additional gallery images beyond the primary imageUrl. Gallery = [imageUrl, ...images]. */
+  images: string[];
   active: boolean;
   createdAt: string;
   updatedAt: string;
