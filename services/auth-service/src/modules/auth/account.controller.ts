@@ -112,7 +112,10 @@ export class AccountController {
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId, {
+      vehicleType: dto.vehicleType,
+      plateNumber: dto.plateNumber,
+    });
     return PublicCustomerDto.from(staff);
   }
 

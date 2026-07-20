@@ -12,6 +12,8 @@ export interface CustomerProps {
   googleSub: string | null;
   avatarUrl: string | null;
   assignedDepotId: string | null;
+  vehicleType: string | null;
+  plateNumber: string | null;
   phoneVerifiedAt: Date | null;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -57,6 +59,12 @@ export class Customer {
   }
   get assignedDepotId(): string | null {
     return this.props.assignedDepotId;
+  }
+  get vehicleType(): string | null {
+    return this.props.vehicleType;
+  }
+  get plateNumber(): string | null {
+    return this.props.plateNumber;
   }
   get phoneVerifiedAt(): Date | null {
     return this.props.phoneVerifiedAt;
@@ -147,6 +155,19 @@ export class Customer {
   /** Set the customer's avatar to a freshly uploaded image URL (FR-009). */
   setAvatar(url: string): void {
     this.props.avatarUrl = url;
+  }
+
+  /**
+   * Set DRIVER vehicle info (staff invite/promote form). `undefined` leaves a field
+   * untouched; `null` clears it. Free-text type (e.g. "MOTOR"/"MOBIL") + plate number.
+   */
+  setVehicle(vehicleType?: string | null, plateNumber?: string | null): void {
+    if (vehicleType !== undefined) {
+      this.props.vehicleType = vehicleType;
+    }
+    if (plateNumber !== undefined) {
+      this.props.plateNumber = plateNumber;
+    }
   }
 
   /** Snapshot for persistence mapping. */

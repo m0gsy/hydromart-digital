@@ -27,6 +27,8 @@ const activeCustomer = (): Customer =>
     googleSub: null,
     avatarUrl: null,
     assignedDepotId: null,
+    vehicleType: null,
+    plateNumber: null,
     phoneVerifiedAt: new Date(),
     lastLoginAt: null,
     createdAt: new Date(),
