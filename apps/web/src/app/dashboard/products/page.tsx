@@ -1,7 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { ImageSquare, Lock, Package, Plus, Spinner as SpinnerIcon } from '@phosphor-icons/react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  ImageSquare,
+  Lock,
+  Package,
+  Plus,
+  Spinner as SpinnerIcon,
+  Trash,
+} from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
@@ -24,6 +33,8 @@ interface ProductForm {
   categoryId: string;
   description: string;
   imageUrl: string;
+  /** Additional gallery images beyond the primary imageUrl. */
+  images: string[];
 }
 
 const EMPTY: ProductForm = {
@@ -34,6 +45,7 @@ const EMPTY: ProductForm = {
   categoryId: '',
   description: '',
   imageUrl: '',
+  images: [],
 };
 
 function toForm(p: Product): ProductForm {
@@ -45,6 +57,7 @@ function toForm(p: Product): ProductForm {
     categoryId: p.categoryId ?? '',
     description: p.description ?? '',
     imageUrl: p.imageUrl ?? '',
+    images: p.images ?? [],
   };
 }
 
@@ -75,7 +88,9 @@ function ProductAdmin() {
   };
   const close = () => setEditing(null);
 
-  const onPickImage = async (file: File | undefined) => {
+  // Shared upload: compress + POST, then hand the returned url to `apply`
+  // (the primary imageUrl, or an append into the extra images list).
+  const onPick = async (file: File | undefined, apply: (url: string) => void) => {
     if (!file) return;
     setError(null);
     setUploading(true);
@@ -85,13 +100,25 @@ function ProductAdmin() {
         endpoints.products.uploadImage,
         new File([blob], 'product.jpg', { type: blob.type || 'image/jpeg' }),
       );
-      set('imageUrl', url);
+      apply(url);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Gagal upload gambar.');
     } finally {
       setUploading(false);
     }
   };
+
+  const addImage = (url: string) => setForm((f) => ({ ...f, images: [...f.images, url] }));
+  const removeImage = (i: number) =>
+    setForm((f) => ({ ...f, images: f.images.filter((_, j) => j !== i) }));
+  const moveImage = (i: number, dir: -1 | 1) =>
+    setForm((f) => {
+      const j = i + dir;
+      if (j < 0 || j >= f.images.length) return f;
+      const next = [...f.images];
+      [next[i], next[j]] = [next[j]!, next[i]!];
+      return { ...f, images: next };
+    });
 
   const save = async () => {
     setError(null);
@@ -109,6 +136,7 @@ function ProductAdmin() {
       categoryId: form.categoryId || undefined,
       description: form.description.trim() || undefined,
       imageUrl: form.imageUrl || undefined,
+      images: form.images,
     };
     setSaving(true);
     try {
@@ -168,13 +196,66 @@ function ProductAdmin() {
             </div>
             <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-app px-4 py-2.5 text-sm text-muted hover:border-brand-500">
               {uploading ? <SpinnerIcon size={16} className="animate-spin" /> : <ImageSquare size={16} />}
-              {uploading ? 'Mengunggah…' : form.imageUrl ? 'Ganti gambar' : 'Unggah gambar'}
+              {uploading ? 'Mengunggah…' : form.imageUrl ? 'Ganti gambar utama' : 'Unggah gambar utama'}
               <input
                 type="file"
                 accept="image/*"
                 className="hidden"
                 disabled={uploading}
-                onChange={(e) => onPickImage(e.target.files?.[0])}
+                onChange={(e) => onPick(e.target.files?.[0], (url) => set('imageUrl', url))}
+              />
+            </label>
+          </div>
+
+          {/* Additional gallery images (beyond the primary). Add / remove / reorder. */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted">Gambar tambahan</p>
+            {form.images.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {form.images.map((url, i) => (
+                  <div key={`${url}-${i}`} className="relative h-20 w-20 overflow-hidden rounded-lg border border-app">
+                    <img src={url} alt={`Gambar tambahan ${i + 1}`} className="h-full w-full object-cover" />
+                    <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-black/45 py-0.5">
+                      <button
+                        type="button"
+                        onClick={() => moveImage(i, -1)}
+                        disabled={i === 0}
+                        aria-label="Geser kiri"
+                        className="text-white disabled:opacity-30"
+                      >
+                        <ArrowLeft size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveImage(i, 1)}
+                        disabled={i === form.images.length - 1}
+                        aria-label="Geser kanan"
+                        className="text-white disabled:opacity-30"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeImage(i)}
+                        aria-label="Hapus gambar"
+                        className="text-white"
+                      >
+                        <Trash size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-dashed border-app px-4 py-2.5 text-sm text-muted hover:border-brand-500">
+              {uploading ? <SpinnerIcon size={16} className="animate-spin" /> : <Plus size={16} />}
+              Tambah gambar
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => onPick(e.target.files?.[0], addImage)}
               />
             </label>
           </div>

@@ -18,6 +18,7 @@ interface ProductRow {
   unit: string;
   basePrice: { toNumber(): number };
   imageUrl: string | null;
+  images: string[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -83,6 +83,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [activeImg, setActiveImg] = useState(0);
+
+  // Effective gallery: the primary imageUrl first, then any extra images[]. Legacy
+  // products carry only imageUrl, so the strip below simply shows the one real photo.
+  const gallery = product
+    ? [product.imageUrl, ...(product.images ?? [])].filter((u): u is string => Boolean(u))
+    : [];
+  const mainImg = gallery[activeImg] ?? gallery[0] ?? null;
 
   async function addToCart() {
     if (!customer) {
@@ -142,28 +150,33 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
         <ErrorState message={error ?? t('shop.pdp.notFound')} onRetry={reload} />
       ) : (
         <div className="grid items-start gap-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:gap-12">
-          {/* gallery */}
+          {/* gallery — main image + a thumbnail strip when the product has >1 photo */}
           <div className="flex flex-col gap-3">
             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[24px] bg-[color:var(--surface-soft)]">
-              {product.imageUrl ? (
-                <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+              {mainImg ? (
+                <img src={mainImg} alt={product.name} className="h-full w-full object-cover" />
               ) : (
                 <Drop size={96} weight="thin" className="text-brand-300" />
               )}
             </div>
-            {/* The product payload carries a single imageUrl (the product model has no
-                images[] array), so the thumbnail strip shows just the one real photo —
-                a multi-image gallery would need fabricated extras.
-                // ponytail: render a real strip here once the product model grows images[]. */}
-            <div className="grid grid-cols-4 gap-3">
-              <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[14px] border-2 border-brand-600 bg-[color:var(--surface-soft)]">
-                {product.imageUrl ? (
-                  <img src={product.imageUrl} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <Drop size={26} weight="thin" className="text-brand-300" />
-                )}
+            {gallery.length > 1 && (
+              <div className="grid grid-cols-4 gap-3">
+                {gallery.map((url, i) => (
+                  <button
+                    key={`${url}-${i}`}
+                    type="button"
+                    onClick={() => setActiveImg(i)}
+                    aria-label={t('shop.pdp.viewImage', { n: i + 1 })}
+                    aria-current={i === activeImg}
+                    className={`flex aspect-square items-center justify-center overflow-hidden rounded-[14px] border-2 bg-[color:var(--surface-soft)] transition-colors ${
+                      i === activeImg ? 'border-brand-600' : 'border-transparent hover:border-brand-300'
+                    }`}
+                  >
+                    <img src={url} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
               </div>
-            </div>
+            )}
           </div>
 
           {/* info */}

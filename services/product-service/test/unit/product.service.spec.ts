@@ -14,6 +14,7 @@ const base = (over: Partial<{ name: string; sku: string; categoryId: string | nu
   unit: 'Galon 19L',
   basePrice: 20000,
   imageUrl: null,
+  images: [],
 });
 
 describe('ProductService', () => {

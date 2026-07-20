@@ -29,6 +29,7 @@ export const shop: typeof base = {
     toCart: 'To cart →',
     addError: 'Failed to add to cart.',
     related: 'Frequently bought together',
+    viewImage: 'View photo {n}',
   },
   card: {
     addAria: 'Add {name} to cart',
