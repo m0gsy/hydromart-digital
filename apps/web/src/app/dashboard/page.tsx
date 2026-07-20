@@ -13,7 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDashboard, canViewFranchise, isDepotOperator } from '@/lib/roles';
+import { canViewDashboard, canViewFranchise, isDepotManager, isDepotOperator } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Approval, Delivery, ExecutiveDashboard, InventoryItem, Page } from '@/lib/types';
 
@@ -171,6 +171,10 @@ function ActiveCouriersWidget() {
 
 function DashboardBody() {
   const { t } = useT();
+  const { customer } = useAuth();
+  // Manager gets an ops-first KPI set (spec 1a: Order · Pendapatan · Galon · SLA); other
+  // dashboard-capable roles (HEAD_OFFICE/SUPER_ADMIN/FINANCE) keep the exec latency view.
+  const isManager = isDepotManager(customer?.role);
   const range = defaultRange();
   const { data, error, loading, reload } = useAsync<ExecutiveDashboard>(() =>
     api.get(endpoints.dashboard.executive(range), true),
@@ -199,27 +203,53 @@ function DashboardBody() {
         <p className="mt-1 text-sm text-muted">{t('dashboard.landing.subtitle')}</p>
       </div>
 
-      {/* Headline stats */}
+      {/* Headline stats — manager gets the ops KPI set (spec 1a), others the exec set. */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label={t('dashboard.landing.revenue')}
-          value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
-          hint={t('dashboard.landing.orders', { n: totalOrders })}
-        />
-        <Stat
-          label={t('dashboard.landing.slaOnTime')}
-          value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-          hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
-        />
-        <Stat
-          label={t('dashboard.landing.avgDelivery')}
-          value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
-          hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
-        />
-        <Stat
-          label={t('dashboard.landing.breachedFailed')}
-          value={deliverySla ? `${deliverySla.breached} / ${deliverySla.failedCount}` : '—'}
-        />
+        {isManager ? (
+          <>
+            <Stat
+              label={t('mgrFix.dash.orderToday')}
+              value={totalOrders.toLocaleString('id-ID')}
+              hint={t('mgrFix.dash.ordersHint', { n: totalOrders })}
+            />
+            <Stat
+              label={t('mgrFix.dash.revenue')}
+              value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
+            />
+            <Stat
+              label={t('mgrFix.dash.gallonsDelivered')}
+              value={deliverySla ? deliverySla.totalDelivered.toLocaleString('id-ID') : '—'}
+              hint={deliverySla ? t('mgrFix.dash.deliveredHint', { n: deliverySla.totalDelivered }) : undefined}
+            />
+            <Stat
+              label={t('mgrFix.dash.slaOnTime')}
+              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: 96 }) : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <Stat
+              label={t('dashboard.landing.revenue')}
+              value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
+              hint={t('dashboard.landing.orders', { n: totalOrders })}
+            />
+            <Stat
+              label={t('dashboard.landing.slaOnTime')}
+              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
+            />
+            <Stat
+              label={t('dashboard.landing.avgDelivery')}
+              value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
+              hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
+            />
+            <Stat
+              label={t('dashboard.landing.breachedFailed')}
+              value={deliverySla ? `${deliverySla.breached} / ${deliverySla.failedCount}` : '—'}
+            />
+          </>
+        )}
       </div>
 
       {(sources.order === 'unavailable' || sources.delivery === 'unavailable') && (

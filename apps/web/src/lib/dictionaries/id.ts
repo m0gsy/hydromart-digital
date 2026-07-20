@@ -22,6 +22,8 @@ import { privacy } from './id/privacy';
 import { customerFix } from './id/customerFix';
 import { courierFix } from './id/courierFix';
 import { hqFix } from './id/hqFix';
+import { opsFix } from './id/opsFix';
+import { mgrFix } from './id/mgrFix';
 
 export const id = {
   nav: {
@@ -132,6 +134,8 @@ export const id = {
   customerFix,
   courierFix,
   hqFix,
+  opsFix,
+  mgrFix,
 };
 
 export type Dictionary = typeof id;

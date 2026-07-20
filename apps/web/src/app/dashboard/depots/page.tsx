@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Buildings, Clock, Lock } from '@phosphor-icons/react';
+import { useRef, useState } from 'react';
+import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosphor-icons/react';
 
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
 import { DepotMap } from '@/components/dashboard/depot-map';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, uploadFile } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -19,6 +19,110 @@ import type { DepotAdmin, Page } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+const QRIS_MAX_BYTES = 5 * 1024 * 1024;
+
+/** 4b — static-QRIS image uploader (replaces the old raw-URL text field). Upload is immediate
+ *  and independent of the form save; it needs a persisted depot, so create-mode shows a hint. */
+function QrisUploader({
+  depot,
+  qrisUrl,
+  onUploaded,
+}: {
+  depot: DepotAdmin | null;
+  qrisUrl: string;
+  onUploaded: (url: string) => void;
+}) {
+  const { t } = useT();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !depot) return;
+    if (file.size > QRIS_MAX_BYTES) {
+      setError(t('opsFix.qris.tooLarge'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await uploadFile<DepotAdmin>(endpoints.depots.uploadQris(depot.id), file);
+      onUploaded(updated.paymentQrisImageUrl ?? '');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('opsFix.qris.uploadError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const src = qrisUrl ? (qrisUrl.startsWith('http') ? qrisUrl : `${BASE_URL}${qrisUrl}`) : null;
+
+  return (
+    <div className="border-t border-app pt-3">
+      <div className="mb-1 flex items-center gap-2">
+        <QrCode size={18} weight="fill" className="text-brand-500" />
+        <p className="text-sm font-semibold">{t('opsFix.qris.heading')}</p>
+      </div>
+      <p className="mb-3 text-xs text-muted">{t('opsFix.qris.hint')}</p>
+      {src ? (
+        <img src={src} alt={t('opsFix.qris.alt')} className="mx-auto h-40 w-40 rounded-lg border border-app object-contain" />
+      ) : (
+        <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-lg border border-dashed border-app text-xs text-muted">
+          {t('opsFix.qris.none')}
+        </div>
+      )}
+      {error && (
+        <p className="mt-2 text-sm font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+      {depot ? (
+        <>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={onPick} />
+          <Button variant="secondary" className="mt-3 w-full" onClick={() => fileRef.current?.click()} loading={busy}>
+            {qrisUrl ? t('opsFix.qris.replace') : t('opsFix.qris.upload')}
+          </Button>
+        </>
+      ) : (
+        <p className="mt-3 rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-center text-xs text-muted">
+          {t('opsFix.qris.uploadAfterSave')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** 4b — accepted payment methods. There is no per-method enable flag in the depot schema
+ *  (money goes direct to each depot), so enablement is derived from what is configured. */
+function MethodsPreview({ form }: { form: DepotForm }) {
+  const { t } = useT();
+  const rows: { icon: React.ReactNode; title: string; desc: string; active: boolean }[] = [
+    { icon: <MoneyIcon size={18} weight="fill" />, title: t('opsFix.qris.cod'), desc: t('opsFix.qris.codDesc'), active: true },
+    { icon: <QrCode size={18} weight="fill" />, title: t('opsFix.qris.qris'), desc: t('opsFix.qris.qrisDesc'), active: !!form.paymentQrisImageUrl },
+    { icon: <Bank size={18} weight="fill" />, title: t('opsFix.qris.transfer'), desc: t('opsFix.qris.transferDesc'), active: !!form.paymentBankAccountNumber.trim() },
+  ];
+  return (
+    <div className="border-t border-app pt-3">
+      <p className="mb-2 text-sm font-semibold">{t('opsFix.qris.methodsTitle')}</p>
+      <div className="flex flex-col">
+        {rows.map((r) => (
+          <div key={r.title} className="flex items-center gap-3 border-t border-app py-2.5 first:border-0 first:pt-0">
+            <span className="text-brand-500">{r.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{r.title}</p>
+              <p className="text-xs text-muted">{r.desc}</p>
+            </div>
+            <Badge tone={r.active ? 'success' : 'neutral'}>{r.active ? t('opsFix.qris.active') : t('opsFix.qris.notSet')}</Badge>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function formFromDepot(d: DepotAdmin): DepotForm {
   return {
@@ -124,10 +228,13 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
           <Field label="Atas nama" htmlFor="d-holder">
             <Input id="d-holder" value={form.paymentBankAccountHolder} onChange={set('paymentBankAccountHolder')} placeholder="Depot Cikini" />
           </Field>
-          <Field label="URL gambar QRIS" htmlFor="d-qris" hint="Link gambar QRIS statik depot">
-            <Input id="d-qris" value={form.paymentQrisImageUrl} onChange={set('paymentQrisImageUrl')} placeholder="https://…/qris.png" />
-          </Field>
         </div>
+        <QrisUploader
+          depot={depot}
+          qrisUrl={form.paymentQrisImageUrl}
+          onUploaded={(url) => setForm((f) => ({ ...f, paymentQrisImageUrl: url }))}
+        />
+        <MethodsPreview form={form} />
       </div>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">

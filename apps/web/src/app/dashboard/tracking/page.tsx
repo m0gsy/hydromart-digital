@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT, type TVars } from '@/lib/locale-context';
 import { canViewTracking } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
+import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const REFRESH_MS = 15000;
 
@@ -74,7 +74,7 @@ function Stepper({ status }: { status: DeliveryStatus }) {
   );
 }
 
-function DeliveryCard({ d }: { d: Delivery }) {
+function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | null }) {
   const { t } = useT();
   const hasPos = d.lastLat != null && d.lastLng != null;
   const dist =
@@ -102,7 +102,9 @@ function DeliveryCard({ d }: { d: Delivery }) {
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-700">
             <User size={16} weight="fill" />
           </span>
-          <span className="font-medium">{t('dashC.tracking.courier', { id: d.driverId.slice(0, 6) })}</span>
+          <span className="font-medium">
+            {courierName ?? (d.driverId ? t('dashC.tracking.courier', { id: d.driverId.slice(0, 6) }) : t('opsFix.tracking.courierUnknown'))}
+          </span>
         </span>
         {dist != null && <span className="tabular-nums text-muted">{t('dashC.tracking.distToDest', { km: dist.toFixed(1) })}</span>}
       </div>
@@ -135,6 +137,10 @@ function TrackingBody() {
     () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
     [],
   );
+  // 1c: resolve courier display names from the active-driver roster (delivery records carry
+  // only driverId). Fail-soft — a roster miss falls back to the short id in the card.
+  const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  const nameById = new Map((drivers.data ?? []).map((c) => [c.id, c.fullName]));
 
   // Live-ish: poll while the tab is open. useAsync.reload isn't memoized, so hold the
   // latest in a ref and run a single stable interval (no teardown per render).
@@ -166,7 +172,7 @@ function TrackingBody() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {list.data.items.map((d) => (
-            <DeliveryCard key={d.id} d={d} />
+            <DeliveryCard key={d.id} d={d} courierName={nameById.get(d.driverId) ?? null} />
           ))}
         </div>
       )}

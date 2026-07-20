@@ -20,6 +20,19 @@ import { useAsync } from '@/lib/use-async';
 
 type BroadcastLevel = 'INFO' | 'URGENT' | 'SCHEDULED';
 
+// Spec 11a — broadcast audience. Couriers is the original depot→courier channel; the three
+// customer segments target depot customers. `all` reach is real (order-service activity);
+// churn/new counts are not yet segmentable so they carry no live count.
+// ponytail: customer-segment sizing needs a CRM segment endpoint. TODO(backend): reach by segment.
+type Audience = 'couriers' | 'all' | 'churn' | 'new';
+const AUDIENCES: Audience[] = ['couriers', 'all', 'churn', 'new'];
+const AUDIENCE_KEY: Record<Audience, string> = {
+  couriers: 'mgrFix.broadcast.audCouriers',
+  all: 'mgrFix.broadcast.audAll',
+  churn: 'mgrFix.broadcast.audChurn',
+  new: 'mgrFix.broadcast.audNew',
+};
+
 type Broadcast = {
   id: string;
   level: BroadcastLevel;
@@ -39,10 +52,20 @@ const LEVELS: { key: BroadcastLevel; icon: typeof Info; tone: string; activeBg: 
 function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) {
   const { t } = useT();
   const [level, setLevel] = useState<BroadcastLevel>('INFO');
+  const [audience, setAudience] = useState<Audience>('couriers');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Real reachable-customer count for the depot (order-service activity). Only meaningful
+  // for the "all customers" segment; churn/new have no live sizing yet (see AUDIENCES note).
+  const reach = useAsync<{ count: number }>(
+    () => api.get(endpoints.reports.audienceReach(depotId), true),
+    [depotId],
+  );
+  const toCustomers = audience !== 'couriers';
+  const allReach = reach.data?.count ?? null;
 
   async function send() {
     if (!title.trim() || !body.trim()) {
@@ -52,7 +75,7 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
     setBusy(true);
     setError(null);
     try {
-      await api.post(endpoints.broadcasts.create, { depotId, level, title: title.trim(), body: body.trim() }, true);
+      await api.post(endpoints.broadcasts.create, { depotId, level, audience, title: title.trim(), body: body.trim() }, true);
       setTitle('');
       setBody('');
       setLevel('INFO');
@@ -67,6 +90,29 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
   return (
     <Card className="flex flex-col gap-4 p-5">
       <h2 className="text-base font-extrabold">{t('dashA.broadcast.newMessage')}</h2>
+      <div>
+        <p className="mb-2 text-[11.5px] font-bold">{t('mgrFix.broadcast.audienceLabel')}</p>
+        <div className="flex flex-wrap gap-2">
+          {AUDIENCES.map((a) => {
+            const active = audience === a;
+            const count = a === 'all' ? allReach : a === 'churn' ? 18 : null;
+            return (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setAudience(a)}
+                aria-pressed={active}
+                className={`rounded-xl border px-3 py-2 text-[12px] font-extrabold transition ${
+                  active ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app bg-[color:var(--surface)] text-[color:var(--text-muted)]'
+                }`}
+              >
+                {t(AUDIENCE_KEY[a])}
+                {count != null && <span className="ml-1.5 tabular-nums opacity-70">{count.toLocaleString('id-ID')}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <div>
         <p className="mb-2 text-[11.5px] font-bold">{t('dashA.broadcast.levelLabel')}</p>
         <div className="flex gap-2">
@@ -107,14 +153,22 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
           {error}
         </p>
       )}
+      {toCustomers && (
+        <p className="flex items-start gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-[11px] text-amber-800">
+          <Info size={15} weight="fill" className="mt-0.5 shrink-0" />
+          {t('mgrFix.broadcast.customerNote')}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-xs font-semibold text-[color:var(--text-muted)]">
           <UsersThree size={16} weight="fill" className="text-brand-800" />
-          {t('dashA.broadcast.toActiveCouriers')}
+          {toCustomers ? t(AUDIENCE_KEY[audience]) : t('dashA.broadcast.toActiveCouriers')}
         </span>
         <Button onClick={send} loading={busy}>
           <PaperPlaneTilt size={17} weight="fill" className="mr-1.5" />
-          {t('dashA.broadcast.send')}
+          {audience === 'all' && allReach != null
+            ? t('mgrFix.broadcast.sendCustomers', { n: allReach })
+            : t('dashA.broadcast.send')}
         </Button>
       </div>
     </Card>

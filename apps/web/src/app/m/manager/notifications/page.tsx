@@ -1,26 +1,34 @@
 'use client';
 
-import { Bell, Warning } from '@phosphor-icons/react';
+import { Bell, Siren, WarningOctagon, type Icon } from '@phosphor-icons/react';
 
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { OpsNotification } from '@/lib/types';
 
-const EVENT_LABELS: Record<string, string> = {
-  STOCK_LOW: 'Stok menipis',
+// Per-event styling for the two real ops events (crm NotificationEvent OPS_EVENTS).
+// Labels come from the dict; unknown events fall back to the raw event + neutral bell.
+const EVENT_STYLE: Record<string, { icon: Icon; wrap: string; fg: string }> = {
+  STOCK_LOW: { icon: WarningOctagon, wrap: 'bg-red-100', fg: 'text-[color:var(--danger)]' },
+  COURIER_INCIDENT: { icon: Siren, wrap: 'bg-amber-100', fg: 'text-amber-700' },
 };
 
 function NotifRow({ n }: { n: OpsNotification }) {
+  const { t } = useT();
+  const style = EVENT_STYLE[n.event] ?? { icon: Bell, wrap: 'bg-brand-50', fg: 'text-brand-700' };
+  const Glyph = style.icon;
+  const label = t(`mgrFix.mMgr.events.${n.event}`);
   return (
     <Card className="flex items-start gap-3 p-3.5">
-      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100">
-        <Warning size={16} weight="fill" className="text-amber-700" />
+      <span className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${style.wrap}`}>
+        <Glyph size={16} weight="fill" className={style.fg} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-semibold">{EVENT_LABELS[n.event] ?? n.event}</p>
+          <p className="text-sm font-semibold">{label.startsWith('mgrFix.') ? n.event : label}</p>
           {n.status === 'FAILED' && <Badge tone="danger">Gagal kirim</Badge>}
         </div>
         <p className="mt-0.5 text-sm text-[color:var(--text-muted)]">{n.message}</p>
