@@ -68,6 +68,13 @@ function PaymentSettle({ order }: { order: Order }) {
  */
 function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) {
   const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  // The order's payment (staff read) → a CASH order dispatches with the COD amount the
+  // courier collects. Fail-soft: null on error → non-COD.
+  const { data: paymentPage } = useAsync<Page<Payment> | null>(
+    () => api.get(endpoints.payments.forOrderStaff(order.id), true),
+    [order.id],
+  );
+  const payment = paymentPage?.items[0];
   const [driverId, setDriverId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,15 +95,16 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
           orderNumber: order.orderNumber,
           driverId,
           driverName: driver?.fullName || undefined,
+          driverPhone: driver?.phone || undefined,
           depotId: order.depotId ?? undefined,
           destinationAddress: `${order.addressLine}, ${order.city}`,
           destinationLat: order.latitude ?? undefined,
           destinationLng: order.longitude ?? undefined,
           recipientPhone: order.phone,
           items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
-          // ponytail: codAmount not sent — the staff order payload has no payment
-          // method/amount (COD vs prepaid lives in payment-service, keyed by order).
-          // Wire once order-service joins payment or dispatch fetches the payment record.
+          // CASH order → the courier collects the order total on delivery (COD). Non-cash
+          // (TRANSFER/QRIS, already settled to the depot) sends nothing → non-COD.
+          codAmount: payment?.method === 'CASH' ? order.total : undefined,
         },
         true,
       );

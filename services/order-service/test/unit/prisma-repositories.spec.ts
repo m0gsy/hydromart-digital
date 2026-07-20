@@ -221,6 +221,8 @@ describe('OrderPrismaRepository', () => {
     notes: null,
     deliveryWindow: null,
     driverName: null,
+    driverPhone: null,
+    estimatedArrivalAt: null,
     items: [
       {
         id: 'it-1',

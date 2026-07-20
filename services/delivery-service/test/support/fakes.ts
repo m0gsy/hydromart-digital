@@ -18,7 +18,10 @@ import {
   SlaStats,
 } from '../../src/application/ports/delivery.repository';
 import { ContactMethod, ContactState } from '../../src/domain/no-show';
-import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
+import {
+  OrderAdvanceMeta,
+  OrderCoordinationPort,
+} from '../../src/application/ports/order-coordination.port';
 import { DepotLocation, DepotLocationPort } from '../../src/application/ports/depot-location.port';
 import {
   OpenShiftData,
@@ -89,6 +92,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       lastLat: null,
       lastLng: null,
       lastLocationAt: null,
+      estimatedArrivalAt: null,
       assignedAt: now,
       pickedUpAt: null,
       startedAt: null,
@@ -291,13 +295,18 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
   throwOnAdvance = false;
-  calls: { orderId: string; status: OrderFulfilmentStatus }[] = [];
+  calls: { orderId: string; status: OrderFulfilmentStatus; meta?: OrderAdvanceMeta }[] = [];
 
-  async advanceStatus(orderId: string, status: OrderFulfilmentStatus): Promise<void> {
+  async advanceStatus(
+    orderId: string,
+    status: OrderFulfilmentStatus,
+    _authorization?: string,
+    meta?: OrderAdvanceMeta,
+  ): Promise<void> {
     if (this.throwOnAdvance) {
       throw new Error('order-service down');
     }
-    this.calls.push({ orderId, status });
+    this.calls.push({ orderId, status, ...(meta ? { meta } : {}) });
   }
 }
 

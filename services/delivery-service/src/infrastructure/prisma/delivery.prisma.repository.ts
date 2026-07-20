@@ -52,6 +52,7 @@ interface DeliveryRow {
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
+  estimatedArrivalAt: Date | null;
   assignedAt: Date;
   pickedUpAt: Date | null;
   startedAt: Date | null;
@@ -100,6 +101,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       lastLat: row.lastLat,
       lastLng: row.lastLng,
       lastLocationAt: row.lastLocationAt,
+      estimatedArrivalAt: row.estimatedArrivalAt,
       assignedAt: row.assignedAt,
       pickedUpAt: row.pickedUpAt,
       startedAt: row.startedAt,

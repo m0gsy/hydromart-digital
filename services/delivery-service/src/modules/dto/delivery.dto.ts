@@ -101,6 +101,15 @@ export class AssignDeliveryDto {
   @MaxLength(30)
   recipientPhone?: string;
 
+  @ApiPropertyOptional({
+    example: '081298765432',
+    description: "Courier's phone, forwarded to order-service so the customer can call the driver.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  driverPhone?: string;
+
   @ApiPropertyOptional({ type: [DeliveryItemDto], description: 'Order line-items ({name, qty}) for the courier manifest.' })
   @IsOptional()
   @IsArray()

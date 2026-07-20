@@ -30,6 +30,9 @@ import type { DepotAdmin, Order, Page, Payment, PaymentMethod, PaymentStatus } f
 // keeps it theme-aware (white in light, elevated dark surface in dark).
 const PANEL = 'surface rounded-[22px] shadow-card';
 
+// Arrival clock time (id-ID) for the real ETA when the order carries one.
+const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+
 // Status pill dot colour, keyed off the fulfilment tone.
 const DOT = {
   active: 'bg-brand-600',
@@ -192,8 +195,13 @@ function OrderDetailInner({ id }: { id: string }) {
           </div>
           <div className="hidden shrink-0 text-right sm:block">
             <p className="text-[11px] font-bold text-muted">{t('order.detail.eta')}</p>
-            {/* ponytail: static ETA, wire real value when order-service exposes one. */}
-            <p className="text-sm font-extrabold">{t('order.detail.etaValue')}</p>
+            {/* Real ETA once the courier starts the run (order.estimatedArrivalAt, set by
+                delivery-service at ON_DELIVERY); falls back to the static window pre-dispatch. */}
+            <p className="text-sm font-extrabold">
+              {order.estimatedArrivalAt
+                ? `± ${ETA_TIME.format(new Date(order.estimatedArrivalAt))}`
+                : t('order.detail.etaValue')}
+            </p>
           </div>
         </div>
       )}
@@ -229,7 +237,12 @@ function OrderDetailInner({ id }: { id: string }) {
 
       {/* progress stepper */}
       <div className={`${PANEL} px-4 py-5 sm:px-[30px] sm:py-[26px]`}>
-        <OrderProgress status={order.status} driverName={order.driverName} />
+        <OrderProgress
+          status={order.status}
+          driverName={order.driverName}
+          driverPhone={order.driverPhone}
+          eta={order.estimatedArrivalAt}
+        />
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">

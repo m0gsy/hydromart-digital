@@ -42,6 +42,10 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   total: number;
   /** Display name of the assigned courier (null until DRIVER_ASSIGNED). */
   driverName: string | null;
+  /** Assigned courier's phone (null until DRIVER_ASSIGNED); lets the customer call the driver. */
+  driverPhone: string | null;
+  /** Customer-facing ETA (null until ON_DELIVERY), set by delivery-service. */
+  estimatedArrivalAt: Date | null;
   /** Customer's preferred delivery time-window (free-form label), null when not given. */
   deliveryWindow: string | null;
   items: OrderItemRecord[];
@@ -253,13 +257,19 @@ export interface OrderRepository {
   findReviewByOrderId(orderId: string): Promise<OrderReviewRecord | null>;
   /** Mean rating over the given orders (courier weekly performance, design 4c). */
   avgRatingForOrders(orderIds: string[]): Promise<RatingSummary>;
-  /** Atomically move the order to `status` and append a history row. Sets driverName when given. */
+  /**
+   * Atomically move the order to `status` and append a history row. Sets driverName /
+   * driverPhone (at DRIVER_ASSIGNED) and estimatedArrivalAt (at ON_DELIVERY) when given —
+   * each is written only when non-null, so a later transition never clobbers a snapshot.
+   */
   applyStatus(
     id: string,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
+    driverPhone?: string | null,
+    estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord>;
   /** Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096. */
   salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]>;
