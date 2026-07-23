@@ -36,6 +36,14 @@ export const dashboard = {
       empty: 'Tidak ada kurir yang sedang mengantar.',
       viewAll: 'Lihat tracking',
     },
+    topCustomers: {
+      title: 'Pelanggan teratas',
+      empty: 'Belum ada pesanan pada periode ini.',
+    },
+    topDepots: {
+      title: 'Depot teratas',
+      empty: 'Belum ada pesanan pada periode ini.',
+    },
     gateTitle: 'Khusus staf',
     gateBody: 'Dashboard operasi tersedia untuk manajer depot dan staf kantor pusat.',
   },

@@ -60,3 +60,22 @@ export const canViewDepotFinance = (role: string | null | undefined) => can('dep
 // Role identity helpers for shell selection (operator gets the top-tab console).
 export const isDepotOperator = (role: string | null | undefined) => role === 'DEPOT_OPERATOR';
 export const isDepotManager = (role: string | null | undefined) => role === 'DEPOT_MANAGER';
+
+/**
+ * Which landing `/dashboard` renders for a role. One shared route serves four
+ * audiences, so the selection is a pure function here (tested in roles.test.ts)
+ * rather than a chain of conditionals inside the page.
+ *
+ * - `franchise` — owners are redirected to their own overview.
+ * - `operator`  — depot operators get the daily action summary (design 1a).
+ * - `manager`   — depot managers get ops KPIs + approval/stock/courier widgets.
+ * - `executive` — HEAD_OFFICE/SUPER_ADMIN get latency KPIs + network top lists.
+ */
+export type DashboardLandingView = 'franchise' | 'operator' | 'manager' | 'executive' | 'denied';
+
+export function dashboardLandingView(role: string | null | undefined): DashboardLandingView {
+  if (canViewFranchise(role) && !canViewDashboard(role)) return 'franchise';
+  if (isDepotOperator(role)) return 'operator';
+  if (!canViewDashboard(role)) return 'denied';
+  return isDepotManager(role) ? 'manager' : 'executive';
+}
