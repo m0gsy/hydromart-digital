@@ -135,12 +135,4 @@ describe('Settings HTTP flows (e2e)', () => {
       .send({ scope: 'GLOBAL', key: 'expenseAutoApproveMaxIdr', value: '99999999' })
       .expect(400);
   });
-
-  it('rejects a per-depot override on the global-only commission rate (400)', async () => {
-    await request(server())
-      .put('/api/v1/settings')
-      .set(auth(managerToken))
-      .send({ scope: 'DEPOT', depotId: randomUUID(), key: 'commissionRate', value: '0.1' })
-      .expect(400);
-  });
 });

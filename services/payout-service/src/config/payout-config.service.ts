@@ -46,17 +46,9 @@ export class PayoutConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
-  /**
-   * HQ commission rate on gross sales (reporting only), default 5%. Global-only:
-   * the real per-depot payout percentage is CommissionScheme (design 21c), not this.
-   * No per-depot caller exists, so this stays a no-arg getter; it still resolves a
-   * GLOBAL override through the settings cache.
-   */
+  /** HQ commission rate on gross sales (reporting only), default 5%. */
   get commissionRate(): number {
-    return this.tunable(
-      'commissionRate',
-      Number(this.config.get<string>('PAYOUT_COMMISSION_RATE', '0.05')),
-    );
+    return Number(this.config.get<string>('PAYOUT_COMMISSION_RATE', '0.05'));
   }
   /** Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer). */
   expenseAutoApproveMaxIdr(depotId: string | null = null): number {

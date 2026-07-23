@@ -16,11 +16,6 @@ export interface SettingDef {
 // documented defaults so the UI can show "ikut default (N)" before any override.
 // envDefault must mirror this service's env.validation.ts defaults
 export const SETTING_DEFS: SettingDef[] = [
-  // Global-only: reporting-only HQ commission rate. The real per-depot payout
-  // percentage is owned by CommissionScheme (design 21c, "Terapkan skema baru"),
-  // an effective-dated table with its own apply endpoint — this key never feeds
-  // that computation, so a per-depot override here would be meaningless.
-  { key: 'commissionRate', label: 'Rate komisi payout', type: 'number', unit: 'rasio (0–1)', min: 0, max: 1, envDefault: 0.05, global: true },
   { key: 'expenseAutoApproveMaxIdr', label: 'Batas auto-approve klaim biaya', type: 'money', unit: 'Rp', min: 0, max: 10000000, envDefault: 50000 },
 ];
 

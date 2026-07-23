@@ -24,7 +24,6 @@ describe('SettingsService', () => {
     const svc = new SettingsService(repo, new SettingsCache(repo));
     const out = await svc.schema(null);
     expect(out.effective.expenseAutoApproveMaxIdr).toBe(75000); // global override
-    expect(out.effective.commissionRate).toBe(0.05); // env default
   });
 
   it('put validates against the registry min/max and refreshes the cache', async () => {
@@ -52,7 +51,13 @@ describe('SettingsService', () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'GLOBAL', depotId: null, key: 'commissionRate', value: '1.5', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'expenseAutoApproveMaxIdr',
+        value: '99999999',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow();
   });
 
@@ -61,14 +66,6 @@ describe('SettingsService', () => {
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
       svc.put({ scope: 'GLOBAL', depotId: null, key: 'constructor', value: '1', updatedBy: 'u1' }),
-    ).rejects.toThrow();
-  });
-
-  it('put rejects a DEPOT override for a global-only key', async () => {
-    const repo = repoWith([]);
-    const svc = new SettingsService(repo, new SettingsCache(repo));
-    await expect(
-      svc.put({ scope: 'DEPOT', depotId: 'd1', key: 'commissionRate', value: '0.1', updatedBy: 'u1' }),
     ).rejects.toThrow();
   });
 
