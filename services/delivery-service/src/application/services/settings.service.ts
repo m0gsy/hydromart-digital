@@ -55,6 +55,9 @@ export class SettingsService {
   }
 
   async reset(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
+    if (scope === 'DEPOT' && !depotId) {
+      throw new BadRequestException('depotId required for a DEPOT override');
+    }
     await this.repo.remove(scope, scope === 'GLOBAL' ? null : depotId, key);
     await this.cache.refresh();
   }

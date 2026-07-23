@@ -26,6 +26,9 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'podRetentionDays', label: 'Retensi bukti pengiriman', type: 'int', unit: 'hari', min: 30, max: 3650, envDefault: 365 },
 ];
 
-export const SETTING_DEF_BY_KEY: Record<string, SettingDef> = Object.fromEntries(
-  SETTING_DEFS.map((d) => [d.key, d]),
+// Null-prototype so keys like `constructor`/`toString` don't resolve to inherited
+// Object.prototype members and slip past the `if (!def) throw` unknown-key guard.
+export const SETTING_DEF_BY_KEY: Record<string, SettingDef> = Object.assign(
+  Object.create(null),
+  Object.fromEntries(SETTING_DEFS.map((d) => [d.key, d])),
 );

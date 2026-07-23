@@ -50,6 +50,20 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
+  it('put rejects a prototype-inherited key like "constructor"', async () => {
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(
+      svc.put({ scope: 'GLOBAL', depotId: null, key: 'constructor', value: '1', updatedBy: 'u1' }),
+    ).rejects.toThrow();
+  });
+
+  it('reset rejects a DEPOT scope without depotId', async () => {
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(svc.reset('DEPOT', null, 'shiftLengthHours')).rejects.toThrow();
+  });
+
   it('reset removes an override so it falls back', async () => {
     const repo = repoWith([{ scope: 'DEPOT', depotId: 'd1', key: 'shiftLengthHours', value: '6' }]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
