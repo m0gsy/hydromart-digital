@@ -502,11 +502,14 @@ export class OrderService {
         updated.customerId,
         updated.id,
         updated.subtotal,
+        updated.depotId,
         authorization,
       );
       // Notify the customer of the points they just earned (spec 5h feed). Points mirror
       // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
       // message copy — loyalty-service remains the source of truth for the balance.
+      // ponytail: this copy uses the global rate and may differ from a depot-overridden
+      // earn rate; the awarded balance itself (via awardPoints above) is still correct.
       const pointsEarned = pointsForSubtotal(updated.subtotal);
       if (pointsEarned > 0) {
         await this.notification

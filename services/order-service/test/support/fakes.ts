@@ -580,6 +580,7 @@ export interface AwardCall {
   customerId: string;
   orderId: string;
   subtotal: number;
+  depotId: string | null;
   authorization: string;
 }
 
@@ -589,9 +590,10 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
     customerId: string,
     orderId: string,
     subtotal: number,
+    depotId: string | null,
     authorization: string,
   ): Promise<void> {
-    this.calls.push({ customerId, orderId, subtotal, authorization });
+    this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
   }
 }
 
