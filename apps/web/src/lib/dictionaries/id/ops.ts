@@ -65,6 +65,7 @@ export const ops = {
     roles: 'Peran & akses',
     audit: 'Audit log',
     profile: 'Profil',
+    settings: 'Pengaturan',
   },
   switcher: {
     all: 'Semua depot',

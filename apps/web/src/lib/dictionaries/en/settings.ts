@@ -1,0 +1,18 @@
+export const settings = {
+  title: 'Settings',
+  subtitle: 'Network defaults & per-depot overrides for operational parameters.',
+  value: 'Value',
+  scopeGlobal: 'Network default',
+  scopeDepot: 'Specific depot',
+  pickDepot: 'Pick a depot',
+  noDepots: 'No depots to pick from yet.',
+  envDefault: 'Default: {v}',
+  save: 'Save',
+  reset: 'Use default',
+  saveError: 'Could not save the setting.',
+  resetError: 'Could not reset to default.',
+  emptyTitle: 'No settings yet',
+  emptyBody: 'This service does not expose any editable parameters yet.',
+  gateTitle: 'Depot managers only',
+  gateBody: 'The settings editor is available to depot managers and super admins.',
+};

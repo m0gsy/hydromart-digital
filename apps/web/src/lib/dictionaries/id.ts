@@ -24,6 +24,7 @@ import { courierFix } from './id/courierFix';
 import { hqFix } from './id/hqFix';
 import { opsFix } from './id/opsFix';
 import { mgrFix } from './id/mgrFix';
+import { settings } from './id/settings';
 
 export const id = {
   nav: {
@@ -136,6 +137,7 @@ export const id = {
   hqFix,
   opsFix,
   mgrFix,
+  settings,
 };
 
 export type Dictionary = typeof id;

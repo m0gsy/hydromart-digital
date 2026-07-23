@@ -24,6 +24,7 @@ import {
   Notebook,
   Receipt,
   Factory,
+  GearSix,
   MagnifyingGlass,
   MapPin,
   Megaphone,
@@ -125,6 +126,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/depots', labelKey: 'depots', icon: Storefront, show: canManageDepots },
       { href: '/dashboard/pricing', labelKey: 'pricing', icon: Tag, show: canManagePricing },
       { href: '/dashboard/staff', labelKey: 'staff', icon: UserGear, show: canManageStaff },
+      { href: '/dashboard/settings', labelKey: 'settings', icon: GearSix, show: canManageDepots },
     ],
   },
   {

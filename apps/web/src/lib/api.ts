@@ -129,6 +129,18 @@ export async function uploadFile<T = { url: string }>(path: string, file: File |
   return data as T;
 }
 
+// DELETE overload: most callers take no body (`api.del(path, true)`); the settings
+// reset endpoint needs a JSON body too — kept backward-compatible by branching on
+// whether the second arg is a boolean (auth-only) or the body itself.
+function del<T>(path: string, auth?: boolean): Promise<T>;
+function del<T>(path: string, body: unknown, auth?: boolean): Promise<T>;
+function del<T>(path: string, bodyOrAuth?: unknown, auth = false): Promise<T> {
+  if (typeof bodyOrAuth === 'boolean' || bodyOrAuth === undefined) {
+    return request<T>(path, { method: 'DELETE', auth: bodyOrAuth ?? false });
+  }
+  return request<T>(path, { method: 'DELETE', body: bodyOrAuth, auth });
+}
+
 export const api = {
   get: <T>(path: string, auth = false) => request<T>(path, { auth }),
   post: <T>(path: string, body?: unknown, auth = false) =>
@@ -137,5 +149,5 @@ export const api = {
     request<T>(path, { method: 'PUT', body, auth }),
   patch: <T>(path: string, body?: unknown, auth = false) =>
     request<T>(path, { method: 'PATCH', body, auth }),
-  del: <T>(path: string, auth = false) => request<T>(path, { method: 'DELETE', auth }),
+  del,
 };

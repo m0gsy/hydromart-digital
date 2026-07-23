@@ -62,6 +62,7 @@ export const ops = {
     roles: 'Roles & access',
     audit: 'Audit log',
     profile: 'Profile',
+    settings: 'Settings',
   },
   switcher: {
     all: 'All depots',
