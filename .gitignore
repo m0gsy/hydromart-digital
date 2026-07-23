@@ -49,3 +49,6 @@ temp/
 # Local-disk storage adapter upload scratch (dev only)
 var/
 **/var/uploads/
+
+# Claude Code personal settings
+.claude/settings.local.json
