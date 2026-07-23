@@ -8,18 +8,22 @@ import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui'
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT, type TVars } from '@/lib/locale-context';
 import { canViewTracking } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const REFRESH_MS = 15000;
 
+type T = (key: string, vars?: TVars) => string;
+
 // Delivery lifecycle stepper nodes (FAILED is off-track, shown as a badge instead).
-const STEPS: { status: DeliveryStatus; label: string }[] = [
-  { status: 'ASSIGNED', label: 'Ditugaskan' },
-  { status: 'PICKED_UP', label: 'Diambil' },
-  { status: 'ON_DELIVERY', label: 'Diantar' },
-  { status: 'DELIVERED', label: 'Tiba' },
+// Labels are resolved via t('dashC.tracking.steps.<status>').
+const STEPS: { status: DeliveryStatus }[] = [
+  { status: 'ASSIGNED' },
+  { status: 'PICKED_UP' },
+  { status: 'ON_DELIVERY' },
+  { status: 'DELIVERED' },
 ];
 
 function stepIndex(status: DeliveryStatus): number {
@@ -38,17 +42,18 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): num
   return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 }
 
-function relative(iso: string | null): string {
-  if (!iso) return 'belum ada posisi';
+function relative(iso: string | null, t: T): string {
+  if (!iso) return t('dashC.tracking.noPosition');
   const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
-  if (secs < 60) return `${secs} dtk lalu`;
+  if (secs < 60) return t('dashC.tracking.secsAgo', { n: secs });
   const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins} mnt lalu`;
-  return `${Math.round(mins / 60)} jam lalu`;
+  if (mins < 60) return t('dashC.tracking.minsAgo', { n: mins });
+  return t('dashC.tracking.hoursAgo', { n: Math.round(mins / 60) });
 }
 
 /** Horizontal delivery-progress stepper (10a). */
 function Stepper({ status }: { status: DeliveryStatus }) {
+  const { t } = useT();
   const active = stepIndex(status);
   return (
     <ol className="flex items-center gap-1">
@@ -61,7 +66,7 @@ function Stepper({ status }: { status: DeliveryStatus }) {
               <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${done ? 'bg-brand-600' : 'bg-[color:var(--border)]'}`} />
               <span className={`h-1.5 flex-1 rounded-full ${i === STEPS.length - 1 ? 'bg-transparent' : active > i ? 'bg-brand-500' : 'bg-[color:var(--border)]'}`} />
             </div>
-            <span className={`text-[10px] ${done ? 'font-semibold' : 'text-muted'}`}>{s.label}</span>
+            <span className={`text-[10px] ${done ? 'font-semibold' : 'text-muted'}`}>{t(`dashC.tracking.steps.${s.status}`)}</span>
           </li>
         );
       })}
@@ -70,6 +75,7 @@ function Stepper({ status }: { status: DeliveryStatus }) {
 }
 
 function DeliveryCard({ d }: { d: Delivery }) {
+  const { t } = useT();
   const hasPos = d.lastLat != null && d.lastLng != null;
   const dist =
     hasPos && d.destinationLat != null && d.destinationLng != null
@@ -79,7 +85,7 @@ function DeliveryCard({ d }: { d: Delivery }) {
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-semibold">Order {d.orderNumber}</p>
+          <p className="font-semibold">{t('dashC.tracking.orderLabel', { n: d.orderNumber })}</p>
           <p className="truncate text-xs text-muted">{d.destinationAddress}</p>
         </div>
         <Badge tone={d.status === 'ON_DELIVERY' ? 'brand' : d.status === 'FAILED' ? 'danger' : 'neutral'}>
@@ -96,17 +102,17 @@ function DeliveryCard({ d }: { d: Delivery }) {
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-50 text-brand-700">
             <User size={16} weight="fill" />
           </span>
-          <span className="font-medium">Kurir #{d.driverId.slice(0, 6)}</span>
+          <span className="font-medium">{t('dashC.tracking.courier', { id: d.driverId.slice(0, 6) })}</span>
         </span>
-        {dist != null && <span className="tabular-nums text-muted">{dist.toFixed(1)} km ke tujuan</span>}
+        {dist != null && <span className="tabular-nums text-muted">{t('dashC.tracking.distToDest', { km: dist.toFixed(1) })}</span>}
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-app pt-3 text-sm">
         <span className="flex items-center gap-1.5 text-muted">
           <NavigationArrow size={15} weight="fill" className={hasPos ? 'text-brand-600' : 'text-muted'} />
-          {hasPos ? `${d.lastLat!.toFixed(4)}, ${d.lastLng!.toFixed(4)}` : 'Menunggu posisi driver'}
+          {hasPos ? `${d.lastLat!.toFixed(4)}, ${d.lastLng!.toFixed(4)}` : t('dashC.tracking.awaitingPosition')}
         </span>
-        <span className="text-xs text-muted">{relative(d.lastLocationAt)}</span>
+        <span className="text-xs text-muted">{relative(d.lastLocationAt, t)}</span>
       </div>
       {hasPos && (
         <a
@@ -116,7 +122,7 @@ function DeliveryCard({ d }: { d: Delivery }) {
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline"
         >
           <MapPin size={15} weight="fill" />
-          Lihat di peta
+          {t('dashC.tracking.mapLink')}
         </a>
       )}
     </Card>
@@ -124,6 +130,7 @@ function DeliveryCard({ d }: { d: Delivery }) {
 }
 
 function TrackingBody() {
+  const { t } = useT();
   const list = useAsync<Page<Delivery>>(
     () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
     [],
@@ -142,10 +149,10 @@ function TrackingBody() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <Truck size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Live tracking</h1>
+        <h1 className="text-2xl font-bold">{t('dashC.tracking.heading')}</h1>
       </div>
       <p className="text-[12.5px] text-muted">
-        Driver yang sedang mengantar. Posisi diperbarui otomatis tiap {REFRESH_MS / 1000} detik.
+        {t('dashC.tracking.refreshNote', { n: REFRESH_MS / 1000 })}
       </p>
 
       {list.loading && !list.data ? (
@@ -153,8 +160,8 @@ function TrackingBody() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : !list.data || list.data.items.length === 0 ? (
-        <CenterState title="Tidak ada pengiriman aktif" icon={<Truck size={40} weight="fill" />}>
-          Pengiriman yang sedang berjalan akan muncul di sini.
+        <CenterState title={t('dashC.tracking.emptyTitle')} icon={<Truck size={40} weight="fill" />}>
+          {t('dashC.tracking.emptyBody')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -168,11 +175,12 @@ function TrackingBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewTracking(customer?.role)) {
     return (
-      <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Live tracking tersedia untuk staf depot.
+      <CenterState title={t('dashC.tracking.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.tracking.gateBody')}
       </CenterState>
     );
   }

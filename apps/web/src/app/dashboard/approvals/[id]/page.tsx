@@ -11,15 +11,10 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { canReviewApprovals } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Approval, ApprovalStatus, ApprovalType } from '@/lib/types';
-
-const TYPE_LABEL: Record<ApprovalType, string> = {
-  OPNAME_VARIANCE: 'Selisih opname',
-  DEPOSIT_REFUND: 'Refund deposit',
-  COD_VARIANCE: 'Kurang setoran',
-};
+import type { Approval, ApprovalStatus } from '@/lib/types';
 
 const STATUS_TONE: Record<ApprovalStatus, 'brand' | 'success' | 'danger' | 'warning'> = {
   PENDING: 'brand',
@@ -45,15 +40,16 @@ function TriStat({ label, value, tone }: { label: string; value: string; tone?: 
 
 /** Type-specific snapshot: opname tri-stat, deposit/COD figure rows. */
 function Snapshot({ a }: { a: Approval }) {
+  const { t } = useT();
   const p = a.payload ?? {};
   if (a.type === 'OPNAME_VARIANCE') {
     const variance = num(p.variance);
     return (
       <Card className="grid grid-cols-3 divide-x divide-[color:var(--border)] p-0">
-        <TriStat label="Sistem" value={num(p.system).toLocaleString('id-ID')} />
-        <TriStat label="Fisik" value={num(p.physical).toLocaleString('id-ID')} />
+        <TriStat label={t('dashA.approvalDetail.system')} value={num(p.system).toLocaleString('id-ID')} />
+        <TriStat label={t('dashA.approvalDetail.physical')} value={num(p.physical).toLocaleString('id-ID')} />
         <TriStat
-          label="Selisih"
+          label={t('dashA.approvalDetail.variance')}
           value={`${variance > 0 ? '+' : ''}${variance.toLocaleString('id-ID')}`}
           tone={variance === 0 ? undefined : 'danger'}
         />
@@ -63,10 +59,10 @@ function Snapshot({ a }: { a: Approval }) {
   if (a.type === 'DEPOSIT_REFUND') {
     return (
       <Card className="px-4 py-1">
-        <RowLine label="Kondisi galon">
+        <RowLine label={t('dashA.approvalDetail.gallonCondition')}>
           <span className="text-sm font-semibold">{String(p.condition ?? '—')}</span>
         </RowLine>
-        <RowLine label="Deposit dikembalikan" divider>
+        <RowLine label={t('dashA.approvalDetail.depositReturned')} divider>
           <Money amount={num(p.deposit)} className="font-extrabold tabular-nums" />
         </RowLine>
       </Card>
@@ -74,10 +70,10 @@ function Snapshot({ a }: { a: Approval }) {
   }
   return (
     <Card className="px-4 py-1">
-      <RowLine label="Diharapkan (sistem)">
+      <RowLine label={t('dashA.approvalDetail.expected')}>
         <Money amount={num(p.expected)} className="font-semibold tabular-nums" />
       </RowLine>
-      <RowLine label="Diterima (setoran)" divider>
+      <RowLine label={t('dashA.approvalDetail.received')} divider>
         <Money amount={num(p.received)} className="font-semibold tabular-nums" />
       </RowLine>
     </Card>
@@ -94,6 +90,7 @@ function RowLine({ label, divider, children }: { label: string; divider?: boolea
 }
 
 function Detail({ id }: { id: string }) {
+  const { t } = useT();
   const router = useRouter();
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
   const [note, setNote] = useState('');
@@ -102,7 +99,7 @@ function Detail({ id }: { id: string }) {
 
   const decide = async (decision: 'APPROVE' | 'REJECT' | 'HOLD') => {
     if (decision === 'REJECT' && note.trim() === '') {
-      setError('Isi alasan penolakan.');
+      setError(t('dashA.approvalDetail.rejectReasonRequired'));
       return;
     }
     setBusy(decision);
@@ -111,7 +108,7 @@ function Detail({ id }: { id: string }) {
       await api.patch(endpoints.approvals.decide(id), { decision, note: note.trim() || undefined }, true);
       router.push('/dashboard/approvals');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('dashA.approvalDetail.actionFailed'));
       setBusy(null);
     }
   };
@@ -120,9 +117,9 @@ function Detail({ id }: { id: string }) {
   if (detail.error) return <ErrorState message={detail.error} onRetry={detail.reload} />;
   if (!detail.data) {
     return (
-      <CenterState title="Approval tidak ditemukan">
+      <CenterState title={t('dashA.approvalDetail.notFound')}>
         <Link href="/dashboard/approvals" className="font-bold text-brand-700">
-          Kembali ke antrean
+          {t('dashA.approvalDetail.backToQueue')}
         </Link>
       </CenterState>
     );
@@ -137,7 +134,7 @@ function Detail({ id }: { id: string }) {
         <Link
           href="/dashboard/approvals"
           className="flex size-9 items-center justify-center rounded-xl border border-app"
-          aria-label="Kembali"
+          aria-label={t('dashA.approvalDetail.back')}
         >
           <ArrowLeft size={18} />
         </Link>
@@ -148,16 +145,16 @@ function Detail({ id }: { id: string }) {
             {a.subjectRef ? ` · ${a.subjectRef}` : ''}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[a.status]}>{TYPE_LABEL[a.type]}</Badge>
+        <Badge tone={STATUS_TONE[a.status]}>{t(`dashA.approvalDetail.type.${a.type}`)}</Badge>
       </header>
 
       <Snapshot a={a} />
 
       <Card className="px-4 py-1">
-        <RowLine label="Nilai (kerugian/refund/kurang)">
+        <RowLine label={t('dashA.approvalDetail.amountLabel')}>
           <Money amount={Math.abs(a.amountIdr)} className="font-extrabold tabular-nums text-[color:var(--danger)]" />
         </RowLine>
-        <RowLine label="Batas auto-pass" divider>
+        <RowLine label={t('dashA.approvalDetail.autoPassLabel')} divider>
           <Money amount={a.autoPassThreshold} className="font-semibold tabular-nums text-[color:var(--text-muted)]" />
         </RowLine>
       </Card>
@@ -165,7 +162,7 @@ function Detail({ id }: { id: string }) {
       {a.decisionNote && (
         <Card className="p-4">
           <div className="text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-            Catatan operator / keputusan
+            {t('dashA.approvalDetail.decisionNoteTitle')}
           </div>
           <p className="mt-1 text-sm">{a.decisionNote}</p>
         </Card>
@@ -173,25 +170,25 @@ function Detail({ id }: { id: string }) {
 
       {pending ? (
         <Card className="flex flex-col gap-3 p-4">
-          <Field label="Catatan (wajib untuk tolak)" htmlFor="decide-note">
-            <Input id="decide-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="mis. selisih wajar, sudah dicek" />
+          <Field label={t('dashA.approvalDetail.noteLabel')} htmlFor="decide-note">
+            <Input id="decide-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('dashA.approvalDetail.notePlaceholder')} />
           </Field>
           {error && <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">{error}</p>}
           <div className="flex gap-2">
             <Button variant="danger" onClick={() => decide('REJECT')} loading={busy === 'REJECT'} className="flex-1">
-              Tolak
+              {t('dashA.approvalDetail.reject')}
             </Button>
             <Button variant="ghost" onClick={() => decide('HOLD')} loading={busy === 'HOLD'} className="flex-1">
-              Tahan
+              {t('dashA.approvalDetail.hold')}
             </Button>
             <Button onClick={() => decide('APPROVE')} loading={busy === 'APPROVE'} className="flex-1">
-              Setujui
+              {t('dashA.approvalDetail.approve')}
             </Button>
           </div>
         </Card>
       ) : (
         <p className="text-sm text-[color:var(--text-muted)]">
-          Item ini sudah {a.status === 'APPROVED' ? 'disetujui' : 'ditolak'}.
+          {a.status === 'APPROVED' ? t('dashA.approvalDetail.decidedApproved') : t('dashA.approvalDetail.decidedRejected')}
         </p>
       )}
     </div>
@@ -199,11 +196,12 @@ function Detail({ id }: { id: string }) {
 }
 
 function Gate({ id }: { id: string }) {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canReviewApprovals(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Antrean approval tersedia untuk manajer depot dan super admin.
+      <CenterState title={t('dashA.approvalDetail.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.approvalDetail.gateBody')}
       </CenterState>
     );
   }

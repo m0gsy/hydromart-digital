@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canBroadcastToCouriers } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
@@ -29,13 +30,14 @@ type Broadcast = {
   audienceCount?: number;
 };
 
-const LEVELS: { key: BroadcastLevel; label: string; icon: typeof Info; tone: string; activeBg: string }[] = [
-  { key: 'INFO', label: 'Info', icon: Info, tone: 'text-brand-800', activeBg: 'bg-brand-50 border-brand-600' },
-  { key: 'URGENT', label: 'Mendesak', icon: Warning, tone: 'text-white', activeBg: 'bg-[color:var(--danger)] border-[color:var(--danger)]' },
-  { key: 'SCHEDULED', label: 'Terjadwal', icon: Info, tone: 'text-brand-800', activeBg: 'bg-brand-50 border-brand-600' },
+const LEVELS: { key: BroadcastLevel; icon: typeof Info; tone: string; activeBg: string }[] = [
+  { key: 'INFO', icon: Info, tone: 'text-brand-800', activeBg: 'bg-brand-50 border-brand-600' },
+  { key: 'URGENT', icon: Warning, tone: 'text-white', activeBg: 'bg-[color:var(--danger)] border-[color:var(--danger)]' },
+  { key: 'SCHEDULED', icon: Info, tone: 'text-brand-800', activeBg: 'bg-brand-50 border-brand-600' },
 ];
 
 function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) {
+  const { t } = useT();
   const [level, setLevel] = useState<BroadcastLevel>('INFO');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -44,7 +46,7 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
 
   async function send() {
     if (!title.trim() || !body.trim()) {
-      setError('Isi judul dan pesan dulu.');
+      setError(t('dashA.broadcast.titleRequired'));
       return;
     }
     setBusy(true);
@@ -56,7 +58,7 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
       setLevel('INFO');
       onSent();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal mengirim broadcast.');
+      setError(err instanceof ApiError ? err.message : t('dashA.broadcast.sendError'));
     } finally {
       setBusy(false);
     }
@@ -64,9 +66,9 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="text-base font-extrabold">Pesan baru</h2>
+      <h2 className="text-base font-extrabold">{t('dashA.broadcast.newMessage')}</h2>
       <div>
-        <p className="mb-2 text-[11.5px] font-bold">Level</p>
+        <p className="mb-2 text-[11.5px] font-bold">{t('dashA.broadcast.levelLabel')}</p>
         <div className="flex gap-2">
           {LEVELS.map((l) => {
             const active = level === l.key;
@@ -81,22 +83,22 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
                 }`}
               >
                 <Icon size={14} weight="fill" />
-                {l.label}
+                {t(`dashA.broadcast.level.${l.key}`)}
               </button>
             );
           })}
         </div>
       </div>
-      <Field label="Judul" htmlFor="bc-title">
-        <Input id="bc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Stok galon 19L menipis" />
+      <Field label={t('dashA.broadcast.titleLabel')} htmlFor="bc-title">
+        <Input id="bc-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('dashA.broadcast.titlePlaceholder')} />
       </Field>
-      <Field label="Pesan" htmlFor="bc-body">
+      <Field label={t('dashA.broadcast.bodyLabel')} htmlFor="bc-body">
         <textarea
           id="bc-body"
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
-          placeholder="Tahan dulu order galon sampai ±11.00, prioritaskan botol…"
+          placeholder={t('dashA.broadcast.bodyPlaceholder')}
           className="w-full rounded-xl border border-app bg-[color:var(--surface)] px-3.5 py-3 text-[13px] outline-none focus:border-brand-600"
         />
       </Field>
@@ -108,11 +110,11 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2 text-xs font-semibold text-[color:var(--text-muted)]">
           <UsersThree size={16} weight="fill" className="text-brand-800" />
-          Ke kurir aktif depot
+          {t('dashA.broadcast.toActiveCouriers')}
         </span>
         <Button onClick={send} loading={busy}>
           <PaperPlaneTilt size={17} weight="fill" className="mr-1.5" />
-          Kirim broadcast
+          {t('dashA.broadcast.send')}
         </Button>
       </div>
     </Card>
@@ -120,8 +122,9 @@ function Composer({ depotId, onSent }: { depotId: string; onSent: () => void }) 
 }
 
 function SentList({ items }: { items: Broadcast[] }) {
+  const { t } = useT();
   if (items.length === 0) {
-    return <p className="py-2 text-sm text-[color:var(--text-muted)]">Belum ada broadcast terkirim.</p>;
+    return <p className="py-2 text-sm text-[color:var(--text-muted)]">{t('dashA.broadcast.emptySent')}</p>;
   }
   return (
     <div className="flex flex-col gap-2.5">
@@ -129,14 +132,14 @@ function SentList({ items }: { items: Broadcast[] }) {
         <Card key={b.id} className="border-l-4 border-l-brand-600 p-3.5">
           <div className="flex items-center gap-2">
             <Chip tone={b.level === 'URGENT' ? 'amber' : 'tint'}>
-              {b.level === 'URGENT' ? 'MENDESAK' : b.level === 'SCHEDULED' ? 'TERJADWAL' : 'INFO'}
+              {t(`dashA.broadcast.levelBadge.${b.level}`)}
             </Chip>
             <span className="ml-auto text-[10.5px] text-[color:var(--text-muted)]">{formatDateTime(b.createdAt)}</span>
           </div>
           <p className="mt-1.5 text-[12.5px] font-extrabold">{b.title}</p>
           {b.readCount != null && b.audienceCount != null && (
             <p className="mt-1 text-[11px] text-[color:var(--text-muted)]">
-              Terbaca {b.readCount}/{b.audienceCount} kurir
+              {t('dashA.broadcast.readCount', { read: b.readCount, audience: b.audienceCount })}
             </p>
           )}
         </Card>
@@ -146,6 +149,7 @@ function SentList({ items }: { items: Broadcast[] }) {
 }
 
 function BroadcastBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const feed = useAsync<Broadcast[]>(
     () => (scopedId ? api.get(endpoints.broadcasts.forDepot(scopedId), true) : Promise.resolve([])),
@@ -155,8 +159,8 @@ function BroadcastBody() {
 
   if (ready && depots.length === 0) {
     return (
-      <CenterState title="No depots" icon={<Megaphone size={40} weight="fill" />}>
-        Belum ada depot dikonfigurasi.
+      <CenterState title={t('dashA.broadcast.noDepotTitle')} icon={<Megaphone size={40} weight="fill" />}>
+        {t('dashA.broadcast.noDepotBody')}
       </CenterState>
     );
   }
@@ -166,14 +170,14 @@ function BroadcastBody() {
       <div className="flex items-center gap-2">
         <Megaphone size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Broadcast</h1>
-          {depot && <p className="text-[12.5px] text-[color:var(--text-muted)]">{depot.name} · lewat notifikasi kurir</p>}
+          <h1 className="text-2xl font-bold">{t('dashA.broadcast.heading')}</h1>
+          {depot && <p className="text-[12.5px] text-[color:var(--text-muted)]">{t('dashA.broadcast.viaCourierNotif', { name: depot.name })}</p>}
         </div>
       </div>
       <div className="grid gap-5 lg:grid-cols-[1fr_360px]">
         {scopedId && <Composer depotId={scopedId} onSent={feed.reload} />}
         <div className="flex flex-col gap-3">
-          <p className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">Terkirim</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--text-muted)]">{t('dashA.broadcast.sentLabel')}</p>
           {feed.loading ? (
             <Skeleton className="h-40 w-full" />
           ) : feed.error ? (
@@ -188,11 +192,12 @@ function BroadcastBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canBroadcastToCouriers(customer?.role)) {
     return (
-      <CenterState title="Staff access only" icon={<Lock size={40} weight="fill" />}>
-        Broadcast tersedia untuk operator & manajer depot.
+      <CenterState title={t('dashA.broadcast.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.broadcast.gateBody')}
       </CenterState>
     );
   }

@@ -9,6 +9,7 @@ import { Card, CenterState, Input, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, DepotAdmin, Page, Product } from '@/lib/types';
@@ -71,6 +72,7 @@ function Section({
 }
 
 function SearchBody() {
+  const { t } = useT();
   const [input, setInput] = useState('');
   const [q, setQ] = useState('');
   const res = useAsync<Results | null>(() => (q.trim() ? runSearch(q.trim()) : Promise.resolve(null)), [q]);
@@ -81,7 +83,7 @@ function SearchBody() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <MagnifyingGlass size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Pencarian</h1>
+        <h1 className="text-2xl font-bold">{t('dashC.search.heading')}</h1>
       </div>
 
       <form
@@ -93,24 +95,24 @@ function SearchBody() {
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Cari depot, produk, atau nomor telepon pelanggan…"
+          placeholder={t('dashC.search.placeholder')}
           autoFocus
         />
       </form>
 
       {!q.trim() ? (
-        <CenterState title="Mulai mencari" icon={<MagnifyingGlass size={40} weight="fill" />}>
-          Ketik kata kunci lalu tekan Enter untuk mencari di seluruh jaringan.
+        <CenterState title={t('dashC.search.startTitle')} icon={<MagnifyingGlass size={40} weight="fill" />}>
+          {t('dashC.search.startBody')}
         </CenterState>
       ) : res.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : total === 0 ? (
-        <CenterState title="Tidak ada hasil" icon={<MagnifyingGlass size={40} weight="fill" />}>
-          Tidak ada yang cocok dengan “{q}”.
+        <CenterState title={t('dashC.search.noResultsTitle')} icon={<MagnifyingGlass size={40} weight="fill" />}>
+          {t('dashC.search.noResultsBody', { q })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-5">
-          <Section title="Depot" icon={<Storefront size={16} weight="fill" />} count={res.data!.depots.length}>
+          <Section title={t('dashC.search.depots')} icon={<Storefront size={16} weight="fill" />} count={res.data!.depots.length}>
             {res.data!.depots.map((d) => (
               <Link key={d.id} href="/dashboard/depots">
                 <Card className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:border-brand-600">
@@ -125,7 +127,7 @@ function SearchBody() {
             ))}
           </Section>
 
-          <Section title="Produk" icon={<Package size={16} weight="fill" />} count={res.data!.products.length}>
+          <Section title={t('dashC.search.products')} icon={<Package size={16} weight="fill" />} count={res.data!.products.length}>
             {res.data!.products.map((p) => (
               <Card key={p.id} className="flex items-center justify-between gap-3 p-3.5">
                 <div>
@@ -138,7 +140,7 @@ function SearchBody() {
           </Section>
 
           {res.data!.customer && (
-            <Section title="Pelanggan" icon={<User size={16} weight="fill" />} count={1}>
+            <Section title={t('dashC.search.customers')} icon={<User size={16} weight="fill" />} count={1}>
               <Card className="p-3.5">
                 <p className="font-semibold">{res.data!.customer.fullName || res.data!.customer.phone}</p>
                 <p className="text-xs text-muted">{res.data!.customer.phone}</p>
@@ -152,11 +154,12 @@ function SearchBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isStaff(customer?.role)) {
     return (
-      <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Pencarian global tersedia untuk staf.
+      <CenterState title={t('dashC.search.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.search.gateBody')}
       </CenterState>
     );
   }

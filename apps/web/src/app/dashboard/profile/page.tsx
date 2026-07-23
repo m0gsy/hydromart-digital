@@ -31,7 +31,7 @@ function ProfileBody() {
   const router = useRouter();
   const { customer, signOut } = useAuth();
   const { selected, depots } = useDepot();
-  const { locale, setLocale } = useT();
+  const { locale, setLocale, t } = useT();
 
   // The depot the manager runs — the switcher selection, else the first available.
   const depot = selected ?? depots[0] ?? null;
@@ -48,9 +48,9 @@ function ProfileBody() {
           {initials(customer?.fullName ?? null)}
         </span>
         <div>
-          <h1 className="text-2xl font-bold">{customer?.fullName ?? 'Manajer depot'}</h1>
+          <h1 className="text-2xl font-bold">{customer?.fullName ?? t('dashC.profile.role')}</h1>
           <p className="mt-1 text-sm text-white/85">
-            {customer?.phone ?? '+62…'} · Manajer depot
+            {customer?.phone ?? '+62…'} · {t('dashC.profile.role')}
           </p>
         </div>
       </Card>
@@ -60,9 +60,9 @@ function ProfileBody() {
           <Buildings size={22} weight="fill" />
         </span>
         <div>
-          <p className="text-xs font-semibold text-[color:var(--text-muted)]">Depot ditugaskan</p>
+          <p className="text-xs font-semibold text-[color:var(--text-muted)]">{t('dashC.profile.depotAssigned')}</p>
           <p className="mt-0.5 font-semibold">
-            {depot ? `${depot.name} · ${depot.code}` : 'Belum ada depot'}
+            {depot ? `${depot.name} · ${depot.code}` : t('dashC.profile.noDepot')}
           </p>
         </div>
       </Card>
@@ -70,7 +70,7 @@ function ProfileBody() {
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
           <ShieldCheck size={20} weight="fill" className="text-brand-600" />
-          <p className="font-semibold">Hak akses</p>
+          <p className="font-semibold">{t('dashC.profile.access')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {MANAGER_CAPS.map((cap) => (
@@ -83,10 +83,10 @@ function ProfileBody() {
 
       <Card className="flex items-center justify-between gap-3 p-4">
         <div>
-          <p className="font-semibold">Bahasa</p>
-          <p className="text-[12.5px] text-[color:var(--text-muted)]">Pilih bahasa antarmuka.</p>
+          <p className="font-semibold">{t('dashC.profile.language')}</p>
+          <p className="text-[12.5px] text-[color:var(--text-muted)]">{t('dashC.profile.languageHint')}</p>
         </div>
-        <div className="flex rounded-full bg-[color:var(--surface-soft)] p-1" role="group" aria-label="Bahasa">
+        <div className="flex rounded-full bg-[color:var(--surface-soft)] p-1" role="group" aria-label={t('dashC.profile.languageAria')}>
           {(['id', 'en'] as const).map((lng) => (
             <button
               key={lng}
@@ -105,18 +105,19 @@ function ProfileBody() {
 
       <Button variant="danger" onClick={logout} className="w-full">
         <SignOut size={17} />
-        Keluar
+        {t('dashC.profile.signOut')}
       </Button>
     </div>
   );
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isDepotManager(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Profil manajer hanya untuk Manajer depot.
+      <CenterState title={t('dashC.profile.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.profile.gateBody')}
       </CenterState>
     );
   }

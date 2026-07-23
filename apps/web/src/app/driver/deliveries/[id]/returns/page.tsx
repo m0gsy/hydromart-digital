@@ -9,6 +9,7 @@ import { Button, Card, ErrorState, Field, Money, Skeleton } from '@/components/u
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Delivery } from '@/lib/types';
 
 interface GallonReturnResult {
@@ -20,6 +21,7 @@ interface GallonReturnResult {
 
 function Returns() {
   const router = useRouter();
+  const { t } = useT();
   const id = String(useParams().id);
   const load = useAsync<Delivery>(() => api.get<Delivery>(endpoints.deliveries.driver.get(id), true), [id]);
 
@@ -31,7 +33,7 @@ function Returns() {
 
   if (load.loading) return <div className="p-5"><Skeleton className="h-72 w-full" /></div>;
   if (load.error || !load.data) {
-    return <div className="p-5"><ErrorState message={load.error ?? 'Gagal memuat'} onRetry={load.reload} /></div>;
+    return <div className="p-5"><ErrorState message={load.error ?? t('driver.returns.loadError')} onRetry={load.reload} /></div>;
   }
 
   const delivery = load.data;
@@ -48,7 +50,7 @@ function Returns() {
       );
       setDone(rec);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal mencatat retur. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.returns.error'));
     } finally {
       setBusy(false);
     }
@@ -61,7 +63,7 @@ function Returns() {
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">
-          <div className="text-sm font-extrabold">Retur galon kosong</div>
+          <div className="text-sm font-extrabold">{t('driver.returns.title')}</div>
           <div className="text-[11px] tabular-nums text-[color:var(--muted)]">{delivery.orderNumber}</div>
         </div>
       </header>
@@ -69,29 +71,32 @@ function Returns() {
       {done ? (
         <Card className="flex flex-col items-center gap-2 p-6 text-center">
           <CheckCircle size={44} weight="fill" className="text-green-600" />
-          <div className="text-base font-extrabold">Retur tercatat</div>
+          <div className="text-base font-extrabold">{t('driver.returns.doneTitle')}</div>
           <div className="text-sm text-[color:var(--muted)]">
-            {done.quantity} galon ({done.condition === 'GOOD' ? 'baik' : 'rusak'}) · deposit dikembalikan
+            {t('driver.returns.doneBody', {
+              n: done.quantity,
+              condition: t(done.condition === 'GOOD' ? 'driver.returns.conditionGood' : 'driver.returns.conditionDamaged'),
+            })}
           </div>
           <Money amount={done.depositRefunded} className="text-2xl font-extrabold text-brand-700" />
           <Button className="mt-3 w-full" onClick={() => router.replace(`/driver/deliveries/${id}`)}>
-            Kembali ke detail
+            {t('driver.returns.backToDetail')}
           </Button>
         </Card>
       ) : !delivery.depotId ? (
         <Card className="p-5 text-sm text-[color:var(--muted)]">
-          Pengantaran ini belum terhubung ke depot, jadi retur tidak bisa dicatat.
+          {t('driver.returns.noDepot')}
         </Card>
       ) : (
         <>
           <Card className="space-y-4 p-4">
-            <Field label="Jumlah galon kembali">
+            <Field label={t('driver.returns.quantityLabel')}>
               <div className="flex items-center justify-center gap-5">
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   className="flex size-11 items-center justify-center rounded-full bg-black/5"
-                  aria-label="Kurangi"
+                  aria-label={t('driver.returns.decrease')}
                 >
                   <Minus size={18} weight="bold" />
                 </button>
@@ -100,14 +105,14 @@ function Returns() {
                   type="button"
                   onClick={() => setQuantity((q) => Math.min(99, q + 1))}
                   className="flex size-11 items-center justify-center rounded-full bg-brand-600 text-white"
-                  aria-label="Tambah"
+                  aria-label={t('driver.returns.increase')}
                 >
                   <Plus size={18} weight="bold" />
                 </button>
               </div>
             </Field>
 
-            <Field label="Kondisi galon">
+            <Field label={t('driver.returns.conditionLabel')}>
               <div className="flex gap-2">
                 {(['GOOD', 'DAMAGED'] as const).map((c) => (
                   <button
@@ -118,13 +123,13 @@ function Returns() {
                       c === condition ? (c === 'DAMAGED' ? 'bg-red-600 text-white' : 'bg-brand-600 text-white') : 'bg-black/5'
                     }`}
                   >
-                    {c === 'GOOD' ? 'Baik' : 'Rusak'}
+                    {c === 'GOOD' ? t('driver.returns.good') : t('driver.returns.damaged')}
                   </button>
                 ))}
               </div>
             </Field>
             {condition === 'DAMAGED' && (
-              <p className="text-[11px] text-[color:var(--muted)]">Galon rusak dicatat tapi tidak mengembalikan deposit.</p>
+              <p className="text-[11px] text-[color:var(--muted)]">{t('driver.returns.damagedNote')}</p>
             )}
           </Card>
 
@@ -132,7 +137,7 @@ function Returns() {
 
           <Button loading={busy} className="flex w-full items-center justify-center gap-2" onClick={submit}>
             <Recycle size={18} weight="fill" />
-            Catat retur
+            {t('driver.returns.submit')}
           </Button>
         </>
       )}

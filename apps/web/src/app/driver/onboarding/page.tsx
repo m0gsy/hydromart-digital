@@ -18,71 +18,46 @@ import {
 } from '@phosphor-icons/react';
 
 import { ONBOARDED_KEY } from './constants';
+import { useT } from '@/lib/locale-context';
 
 interface Step {
   icon: Icon;
-  title: string;
-  body: React.ReactNode;
-  bullets?: { icon: Icon; text: string }[];
-  cta: string;
+  key: string;
+  bullets?: { icon: Icon; key: string }[];
 }
 
+// Copy lives in the `driver.onboarding.<key>` dictionary; this keeps only icons + keys.
 const STEPS: Step[] = [
-  {
-    icon: Drop,
-    title: 'Selamat datang, kurir Hydromart! 👋',
-    body: 'Kami antar air bersih ke ribuan pelanggan tiap hari. Yuk kenali cara kerja aplikasi dalam 4 langkah singkat.',
-    cta: 'Mulai kenalan',
-  },
+  { icon: Drop, key: 'welcome' },
   {
     icon: SealCheck,
-    title: 'Selalu ambil bukti antar',
-    body: (
-      <>
-        Setiap pengantaran wajib <strong>foto barang</strong>, <strong>tanda tangan penerima</strong>,
-        dan lokasi GPS. Ini melindungi kamu bila ada komplain.
-      </>
-    ),
+    key: 'pod',
     bullets: [
-      { icon: Camera, text: 'Foto pengantaran jelas' },
-      { icon: PencilLine, text: 'Tanda tangan penerima asli' },
+      { icon: Camera, key: 'photo' },
+      { icon: PencilLine, key: 'signature' },
     ],
-    cta: 'Lanjut',
   },
   {
     icon: HandCoins,
-    title: 'Kelola uang COD dengan rapi',
-    body: (
-      <>
-        Terima tunai, aplikasi hitung <strong>kembalian otomatis</strong>. Di akhir shift,{' '}
-        <strong>setor semua uang COD</strong> ke depot — selisih tercatat jelas.
-      </>
-    ),
+    key: 'cod',
     bullets: [
-      { icon: Money, text: 'Kembalian dihitung otomatis' },
-      { icon: Bank, text: 'Setor tunai akhir shift' },
+      { icon: Money, key: 'change' },
+      { icon: Bank, key: 'deposit' },
     ],
-    cta: 'Lanjut',
   },
   {
     icon: Check,
-    title: 'Kamu siap jalan! 🚚',
-    body: (
-      <>
-        Datang ke depot dan <strong>check-in</strong> untuk mulai shift &amp; menerima tugas pertamamu.
-        Semangat mengantar!
-      </>
-    ),
+    key: 'ready',
     bullets: [
-      { icon: Fingerprint, text: 'Check-in di depot tiap mulai shift' },
-      { icon: Headset, text: 'Butuh bantuan? Hubungi admin depot' },
+      { icon: Fingerprint, key: 'checkin' },
+      { icon: Headset, key: 'help' },
     ],
-    cta: 'Mulai shift · check-in',
   },
 ];
 
 export default function DriverOnboardingPage() {
   const router = useRouter();
+  const { t } = useT();
   const [step, setStep] = useState(0);
   const last = step === STEPS.length - 1;
 
@@ -93,6 +68,7 @@ export default function DriverOnboardingPage() {
 
   const s = STEPS[step]!;
   const StepIcon = s.icon;
+  const base = `driver.onboarding.${s.key}`;
 
   return (
     <div className="flex min-h-dvh flex-col bg-gradient-to-b from-brand-700 to-brand-600 px-6 pb-8 pt-4 text-on-brand">
@@ -107,7 +83,7 @@ export default function DriverOnboardingPage() {
         </div>
         {!last && (
           <button type="button" className="text-sm font-bold text-white/80" onClick={finish}>
-            Lewati
+            {t('driver.onboarding.skip')}
           </button>
         )}
       </div>
@@ -124,8 +100,8 @@ export default function DriverOnboardingPage() {
             <StepIcon size={74} weight="fill" className="text-white" />
           )}
         </div>
-        <h1 className="mt-9 text-2xl font-extrabold tracking-tight">{s.title}</h1>
-        <p className="mt-3 text-sm leading-relaxed text-white/90">{s.body}</p>
+        <h1 className="mt-9 text-2xl font-extrabold tracking-tight">{t(`${base}.title`)}</h1>
+        <p className="mt-3 text-sm leading-relaxed text-white/90">{t(`${base}.body`)}</p>
 
         {s.bullets && (
           <div className="mt-7 flex w-full flex-col gap-2.5">
@@ -133,11 +109,11 @@ export default function DriverOnboardingPage() {
               const BIcon = b.icon;
               return (
                 <div
-                  key={b.text}
+                  key={b.key}
                   className="flex items-center gap-3 rounded-2xl bg-white/15 px-4 py-3 text-left"
                 >
                   <BIcon size={20} weight="fill" className="text-white" />
-                  <span className="text-sm font-bold">{b.text}</span>
+                  <span className="text-sm font-bold">{t(`${base}.bullets.${b.key}`)}</span>
                 </div>
               );
             })}
@@ -151,11 +127,11 @@ export default function DriverOnboardingPage() {
         className="flex h-[52px] items-center justify-center gap-2 rounded-2xl bg-white text-[15px] font-extrabold text-brand-700"
       >
         {last && <Fingerprint size={19} weight="fill" />}
-        {s.cta}
+        {t(`${base}.cta`)}
         {!last && <ArrowRight size={17} weight="bold" />}
       </button>
       <div className="mt-3.5 text-center text-xs font-bold text-white/75">
-        Langkah {step + 1} dari {STEPS.length}
+        {t('driver.onboarding.stepOf', { n: step + 1, total: STEPS.length })}
       </div>
     </div>
   );

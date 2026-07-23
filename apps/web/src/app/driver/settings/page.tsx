@@ -23,23 +23,23 @@ import type { NotificationPreferences } from '@/lib/types';
 // /profile/notifications `categories` map), so they follow the account across devices.
 // A localStorage mirror keeps the toggles instant on next open before the fetch lands.
 const PREF_KEY = 'hydromart_driver_notif_prefs';
-const NOTIF: { id: string; icon: Icon; label: string; sub: string; def: boolean }[] = [
-  { id: 'tasks', icon: Package, label: 'Tugas baru', sub: 'Suara + getar', def: true },
-  { id: 'customer', icon: ChatCircleText, label: 'Pesan pelanggan', sub: 'Chat & panggilan', def: true },
-  { id: 'payout', icon: Wallet, label: 'Payout & insentif', sub: 'Info penghasilan', def: true },
-  { id: 'promo', icon: Megaphone, label: 'Promo & pengumuman', sub: 'Dari depot', def: false },
-  { id: 'dnd', icon: Moon, label: 'Jangan ganggu', sub: 'Di luar shift · 22.00 – 05.00', def: true },
+const NOTIF: { id: string; icon: Icon; def: boolean }[] = [
+  { id: 'tasks', icon: Package, def: true },
+  { id: 'customer', icon: ChatCircleText, def: true },
+  { id: 'payout', icon: Wallet, def: true },
+  { id: 'promo', icon: Megaphone, def: false },
+  { id: 'dnd', icon: Moon, def: true },
 ];
 
-const THEMES: { value: Theme; icon: Icon; label: string }[] = [
-  { value: 'light', icon: Sun, label: 'Terang' },
-  { value: 'dark', icon: Moon, label: 'Gelap' },
-  { value: 'system', icon: DeviceMobile, label: 'Sistem' },
+const THEMES: { value: Theme; icon: Icon; labelKey: string }[] = [
+  { value: 'light', icon: Sun, labelKey: 'themeLight' },
+  { value: 'dark', icon: Moon, labelKey: 'themeDark' },
+  { value: 'system', icon: DeviceMobile, labelKey: 'themeSystem' },
 ];
 
 function Settings() {
   const router = useRouter();
-  const { locale, setLocale } = useT();
+  const { t, locale, setLocale } = useT();
   const { theme, setTheme } = useTheme();
   const [pushState, setPushState] = useState<PushState>('unsubscribed');
   const [pushBusy, setPushBusy] = useState(false);
@@ -97,11 +97,11 @@ function Settings() {
         >
           <ArrowLeft size={18} />
         </button>
-        <div className="flex-1 text-sm font-extrabold">Pengaturan</div>
+        <div className="flex-1 text-sm font-extrabold">{t('driver.settings.title')}</div>
       </header>
 
       <div className="px-1 pt-1 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
-        Notifikasi
+        {t('driver.settings.notifSection')}
       </div>
       {pushSupported() && (
         <Card className="p-0">
@@ -110,18 +110,18 @@ function Settings() {
               <BellRinging size={18} weight="fill" className="text-brand-700" />
             </span>
             <div className="flex-1">
-              <div className="text-sm font-bold">Push di perangkat ini</div>
+              <div className="text-sm font-bold">{t('driver.settings.pushLabel')}</div>
               <div className="text-[11px] text-[color:var(--muted)]">
                 {pushState === 'denied'
-                  ? 'Izin diblokir — aktifkan lewat setelan browser'
-                  : 'Terima notifikasi meski aplikasi tertutup'}
+                  ? t('driver.settings.pushDenied')
+                  : t('driver.settings.pushHint')}
               </div>
             </div>
             <Toggle
               on={pushState === 'subscribed'}
               onChange={togglePush}
               disabled={pushBusy || pushState === 'denied'}
-              label="Push di perangkat ini"
+              label={t('driver.settings.pushLabel')}
             />
           </div>
         </Card>
@@ -129,41 +129,42 @@ function Settings() {
       <Card className="divide-y divide-[color:var(--border)] p-0">
         {NOTIF.map((n) => {
           const NIcon = n.icon;
+          const label = t(`driver.settings.notif.${n.id}Label`);
           return (
             <div key={n.id} className="flex items-center gap-3 px-4 py-3.5">
               <span className="flex size-9 items-center justify-center rounded-[10px] bg-brand-50">
                 <NIcon size={18} weight="fill" className="text-brand-700" />
               </span>
               <div className="flex-1">
-                <div className="text-sm font-bold">{n.label}</div>
-                <div className="text-[11px] text-[color:var(--muted)]">{n.sub}</div>
+                <div className="text-sm font-bold">{label}</div>
+                <div className="text-[11px] text-[color:var(--muted)]">{t(`driver.settings.notif.${n.id}Sub`)}</div>
               </div>
-              <Toggle on={prefs[n.id] ?? n.def} onChange={(v) => set(n.id, v)} label={n.label} />
+              <Toggle on={prefs[n.id] ?? n.def} onChange={(v) => set(n.id, v)} label={label} />
             </div>
           );
         })}
       </Card>
 
       <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
-        Tampilan
+        {t('driver.settings.displaySection')}
       </div>
       <Card className="p-2">
         <div className="grid grid-cols-3 gap-2">
-          {THEMES.map((t) => {
-            const TIcon = t.icon;
-            const active = theme === t.value;
+          {THEMES.map((th) => {
+            const TIcon = th.icon;
+            const active = theme === th.value;
             return (
               <button
-                key={t.value}
+                key={th.value}
                 type="button"
-                onClick={() => setTheme(t.value)}
+                onClick={() => setTheme(th.value)}
                 aria-pressed={active}
                 className={`flex flex-col items-center gap-1.5 rounded-xl py-3 text-xs font-bold ${
                   active ? 'bg-brand-600 text-on-brand' : 'bg-[color:var(--surface-soft)] text-[color:var(--muted)]'
                 }`}
               >
                 <TIcon size={20} weight="fill" />
-                {t.label}
+                {t(`driver.settings.${th.labelKey}`)}
               </button>
             );
           })}
@@ -171,14 +172,14 @@ function Settings() {
       </Card>
 
       <div className="px-1 pt-2 text-[11px] font-extrabold uppercase tracking-wide text-[color:var(--muted)]">
-        Bahasa
+        {t('driver.settings.langSection')}
       </div>
       <Card className="divide-y divide-[color:var(--border)] p-0">
-        <LangRow flag="🇮🇩" name="Bahasa Indonesia" sub="Default" active={locale === 'id'} onClick={() => setLocale('id')} />
+        <LangRow flag="🇮🇩" name={t('driver.settings.langIdName')} sub={t('driver.settings.langIdSub')} active={locale === 'id'} onClick={() => setLocale('id')} />
         <LangRow
           flag="🇬🇧"
-          name="English"
-          sub="Angka & Rupiah tetap format id-ID"
+          name={t('driver.settings.langEnName')}
+          sub={t('driver.settings.langEnSub')}
           active={locale === 'en'}
           onClick={() => setLocale('en')}
         />
@@ -186,7 +187,7 @@ function Settings() {
 
       <div className="mt-2 flex items-center gap-2 rounded-xl bg-brand-50 px-3.5 py-3 text-[11.5px] leading-snug text-brand-800">
         <Info size={17} weight="fill" className="shrink-0 text-brand-700" />
-        Preferensi notifikasi tersimpan di akunmu dan berlaku di semua perangkat. Bahasa & tampilan diatur per perangkat.
+        {t('driver.settings.info')}
       </div>
     </div>
   );

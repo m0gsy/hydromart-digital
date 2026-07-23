@@ -11,10 +11,12 @@ import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Shift } from '@/lib/types';
 
 function CheckIn() {
   const router = useRouter();
+  const { t } = useT();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? null;
 
@@ -40,15 +42,15 @@ function CheckIn() {
       );
       router.replace('/driver');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal check-in. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.checkIn.error'));
       setBusy(false);
     }
   };
 
   if (!depotId) {
     return (
-      <CenterState icon={<WarningCircle size={32} />} title="Belum ada depot">
-        Akun kurir ini belum ditempatkan di depot. Hubungi admin depot.
+      <CenterState icon={<WarningCircle size={32} />} title={t('driver.checkIn.noDepotTitle')}>
+        {t('driver.checkIn.noDepotBody')}
       </CenterState>
     );
   }
@@ -56,10 +58,10 @@ function CheckIn() {
   return (
     <div className="flex min-h-dvh flex-col px-5 py-6">
       <div>
-        <p className="text-xs font-bold text-[color:var(--muted)]">Selamat datang,</p>
-        <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight">{customer?.fullName ?? 'Kurir'}</h1>
+        <p className="text-xs font-bold text-[color:var(--muted)]">{t('driver.checkIn.welcome')}</p>
+        <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight">{customer?.fullName ?? t('driver.checkIn.fallbackName')}</h1>
         <p className="mt-1.5 text-sm text-[color:var(--muted)]">
-          Check-in di depot untuk memulai shift dan menerima tugas.
+          {t('driver.checkIn.intro')}
         </p>
       </div>
 
@@ -68,9 +70,9 @@ function CheckIn() {
           <MapPinArea size={20} weight="fill" />
         </span>
         <div className="flex-1">
-          <div className="text-sm font-bold">Lokasi diverifikasi saat check-in</div>
+          <div className="text-sm font-bold">{t('driver.checkIn.locationVerified')}</div>
           <div className="text-xs text-[color:var(--muted)]">
-            Kamu harus berada di area depot untuk memulai shift.
+            {t('driver.checkIn.locationHint')}
           </div>
         </div>
         <Crosshair size={18} className="text-brand-600" />
@@ -86,11 +88,11 @@ function CheckIn() {
       <div className="mt-auto pt-6">
         <Button onClick={checkIn} loading={busy} className="flex w-full items-center justify-center gap-2">
           <Fingerprint size={20} weight="fill" />
-          Mulai shift · check-in
+          {t('driver.checkIn.submit')}
         </Button>
         <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--muted)]">
           <CheckCircle size={14} weight="fill" className="text-brand-600" />
-          Lokasi terekam sebagai bukti mulai shift.
+          {t('driver.checkIn.locationNote')}
         </p>
       </div>
     </div>

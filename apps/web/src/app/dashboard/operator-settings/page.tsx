@@ -22,14 +22,14 @@ import { useT } from '@/lib/locale-context';
 import { isDepotOperator } from '@/lib/roles';
 
 const OPS_NOTIF: { id: string; icon: Icon; label: string; def: boolean }[] = [
-  { id: 'lowStock', icon: Package, label: 'Stok menipis', def: true },
-  { id: 'newOrder', icon: ShoppingBag, label: 'Pesanan baru masuk', def: true },
-  { id: 'courierFail', icon: Truck, label: 'Kurir gagal antar', def: true },
+  { id: 'lowStock', icon: Package, label: 'dashB.operatorSettings.notifLowStock', def: true },
+  { id: 'newOrder', icon: ShoppingBag, label: 'dashB.operatorSettings.notifNewOrder', def: true },
+  { id: 'courierFail', icon: Truck, label: 'dashB.operatorSettings.notifCourierFail', def: true },
 ];
 
 function OperatorSettingsBody() {
   const { signOut } = useAuth();
-  const { locale, setLocale } = useT();
+  const { locale, setLocale, t } = useT();
   const [notif, setNotif] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(OPS_NOTIF.map((n) => [n.id, n.def])),
   );
@@ -38,22 +38,22 @@ function OperatorSettingsBody() {
     <div className="mx-auto flex max-w-lg flex-col gap-5">
       <div className="flex items-center gap-2">
         <Gear size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Pengaturan</h1>
+        <h1 className="text-2xl font-bold">{t('dashB.operatorSettings.title')}</h1>
       </div>
 
       <div>
         <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-          Akun
+          {t('dashB.operatorSettings.account')}
         </p>
         <Card className="divide-y divide-app p-0">
-          <StaticRow icon={UserCircle} label="Data akun" sub="Nama, telepon & depot" />
-          <StaticRow icon={Key} label="Ubah PIN" sub="Ganti PIN operasional" />
+          <StaticRow icon={UserCircle} label={t('dashB.operatorSettings.accountData')} sub={t('dashB.operatorSettings.accountDataSub')} />
+          <StaticRow icon={Key} label={t('dashB.operatorSettings.changePin')} sub={t('dashB.operatorSettings.changePinSub')} />
         </Card>
       </div>
 
       <div>
         <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-          Notifikasi ops
+          {t('dashB.operatorSettings.notifSection')}
         </p>
         <Card className="divide-y divide-app p-0">
           {OPS_NOTIF.map((n) => {
@@ -63,11 +63,11 @@ function OperatorSettingsBody() {
                 <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
                   <NIcon size={18} weight="fill" />
                 </span>
-                <span className="flex-1 text-sm font-semibold">{n.label}</span>
+                <span className="flex-1 text-sm font-semibold">{t(n.label)}</span>
                 <Toggle
                   on={notif[n.id] ?? n.def}
                   onChange={(v) => setNotif((prev) => ({ ...prev, [n.id]: v }))}
-                  label={n.label}
+                  label={t(n.label)}
                 />
               </div>
             );
@@ -77,7 +77,7 @@ function OperatorSettingsBody() {
 
       <div>
         <p className="mb-2 px-1 text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-          Preferensi
+          {t('dashB.operatorSettings.prefs')}
         </p>
         <Card className="divide-y divide-app p-0">
           <div className="flex items-center gap-3 p-4">
@@ -85,16 +85,16 @@ function OperatorSettingsBody() {
               <Package size={18} weight="fill" />
             </span>
             <div className="flex-1">
-              <p className="text-sm font-semibold">Ambang low-stock default</p>
-              <p className="text-[11px] text-[color:var(--text-muted)]">Batas bawah stok per item</p>
+              <p className="text-sm font-semibold">{t('dashB.operatorSettings.lowStockDefault')}</p>
+              <p className="text-[11px] text-[color:var(--text-muted)]">{t('dashB.operatorSettings.lowStockDefaultSub')}</p>
             </div>
-            <Chip tone="tint">20 unit</Chip>
+            <Chip tone="tint">{t('dashB.operatorSettings.lowStockValue')}</Chip>
           </div>
           <div className="flex items-center gap-3 p-4">
             <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
               <DeviceMobile size={18} weight="fill" />
             </span>
-            <span className="flex-1 text-sm font-semibold">Bahasa</span>
+            <span className="flex-1 text-sm font-semibold">{t('dashB.operatorSettings.language')}</span>
             <div className="flex overflow-hidden rounded-full border border-app text-xs font-bold">
               {(['id', 'en'] as const).map((l) => (
                 <button
@@ -119,7 +119,7 @@ function OperatorSettingsBody() {
         className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 p-3.5 text-sm font-extrabold text-red-600"
       >
         <SignOut size={17} />
-        Keluar
+        {t('dashB.operatorSettings.signOut')}
       </button>
     </div>
   );
@@ -141,11 +141,12 @@ function StaticRow({ icon: RIcon, label, sub }: { icon: Icon; label: string; sub
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isDepotOperator(customer?.role)) {
     return (
-      <CenterState title="Khusus Operator depot" icon={<Lock size={40} weight="fill" />}>
-        Pengaturan ini hanya untuk Operator depot.
+      <CenterState title={t('dashB.operatorSettings.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.operatorSettings.gateBody')}
       </CenterState>
     );
   }

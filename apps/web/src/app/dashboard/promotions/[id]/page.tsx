@@ -9,6 +9,7 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton, T
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion } from '@/lib/types';
@@ -22,6 +23,7 @@ const toDateInput = (iso: string | null): string => (iso ? iso.slice(0, 10) : ''
 
 /** Real editable form for one promotion (PATCH promotions.detail). */
 function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void }) {
+  const { t } = useT();
   const [title, setTitle] = useState(promo.title);
   const [subtitle, setSubtitle] = useState(promo.subtitle ?? '');
   const [voucherCode, setVoucherCode] = useState(promo.voucherCode ?? '');
@@ -34,7 +36,7 @@ function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void
 
   async function submit() {
     if (title.trim().length < 3) {
-      setError('Judul promo minimal 3 karakter.');
+      setError(t('dashC.promotionDetail.titleMin'));
       return;
     }
     setBusy(true);
@@ -56,7 +58,7 @@ function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void
       setSaved(true);
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyimpan promo.');
+      setError(err instanceof ApiError ? err.message : t('dashC.promotionDetail.saveError'));
     } finally {
       setBusy(false);
     }
@@ -64,37 +66,37 @@ function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="font-semibold">Ubah promo</h2>
-      <Field label="Judul" htmlFor="promo-title">
+      <h2 className="font-semibold">{t('dashC.promotionDetail.editTitle')}</h2>
+      <Field label={t('dashC.promotionDetail.fTitle')} htmlFor="promo-title">
         <Input id="promo-title" value={title} onChange={(e) => setTitle(e.target.value)} />
       </Field>
-      <Field label="Subjudul" htmlFor="promo-subtitle">
+      <Field label={t('dashC.promotionDetail.subtitle')} htmlFor="promo-subtitle">
         <Input id="promo-subtitle" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
       </Field>
-      <Field label="Kode voucher" htmlFor="promo-code" hint="Kosongkan jika promo tanpa voucher.">
+      <Field label={t('dashC.promotionDetail.voucherCode')} htmlFor="promo-code" hint={t('dashC.promotionDetail.voucherHint')}>
         <Input id="promo-code" value={voucherCode} onChange={(e) => setVoucherCode(e.target.value)} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Mulai" htmlFor="promo-start">
+        <Field label={t('dashC.promotionDetail.start')} htmlFor="promo-start">
           <Input id="promo-start" type="date" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
         </Field>
-        <Field label="Selesai" htmlFor="promo-end">
+        <Field label={t('dashC.promotionDetail.end')} htmlFor="promo-end">
           <Input id="promo-end" type="date" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
         </Field>
       </div>
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium">Aktif</span>
-        <Toggle on={active} onChange={setActive} label="Aktifkan promo" />
+        <span className="text-sm font-medium">{t('dashC.promotionDetail.active')}</span>
+        <Toggle on={active} onChange={setActive} label={t('dashC.promotionDetail.toggleLabel')} />
       </div>
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}
         </p>
       )}
-      {saved && !error && <p className="text-sm font-medium text-[color:var(--success)]">Tersimpan.</p>}
+      {saved && !error && <p className="text-sm font-medium text-[color:var(--success)]">{t('dashC.promotionDetail.saved')}</p>}
       <div className="flex justify-end">
         <Button onClick={submit} loading={busy}>
-          Simpan
+          {t('dashC.promotionDetail.save')}
         </Button>
       </div>
     </Card>
@@ -102,6 +104,7 @@ function PromoEditor({ promo, onSaved }: { promo: Promotion; onSaved: () => void
 }
 
 function PromoDetailBody({ id }: { id: string }) {
+  const { t } = useT();
   // REAL — promo-service has no GET-one route, so read the admin list and pick this id.
   const promos = useAsync<Promotion[]>(() => api.get<Promotion[]>(endpoints.promotions.manage, true), []);
   const promo = (promos.data ?? []).find((p) => p.id === id) ?? null;
@@ -119,10 +122,10 @@ function PromoDetailBody({ id }: { id: string }) {
             ) : (
               <h1 className="flex items-center gap-2 text-2xl font-bold">
                 {code}
-                <Badge tone={active ? 'success' : 'neutral'}>{active ? 'AKTIF' : 'NONAKTIF'}</Badge>
+                <Badge tone={active ? 'success' : 'neutral'}>{active ? t('dashC.promotionDetail.badgeActive') : t('dashC.promotionDetail.badgeInactive')}</Badge>
               </h1>
             )}
-            <p className="text-sm text-muted">Detail &amp; pengaturan promo</p>
+            <p className="text-sm text-muted">{t('dashC.promotionDetail.headerSubtitle')}</p>
           </div>
         </div>
       </div>
@@ -132,8 +135,8 @@ function PromoDetailBody({ id }: { id: string }) {
       ) : promos.error ? (
         <ErrorState message={promos.error} onRetry={promos.reload} />
       ) : !promo ? (
-        <CenterState title="Promo tak ditemukan" icon={<Megaphone size={40} weight="fill" />}>
-          Promo ini mungkin sudah dihapus.
+        <CenterState title={t('dashC.promotionDetail.notFoundTitle')} icon={<Megaphone size={40} weight="fill" />}>
+          {t('dashC.promotionDetail.notFoundBody')}
         </CenterState>
       ) : (
         <PromoEditor key={promo.id} promo={promo} onSaved={promos.reload} />
@@ -143,13 +146,14 @@ function PromoDetailBody({ id }: { id: string }) {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? '';
   if (!can('voucherWrite', customer?.role)) {
     return (
-      <CenterState title="Khusus staf" icon={<Lock size={40} weight="fill" />}>
-        Pengelolaan promo hanya untuk staf pemasaran &amp; manajer depot.
+      <CenterState title={t('dashC.promotionDetail.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashC.promotionDetail.gateBody')}
       </CenterState>
     );
   }

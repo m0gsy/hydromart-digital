@@ -14,6 +14,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
+import { useT } from '@/lib/locale-context';
 import type { Broadcast, CourierPerformance, Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
 
 const ACTIVE: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
@@ -28,6 +29,7 @@ function thisWibMonday(): string {
 
 function DriverConsole() {
   const router = useRouter();
+  const { t } = useT();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? undefined;
   const shift = useAsync<Shift | null>(() => api.get(endpoints.deliveries.shifts.current, true), []);
@@ -63,7 +65,7 @@ function DriverConsole() {
       await fn();
       list.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Aksi gagal. Coba lagi.');
+      setError(e instanceof ApiError ? e.message : t('driver.home.actionError'));
     } finally {
       setBusy(null);
     }
@@ -77,11 +79,11 @@ function DriverConsole() {
     <div className="space-y-4 px-4 py-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-extrabold tracking-tight">Pengantaran saya</h1>
+          <h1 className="text-xl font-extrabold tracking-tight">{t('driver.home.title')}</h1>
           {depotId && (
             <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-[color:var(--muted)]">
               <Storefront size={12} weight="fill" className="text-brand-700" />
-              Bertugas di depot
+              {t('driver.home.assignedDepot')}
             </span>
           )}
         </div>
@@ -92,16 +94,16 @@ function DriverConsole() {
           }`}
         >
           {onBreak ? <Pause size={13} weight="fill" /> : <Storefront size={13} weight="fill" />}
-          {shift.data ? (onBreak ? 'Istirahat' : 'Online') : '…'}
+          {shift.data ? (onBreak ? t('driver.home.onBreak') : t('driver.home.online')) : '…'}
         </Link>
       </header>
 
       <div className="flex gap-2.5">
-        <StatChip value={String(deliveries.length)} label="Aktif" />
-        <StatChip value={perf.data ? String(perf.data.delivered) : '—'} label="Selesai" />
+        <StatChip value={String(deliveries.length)} label={t('driver.home.statActive')} />
+        <StatChip value={perf.data ? String(perf.data.delivered) : '—'} label={t('driver.home.statDone')} />
         <StatChip
           value={perf.data ? `${Math.round(perf.data.onTimeRate * 100)}%` : '—'}
-          label="Tepat"
+          label={t('driver.home.statOnTime')}
         />
       </div>
 
@@ -123,8 +125,8 @@ function DriverConsole() {
           className="flex items-center gap-2 rounded-2xl border border-[color:var(--border)] p-3.5 text-sm font-bold"
         >
           <Megaphone size={16} weight="fill" className="text-brand-700" />
-          Pengumuman depot
-          <span className="ml-auto text-xs font-normal text-[color:var(--muted)]">Lihat</span>
+          {t('driver.home.depotAnnouncements')}
+          <span className="ml-auto text-xs font-normal text-[color:var(--muted)]">{t('driver.home.view')}</span>
         </Link>
       )}
 
@@ -135,8 +137,8 @@ function DriverConsole() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : deliveries.length === 0 ? (
-        <CenterState icon={<Package size={32} />} title="Belum ada tugas aktif">
-          Tugas baru akan muncul di sini saat admin depot menugaskan pesanan kepada kamu.
+        <CenterState icon={<Package size={32} />} title={t('driver.home.emptyTitle')}>
+          {t('driver.home.emptyBody')}
         </CenterState>
       ) : (
         deliveries.map((d) => (
@@ -158,7 +160,7 @@ function DriverConsole() {
                 loading={busy === d.id}
                 className="w-full"
               >
-                Konfirmasi barang diambil
+                {t('driver.home.confirmPickup')}
               </Button>
             )}
             {d.status === 'PICKED_UP' && (
@@ -167,7 +169,7 @@ function DriverConsole() {
                 loading={busy === d.id}
                 className="w-full"
               >
-                Mulai antar
+                {t('driver.home.startDelivery')}
               </Button>
             )}
             {d.status === 'ON_DELIVERY' &&
@@ -182,7 +184,7 @@ function DriverConsole() {
                 />
               ) : (
                 <Button onClick={() => setCapturing(d.id)} className="w-full">
-                  Selesaikan · ambil bukti
+                  {t('driver.home.completeWithPod')}
                 </Button>
               ))}
           </Card>

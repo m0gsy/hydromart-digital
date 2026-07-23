@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { isDepotManager } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotLoyaltySummary, TierBenefit } from '@/lib/types';
@@ -39,8 +40,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function LoyaltyBody() {
+  const { t } = useT();
   const { scopedId, selected, depots } = useDepot();
-  const depotName = (selected ?? depots.find((d) => d.id === scopedId) ?? depots[0])?.name ?? 'Depot';
+  const depotName = (selected ?? depots.find((d) => d.id === scopedId) ?? depots[0])?.name ?? t('dashB.loyalty.depotFallback');
 
   const summary = useAsync<DepotLoyaltySummary | null>(
     () => (scopedId ? api.get(endpoints.loyalty.depotSummary(scopedId), true) : Promise.resolve(null)),
@@ -56,13 +58,16 @@ function LoyaltyBody() {
   const cards: TierCard[] = ladder.map((tier, i) => {
     const next = ladder[i + 1];
     const range = next
-      ? `${tier.threshold.toLocaleString('id-ID')}–${(next.threshold - 1).toLocaleString('id-ID')} poin`
-      : `${tier.threshold.toLocaleString('id-ID')}+ poin`;
+      ? t('dashB.loyalty.rangeMid', {
+          from: tier.threshold.toLocaleString('id-ID'),
+          to: (next.threshold - 1).toLocaleString('id-ID'),
+        })
+      : t('dashB.loyalty.rangeTop', { from: tier.threshold.toLocaleString('id-ID') });
     const count = s?.tiers?.[tier.tier as keyof DepotLoyaltySummary['tiers']];
     return {
       label: tier.tier,
       range,
-      members: count != null ? `${count.toLocaleString('id-ID')} anggota` : '—',
+      members: count != null ? t('dashB.loyalty.memberCount', { n: count.toLocaleString('id-ID') }) : '—',
       icon: i === ladder.length - 1 ? 'gold' : i === 0 ? 'bronze' : 'silver',
     };
   });
@@ -73,32 +78,32 @@ function LoyaltyBody() {
         <div className="flex items-center gap-2">
           <Sparkle size={24} weight="fill" className="text-brand-500" />
           <div>
-            <h1 className="text-2xl font-bold">Loyalty &amp; poin</h1>
-            <p className="text-sm text-[color:var(--text-muted)]">{depotName} · program aktif</p>
+            <h1 className="text-2xl font-bold">{t('dashB.loyalty.title')}</h1>
+            <p className="text-sm text-[color:var(--text-muted)]">{depotName} · {t('dashB.loyalty.programActive')}</p>
           </div>
         </div>
-        <Chip tone="outline">Atur aturan</Chip>
+        <Chip tone="outline">{t('dashB.loyalty.manageRules')}</Chip>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="Anggota" value={summary.loading ? '…' : idr(s?.totalMembers)} />
-        <Stat label="Poin beredar" value={summary.loading ? '…' : idr(s?.pointsOutstanding)} />
-        <Stat label="Ditukar / bulan" value={summary.loading ? '…' : idr(s?.redeemedThisMonth)} />
+        <Stat label={t('dashB.loyalty.members')} value={summary.loading ? '…' : idr(s?.totalMembers)} />
+        <Stat label={t('dashB.loyalty.pointsOutstanding')} value={summary.loading ? '…' : idr(s?.pointsOutstanding)} />
+        <Stat label={t('dashB.loyalty.redeemedMonth')} value={summary.loading ? '…' : idr(s?.redeemedThisMonth)} />
       </div>
 
       <Card className="flex flex-col gap-3 p-5">
         <h2 className="flex items-center gap-2 font-semibold">
           <Coins size={18} weight="fill" className="text-brand-500" />
-          Aturan perolehan
+          {t('dashB.loyalty.earningRules')}
         </h2>
         <ul className="flex flex-col gap-2 text-sm">
           <li className="flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface-soft)] px-4 py-3">
-            <span>Tiap galon 19L</span>
-            <span className="font-bold text-brand-700">+10 poin</span>
+            <span>{t('dashB.loyalty.perGallon')}</span>
+            <span className="font-bold text-brand-700">{t('dashB.loyalty.perGallonPoints')}</span>
           </li>
           <li className="flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface-soft)] px-4 py-3">
-            <span>100 poin</span>
-            <span className="font-bold text-brand-700">Rp5.000 potongan</span>
+            <span>{t('dashB.loyalty.hundredPoints')}</span>
+            <span className="font-bold text-brand-700">{t('dashB.loyalty.hundredPointsValue')}</span>
           </li>
         </ul>
       </Card>
@@ -106,7 +111,7 @@ function LoyaltyBody() {
       <div className="flex flex-col gap-3">
         <h2 className="flex items-center gap-2 font-semibold">
           <Gift size={18} weight="fill" className="text-brand-500" />
-          Tingkatan
+          {t('dashB.loyalty.tiers')}
         </h2>
         {tiers.loading ? (
           <Skeleton className="h-28 w-full" />
@@ -133,11 +138,12 @@ function LoyaltyBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isDepotManager(customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Loyalty &amp; poin hanya untuk Manajer depot.
+      <CenterState title={t('dashB.loyalty.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.loyalty.gateBody')}
       </CenterState>
     );
   }

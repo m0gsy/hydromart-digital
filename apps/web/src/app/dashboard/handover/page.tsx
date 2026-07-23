@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { HandoverItem, HandoverItemState, ShiftHandover } from '@/lib/types';
@@ -48,6 +49,7 @@ function StateMark({ state }: { state: HandoverItemState }) {
 }
 
 function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onChanged: () => void }) {
+  const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +63,7 @@ function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onCh
       await api.patch(endpoints.handover.sign(handover.id), undefined, true);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menandatangani serah terima.');
+      setError(err instanceof ApiError ? err.message : t('dashA.handover.signError'));
     } finally {
       setBusy(false);
     }
@@ -72,7 +74,7 @@ function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onCh
       <div className="flex items-center gap-2">
         <ClipboardText size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Serah terima shift</h1>
+          <h1 className="text-2xl font-bold">{t('dashA.handover.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {handover.fromShift} → {handover.toShift} · {handover.fromStaff} → {handover.toStaff}
           </p>
@@ -96,10 +98,10 @@ function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onCh
       <Card className="flex items-start gap-3 bg-brand-50 p-4">
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-700" />
         <p className="text-[12.5px] text-brand-800">
-          {doneCount} dari {handover.items.length} selesai
+          {t('dashA.handover.progress', { done: doneCount, total: handover.items.length })}
           {signed
-            ? ` — ditandatangani ${formatDateTime(handover.signedAt as string)}.`
-            : ' — lengkapi sisa item sebelum menandatangani serah terima.'}
+            ? t('dashA.handover.signedSuffix', { date: formatDateTime(handover.signedAt as string) })
+            : t('dashA.handover.unsignedSuffix')}
         </p>
       </Card>
 
@@ -110,13 +112,14 @@ function ActiveHandover({ handover, onChanged }: { handover: ShiftHandover; onCh
       )}
 
       <Button className="w-full" onClick={sign} loading={busy} disabled={signed}>
-        {signed ? 'Sudah ditandatangani' : 'Tandatangani serah terima'}
+        {signed ? t('dashA.handover.signed') : t('dashA.handover.sign')}
       </Button>
     </>
   );
 }
 
 function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => void }) {
+  const { t } = useT();
   const [fromShift, setFromShift] = useState('Pagi');
   const [toShift, setToShift] = useState('Sore');
   const [fromStaff, setFromStaff] = useState('');
@@ -131,7 +134,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 
   async function submit() {
     if (!fromStaff.trim() || !toStaff.trim()) {
-      setError('Isi nama staf serah dan terima.');
+      setError(t('dashA.handover.staffRequired'));
       return;
     }
     setBusy(true);
@@ -152,7 +155,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
       );
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal membuat serah terima.');
+      setError(err instanceof ApiError ? err.message : t('dashA.handover.createError'));
     } finally {
       setBusy(false);
     }
@@ -160,24 +163,24 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
 
   return (
     <Card className="flex flex-col gap-4 p-4">
-      <h2 className="text-sm font-bold text-[color:var(--text-muted)]">Serah terima baru</h2>
+      <h2 className="text-sm font-bold text-[color:var(--text-muted)]">{t('dashA.handover.newTitle')}</h2>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Shift dari" htmlFor="from-shift">
+        <Field label={t('dashA.handover.fromShift')} htmlFor="from-shift">
           <Input id="from-shift" value={fromShift} onChange={(e) => setFromShift(e.target.value)} />
         </Field>
-        <Field label="Shift ke" htmlFor="to-shift">
+        <Field label={t('dashA.handover.toShift')} htmlFor="to-shift">
           <Input id="to-shift" value={toShift} onChange={(e) => setToShift(e.target.value)} />
         </Field>
-        <Field label="Staf serah" htmlFor="from-staff">
+        <Field label={t('dashA.handover.fromStaff')} htmlFor="from-staff">
           <Input id="from-staff" value={fromStaff} onChange={(e) => setFromStaff(e.target.value)} />
         </Field>
-        <Field label="Staf terima" htmlFor="to-staff">
+        <Field label={t('dashA.handover.toStaff')} htmlFor="to-staff">
           <Input id="to-staff" value={toStaff} onChange={(e) => setToStaff(e.target.value)} />
         </Field>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <p className="text-sm font-medium">Checklist</p>
+        <p className="text-sm font-medium">{t('dashA.handover.checklist')}</p>
         <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0" elevated={false}>
           {items.map((it, i) => (
             <button
@@ -191,10 +194,10 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
             </button>
           ))}
         </Card>
-        <p className="text-xs text-[color:var(--text-muted)]">Ketuk item untuk ubah status: kosong → sebagian → selesai.</p>
+        <p className="text-xs text-[color:var(--text-muted)]">{t('dashA.handover.checklistHint')}</p>
       </div>
 
-      <Field label="Catatan (opsional)" htmlFor="handover-note">
+      <Field label={t('dashA.handover.noteLabel')} htmlFor="handover-note">
         <Input id="handover-note" value={note} onChange={(e) => setNote(e.target.value)} />
       </Field>
 
@@ -205,13 +208,14 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
       )}
 
       <Button onClick={submit} loading={busy}>
-        Buat serah terima
+        {t('dashA.handover.create')}
       </Button>
     </Card>
   );
 }
 
 function HandoverBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [creating, setCreating] = useState(false);
 
@@ -232,7 +236,7 @@ function HandoverBody() {
     <div className="flex items-center gap-2">
       <ClipboardText size={24} weight="fill" className="text-brand-500" />
       <div>
-        <h1 className="text-2xl font-bold">Serah terima shift</h1>
+        <h1 className="text-2xl font-bold">{t('dashA.handover.title')}</h1>
         {scopedDepot && <p className="text-sm text-[color:var(--text-muted)]">{scopedDepot.name}</p>}
       </div>
     </div>
@@ -242,8 +246,8 @@ function HandoverBody() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
         {Header}
-        <CenterState title="Belum ada depot" icon={<ClipboardText size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashA.handover.noDepotTitle')} icon={<ClipboardText size={40} weight="fill" />}>
+          {t('dashA.handover.noDepotBody')}
         </CenterState>
       </div>
     );
@@ -275,8 +279,8 @@ function HandoverBody() {
         <>
           {Header}
           {!creating && (
-            <CenterState title="Belum ada serah terima" icon={<ClipboardText size={40} weight="fill" />}>
-              Buat serah terima shift pertama untuk depot ini.
+            <CenterState title={t('dashA.handover.emptyTitle')} icon={<ClipboardText size={40} weight="fill" />}>
+              {t('dashA.handover.emptyBody')}
             </CenterState>
           )}
         </>
@@ -291,7 +295,7 @@ function HandoverBody() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-app p-3.5 text-sm font-semibold text-[color:var(--text-muted)] hover:bg-brand-50"
         >
           <Plus size={16} weight="bold" />
-          Serah terima baru
+          {t('dashA.handover.newTitle')}
         </button>
       )}
     </div>
@@ -299,11 +303,12 @@ function HandoverBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotHandover', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Checklist serah terima shift hanya untuk Manajer depot.
+      <CenterState title={t('dashA.handover.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.handover.gateBody')}
       </CenterState>
     );
   }

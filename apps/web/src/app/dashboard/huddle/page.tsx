@@ -10,6 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { HuddleActionItem, HuddleAgendaItem, HuddleNote } from '@/lib/types';
@@ -26,6 +27,7 @@ function mondayOf(d: Date): string {
 }
 
 function HuddleBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const weekStart = useMemo(() => mondayOf(new Date()), []);
 
@@ -67,7 +69,7 @@ function HuddleBody() {
       );
       note.reload();
     } catch (err) {
-      setSaveError(err instanceof ApiError ? err.message : 'Gagal menyimpan huddle.');
+      setSaveError(err instanceof ApiError ? err.message : t('dashA.huddle.saveError'));
     } finally {
       setBusy(false);
     }
@@ -79,7 +81,7 @@ function HuddleBody() {
     <div className="flex items-center gap-2">
       <UsersThree size={24} weight="fill" className="text-brand-500" />
       <div>
-        <h1 className="text-2xl font-bold">Huddle mingguan</h1>
+        <h1 className="text-2xl font-bold">{t('dashA.huddle.title')}</h1>
         {scopedDepot && (
           <p className="text-sm text-[color:var(--text-muted)]">{scopedDepot.name}</p>
         )}
@@ -91,8 +93,8 @@ function HuddleBody() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
         {Header}
-        <CenterState title="Belum ada depot" icon={<UsersThree size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashA.huddle.noDepotTitle')} icon={<UsersThree size={40} weight="fill" />}>
+          {t('dashA.huddle.noDepotBody')}
         </CenterState>
       </div>
     );
@@ -124,15 +126,15 @@ function HuddleBody() {
       <div className="mx-auto flex max-w-2xl flex-col gap-5">
         {Header}
         <CenterState
-          title="Belum ada huddle minggu ini"
+          title={t('dashA.huddle.noNoteTitle')}
           icon={<UsersThree size={40} weight="fill" />}
           action={
             <Button onClick={() => save({})} loading={busy}>
-              Mulai huddle
+              {t('dashA.huddle.start')}
             </Button>
           }
         >
-          Mulai huddle mingguan untuk mencatat agenda dan action item tim.
+          {t('dashA.huddle.noNoteBody')}
         </CenterState>
         {saveError && (
           <p className="text-center text-sm font-medium text-red-600" role="alert">
@@ -150,7 +152,7 @@ function HuddleBody() {
       <div className="flex items-center gap-2">
         <UsersThree size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Huddle mingguan</h1>
+          <h1 className="text-2xl font-bold">{t('dashA.huddle.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
             {formatDateTime(data.heldAt)}
             {data.attendance ? ` · ${data.attendance}` : ''}
@@ -177,14 +179,14 @@ function HuddleBody() {
         />
       ) : (
         <Button variant="ghost" className="self-start" onClick={() => setEditAttend(true)} disabled={busy}>
-          {data.attendance ? 'Ubah kehadiran' : 'Catat kehadiran'}
+          {data.attendance ? t('dashA.huddle.editAttendance') : t('dashA.huddle.addAttendance')}
         </Button>
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-bold text-[color:var(--text-muted)]">Agenda & catatan</h2>
+        <h2 className="text-sm font-bold text-[color:var(--text-muted)]">{t('dashA.huddle.agendaTitle')}</h2>
         {data.agenda.length === 0 && (
-          <p className="text-[12.5px] text-[color:var(--text-muted)]">Belum ada agenda.</p>
+          <p className="text-[12.5px] text-[color:var(--text-muted)]">{t('dashA.huddle.agendaEmpty')}</p>
         )}
         {data.agenda.map((a, i) => (
           <Card key={`${a.title}-${i}`} className="flex flex-col gap-1 p-4">
@@ -208,14 +210,14 @@ function HuddleBody() {
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-app p-3.5 text-sm font-semibold text-[color:var(--text-muted)] hover:bg-brand-50"
           >
             <Plus size={16} weight="bold" />
-            Tambah agenda
+            {t('dashA.huddle.addAgenda')}
           </button>
         )}
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold text-[color:var(--text-muted)]">
-          Action item · {doneCount}/{data.actionItems.length} selesai
+          {t('dashA.huddle.actionHeading', { done: doneCount, total: data.actionItems.length })}
         </h2>
         {data.actionItems.length > 0 && (
           <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
@@ -269,7 +271,7 @@ function HuddleBody() {
             className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-app p-3.5 text-sm font-semibold text-[color:var(--text-muted)] hover:bg-brand-50"
           >
             <Plus size={16} weight="bold" />
-            Tambah action item
+            {t('dashA.huddle.addAction')}
           </button>
         )}
       </section>
@@ -288,24 +290,25 @@ function AttendanceForm({
   onSave: (value: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [value, setValue] = useState(initial);
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <Field label="Kehadiran" htmlFor="huddle-attendance">
+      <Field label={t('dashA.huddle.attendanceLabel')} htmlFor="huddle-attendance">
         <Input
           id="huddle-attendance"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="mis. 8 dari 9 hadir"
+          placeholder={t('dashA.huddle.attendancePlaceholder')}
           autoFocus
         />
       </Field>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('dashA.huddle.cancel')}
         </Button>
         <Button onClick={() => onSave(value.trim())} loading={busy}>
-          Simpan
+          {t('dashA.huddle.save')}
         </Button>
       </div>
     </Card>
@@ -321,26 +324,27 @@ function AgendaForm({
   onSave: (item: HuddleAgendaItem) => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <Field label="Judul agenda" htmlFor="agenda-title">
+      <Field label={t('dashA.huddle.agendaTitleLabel')} htmlFor="agenda-title">
         <Input id="agenda-title" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
       </Field>
-      <Field label="Catatan" htmlFor="agenda-note">
+      <Field label={t('dashA.huddle.agendaNoteLabel')} htmlFor="agenda-note">
         <Input id="agenda-note" value={text} onChange={(e) => setText(e.target.value)} />
       </Field>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('dashA.huddle.cancel')}
         </Button>
         <Button
           onClick={() => title.trim() && onSave({ title: title.trim(), note: text.trim() })}
           loading={busy}
           disabled={!title.trim()}
         >
-          Tambah
+          {t('dashA.huddle.add')}
         </Button>
       </div>
     </Card>
@@ -356,19 +360,20 @@ function ActionForm({
   onSave: (item: HuddleActionItem) => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [text, setText] = useState('');
   const [assignee, setAssignee] = useState('');
   return (
     <Card className="flex flex-col gap-3 p-4">
-      <Field label="Action item" htmlFor="action-text">
+      <Field label={t('dashA.huddle.actionLabel')} htmlFor="action-text">
         <Input id="action-text" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
       </Field>
-      <Field label="Penanggung jawab" htmlFor="action-assignee">
+      <Field label={t('dashA.huddle.assigneeLabel')} htmlFor="action-assignee">
         <Input id="action-assignee" value={assignee} onChange={(e) => setAssignee(e.target.value)} />
       </Field>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
-          Batal
+          {t('dashA.huddle.cancel')}
         </Button>
         <Button
           onClick={() =>
@@ -377,7 +382,7 @@ function ActionForm({
           loading={busy}
           disabled={!text.trim()}
         >
-          Tambah
+          {t('dashA.huddle.add')}
         </Button>
       </div>
     </Card>
@@ -385,11 +390,12 @@ function ActionForm({
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!can('depotHuddle', customer?.role)) {
     return (
-      <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Huddle tim mingguan hanya untuk Manajer depot.
+      <CenterState title={t('dashA.huddle.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.huddle.gateBody')}
       </CenterState>
     );
   }

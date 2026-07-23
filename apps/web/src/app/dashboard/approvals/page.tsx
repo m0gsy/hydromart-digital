@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT, type TVars } from '@/lib/locale-context';
 import { canReviewApprovals } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Approval, ApprovalType } from '@/lib/types';
@@ -19,27 +20,22 @@ const TYPE_ICON: Record<ApprovalType, typeof Package> = {
   COD_VARIANCE: Wallet,
 };
 
-const TYPE_LABEL: Record<ApprovalType, string> = {
-  OPNAME_VARIANCE: 'Selisih opname',
-  DEPOSIT_REFUND: 'Refund deposit',
-  COD_VARIANCE: 'Kurang setoran',
-};
-
 const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
 
 /** One-line summary of the decision snapshot, per type. */
-function metaLine(a: Approval): string {
+function metaLine(a: Approval, t: (key: string, vars?: TVars) => string): string {
   const p = a.payload ?? {};
   if (a.type === 'OPNAME_VARIANCE') {
-    return `Sistem ${idr(p.system)} · fisik ${idr(p.physical)} · selisih ${idr(p.variance)}`;
+    return t('dashA.approvals.metaOpname', { system: idr(p.system), physical: idr(p.physical), variance: idr(p.variance) });
   }
   if (a.type === 'DEPOSIT_REFUND') {
-    return `Kondisi ${String(p.condition ?? '—')} · deposit ${idr(p.deposit)}`;
+    return t('dashA.approvals.metaDeposit', { condition: String(p.condition ?? '—'), deposit: idr(p.deposit) });
   }
-  return `Diharapkan ${idr(p.expected)} · diterima ${idr(p.received)}`;
+  return t('dashA.approvals.metaCod', { expected: idr(p.expected), received: idr(p.received) });
 }
 
 function Row({ a }: { a: Approval }) {
+  const { t } = useT();
   const Icon = TYPE_ICON[a.type] ?? Coins;
   return (
     <Link href={`/dashboard/approvals/${a.id}`} className="block">
@@ -50,13 +46,13 @@ function Row({ a }: { a: Approval }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold">{a.title}</p>
           <p className="mt-0.5 truncate text-xs text-[color:var(--text-muted)]">
-            {metaLine(a)}
-            {a.subjectRef ? ` · oleh ${a.subjectRef}` : ''}
+            {metaLine(a, t)}
+            {a.subjectRef ? t('dashA.approvals.by', { ref: a.subjectRef }) : ''}
           </p>
         </div>
         <div className="shrink-0 text-right">
           <Money amount={Math.abs(a.amountIdr)} className="text-sm font-extrabold text-[color:var(--danger)]" />
-          <p className="text-[11px] text-[color:var(--text-muted)]">{TYPE_LABEL[a.type]}</p>
+          <p className="text-[11px] text-[color:var(--text-muted)]">{t(`dashA.approvals.type.${a.type}`)}</p>
         </div>
         <CaretRight size={16} className="shrink-0 text-[color:var(--text-muted)]" />
       </Card>
@@ -65,6 +61,7 @@ function Row({ a }: { a: Approval }) {
 }
 
 function Body() {
+  const { t } = useT();
   const { scopedId, selected } = useDepot();
   const list = useAsync<Approval[]>(
     () =>
@@ -80,14 +77,14 @@ function Body() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-2">
         <Gavel size={24} weight="fill" className="text-brand-500" />
-        <h1 className="text-2xl font-bold">Antrean approval</h1>
+        <h1 className="text-2xl font-bold">{t('dashA.approvals.title')}</h1>
       </div>
       <div>
-        <p className="text-sm font-semibold">Menunggu approval · {count} item</p>
+        <p className="text-sm font-semibold">{t('dashA.approvals.waiting', { n: count })}</p>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">
           {selected
-            ? `Depot ${selected.name} · ${selected.code}`
-            : 'Menampilkan depot pertama — pilih depot di switcher.'}
+            ? t('dashA.approvals.depotScope', { name: selected.name, code: selected.code })
+            : t('dashA.approvals.pickDepot')}
         </p>
       </div>
 
@@ -96,8 +93,8 @@ function Body() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : count === 0 ? (
-        <CenterState title="Tidak ada approval" icon={<Gavel size={40} weight="fill" />}>
-          Semua permintaan sudah diproses untuk depot ini.
+        <CenterState title={t('dashA.approvals.emptyTitle')} icon={<Gavel size={40} weight="fill" />}>
+          {t('dashA.approvals.emptyBody')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -108,19 +105,19 @@ function Body() {
       )}
 
       <p className="text-xs text-[color:var(--text-muted)]">
-        Aksi di bawah ambang otomatis lolos tanpa persetujuan manajer. Hanya item di atas ambang
-        yang muncul di sini.
+        {t('dashA.approvals.footer')}
       </p>
     </div>
   );
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canReviewApprovals(customer?.role)) {
     return (
-      <CenterState title="Khusus manajer depot" icon={<Lock size={40} weight="fill" />}>
-        Antrean approval tersedia untuk manajer depot dan super admin.
+      <CenterState title={t('dashA.approvals.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashA.approvals.gateBody')}
       </CenterState>
     );
   }

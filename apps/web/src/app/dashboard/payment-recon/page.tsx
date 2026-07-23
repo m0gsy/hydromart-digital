@@ -8,6 +8,7 @@ import { Button, Card, CenterState, ErrorState, Money } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useT } from '@/lib/locale-context';
 import { isDepotManager } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { PaymentMethod, UnsettledMethodBucket } from '@/lib/types';
@@ -48,28 +49,30 @@ function MethodCard({ label, value, loading }: { label: string; value: number; l
 }
 
 function StatusBadge({ status }: { status: ReconStatus }) {
+  const { t } = useT();
   if (status === 'MATCHED') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--success)]">
-        <CheckCircle size={14} weight="fill" /> Cocok
+        <CheckCircle size={14} weight="fill" /> {t('dashB.paymentRecon.matched')}
       </span>
     );
   }
   if (status === 'PENDING') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--warning)]">
-        <Warning size={14} weight="fill" /> menunggu callback
+        <Warning size={14} weight="fill" /> {t('dashB.paymentRecon.pending')}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--danger)]">
-      <Warning size={14} weight="fill" /> Belum cocok
+      <Warning size={14} weight="fill" /> {t('dashB.paymentRecon.unmatched')}
     </span>
   );
 }
 
 function ReconRowItem({ row }: { row: ReconRow }) {
+  const { t } = useT();
   return (
     <div className="flex items-center justify-between gap-3 border-b border-app py-3 last:border-0">
       <div className="min-w-0">
@@ -85,7 +88,7 @@ function ReconRowItem({ row }: { row: ReconRow }) {
         </div>
         {row.status === 'UNMATCHED' && (
           <Button variant="secondary" className="shrink-0">
-            <LinkSimple size={14} /> Tautkan
+            <LinkSimple size={14} /> {t('dashB.paymentRecon.link')}
           </Button>
         )}
       </div>
@@ -94,6 +97,7 @@ function ReconRowItem({ row }: { row: ReconRow }) {
 }
 
 function PaymentReconBody() {
+  const { t } = useT();
   const today = useMemo(
     () => new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
     [],
@@ -112,9 +116,9 @@ function PaymentReconBody() {
       <div className="flex items-center gap-2">
         <Wallet size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Rekonsiliasi pembayaran</h1>
+          <h1 className="text-2xl font-bold">{t('dashB.paymentRecon.title')}</h1>
           <p className="text-sm text-muted tabular-nums">
-            {today} · {unmatched} belum cocok
+            {today} · {t('dashB.paymentRecon.unmatchedCount', { n: unmatched })}
           </p>
         </div>
       </div>
@@ -130,7 +134,7 @@ function PaymentReconBody() {
       </div>
 
       <Card className="flex flex-col p-5">
-        <h2 className="mb-1 font-semibold">Daftar transaksi</h2>
+        <h2 className="mb-1 font-semibold">{t('dashB.paymentRecon.transactions')}</h2>
         <div className="flex flex-col">
           {RECON_ROWS.map((r) => (
             <ReconRowItem key={r.id} row={r} />
@@ -141,8 +145,7 @@ function PaymentReconBody() {
       <Card className="flex gap-3 bg-[color:var(--surface-soft)] p-4">
         <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
         <p className="text-sm text-muted">
-          Transfer yang belum cocok perlu ditautkan manual ke pesanannya. QRIS menunggu callback
-          dari penyedia pembayaran dan akan cocok otomatis begitu dana masuk.
+          {t('dashB.paymentRecon.info')}
         </p>
       </Card>
     </div>
@@ -150,11 +153,12 @@ function PaymentReconBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!isDepotManager(customer?.role)) {
     return (
-      <CenterState title="Manajer depot saja" icon={<Lock size={40} weight="fill" />}>
-        Rekonsiliasi pembayaran hanya untuk manajer depot.
+      <CenterState title={t('dashB.paymentRecon.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.paymentRecon.gateBody')}
       </CenterState>
     );
   }

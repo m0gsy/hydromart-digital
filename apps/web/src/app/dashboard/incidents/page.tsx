@@ -20,6 +20,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
+import { useT } from '@/lib/locale-context';
 import { canViewIncidents } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotIncident, DepotIncidentSeverity, DepotIncidentType } from '@/lib/types';
@@ -31,21 +32,6 @@ const TYPE_ICON: Record<DepotIncidentType, Icon> = {
   POWER_OUTAGE: Lightning,
   GALLON_DAMAGE: Drop,
   OTHER: WarningCircle,
-};
-
-const TYPE_LABEL: Record<DepotIncidentType, string> = {
-  COURIER_FALL: 'Kurir terjatuh',
-  VEHICLE_BREAKDOWN: 'Kendaraan mogok',
-  CUSTOMER_CONFLICT: 'Konflik pelanggan',
-  POWER_OUTAGE: 'Listrik padam',
-  GALLON_DAMAGE: 'Galon bocor / rusak',
-  OTHER: 'Lainnya',
-};
-
-const SEVERITY_LABEL: Record<DepotIncidentSeverity, string> = {
-  HIGH: 'BERAT',
-  MEDIUM: 'SEDANG',
-  LOW: 'RINGAN',
 };
 
 const SEVERITY_BADGE: Record<DepotIncidentSeverity, 'danger' | 'warning' | 'neutral'> = {
@@ -71,13 +57,14 @@ function tileClass(incident: DepotIncident): string {
 
 /** Inline resolve form (add note → PATCH resolve, then reload the list). */
 function ResolveForm({ incident, onDone }: { incident: DepotIncident; onDone: () => void }) {
+  const { t } = useT();
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     if (note.trim().length < 3) {
-      setError('Tulis catatan penyelesaian minimal 3 karakter.');
+      setError(t('dashB.incidents.noteTooShort'));
       return;
     }
     setBusy(true);
@@ -86,7 +73,7 @@ function ResolveForm({ incident, onDone }: { incident: DepotIncident; onDone: ()
       await api.patch(endpoints.incidents.resolve(incident.id), { note: note.trim() }, true);
       onDone();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal menyelesaikan insiden.');
+      setError(err instanceof ApiError ? err.message : t('dashB.incidents.resolveError'));
     } finally {
       setBusy(false);
     }
@@ -94,12 +81,12 @@ function ResolveForm({ incident, onDone }: { incident: DepotIncident; onDone: ()
 
   return (
     <div className="mt-3 flex flex-col gap-2 border-t border-app pt-3">
-      <Field label="Catatan penyelesaian" htmlFor={`note-${incident.id}`}>
+      <Field label={t('dashB.incidents.noteLabel')} htmlFor={`note-${incident.id}`}>
         <Input
           id={`note-${incident.id}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="mis. Sudah ditangani manajer, pelanggan dihubungi"
+          placeholder={t('dashB.incidents.notePlaceholder')}
           autoFocus
         />
       </Field>
@@ -110,10 +97,10 @@ function ResolveForm({ incident, onDone }: { incident: DepotIncident; onDone: ()
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onDone} disabled={busy}>
-          Batal
+          {t('dashB.incidents.cancel')}
         </Button>
         <Button onClick={submit} loading={busy}>
-          Tandai selesai
+          {t('dashB.incidents.markDone')}
         </Button>
       </div>
     </div>
@@ -121,6 +108,7 @@ function ResolveForm({ incident, onDone }: { incident: DepotIncident; onDone: ()
 }
 
 function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChanged: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const resolved = incident.status === 'RESOLVED';
   const Ic = TYPE_ICON[incident.type];
@@ -144,20 +132,20 @@ function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChan
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold">{incident.title}</p>
             {resolved ? (
-              <Badge tone="success">SELESAI</Badge>
+              <Badge tone="success">{t('dashB.incidents.resolved')}</Badge>
             ) : (
-              <Badge tone={SEVERITY_BADGE[incident.severity]}>{SEVERITY_LABEL[incident.severity]}</Badge>
+              <Badge tone={SEVERITY_BADGE[incident.severity]}>{t(`dashB.incidents.severity.${incident.severity}`)}</Badge>
             )}
-            {incident.status === 'IN_PROGRESS' && <Chip tone="amber">Ditangani</Chip>}
+            {incident.status === 'IN_PROGRESS' && <Chip tone="amber">{t('dashB.incidents.inProgress')}</Chip>}
           </div>
           <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-            {TYPE_LABEL[incident.type]} · {meta.join(' · ')}
+            {t(`dashB.incidents.type.${incident.type}`)} · {meta.join(' · ')}
           </p>
         </div>
 
         <div className="shrink-0">
           <Button variant={resolved ? 'ghost' : 'secondary'} onClick={() => setOpen((v) => !v)}>
-            {resolved ? 'Rincian' : 'Tindak lanjut'}
+            {resolved ? t('dashB.incidents.detail') : t('dashB.incidents.followUp')}
           </Button>
         </div>
       </div>
@@ -165,11 +153,11 @@ function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChan
       {open && resolved && (
         <div className="mt-3 border-t border-app pt-3 text-sm">
           <p className="text-[color:var(--text-muted)]">
-            {incident.resolutionNote ?? 'Tidak ada catatan penyelesaian.'}
+            {incident.resolutionNote ?? t('dashB.incidents.noResolutionNote')}
           </p>
           {incident.resolvedAt && (
             <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-              Diselesaikan {formatDateTime(incident.resolvedAt)}
+              {t('dashB.incidents.resolvedAt', { time: formatDateTime(incident.resolvedAt) })}
             </p>
           )}
         </div>
@@ -182,6 +170,7 @@ function IncidentCard({ incident, onChanged }: { incident: DepotIncident; onChan
 type StatusFilter = 'ALL' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
 
 function IncidentsBody() {
+  const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [filter, setFilter] = useState<StatusFilter>('ALL');
 
@@ -201,10 +190,10 @@ function IncidentsBody() {
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
 
   const CHIPS: { key: StatusFilter; label: string; count?: number }[] = [
-    { key: 'ALL', label: 'Semua', count: all.length },
-    { key: 'OPEN', label: 'Baru', count: openCount },
-    { key: 'IN_PROGRESS', label: 'Ditangani', count: inProgressCount },
-    { key: 'RESOLVED', label: 'Selesai' },
+    { key: 'ALL', label: t('dashB.incidents.chipAll'), count: all.length },
+    { key: 'OPEN', label: t('dashB.incidents.chipOpen'), count: openCount },
+    { key: 'IN_PROGRESS', label: t('dashB.incidents.chipInProgress'), count: inProgressCount },
+    { key: 'RESOLVED', label: t('dashB.incidents.chipResolved') },
   ];
 
   return (
@@ -212,10 +201,10 @@ function IncidentsBody() {
       <div className="flex items-center gap-2">
         <Warning size={24} weight="fill" className="text-brand-500" />
         <div>
-          <h1 className="text-2xl font-bold">Insiden</h1>
+          <h1 className="text-2xl font-bold">{t('dashB.incidents.title')}</h1>
           {scopedDepot && (
             <p className="text-[12.5px] text-[color:var(--text-muted)]">
-              {scopedDepot.name} · {unresolved} terbuka
+              {scopedDepot.name} · {t('dashB.incidents.open', { n: unresolved })}
             </p>
           )}
         </div>
@@ -233,16 +222,16 @@ function IncidentsBody() {
       </div>
 
       {ready && depots.length === 0 ? (
-        <CenterState title="Belum ada depot" icon={<Warning size={40} weight="fill" />}>
-          Belum ada depot yang dikonfigurasi.
+        <CenterState title={t('dashB.incidents.noDepots')} icon={<Warning size={40} weight="fill" />}>
+          {t('dashB.incidents.noDepotsBody')}
         </CenterState>
       ) : list.loading ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : shown.length === 0 ? (
-        <CenterState title="Tidak ada insiden" icon={<Warning size={40} weight="fill" />}>
-          {filter === 'ALL' ? 'Depot ini belum punya catatan insiden.' : 'Tidak ada insiden untuk filter ini.'}
+        <CenterState title={t('dashB.incidents.noIncidents')} icon={<Warning size={40} weight="fill" />}>
+          {filter === 'ALL' ? t('dashB.incidents.emptyAll') : t('dashB.incidents.emptyFilter')}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-3">
@@ -256,11 +245,12 @@ function IncidentsBody() {
 }
 
 function Gate() {
+  const { t } = useT();
   const { customer } = useAuth();
   if (!canViewIncidents(customer?.role)) {
     return (
-      <CenterState title="Khusus staf depot" icon={<Lock size={40} weight="fill" />}>
-        Insiden hanya tersedia untuk operator dan manajer depot.
+      <CenterState title={t('dashB.incidents.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('dashB.incidents.gateBody')}
       </CenterState>
     );
   }
