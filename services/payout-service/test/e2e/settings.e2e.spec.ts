@@ -173,6 +173,14 @@ describe('Settings HTTP flows (e2e)', () => {
       .expect(403);
   });
 
+  it('forbids a depot manager from resetting a GLOBAL override (403)', async () => {
+    await request(server())
+      .delete('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'expenseAutoApproveMaxIdr' })
+      .expect(403);
+  });
+
   it('forbids a driver from writing settings (403)', async () => {
     await request(server())
       .put('/api/v1/settings')

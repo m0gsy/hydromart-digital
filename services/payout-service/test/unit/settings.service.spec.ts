@@ -69,6 +69,14 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
+  it('put rejects a DEPOT scope without depotId', async () => {
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(
+      svc.put({ scope: 'DEPOT', depotId: null, key: 'expenseAutoApproveMaxIdr', value: '1000', updatedBy: 'u1' }),
+    ).rejects.toThrow('depotId required for a DEPOT override');
+  });
+
   it('reset rejects a DEPOT scope without depotId', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
