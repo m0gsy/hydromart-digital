@@ -241,6 +241,7 @@ function AddressForm({
   const { t } = useT();
   const [locating, setLocating] = useState(false);
   const [geoHint, setGeoHint] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const pinned = form.latitude.trim() !== '' && form.longitude.trim() !== '';
 
@@ -298,8 +299,9 @@ function AddressForm({
         </Field>
       </div>
 
-      {/* Coords stay optional and flow through toAddressPayload. ponytail: no map picker —
-          browser geolocation + manual entry are the only sources, so both stay visible. */}
+      {/* Coords stay optional and flow through toAddressPayload. ponytail: no map picker.
+          One-tap geolocation is the only visible control — raw lat/lng is jargon to a
+          customer ordering water, so it stays folded away as the fallback it is. */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MapPin size={16} weight="fill" className="text-brand-600" />
@@ -338,14 +340,23 @@ function AddressForm({
         )}
         {geoHint && <p className="text-xs text-muted">{geoHint}</p>}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
-            <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
-          </Field>
-          <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
-            <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
-          </Field>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
+        >
+          {showAdvanced ? t('profile.addresses.pin.hideManual') : t('profile.addresses.pin.showManual')}
+        </button>
+        {showAdvanced && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
+              <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
+            </Field>
+            <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
+              <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
+            </Field>
+          </div>
+        )}
       </div>
 
       {error && (
