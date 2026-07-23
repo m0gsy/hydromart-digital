@@ -32,6 +32,14 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
   const [onTimeBonus, setOnTimeBonus] = useState('1000');
   const [peakStartHour, setPeakStartHour] = useState('17');
   const [peakEndHour, setPeakEndHour] = useState('20');
+  const [monthlyTarget, setMonthlyTarget] = useState('5000000');
+  // Fixed three rungs — a blank count drops the rung. ponytail: add/remove rows only if
+  // finance ever needs more than three.
+  const [tiers, setTiers] = useState([
+    { deliveries: '', bonus: '' },
+    { deliveries: '', bonus: '' },
+    { deliveries: '', bonus: '' },
+  ]);
   const [effectiveDate, setEffectiveDate] = useState(todayIso());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +57,10 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
           onTimeBonus: Number(onTimeBonus),
           peakStartHour: Number(peakStartHour),
           peakEndHour: Number(peakEndHour),
+          monthlyTarget: Number(monthlyTarget) || 0,
+          tiers: tiers
+            .filter((t) => Number(t.deliveries) > 0)
+            .map((t) => ({ deliveries: Number(t.deliveries), bonus: Number(t.bonus) || 0 })),
           effectiveDate,
         },
         true,
@@ -100,15 +112,45 @@ function ApplyForm({ depots, onSaved }: { depots: Depot[]; onSaved: () => void }
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Target bulanan kurir (IDR)" htmlFor="er-target">
+          <Input id="er-target" type="number" min={0} value={monthlyTarget} onChange={(e) => setMonthlyTarget(e.target.value)} />
+        </Field>
         <Field label="Peak mulai (jam)" htmlFor="er-start">
           <Input id="er-start" type="number" min={0} max={23} value={peakStartHour} onChange={(e) => setPeakStartHour(e.target.value)} />
         </Field>
         <Field label="Peak selesai (jam)" htmlFor="er-end">
           <Input id="er-end" type="number" min={1} max={24} value={peakEndHour} onChange={(e) => setPeakEndHour(e.target.value)} />
         </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Berlaku sejak" htmlFor="er-date">
           <Input id="er-date" type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
         </Field>
+      </div>
+      <p className="text-xs font-semibold">Tingkat insentif bulanan (kosongkan bila tidak dipakai)</p>
+      <div className="flex flex-col gap-2">
+        {tiers.map((tier, i) => (
+          <div key={i} className="grid gap-3 sm:grid-cols-2">
+            <Field label={`Pengiriman tingkat ${i + 1}`} htmlFor={`er-tier-n-${i}`}>
+              <Input
+                id={`er-tier-n-${i}`}
+                type="number"
+                min={1}
+                value={tier.deliveries}
+                onChange={(e) => setTiers((prev) => prev.map((t, j) => (i === j ? { ...t, deliveries: e.target.value } : t)))}
+              />
+            </Field>
+            <Field label={`Bonus tingkat ${i + 1} (IDR)`} htmlFor={`er-tier-b-${i}`}>
+              <Input
+                id={`er-tier-b-${i}`}
+                type="number"
+                min={0}
+                value={tier.bonus}
+                onChange={(e) => setTiers((prev) => prev.map((t, j) => (i === j ? { ...t, bonus: e.target.value } : t)))}
+              />
+            </Field>
+          </div>
+        ))}
       </div>
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
       <div className="flex justify-end gap-2">
@@ -135,6 +177,18 @@ function RuleRow({ r, depotName }: { r: CourierEarningRule; depotName: string })
         <span>Peak <strong className="tabular-nums">+{formatIDR(r.peakBonus)}</strong> ({r.peakStartHour}–{r.peakEndHour})</span>
         <span>Tepat waktu <strong className="tabular-nums">+{formatIDR(r.onTimeBonus)}</strong></span>
       </div>
+      {r.monthlyTarget > 0 && (
+        <p className="text-sm">Target bulanan <strong className="tabular-nums">{formatIDR(r.monthlyTarget)}</strong></p>
+      )}
+      {r.tiers.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          {r.tiers.map((tier) => (
+            <span key={tier.deliveries}>
+              {tier.deliveries} antar <strong className="tabular-nums">+{formatIDR(tier.bonus)}</strong>
+            </span>
+          ))}
+        </div>
+      )}
       <p className="text-xs text-muted">Berlaku sejak {DATE.format(new Date(r.effectiveDate))}</p>
     </Card>
   );

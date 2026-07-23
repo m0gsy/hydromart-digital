@@ -165,8 +165,13 @@ describe('NotificationPrismaRepository', () => {
   const notification = {
     create: jest.fn(),
     findMany: jest.fn(),
+    findFirst: jest.fn(),
   };
-  const prisma = { notification } as unknown as PrismaService;
+  const opsNotificationRead = {
+    upsert: jest.fn(),
+    createMany: jest.fn(),
+  };
+  const prisma = { notification, opsNotificationRead } as unknown as PrismaService;
   const repo = new NotificationPrismaRepository(prisma);
   const notifRow = () => ({
     id: 'notif-1',
@@ -220,15 +225,64 @@ describe('NotificationPrismaRepository', () => {
     expect(await repo.listForCustomer('cust-1', 20)).toEqual([]);
   });
 
-  it('listByEvents filters by the events set', async () => {
-    notification.findMany.mockResolvedValue([{ ...notifRow(), status: 'FAILED' }]);
-    const rows = await repo.listByEvents(['order.confirmed', 'order.delivered'], 5);
+  it('listOpsFeedFor filters by the events set and joins only the caller read receipt', async () => {
+    const readAt = new Date('2026-01-02');
+    notification.findMany.mockResolvedValue([
+      { ...notifRow(), status: 'FAILED', opsReads: [{ readAt }] },
+      { ...notifRow(), id: 'notif-2', opsReads: [] },
+    ]);
+    const rows = await repo.listOpsFeedFor(['stock.low', 'courier.incident'], 'staff-1', 5);
     expect(notification.findMany).toHaveBeenCalledWith({
-      where: { event: { in: ['order.confirmed', 'order.delivered'] } },
+      where: { event: { in: ['stock.low', 'courier.incident'] } },
       orderBy: { createdAt: 'desc' },
       take: 5,
+      include: { opsReads: { where: { staffId: 'staff-1' }, select: { readAt: true } } },
     });
     expect(rows[0].status).toBe(NotificationStatus.FAILED);
+    expect(rows[0].readAt).toEqual(readAt);
+    expect(rows[1].readAt).toBeNull();
+    expect(rows[0]).not.toHaveProperty('opsReads');
+  });
+
+  it('markOpsRead upserts within the ops event set and keeps the first timestamp', async () => {
+    const readAt = new Date('2026-01-02');
+    notification.findFirst.mockResolvedValue({ id: 'notif-1' });
+    opsNotificationRead.upsert.mockResolvedValue({ readAt });
+    expect(await repo.markOpsRead('notif-1', ['stock.low'], 'staff-1')).toEqual(readAt);
+    expect(notification.findFirst).toHaveBeenCalledWith({
+      where: { id: 'notif-1', event: { in: ['stock.low'] } },
+      select: { id: true },
+    });
+    expect(opsNotificationRead.upsert).toHaveBeenCalledWith({
+      where: { notificationId_staffId: { notificationId: 'notif-1', staffId: 'staff-1' } },
+      create: { notificationId: 'notif-1', staffId: 'staff-1' },
+      update: {},
+    });
+  });
+
+  it('markOpsRead returns null (and writes nothing) for a row outside the ops event set', async () => {
+    notification.findFirst.mockResolvedValue(null);
+    expect(await repo.markOpsRead('notif-1', ['stock.low'], 'staff-1')).toBeNull();
+    expect(opsNotificationRead.upsert).not.toHaveBeenCalled();
+  });
+
+  it('markAllOpsRead inserts the feed window, skipping rows already read', async () => {
+    notification.findMany.mockResolvedValue([{ id: 'notif-1' }, { id: 'notif-2' }]);
+    opsNotificationRead.createMany.mockResolvedValue({ count: 1 });
+    expect(await repo.markAllOpsRead(['stock.low'], 'staff-1', 50)).toBe(1);
+    expect(opsNotificationRead.createMany).toHaveBeenCalledWith({
+      data: [
+        { notificationId: 'notif-1', staffId: 'staff-1' },
+        { notificationId: 'notif-2', staffId: 'staff-1' },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  it('markAllOpsRead short-circuits on an empty feed', async () => {
+    notification.findMany.mockResolvedValue([]);
+    expect(await repo.markAllOpsRead(['stock.low'], 'staff-1', 50)).toBe(0);
+    expect(opsNotificationRead.createMany).not.toHaveBeenCalled();
   });
 });
 

@@ -745,7 +745,12 @@ describe('InventoryPrismaRepository', () => {
     findMany: jest.fn(),
     update: jest.fn(),
   };
-  const stockMovement = { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() };
+  const stockMovement = {
+    create: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+  };
   const stockReservation = { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() };
   const $queryRaw = jest.fn();
   // Support both array-form ($transaction([...]) -> Promise.all) and interactive callback form.
@@ -892,6 +897,72 @@ describe('InventoryPrismaRepository', () => {
     const out = await repo.listMovements('it-1');
     expect(stockMovement.findMany).toHaveBeenCalledWith({ where: { itemId: 'it-1' }, orderBy: { createdAt: 'desc' } });
     expect(out[0].type).toBe(StockMovementType.ADJUSTMENT);
+  });
+
+  it('lists one page of depot movements with item labels and filters', async () => {
+    const from = new Date('2026-07-01T00:00:00.000Z');
+    const to = new Date('2026-08-01T00:00:00.000Z');
+    const where = {
+      item: { depotId: 'depot-1' },
+      type: StockMovementType.OPNAME,
+      createdAt: { gte: from, lt: to },
+    };
+    stockMovement.findMany.mockResolvedValue([
+      {
+        id: 'mv-1',
+        itemId: 'it-1',
+        type: 'OPNAME',
+        delta: -2,
+        quantityBefore: 10,
+        quantityAfter: 8,
+        reason: 'Counted',
+        actorId: 'staff-1',
+        orderId: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+        item: { label: 'Galon 19L', itemType: 'GALON' },
+      },
+    ]);
+    stockMovement.count.mockResolvedValue(21);
+
+    const out = await repo.listForDepotMovements('depot-1', {
+      type: StockMovementType.OPNAME,
+      from,
+      to,
+      page: 2,
+      limit: 20,
+    });
+
+    expect(stockMovement.findMany).toHaveBeenCalledWith({
+      where,
+      select: {
+        id: true,
+        itemId: true,
+        type: true,
+        delta: true,
+        quantityBefore: true,
+        quantityAfter: true,
+        reason: true,
+        actorId: true,
+        orderId: true,
+        createdAt: true,
+        item: { select: { label: true, itemType: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: 20,
+      take: 20,
+    });
+    expect(stockMovement.count).toHaveBeenCalledWith({ where });
+    expect(out).toEqual({
+      total: 21,
+      items: [
+        expect.objectContaining({
+          id: 'mv-1',
+          type: StockMovementType.OPNAME,
+          itemLabel: 'Galon 19L',
+          itemType: InventoryItemType.GALON,
+        }),
+      ],
+    });
   });
 
   it('gathers wastage adjustments over a range, mapping nested item fields', async () => {

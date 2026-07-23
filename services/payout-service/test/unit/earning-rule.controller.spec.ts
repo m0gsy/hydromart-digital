@@ -32,6 +32,8 @@ describe('EarningRuleController', () => {
       onTimeBonus: 1000,
       peakStartHour: 17,
       peakEndHour: 20,
+      monthlyTarget: 0,
+      tiers: [],
       effectiveDate: new Date('2026-08-01'),
     });
   });

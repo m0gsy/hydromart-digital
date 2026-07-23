@@ -13,22 +13,22 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { InventoryItem, StockMovement, StockMovementType } from '@/lib/types';
+import type {
+  DepotStockMovement,
+  InventoryItem,
+  Page,
+  StockMovement,
+  StockMovementType,
+} from '@/lib/types';
 
 function num(v: string): number | null {
   const n = Number(v);
   return v.trim() !== '' && Number.isFinite(n) ? n : null;
 }
 
-const MOVEMENT_LABEL: Record<StockMovementType, string> = {
-  RECEIPT: 'Stok masuk',
-  ADJUSTMENT: 'Penyesuaian',
-  OPNAME: 'Opname',
-  SALE: 'Terjual',
-};
-
 /** Read-only movement ledger for one line — opname/adjust/sale/restock history (10b). */
 function MovementLog({ item }: { item: InventoryItem }) {
+  const { t } = useT();
   const log = useAsync<StockMovement[]>(() => api.get(endpoints.inventory.movements(item.id), true), [item.id]);
 
   if (log.loading) return <Skeleton className="h-24 w-full" />;
@@ -41,7 +41,7 @@ function MovementLog({ item }: { item: InventoryItem }) {
       {log.data.map((m) => (
         <li key={m.id} className="flex items-center justify-between gap-3 text-sm">
           <div className="min-w-0">
-            <span className="font-medium">{MOVEMENT_LABEL[m.type] ?? m.type}</span>
+            <span className="font-medium">{t(`opsFix.movementType.${m.type}`)}</span>
             {m.reason && <span className="text-muted"> · {m.reason}</span>}
             <p className="text-xs text-muted">{formatDateTime(m.createdAt)}</p>
           </div>
@@ -59,7 +59,7 @@ function MovementLog({ item }: { item: InventoryItem }) {
   );
 }
 
-type ActionMode = 'none' | 'adjust' | 'opname' | 'price';
+type ActionMode = 'none' | 'adjust' | 'opname' | 'price' | 'reorder';
 
 /**
  * Inline adjust / opname / price forms for one stock line. Reload the list on success.
@@ -77,6 +77,7 @@ function LineActions({
   initialMode?: ActionMode;
   receipt?: boolean;
 }) {
+  const { t } = useT();
   const isProduk = item.itemType === 'PRODUK';
   const [mode, setMode] = useState<ActionMode>(initialMode);
   const [value, setValue] = useState('');
@@ -86,9 +87,35 @@ function LineActions({
 
   function open(next: ActionMode) {
     setMode(next);
-    setValue(next === 'price' && item.sellPrice != null ? String(item.sellPrice) : '');
+    setValue(
+      next === 'price' && item.sellPrice != null
+        ? String(item.sellPrice)
+        : next === 'reorder'
+          ? String(item.minimumStock)
+          : '',
+    );
     setReason('');
     setError(null);
+  }
+
+  // 7c: reorder point = minimumStock (PATCH via the line-meta update endpoint).
+  async function saveReorder() {
+    const parsed = num(value);
+    if (parsed === null || parsed < 0) {
+      setError(t('opsFix.reorder.invalid'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(endpoints.inventory.update(item.id), { minimumStock: parsed }, true);
+      setMode('none');
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('opsFix.reorder.error'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   // sellPrice = null clears the override (back to catalog base).
@@ -147,11 +174,44 @@ function LineActions({
         <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('opname')}>
           Opname
         </Button>
+        <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('reorder')}>
+          {t('opsFix.reorder.button')}
+        </Button>
         {isProduk && (
           <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('price')}>
             Harga
           </Button>
         )}
+      </div>
+    );
+  }
+
+  if (mode === 'reorder') {
+    return (
+      <div className="flex flex-col gap-2">
+        <Field label={t('opsFix.reorder.label', { unit: item.unit })} htmlFor={`r-${item.id}`} hint={t('opsFix.reorder.hint')}>
+          <Input
+            id={`r-${item.id}`}
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={t('opsFix.reorder.placeholder')}
+            autoFocus
+          />
+        </Field>
+        {error && (
+          <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
+            Batal
+          </Button>
+          <Button onClick={saveReorder} loading={busy}>
+            {t('opsFix.reorder.save')}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -359,6 +419,183 @@ function Chip({
   );
 }
 
+const MOVE_TONE: Record<StockMovementType, { bg: string; fg: string }> = {
+  RECEIPT: { bg: 'bg-emerald-50', fg: 'text-emerald-700' },
+  ADJUSTMENT: { bg: 'bg-amber-50', fg: 'text-amber-700' },
+  OPNAME: { bg: 'bg-indigo-50', fg: 'text-indigo-700' },
+  SALE: { bg: 'bg-[color:var(--surface-soft)]', fg: 'text-[color:var(--text-muted)]' },
+};
+
+function DepotMovementLedger({ depotId }: { depotId: string }) {
+  const { t } = useT();
+  const [filter, setFilter] = useState<StockMovementType | 'all'>('all');
+  const ledger = useAsync<Page<DepotStockMovement>>(
+    () =>
+      api.get(
+        endpoints.inventory.depotMovements(depotId, {
+          type: filter === 'all' ? undefined : filter,
+          page: 1,
+          limit: 100,
+        }),
+        true,
+      ),
+    [depotId, filter],
+  );
+
+  const rows = ledger.data?.items ?? [];
+  const types: (StockMovementType | 'all')[] = ['all', 'RECEIPT', 'ADJUSTMENT', 'OPNAME', 'SALE'];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[12.5px] text-muted">{t('opsFix.ledger.subtitle')}</p>
+      <div className="flex flex-wrap gap-2">
+        {types.map((ty) => (
+          <Chip key={ty} active={filter === ty} onClick={() => setFilter(ty)}>
+            {ty === 'all' ? t('opsFix.ledger.all') : t(`opsFix.movementType.${ty}`)}
+          </Chip>
+        ))}
+      </div>
+      {ledger.loading ? (
+        <Skeleton className="h-48 w-full" />
+      ) : ledger.error ? (
+        <ErrorState message={ledger.error} onRetry={ledger.reload} />
+      ) : rows.length === 0 ? (
+        <CenterState title={t('opsFix.ledger.empty')} icon={<Package size={40} weight="fill" />}>
+          {t('opsFix.ledger.emptyBody')}
+        </CenterState>
+      ) : (
+        <Card className="flex flex-col divide-y divide-[color:var(--border)] p-0">
+          {rows.map((m) => {
+            const tone = MOVE_TONE[m.type];
+            return (
+              <div key={m.id} className="flex items-center gap-3 px-4 py-3">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold uppercase ${tone.bg} ${tone.fg}`}>
+                  {t(`opsFix.movementType.${m.type}`).slice(0, 3)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{m.itemLabel}</p>
+                  <p className="truncate text-xs text-muted">
+                    {t(`opsFix.movementType.${m.type}`)}
+                    {m.reason ? ` · ${m.reason}` : ''} · {formatDateTime(m.createdAt)}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right tabular-nums">
+                  <span className={`text-sm font-semibold ${m.delta < 0 ? 'text-[color:var(--danger)]' : 'text-emerald-700'}`}>
+                    {m.delta > 0 ? `+${m.delta}` : m.delta}
+                  </span>
+                  <p className="text-xs text-muted">
+                    {m.quantityBefore} → {m.quantityAfter}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/** 5a — batch stock-count sheet. One counted input per line; only changed rows are
+ *  submitted (opname per line — there is no batch opname endpoint). */
+function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClose: () => void; onDone: () => void }) {
+  const { t } = useT();
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const countedOf = (item: InventoryItem): number | null => {
+    const v = counts[item.id];
+    return v === undefined || v.trim() === '' ? null : num(v);
+  };
+  const changed = items.filter((i) => {
+    const c = countedOf(i);
+    return c !== null && c !== i.quantity;
+  });
+
+  async function submit() {
+    if (changed.length === 0) {
+      setError(t('opsFix.opname.noChanges'));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    let ok = 0;
+    let fail = 0;
+    for (const i of changed) {
+      try {
+        await api.post(endpoints.inventory.opname(i.id), { countedQuantity: countedOf(i)! }, true);
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    setBusy(false);
+    if (ok > 0) onDone();
+    if (fail > 0) setError(t('opsFix.opname.submitError'));
+    else onClose();
+  }
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div>
+        <h2 className="text-lg font-bold">{t('opsFix.opname.title')}</h2>
+        <p className="text-sm text-muted">{t('opsFix.opname.subtitle')}</p>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="min-w-[520px]">
+          <div className="grid grid-cols-[minmax(140px,2fr)_80px_130px_90px] gap-2 border-b border-app px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+            <span>{t('opsFix.opname.colProduct')}</span>
+            <span className="text-right">{t('opsFix.opname.colSystem')}</span>
+            <span className="text-right">{t('opsFix.opname.colCounted')}</span>
+            <span className="text-right">{t('opsFix.opname.colVariance')}</span>
+          </div>
+          <div className="divide-y divide-[color:var(--border)]">
+            {items.map((i) => {
+              const c = countedOf(i);
+              const variance = c === null ? null : c - i.quantity;
+              return (
+                <div key={i.id} className="grid grid-cols-[minmax(140px,2fr)_80px_130px_90px] items-center gap-2 py-2">
+                  <span className="truncate text-sm font-medium">{i.label}</span>
+                  <span className="text-right text-sm tabular-nums text-muted">{i.quantity}</span>
+                  <Input
+                    inputMode="numeric"
+                    value={counts[i.id] ?? ''}
+                    onChange={(e) => setCounts((prev) => ({ ...prev, [i.id]: e.target.value }))}
+                    placeholder={String(i.quantity)}
+                    className="text-right"
+                  />
+                  <span
+                    className={`text-right text-sm font-semibold tabular-nums ${
+                      variance == null || variance === 0 ? 'text-muted' : variance < 0 ? 'text-[color:var(--danger)]' : 'text-emerald-700'
+                    }`}
+                  >
+                    {variance == null ? '—' : variance > 0 ? `+${variance}` : variance}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {error && (
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose} disabled={busy}>
+          {t('opsFix.opname.cancel')}
+        </Button>
+        <Button onClick={submit} loading={busy} disabled={changed.length === 0}>
+          {t('opsFix.opname.save')}
+          {changed.length > 0 ? ` · ${changed.length}` : ''}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function InventoryBody() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -368,6 +605,8 @@ function InventoryBody() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry>({ mode: 'none', receipt: false });
+  const [view, setView] = useState<'stock' | 'movements'>('stock');
+  const [opnameOpen, setOpnameOpen] = useState(false);
 
   const lines = useAsync<InventoryItem[]>(
     () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: lowOnly }), true) : Promise.resolve([])),
@@ -407,20 +646,32 @@ function InventoryBody() {
           <Package size={24} weight="fill" className="text-brand-500" />
           <h1 className="text-2xl font-bold">Inventory</h1>
         </div>
-        {canWrite && (
-          <div className="flex gap-2">
-            <Button className="bg-brand-600" disabled={visible.length === 0} onClick={() => headerOpen('adjust', true)}>
-              <Plus size={16} weight="bold" /> Terima stok
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={visible.length === 0}
-              onClick={() => headerOpen('opname', false)}
-            >
-              <ClipboardText size={16} /> Opname
-            </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
+            {(['stock', 'movements'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 transition-colors ${
+                  view === v ? 'bg-brand-600 text-on-brand' : 'surface-elevated hover:bg-brand-50'
+                }`}
+              >
+                {v === 'stock' ? t('opsFix.view.stock') : t('opsFix.view.movements')}
+              </button>
+            ))}
           </div>
-        )}
+          {canWrite && view === 'stock' && (
+            <>
+              <Button className="bg-brand-600" disabled={visible.length === 0} onClick={() => headerOpen('adjust', true)}>
+                <Plus size={16} weight="bold" /> Terima stok
+              </Button>
+              <Button variant="secondary" disabled={visible.length === 0} onClick={() => setOpnameOpen((v) => !v)}>
+                <ClipboardText size={16} /> {t('opsFix.opname.open')}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {scopedDepot && (
@@ -460,8 +711,14 @@ function InventoryBody() {
         <CenterState title={t('dashboard.inventory.noLines')} icon={<Package size={40} weight="fill" />}>
           {lowOnly ? t('dashboard.inventory.noLinesLow') : t('dashboard.inventory.noLinesAll')}
         </CenterState>
+      ) : view === 'movements' ? (
+        <DepotMovementLedger depotId={scopedId!} />
       ) : (
-        <Card className="overflow-hidden p-0">
+        <>
+          {canWrite && opnameOpen && (
+            <OpnameSheet items={visible} onClose={() => setOpnameOpen(false)} onDone={lines.reload} />
+          )}
+          <Card className="overflow-hidden p-0">
           <div className="overflow-x-auto">
             <div className="min-w-[760px]">
               <div
@@ -489,7 +746,8 @@ function InventoryBody() {
               </div>
             </div>
           </div>
-        </Card>
+          </Card>
+        </>
       )}
     </div>
   );

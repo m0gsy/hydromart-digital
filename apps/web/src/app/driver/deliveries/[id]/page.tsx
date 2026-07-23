@@ -171,7 +171,7 @@ function Detail() {
       )}
       {delivery.status === 'ON_DELIVERY' &&
         (capturing ? (
-          <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={() => router.replace('/driver')} />
+          <PodCapture deliveryId={id} orderNumber={delivery.orderNumber} onDone={() => router.replace(`/driver/deliveries/${id}/success`)} />
         ) : (
           <div className="space-y-2">
             {delivery.destinationLat != null && delivery.destinationLng != null ? (

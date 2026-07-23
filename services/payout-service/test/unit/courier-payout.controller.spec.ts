@@ -18,6 +18,7 @@ describe('CourierPayoutController', () => {
     withdrawalHistory: jest.fn().mockResolvedValue([]),
     recordDeliveryEarning: jest.fn(),
     recordCashVariance: jest.fn(),
+    effectiveRule: jest.fn().mockResolvedValue(null),
   };
   const expenses = {
     submit: jest.fn().mockResolvedValue({ id: 'x1' }),
@@ -33,6 +34,13 @@ describe('CourierPayoutController', () => {
   it('summary delegates with user.sub', async () => {
     await controller.summary(user);
     expect(payout.summary).toHaveBeenCalledWith('courier-1');
+  });
+
+  it('earningRule delegates the depot from the token, null when unassigned', async () => {
+    await controller.earningRule({ ...user, depotId: 'dep-1' } as AuthenticatedUser);
+    expect(payout.effectiveRule).toHaveBeenCalledWith('dep-1');
+    await controller.earningRule(user);
+    expect(payout.effectiveRule).toHaveBeenLastCalledWith(null);
   });
 
   it('ledger delegates sub + page + limit', async () => {

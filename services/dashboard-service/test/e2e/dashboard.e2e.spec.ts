@@ -12,6 +12,8 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { InMemoryDashboardSources } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
+const DEPOT_A = '11111111-1111-4111-8111-111111111111';
+const DEPOT_B = '22222222-2222-4222-8222-222222222222';
 
 // Unlike the DB-backed services (whose Prisma client auto-loads .env into
 // process.env), this BFF has no such side-effect, so seed the vars the
@@ -62,7 +64,10 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    managerToken = jwt.sign(
+      { sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62', depotId: DEPOT_A },
+      { secret },
+    );
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
     ownerToken = jwt.sign({ sub: 'o', role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
   });
@@ -99,6 +104,34 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
   it('rejects an invalid date filter (400)', async () => {
     await request(server())
       .get('/api/v1/dashboard/executive?from=not-a-date')
+      .set(auth(managerToken))
+      .expect(400);
+  });
+
+  it('returns operational monthly P&L for the manager assigned depot', async () => {
+    const res = await request(server())
+      .get(`/api/v1/dashboard/monthly-pnl?depotId=${DEPOT_A}&month=2026-07`)
+      .set(auth(managerToken))
+      .expect(200);
+
+    expect(res.body).toMatchObject({
+      depotId: DEPOT_A,
+      month: '2026-07',
+      reportType: 'OPERATIONAL_MANAGEMENT',
+      sources: { order: 'ok', depot: 'ok' },
+    });
+  });
+
+  it('forbids a depot manager from querying another depot P&L', async () => {
+    await request(server())
+      .get(`/api/v1/dashboard/monthly-pnl?depotId=${DEPOT_B}&month=2026-07`)
+      .set(auth(managerToken))
+      .expect(403);
+  });
+
+  it('rejects an invalid P&L month', async () => {
+    await request(server())
+      .get(`/api/v1/dashboard/monthly-pnl?depotId=${DEPOT_A}&month=2026-13`)
       .set(auth(managerToken))
       .expect(400);
   });

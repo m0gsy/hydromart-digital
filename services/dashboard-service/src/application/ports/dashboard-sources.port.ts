@@ -78,6 +78,48 @@ export interface DepotRatingByDepot {
   items: { depotId: string; rating: number; reviewCount: number }[];
 }
 
+export interface DepotMonthlyRevenue {
+  depotId: string;
+  month: string;
+  orders: number;
+  revenueIdr: number;
+}
+
+export interface DepotOperationalCosts {
+  depotId: string;
+  from: string;
+  to: string;
+  reportType: 'OPERATIONAL_MANAGEMENT';
+  disclaimer: string;
+  cogs: {
+    amountIdr: number | null;
+    coveredAmountIdr: number;
+    totalUnits: number;
+    coveredUnits: number;
+    uncoveredUnits: number;
+    status: 'complete' | 'partial';
+    valuationMethod: 'LATEST_RECEIVED_DIRECT_PRODUCT_COST';
+    uncoveredItems: {
+      itemId: string;
+      itemType: string;
+      label: string;
+      units: number;
+      reason: 'NO_MATCHING_RECEIVED_PO' | 'AMBIGUOUS_ITEM_LABEL' | 'AMBIGUOUS_PO_COST';
+    }[];
+  };
+  opex: {
+    amountIdr: number | null;
+    coveredAmountIdr: number;
+    status: 'complete' | 'partial';
+    includedEntries: number;
+    excludedProcurementAmountIdr: number;
+    excludedProcurementEntries: number;
+    unverifiedProcurementAmountIdr: number;
+    unverifiedProcurementEntries: number;
+    exclusionRule: 'NORMALIZED_CATEGORY_PO_AND_RECEIVED_PO_SOURCE_REF';
+  };
+}
+
 /**
  * Reads report data from downstream services (order + delivery + depot). Each
  * method forwards the caller's bearer token and returns `null` on any failure
@@ -99,4 +141,12 @@ export interface DashboardSourcesPort {
   slaByDepot(range: DateRange, token: string): Promise<DepotSlaByDepot | null>;
   /** Average rating grouped per depot (order-service GET /reports/rating-by-depot). */
   ratingByDepot(range: DateRange, token: string): Promise<DepotRatingByDepot | null>;
+  /** One depot's real order revenue for a YYYY-MM month. */
+  depotMonthly(depotId: string, month: string, token: string): Promise<DepotMonthlyRevenue | null>;
+  /** One depot's operational costs and source coverage over [from,to). */
+  operationalCosts(
+    depotId: string,
+    range: Required<DateRange>,
+    token: string,
+  ): Promise<DepotOperationalCosts | null>;
 }

@@ -2,6 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import { DeliveryRepository, ReportRange } from '../ports/delivery.repository';
+import { RatingPort } from '../ports/rating.port';
+import { SettlementRepository } from '../ports/settlement.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 
 export interface SlaReport {
@@ -34,11 +36,31 @@ export interface DepotSlaReport {
   depots: DepotSlaRow[];
 }
 
+export interface DepotTeamReport {
+  from: string;
+  to: string;
+  couriers: {
+    driverId: string;
+    delivered: number;
+    onTimeRate: number;
+    failed: number;
+    rating: number | null;
+  }[];
+  operators: {
+    operatorId: string;
+    verifiedSettlements: number;
+    varianceIdr: number;
+  }[];
+}
+
 /** Delivery SLA report over the delivery book (M6, operational dashboard). */
 @Injectable()
 export class ReportService {
   constructor(
     @Inject(DELIVERY_TOKENS.DeliveryRepository) private readonly deliveries: DeliveryRepository,
+    @Inject(DELIVERY_TOKENS.SettlementRepository)
+    private readonly settlements: SettlementRepository,
+    @Inject(DELIVERY_TOKENS.Rating) private readonly rating: RatingPort,
     private readonly config: DeliveryConfigService,
   ) {}
 
@@ -81,5 +103,34 @@ export class ReportService {
           s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
       })),
     };
+  }
+
+  async depotTeam(depotId: string, from: Date, to: Date): Promise<DepotTeamReport> {
+    const [activity, operators] = await Promise.all([
+      this.deliveries.depotCourierActivityInWindow(depotId, from, to),
+      this.settlements.verifiedByOperatorInWindow(depotId, from, to),
+    ]);
+    const threshold = this.config.slaMinutes;
+    // ponytail: one existing batch-rating call per courier; depot teams are small. Add a
+    // depot-wide order-service contract only if this becomes a measured latency bottleneck.
+    const couriers = await Promise.all(
+      activity.map(async (row) => {
+        const rating = await this.rating.avgRating(row.delivered.map((delivery) => delivery.orderId));
+        const onTime = row.delivered.filter(
+          (delivery) =>
+            (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60_000 <= threshold,
+        ).length;
+        return {
+          driverId: row.driverId,
+          delivered: row.delivered.length,
+          onTimeRate: row.delivered.length === 0 ? 0 : onTime / row.delivered.length,
+          failed: row.failed,
+          rating: rating.average === null ? null : Math.round(rating.average * 10) / 10,
+        };
+      }),
+    );
+    couriers.sort((a, b) => b.delivered - a.delivered || b.onTimeRate - a.onTimeRate);
+    operators.sort((a, b) => b.verifiedSettlements - a.verifiedSettlements);
+    return { from: from.toISOString(), to: to.toISOString(), couriers, operators };
   }
 }

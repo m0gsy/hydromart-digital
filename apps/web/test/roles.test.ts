@@ -4,6 +4,7 @@ import {
   canManageEarningRules,
   canManagePricing,
   canViewDashboard,
+  dashboardLandingView,
   isDepotManager,
   isDepotOperator,
   isHq,
@@ -46,6 +47,22 @@ describe('capability wrappers delegate to the shared map', () => {
   it('canManagePricing maps to depotAdmin (manager/super-admin)', () => {
     expect(canManagePricing('DEPOT_MANAGER')).toBe(true);
     expect(canManagePricing('DEPOT_OPERATOR')).toBe(false);
+  });
+});
+
+describe('dashboardLandingView (one route, four audiences)', () => {
+  it('redirects franchise owners to their own overview', () => {
+    expect(dashboardLandingView('FRANCHISE_OWNER')).toBe('franchise');
+  });
+  it('gives depot operators the daily summary, managers the ops landing', () => {
+    expect(dashboardLandingView('DEPOT_OPERATOR')).toBe('operator');
+    expect(dashboardLandingView('DEPOT_MANAGER')).toBe('manager');
+  });
+  it('gives head-office roles the executive view', () => {
+    for (const r of ['HEAD_OFFICE', 'SUPER_ADMIN']) expect(dashboardLandingView(r)).toBe('executive');
+  });
+  it('denies customers, FINANCE (no dashboard capability), and unknown/nullish roles', () => {
+    for (const r of ['CUSTOMER', 'FINANCE', 'NOPE', '', null, undefined]) expect(dashboardLandingView(r)).toBe('denied');
   });
 });
 

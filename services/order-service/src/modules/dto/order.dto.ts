@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
   IsArray,
   IsDateString,
   IsEnum,
@@ -159,6 +161,25 @@ export class RatingBatchDto {
   @ArrayMaxSize(500)
   @IsUUID('all', { each: true })
   orderIds!: string[];
+}
+
+/** Internal: batch-read authoritative order totals for cross-service reporting. */
+export class OrderValueBatchDto {
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 500, uniqueItems: true })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(500)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  orderIds!: string[];
+}
+
+export class OrderValueDto {
+  @ApiProperty({ format: 'uuid' })
+  orderId!: string;
+
+  @ApiProperty({ example: 50_000, description: 'Authoritative order total in integer IDR.' })
+  totalIdr!: number;
 }
 
 /** Spec 7b: set up a recurring galon delivery. */

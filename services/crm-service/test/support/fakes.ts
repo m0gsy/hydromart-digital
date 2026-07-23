@@ -25,6 +25,7 @@ import {
 import {
   NotificationRecord,
   NotificationRepository,
+  OpsNotificationRecord,
   RecordNotificationData,
 } from '../../src/application/ports/notification.repository';
 
@@ -184,12 +185,40 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       .map((r) => ({ ...r }));
   }
 
-  async listByEvents(events: string[], limit: number): Promise<NotificationRecord[]> {
+  /** `${notificationId}:${staffId}` → readAt. */
+  reads = new Map<string, Date>();
+
+  private window(events: string[], limit: number): NotificationRecord[] {
     return this.records
       .filter((r) => events.includes(r.event))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, limit)
-      .map((r) => ({ ...r }));
+      .slice(0, limit);
+  }
+
+  async listOpsFeedFor(events: string[], staffId: string, limit: number): Promise<OpsNotificationRecord[]> {
+    return this.window(events, limit).map((r) => ({ ...r, readAt: this.reads.get(`${r.id}:${staffId}`) ?? null }));
+  }
+
+  async markOpsRead(notificationId: string, events: string[], staffId: string): Promise<Date | null> {
+    const found = this.records.find((r) => r.id === notificationId && events.includes(r.event));
+    if (!found) return null;
+    const key = `${notificationId}:${staffId}`;
+    const existing = this.reads.get(key);
+    if (existing) return existing;
+    const readAt = nextDate();
+    this.reads.set(key, readAt);
+    return readAt;
+  }
+
+  async markAllOpsRead(events: string[], staffId: string, limit: number): Promise<number> {
+    let marked = 0;
+    for (const r of this.window(events, limit)) {
+      const key = `${r.id}:${staffId}`;
+      if (this.reads.has(key)) continue;
+      this.reads.set(key, nextDate());
+      marked += 1;
+    }
+    return marked;
   }
 }
 

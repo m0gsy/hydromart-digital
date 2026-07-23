@@ -52,6 +52,7 @@ describe('DeliveryPrismaRepository', () => {
     lastLat: null,
     lastLng: null,
     lastLocationAt: null,
+    estimatedArrivalAt: null,
     assignedAt: new Date('2026-01-01T08:00:00Z'),
     pickedUpAt: null,
     startedAt: null,
@@ -247,15 +248,59 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
-  it('updateLocation stamps the coordinates and time', async () => {
-    delivery.update.mockResolvedValue(deliveryRow({ lastLat: -6.3, lastLng: 106.9 }));
-    const rec = await repo.updateLocation('del-1', -6.3, 106.9);
+  it('depotCourierActivityInWindow groups delivered orders and failures by driver', async () => {
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+    const assignedAt = new Date('2026-01-02T08:00:00Z');
+    const deliveredAt = new Date('2026-01-02T08:30:00Z');
+    const failedAt = new Date('2026-01-03T08:00:00Z');
+    delivery.findMany.mockResolvedValue([
+      { driverId: 'drv-1', orderId: 'ord-1', assignedAt, deliveredAt, failedAt: null },
+      { driverId: 'drv-1', orderId: 'ord-2', assignedAt, deliveredAt: null, failedAt },
+      { driverId: 'drv-2', orderId: 'ord-3', assignedAt, deliveredAt, failedAt: null },
+    ]);
+
+    expect(await repo.depotCourierActivityInWindow('dep-1', from, to)).toEqual([
+      {
+        driverId: 'drv-1',
+        delivered: [{ orderId: 'ord-1', assignedAt, deliveredAt }],
+        failed: 1,
+      },
+      {
+        driverId: 'drv-2',
+        delivered: [{ orderId: 'ord-3', assignedAt, deliveredAt }],
+        failed: 0,
+      },
+    ]);
+    expect(delivery.findMany).toHaveBeenCalledWith({
+      where: {
+        depotId: 'dep-1',
+        OR: [{ deliveredAt: { gte: from, lt: to } }, { failedAt: { gte: from, lt: to } }],
+      },
+      select: {
+        driverId: true,
+        orderId: true,
+        assignedAt: true,
+        deliveredAt: true,
+        failedAt: true,
+      },
+    });
+  });
+
+  it('updateLocation stamps the coordinates, time, and refreshed ETA', async () => {
+    const eta = new Date('2026-01-01T08:30:00Z');
+    delivery.update.mockResolvedValue(
+      deliveryRow({ lastLat: -6.3, lastLng: 106.9, estimatedArrivalAt: eta }),
+    );
+    const rec = await repo.updateLocation('del-1', -6.3, 106.9, eta);
     expect(rec.lastLat).toBe(-6.3);
+    expect(rec.estimatedArrivalAt).toEqual(eta);
     const call = delivery.update.mock.calls[0][0];
     expect(call.where).toEqual({ id: 'del-1' });
     expect(call.data.lastLat).toBe(-6.3);
     expect(call.data.lastLng).toBe(106.9);
     expect(call.data.lastLocationAt).toBeInstanceOf(Date);
+    expect(call.data.estimatedArrivalAt).toEqual(eta);
   });
 
   it('applyStatus writes status + timestamps + a history row', async () => {
@@ -537,6 +582,30 @@ describe('SettlementPrismaRepository', () => {
       by: ['driverId'],
       where: { depotId: 'dep-1', chargedToDriver: true, createdAt: { gte: from, lt: to } },
       _sum: { variance: true },
+    });
+  });
+
+  it('verifiedByOperatorInWindow counts settlements and sums each absolute variance', async () => {
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+    cashSettlement.findMany.mockResolvedValue([
+      { verifiedBy: 'op-1', variance: -5_000 },
+      { verifiedBy: 'op-1', variance: 2_000 },
+      { verifiedBy: 'op-2', variance: 0 },
+    ]);
+
+    expect(await repo.verifiedByOperatorInWindow('dep-1', from, to)).toEqual([
+      { operatorId: 'op-1', verifiedSettlements: 2, varianceIdr: 7_000 },
+      { operatorId: 'op-2', verifiedSettlements: 1, varianceIdr: 0 },
+    ]);
+    expect(cashSettlement.findMany).toHaveBeenCalledWith({
+      where: {
+        depotId: 'dep-1',
+        status: SettlementStatus.VERIFIED,
+        verifiedBy: { not: null },
+        verifiedAt: { gte: from, lt: to },
+      },
+      select: { verifiedBy: true, variance: true },
     });
   });
 

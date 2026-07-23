@@ -3,6 +3,8 @@ import {
   DateRange,
   DeliverySla,
   DepotRatingByDepot,
+  DepotMonthlyRevenue,
+  DepotOperationalCosts,
   DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
@@ -111,5 +113,45 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   }
   async ratingByDepot(_range: DateRange, _token: string): Promise<DepotRatingByDepot | null> {
     return this.orderDown ? null : RATING_BY_DEPOT;
+  }
+  async depotMonthly(
+    depotId: string,
+    month: string,
+    _token: string,
+  ): Promise<DepotMonthlyRevenue | null> {
+    return this.orderDown ? null : { depotId, month, orders: 12, revenueIdr: 1_000_000 };
+  }
+  async operationalCosts(
+    depotId: string,
+    range: Required<DateRange>,
+    _token: string,
+  ): Promise<DepotOperationalCosts | null> {
+    return {
+      depotId,
+      ...range,
+      reportType: 'OPERATIONAL_MANAGEMENT',
+      disclaimer: 'Operational management report only; not statutory accounting or a tax statement.',
+      cogs: {
+        amountIdr: 400_000,
+        coveredAmountIdr: 400_000,
+        totalUnits: 100,
+        coveredUnits: 100,
+        uncoveredUnits: 0,
+        status: 'complete',
+        valuationMethod: 'LATEST_RECEIVED_DIRECT_PRODUCT_COST',
+        uncoveredItems: [],
+      },
+      opex: {
+        amountIdr: 150_000,
+        coveredAmountIdr: 150_000,
+        status: 'complete',
+        includedEntries: 2,
+        excludedProcurementAmountIdr: 400_000,
+        excludedProcurementEntries: 1,
+        unverifiedProcurementAmountIdr: 0,
+        unverifiedProcurementEntries: 0,
+        exclusionRule: 'NORMALIZED_CATEGORY_PO_AND_RECEIVED_PO_SOURCE_REF',
+      },
+    };
   }
 }

@@ -4,6 +4,7 @@ import { SettlementStatus } from '../../domain/settlement';
 import {
   CourierShortfall,
   CreateSettlementData,
+  OperatorSettlementStats,
   ResolveSettlementPatch,
   SettlementQuery,
   SettlementRecord,
@@ -87,6 +88,35 @@ export class SettlementPrismaRepository implements SettlementRepository {
     });
     // variance is negative for a shortfall; report the positive amount owed.
     return rows.map((r) => ({ driverId: r.driverId, shortfallIdr: Math.abs(r._sum.variance ?? 0) }));
+  }
+
+  async verifiedByOperatorInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<OperatorSettlementStats[]> {
+    const rows = await this.prisma.cashSettlement.findMany({
+      where: {
+        depotId,
+        status: SettlementStatus.VERIFIED,
+        verifiedBy: { not: null },
+        verifiedAt: { gte: from, lt: to },
+      },
+      select: { verifiedBy: true, variance: true },
+    });
+    const grouped = new Map<string, OperatorSettlementStats>();
+    for (const row of rows) {
+      if (!row.verifiedBy) continue;
+      const stats = grouped.get(row.verifiedBy) ?? {
+        operatorId: row.verifiedBy,
+        verifiedSettlements: 0,
+        varianceIdr: 0,
+      };
+      stats.verifiedSettlements += 1;
+      stats.varianceIdr += Math.abs(row.variance);
+      grouped.set(row.verifiedBy, stats);
+    }
+    return [...grouped.values()];
   }
 
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {

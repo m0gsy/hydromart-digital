@@ -43,6 +43,8 @@ export interface CourierLedgerRepository {
   balanceFor(courierId: string): Promise<number>;
   /** Sum of entries of one type since an inclusive date (e.g. this month's earnings). */
   sumByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
+  /** Count of entries of one type since an inclusive date (e.g. this month's deliveries). */
+  countByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number>;
   listForCourier(
     courierId: string,
     page: number,
@@ -52,7 +54,7 @@ export interface CourierLedgerRepository {
    * The earning rule in force for a depot: the depot's newest rule, or the network
    * default (depotId NULL) when the depot has none. Null if neither exists.
    */
-  currentRule(depotId: string | null): Promise<CourierEarningRule | null>;
+  currentRule(depotId: string | null): Promise<CourierEarningRuleRecord | null>;
   /** Every earning rule, newest effective first (rule editor, design 6b). */
   listRules(): Promise<CourierEarningRuleRecord[]>;
   /** Append a new effective-dated rule (network default when depotId is null). */

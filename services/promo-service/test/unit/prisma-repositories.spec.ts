@@ -193,6 +193,31 @@ describe('VoucherPrismaRepository', () => {
     expect(voucherRedemption.count).toHaveBeenLastCalledWith({ where: { voucherId: 'v-1' } });
   });
 
+  it('loads all authoritative redemption rows for one linked voucher in one query', async () => {
+    const rows = [
+      {
+        id: 'r-1',
+        voucherId: 'v-1',
+        voucherCode: 'HEMAT10',
+        customerId: 'c-1',
+        orderId: 'o-1',
+        discountApplied: 1000,
+        createdAt: new Date('2026-07-22T00:00:00Z'),
+      },
+    ];
+    voucherRedemption.findMany.mockResolvedValue(rows);
+
+    const result = await (
+      repo as unknown as { findRedemptionsFor(voucherId: string): Promise<typeof rows> }
+    ).findRedemptionsFor('v-1');
+
+    expect(result).toEqual(rows);
+    expect(voucherRedemption.findMany).toHaveBeenCalledWith({
+      where: { voucherId: 'v-1' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+  });
+
   it('sumRedemptionsFor returns the aggregate sum, 0 when null', async () => {
     voucherRedemption.aggregate.mockResolvedValue({ _sum: { discountApplied: 5000 } });
     expect(await repo.sumRedemptionsFor('v-1')).toBe(5000);

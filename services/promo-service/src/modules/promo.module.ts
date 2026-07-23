@@ -15,6 +15,7 @@ import { VoucherRequestPrismaRepository } from '../infrastructure/prisma/voucher
 import { PromotionPrismaRepository } from '../infrastructure/prisma/promotion.prisma.repository';
 import { CustomerLookupHttpAdapter } from '../infrastructure/http/customer-lookup.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { OrderValueHttpAdapter } from '../infrastructure/http/order-value.http.adapter';
 import { VoucherController } from './voucher.controller';
 import {
   DepotVoucherRequestController,
@@ -33,6 +34,7 @@ const providers: Provider[] = [
   { provide: PROMO_TOKENS.PromotionRepository, useClass: PromotionPrismaRepository },
   { provide: PROMO_TOKENS.CustomerLookup, useClass: CustomerLookupHttpAdapter },
   { provide: PROMO_TOKENS.Notification, useClass: NotificationHttpAdapter },
+  { provide: PROMO_TOKENS.OrderValues, useClass: OrderValueHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
 ];

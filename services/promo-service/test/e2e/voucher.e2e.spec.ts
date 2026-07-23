@@ -11,7 +11,7 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/plat
 import { PromoModule } from '../../src/modules/promo.module';
 import { PROMO_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
-import { InMemoryVoucherRepository } from '../support/fakes';
+import { InMemoryPromotionRepository, InMemoryVoucherRepository } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 const INTERNAL_KEY = 'test-internal-service-key-0123456789';
@@ -51,6 +51,8 @@ describe('Voucher HTTP flows (e2e)', () => {
       .useValue(prismaStub)
       .overrideProvider(PROMO_TOKENS.VoucherRepository)
       .useValue(new InMemoryVoucherRepository())
+      .overrideProvider(PROMO_TOKENS.PromotionRepository)
+      .useValue(new InMemoryPromotionRepository())
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -119,5 +121,31 @@ describe('Voucher HTTP flows (e2e)', () => {
       .send({ code: 'HEMAT10', customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 })
       .expect(200);
     expect(res.body).toMatchObject({ discountApplied: 6000 });
+  });
+
+  it('authorizes promotion analytics with the existing read roles', async () => {
+    const promotion = await request(server())
+      .post('/api/v1/promotions')
+      .set(auth(marketingToken))
+      .send({ title: 'Promo analytics' })
+      .expect(201);
+
+    await request(server())
+      .get(`/api/v1/promotions/${promotion.body.id}/analytics`)
+      .expect(401);
+    await request(server())
+      .get(`/api/v1/promotions/${promotion.body.id}/analytics`)
+      .set(auth(customerToken))
+      .expect(403);
+    const analytics = await request(server())
+      .get(`/api/v1/promotions/${promotion.body.id}/analytics`)
+      .set(auth(marketingToken))
+      .expect(200);
+    expect(analytics.body).toMatchObject({
+      promotionId: promotion.body.id,
+      totalUses: 0,
+      grossAffectedOrderValueIdr: 0,
+      orderValueSource: 'not_applicable',
+    });
   });
 });

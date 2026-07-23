@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { CaretRight, Package, Truck, Warning } from '@phosphor-icons/react';
+import { CaretRight, Motorcycle, Package, WarningOctagon } from '@phosphor-icons/react';
 
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
+import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { ApprovalCounts, ExecutiveDashboard } from '@/lib/types';
+import type { ApprovalCounts, Delivery, ExecutiveDashboard, InventoryItem, Page } from '@/lib/types';
 
 function firstName(name: string | null | undefined): string {
   if (!name) return 'Manajer';
@@ -45,32 +46,31 @@ function Kpi({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function Tile({
+function StatTile({
   href,
   icon,
+  count,
   label,
-  hint,
 }: {
   href: string;
   icon: React.ReactNode;
+  count: number | null;
   label: string;
-  hint: string;
 }) {
   return (
     <Link
       href={href}
-      className="flex flex-1 flex-col gap-2 rounded-2xl border border-app bg-[color:var(--surface)] p-4"
+      className="flex flex-1 flex-col gap-1.5 rounded-2xl border border-app bg-[color:var(--surface)] p-4"
     >
-      <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-        {icon}
-      </span>
-      <div className="text-sm font-extrabold">{label}</div>
-      <div className="text-[11px] text-[color:var(--text-muted)]">{hint}</div>
+      {icon}
+      <div className="text-xl font-extrabold tabular-nums">{count == null ? '—' : count}</div>
+      <div className="text-[11px] font-bold text-[color:var(--text-muted)]">{label}</div>
     </Link>
   );
 }
 
 export default function ManagerHomePage() {
+  const { t } = useT();
   const { customer } = useAuth();
   const { selected, depots, scopedId } = useDepot();
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(), true), []);
@@ -78,12 +78,23 @@ export default function ManagerHomePage() {
     () => (scopedId ? api.get(endpoints.approvals.counts(scopedId), true) : Promise.resolve(null as unknown as ApprovalCounts)),
     [scopedId],
   );
+  // Real home-tile counts: low-stock lines (depot-service) + couriers on delivery network-wide.
+  const lowStock = useAsync<InventoryItem[]>(
+    () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: true }), true) : Promise.resolve([])),
+    [scopedId],
+  );
+  const onDelivery = useAsync<Page<Delivery>>(
+    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
+    [],
+  );
 
   const depotName =
     selected?.name ??
     depots.find((dep) => dep.id === customer?.assignedDepotId)?.name ??
     'Depot kamu';
   const pending = counts.data?.total ?? 0;
+  const stockCritical = lowStock.data?.length ?? null;
+  const activeCouriers = onDelivery.data?.items.length ?? null;
 
   return (
     <div className="space-y-4 px-4 py-6">
@@ -112,17 +123,17 @@ export default function ManagerHomePage() {
       )}
 
       <div className="flex gap-3">
-        <Tile
-          href="/m/manager/pricing"
-          icon={<Warning size={19} weight="fill" />}
-          label="Stok kritis"
-          hint="Cek harga & stok depot"
+        <StatTile
+          href="/m/manager/notifications"
+          icon={<WarningOctagon size={20} weight="fill" className="text-[color:var(--danger)]" />}
+          count={stockCritical}
+          label={t('mgrFix.mMgr.stockCritical')}
         />
-        <Tile
+        <StatTile
           href="/m/manager/team"
-          icon={<Truck size={19} weight="fill" />}
-          label="Kurir aktif"
-          hint="Lihat performa tim"
+          icon={<Motorcycle size={20} weight="fill" className="text-brand-700" />}
+          count={activeCouriers}
+          label={t('mgrFix.mMgr.activeCouriers')}
         />
       </div>
 

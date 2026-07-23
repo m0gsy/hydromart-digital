@@ -13,12 +13,13 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Max,
   Min,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
 
-import { InventoryItemType } from '../../domain/inventory';
+import { InventoryItemType, StockMovementType } from '../../domain/inventory';
 
 export class ListInventoryQueryDto {
   @ApiPropertyOptional({ enum: InventoryItemType })
@@ -31,6 +32,38 @@ export class ListInventoryQueryDto {
   @Type(() => Boolean)
   @IsBoolean()
   lowStockOnly?: boolean;
+}
+
+export class ListStockMovementsQueryDto {
+  @ApiPropertyOptional({ enum: StockMovementType })
+  @IsOptional()
+  @IsEnum(StockMovementType)
+  type?: StockMovementType;
+
+  @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
+  @IsOptional()
+  @IsISO8601()
+  to?: string;
+
+  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 50, minimum: 1, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }
 
 export class WastageQueryDto {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -22,13 +23,18 @@ import {
 import { CAPABILITIES } from '@hydromart/access';
 
 import { InventoryService, ItemView, WastageSummary } from '../application/services/inventory.service';
+import { Page } from '../application/pagination';
 import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
-import { StockMovementRecord } from '../application/ports/inventory.repository';
+import {
+  DepotStockMovementRecord,
+  StockMovementRecord,
+} from '../application/ports/inventory.repository';
 import {
   AdjustStockDto,
   ConsumeStockDto,
   CreateInventoryItemDto,
   ListInventoryQueryDto,
+  ListStockMovementsQueryDto,
   OpnameStockDto,
   UpdateInventoryItemDto,
   WastageQueryDto,
@@ -88,6 +94,27 @@ export class DepotInventoryController {
       .map((s) => s.trim())
       .filter(Boolean);
     return this.pricing.resolvePrices(depotId, ids);
+  }
+
+  @Roles(...CAPABILITIES.inventoryRead)
+  @Get('movements')
+  @ApiOperation({ summary: "List a depot's stock movements (paginated, newest first)" })
+  movements(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Query() query: ListStockMovementsQueryDto,
+  ): Promise<Page<DepotStockMovementRecord>> {
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && from >= to) {
+      throw new BadRequestException('from must be earlier than to');
+    }
+    return this.inventory.listMovementsForDepot(depotId, {
+      type: query.type,
+      from,
+      to,
+      page: query.page ?? 1,
+      limit: query.limit ?? 50,
+    });
   }
 
   @Roles(...CAPABILITIES.inventoryRead)

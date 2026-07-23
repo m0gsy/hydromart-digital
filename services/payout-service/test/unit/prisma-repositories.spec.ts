@@ -385,7 +385,11 @@ describe('CourierLedgerPrismaRepository', () => {
     onTimeBonus: '1000',
     peakStartHour: 17,
     peakEndHour: 20,
+    monthlyTarget: '5000000',
+    tiers: [{ deliveries: 25, bonus: '25000' }],
   };
+
+  const TIER_INCLUDE = { tiers: { orderBy: { deliveries: 'asc' } } };
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -432,6 +436,15 @@ describe('CourierLedgerPrismaRepository', () => {
     expect(await repo.sumByType('cou-1', 'EARNING' as never, since)).toBe(0);
   });
 
+  it('counts by type since a date (monthly delivery count for tiers)', async () => {
+    const since = new Date('2026-01-01');
+    ledgerModel.count.mockResolvedValue(26);
+    expect(await repo.countByType('cou-1', 'EARNING' as never, since)).toBe(26);
+    expect(ledgerModel.count).toHaveBeenCalledWith({
+      where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since } },
+    });
+  });
+
   it('lists entries for a courier paginated with total', async () => {
     ledgerModel.findMany.mockResolvedValue([entryRow]);
     ledgerModel.count.mockResolvedValue(1);
@@ -450,9 +463,17 @@ describe('CourierLedgerPrismaRepository', () => {
   it('currentRule prefers the depot-specific newest rule', async () => {
     ruleModel.findFirst.mockResolvedValueOnce(ruleRow);
     const rule = await repo.currentRule('dep-1');
-    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: 'dep-1' }, orderBy: { effectiveDate: 'desc' } });
+    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: 'dep-1' }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
     expect(ruleModel.findFirst).toHaveBeenCalledTimes(1); // no fallback needed
-    expect(rule).toEqual({ baseFare: 8000, peakBonus: 2000, onTimeBonus: 1000, peakStartHour: 17, peakEndHour: 20 });
+    expect(rule).toMatchObject({
+      baseFare: 8000,
+      peakBonus: 2000,
+      onTimeBonus: 1000,
+      peakStartHour: 17,
+      peakEndHour: 20,
+      monthlyTarget: 5000000,
+      tiers: [{ deliveries: 25, bonus: 25000 }],
+    });
   });
 
   it('currentRule falls back to the network default when depot has no rule', async () => {
@@ -460,7 +481,7 @@ describe('CourierLedgerPrismaRepository', () => {
       .mockResolvedValueOnce(null) // depot-specific miss
       .mockResolvedValueOnce({ ...ruleRow, depotId: null }); // network default
     const rule = await repo.currentRule('dep-1');
-    expect(ruleModel.findFirst).toHaveBeenNthCalledWith(2, { where: { depotId: null }, orderBy: { effectiveDate: 'desc' } });
+    expect(ruleModel.findFirst).toHaveBeenNthCalledWith(2, { where: { depotId: null }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
     expect(rule?.baseFare).toBe(8000);
   });
 
@@ -468,7 +489,7 @@ describe('CourierLedgerPrismaRepository', () => {
     ruleModel.findFirst.mockResolvedValueOnce({ ...ruleRow, depotId: null });
     const rule = await repo.currentRule(null);
     expect(ruleModel.findFirst).toHaveBeenCalledTimes(1);
-    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: null }, orderBy: { effectiveDate: 'desc' } });
+    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: null }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
     expect(rule?.peakEndHour).toBe(20);
   });
 
@@ -481,7 +502,7 @@ describe('CourierLedgerPrismaRepository', () => {
   it('lists all rules newest first', async () => {
     ruleModel.findMany.mockResolvedValue([ruleRow]);
     const rules = await repo.listRules();
-    expect(ruleModel.findMany).toHaveBeenCalledWith({ orderBy: { effectiveDate: 'desc' } });
+    expect(ruleModel.findMany).toHaveBeenCalledWith({ orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
     expect(rules[0]).toEqual({
       id: 'rule-1',
       depotId: 'dep-1',
@@ -492,12 +513,14 @@ describe('CourierLedgerPrismaRepository', () => {
       onTimeBonus: 1000,
       peakStartHour: 17,
       peakEndHour: 20,
+      monthlyTarget: 5000000,
+      tiers: [{ deliveries: 25, bonus: 25000 }],
     });
   });
 
   it('creates a rule with the explicit field mapping', async () => {
     ruleModel.create.mockResolvedValue(ruleRow);
-    const data = { depotId: 'dep-1', baseFare: 8000, peakBonus: 2000, onTimeBonus: 1000, peakStartHour: 17, peakEndHour: 20, effectiveDate: ruleRow.effectiveDate };
+    const data = { depotId: 'dep-1', baseFare: 8000, peakBonus: 2000, onTimeBonus: 1000, peakStartHour: 17, peakEndHour: 20, monthlyTarget: 5000000, tiers: [{ deliveries: 25, bonus: 25000 }], effectiveDate: ruleRow.effectiveDate };
     const result = await repo.createRule(data as never);
     expect(ruleModel.create).toHaveBeenCalledWith({
       data: {
@@ -507,8 +530,11 @@ describe('CourierLedgerPrismaRepository', () => {
         onTimeBonus: 1000,
         peakStartHour: 17,
         peakEndHour: 20,
+        monthlyTarget: 5000000,
         effectiveDate: ruleRow.effectiveDate,
+        tiers: { create: [{ deliveries: 25, bonus: 25000 }] },
       },
+      include: TIER_INCLUDE,
     });
     expect(result.baseFare).toBe(8000);
   });
