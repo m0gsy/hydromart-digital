@@ -48,9 +48,13 @@ services:
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
       # `console` only prints the code to the container log — real customers can
-      # never receive it. Set OTP_DELIVERY_CHANNEL=sms in .env plus the SMS_*
-      # credentials below before taking real signups.
+      # never receive it. Set OTP_DELIVERY_CHANNEL to `zenziva` (Indonesian SMS
+      # provider in use) or `sms` (generic gateway) in .env, plus that channel's
+      # credentials below, before taking real signups.
       OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:-console}
+      ZENZIVA_BASE_URL: ${ZENZIVA_BASE_URL:-https://console.zenziva.net}
+      ZENZIVA_USERKEY: ${ZENZIVA_USERKEY:-}
+      ZENZIVA_PASSKEY: ${ZENZIVA_PASSKEY:-}
       SMS_API_BASE_URL: ${SMS_API_BASE_URL:-}
       SMS_API_TOKEN: ${SMS_API_TOKEN:-}
       SMS_SENDER_ID: ${SMS_SENDER_ID:-HYDROMART}

@@ -20,7 +20,7 @@ export const envValidationSchema = Joi.object({
   OTP_LENGTH: Joi.number().integer().min(4).max(8).default(6),
   OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
   OTP_RESEND_COOLDOWN_SECONDS: Joi.number().integer().positive().default(60),
-  OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'sms').default('console'),
+  OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'sms', 'zenziva').default('console'),
   OTP_PEPPER: requiredSecret(16),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
@@ -30,6 +30,12 @@ export const envValidationSchema = Joi.object({
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),
   SMS_API_TOKEN: Joi.string().allow('').optional(),
   SMS_SENDER_ID: Joi.string().allow('').default('HYDROMART'),
+
+  // Zenziva masking SMS (OTP_DELIVERY_CHANNEL=zenziva). Credentials come from the
+  // Zenziva console's HTTP API panel; the sender mask is configured there, not here.
+  ZENZIVA_BASE_URL: Joi.string().uri().default('https://console.zenziva.net'),
+  ZENZIVA_USERKEY: Joi.string().allow('').optional(),
+  ZENZIVA_PASSKEY: Joi.string().allow('').optional(),
 
   GOOGLE_OAUTH_CLIENT_ID: Joi.string().allow('').optional(),
 
@@ -68,9 +74,19 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
 })
   // If a delivery channel is selected, its provider credentials must be present.
-  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms') }).unknown(), {
+  // `.required()` in the condition is load-bearing: a Joi key is optional by default,
+  // so `valid('sms')` alone is also satisfied by OTP_DELIVERY_CHANNEL being *absent* —
+  // which would demand that channel's credentials from every deploy that never picked
+  // it. The key carries a `console` default, so absent must not match.
+  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms').required() }).unknown(), {
     then: Joi.object({
       SMS_API_BASE_URL: Joi.string().uri().required(),
       SMS_API_TOKEN: Joi.string().required(),
+    }),
+  })
+  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('zenziva').required() }).unknown(), {
+    then: Joi.object({
+      ZENZIVA_USERKEY: Joi.string().required(),
+      ZENZIVA_PASSKEY: Joi.string().required(),
     }),
   });
