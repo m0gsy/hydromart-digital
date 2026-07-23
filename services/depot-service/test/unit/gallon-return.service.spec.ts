@@ -12,7 +12,7 @@ import { DepotConfigService } from '../../src/config/depot-config.service';
 import { InMemoryDepotRepository } from '../support/fakes';
 
 const GALLON_DEPOSIT_IDR = 20000;
-const configStub = { gallonDepositIdr: GALLON_DEPOSIT_IDR } as DepotConfigService;
+const configStub = { gallonDepositIdr: () => GALLON_DEPOSIT_IDR } as DepotConfigService;
 
 class InMemoryGallonReturnRepository implements GallonReturnRepository {
   private rows: GallonReturnRecord[] = [];

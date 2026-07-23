@@ -29,6 +29,7 @@ export const SETTINGS_SERVICES = [
   { id: 'payout', label: 'Payout & Komisi', base: '/payout/api/v1' },
   { id: 'loyalty', label: 'Loyalty / Poin', base: '/loyalty/api/v1' },
   { id: 'referral', label: 'Referral', base: '/referrals/api/v1' },
+  { id: 'depot', label: 'Depot & Galon', base: '/depots/api/v1' },
 ] as const;
 
 export function fetchSettingsSchema(base: string, depotId: string | null): Promise<SettingsSchema> {

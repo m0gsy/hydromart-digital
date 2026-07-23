@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { InventoryItemType } from '../../src/domain/inventory';
 import { PricingRuleRecord } from '../../src/domain/pricing-rule';
@@ -474,5 +475,30 @@ export function buildTestConfig(overrides: Record<string, string> = {}): DepotCo
       return env[k];
     },
   };
-  return new DepotConfigService(fake as unknown as ConfigService);
+  // ponytail: empty-row cache — every business getter falls through to the env value
+  // above, matching today's (pre-settings-cache) behavior exactly.
+  return new DepotConfigService(
+    fake as unknown as ConfigService,
+    new SettingsCache({ loadAll: async () => [] }),
+  );
+}
+
+/** In-memory SettingsRepository for unit/e2e tests (settings.repository.ts port). */
+export class InMemorySettingsRepository {
+  rows: (SettingRow & { updatedBy: string })[] = [];
+
+  async loadAll(): Promise<SettingRow[]> {
+    return this.rows.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value }));
+  }
+  async upsert(row: SettingRow & { updatedBy: string }): Promise<void> {
+    const i = this.rows.findIndex(
+      (r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key,
+    );
+    if (i >= 0) this.rows[i] = row;
+    else this.rows.push(row);
+  }
+  async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
+    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    if (i >= 0) this.rows.splice(i, 1);
+  }
 }

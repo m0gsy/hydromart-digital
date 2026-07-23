@@ -58,7 +58,7 @@ export class ApprovalService {
 
   async create(input: CreateApprovalInput, submittedBy: string): Promise<Approval> {
     await this.requireDepot(input.depotId);
-    const threshold = this.config.approvalAutoPassIdr;
+    const threshold = this.config.approvalAutoPassIdr(input.depotId);
     const autoPass = !needsApproval(input.amountIdr, threshold);
     const now = new Date();
     return this.approvals.create({

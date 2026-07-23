@@ -281,7 +281,7 @@ export class InventoryService {
   ): Promise<void> {
     if (variance === 0) return;
     const amountIdr = Math.round(variance * (item.sellPrice ?? 0));
-    if (!needsApproval(amountIdr, this.config.approvalAutoPassIdr)) return;
+    if (!needsApproval(amountIdr, this.config.approvalAutoPassIdr(item.depotId))) return;
     try {
       await this.approvals.create(
         {
