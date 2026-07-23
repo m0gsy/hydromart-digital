@@ -310,6 +310,29 @@ describe('OrderPrismaRepository', () => {
     expect(order.findUnique).toHaveBeenCalledWith({ where: { id: 'ord-1' }, include: expect.any(Object) });
   });
 
+  it('batch-reads order totals in one selected findMany query', async () => {
+    order.findMany.mockResolvedValue([
+      { id: 'ord-1', total: dec(103_000) },
+      { id: 'ord-2', total: dec(47_500) },
+    ]);
+
+    const result = await (
+      repo as unknown as {
+        findOrderValues(ids: string[]): Promise<{ orderId: string; totalIdr: number }[]>;
+      }
+    ).findOrderValues(['ord-1', 'ord-2', 'missing']);
+
+    expect(result).toEqual([
+      { orderId: 'ord-1', totalIdr: 103_000 },
+      { orderId: 'ord-2', totalIdr: 47_500 },
+    ]);
+    expect(order.findMany).toHaveBeenCalledTimes(1);
+    expect(order.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['ord-1', 'ord-2', 'missing'] } },
+      select: { id: true, total: true },
+    });
+  });
+
   it('returns null when the order is not found', async () => {
     order.findUnique.mockResolvedValue(null);
     expect(await repo.findById('nope')).toBeNull();

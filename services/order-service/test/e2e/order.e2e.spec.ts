@@ -272,6 +272,50 @@ describe('Order HTTP flows (e2e)', () => {
     expect('nextCursor' in page.body).toBe(true);
   });
 
+  it('batch-reads existing order values with internal auth and validates 1-500 unique UUIDs', async () => {
+    await request(server())
+      .post('/api/v1/cart/items')
+      .set(auth(customerToken))
+      .send({ productId, quantity: 2 })
+      .expect(201);
+    const order = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: ADDRESS })
+      .expect(201);
+    const missingId = randomUUID();
+    const body = { orderIds: [order.body.id, missingId] };
+
+    await request(server()).post('/api/v1/orders/internal/values').send(body).expect(401);
+    await request(server())
+      .post('/api/v1/orders/internal/values')
+      .set('x-internal-key', 'wrong')
+      .send(body)
+      .expect(401);
+
+    const values = await request(server())
+      .post('/api/v1/orders/internal/values')
+      .set('x-internal-key', INTERNAL_KEY)
+      .send(body)
+      .expect(200);
+    expect(values.body).toEqual([{ orderId: order.body.id, totalIdr: order.body.total }]);
+
+    const validId = randomUUID();
+    const invalidBodies = [
+      { orderIds: [] },
+      { orderIds: ['not-a-uuid'] },
+      { orderIds: [validId, validId] },
+      { orderIds: Array.from({ length: 501 }, () => randomUUID()) },
+    ];
+    for (const invalid of invalidBodies) {
+      await request(server())
+        .post('/api/v1/orders/internal/values')
+        .set('x-internal-key', INTERNAL_KEY)
+        .send(invalid)
+        .expect(400);
+    }
+  });
+
   it('validates the checkout body (400 on missing address fields)', async () => {
     await request(server())
       .post('/api/v1/orders/checkout')

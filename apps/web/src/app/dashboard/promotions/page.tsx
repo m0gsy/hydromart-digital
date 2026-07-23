@@ -7,11 +7,12 @@ import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canViewCampaigns } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Promotion, PromotionPayload } from '@/lib/types';
+import type { Promotion, PromotionAnalytics as PromotionAnalyticsView, PromotionPayload } from '@/lib/types';
 
 interface PromoForm {
   title: string;
@@ -160,32 +161,6 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
   );
 }
 
-// ponytail: promo-analytics has no aggregate endpoint (vouchers-service exposes usage on the
-// voucher, not per-promo impact). Numbers below are DERIVED deterministically from the promo id
-// so the UI is real and stable; swap for real aggregates when a /promotions/:id/analytics lands.
-// TODO(backend): promo usage/savings/order-impact aggregate.
-function derive(seed: string) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  const rng = (n: number) => h % n;
-  const used = 40 + rng(160); // 40..199
-  const bars = Array.from({ length: 7 }, (_, i) => 20 + ((h >> (i * 3)) % 80));
-  return {
-    used,
-    thisWeek: 6 + rng(24),
-    savings: used * (500 + rng(9) * 500),
-    ordersAffected: used,
-    orderValue: used * (35_000 + rng(20) * 1000),
-    bars,
-    topUsers: [
-      { name: 'Sinta Rahayu', count: 5 + rng(6) },
-      { name: 'Dewi Anggraini', count: 3 + rng(5) },
-    ],
-  };
-}
-
-const DAY_LABELS = ['Kam', 'Jum', 'Sab', 'Min', 'Sen', 'Sel', 'Rab'];
-
 function Kpi({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-2xl border border-app bg-[color:var(--surface)] p-4">
@@ -197,9 +172,28 @@ function Kpi({ label, children }: { label: string; children: React.ReactNode }) 
 
 /** 10a — per-promo analytics: usage/savings/order-impact + 7-day usage + terms + top users. */
 function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => void }) {
-  const { t } = useT();
-  const d = derive(promo.id);
-  const max = Math.max(...d.bars, 1);
+  const { locale, t } = useT();
+  const { data, error, loading, reload } = useAsync<PromotionAnalyticsView>(
+    () => api.get<PromotionAnalyticsView>(endpoints.promotions.analytics(promo.id), true),
+    [promo.id],
+  );
+
+  if (loading) return <Skeleton className="h-72 w-full" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!data) {
+    return (
+      <CenterState title={t('opsFix.promoAnalytics.emptyTitle')}>
+        {t('opsFix.promoAnalytics.emptyBody')}
+      </CenterState>
+    );
+  }
+
+  const max = Math.max(...data.dailyUses.map((bucket) => bucket.uses), 1);
+  const dayLabel = (day: string) =>
+    new Intl.DateTimeFormat(locale === 'id' ? 'id-ID' : 'en-US', {
+      weekday: 'short',
+      timeZone: 'UTC',
+    }).format(new Date(`${day}T00:00:00.000Z`));
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-3">
@@ -213,40 +207,48 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
         </button>
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h1 className="truncate text-xl font-extrabold tracking-tight">{promo.voucherCode || promo.title}</h1>
+            <h1 className="truncate text-xl font-extrabold tracking-tight">{data.voucherCode || data.title}</h1>
             <Badge tone={promo.active ? 'success' : 'neutral'}>{promo.active ? 'Aktif' : 'Nonaktif'}</Badge>
           </div>
           <p className="truncate text-xs text-muted">{promo.subtitle || promo.title}</p>
         </div>
       </div>
 
-      {promo.active ? (
-        <p className="text-[12.5px] text-muted">{t('opsFix.promoAnalytics.estimateNote')}</p>
-      ) : (
-        <p className="text-[12.5px] text-muted">{t('opsFix.promoAnalytics.inactive')}</p>
-      )}
-
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Kpi label={t('opsFix.promoAnalytics.used')}>
-          {d.used}
-          <span className="mt-1 block text-[11px] font-bold text-emerald-700">{t('opsFix.promoAnalytics.thisWeek', { n: d.thisWeek })}</span>
+          {data.totalUses}
+          <span className="mt-1 block text-[11px] font-bold text-emerald-700">{t('opsFix.promoAnalytics.thisWeek', { n: data.usesLast7Days })}</span>
         </Kpi>
-        <Kpi label={t('opsFix.promoAnalytics.savingsGiven')}><Money amount={d.savings} /></Kpi>
-        <Kpi label={t('opsFix.promoAnalytics.ordersAffected')}>{d.ordersAffected}</Kpi>
-        <Kpi label={t('opsFix.promoAnalytics.orderValue')}><Money amount={d.orderValue} /></Kpi>
+        <Kpi label={t('opsFix.promoAnalytics.savingsGiven')}><Money amount={data.totalSavingsIdr} /></Kpi>
+        <Kpi label={t('opsFix.promoAnalytics.ordersAffected')}>{data.affectedOrderCount}</Kpi>
+        <Kpi label={t('opsFix.promoAnalytics.orderValue')}>
+          {data.grossAffectedOrderValueIdr === null ? '—' : <Money amount={data.grossAffectedOrderValueIdr} />}
+        </Kpi>
       </div>
+
+      {data.orderValueSource === 'unavailable' && (
+        <p className="text-[12.5px] text-muted">{t('opsFix.promoAnalytics.sourceUnavailable')}</p>
+      )}
+
+      {data.totalUses === 0 && (
+        <Card className="p-0">
+          <CenterState title={t('opsFix.promoAnalytics.emptyTitle')}>
+            {t('opsFix.promoAnalytics.emptyBody')}
+          </CenterState>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         <Card className="p-5">
           <p className="mb-4 text-sm font-bold">{t('opsFix.promoAnalytics.usage7d')}</p>
           <div className="flex h-28 items-end justify-between gap-2">
-            {d.bars.map((v, i) => (
-              <div key={i} className="flex flex-1 flex-col items-center gap-2">
+            {data.dailyUses.map((bucket) => (
+              <div key={bucket.day} className="flex flex-1 flex-col items-center gap-2">
                 <div
-                  className={`w-full rounded-md ${v === max ? 'bg-brand-500' : 'bg-brand-100'}`}
-                  style={{ height: `${Math.round((v / max) * 96)}px` }}
+                  className={`w-full rounded-md ${bucket.uses === max ? 'bg-brand-500' : 'bg-brand-100'}`}
+                  style={{ height: `${Math.round((bucket.uses / max) * 96)}px` }}
                 />
-                <span className="text-[10px] font-semibold text-muted">{DAY_LABELS[i]}</span>
+                <span className="text-[10px] font-semibold text-muted">{dayLabel(bucket.day)}</span>
               </div>
             ))}
           </div>
@@ -271,12 +273,21 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
           </Card>
           <Card className="p-5">
             <p className="mb-3 text-sm font-bold">{t('opsFix.promoAnalytics.topUsers')}</p>
-            {d.topUsers.map((u) => (
-              <div key={u.name} className="flex items-center justify-between py-1 text-xs">
-                <span className="font-medium">{u.name}</span>
-                <span className="font-bold tabular-nums">{u.count}×</span>
-              </div>
-            ))}
+            {data.topCustomers.length === 0 ? (
+              <p className="text-xs text-muted">{t('opsFix.promoAnalytics.noCustomers')}</p>
+            ) : (
+              data.topCustomers.map((customer) => (
+                <div key={customer.customerId} className="flex items-center justify-between gap-3 py-1 text-xs">
+                  <span className="min-w-0 truncate font-medium">{customer.customerId}</span>
+                  <span className="shrink-0 text-right font-bold tabular-nums">
+                    {t('opsFix.promoAnalytics.customerUses', { n: customer.uses })}
+                    <span className="block text-[10px] font-medium text-muted">
+                      {t('opsFix.promoAnalytics.customerSavings', { amount: formatIDR(customer.savingsIdr) })}
+                    </span>
+                  </span>
+                </div>
+              ))
+            )}
           </Card>
         </div>
       </div>

@@ -18,8 +18,6 @@ export const opsFix = {
     empty: 'Belum ada pergerakan',
     emptyBody: 'Pergerakan stok muncul setelah ada penerimaan, penyesuaian, opname, atau penjualan.',
     loadError: 'Gagal memuat pergerakan stok. Coba lagi.',
-    // Header line above the ledger noting the derived source.
-    derivedNote: 'Digabung dari riwayat tiap item pada tampilan saat ini.',
   },
   opname: {
     open: 'Opname massal',
@@ -75,10 +73,13 @@ export const opsFix = {
     orderValue: 'Nilai order',
     usage7d: 'Pemakaian 7 hari',
     terms: 'Syarat',
-    topUsers: 'Pengguna teratas',
-    // Shown so the numbers are never mistaken for a live report.
-    estimateNote: 'Angka estimasi — sumber agregat analitik promo belum tersedia.',
-    inactive: 'Promo nonaktif — belum ada pemakaian.',
+    topUsers: 'Pelanggan teratas',
+    emptyTitle: 'Belum ada pemakaian',
+    emptyBody: 'Voucher promo ini belum pernah digunakan.',
+    noCustomers: 'Belum ada pelanggan yang menggunakan voucher ini.',
+    customerUses: '{n}× digunakan',
+    customerSavings: 'Hemat {amount}',
+    sourceUnavailable: 'Nilai order tidak tersedia karena sumber order sedang tidak lengkap atau tidak dapat diakses.',
   },
   tracking: {
     courierUnknown: 'Kurir belum tetap',

@@ -13,7 +13,13 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { InventoryItem, StockMovement, StockMovementType } from '@/lib/types';
+import type {
+  DepotStockMovement,
+  InventoryItem,
+  Page,
+  StockMovement,
+  StockMovementType,
+} from '@/lib/types';
 
 function num(v: string): number | null {
   const n = Number(v);
@@ -413,8 +419,6 @@ function Chip({
   );
 }
 
-type LedgerRow = StockMovement & { itemLabel: string };
-
 const MOVE_TONE: Record<StockMovementType, { bg: string; fg: string }> = {
   RECEIPT: { bg: 'bg-emerald-50', fg: 'text-emerald-700' },
   ADJUSTMENT: { bg: 'bg-amber-50', fg: 'text-amber-700' },
@@ -422,29 +426,23 @@ const MOVE_TONE: Record<StockMovementType, { bg: string; fg: string }> = {
   SALE: { bg: 'bg-[color:var(--surface-soft)]', fg: 'text-[color:var(--text-muted)]' },
 };
 
-/**
- * 4c — depot-wide movement ledger. ponytail: depot-service exposes only a per-line
- * `/movements` endpoint, so this merges the histories of the lines in the current view
- * (real data, bounded by the visible list). Replace with a depot-wide endpoint when one
- * exists. TODO(backend): GET /depots/:id/inventory/movements.
- */
-function MovementLedger({ items }: { items: InventoryItem[] }) {
+function DepotMovementLedger({ depotId }: { depotId: string }) {
   const { t } = useT();
-  const ids = items.map((i) => i.id).join(',');
-  const ledger = useAsync<LedgerRow[]>(async () => {
-    const per = await Promise.all(
-      items.map((i) =>
-        api
-          .get<StockMovement[]>(endpoints.inventory.movements(i.id), true)
-          .then((ms) => ms.map((m) => ({ ...m, itemLabel: i.label })))
-          .catch(() => [] as LedgerRow[]),
-      ),
-    );
-    return per.flat().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [ids]);
   const [filter, setFilter] = useState<StockMovementType | 'all'>('all');
+  const ledger = useAsync<Page<DepotStockMovement>>(
+    () =>
+      api.get(
+        endpoints.inventory.depotMovements(depotId, {
+          type: filter === 'all' ? undefined : filter,
+          page: 1,
+          limit: 100,
+        }),
+        true,
+      ),
+    [depotId, filter],
+  );
 
-  const rows = (ledger.data ?? []).filter((m) => filter === 'all' || m.type === filter);
+  const rows = ledger.data?.items ?? [];
   const types: (StockMovementType | 'all')[] = ['all', 'RECEIPT', 'ADJUSTMENT', 'OPNAME', 'SALE'];
 
   return (
@@ -492,7 +490,6 @@ function MovementLedger({ items }: { items: InventoryItem[] }) {
               </div>
             );
           })}
-          <p className="px-4 py-2 text-[11px] text-muted">{t('opsFix.ledger.derivedNote')}</p>
         </Card>
       )}
     </div>
@@ -715,7 +712,7 @@ function InventoryBody() {
           {lowOnly ? t('dashboard.inventory.noLinesLow') : t('dashboard.inventory.noLinesAll')}
         </CenterState>
       ) : view === 'movements' ? (
-        <MovementLedger items={visible} />
+        <DepotMovementLedger depotId={scopedId!} />
       ) : (
         <>
           {canWrite && opnameOpen && (

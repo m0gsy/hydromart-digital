@@ -205,6 +205,7 @@ services:
       <<: *shared
       PROMO_SERVICE_PORT: 3010
       PROMO_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_promo?schema=public
+      ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3010/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

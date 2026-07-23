@@ -27,6 +27,7 @@ import { WholesaleTierService } from '../application/services/wholesale-tier.ser
 import { SubscriptionService } from '../application/services/subscription.service';
 import { HuddleService } from '../application/services/huddle.service';
 import { HandoverService } from '../application/services/handover.service';
+import { OperationalReportService } from '../application/services/operational-report.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DepotPrismaRepository } from '../infrastructure/prisma/depot.prisma.repository';
 import { InventoryPrismaRepository } from '../infrastructure/prisma/inventory.prisma.repository';
@@ -48,6 +49,7 @@ import { WholesaleTierPrismaRepository } from '../infrastructure/prisma/wholesal
 import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
 import { HuddlePrismaRepository } from '../infrastructure/prisma/huddle.prisma.repository';
 import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.prisma.repository';
+import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
@@ -74,6 +76,7 @@ import { WholesaleTierController } from './wholesale-tier.controller';
 import { SubscriptionController } from './subscription.controller';
 import { HuddleController } from './huddle.controller';
 import { HandoverController } from './handover.controller';
+import { OperationalReportController } from './operational-report.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -99,6 +102,7 @@ const providers: Provider[] = [
   SubscriptionService,
   HuddleService,
   HandoverService,
+  OperationalReportService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
@@ -125,6 +129,10 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
+  {
+    provide: DEPOT_TOKENS.OperationalReportRepository,
+    useClass: OperationalReportPrismaRepository,
+  },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -158,6 +166,7 @@ const providers: Provider[] = [
     SubscriptionController,
     HuddleController,
     HandoverController,
+    OperationalReportController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],

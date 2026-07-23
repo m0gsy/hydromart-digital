@@ -12,7 +12,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
   AuthenticatedUser,
@@ -42,6 +42,8 @@ import {
   CreateReviewDto,
   InternalRefundDto,
   ListOrdersQueryDto,
+  OrderValueBatchDto,
+  OrderValueDto,
   RatingBatchDto,
   UpdateOrderStatusDto,
 } from './dto/order.dto';
@@ -185,6 +187,17 @@ export class OrderController {
       })),
       nextCursor,
     };
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/values')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Batch-read authoritative order totals (internal service auth)' })
+  @ApiOkResponse({ type: [OrderValueDto] })
+  internalValues(@Body() dto: OrderValueBatchDto): Promise<OrderValueDto[]> {
+    return this.orders.findOrderValues(dto.orderIds);
   }
 
   // Ops/scheduler-triggered "time to refill" sweep (internal service auth, spec 5h).

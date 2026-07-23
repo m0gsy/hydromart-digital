@@ -43,6 +43,19 @@ export interface StockMovementRecord {
   createdAt: Date;
 }
 
+export interface DepotStockMovementRecord extends StockMovementRecord {
+  itemLabel: string;
+  itemType: InventoryItemType;
+}
+
+export interface DepotMovementFilter {
+  type?: StockMovementType;
+  from?: Date;
+  to?: Date;
+  page: number;
+  limit: number;
+}
+
 export interface CreateInventoryItemData {
   depotId: string;
   itemType: InventoryItemType;
@@ -106,6 +119,10 @@ export interface InventoryRepository {
   /** True if a movement for this item already recorded the given order (SALE idempotency). */
   hasMovementForOrder(itemId: string, orderId: string): Promise<boolean>;
   listMovements(itemId: string): Promise<StockMovementRecord[]>;
+  listForDepotMovements(
+    depotId: string,
+    filter: DepotMovementFilter,
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number }>;
   /**
    * Negative-delta ADJUSTMENT movements for a depot's lines in the window, each joined
    * with its line's label + sellPrice. Backs the depot wastage summary — the service

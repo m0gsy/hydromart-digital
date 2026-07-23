@@ -1,52 +1,86 @@
 'use client';
 
-import { ChartBar, Lock, Star, Warning } from '@phosphor-icons/react';
+import { ChartBar, Lock, Star } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, Chip } from '@/components/ui';
+import { Card, CenterState, Chip, ErrorState, Skeleton } from '@/components/ui';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
-import { canViewDashboard } from '@/lib/roles';
+import { endpoints } from '@/lib/endpoints';
+import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { canViewDashboard } from '@/lib/roles';
+import type { Customer, DepotTeamReport, Page } from '@/lib/types';
+import { useAsync } from '@/lib/use-async';
 
-// Spec 1b — courier leaderboard (SLA / gagal / rating) + operator throughput.
-// ponytail: per-courier SLA/failed/rating and per-operator throughput need a
-// cross-service aggregate (delivery-service + payment-service + ratings) that no
-// endpoint exposes yet. Render the real UI over representative rows; swap the two
-// arrays below for a `/reports/depot-team` fetch once the aggregate ships.
-// TODO(backend): GET /orders/api/v1/reports/depot-team?depotId&from&to
-type CourierRow = { initials: string; color: string; name: string; delivered: number; sla: number; failed: number; rating: number; watch?: boolean };
-type OperatorRow = { initials: string; color: string; name: string; orders: number; variance: string; varianceTone: 'ok' | 'warn' };
+const now = new Date();
+const MONTH_FROM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+const MONTH_TO = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
+const AVATAR_COLORS = ['#0b4d57', '#e2681c', '#1d4e89', '#0c97ac', '#6b4ea8'];
 
-const COURIERS: CourierRow[] = [
-  { initials: 'AW', color: '#0b4d57', name: 'Andre Wijaya', delivered: 142, sla: 98, failed: 1, rating: 4.9 },
-  { initials: 'ST', color: '#e2681c', name: 'Sutrisno', delivered: 118, sla: 95, failed: 3, rating: 4.7 },
-  { initials: 'BD', color: '#1d4e89', name: 'Budi Darmawan', delivered: 96, sla: 88, failed: 7, rating: 4.3, watch: true },
-];
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+}
 
-const OPERATORS: OperatorRow[] = [
-  { initials: 'RK', color: '#0c97ac', name: 'Rina Kartika', orders: 312, variance: 'Rp 0', varianceTone: 'ok' },
-  { initials: 'DS', color: '#6b4ea8', name: 'Dedi Suryana', orders: 248, variance: 'Rp 6.000', varianceTone: 'warn' },
-];
-
-function Avatar({ initials, color }: { initials: string; color: string }) {
+function Avatar({ name, color }: { name: string; color: string }) {
   return (
     <span
       className="flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
       style={{ background: color }}
     >
-      {initials}
+      {initials(name)}
     </span>
   );
 }
 
 function TeamPerformanceBody() {
   const { t } = useT();
-  const { selected } = useDepot();
-  const depotName = selected?.name ?? 'Depot';
+  const { selected, depots, scopedId } = useDepot();
+  const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
+  const result = useAsync<{ report: DepotTeamReport; names: Map<string, string> } | null>(
+    async () => {
+      if (!depot) return null;
+      const report = await api.get<DepotTeamReport>(
+        endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
+        true,
+      );
+      const staff = await api
+        .get<Page<Customer>>(endpoints.auth.staff({ depotId: depot.id, limit: 100 }), true)
+        .catch(() => null);
+      return {
+        report,
+        names: new Map(staff?.items.map((member) => [member.id, member.fullName || member.phone]) ?? []),
+      };
+    },
+    [depot?.id],
+  );
 
-  const avgSla = Math.round(COURIERS.reduce((s, c) => s + c.sla, 0) / COURIERS.length);
-  const avgRating = (COURIERS.reduce((s, c) => s + c.rating, 0) / COURIERS.length).toFixed(1);
+  const report = result.data?.report;
+  const names = result.data?.names ?? new Map<string, string>();
+  const totalDelivered = report?.couriers.reduce((sum, courier) => sum + courier.delivered, 0) ?? 0;
+  const avgSla =
+    totalDelivered === 0
+      ? 0
+      : Math.round(
+          (report!.couriers.reduce(
+            (sum, courier) => sum + courier.onTimeRate * courier.delivered,
+            0,
+          ) /
+            totalDelivered) *
+            100,
+        );
+  const ratings =
+    report?.couriers.flatMap((courier) => (courier.rating === null ? [] : [courier.rating])) ?? [];
+  const avgRating =
+    ratings.length === 0
+      ? null
+      : Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -54,77 +88,125 @@ function TeamPerformanceBody() {
         <ChartBar size={24} weight="fill" className="text-brand-500" />
         <div>
           <h1 className="text-2xl font-bold">{t('mgrFix.teamPerf.title')}</h1>
-          <p className="text-sm text-muted">{t('mgrFix.teamPerf.subtitle', { depot: depotName })}</p>
+          <p className="text-sm text-muted">
+            {t('mgrFix.teamPerf.subtitle', { depot: depot?.name ?? 'Depot' })}
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="flex flex-col gap-1 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('mgrFix.teamPerf.avgSla')}</p>
-          <p className="text-2xl font-bold tabular-nums">{avgSla}%</p>
-        </Card>
-        <Card className="flex flex-col gap-1 p-4">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">{t('mgrFix.teamPerf.avgRating')}</p>
-          <p className="text-2xl font-bold tabular-nums">{avgRating}</p>
-        </Card>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-muted">{t('mgrFix.teamPerf.couriers')}</p>
-        {COURIERS.map((c, i) => (
-          <Card key={c.initials} className="flex items-center gap-3 p-4">
-            <span className="w-5 text-center text-sm font-bold text-brand-600 tabular-nums">{i + 1}</span>
-            <Avatar initials={c.initials} color={c.color} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-bold">{c.name}</p>
-                {c.watch && <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>}
-              </div>
-              <p className="text-xs text-muted">{t('mgrFix.teamPerf.delivered', { n: c.delivered, sla: c.sla })}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.failed')}</p>
-              <p className={`text-sm font-bold tabular-nums ${c.failed >= 5 ? 'text-[color:var(--danger)]' : ''}`}>{c.failed}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.rating')}</p>
-              <p className="flex items-center justify-end gap-0.5 text-sm font-bold tabular-nums">
-                {c.rating.toFixed(1)}
-                <Star size={12} weight="fill" className="text-amber-500" />
+      {result.loading ? (
+        <Skeleton className="h-80 w-full" />
+      ) : result.error ? (
+        <ErrorState message={result.error} onRetry={result.reload} />
+      ) : !report || (report.couriers.length === 0 && report.operators.length === 0) ? (
+        <CenterState title={t('mgrFix.teamPerf.emptyTitle')} icon={<ChartBar size={40} weight="fill" />}>
+          {t('mgrFix.teamPerf.emptyBody')}
+        </CenterState>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="flex flex-col gap-1 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                {t('mgrFix.teamPerf.avgSla')}
               </p>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-bold uppercase tracking-wide text-muted">{t('mgrFix.teamPerf.operators')}</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {OPERATORS.map((o) => (
-            <Card key={o.initials} className="flex flex-col gap-3 p-4">
-              <div className="flex items-center gap-2.5">
-                <Avatar initials={o.initials} color={o.color} />
-                <p className="text-sm font-bold">{o.name}</p>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">{t('mgrFix.teamPerf.ordersProcessed')}</span>
-                <span className="font-bold tabular-nums">{o.orders.toLocaleString('id-ID')}</span>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted">{t('mgrFix.teamPerf.depositVariance')}</span>
-                <span className={`font-bold tabular-nums ${o.varianceTone === 'warn' ? 'text-amber-700' : 'text-[color:var(--success)]'}`}>
-                  {o.variance}
-                </span>
-              </div>
+              <p className="text-2xl font-bold tabular-nums">{avgSla}%</p>
             </Card>
-          ))}
-        </div>
-      </div>
+            <Card className="flex flex-col gap-1 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">
+                {t('mgrFix.teamPerf.avgRating')}
+              </p>
+              <p className="text-2xl font-bold tabular-nums">
+                {avgRating === null ? '—' : avgRating.toFixed(1)}
+              </p>
+            </Card>
+          </div>
 
-      <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
-        <Warning size={15} weight="fill" className="shrink-0" />
-        {t('mgrFix.teamPerf.stub')}
-      </p>
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              {t('mgrFix.teamPerf.couriers')}
+            </p>
+            {report.couriers.length === 0 ? (
+              <p className="text-sm text-muted">{t('mgrFix.teamPerf.noCouriers')}</p>
+            ) : (
+              report.couriers.map((courier, index) => {
+                const name = names.get(courier.driverId) ?? courier.driverId;
+                const sla = Math.round(courier.onTimeRate * 100);
+                return (
+                  <Card key={courier.driverId} className="flex items-center gap-3 p-4">
+                    <span className="w-5 text-center text-sm font-bold text-brand-600 tabular-nums">
+                      {index + 1}
+                    </span>
+                    <Avatar name={name} color={AVATAR_COLORS[index % AVATAR_COLORS.length]!} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-bold">{name}</p>
+                        {(sla < 90 || courier.failed >= 5) && (
+                          <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted">
+                        {t('mgrFix.teamPerf.delivered', { n: courier.delivered, sla })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.failed')}</p>
+                      <p
+                        className={`text-sm font-bold tabular-nums ${courier.failed >= 5 ? 'text-[color:var(--danger)]' : ''}`}
+                      >
+                        {courier.failed}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.rating')}</p>
+                      <p className="flex items-center justify-end gap-0.5 text-sm font-bold tabular-nums">
+                        {courier.rating === null ? '—' : courier.rating.toFixed(1)}
+                        {courier.rating !== null && (
+                          <Star size={12} weight="fill" className="text-amber-500" />
+                        )}
+                      </p>
+                    </div>
+                  </Card>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted">
+              {t('mgrFix.teamPerf.operators')}
+            </p>
+            {report.operators.length === 0 ? (
+              <p className="text-sm text-muted">{t('mgrFix.teamPerf.noOperators')}</p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {report.operators.map((operator, index) => {
+                  const name = names.get(operator.operatorId) ?? operator.operatorId;
+                  return (
+                    <Card key={operator.operatorId} className="flex flex-col gap-3 p-4">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={name} color={AVATAR_COLORS[index % AVATAR_COLORS.length]!} />
+                        <p className="truncate text-sm font-bold">{name}</p>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted">{t('mgrFix.teamPerf.verifiedSettlements')}</span>
+                        <span className="font-bold tabular-nums">{operator.verifiedSettlements}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted">{t('mgrFix.teamPerf.depositVariance')}</span>
+                        <span
+                          className={`font-bold tabular-nums ${operator.varianceIdr > 0 ? 'text-amber-700' : 'text-[color:var(--success)]'}`}
+                        >
+                          {formatIDR(operator.varianceIdr)}
+                        </span>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

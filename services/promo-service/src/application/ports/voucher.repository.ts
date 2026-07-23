@@ -84,6 +84,7 @@ export interface VoucherRepository {
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
+  findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]>;
 
   /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
   sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;

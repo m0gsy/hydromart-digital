@@ -202,6 +202,12 @@ export const endpoints = {
       if (q.to) p.set('to', q.to);
       return `/deliveries/api/v1/commission?${p}`;
     },
+    depotTeam: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams({ depotId });
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      return `/deliveries/api/v1/reports/depot-team?${p}`;
+    },
   },
   payments: {
     initiate: '/payments/api/v1/payments',
@@ -426,6 +432,7 @@ export const endpoints = {
     create: '/vouchers/api/v1/promotions',
     // PATCH to edit, DELETE to remove.
     detail: (id: string) => `/vouchers/api/v1/promotions/${id}`,
+    analytics: (id: string) => `/vouchers/api/v1/promotions/${id}/analytics`,
   },
   referrals: {
     me: '/referrals/api/v1/referrals/me',
@@ -576,6 +583,19 @@ export const endpoints = {
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
     // Append-only stock movement history for one line (opname/adjust/sale/restock).
     movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    depotMovements: (
+      depotId: string,
+      q: { type?: string; from?: string; to?: string; page?: number; limit?: number } = {},
+    ) => {
+      const p = new URLSearchParams();
+      if (q.type) p.set('type', q.type);
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      const qs = p.toString();
+      return `/depots/api/v1/depots/${depotId}/inventory/movements${qs ? `?${qs}` : ''}`;
+    },
     // Depot wastage summary from negative ADJUSTMENT movements (real lost qty per item).
     wastage: (depotId: string, q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams({ depotId });
@@ -880,6 +900,8 @@ export const endpoints = {
     countByProduct: '/depots/api/v1/price-overrides/count-by-product',
   },
   dashboard: {
+    monthlyPnl: (depotId: string, month: string) =>
+      `/dashboard/api/v1/dashboard/monthly-pnl?${new URLSearchParams({ depotId, month })}`,
     executive: (q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);

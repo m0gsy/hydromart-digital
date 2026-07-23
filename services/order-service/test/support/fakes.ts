@@ -19,6 +19,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  OrderValue,
   RatingSummary,
   ProductRevenue,
   ReportRange,
@@ -160,6 +161,11 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
+  }
+  async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
+    return this.rows
+      .filter((row) => orderIds.includes(row.id))
+      .map((row) => ({ orderId: row.id, totalIdr: row.total }));
   }
   async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
     const all = this.rows

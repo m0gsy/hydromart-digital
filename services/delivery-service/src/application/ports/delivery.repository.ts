@@ -109,6 +109,13 @@ export interface DepotDeliveredCount {
   count: number;
 }
 
+/** Depot-scoped courier activity used by the manager team report. */
+export interface DepotCourierActivity {
+  driverId: string;
+  delivered: DeliveredRow[];
+  failed: number;
+}
+
 /** Raw SLA aggregates over the delivery book; formatted into rates by ReportService. */
 export interface SlaStats {
   totalDelivered: number;
@@ -166,8 +173,19 @@ export interface DeliveryRepository {
     from: Date,
     to: Date,
   ): Promise<DepotDeliveredCount[]>;
-  /** Overwrite the delivery's latest reported driver position (live tracking). */
-  updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord>;
+  /** Delivered orders and failures per courier at one depot in [from,to). */
+  depotCourierActivityInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotCourierActivity[]>;
+  /** Overwrite the latest driver position and refresh ETA when one can be estimated. */
+  updateLocation(
+    id: string,
+    lat: number,
+    lng: number,
+    estimatedArrivalAt?: Date,
+  ): Promise<DeliveryRecord>;
   /** Move the delivery to `status`, set the matching timestamp, append history. */
   applyStatus(
     id: string,

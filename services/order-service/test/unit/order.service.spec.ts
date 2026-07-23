@@ -120,6 +120,20 @@ describe('OrderService', () => {
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
   });
 
+  it('batch-reads authoritative totals for existing order ids', async () => {
+    await addToCart(20_000, 2);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    const missingId = randomUUID();
+
+    const result = await (
+      service as unknown as {
+        findOrderValues(ids: string[]): Promise<{ orderId: string; totalIdr: number }[]>;
+      }
+    ).findOrderValues([order.id, missingId]);
+
+    expect(result).toEqual([{ orderId: order.id, totalIdr: order.total }]);
+  });
+
   it('round-trips an optional delivery window, defaulting to null when omitted', async () => {
     await addToCart(20000, 1);
     const withWindow = await service.checkout(customer, {

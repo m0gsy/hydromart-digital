@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
@@ -64,16 +64,27 @@ export class AccountController {
 
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
-  @Roles(...CAPABILITIES.staffAdmin)
+  @Roles(...CAPABILITIES.staffAdmin, Role.DEPOT_MANAGER)
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
-  async listStaff(@Query() query: ListStaffQueryDto): Promise<{
+  async listStaff(
+    @Query() query: ListStaffQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{
     items: PublicCustomerDto[];
     total: number;
     page: number;
     limit: number;
   }> {
-    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, query.depotId);
+    let depotId = query.depotId;
+    if (user.role === Role.DEPOT_MANAGER) {
+      const manager = await this.account.getProfile(user.sub);
+      if (!manager.assignedDepotId || (depotId && depotId !== manager.assignedDepotId)) {
+        throw new ForbiddenException('Depot managers may only list staff at their assigned depot.');
+      }
+      depotId = manager.assignedDepotId;
+    }
+    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, depotId);
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 

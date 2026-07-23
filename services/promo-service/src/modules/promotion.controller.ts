@@ -10,13 +10,13 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Public, Role, Roles } from '@hydromart/platform';
 
 import { PromotionRecord } from '../application/ports/promotion.repository';
 import { PromotionService } from '../application/services/promotion.service';
-import { CreatePromotionDto, UpdatePromotionDto } from './dto/promotion.dto';
+import { CreatePromotionDto, PromotionAnalyticsDto, UpdatePromotionDto } from './dto/promotion.dto';
 
 // Promotions are authored by marketing/depot staff and shown to customers on Home.
 const ADMIN_ROLES = [Role.MARKETING, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
@@ -47,6 +47,15 @@ export class PromotionController {
   @ApiOperation({ summary: 'List all promotions (admin, includes inactive/scheduled)' })
   listAll(): Promise<PromotionRecord[]> {
     return this.promotions.listAll();
+  }
+
+  @ApiBearerAuth()
+  @Roles(...READ_ROLES)
+  @Get(':id/analytics')
+  @ApiOperation({ summary: 'Read authoritative usage and order-value analytics for a promotion' })
+  @ApiOkResponse({ type: PromotionAnalyticsDto })
+  async analytics(@Param('id', ParseUUIDPipe) id: string): Promise<PromotionAnalyticsDto> {
+    return PromotionAnalyticsDto.from(await this.promotions.analytics(id));
   }
 
   @ApiBearerAuth()
