@@ -26,6 +26,7 @@ import { GoogleVerifier } from '../../infrastructure/security/google-verifier';
 import { SystemClock } from '../../infrastructure/security/system-clock';
 import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
+import { ZenzivaOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/zenziva-otp-delivery.adapter';
 import { CustomerNotificationHttpAdapter } from '../../infrastructure/notification/customer-notification.http.adapter';
 import { LocalDiskStorageAdapter } from '../../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../../infrastructure/storage/s3-storage.adapter';
@@ -41,6 +42,7 @@ const adapterProviders: Provider[] = [
   AuthConfigService,
   ConsoleOtpDeliveryAdapter,
   SmsOtpDeliveryAdapter,
+  ZenzivaOtpDeliveryAdapter,
   InternalAuthGuard,
   { provide: AUTH_TOKENS.CustomerRepository, useClass: CustomerPrismaRepository },
   { provide: AUTH_TOKENS.OtpTokenRepository, useClass: OtpTokenPrismaRepository },
@@ -61,12 +63,27 @@ const adapterProviders: Provider[] = [
   },
   {
     provide: AUTH_TOKENS.OtpDeliveryPort,
-    inject: [AuthConfigService, ConsoleOtpDeliveryAdapter, SmsOtpDeliveryAdapter],
+    inject: [
+      AuthConfigService,
+      ConsoleOtpDeliveryAdapter,
+      SmsOtpDeliveryAdapter,
+      ZenzivaOtpDeliveryAdapter,
+    ],
     useFactory: (
       config: AuthConfigService,
       consoleAdapter: ConsoleOtpDeliveryAdapter,
       sms: SmsOtpDeliveryAdapter,
-    ) => (config.otpDeliveryChannel === 'sms' ? sms : consoleAdapter),
+      zenziva: ZenzivaOtpDeliveryAdapter,
+    ) => {
+      switch (config.otpDeliveryChannel) {
+        case 'zenziva':
+          return zenziva;
+        case 'sms':
+          return sms;
+        default:
+          return consoleAdapter;
+      }
+    },
   },
 ];
 

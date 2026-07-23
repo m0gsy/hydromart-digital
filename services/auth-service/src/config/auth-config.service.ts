@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-export type OtpDeliveryChannel = 'console' | 'sms';
+export type OtpDeliveryChannel = 'console' | 'sms' | 'zenziva';
 
 export interface OtpPolicy {
   ttlSeconds: number;
@@ -75,6 +75,14 @@ export class AuthConfigService {
   get googleClientId(): string | undefined {
     const value = this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID');
     return value && value.length > 0 ? value : undefined;
+  }
+
+  get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
+    return {
+      baseUrl: this.config.get<string>('ZENZIVA_BASE_URL', 'https://console.zenziva.net'),
+      userkey: this.config.get<string>('ZENZIVA_USERKEY', ''),
+      passkey: this.config.get<string>('ZENZIVA_PASSKEY', ''),
+    };
   }
 
   get sms(): { baseUrl: string; token: string; senderId: string } {
