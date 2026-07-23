@@ -164,7 +164,7 @@ export class OrderService {
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
 
     // FR-032: the customer's membership tier gives an always-on discount on the
@@ -276,7 +276,7 @@ export class OrderService {
     }
 
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);

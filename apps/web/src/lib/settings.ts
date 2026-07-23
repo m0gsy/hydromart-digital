@@ -23,6 +23,7 @@ export type SettingScope = 'GLOBAL' | 'DEPOT';
 // One row per service that exposes GET /settings/schema behind the gateway.
 export const SETTINGS_SERVICES = [
   { id: 'delivery', label: 'Pengiriman & Kurir', base: '/deliveries/api/v1' },
+  { id: 'order', label: 'Order & Ongkir', base: '/orders/api/v1' },
 ] as const;
 
 export function fetchSettingsSchema(base: string, depotId: string | null): Promise<SettingsSchema> {

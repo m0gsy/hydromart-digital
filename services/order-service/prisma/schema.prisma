@@ -201,3 +201,17 @@ model OrderReview {
 
   @@map("order_reviews")
 }
+
+/// Per-depot/global overridable service settings (key-value, GLOBAL falls back to DEPOT).
+model ServiceSetting {
+  id        String   @id @default(uuid())
+  scope     String   // 'GLOBAL' | 'DEPOT'
+  depotId   String?  @map("depot_id")
+  key       String
+  value     String
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([scope, depotId])
+  @@map("service_settings")
+}
