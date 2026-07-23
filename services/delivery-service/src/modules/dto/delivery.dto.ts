@@ -134,7 +134,7 @@ export class AssignDeliveryDto {
   notes?: string;
 }
 
-/** Proof of delivery — all fields mandatory except the note (BR: photo+GPS+timestamp+signature). */
+/** Proof of delivery — photo + GPS + timestamp mandatory; signature + note optional. */
 export class ProofOfDeliveryDto {
   @ApiProperty({ description: 'URL of the delivery photo.' })
   @IsString()
@@ -142,11 +142,11 @@ export class ProofOfDeliveryDto {
   @MaxLength(500)
   photoUrl!: string;
 
-  @ApiProperty({ description: 'URL of the captured recipient signature.' })
+  @ApiPropertyOptional({ description: 'URL of the captured recipient signature (optional).' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(500)
-  signatureUrl!: string;
+  signatureUrl?: string;
 
   @ApiProperty({ example: 'Budi Santoso' })
   @IsString()

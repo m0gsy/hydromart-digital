@@ -208,7 +208,9 @@ model ProofOfDelivery {
   deliveryId    String   @unique @db.Uuid
   delivery      Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   photoUrl      String
-  signatureUrl  String
+  // Optional: the recipient signature is a courtesy, not a gate. Photo + GPS +
+  // timestamp remain the mandatory proof. Null when the recipient didn't sign.
+  signatureUrl  String?
   recipientName String
   latitude      Float
   longitude     Float

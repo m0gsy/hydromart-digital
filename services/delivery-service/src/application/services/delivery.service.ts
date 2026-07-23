@@ -161,7 +161,7 @@ export class DeliveryService {
     );
   }
 
-  /** Completes the delivery with mandatory proof (photo + GPS + timestamp + signature). */
+  /** Completes the delivery with proof: photo + GPS + timestamp mandatory, signature optional. */
   async complete(
     driverId: string,
     id: string,

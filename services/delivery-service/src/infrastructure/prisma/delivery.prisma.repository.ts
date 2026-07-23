@@ -22,7 +22,7 @@ import { PrismaService } from './prisma.service';
 
 interface ProofRow {
   photoUrl: string;
-  signatureUrl: string;
+  signatureUrl: string | null;
   recipientName: string;
   latitude: number;
   longitude: number;

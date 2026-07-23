@@ -88,7 +88,7 @@ export class DriverDeliveryController {
       id,
       {
         photoUrl: dto.photoUrl,
-        signatureUrl: dto.signatureUrl,
+        signatureUrl: dto.signatureUrl ?? null,
         recipientName: dto.recipientName,
         latitude: dto.latitude,
         longitude: dto.longitude,
