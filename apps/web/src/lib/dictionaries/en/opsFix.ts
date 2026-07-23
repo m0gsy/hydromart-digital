@@ -96,7 +96,7 @@ export const opsFix = {
     earlier: 'Earlier',
     stockLow: 'Low stock',
     courierIncident: 'Courier incident',
-    localNote: 'Read state applies to this session only.',
+    readNote: 'Read state is stored per staff account.',
     noUnread: 'No unread notifications.',
   },
   qris: {

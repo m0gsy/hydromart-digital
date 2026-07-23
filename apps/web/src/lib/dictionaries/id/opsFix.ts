@@ -96,8 +96,8 @@ export const opsFix = {
     earlier: 'Lebih lama',
     stockLow: 'Stok menipis',
     courierIncident: 'Insiden kurir',
-    // Read-state is per-session only (no ops mark-read endpoint yet).
-    localNote: 'Status dibaca hanya berlaku di sesi ini.',
+    // Read receipts live in crm-service, one per staff member.
+    readNote: 'Status dibaca tersimpan per akun staf.',
     noUnread: 'Tidak ada notifikasi belum dibaca.',
   },
   qris: {

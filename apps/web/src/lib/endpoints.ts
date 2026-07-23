@@ -41,8 +41,11 @@ export const endpoints = {
   // Customer's notification inbox feed (crm-service, newest first).
   notifications: {
     me: '/crm/api/v1/notifications/me',
-    // Staff operational feed: recent ops alerts (low stock, …).
+    // Staff operational feed: recent ops alerts (low stock, …), each with the caller's
+    // own read receipt. Reads are per staff member and persist server-side.
     ops: '/crm/api/v1/notifications/ops',
+    opsRead: (id: string) => `/crm/api/v1/notifications/ops/${id}/read`,
+    opsReadAll: '/crm/api/v1/notifications/ops/read-all',
   },
   // Web Push (crm-service, design 7b transport). vapidKey → browser subscribe; subscribe/
   // unsubscribe register a device endpoint (DELETE takes { endpoint } in the body).

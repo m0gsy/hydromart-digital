@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
-import { NotificationRecord, NotificationRepository } from '../ports/notification.repository';
+import {
+  NotificationRecord,
+  NotificationRepository,
+  OpsNotificationRecord,
+} from '../ports/notification.repository';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
 
@@ -50,8 +54,23 @@ export class NotificationService {
     return this.repo.listForCustomer(customerId, Math.min(Math.max(limit, 1), 100));
   }
 
-  /** Staff operational feed (PRD 10d): recent notifications for operational events. */
-  async listOpsFeed(limit = 50): Promise<NotificationRecord[]> {
-    return this.repo.listByEvents(OPS_EVENTS, Math.min(Math.max(limit, 1), 100));
+  /**
+   * Staff operational feed (PRD 10d): recent notifications for operational events, with
+   * the caller's own read receipts. Read state is per staff member, never shared.
+   */
+  async listOpsFeed(staffId: string, limit = 50): Promise<OpsNotificationRecord[]> {
+    return this.repo.listOpsFeedFor(OPS_EVENTS, staffId, clampLimit(limit));
+  }
+
+  /** Mark one ops notification read for this staff member. Idempotent; null when unknown. */
+  async markOpsRead(notificationId: string, staffId: string): Promise<Date | null> {
+    return this.repo.markOpsRead(notificationId, OPS_EVENTS, staffId);
+  }
+
+  /** Mark the whole current feed window read for this staff member. Idempotent. */
+  async markAllOpsRead(staffId: string, limit = 50): Promise<number> {
+    return this.repo.markAllOpsRead(OPS_EVENTS, staffId, clampLimit(limit));
   }
 }
+
+const clampLimit = (limit: number): number => Math.min(Math.max(limit, 1), 100);

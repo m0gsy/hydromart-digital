@@ -1154,6 +1154,8 @@ export interface OpsNotification {
   status: 'SENT' | 'FAILED';
   error: string | null;
   createdAt: string;
+  /** When the *calling* staff member read it; null = unread by them. */
+  readAt: string | null;
 }
 
 // Retur galon (depot-service GallonReturn). Empties handed back + deposit refunded.

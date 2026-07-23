@@ -104,6 +104,8 @@ export const mgrFix = {
     stockHint: 'Item di bawah ambang',
     activeCouriers: 'Kurir aktif',
     couriersHint: 'Lihat performa tim',
+    notifTitle: 'Notifikasi ops',
+    notifSubtitle: 'Peringatan operasional terbaru.',
     events: {
       STOCK_LOW: 'Stok kritis',
       COURIER_INCIDENT: 'Insiden kurir',
