@@ -74,13 +74,17 @@ export const envValidationSchema = Joi.object({
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
 })
   // If a delivery channel is selected, its provider credentials must be present.
-  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms') }).unknown(), {
+  // `.required()` in the condition is load-bearing: a Joi key is optional by default,
+  // so `valid('sms')` alone is also satisfied by OTP_DELIVERY_CHANNEL being *absent* —
+  // which would demand that channel's credentials from every deploy that never picked
+  // it. The key carries a `console` default, so absent must not match.
+  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('sms').required() }).unknown(), {
     then: Joi.object({
       SMS_API_BASE_URL: Joi.string().uri().required(),
       SMS_API_TOKEN: Joi.string().required(),
     }),
   })
-  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('zenziva') }).unknown(), {
+  .when(Joi.object({ OTP_DELIVERY_CHANNEL: Joi.valid('zenziva').required() }).unknown(), {
     then: Joi.object({
       ZENZIVA_USERKEY: Joi.string().required(),
       ZENZIVA_PASSKEY: Joi.string().required(),
