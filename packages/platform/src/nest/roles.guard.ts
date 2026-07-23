@@ -30,7 +30,9 @@ export class RolesGuard implements CanActivate {
       return true;
     }
     const user = context.switchToHttp().getRequest<Request>().user as AuthenticatedUser | undefined;
-    if (!user || !required.includes(user.role)) {
+    // SUPER_ADMIN holds every capability by design (superuser). Kept here in the
+    // shared guard so the bypass can never drift between services.
+    if (!user || (user.role !== 'SUPER_ADMIN' && !required.includes(user.role))) {
       throw new ForbiddenException('You do not have permission to perform this action.');
     }
     return true;

@@ -106,7 +106,10 @@ export const CAPABILITIES = {
 
 export type Capability = keyof typeof CAPABILITIES;
 
-/** Whether a role holds a capability. */
+/** Whether a role holds a capability. SUPER_ADMIN holds every one (superuser). */
 export function can(capability: Capability, role: string | null | undefined): boolean {
+  if (role === 'SUPER_ADMIN') {
+    return true;
+  }
   return role != null && (CAPABILITIES[capability] as readonly string[]).includes(role);
 }
