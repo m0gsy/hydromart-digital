@@ -95,15 +95,22 @@ export class LoyaltyService {
   /**
    * Award points for a completed order (BR-013). Idempotent per order: a repeated
    * call for the same orderId is a no-op. A zero-point order (tiny subtotal) records
-   * nothing but still reads as handled.
+   * nothing but still reads as handled. `depotId` (the order's depot, when the caller
+   * has it) resolves a per-depot override of the earn rate / expiry window; omitted
+   * means GLOBAL-only, matching pre-settings behavior.
    */
-  async earnForOrder(customerId: string, orderId: string, subtotal: number): Promise<EarnResult> {
+  async earnForOrder(
+    customerId: string,
+    orderId: string,
+    subtotal: number,
+    depotId: string | null = null,
+  ): Promise<EarnResult> {
     const existing = await this.repo.findEarnByOrder(orderId);
     if (existing) {
       return { account: await this.getAccount(customerId), pointsEarned: 0, alreadyEarned: true };
     }
 
-    const points = pointsForOrder(subtotal, this.config.earnRateRupiah);
+    const points = pointsForOrder(subtotal, this.config.earnRateRupiah(depotId));
     const account = await this.getAccount(customerId);
     if (points <= 0) {
       return { account, pointsEarned: 0, alreadyEarned: false };
@@ -116,7 +123,7 @@ export class LoyaltyService {
       points,
       orderId,
       reason: `Order ${orderId} completed`,
-      expiresAt: expiryFrom(new Date(), this.config.pointExpiryMonths),
+      expiresAt: expiryFrom(new Date(), this.config.pointExpiryMonths(depotId)),
       newBalance: account.pointsBalance + points,
       newLifetime,
       newTier: tierFor(newLifetime),

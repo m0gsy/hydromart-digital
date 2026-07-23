@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsPositive, IsString, IsUUID, Max, MaxLength, Min, NotEquals } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsPositive, IsString, IsUUID, Max, MaxLength, Min, NotEquals } from 'class-validator';
 
 import { MembershipTier, benefitFor } from '../../domain/membership';
 import { PointsTxnType } from '../../domain/points';
@@ -24,6 +24,14 @@ export class EarnPointsDto {
   @Type(() => Number)
   @IsPositive()
   subtotal!: number;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: "The order's depot, so a per-depot earn-rate/expiry override applies. Omitted = GLOBAL only.",
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }
 
 export class AdjustPointsDto {
