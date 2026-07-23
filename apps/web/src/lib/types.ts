@@ -1094,6 +1094,12 @@ export interface ExpenseClaim {
   updatedAt: string;
 }
 
+// One rung of a rule's monthly delivery-count incentive ladder.
+export interface CourierIncentiveTier {
+  deliveries: number;
+  bonus: number;
+}
+
 // Courier earning rule (payout-service, design 6b). Effective-dated; depotId null = network default.
 export interface CourierEarningRule {
   id: string;
@@ -1103,6 +1109,10 @@ export interface CourierEarningRule {
   onTimeBonus: number;
   peakStartHour: number;
   peakEndHour: number;
+  /** Monthly earnings target shown to the courier (IDR); 0 = none configured. */
+  monthlyTarget: number;
+  /** Incentive ladder, ascending by delivery count; empty = no incentives. */
+  tiers: CourierIncentiveTier[];
   effectiveDate: string;
   createdAt: string;
 }

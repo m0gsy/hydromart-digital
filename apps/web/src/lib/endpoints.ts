@@ -851,6 +851,8 @@ export const endpoints = {
       const qs = p.toString();
       return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
     },
+    // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
+    earningRule: '/payout/api/v1/courier/earning-rule',
     withdraw: '/payout/api/v1/courier/withdrawals',
     withdrawals: '/payout/api/v1/courier/withdrawals',
     expenses: '/payout/api/v1/courier/expenses',

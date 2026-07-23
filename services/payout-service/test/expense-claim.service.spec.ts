@@ -44,6 +44,9 @@ class FakeLedger implements CourierLedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
+  async countByType(): Promise<number> {
+    return 0;
+  }
   async listForCourier() {
     return { items: [], total: 0 };
   }

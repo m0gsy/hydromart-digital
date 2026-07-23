@@ -24,7 +24,10 @@ import {
   CourierPayoutService,
 } from '../application/services/courier-payout.service';
 import { ExpenseClaimService } from '../application/services/expense-claim.service';
-import { CourierLedgerEntryRecord } from '../application/ports/courier-ledger.repository';
+import {
+  CourierEarningRuleRecord,
+  CourierLedgerEntryRecord,
+} from '../application/ports/courier-ledger.repository';
 import { CourierWithdrawalRecord } from '../application/ports/courier-withdrawal.repository';
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
@@ -51,6 +54,12 @@ export class CourierPayoutController {
   @ApiOperation({ summary: "Balance, this month's earnings + recent activity (design 2c)" })
   summary(@CurrentUser() user: AuthenticatedUser): Promise<CourierEarningsSummary> {
     return this.payout.summary(user.sub);
+  }
+
+  @Get('earning-rule')
+  @ApiOperation({ summary: "Effective earning rule for the courier's depot — monthly target + incentive tiers" })
+  earningRule(@CurrentUser() user: AuthenticatedUser): Promise<CourierEarningRuleRecord | null> {
+    return this.payout.effectiveRule(user.depotId ?? null);
   }
 
   @Get('ledger')

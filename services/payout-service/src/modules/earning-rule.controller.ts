@@ -36,6 +36,8 @@ export class EarningRuleController {
       onTimeBonus: dto.onTimeBonus,
       peakStartHour: dto.peakStartHour,
       peakEndHour: dto.peakEndHour,
+      monthlyTarget: dto.monthlyTarget ?? 0,
+      tiers: dto.tiers ?? [],
       effectiveDate: new Date(dto.effectiveDate),
     });
   }

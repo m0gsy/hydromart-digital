@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { computeEarning } from '../../domain/courier-earning';
+import { computeEarning, tiersReached, tiersValid } from '../../domain/courier-earning';
 import {
   InsufficientBalanceError,
   InvalidEarningRuleError,
@@ -87,7 +87,42 @@ export class CourierPayoutService {
       occurredAt: deliveredAt,
     });
     this.logger.log(`Courier ${event.courierId} earned ${amount} for delivery ${event.deliveryId}`);
+    await this.awardIncentives(event, rule, deliveredAt);
     return entry;
+  }
+
+  /**
+   * Posts one INCENTIVE credit per monthly tier the courier has reached, keyed
+   * courier/rule/month/tier so a re-pushed or out-of-order delivery pays each rung once.
+   */
+  private async awardIncentives(
+    event: DeliveryCompletedEvent,
+    rule: CourierEarningRuleRecord,
+    deliveredAt: Date,
+  ): Promise<void> {
+    if (rule.tiers.length === 0) return;
+    const monthStart = startOfMonth(deliveredAt);
+    const delivered = await this.ledger.countByType(event.courierId, 'EARNING', monthStart);
+    const month = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+    for (const tier of tiersReached(rule.tiers, delivered)) {
+      const sourceRef = `incentive:${rule.id}:${event.courierId}:${month}:${tier.deliveries}`;
+      if (await this.ledger.findBySourceRef(sourceRef)) continue;
+      await this.ledger.create({
+        courierId: event.courierId,
+        depotId: event.depotId,
+        type: 'INCENTIVE',
+        amount: tier.bonus,
+        description: `Bonus ${tier.deliveries} pengiriman`,
+        sourceRef,
+        occurredAt: deliveredAt,
+      });
+      this.logger.log(`Courier ${event.courierId} hit tier ${tier.deliveries} (${month})`);
+    }
+  }
+
+  /** The earning rule in force for a depot — the courier's goal/tier config (design 6b). */
+  effectiveRule(depotId: string | null): Promise<CourierEarningRuleRecord | null> {
+    return this.ledger.currentRule(depotId);
   }
 
   /**
@@ -185,8 +220,11 @@ export class CourierPayoutService {
    * deliveries stays reproducible. Rejects a peak window that would never fire.
    */
   async applyEarningRule(data: CreateEarningRuleData): Promise<CourierEarningRuleRecord> {
-    const { baseFare, peakBonus, onTimeBonus, peakStartHour, peakEndHour } = data;
-    if ([baseFare, peakBonus, onTimeBonus].some((v) => v < 0)) throw new InvalidEarningRuleError();
+    const { baseFare, peakBonus, onTimeBonus, peakStartHour, peakEndHour, monthlyTarget } = data;
+    if ([baseFare, peakBonus, onTimeBonus, monthlyTarget].some((v) => v < 0)) {
+      throw new InvalidEarningRuleError();
+    }
+    if (!tiersValid(data.tiers)) throw new InvalidEarningRuleError();
     const hoursValid =
       Number.isInteger(peakStartHour) &&
       Number.isInteger(peakEndHour) &&
