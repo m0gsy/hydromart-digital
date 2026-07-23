@@ -32,12 +32,14 @@ enum WithdrawalStatus {
   FAILED
 }
 
-/// Courier cash-book entry kind. Credit (+): EARNING. Debits (-): DEDUCTION (e.g.
+/// Courier cash-book entry kind. Credits (+): EARNING, INCENTIVE (monthly tier bonus).
+/// Debits (-): DEDUCTION (e.g.
 /// break overage), CASH_VARIANCE (COD shortfall charged, slice 13), WITHDRAWAL.
 /// ADJUSTMENT may be either sign. Kept parallel to LedgerEntryType (franchise money)
 /// rather than generalised — the two ledgers never share a balance.
 enum CourierLedgerEntryType {
   EARNING
+  INCENTIVE
   DEDUCTION
   CASH_VARIANCE
   WITHDRAWAL
@@ -96,11 +98,31 @@ model CourierEarningRule {
   /// Peak window [start, end) in local hour-of-day, e.g. 17..20.
   peakStartHour Int
   peakEndHour   Int
+  /// Monthly earnings target shown to the courier (IDR); 0 = no target configured.
+  monthlyTarget Decimal @db.Decimal(14, 2) @default(0)
   effectiveDate DateTime
   createdAt     DateTime @default(now())
 
+  tiers CourierIncentiveTier[]
+
   @@index([depotId, effectiveDate])
   @@map("courier_earning_rules")
+}
+
+/// Monthly delivery-count incentive ladder attached to one earning rule. Immutable with
+/// its parent rule (rules are append-only), so a paid bonus stays reproducible.
+model CourierIncentiveTier {
+  id         String  @id @default(uuid()) @db.Uuid
+  ruleId     String  @db.Uuid
+  /// Completed deliveries in the month that unlock the bonus.
+  deliveries Int
+  /// One-off IDR credit posted when the rung is reached.
+  bonus      Decimal @db.Decimal(12, 2)
+
+  rule CourierEarningRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, deliveries])
+  @@map("courier_incentive_tiers")
 }
 
 /// Append-only courier cash-book entry. Balance = signed sum of amounts. sourceRef

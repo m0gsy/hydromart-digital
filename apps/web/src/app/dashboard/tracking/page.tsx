@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Lock, MapPin, NavigationArrow, Truck, User } from '@phosphor-icons/react';
+import dynamic from 'next/dynamic';
+import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -14,6 +15,12 @@ import { useAsync } from '@/lib/use-async';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const REFRESH_MS = 15000;
+const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+const DeliveryTrackingMap = dynamic(() => import('@/components/delivery-tracking-map'), {
+  ssr: false,
+  loading: () => <div className="h-[220px] w-full animate-pulse rounded-2xl bg-[color:var(--surface-muted)]" />,
+});
 
 type T = (key: string, vars?: TVars) => string;
 
@@ -29,17 +36,6 @@ const STEPS: { status: DeliveryStatus }[] = [
 function stepIndex(status: DeliveryStatus): number {
   const i = STEPS.findIndex((s) => s.status === status);
   return i < 0 ? -1 : i;
-}
-
-/** Great-circle km between two points (haversine). */
-function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 6371;
-  const dLat = ((bLat - aLat) * Math.PI) / 180;
-  const dLng = ((bLng - aLng) * Math.PI) / 180;
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 }
 
 function relative(iso: string | null, t: T): string {
@@ -77,10 +73,10 @@ function Stepper({ status }: { status: DeliveryStatus }) {
 function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | null }) {
   const { t } = useT();
   const hasPos = d.lastLat != null && d.lastLng != null;
-  const dist =
-    hasPos && d.destinationLat != null && d.destinationLng != null
-      ? distanceKm(d.lastLat!, d.lastLng!, d.destinationLat, d.destinationLng)
-      : null;
+  const hasDestination = d.destinationLat != null && d.destinationLng != null;
+  const eta = d.estimatedArrivalAt ? new Date(d.estimatedArrivalAt) : null;
+  const hasEta = eta !== null && !Number.isNaN(eta.getTime());
+  const etaMinutes = hasEta ? Math.max(0, Math.ceil((eta.getTime() - Date.now()) / 60_000)) : 0;
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -106,7 +102,12 @@ function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | n
             {courierName ?? (d.driverId ? t('dashC.tracking.courier', { id: d.driverId.slice(0, 6) }) : t('opsFix.tracking.courierUnknown'))}
           </span>
         </span>
-        {dist != null && <span className="tabular-nums text-muted">{t('dashC.tracking.distToDest', { km: dist.toFixed(1) })}</span>}
+        {hasEta && (
+          <span className="inline-flex items-center gap-1 tabular-nums text-muted">
+            <Clock size={15} />
+            {t('dashC.tracking.eta', { minutes: etaMinutes, time: ETA_TIME.format(eta) })}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-3 border-t border-app pt-3 text-sm">
@@ -117,15 +118,12 @@ function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | n
         <span className="text-xs text-muted">{relative(d.lastLocationAt, t)}</span>
       </div>
       {hasPos && (
-        <a
-          href={`https://www.google.com/maps?q=${d.lastLat},${d.lastLng}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline"
-        >
-          <MapPin size={15} weight="fill" />
-          {t('dashC.tracking.mapLink')}
-        </a>
+        <DeliveryTrackingMap
+          courier={[d.lastLat!, d.lastLng!]}
+          destination={hasDestination ? [d.destinationLat!, d.destinationLng!] : null}
+          courierLabel={t('dashC.tracking.mapCourier')}
+          destinationLabel={t('dashC.tracking.mapDestination')}
+        />
       )}
     </Card>
   );

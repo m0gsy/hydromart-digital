@@ -1,6 +1,32 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsNumber, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+
+/** One rung of the monthly delivery-count incentive ladder (design 6b). */
+export class IncentiveTierDto {
+  @ApiProperty({ example: 25, minimum: 1, description: 'Deliveries in the month that unlock the bonus.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  deliveries!: number;
+
+  @ApiProperty({ example: 25000, minimum: 0, description: 'One-off IDR credit for the rung.' })
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  bonus!: number;
+}
 
 /** Apply a new effective-dated courier earning rule (design 6b). */
 export class ApplyEarningRuleDto {
@@ -40,6 +66,21 @@ export class ApplyEarningRuleDto {
   @Min(1)
   @Max(24)
   peakEndHour!: number;
+
+  @ApiPropertyOptional({ example: 5000000, minimum: 0, description: 'Monthly earnings target (IDR); 0 = none.' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  monthlyTarget?: number;
+
+  @ApiPropertyOptional({ type: [IncentiveTierDto], description: 'Monthly incentive ladder; omit for none.' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => IncentiveTierDto)
+  tiers?: IncentiveTierDto[];
 
   @ApiProperty({ example: '2026-08-01', description: 'Date the rule takes effect.' })
   @IsDateString()

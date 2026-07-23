@@ -16,4 +16,5 @@ export const envValidationSchema = Joi.object({
   // still succeeds; the "voucher baru" notification is skipped (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  ORDER_SERVICE_URL: Joi.string().uri().required(),
 });

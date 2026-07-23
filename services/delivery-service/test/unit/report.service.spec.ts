@@ -3,7 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { ReportService } from '../../src/application/services/report.service';
 import { DeliveryRecord } from '../../src/application/ports/delivery.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
-import { InMemoryDeliveryRepository, buildTestConfig } from '../support/fakes';
+import {
+  FakeRating,
+  InMemoryDeliveryRepository,
+  InMemorySettlementRepository,
+  buildTestConfig,
+} from '../support/fakes';
+import { SettlementStatus } from '../../src/domain/settlement';
 
 const ASSIGNED = new Date('2026-06-01T00:00:00.000Z');
 const at = (min: number): Date => new Date(ASSIGNED.getTime() + min * 60_000);
@@ -45,11 +51,15 @@ function seed(repo: InMemoryDeliveryRepository, over: Partial<DeliveryRecord>): 
 
 describe('ReportService.sla', () => {
   let repo: InMemoryDeliveryRepository;
+  let settlements: InMemorySettlementRepository;
+  let rating: FakeRating;
   let service: ReportService;
 
   beforeEach(() => {
     repo = new InMemoryDeliveryRepository();
-    service = new ReportService(repo, buildTestConfig()); // DELIVERY_SLA_MINUTES=120
+    settlements = new InMemorySettlementRepository();
+    rating = new FakeRating();
+    service = new ReportService(repo, settlements, rating, buildTestConfig()); // DELIVERY_SLA_MINUTES=120
   });
 
   it('counts on-time (incl. boundary) vs breached, averages minutes, and counts failures', async () => {
@@ -141,5 +151,62 @@ describe('ReportService.sla', () => {
     expect(a.avgMinutes).toBe(120.5); // (60+181)/2
     const b = r.depots.find((d) => d.depotId === depotB)!;
     expect(b).toMatchObject({ totalDelivered: 1, onTime: 1, breached: 0, slaRate: 1 });
+  });
+
+  it('reports depot courier delivery metrics and verified settlement operators', async () => {
+    const depotId = randomUUID();
+    const driverId = randomUUID();
+    const operatorId = randomUUID();
+    const from = new Date('2026-06-01T00:00:00.000Z');
+    const to = new Date('2026-07-01T00:00:00.000Z');
+
+    seed(repo, { depotId, driverId, orderId: 'order-on-time', deliveredAt: at(60) });
+    seed(repo, { depotId, driverId, orderId: 'order-late', deliveredAt: at(181) });
+    seed(repo, { depotId, driverId, status: DeliveryStatus.FAILED, failedAt: at(240) });
+    seed(repo, {
+      depotId: randomUUID(),
+      driverId,
+      orderId: 'other-depot',
+      deliveredAt: at(30),
+    });
+    rating.ratings.set('order-on-time', 5);
+    rating.ratings.set('order-late', 4);
+
+    const settlementBase = {
+      shiftId: randomUUID(),
+      driverId,
+      depotId,
+      status: SettlementStatus.VERIFIED,
+      orderIds: [],
+      expectedAmount: 100_000,
+      depositedAmount: 95_000,
+      chargedToDriver: false,
+      note: null,
+      verifiedBy: operatorId,
+      verifiedAt: at(300),
+      createdAt: at(300),
+      updatedAt: at(300),
+    };
+    settlements.rows.push(
+      { ...settlementBase, id: randomUUID(), variance: -5_000 },
+      { ...settlementBase, id: randomUUID(), shiftId: randomUUID(), variance: 2_000 },
+      {
+        ...settlementBase,
+        id: randomUUID(),
+        shiftId: randomUUID(),
+        status: SettlementStatus.DISPUTED,
+        variance: 99_000,
+      },
+    );
+
+    const result = await service.depotTeam(depotId, from, to);
+
+    expect(result).toEqual({
+      from: from.toISOString(),
+      to: to.toISOString(),
+      couriers: [{ driverId, delivered: 2, onTimeRate: 0.5, failed: 1, rating: 4.5 }],
+      operators: [{ operatorId, verifiedSettlements: 2, varianceIdr: 7_000 }],
+    });
+    expect(rating.calls).toEqual([['order-on-time', 'order-late']]);
   });
 });

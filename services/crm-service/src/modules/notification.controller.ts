@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  NotFoundException,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -12,7 +23,13 @@ import {
 import { CAPABILITIES } from '@hydromart/access';
 
 import { NotificationService } from '../application/services/notification.service';
-import { NotificationDto, SendNotificationDto } from './dto/notification.dto';
+import {
+  NotificationDto,
+  OpsNotificationDto,
+  OpsReadAllResultDto,
+  OpsReadResultDto,
+  SendNotificationDto,
+} from './dto/notification.dto';
 
 // Fired by upstream services (order-service) forwarding the acting fulfilment staff
 // member's token; SUPER_ADMIN can trigger manually. Not a customer-facing endpoint.
@@ -41,14 +58,38 @@ export class NotificationController {
     return records.map((record) => NotificationDto.from(record));
   }
 
-  // Staff operational feed (PRD 10d): recent operational alerts (low stock, …).
+  // Staff operational feed (PRD 10d): recent operational alerts (low stock, …), each
+  // carrying the caller's own read receipt — reads are per staff member, not shared.
   @Roles(...CAPABILITIES.opsNotif)
   @Get('ops')
   @ApiOperation({ summary: 'List recent operational notifications (staff ops center)' })
-  @ApiOkResponse({ type: NotificationDto, isArray: true })
-  async listOps(): Promise<NotificationDto[]> {
-    const records = await this.notifications.listOpsFeed();
-    return records.map((record) => NotificationDto.from(record));
+  @ApiOkResponse({ type: OpsNotificationDto, isArray: true })
+  async listOps(@CurrentUser() user: AuthenticatedUser): Promise<OpsNotificationDto[]> {
+    const records = await this.notifications.listOpsFeed(user.sub);
+    return records.map((record) => OpsNotificationDto.fromOps(record));
+  }
+
+  @Roles(...CAPABILITIES.opsNotif)
+  @Post('ops/:id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark one operational notification read (idempotent)' })
+  @ApiOkResponse({ type: OpsReadResultDto })
+  async markOpsRead(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OpsReadResultDto> {
+    const readAt = await this.notifications.markOpsRead(id, user.sub);
+    if (!readAt) throw new NotFoundException('Operational notification not found');
+    return { readAt };
+  }
+
+  @Roles(...CAPABILITIES.opsNotif)
+  @Post('ops/read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark the whole operational feed read (idempotent)' })
+  @ApiOkResponse({ type: OpsReadAllResultDto })
+  async markAllOpsRead(@CurrentUser() user: AuthenticatedUser): Promise<OpsReadAllResultDto> {
+    return { marked: await this.notifications.markAllOpsRead(user.sub) };
   }
 
   @Roles(...TRIGGER_ROLES)

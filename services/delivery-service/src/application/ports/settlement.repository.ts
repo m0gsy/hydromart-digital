@@ -48,6 +48,12 @@ export interface CourierShortfall {
   shortfallIdr: number;
 }
 
+export interface OperatorSettlementStats {
+  operatorId: string;
+  verifiedSettlements: number;
+  varianceIdr: number;
+}
+
 export interface SettlementRepository {
   create(data: CreateSettlementData): Promise<SettlementRecord>;
   findById(id: string): Promise<SettlementRecord | null>;
@@ -62,5 +68,11 @@ export interface SettlementRepository {
    * settlements with chargedToDriver=true (a genuine, cashier-accepted shortfall) count.
    */
   chargedShortfallByDriver(depotId: string, from: Date, to: Date): Promise<CourierShortfall[]>;
+  /** Verified settlements handled per operator at one depot in [from,to). */
+  verifiedByOperatorInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<OperatorSettlementStats[]>;
   resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord>;
 }

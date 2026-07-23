@@ -11,6 +11,8 @@ import {
   Min,
 } from 'class-validator';
 
+import { PromotionAnalytics } from '../../application/services/promotion.service';
+
 export class CreatePromotionDto {
   @ApiProperty({ example: 'Gratis ongkir pertama' })
   @IsString()
@@ -71,4 +73,65 @@ export class UpdatePromotionDto extends PartialType(CreatePromotionDto) {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+export class PromotionDailyUseDto {
+  @ApiProperty({ example: '2026-07-22' })
+  day!: string;
+
+  @ApiProperty({ example: 3 })
+  uses!: number;
+}
+
+export class PromotionTopCustomerDto {
+  @ApiProperty()
+  customerId!: string;
+
+  @ApiProperty()
+  uses!: number;
+
+  @ApiProperty({ description: 'Total discount applied in integer IDR.' })
+  savingsIdr!: number;
+}
+
+export class PromotionAnalyticsDto implements PromotionAnalytics {
+  @ApiProperty({ format: 'uuid' })
+  promotionId!: string;
+
+  @ApiProperty()
+  title!: string;
+
+  @ApiProperty({ nullable: true })
+  voucherCode!: string | null;
+
+  @ApiProperty()
+  totalUses!: number;
+
+  @ApiProperty()
+  usesLast7Days!: number;
+
+  @ApiProperty({ description: 'Total discount applied in integer IDR.' })
+  totalSavingsIdr!: number;
+
+  @ApiProperty({ type: [String], format: 'uuid' })
+  affectedOrderIds!: string[];
+
+  @ApiProperty()
+  affectedOrderCount!: number;
+
+  @ApiProperty({ nullable: true, description: 'Gross affected-order value in integer IDR.' })
+  grossAffectedOrderValueIdr!: number | null;
+
+  @ApiProperty({ type: [PromotionDailyUseDto] })
+  dailyUses!: PromotionDailyUseDto[];
+
+  @ApiProperty({ type: [PromotionTopCustomerDto] })
+  topCustomers!: PromotionTopCustomerDto[];
+
+  @ApiProperty({ enum: ['ok', 'unavailable', 'not_applicable'] })
+  orderValueSource!: 'ok' | 'unavailable' | 'not_applicable';
+
+  static from(value: PromotionAnalytics): PromotionAnalyticsDto {
+    return Object.assign(new PromotionAnalyticsDto(), value);
+  }
 }

@@ -18,7 +18,6 @@ export const opsFix = {
     empty: 'No movements yet',
     emptyBody: 'Movements appear after a receipt, adjustment, stock count, or sale.',
     loadError: 'Could not load stock movements. Try again.',
-    derivedNote: 'Merged from each item’s history for the current view.',
   },
   opname: {
     open: 'Bulk stock count',
@@ -74,9 +73,13 @@ export const opsFix = {
     orderValue: 'Order value',
     usage7d: 'Usage · 7 days',
     terms: 'Terms',
-    topUsers: 'Top users',
-    estimateNote: 'Estimated figures — the promo-analytics aggregate source is not wired yet.',
-    inactive: 'Promo inactive — no usage yet.',
+    topUsers: 'Top customers',
+    emptyTitle: 'No usage yet',
+    emptyBody: 'This promotion voucher has not been used yet.',
+    noCustomers: 'No customers have used this voucher yet.',
+    customerUses: 'Used {n}×',
+    customerSavings: 'Saved {amount}',
+    sourceUnavailable: 'Order value is unavailable because the order source is incomplete or unreachable.',
   },
   tracking: {
     courierUnknown: 'Courier not assigned',
@@ -93,7 +96,7 @@ export const opsFix = {
     earlier: 'Earlier',
     stockLow: 'Low stock',
     courierIncident: 'Courier incident',
-    localNote: 'Read state applies to this session only.',
+    readNote: 'Read state is stored per staff account.',
     noUnread: 'No unread notifications.',
   },
   qris: {

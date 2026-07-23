@@ -297,7 +297,8 @@ export class DeliveryService {
     if (!isActive(delivery.status)) {
       throw new DeliveryNotActiveError();
     }
-    return this.deliveries.updateLocation(id, lat, lng);
+    const eta = await this.estimateArrival({ ...delivery, lastLat: lat, lastLng: lng });
+    return this.deliveries.updateLocation(id, lat, lng, eta);
   }
 
   async getForDriver(driverId: string, id: string): Promise<DeliveryRecord> {

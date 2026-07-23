@@ -137,8 +137,26 @@ model Notification {
   error      String?
   createdAt  DateTime           @default(now())
 
+  opsReads OpsNotificationRead[]
+
   @@index([customerId, createdAt])
   @@map("notifications")
+}
+
+/// One row per staff member who has read an operational notification. The audit row above
+/// stays append-only and shared across the whole ops centre, so read state cannot live on
+/// it — a manager marking an alert read must not clear it for the operator next to them.
+model OpsNotificationRead {
+  id             String       @id @default(uuid())
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String
+  /// Auth subject (staff user id) that read it.
+  staffId        String
+  readAt         DateTime     @default(now())
+
+  @@unique([notificationId, staffId])
+  @@index([staffId])
+  @@map("ops_notification_reads")
 }
 
 /// A browser Web Push subscription (RFC 8291) owned by a customer/driver. One row per

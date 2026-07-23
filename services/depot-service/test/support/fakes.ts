@@ -19,7 +19,9 @@ import {
 } from '../../src/application/ports/depot.repository';
 import {
   CreateInventoryItemData,
+  DepotMovementFilter,
   DepotProductPrice,
+  DepotStockMovementRecord,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
@@ -204,6 +206,30 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .filter((m) => m.itemId === itemId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((m) => ({ ...m }));
+  }
+  async listForDepotMovements(
+    depotId: string,
+    filter: DepotMovementFilter,
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+    const rows = this.moves
+      .map((move) => ({ move, item: this.items.find((item) => item.id === move.itemId) }))
+      .filter(({ item }) => item?.depotId === depotId)
+      .filter(({ move }) => !filter.type || move.type === filter.type)
+      .filter(
+        ({ move }) =>
+          (!filter.from || move.createdAt >= filter.from) && (!filter.to || move.createdAt < filter.to),
+      )
+      .sort((a, b) => b.move.createdAt.getTime() - a.move.createdAt.getTime());
+    return {
+      total: rows.length,
+      items: rows
+        .slice((filter.page - 1) * filter.limit, filter.page * filter.limit)
+        .map(({ move, item }) => ({
+          ...move,
+          itemLabel: item!.label,
+          itemType: item!.itemType,
+        })),
+    };
   }
   async wastageAdjustments(
     depotId: string,

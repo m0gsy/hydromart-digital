@@ -6,6 +6,8 @@ import {
   DateRange,
   DeliverySla,
   DepotRatingByDepot,
+  DepotMonthlyRevenue,
+  DepotOperationalCosts,
   DepotSlaByDepot,
   FranchiseDepot,
   LowStockLine,
@@ -164,6 +166,28 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const query = params.toString();
     return this.getInternal<DepotRatingByDepot>(
       `${this.config.orderServiceUrl}/api/v1/reports/rating-by-depot${query ? `?${query}` : ''}`,
+    );
+  }
+
+  async depotMonthly(
+    depotId: string,
+    month: string,
+    _token: string,
+  ): Promise<DepotMonthlyRevenue | null> {
+    const params = new URLSearchParams({ depotId, month });
+    return this.getInternal<DepotMonthlyRevenue>(
+      `${this.config.orderServiceUrl}/api/v1/reports/depot-monthly?${params.toString()}`,
+    );
+  }
+
+  async operationalCosts(
+    depotId: string,
+    range: Required<DateRange>,
+    _token: string,
+  ): Promise<DepotOperationalCosts | null> {
+    const params = new URLSearchParams({ depotId, from: range.from, to: range.to });
+    return this.getInternal<DepotOperationalCosts>(
+      `${this.config.depotServiceUrl}/api/v1/reports/operational-costs?${params.toString()}`,
     );
   }
 }

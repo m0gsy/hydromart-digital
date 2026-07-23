@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { CourierEarningRule, CourierLedgerEntryType } from '../../domain/courier-earning';
+import { CourierLedgerEntryType } from '../../domain/courier-earning';
 import {
   CourierEarningRuleRecord,
   CourierLedgerEntryRecord,
@@ -22,15 +22,14 @@ interface LedgerRow {
   createdAt: Date;
 }
 
-interface RuleRow {
+interface FullRuleRow {
   baseFare: unknown;
   peakBonus: unknown;
   onTimeBonus: unknown;
   peakStartHour: number;
   peakEndHour: number;
-}
-
-interface FullRuleRow extends RuleRow {
+  monthlyTarget: unknown;
+  tiers: { deliveries: number; bonus: unknown }[];
   id: string;
   depotId: string | null;
   effectiveDate: Date;
@@ -85,6 +84,16 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     return Number(agg._sum.amount ?? 0);
   }
 
+  async countByType(
+    courierId: string,
+    type: CourierLedgerEntryType,
+    since: Date,
+  ): Promise<number> {
+    return this.prisma.courierLedgerEntry.count({
+      where: { courierId, type, occurredAt: { gte: since } },
+    });
+  }
+
   async listForCourier(
     courierId: string,
     page: number,
@@ -102,12 +111,14 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     return { items: rows.map((r) => this.toEntry(r as unknown as LedgerRow)), total };
   }
 
-  async currentRule(depotId: string | null): Promise<CourierEarningRule | null> {
+  async currentRule(depotId: string | null): Promise<CourierEarningRuleRecord | null> {
     // Prefer the depot's own newest rule; fall back to the network default (NULL).
+    const include = { tiers: { orderBy: { deliveries: 'asc' as const } } };
     const specific = depotId
       ? await this.prisma.courierEarningRule.findFirst({
           where: { depotId },
           orderBy: { effectiveDate: 'desc' },
+          include,
         })
       : null;
     const row =
@@ -115,16 +126,9 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
       (await this.prisma.courierEarningRule.findFirst({
         where: { depotId: null },
         orderBy: { effectiveDate: 'desc' },
+        include,
       }));
-    if (!row) return null;
-    const r = row as unknown as RuleRow;
-    return {
-      baseFare: Number(r.baseFare),
-      peakBonus: Number(r.peakBonus),
-      onTimeBonus: Number(r.onTimeBonus),
-      peakStartHour: r.peakStartHour,
-      peakEndHour: r.peakEndHour,
-    };
+    return row ? this.toRule(row as unknown as FullRuleRow) : null;
   }
 
   private toRule(r: FullRuleRow): CourierEarningRuleRecord {
@@ -138,12 +142,15 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
       onTimeBonus: Number(r.onTimeBonus),
       peakStartHour: r.peakStartHour,
       peakEndHour: r.peakEndHour,
+      monthlyTarget: Number(r.monthlyTarget),
+      tiers: (r.tiers ?? []).map((t) => ({ deliveries: t.deliveries, bonus: Number(t.bonus) })),
     };
   }
 
   async listRules(): Promise<CourierEarningRuleRecord[]> {
     const rows = await this.prisma.courierEarningRule.findMany({
       orderBy: { effectiveDate: 'desc' },
+      include: { tiers: { orderBy: { deliveries: 'asc' } } },
     });
     return rows.map((row) => this.toRule(row as unknown as FullRuleRow));
   }
@@ -157,8 +164,11 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
         onTimeBonus: data.onTimeBonus,
         peakStartHour: data.peakStartHour,
         peakEndHour: data.peakEndHour,
+        monthlyTarget: data.monthlyTarget,
         effectiveDate: data.effectiveDate,
+        tiers: { create: data.tiers.map((t) => ({ deliveries: t.deliveries, bonus: t.bonus })) },
       },
+      include: { tiers: { orderBy: { deliveries: 'asc' } } },
     });
     return this.toRule(row as unknown as FullRuleRow);
   }

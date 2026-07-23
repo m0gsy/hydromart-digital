@@ -4,7 +4,7 @@ import {
   InvalidWithdrawalAmountError,
 } from '../src/domain/errors';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
-import type { CourierEarningRule, CourierLedgerEntryType } from '../src/domain/courier-earning';
+import type { CourierLedgerEntryType } from '../src/domain/courier-earning';
 import type {
   CourierEarningRuleRecord,
   CourierLedgerEntryRecord,
@@ -18,17 +18,23 @@ import type {
   CreateCourierWithdrawalData,
 } from '../src/application/ports/courier-withdrawal.repository';
 
-const DEFAULT_RULE: CourierEarningRule = {
+const DEFAULT_RULE: CourierEarningRuleRecord = {
+  id: 'rule-1',
+  depotId: null,
+  effectiveDate: new Date('2026-01-01'),
+  createdAt: new Date('2026-01-01'),
   baseFare: 5000,
   peakBonus: 2000,
   onTimeBonus: 1000,
   peakStartHour: 17,
   peakEndHour: 20,
+  monthlyTarget: 5_000_000,
+  tiers: [],
 };
 
 class FakeCourierLedger implements CourierLedgerRepository {
   entries: CourierLedgerEntryRecord[] = [];
-  rule: CourierEarningRule | null = DEFAULT_RULE;
+  rule: CourierEarningRuleRecord | null = DEFAULT_RULE;
 
   async create(data: CreateCourierLedgerData): Promise<CourierLedgerEntryRecord> {
     const row: CourierLedgerEntryRecord = {
@@ -66,7 +72,16 @@ class FakeCourierLedger implements CourierLedgerRepository {
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
-  async currentRule(): Promise<CourierEarningRule | null> {
+  async countByType(
+    courierId: string,
+    type: CourierLedgerEntryType,
+    since: Date,
+  ): Promise<number> {
+    return this.entries.filter(
+      (e) => e.courierId === courierId && e.type === type && e.occurredAt >= since,
+    ).length;
+  }
+  async currentRule(): Promise<CourierEarningRuleRecord | null> {
     return this.rule;
   }
   rules: CourierEarningRuleRecord[] = [];
@@ -226,6 +241,8 @@ describe('CourierPayoutService', () => {
       onTimeBonus: 1000,
       peakStartHour: 17,
       peakEndHour: 20,
+      monthlyTarget: 5_000_000,
+      tiers: [{ deliveries: 25, bonus: 25_000 }],
       effectiveDate: new Date('2026-08-01'),
     };
 
@@ -245,6 +262,84 @@ describe('CourierPayoutService', () => {
       await expect(
         service.applyEarningRule({ ...validRule, peakStartHour: 20, peakEndHour: 17 }),
       ).rejects.toBeInstanceOf(InvalidEarningRuleError);
+    });
+
+    it('rejects a negative monthly target', async () => {
+      await expect(
+        service.applyEarningRule({ ...validRule, monthlyTarget: -1 }),
+      ).rejects.toBeInstanceOf(InvalidEarningRuleError);
+    });
+
+    it('rejects a ladder with duplicate delivery counts', async () => {
+      await expect(
+        service.applyEarningRule({
+          ...validRule,
+          tiers: [
+            { deliveries: 25, bonus: 1 },
+            { deliveries: 25, bonus: 2 },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(InvalidEarningRuleError);
+    });
+
+    it('exposes the effective rule to the courier', async () => {
+      expect(await service.effectiveRule(null)).toBe(DEFAULT_RULE);
+    });
+  });
+
+  describe('monthly incentive tiers', () => {
+    // Same-month deliveries; the 2nd one crosses the 2-delivery rung.
+    const day = (n: number) => `2026-07-${String(n).padStart(2, '0')}T03:00:00.000Z`;
+
+    beforeEach(() => {
+      ledger.rule = {
+        ...DEFAULT_RULE,
+        tiers: [
+          { deliveries: 2, bonus: 25_000 },
+          { deliveries: 3, bonus: 60_000 },
+        ],
+      };
+    });
+
+    const incentives = () => ledger.entries.filter((e) => e.type === 'INCENTIVE');
+
+    it('posts nothing before the first rung is reached', async () => {
+      await service.recordDeliveryEarning(event('d1', day(1), true));
+      expect(incentives()).toHaveLength(0);
+    });
+
+    it('credits the rung bonus on the delivery that reaches it', async () => {
+      await service.recordDeliveryEarning(event('d1', day(1), true));
+      await service.recordDeliveryEarning(event('d2', day(2), true));
+      expect(incentives()).toHaveLength(1);
+      expect(incentives()[0].amount).toBe(25_000);
+      expect(incentives()[0].sourceRef).toContain(':2026-07:2');
+    });
+
+    it('pays each rung once even as later deliveries land', async () => {
+      for (const id of ['d1', 'd2', 'd3', 'd4']) {
+        await service.recordDeliveryEarning(event(id, day(Number(id.slice(1))), true));
+      }
+      expect(incentives().map((e) => e.amount)).toEqual([25_000, 60_000]);
+    });
+
+    it('is idempotent when a delivery is re-pushed', async () => {
+      await service.recordDeliveryEarning(event('d1', day(1), true));
+      await service.recordDeliveryEarning(event('d2', day(2), true));
+      await service.recordDeliveryEarning(event('d2', day(2), true));
+      expect(incentives()).toHaveLength(1);
+    });
+
+    it('restarts the ladder in a new month', async () => {
+      await service.recordDeliveryEarning(event('d1', day(1), true));
+      await service.recordDeliveryEarning(event('d2', day(2), true));
+      await service.recordDeliveryEarning(event('a1', '2026-08-01T03:00:00.000Z', true));
+      await service.recordDeliveryEarning(event('a2', '2026-08-02T03:00:00.000Z', true));
+      const refs = incentives().map((e) => e.sourceRef);
+      expect(refs).toEqual([
+        expect.stringContaining(':2026-07:2'),
+        expect.stringContaining(':2026-08:2'),
+      ]);
     });
   });
 });

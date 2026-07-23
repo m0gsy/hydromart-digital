@@ -12,11 +12,16 @@ import { DeliveryModule } from '../../src/modules/delivery.module';
 import { DELIVERY_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
-import { FakeOrderCoordination, InMemoryDeliveryRepository } from '../support/fakes';
+import {
+  FakeOrderCoordination,
+  InMemoryDeliveryRepository,
+  InMemorySettlementRepository,
+} from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 
 describe('Delivery SLA report (e2e)', () => {
+  const managerDepotId = randomUUID();
   let app: INestApplication;
   let managerToken: string;
   let customerToken: string;
@@ -58,6 +63,8 @@ describe('Delivery SLA report (e2e)', () => {
       .useValue(prismaStub)
       .overrideProvider(DELIVERY_TOKENS.DeliveryRepository)
       .useValue(new InMemoryDeliveryRepository())
+      .overrideProvider(DELIVERY_TOKENS.SettlementRepository)
+      .useValue(new InMemorySettlementRepository())
       .overrideProvider(DELIVERY_TOKENS.OrderCoordination)
       .useValue(new FakeOrderCoordination())
       .compile();
@@ -71,7 +78,10 @@ describe('Delivery SLA report (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    managerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
+      { secret },
+    );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
 
@@ -100,6 +110,30 @@ describe('Delivery SLA report (e2e)', () => {
       slaRate: 0,
       avgMinutes: null,
       failedCount: 0,
+    });
+  });
+
+  it('validates depot-team input and returns a scoped empty report', async () => {
+    await request(server())
+      .get(`/api/v1/reports/depot-team?depotId=${managerDepotId}&from=not-a-date`)
+      .set(auth(managerToken))
+      .expect(400);
+
+    await request(server())
+      .get(`/api/v1/reports/depot-team?depotId=${randomUUID()}`)
+      .set(auth(managerToken))
+      .expect(403);
+
+    const res = await request(server())
+      .get(`/api/v1/reports/depot-team?depotId=${managerDepotId}&from=2026-07-01T00:00:00.000Z&to=2026-08-01T00:00:00.000Z`)
+      .set(auth(managerToken))
+      .expect(200);
+
+    expect(res.body).toEqual({
+      from: '2026-07-01T00:00:00.000Z',
+      to: '2026-08-01T00:00:00.000Z',
+      couriers: [],
+      operators: [],
     });
   });
 });
