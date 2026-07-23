@@ -111,7 +111,7 @@ class FakeClaims implements ExpenseClaimRepository {
 
 const COURIER = 'c-courier';
 const REVIEWER = 'r-reviewer';
-const config = { expenseAutoApproveMaxIdr: 50000 } as unknown as PayoutConfigService;
+const config = { expenseAutoApproveMaxIdr: () => 50000 } as unknown as PayoutConfigService;
 
 const input = (amount: number) => ({
   category: 'FUEL' as const,
@@ -154,7 +154,7 @@ describe('ExpenseClaimService', () => {
     const strict = new ExpenseClaimService(
       claims,
       ledger,
-      { expenseAutoApproveMaxIdr: 0 } as unknown as PayoutConfigService,
+      { expenseAutoApproveMaxIdr: () => 0 } as unknown as PayoutConfigService,
     );
     const claim = await strict.submit(COURIER, input(1000));
     expect(claim.status).toBe('PENDING');

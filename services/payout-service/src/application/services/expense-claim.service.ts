@@ -40,7 +40,7 @@ export class ExpenseClaimService {
   async submit(courierId: string, input: SubmitExpenseInput): Promise<ExpenseClaimRecord> {
     if (!(input.amount > 0)) throw new InvalidExpenseAmountError();
     const depotId = input.depotId ?? null;
-    const auto = isAutoApproved(input.amount, this.config.expenseAutoApproveMaxIdr);
+    const auto = isAutoApproved(input.amount, this.config.expenseAutoApproveMaxIdr(depotId));
 
     const claim = await this.claims.create({
       courierId,

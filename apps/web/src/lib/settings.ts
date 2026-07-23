@@ -26,6 +26,7 @@ export type SettingScope = 'GLOBAL' | 'DEPOT';
 export const SETTINGS_SERVICES = [
   { id: 'delivery', label: 'Pengiriman & Kurir', base: '/deliveries/api/v1' },
   { id: 'order', label: 'Order & Ongkir', base: '/orders/api/v1' },
+  { id: 'payout', label: 'Payout & Komisi', base: '/payout/api/v1' },
 ] as const;
 
 export function fetchSettingsSchema(base: string, depotId: string | null): Promise<SettingsSchema> {
