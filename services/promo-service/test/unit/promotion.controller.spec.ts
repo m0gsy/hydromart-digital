@@ -11,6 +11,7 @@ describe('PromotionController', () => {
     create: jest.fn().mockResolvedValue({ id: 'p3' }),
     update: jest.fn().mockResolvedValue({ id: 'p1' }),
     remove: jest.fn().mockResolvedValue(undefined),
+    analytics: jest.fn().mockResolvedValue({ promotionId: 'p1', totalUses: 0 }),
   };
   const controller = new PromotionController(promotions as unknown as PromotionService);
 
@@ -24,6 +25,14 @@ describe('PromotionController', () => {
   it('listAll delegates', async () => {
     await controller.listAll();
     expect(promotions.listAll).toHaveBeenCalled();
+  });
+
+  it('analytics delegates and maps the response DTO', async () => {
+    const result = await (
+      controller as unknown as { analytics(id: string): Promise<{ promotionId: string; totalUses: number }> }
+    ).analytics('p1');
+    expect(promotions.analytics).toHaveBeenCalledWith('p1');
+    expect(result).toMatchObject({ promotionId: 'p1', totalUses: 0 });
   });
 
   it('create maps full dto and parses dates', async () => {

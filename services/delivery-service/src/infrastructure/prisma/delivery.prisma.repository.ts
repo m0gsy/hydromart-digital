@@ -11,6 +11,7 @@ import {
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotCourierActivity,
   DepotDeliveredCount,
   DepotSlaStats,
   ProofRecord,
@@ -252,10 +253,58 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return rows.map((r) => ({ driverId: r.driverId, count: r._count._all }));
   }
 
-  async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+  async depotCourierActivityInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotCourierActivity[]> {
+    const rows = await this.prisma.delivery.findMany({
+      where: {
+        depotId,
+        OR: [{ deliveredAt: { gte: from, lt: to } }, { failedAt: { gte: from, lt: to } }],
+      },
+      select: {
+        driverId: true,
+        orderId: true,
+        assignedAt: true,
+        deliveredAt: true,
+        failedAt: true,
+      },
+    });
+    const grouped = new Map<string, DepotCourierActivity>();
+    for (const row of rows) {
+      const activity = grouped.get(row.driverId) ?? {
+        driverId: row.driverId,
+        delivered: [],
+        failed: 0,
+      };
+      if (row.deliveredAt) {
+        activity.delivered.push({
+          orderId: row.orderId,
+          assignedAt: row.assignedAt,
+          deliveredAt: row.deliveredAt,
+        });
+      }
+      if (row.failedAt) activity.failed += 1;
+      grouped.set(row.driverId, activity);
+    }
+    return [...grouped.values()];
+  }
+
+  async updateLocation(
+    id: string,
+    lat: number,
+    lng: number,
+    estimatedArrivalAt?: Date,
+  ): Promise<DeliveryRecord> {
     const row = await this.prisma.delivery.update({
       where: { id },
-      data: { lastLat: lat, lastLng: lng, lastLocationAt: new Date() },
+      data: {
+        lastLat: lat,
+        lastLng: lng,
+        lastLocationAt: new Date(),
+        ...(estimatedArrivalAt ? { estimatedArrivalAt } : {}),
+      },
       include: INCLUDE,
     });
     return this.toRecord(row);

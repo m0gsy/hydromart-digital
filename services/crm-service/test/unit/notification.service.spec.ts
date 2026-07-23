@@ -72,8 +72,71 @@ describe('NotificationService', () => {
     });
     await service.notify(NotificationEvent.ORDER_RECEIVED, '+62801', { name: 'A', orderNumber: 'HM-1' }, 'cust-1');
 
-    const feed = await service.listOpsFeed();
+    const feed = await service.listOpsFeed('staff-1');
     expect(feed).toHaveLength(1);
     expect(feed[0].event).toBe(NotificationEvent.STOCK_LOW);
+    expect(feed[0].readAt).toBeNull();
+  });
+});
+
+describe('NotificationService ops read state (per staff member)', () => {
+  let repo: InMemoryNotificationRepository;
+  let service: NotificationService;
+
+  const stockLow = () =>
+    service.notify(NotificationEvent.STOCK_LOW, '+62800', {
+      depot: 'JKT-01',
+      item: 'Galon 19L',
+      quantity: '3',
+      minimum: '10',
+    });
+
+  beforeEach(() => {
+    repo = new InMemoryNotificationRepository();
+    service = new NotificationService(repo, { sendToCustomer: async () => {} } as unknown as PushService);
+  });
+
+  it('marks one read for the caller only — a second staff member still sees it unread', async () => {
+    const n = await stockLow();
+
+    const readAt = await service.markOpsRead(n.id, 'staff-1');
+    expect(readAt).toBeInstanceOf(Date);
+
+    expect((await service.listOpsFeed('staff-1'))[0].readAt).toEqual(readAt);
+    expect((await service.listOpsFeed('staff-2'))[0].readAt).toBeNull();
+  });
+
+  it('is idempotent: re-reading keeps the first timestamp', async () => {
+    const n = await stockLow();
+    const first = await service.markOpsRead(n.id, 'staff-1');
+    expect(await service.markOpsRead(n.id, 'staff-1')).toEqual(first);
+  });
+
+  it('returns null for an unknown id and for a customer-inbox row (not an ops event)', async () => {
+    const customerRow = await service.notify(
+      NotificationEvent.ORDER_RECEIVED,
+      '+62801',
+      { name: 'A', orderNumber: 'HM-1' },
+      'cust-1',
+    );
+    expect(await service.markOpsRead('11111111-1111-1111-1111-111111111111', 'staff-1')).toBeNull();
+    expect(await service.markOpsRead(customerRow.id, 'staff-1')).toBeNull();
+  });
+
+  it('mark-all marks every feed row once and reports 0 on a repeat', async () => {
+    await stockLow();
+    await stockLow();
+
+    expect(await service.markAllOpsRead('staff-1')).toBe(2);
+    expect(await service.markAllOpsRead('staff-1')).toBe(0);
+    expect((await service.listOpsFeed('staff-1')).every((n) => n.readAt !== null)).toBe(true);
+    expect((await service.listOpsFeed('staff-2')).every((n) => n.readAt === null)).toBe(true);
+  });
+
+  it('mark-all counts only the rows newly marked after a single read', async () => {
+    const first = await stockLow();
+    await stockLow();
+    await service.markOpsRead(first.id, 'staff-1');
+    expect(await service.markAllOpsRead('staff-1')).toBe(1);
   });
 });

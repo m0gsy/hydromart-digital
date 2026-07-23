@@ -31,6 +31,23 @@ export interface Customer {
   createdAt: string;
 }
 
+export interface DepotTeamReport {
+  from: string;
+  to: string;
+  couriers: {
+    driverId: string;
+    delivered: number;
+    onTimeRate: number;
+    failed: number;
+    rating: number | null;
+  }[];
+  operators: {
+    operatorId: string;
+    verifiedSettlements: number;
+    varianceIdr: number;
+  }[];
+}
+
 // SEC-4: the access/refresh tokens now live in httpOnly cookies the gateway sets and
 // reads — JS never sees them. The client-visible session is just the cached profile;
 // the cookie is the real credential (validated on every request server-side).
@@ -103,6 +120,21 @@ export interface PromotionPayload {
   active?: boolean;
   startsAt?: string | null;
   endsAt?: string | null;
+}
+
+export interface PromotionAnalytics {
+  promotionId: string;
+  title: string;
+  voucherCode: string | null;
+  totalUses: number;
+  usesLast7Days: number;
+  totalSavingsIdr: number;
+  affectedOrderIds: string[];
+  affectedOrderCount: number;
+  grossAffectedOrderValueIdr: number | null;
+  dailyUses: { day: string; uses: number }[];
+  topCustomers: { customerId: string; uses: number; savingsIdr: number }[];
+  orderValueSource: 'ok' | 'unavailable' | 'not_applicable';
 }
 
 /** A depot annotated with distance from the user's location (public /depots/nearby). */
@@ -574,6 +606,58 @@ export interface ExecutiveDashboard {
   sources: { order: 'ok' | 'unavailable'; delivery: 'ok' | 'unavailable' };
 }
 
+export type OperationalCogsUncoveredReason =
+  | 'NO_MATCHING_RECEIVED_PO'
+  | 'AMBIGUOUS_ITEM_LABEL'
+  | 'AMBIGUOUS_PO_COST';
+
+export interface OperationalMonthlyPnl {
+  depotId: string;
+  month: string;
+  from: string;
+  to: string;
+  reportType: 'OPERATIONAL_MANAGEMENT';
+  disclaimer: string;
+  revenueIdr: number | null;
+  cogsIdr: number | null;
+  coveredCogsIdr: number | null;
+  opexIdr: number | null;
+  grossProfitIdr: number | null;
+  netOperatingProfitIdr: number | null;
+  marginPct: number | null;
+  costCoverage: {
+    amountIdr: number | null;
+    coveredAmountIdr: number;
+    totalUnits: number;
+    coveredUnits: number;
+    uncoveredUnits: number;
+    status: 'complete' | 'partial';
+    valuationMethod: 'LATEST_RECEIVED_DIRECT_PRODUCT_COST';
+    uncoveredItems: {
+      itemId: string;
+      itemType: string;
+      label: string;
+      units: number;
+      reason: OperationalCogsUncoveredReason;
+    }[];
+  } | null;
+  opexCoverage: {
+    amountIdr: number | null;
+    coveredAmountIdr: number;
+    status: 'complete' | 'partial';
+    includedEntries: number;
+    excludedProcurementAmountIdr: number;
+    excludedProcurementEntries: number;
+    unverifiedProcurementAmountIdr: number;
+    unverifiedProcurementEntries: number;
+    exclusionRule: 'NORMALIZED_CATEGORY_PO_AND_RECEIVED_PO_SOURCE_REF';
+  } | null;
+  sources: {
+    order: 'ok' | 'unavailable';
+    depot: 'ok' | 'partial' | 'unavailable';
+  };
+}
+
 export interface FranchiseDepotSummary {
   depotId: string;
   code: string;
@@ -1010,6 +1094,12 @@ export interface ExpenseClaim {
   updatedAt: string;
 }
 
+// One rung of a rule's monthly delivery-count incentive ladder.
+export interface CourierIncentiveTier {
+  deliveries: number;
+  bonus: number;
+}
+
 // Courier earning rule (payout-service, design 6b). Effective-dated; depotId null = network default.
 export interface CourierEarningRule {
   id: string;
@@ -1019,6 +1109,10 @@ export interface CourierEarningRule {
   onTimeBonus: number;
   peakStartHour: number;
   peakEndHour: number;
+  /** Monthly earnings target shown to the courier (IDR); 0 = none configured. */
+  monthlyTarget: number;
+  /** Incentive ladder, ascending by delivery count; empty = no incentives. */
+  tiers: CourierIncentiveTier[];
   effectiveDate: string;
   createdAt: string;
 }
@@ -1070,6 +1164,8 @@ export interface OpsNotification {
   status: 'SENT' | 'FAILED';
   error: string | null;
   createdAt: string;
+  /** When the *calling* staff member read it; null = unread by them. */
+  readAt: string | null;
 }
 
 // Retur galon (depot-service GallonReturn). Empties handed back + deposit refunded.
@@ -1143,6 +1239,11 @@ export interface StockMovement {
   actorId: string;
   orderId: string | null;
   createdAt: string;
+}
+
+export interface DepotStockMovement extends StockMovement {
+  itemLabel: string;
+  itemType: InventoryItemType;
 }
 
 // Procurement — supplier directory + purchase orders (depot-service, design 7a/9d/11b).

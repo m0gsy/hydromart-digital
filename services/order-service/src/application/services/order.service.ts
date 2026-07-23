@@ -32,6 +32,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  OrderValue,
   RatingSummary,
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
@@ -360,6 +361,10 @@ export class OrderService {
       throw new OrderNotFoundError();
     }
     return order;
+  }
+
+  findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
+    return this.orders.findOrderValues(orderIds);
   }
 
   /** Spec 7c: rate a delivered/completed order (once). */

@@ -246,6 +246,7 @@ services:
       <<: *shared
       PROMO_SERVICE_PORT: 3010
       PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public
+      ORDER_SERVICE_URL: http://order:3004
       # Outbound for the "voucher baru" grant notification (spec 5h). INTERNAL_SERVICE_KEY
       # comes from *shared; blank URLs → grant succeeds, notification is skipped (fail-open).
       CRM_SERVICE_URL: http://crm:3012

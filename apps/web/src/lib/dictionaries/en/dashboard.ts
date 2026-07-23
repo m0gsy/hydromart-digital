@@ -34,6 +34,14 @@ export const dashboard = {
       empty: 'No couriers currently delivering.',
       viewAll: 'View tracking',
     },
+    topCustomers: {
+      title: 'Top customers',
+      empty: 'No orders in this period yet.',
+    },
+    topDepots: {
+      title: 'Top depots',
+      empty: 'No orders in this period yet.',
+    },
     gateTitle: 'Staff access only',
     gateBody: 'The operations dashboard is available to depot managers and head-office staff.',
   },

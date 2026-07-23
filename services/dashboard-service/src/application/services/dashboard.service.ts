@@ -4,6 +4,7 @@ import {
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
+  DepotOperationalCosts,
   LowStockLine,
   SalesReport,
   TopCustomers,
@@ -74,6 +75,28 @@ export interface FranchiseDashboard {
   };
 }
 
+export interface MonthlyOperationalPnl {
+  depotId: string;
+  month: string;
+  from: string;
+  to: string;
+  reportType: 'OPERATIONAL_MANAGEMENT';
+  disclaimer: string;
+  revenueIdr: number | null;
+  cogsIdr: number | null;
+  coveredCogsIdr: number | null;
+  opexIdr: number | null;
+  grossProfitIdr: number | null;
+  netOperatingProfitIdr: number | null;
+  marginPct: number | null;
+  costCoverage: DepotOperationalCosts['cogs'] | null;
+  opexCoverage: DepotOperationalCosts['opex'] | null;
+  sources: {
+    order: 'ok' | 'unavailable';
+    depot: 'ok' | 'partial' | 'unavailable';
+  };
+}
+
 /**
  * Executive dashboard BFF: fans out to order-service (sales, top customers,
  * top depots) and delivery-service (SLA) in parallel, forwarding the caller's
@@ -93,6 +116,56 @@ export class DashboardService {
   constructor(
     @Inject(DASHBOARD_TOKENS.Sources) private readonly sources: DashboardSourcesPort,
   ) {}
+
+  async monthlyPnl(depotId: string, month: string, token: string): Promise<MonthlyOperationalPnl> {
+    const fromDate = new Date(`${month}-01T00:00:00.000Z`);
+    const toDate = new Date(Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth() + 1, 1));
+    const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
+    const [order, costs] = await Promise.all([
+      this.sources.depotMonthly(depotId, month, token),
+      this.sources.operationalCosts(depotId, range, token),
+    ]);
+
+    const revenueIdr = order?.revenueIdr ?? null;
+    const cogsIdr = costs?.cogs.amountIdr ?? null;
+    const opexIdr = costs?.opex.amountIdr ?? null;
+    const grossProfitIdr =
+      revenueIdr !== null && cogsIdr !== null ? revenueIdr - cogsIdr : null;
+    const netOperatingProfitIdr =
+      grossProfitIdr !== null && opexIdr !== null ? grossProfitIdr - opexIdr : null;
+    const marginPct =
+      netOperatingProfitIdr !== null && revenueIdr !== null && revenueIdr !== 0
+        ? Math.round((netOperatingProfitIdr / revenueIdr) * 1000) / 10
+        : null;
+
+    return {
+      depotId,
+      month,
+      ...range,
+      reportType: 'OPERATIONAL_MANAGEMENT',
+      disclaimer:
+        costs?.disclaimer ??
+        'Operational management report only; not statutory accounting or a tax statement.',
+      revenueIdr,
+      cogsIdr,
+      coveredCogsIdr: costs?.cogs.coveredAmountIdr ?? null,
+      opexIdr,
+      grossProfitIdr,
+      netOperatingProfitIdr,
+      marginPct,
+      costCoverage: costs?.cogs ?? null,
+      opexCoverage: costs?.opex ?? null,
+      sources: {
+        order: order === null ? 'unavailable' : 'ok',
+        depot:
+          costs === null
+            ? 'unavailable'
+            : costs.cogs.status === 'partial' || costs.opex.status === 'partial'
+              ? 'partial'
+              : 'ok',
+      },
+    };
+  }
 
   async executive(range: DateRange, token: string): Promise<ExecutiveDashboard> {
     const [sales, topCustomers, topDepots, deliverySla] = await Promise.all([

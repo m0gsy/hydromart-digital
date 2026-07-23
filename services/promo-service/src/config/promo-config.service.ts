@@ -37,4 +37,7 @@ export class PromoConfigService {
   get customerServiceUrl(): string {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
   }
+  get orderServiceUrl(): string {
+    return this.config.getOrThrow<string>('ORDER_SERVICE_URL').replace(/\/+$/, '');
+  }
 }

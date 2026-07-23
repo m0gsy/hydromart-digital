@@ -14,6 +14,7 @@ import {
   OrderCoordinationError,
 } from '../../src/domain/errors';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
+import { haversineMeters } from '../../src/domain/geo';
 import { ContactMethod } from '../../src/domain/no-show';
 import { ShiftStatus } from '../../src/domain/shift';
 import {
@@ -44,19 +45,23 @@ describe('DeliveryService', () => {
   let orders: FakeOrderCoordination;
   let shifts: ShiftService;
   let service: DeliveryService;
+  let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
 
   beforeEach(async () => {
     repo = new InMemoryDeliveryRepository();
     orders = new FakeOrderCoordination();
-    const config = buildTestConfig();
+    const config = buildTestConfig({ DELIVERY_URBAN_SPEED_KMPH: '30' });
+    urbanSpeedKmph = config.urbanSpeedKmph;
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
     service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
+
+  afterEach(() => jest.useRealTimers());
 
   const assign = (driverId = driver, orderId = randomUUID()) =>
     service.assign(
@@ -188,6 +193,57 @@ describe('DeliveryService', () => {
       DeliveryNotActiveError,
     );
   });
+
+  it('refreshes ETA from every valid location ping using the configured urban speed', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-22T03:00:00.000Z'));
+    const destination = { lat: -6.9, lng: 107.62 };
+    const d = await service.assign(
+      staff,
+      {
+        orderId: randomUUID(),
+        orderNumber: 'HM-ETA',
+        driverId: driver,
+        destinationAddress: 'Jl. Tujuan',
+        destinationLat: destination.lat,
+        destinationLng: destination.lng,
+      },
+      AUTH,
+    );
+
+    const firstOrigin = { lat: -6.95, lng: 107.55 };
+    const first = await service.reportLocation(driver, d.id, firstOrigin.lat, firstOrigin.lng);
+    const expectedFirst = new Date(
+      Date.now() +
+        (haversineMeters(firstOrigin.lat, firstOrigin.lng, destination.lat, destination.lng) /
+          ((urbanSpeedKmph * 1000) / 60)) *
+          60_000,
+    );
+    expect(first.estimatedArrivalAt).toEqual(expectedFirst);
+
+    jest.advanceTimersByTime(60_000);
+    const secondOrigin = { lat: -6.91, lng: 107.61 };
+    const second = await service.reportLocation(driver, d.id, secondOrigin.lat, secondOrigin.lng);
+    const expectedSecond = new Date(
+      Date.now() +
+        (haversineMeters(secondOrigin.lat, secondOrigin.lng, destination.lat, destination.lng) /
+          ((urbanSpeedKmph * 1000) / 60)) *
+          60_000,
+    );
+    expect(second.estimatedArrivalAt).toEqual(expectedSecond);
+    expect(second.estimatedArrivalAt).not.toEqual(first.estimatedArrivalAt);
+  });
+
+  it.each([null, new Date('2026-07-22T04:00:00.000Z')])(
+    'leaves ETA %s unchanged when destination coordinates are absent',
+    async (existingEta) => {
+      const d = await assign();
+      repo.rows.find((row) => row.id === d.id)!.estimatedArrivalAt = existingEta;
+
+      const pinged = await service.reportLocation(driver, d.id, -6.2, 106.8);
+
+      expect(pinged.estimatedArrivalAt).toEqual(existingEta);
+    },
+  );
 
   it('lets the driver run pickup → start → complete, syncing the order each step', async () => {
     const d = await assign();

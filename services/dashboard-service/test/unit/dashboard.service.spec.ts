@@ -1,7 +1,127 @@
 import { DashboardService } from '../../src/application/services/dashboard.service';
+import { DashboardSourcesPort } from '../../src/application/ports/dashboard-sources.port';
 import { InMemoryDashboardSources } from '../support/fakes';
 
+const DEPOT_ID = '11111111-1111-4111-8111-111111111111';
+
+const pnlSources = (
+  options: {
+    orderDown?: boolean;
+    depotDown?: boolean;
+    partialCogs?: boolean;
+    unverifiedProcurement?: boolean;
+  } = {},
+) =>
+  ({
+    depotMonthly: jest.fn().mockResolvedValue(
+      options.orderDown
+        ? null
+        : { depotId: DEPOT_ID, month: '2026-07', orders: 12, revenueIdr: 1_000_000 },
+    ),
+    operationalCosts: jest.fn().mockResolvedValue(
+      options.depotDown
+        ? null
+        : {
+            depotId: DEPOT_ID,
+            from: '2026-07-01T00:00:00.000Z',
+            to: '2026-08-01T00:00:00.000Z',
+            reportType: 'OPERATIONAL_MANAGEMENT',
+            disclaimer: 'Operational management report only; not statutory accounting or a tax statement.',
+            cogs: {
+              amountIdr: options.partialCogs ? null : 400_000,
+              coveredAmountIdr: options.partialCogs ? 250_000 : 400_000,
+              totalUnits: 100,
+              coveredUnits: options.partialCogs ? 60 : 100,
+              uncoveredUnits: options.partialCogs ? 40 : 0,
+              status: options.partialCogs ? 'partial' : 'complete',
+              valuationMethod: 'LATEST_RECEIVED_DIRECT_PRODUCT_COST',
+              uncoveredItems: options.partialCogs
+                ? [{ itemId: 'item-1', itemType: 'PRODUK', label: 'Refill', units: 40, reason: 'NO_MATCHING_RECEIVED_PO' }]
+                : [],
+            },
+            opex: {
+              amountIdr: options.unverifiedProcurement ? null : 150_000,
+              coveredAmountIdr: 150_000,
+              status: options.unverifiedProcurement ? 'partial' : 'complete',
+              includedEntries: 2,
+              excludedProcurementAmountIdr: 400_000,
+              excludedProcurementEntries: 1,
+              unverifiedProcurementAmountIdr: options.unverifiedProcurement ? 20_000 : 0,
+              unverifiedProcurementEntries: options.unverifiedProcurement ? 1 : 0,
+              exclusionRule: 'NORMALIZED_CATEGORY_PO_AND_RECEIVED_PO_SOURCE_REF',
+            },
+          },
+    ),
+  }) as unknown as DashboardSourcesPort;
+
 describe('DashboardService', () => {
+  it('combines complete monthly revenue and costs into operational profit', async () => {
+    const service = new DashboardService(pnlSources());
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result).toMatchObject({
+      revenueIdr: 1_000_000,
+      cogsIdr: 400_000,
+      opexIdr: 150_000,
+      grossProfitIdr: 600_000,
+      netOperatingProfitIdr: 450_000,
+      marginPct: 45,
+      sources: { order: 'ok', depot: 'ok' },
+      reportType: 'OPERATIONAL_MANAGEMENT',
+    });
+  });
+
+  it('keeps revenue but nulls COGS-derived totals when cost coverage is partial', async () => {
+    const service = new DashboardService(pnlSources({ partialCogs: true }));
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.revenueIdr).toBe(1_000_000);
+    expect(result.coveredCogsIdr).toBe(250_000);
+    expect(result.cogsIdr).toBeNull();
+    expect(result.opexIdr).toBe(150_000);
+    expect(result.grossProfitIdr).toBeNull();
+    expect(result.netOperatingProfitIdr).toBeNull();
+    expect(result.marginPct).toBeNull();
+    expect(result.sources).toEqual({ order: 'ok', depot: 'partial' });
+  });
+
+  it('keeps real costs but nulls revenue-derived totals when order-service is unavailable', async () => {
+    const service = new DashboardService(pnlSources({ orderDown: true }));
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.revenueIdr).toBeNull();
+    expect(result.cogsIdr).toBe(400_000);
+    expect(result.opexIdr).toBe(150_000);
+    expect(result.grossProfitIdr).toBeNull();
+    expect(result.netOperatingProfitIdr).toBeNull();
+    expect(result.marginPct).toBeNull();
+    expect(result.sources).toEqual({ order: 'unavailable', depot: 'ok' });
+  });
+
+  it('marks depot costs partial when a PO-category outflow cannot be verified', async () => {
+    const service = new DashboardService(pnlSources({ unverifiedProcurement: true }));
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.opexIdr).toBeNull();
+    expect(result.grossProfitIdr).toBe(600_000);
+    expect(result.netOperatingProfitIdr).toBeNull();
+    expect(result.marginPct).toBeNull();
+    expect(result.sources).toEqual({ order: 'ok', depot: 'partial' });
+  });
+
+  it('keeps revenue but nulls every cost/derived value when depot-service is unavailable', async () => {
+    const service = new DashboardService(pnlSources({ depotDown: true }));
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.revenueIdr).toBe(1_000_000);
+    expect(result.cogsIdr).toBeNull();
+    expect(result.coveredCogsIdr).toBeNull();
+    expect(result.opexIdr).toBeNull();
+    expect(result.grossProfitIdr).toBeNull();
+    expect(result.netOperatingProfitIdr).toBeNull();
+    expect(result.sources).toEqual({ order: 'ok', depot: 'unavailable' });
+  });
+
   it('composes all four sections and marks both sources ok', async () => {
     const service = new DashboardService(new InMemoryDashboardSources());
     const result = await service.executive({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');

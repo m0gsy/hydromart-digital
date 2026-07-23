@@ -11,6 +11,7 @@ import {
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
+  DepotCourierActivity,
   DepotDeliveredCount,
   DepotSlaStats,
   ProofRecord,
@@ -47,6 +48,7 @@ import {
 import {
   CourierShortfall,
   CreateSettlementData,
+  OperatorSettlementStats,
   ResolveSettlementPatch,
   SettlementQuery,
   SettlementRecord,
@@ -204,9 +206,53 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     }
     return [...byDriver].map(([driverId, count]) => ({ driverId, count }));
   }
-  async updateLocation(id: string, lat: number, lng: number): Promise<DeliveryRecord> {
+  async depotCourierActivityInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<DepotCourierActivity[]> {
+    const grouped = new Map<string, DepotCourierActivity>();
+    for (const row of this.rows) {
+      const deliveredInWindow =
+        row.deliveredAt !== null &&
+        row.deliveredAt.getTime() >= from.getTime() &&
+        row.deliveredAt.getTime() < to.getTime();
+      const failedInWindow =
+        row.failedAt !== null &&
+        row.failedAt.getTime() >= from.getTime() &&
+        row.failedAt.getTime() < to.getTime();
+      if (row.depotId !== depotId || (!deliveredInWindow && !failedInWindow)) continue;
+      const activity = grouped.get(row.driverId) ?? {
+        driverId: row.driverId,
+        delivered: [],
+        failed: 0,
+      };
+      if (deliveredInWindow) {
+        activity.delivered.push({
+          orderId: row.orderId,
+          assignedAt: row.assignedAt,
+          deliveredAt: row.deliveredAt!,
+        });
+      }
+      if (failedInWindow) activity.failed += 1;
+      grouped.set(row.driverId, activity);
+    }
+    return [...grouped.values()].map((row) => clone(row));
+  }
+  async updateLocation(
+    id: string,
+    lat: number,
+    lng: number,
+    estimatedArrivalAt?: Date,
+  ): Promise<DeliveryRecord> {
     const row = this.rows.find((r) => r.id === id)!;
-    Object.assign(row, { lastLat: lat, lastLng: lng, lastLocationAt: nextDate(), updatedAt: nextDate() });
+    Object.assign(row, {
+      lastLat: lat,
+      lastLng: lng,
+      lastLocationAt: nextDate(),
+      updatedAt: nextDate(),
+      ...(estimatedArrivalAt ? { estimatedArrivalAt } : {}),
+    });
     return clone(row);
   }
   async applyStatus(
@@ -496,6 +542,34 @@ export class InMemorySettlementRepository implements SettlementRepository {
       }
     }
     return [...byDriver].map(([driverId, shortfallIdr]) => ({ driverId, shortfallIdr }));
+  }
+  async verifiedByOperatorInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<OperatorSettlementStats[]> {
+    const grouped = new Map<string, OperatorSettlementStats>();
+    for (const row of this.rows) {
+      if (
+        row.depotId !== depotId ||
+        row.status !== SettlementStatus.VERIFIED ||
+        !row.verifiedBy ||
+        !row.verifiedAt ||
+        row.verifiedAt.getTime() < from.getTime() ||
+        row.verifiedAt.getTime() >= to.getTime()
+      ) {
+        continue;
+      }
+      const stats = grouped.get(row.verifiedBy) ?? {
+        operatorId: row.verifiedBy,
+        verifiedSettlements: 0,
+        varianceIdr: 0,
+      };
+      stats.verifiedSettlements += 1;
+      stats.varianceIdr += Math.abs(row.variance);
+      grouped.set(row.verifiedBy, stats);
+    }
+    return [...grouped.values()].map((row) => clone(row));
   }
   async resolve(id: string, patch: ResolveSettlementPatch): Promise<SettlementRecord> {
     const row = this.rows.find((r) => r.id === id)!;

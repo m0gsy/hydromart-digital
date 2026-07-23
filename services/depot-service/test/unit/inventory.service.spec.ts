@@ -419,4 +419,22 @@ describe('InventoryService', () => {
     const summary = await inventory.wastageSummary(depotId, new Date('2099-01-01T00:00:00.000Z'));
     expect(summary.byItem).toEqual([]);
   });
+
+  it('returns a standard page of depot-wide movements', async () => {
+    const line = await inventory.createLine(depotId, raw(), ACTOR);
+    await inventory.adjust(line.id, -2, 'counted', ACTOR);
+
+    const result = await inventory.listMovementsForDepot(depotId, {
+      type: StockMovementType.ADJUSTMENT,
+      page: 1,
+      limit: 1,
+    });
+
+    expect(result).toMatchObject({ total: 1, page: 1, limit: 1, totalPages: 1 });
+    expect(result.items[0]).toMatchObject({
+      itemLabel: 'Galon 19L',
+      itemType: InventoryItemType.GALON,
+      type: StockMovementType.ADJUSTMENT,
+    });
+  });
 });

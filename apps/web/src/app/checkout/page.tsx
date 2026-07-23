@@ -8,17 +8,23 @@ import {
   CheckCircle,
   DeviceMobile,
   Hash,
+  Lightning,
   Money as MoneyIcon,
   NotePencil,
+  Plus,
   QrCode,
   ShieldCheck,
+  Tag,
+  WarningCircle,
 } from '@phosphor-icons/react';
+import Link from 'next/link';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
+import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -27,11 +33,41 @@ import type {
   Address,
   Cart,
   LoyaltyAccount,
+  MyVoucher,
   NearbyDepot,
   Order,
   PaymentMethod,
   VoucherQuote,
 } from '@/lib/types';
+
+// Advisory express-delivery surcharge shown as a pre-submit preview only. order-service
+// computes the authoritative delivery fee from the routed depot at checkout.
+const EXPRESS_FEE = 5000;
+// The deliveryWindow value order-service/depot reads is a locale-independent ID literal
+// (matches the existing scheduled-slot strings), so express keeps an ID marker too.
+const EXPRESS_WINDOW = 'Antar sekarang (express)';
+
+type SlotCapacity = 'OK' | 'LOW' | 'FULL';
+// ponytail: capacity static, wire when depot slot API exists. Times are ID literals so the
+// depot console reads them unchanged (same as the previous flat slot chips).
+const SLOTS: { time: string; period: 'periodMorning' | 'periodNoon' | 'periodAfternoon' | 'periodEvening'; cap: SlotCapacity }[] = [
+  { time: '09.00–11.00', period: 'periodMorning', cap: 'FULL' },
+  { time: '11.00–13.00', period: 'periodNoon', cap: 'OK' },
+  { time: '13.00–15.00', period: 'periodNoon', cap: 'OK' },
+  { time: '15.00–17.00', period: 'periodAfternoon', cap: 'OK' },
+  { time: '17.00–19.00', period: 'periodAfternoon', cap: 'LOW' },
+];
+
+/** The next 4 delivery dates as { key: ID-literal label, num: day-of-month }. */
+function buildDates(t: (k: string) => string): { key: string; num: number }[] {
+  const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+  return Array.from({ length: 4 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const key = i === 0 ? t('customerFix.slot.today') : i === 1 ? t('customerFix.slot.tomorrow') : (days[d.getDay()] ?? '');
+    return { key, num: d.getDate() };
+  });
+}
 
 const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
   CASH: MoneyIcon,
@@ -57,6 +93,9 @@ function CheckoutInner() {
   const { data: savedAddresses } = useAsync<Address[]>(() =>
     api.get(endpoints.addresses.list, true),
   );
+  // Voucher wallet — powers the min-spend progress bar (gap 13n) and the "usable now"
+  // suggestions. Fail-soft: absence just hides those hints, never blocks checkout.
+  const { data: myVouchers } = useAsync<MyVoucher[]>(() => api.get(endpoints.vouchers.me, true));
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -74,7 +113,22 @@ function CheckoutInner() {
   });
   const [method, setMethod] = useState<PaymentMethod>('CASH');
   // Preferred delivery window (gap 13b). '' = Secepatnya (ASAP) → sent as undefined.
+  // deliveryWindow stays the single value the order submit reads; the express / date /
+  // slot selections below are just UI state that derive into it.
   const [deliveryWindow, setDeliveryWindow] = useState('');
+  const [express, setExpress] = useState(false);
+  const [slotDateIdx, setSlotDateIdx] = useState(0);
+  const [slotTime, setSlotTime] = useState<string | null>(null);
+  const dates = buildDates(t);
+
+  // Derive the submitted deliveryWindow from the express/date/slot selections.
+  useEffect(() => {
+    if (express) setDeliveryWindow(EXPRESS_WINDOW);
+    else if (slotTime) setDeliveryWindow(`${dates[slotDateIdx]?.key ?? ''}, ${slotTime}`);
+    else setDeliveryWindow('');
+    // dates is rebuilt each render but its content is date-stable within a day; depend on idx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [express, slotTime, slotDateIdx]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState(false);
@@ -141,15 +195,17 @@ function CheckoutInner() {
     setForm((f) => ({ ...f, [k]: e.target.value }));
   };
 
-  async function applyVoucher() {
-    if (!cart || !voucherCode.trim()) return;
+  async function applyVoucher(codeOverride?: string) {
+    const code = (codeOverride ?? voucherCode).trim().toUpperCase();
+    if (!cart || !code) return;
+    if (codeOverride) setVoucherCode(code);
     setQuoting(true);
     setVoucherError(null);
     setQuote(null);
     try {
       const result = await api.post<VoucherQuote>(
         endpoints.vouchers.quote,
-        { code: voucherCode.trim(), subtotal: cart.subtotal },
+        { code, subtotal: cart.subtotal },
         true,
       );
       setQuote(result);
@@ -247,7 +303,25 @@ function CheckoutInner() {
   // routed depot at checkout — this displayedTotal is just a pre-submit preview.
   const depot = nearbyDepots?.[0] ?? null;
   const deliveryFee = depot?.deliveryFee ?? 0;
-  const displayedTotal = estimatedTotal + deliveryFee;
+  // ponytail: express surcharge is display-only until a depot express-pricing API exists.
+  const expressFee = express ? EXPRESS_FEE : 0;
+  const displayedTotal = estimatedTotal + deliveryFee + expressFee;
+
+  // 13n — when a voucher fails, surface how far the cart is from eligibility. minSpend
+  // comes from the wallet voucher matching the typed code (the value already in scope).
+  const failedVoucher =
+    voucherError && !quote ? myVouchers?.find((v) => v.code === voucherCode.trim().toUpperCase()) ?? null : null;
+  const voucherShortfall =
+    failedVoucher && failedVoucher.minSpend > cart.subtotal ? failedVoucher.minSpend - cart.subtotal : 0;
+  const voucherProgressPct = failedVoucher
+    ? Math.min(100, Math.round((cart.subtotal / failedVoucher.minSpend) * 100))
+    : 0;
+  // Other wallet vouchers that already clear the cart's subtotal — offer them as one-tap swaps.
+  const usableVouchers = voucherError
+    ? (myVouchers ?? []).filter(
+        (v) => v.status === 'AVAILABLE' && v.code !== voucherCode.trim().toUpperCase() && v.minSpend <= cart.subtotal,
+      )
+    : [];
 
   return (
     <form onSubmit={placeOrder} className="flex flex-col">
@@ -429,33 +503,111 @@ function CheckoutInner() {
             </div>
           </Card>
 
-          {/* Delivery window (gap 13b) — preferred slot, purely advisory to the depot */}
+          {/* Delivery window (gap 13b) — express-now + date row + slots w/ capacity, advisory to depot */}
           <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
             <h2 className="text-base font-extrabold">{t('order.checkout.deliveryWindow')}</h2>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { v: '', label: t('order.checkout.slotAsap') },
-                { v: 'Pagi (08.00–11.00)', label: t('order.checkout.slotMorning') },
-                { v: 'Siang (11.00–14.00)', label: t('order.checkout.slotNoon') },
-                { v: 'Sore (14.00–17.00)', label: t('order.checkout.slotAfternoon') },
-                { v: 'Malam (17.00–20.00)', label: t('order.checkout.slotEvening') },
-              ].map((s) => {
-                const on = deliveryWindow === s.v;
+
+            {/* Express-now */}
+            <button
+              type="button"
+              onClick={() => {
+                setExpress((v) => !v);
+                setSlotTime(null);
+              }}
+              aria-pressed={express}
+              className={`flex items-center gap-3 rounded-2xl px-4 py-3.5 text-left transition-shadow ${
+                express ? 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand shadow-lift' : 'bg-gradient-to-br from-brand-800 to-brand-600 text-on-brand opacity-90 hover:opacity-100'
+              }`}
+            >
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-white/15">
+                <Lightning size={24} weight="fill" />
+              </span>
+              <span className="flex-1">
+                <span className="block text-[14.5px] font-extrabold">{t('customerFix.slot.expressNow')}</span>
+                <span className="block text-xs text-white/85">{t('customerFix.slot.expressEta')}</span>
+              </span>
+              <span className="flex items-center gap-2 text-[13px] font-extrabold">
+                {t('customerFix.slot.expressFee', { amount: formatIDR(EXPRESS_FEE) })}
+                {express && <Check size={16} weight="bold" />}
+              </span>
+            </button>
+
+            <div className="mt-1 text-[11px] font-extrabold uppercase tracking-wide text-muted">
+              {t('customerFix.slot.orSchedule')}
+            </div>
+
+            {/* Date row */}
+            <div className="flex gap-2 overflow-x-auto">
+              {dates.map((d, i) => {
+                const on = !express && slotDateIdx === i;
                 return (
                   <button
-                    key={s.v || 'asap'}
+                    key={i}
                     type="button"
-                    onClick={() => setDeliveryWindow(s.v)}
+                    onClick={() => {
+                      setSlotDateIdx(i);
+                      setExpress(false);
+                    }}
                     aria-pressed={on}
-                    className={`rounded-full border-2 px-4 py-2 text-[13px] font-extrabold transition-colors ${
-                      on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:border-brand-300'
+                    className={`min-w-[66px] flex-none rounded-xl px-1 py-2 text-center transition-colors ${
+                      on ? 'bg-[color:var(--text)] text-[color:var(--surface)]' : 'border border-app bg-[color:var(--surface)]'
                     }`}
                   >
-                    {s.label}
+                    <span className={`block text-[11px] font-semibold ${on ? 'text-[color:var(--surface)]/70' : 'text-muted'}`}>
+                      {d.key}
+                    </span>
+                    <span className="mt-0.5 block text-[15px] font-extrabold tabular-nums">{d.num}</span>
                   </button>
                 );
               })}
             </div>
+
+            {/* Slots + capacity */}
+            <div className="flex flex-col gap-2.5">
+              {SLOTS.map((s) => {
+                const on = !express && slotTime === s.time;
+                const full = s.cap === 'FULL';
+                return (
+                  <button
+                    key={s.time}
+                    type="button"
+                    disabled={full}
+                    onClick={() => {
+                      setSlotTime(s.time);
+                      setExpress(false);
+                    }}
+                    aria-pressed={on}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors disabled:cursor-not-allowed ${
+                      on
+                        ? 'border-[1.5px] border-brand-600 bg-brand-50'
+                        : full
+                          ? 'border-app bg-[color:var(--surface)] opacity-55'
+                          : 'border-app bg-[color:var(--surface)] hover:border-brand-300'
+                    }`}
+                  >
+                    <span>
+                      <span className="block text-sm font-bold">{s.time}</span>
+                      <span className={`block text-[11.5px] ${on ? 'font-semibold text-brand-800' : 'text-muted'}`}>
+                        {t(`customerFix.slot.${s.period}`)}
+                        {on && ` · ${t('customerFix.slot.selected')}`}
+                      </span>
+                    </span>
+                    {full ? (
+                      <span className="text-[11.5px] font-extrabold text-[color:var(--danger)]">{t('customerFix.slot.capFull')}</span>
+                    ) : s.cap === 'LOW' ? (
+                      <span className="text-[11.5px] font-extrabold text-[color:var(--warning,#b97d10)]">{t('customerFix.slot.capLow')}</span>
+                    ) : on ? (
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-on-brand">
+                        <Check size={12} weight="bold" />
+                      </span>
+                    ) : (
+                      <span className="h-5 w-5 rounded-full border-[1.5px] border-app" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {express && <p className="text-xs text-muted">{t('customerFix.slot.feeNote')}</p>}
           </Card>
 
           {/* Voucher */}
@@ -477,7 +629,7 @@ function CheckoutInner() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={applyVoucher}
+                onClick={() => applyVoucher()}
                 loading={quoting}
                 disabled={!voucherCode.trim()}
                 className="h-12 rounded-full border-[1.5px] border-[color:var(--text)] px-[22px] font-extrabold hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"

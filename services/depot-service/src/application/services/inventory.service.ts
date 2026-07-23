@@ -16,12 +16,15 @@ import {
   ProductLineRequiresProductError,
 } from '../../domain/errors';
 import {
+  DepotMovementFilter,
   DepotProductPrice,
+  DepotStockMovementRecord,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
   StockMovementRecord,
 } from '../ports/inventory.repository';
+import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
@@ -543,6 +546,17 @@ export class InventoryService {
   async movements(itemId: string): Promise<StockMovementRecord[]> {
     await this.require(itemId);
     return this.inventory.listMovements(itemId);
+  }
+
+  async listMovementsForDepot(
+    depotId: string,
+    filter: DepotMovementFilter,
+  ): Promise<Page<DepotStockMovementRecord>> {
+    if (!(await this.depots.findById(depotId, false))) {
+      throw new DepotNotFoundError();
+    }
+    const { items, total } = await this.inventory.listForDepotMovements(depotId, filter);
+    return buildPage(items, total, filter.page, filter.limit);
   }
 
   private async require(itemId: string): Promise<InventoryItemRecord> {

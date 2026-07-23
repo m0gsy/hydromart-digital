@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { CaretRight, ChartLineUp, Gavel, Lock, Package, Truck, Warning } from '@phosphor-icons/react';
+import { Buildings, CaretRight, ChartLineUp, Gavel, Lock, Package, Truck, UsersThree, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { OperatorRingkasan } from '@/components/operator/operator-ringkasan';
@@ -13,7 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDashboard, canViewFranchise, isDepotOperator } from '@/lib/roles';
+import { dashboardLandingView } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Approval, Delivery, ExecutiveDashboard, InventoryItem, Page } from '@/lib/types';
 
@@ -169,8 +169,70 @@ function ActiveCouriersWidget() {
   );
 }
 
-function DashboardBody() {
+// Executive top lists. Both come from the dashboard payload already fetched by
+// DashboardBody — no extra request. Customer ids are shown as-is: there is no
+// customer-profile batch source on this surface, so inventing names would lie.
+function TopListsWidgets({ data }: { data: ExecutiveDashboard }) {
   const { t } = useT();
+  const { depots } = useDepot();
+  const depotName = (id: string) => depots.find((d) => d.id === id)?.name ?? id;
+  const customers = data.topCustomers?.items ?? [];
+  const topDepots = data.topDepots?.items ?? [];
+
+  return (
+    <div className="grid gap-6 md:grid-cols-2">
+      <Card className="flex flex-col p-5">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold">
+          <UsersThree size={18} weight="fill" className="text-brand-500" />
+          {t('dashboard.landing.topCustomers.title')}
+        </h2>
+        {customers.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.topCustomers.empty')}</p>
+        ) : (
+          <ul className="divide-y divide-[color:var(--border)]">
+            {customers.slice(0, 5).map((c) => (
+              <li key={c.customerId} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="truncate">
+                  <span className="font-mono text-xs">{c.customerId.slice(0, 8)}</span>
+                  <span className="ml-2 text-xs text-muted">{t('dashboard.landing.orders', { n: c.orderCount })}</span>
+                </span>
+                <Money amount={c.revenue} className="shrink-0 font-medium" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card className="flex flex-col p-5">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold">
+          <Buildings size={18} weight="fill" className="text-brand-500" />
+          {t('dashboard.landing.topDepots.title')}
+        </h2>
+        {topDepots.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted">{t('dashboard.landing.topDepots.empty')}</p>
+        ) : (
+          <ul className="divide-y divide-[color:var(--border)]">
+            {topDepots.slice(0, 5).map((d) => (
+              <li key={d.depotId} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+                <span className="truncate">
+                  {depotName(d.depotId)}
+                  <span className="ml-2 text-xs text-muted">{t('dashboard.landing.orders', { n: d.orderCount })}</span>
+                </span>
+                <Money amount={d.revenue} className="shrink-0 font-medium" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
+  const { t } = useT();
+  // Manager gets an ops-first KPI set (spec 1a: Order · Pendapatan · Galon · SLA); the other
+  // dashboard-capable roles (HEAD_OFFICE/SUPER_ADMIN) keep the exec latency view.
+  const isManager = view === 'manager';
   const range = defaultRange();
   const { data, error, loading, reload } = useAsync<ExecutiveDashboard>(() =>
     api.get(endpoints.dashboard.executive(range), true),
@@ -199,27 +261,53 @@ function DashboardBody() {
         <p className="mt-1 text-sm text-muted">{t('dashboard.landing.subtitle')}</p>
       </div>
 
-      {/* Headline stats */}
+      {/* Headline stats — manager gets the ops KPI set (spec 1a), others the exec set. */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label={t('dashboard.landing.revenue')}
-          value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
-          hint={t('dashboard.landing.orders', { n: totalOrders })}
-        />
-        <Stat
-          label={t('dashboard.landing.slaOnTime')}
-          value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-          hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
-        />
-        <Stat
-          label={t('dashboard.landing.avgDelivery')}
-          value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
-          hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
-        />
-        <Stat
-          label={t('dashboard.landing.breachedFailed')}
-          value={deliverySla ? `${deliverySla.breached} / ${deliverySla.failedCount}` : '—'}
-        />
+        {isManager ? (
+          <>
+            <Stat
+              label={t('mgrFix.dash.orderToday')}
+              value={totalOrders.toLocaleString('id-ID')}
+              hint={t('mgrFix.dash.ordersHint', { n: totalOrders })}
+            />
+            <Stat
+              label={t('mgrFix.dash.revenue')}
+              value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
+            />
+            <Stat
+              label={t('mgrFix.dash.gallonsDelivered')}
+              value={deliverySla ? deliverySla.totalDelivered.toLocaleString('id-ID') : '—'}
+              hint={deliverySla ? t('mgrFix.dash.deliveredHint', { n: deliverySla.totalDelivered }) : undefined}
+            />
+            <Stat
+              label={t('mgrFix.dash.slaOnTime')}
+              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: 96 }) : undefined}
+            />
+          </>
+        ) : (
+          <>
+            <Stat
+              label={t('dashboard.landing.revenue')}
+              value={`Rp ${totalRevenue.toLocaleString('id-ID')}`}
+              hint={t('dashboard.landing.orders', { n: totalOrders })}
+            />
+            <Stat
+              label={t('dashboard.landing.slaOnTime')}
+              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
+            />
+            <Stat
+              label={t('dashboard.landing.avgDelivery')}
+              value={deliverySla?.avgMinutes != null ? t('dashboard.landing.min', { n: Math.round(deliverySla.avgMinutes) }) : '—'}
+              hint={deliverySla ? t('dashboard.landing.threshold', { n: deliverySla.thresholdMinutes }) : undefined}
+            />
+            <Stat
+              label={t('dashboard.landing.breachedFailed')}
+              value={deliverySla ? `${deliverySla.breached} / ${deliverySla.failedCount}` : '—'}
+            />
+          </>
+        )}
       </div>
 
       {(sources.order === 'unavailable' || sources.delivery === 'unavailable') && (
@@ -251,13 +339,20 @@ function DashboardBody() {
         )}
       </Card>
 
-      {/* Action widgets: approval queue · low stock · active couriers (spec 1a manager landing). */}
-      <p className="text-[12.5px] text-muted">{t('dashboard.landing.pickDepotHint')}</p>
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <ApprovalsWidget />
-        <LowStockWidget />
-        <ActiveCouriersWidget />
-      </div>
+      {/* Manager: action widgets (approval queue · low stock · active couriers, spec 1a).
+          Executive: network top lists — those action queues belong to a depot, not HQ. */}
+      {isManager ? (
+        <>
+          <p className="text-[12.5px] text-muted">{t('dashboard.landing.pickDepotHint')}</p>
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <ApprovalsWidget />
+            <LowStockWidget />
+            <ActiveCouriersWidget />
+          </div>
+        </>
+      ) : (
+        <TopListsWidgets data={data} />
+      )}
     </div>
   );
 }
@@ -268,7 +363,8 @@ function Gate() {
   const router = useRouter();
 
   // Role-aware landing: franchise owners get their own overview, not the exec one.
-  const toFranchise = canViewFranchise(customer?.role) && !canViewDashboard(customer?.role);
+  const view = dashboardLandingView(customer?.role);
+  const toFranchise = view === 'franchise';
   useEffect(() => {
     if (toFranchise) router.replace('/dashboard/franchise');
   }, [toFranchise, router]);
@@ -282,15 +378,15 @@ function Gate() {
   }
   // Depot operators land on their own action-oriented daily summary (design 1a),
   // not the executive dashboard (which they can't view).
-  if (isDepotOperator(customer?.role)) return <OperatorRingkasan />;
-  if (!canViewDashboard(customer?.role)) {
+  if (view === 'operator') return <OperatorRingkasan />;
+  if (view === 'denied') {
     return (
       <CenterState title={t('dashboard.landing.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashboard.landing.gateBody')}
       </CenterState>
     );
   }
-  return <DashboardBody />;
+  return <DashboardBody view={view} />;
 }
 
 export default function DashboardPage() {

@@ -179,6 +179,11 @@ export interface RatingSummary {
   count: number;
 }
 
+export interface OrderValue {
+  orderId: string;
+  totalIdr: number;
+}
+
 /**
  * Revenue grouped by the ordered product (22b). OrderItem snapshots productId +
  * productName but NOT a category, so this groups by product — a true category
@@ -230,6 +235,8 @@ export interface SegmentConditions {
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /** Existing orders only, selected in one query for internal cross-service reporting. */
+  findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
   /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
   findStaleCreated(before: Date): Promise<OrderRecord[]>;

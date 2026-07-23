@@ -3,7 +3,7 @@ import { IsEnum, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength } fr
 
 import { NotificationEvent } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
-import { NotificationRecord } from '../../application/ports/notification.repository';
+import { NotificationRecord, OpsNotificationRecord } from '../../application/ports/notification.repository';
 
 export class SendNotificationDto {
   @ApiProperty({ enum: NotificationEvent, description: 'Lifecycle event that triggered the message.' })
@@ -61,4 +61,29 @@ export class NotificationDto {
       createdAt: record.createdAt,
     };
   }
+}
+
+/** Ops feed row: the audit row plus the calling staff member's own read receipt. */
+export class OpsNotificationDto extends NotificationDto {
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: "When the *calling* staff member read it; null = unread by them.",
+  })
+  readAt!: Date | null;
+
+  static fromOps(record: OpsNotificationRecord): OpsNotificationDto {
+    return { ...NotificationDto.from(record), readAt: record.readAt };
+  }
+}
+
+export class OpsReadResultDto {
+  @ApiProperty({ type: String, format: 'date-time', description: 'When it was read (first read wins).' })
+  readAt!: Date;
+}
+
+export class OpsReadAllResultDto {
+  @ApiProperty({ description: 'How many feed rows were newly marked read (0 when already all read).' })
+  marked!: number;
 }

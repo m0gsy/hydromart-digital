@@ -26,6 +26,9 @@ describe('endpoints', () => {
     expect(endpoints.vouchers.quote).toBe('/vouchers/api/v1/vouchers/quote');
     expect(endpoints.referrals.me).toBe('/referrals/api/v1/referrals/me');
     expect(endpoints.referrals.redeem).toBe('/referrals/api/v1/referrals');
+    expect(endpoints.promotions.analytics('promo-1')).toBe(
+      '/vouchers/api/v1/promotions/promo-1/analytics',
+    );
   });
 
   it('builds the staff order queue path with filters', () => {
@@ -47,6 +50,12 @@ describe('endpoints', () => {
     expect(endpoints.dashboard.franchise()).toBe('/dashboard/api/v1/dashboard/franchise');
     expect(endpoints.dashboard.franchise({ from: '2026-06-01', to: '2026-07-01' })).toBe(
       '/dashboard/api/v1/dashboard/franchise?from=2026-06-01&to=2026-07-01',
+    );
+  });
+
+  it('builds the depot-scoped operational monthly P&L path', () => {
+    expect(endpoints.dashboard.monthlyPnl('d1', '2026-07')).toBe(
+      '/dashboard/api/v1/dashboard/monthly-pnl?depotId=d1&month=2026-07',
     );
   });
 
@@ -97,6 +106,17 @@ describe('endpoints', () => {
     );
   });
 
+  it('builds the depot-team report window', () => {
+    expect(
+      endpoints.deliveries.depotTeam('d1', {
+        from: '2026-07-01T00:00:00.000Z',
+        to: '2026-08-01T00:00:00.000Z',
+      }),
+    ).toBe(
+      '/deliveries/api/v1/reports/depot-team?depotId=d1&from=2026-07-01T00%3A00%3A00.000Z&to=2026-08-01T00%3A00%3A00.000Z',
+    );
+  });
+
   it('builds the driver shift paths', () => {
     expect(endpoints.deliveries.shifts.current).toBe('/deliveries/api/v1/driver/shifts/current');
     expect(endpoints.deliveries.shifts.checkIn).toBe('/deliveries/api/v1/driver/shifts/check-in');
@@ -117,5 +137,16 @@ describe('endpoints', () => {
     expect(endpoints.inventory.adjust('i1')).toBe('/depots/api/v1/inventory/i1/adjust');
     expect(endpoints.inventory.opname('i1')).toBe('/depots/api/v1/inventory/i1/opname');
     expect(endpoints.inventory.update('i1')).toBe('/depots/api/v1/inventory/i1');
+    expect(
+      endpoints.inventory.depotMovements('d1', {
+        type: 'SALE',
+        from: '2026-07-01T00:00:00.000Z',
+        to: '2026-08-01T00:00:00.000Z',
+        page: 2,
+        limit: 50,
+      }),
+    ).toBe(
+      '/depots/api/v1/depots/d1/inventory/movements?type=SALE&from=2026-07-01T00%3A00%3A00.000Z&to=2026-08-01T00%3A00%3A00.000Z&page=2&limit=50',
+    );
   });
 });

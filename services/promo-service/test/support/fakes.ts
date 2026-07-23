@@ -4,6 +4,12 @@ import { ConfigService } from '@nestjs/config';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
 import {
+  CreatePromotionData,
+  PromotionRecord,
+  PromotionRepository,
+  UpdatePromotionData,
+} from '../../src/application/ports/promotion.repository';
+import {
   CreateVoucherData,
   RedemptionMutation,
   UpdateVoucherData,
@@ -14,6 +20,44 @@ import {
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
+
+export class InMemoryPromotionRepository implements PromotionRepository {
+  rows: PromotionRecord[] = [];
+
+  async findById(id: string): Promise<PromotionRecord | null> {
+    return this.rows.find((row) => row.id === id) ?? null;
+  }
+
+  async create(data: CreatePromotionData): Promise<PromotionRecord> {
+    const now = nextDate();
+    const row = { id: randomUUID(), active: true, createdAt: now, updatedAt: now, ...data };
+    this.rows.push(row);
+    return row;
+  }
+
+  async update(id: string, data: UpdatePromotionData): Promise<PromotionRecord> {
+    const row = this.rows.find((candidate) => candidate.id === id)!;
+    Object.assign(row, data);
+    return row;
+  }
+
+  async delete(id: string): Promise<void> {
+    this.rows = this.rows.filter((row) => row.id !== id);
+  }
+
+  async findAll(): Promise<PromotionRecord[]> {
+    return [...this.rows];
+  }
+
+  async findActive(now: Date): Promise<PromotionRecord[]> {
+    return this.rows.filter(
+      (row) =>
+        row.active &&
+        (!row.startsAt || row.startsAt <= now) &&
+        (!row.endsAt || row.endsAt >= now),
+    );
+  }
+}
 
 export class InMemoryVoucherRepository implements VoucherRepository {
   vouchers: VoucherRecord[] = [];
@@ -114,6 +158,16 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return r ? { ...r } : null;
   }
 
+  async findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]> {
+    return this.redemptions
+      .filter((redemption) => redemption.voucherId === voucherId)
+      .sort(
+        (a, b) =>
+          a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id),
+      )
+      .map((redemption) => ({ ...redemption }));
+  }
+
   async recordRedemption(m: RedemptionMutation): Promise<VoucherRedemptionRecord> {
     const redemption: VoucherRedemptionRecord = {
       id: randomUUID(),
@@ -165,6 +219,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): PromoCo
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',
+    ORDER_SERVICE_URL: 'http://localhost:3004',
     ...overrides,
   };
   const fake = {

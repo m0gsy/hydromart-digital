@@ -3,7 +3,9 @@ import { Injectable } from '@nestjs/common';
 import { available, InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
 import {
   CreateInventoryItemData,
+  DepotMovementFilter,
   DepotProductPrice,
+  DepotStockMovementRecord,
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
@@ -48,6 +50,10 @@ interface MovementRow {
   actorId: string;
   orderId: string | null;
   createdAt: Date;
+}
+
+interface DepotMovementRow extends MovementRow {
+  item: { label: string; itemType: string };
 }
 
 @Injectable()
@@ -165,6 +171,51 @@ export class InventoryPrismaRepository implements InventoryRepository {
       orderBy: { createdAt: 'desc' },
     });
     return rows.map((r) => this.toMovement(r));
+  }
+
+  async listForDepotMovements(
+    depotId: string,
+    filter: DepotMovementFilter,
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+    const createdAt =
+      filter.from || filter.to
+        ? { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lt: filter.to } : {}) }
+        : undefined;
+    const where = {
+      item: { depotId },
+      ...(filter.type ? { type: filter.type } : {}),
+      ...(createdAt ? { createdAt } : {}),
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.stockMovement.findMany({
+        where,
+        select: {
+          id: true,
+          itemId: true,
+          type: true,
+          delta: true,
+          quantityBefore: true,
+          quantityAfter: true,
+          reason: true,
+          actorId: true,
+          orderId: true,
+          createdAt: true,
+          item: { select: { label: true, itemType: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (filter.page - 1) * filter.limit,
+        take: filter.limit,
+      }),
+      this.prisma.stockMovement.count({ where }),
+    ]);
+    return {
+      items: (rows as DepotMovementRow[]).map(({ item, ...row }) => ({
+        ...this.toMovement(row),
+        itemLabel: item.label,
+        itemType: item.itemType as InventoryItemType,
+      })),
+      total,
+    };
   }
 
   async wastageAdjustments(

@@ -16,6 +16,7 @@ import {
   OrderRecord,
   OrderRepository,
   OrderReviewRecord,
+  OrderValue,
   RatingSummary,
   ProductRevenue,
   ReportRange,
@@ -224,6 +225,14 @@ export class OrderPrismaRepository implements OrderRepository {
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
     return row ? this.toRecord(row) : null;
+  }
+
+  async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
+    const rows = await this.prisma.order.findMany({
+      where: { id: { in: orderIds } },
+      select: { id: true, total: true },
+    });
+    return rows.map((row) => ({ orderId: row.id, totalIdr: Math.round(row.total.toNumber()) }));
   }
 
   async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {

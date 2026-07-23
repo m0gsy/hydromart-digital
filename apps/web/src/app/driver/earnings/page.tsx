@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowUp, Coins, TrendUp } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
@@ -83,6 +84,17 @@ function Earnings() {
           Bulan ini <Money amount={monthEarnings} className="font-bold" />
         </div>
       </Card>
+
+      <Link
+        href="/driver/goal"
+        className="flex items-center gap-3 rounded-2xl border border-[color:var(--border)] bg-white p-3.5"
+      >
+        <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+          <Target size={18} weight="fill" />
+        </span>
+        <span className="flex-1 text-sm font-bold">Target shift</span>
+        <CaretRight size={16} className="text-[color:var(--muted)]" />
+      </Link>
 
       {withdrawing ? (
         <Card className="space-y-3 p-4">

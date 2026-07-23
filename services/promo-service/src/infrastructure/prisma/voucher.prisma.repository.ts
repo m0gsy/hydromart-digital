@@ -141,6 +141,14 @@ export class VoucherPrismaRepository implements VoucherRepository {
     return row ? this.toRedemption(row) : null;
   }
 
+  async findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]> {
+    const rows = await this.prisma.voucherRedemption.findMany({
+      where: { voucherId },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return rows.map((row) => this.toRedemption(row));
+  }
+
   async recordRedemption(m: RedemptionMutation): Promise<VoucherRedemptionRecord> {
     const [redemption] = await this.prisma.$transaction([
       this.prisma.voucherRedemption.create({

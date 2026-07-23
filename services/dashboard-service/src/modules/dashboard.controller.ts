@@ -9,8 +9,9 @@ import {
   ExecutiveDashboard,
   FranchiseDashboard,
   NetworkDashboard,
+  MonthlyOperationalPnl,
 } from '../application/services/dashboard.service';
-import { ExecutiveQueryDto } from './dto/dashboard.dto';
+import { ExecutiveQueryDto, MonthlyPnlQueryDto } from './dto/dashboard.dto';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
@@ -26,6 +27,17 @@ export class DashboardController {
     @Headers('authorization') token: string,
   ): Promise<ExecutiveDashboard> {
     return this.dashboard.executive({ from: query.from, to: query.to }, token);
+  }
+
+  @Get('monthly-pnl')
+  @ApiOperation({
+    summary: 'Depot operational monthly P&L with explicit revenue/cost source availability',
+  })
+  monthlyPnl(
+    @Query() query: MonthlyPnlQueryDto,
+    @Headers('authorization') token: string,
+  ): Promise<MonthlyOperationalPnl> {
+    return this.dashboard.monthlyPnl(query.depotId, query.month, token);
   }
 
   @Get('network')
