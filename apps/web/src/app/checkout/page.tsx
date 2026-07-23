@@ -648,9 +648,58 @@ function CheckoutInner() {
               </p>
             )}
             {voucherError && (
-              <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              <p className="flex items-center gap-1.5 text-sm font-medium text-[color:var(--danger)]" role="alert">
+                <WarningCircle size={16} weight="fill" className="flex-shrink-0" />
                 {voucherError}
               </p>
+            )}
+            {voucherShortfall > 0 && (
+              <div className="flex flex-col gap-2 rounded-[14px] bg-[color:var(--surface-muted)] p-3.5">
+                <p className="text-[13px] font-bold">
+                  {t('customerFix.voucher.shortfall', { amount: formatIDR(voucherShortfall) })}
+                </p>
+                <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface)]">
+                  <div className="h-full rounded-full bg-brand-600" style={{ width: `${voucherProgressPct}%` }} />
+                </div>
+                <Link
+                  href="/products"
+                  className="flex items-center gap-1.5 self-start text-[13px] font-extrabold text-brand-800"
+                >
+                  <Plus size={14} weight="bold" />
+                  {t('customerFix.voucher.addProduct')}
+                </Link>
+              </div>
+            )}
+            {usableVouchers.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs font-bold text-muted">{t('customerFix.voucher.usableNow')}</p>
+                {usableVouchers.map((v) => (
+                  <div
+                    key={v.code}
+                    className="flex items-center gap-2.5 rounded-[14px] border border-app p-3"
+                  >
+                    <Tag size={16} weight="fill" className="flex-shrink-0 text-brand-600" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-mono text-[13px] font-bold tracking-[0.06em]">{v.code}</div>
+                      <div className="text-xs text-muted">
+                        {t('customerFix.voucher.min', { min: formatIDR(v.minSpend) })}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        setVoucherCode(v.code);
+                        setVoucherError(null);
+                        void applyVoucher(v.code);
+                      }}
+                      className="h-9 flex-shrink-0 rounded-full px-4 text-[13px] font-extrabold"
+                    >
+                      {t('customerFix.voucher.use')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             )}
           </Card>
         </div>
