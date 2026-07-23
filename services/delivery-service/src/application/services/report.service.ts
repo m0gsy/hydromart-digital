@@ -69,7 +69,10 @@ export class ReportService {
     thresholdMinutes?: number,
     depotIds?: string[],
   ): Promise<SlaReport> {
-    const threshold = thresholdMinutes ?? this.config.slaMinutes;
+    // Network/franchise-wide roll-up over `depotIds` (or all depots when undefined) —
+    // no single depot to resolve a per-depot override against, so this reads the
+    // global tunable.
+    const threshold = thresholdMinutes ?? this.config.slaMinutes();
     const s = await this.deliveries.slaStats(range, threshold, depotIds);
     return {
       from: range.from ? range.from.toISOString() : null,
@@ -87,7 +90,9 @@ export class ReportService {
 
   /** Same on-time SLA computation as `sla`, but grouped per depot (HQ network roll-up). */
   async slaByDepot(range: ReportRange, thresholdMinutes?: number): Promise<DepotSlaReport> {
-    const threshold = thresholdMinutes ?? this.config.slaMinutes;
+    // Same network-wide breakdown as `sla` — one threshold column across every
+    // depot row, so the global tunable applies here too (see comment above).
+    const threshold = thresholdMinutes ?? this.config.slaMinutes();
     const stats = await this.deliveries.slaStatsByDepot(range, threshold);
     return {
       from: range.from ? range.from.toISOString() : null,
@@ -110,7 +115,7 @@ export class ReportService {
       this.deliveries.depotCourierActivityInWindow(depotId, from, to),
       this.settlements.verifiedByOperatorInWindow(depotId, from, to),
     ]);
-    const threshold = this.config.slaMinutes;
+    const threshold = this.config.slaMinutes(depotId);
     // ponytail: one existing batch-rating call per courier; depot teams are small. Add a
     // depot-wide order-service contract only if this becomes a measured latency bottleneck.
     const couriers = await Promise.all(

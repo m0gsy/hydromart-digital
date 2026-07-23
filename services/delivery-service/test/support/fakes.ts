@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 
+import { SettingsCache } from '@hydromart/platform';
+
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
 import {
@@ -481,7 +483,12 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
       return env[k];
     },
   };
-  return new DeliveryConfigService(fake as unknown as ConfigService);
+  // ponytail: empty-row cache — every business getter falls through to the env value
+  // above, matching today's (pre-settings-cache) behavior exactly.
+  return new DeliveryConfigService(
+    fake as unknown as ConfigService,
+    new SettingsCache({ loadAll: async () => [] }),
+  );
 }
 
 export class InMemorySettlementRepository implements SettlementRepository {

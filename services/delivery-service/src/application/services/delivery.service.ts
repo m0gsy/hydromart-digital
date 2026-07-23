@@ -113,7 +113,7 @@ export class DeliveryService {
       throw new DriverNotOnShiftError();
     }
     const active = await this.deliveries.countActiveByDriver(input.driverId);
-    if (active >= this.config.maxActiveDeliveriesPerDriver) {
+    if (active >= this.config.maxActiveDeliveriesPerDriver(input.depotId ?? null)) {
       throw new DriverBusyError();
     }
 
@@ -188,7 +188,7 @@ export class DeliveryService {
       depotId: delivery.depotId,
       deliveryId: delivery.id,
       deliveredAt: delivery.deliveredAt.toISOString(),
-      onTime: minutes <= this.config.slaMinutes,
+      onTime: minutes <= this.config.slaMinutes(delivery.depotId),
     });
   }
 
@@ -222,10 +222,11 @@ export class DeliveryService {
       throw new DeliveryNotActiveError();
     }
     const state = await this.deliveries.recordContactAttempt(id, driverId, method, note ?? null);
+    const policy = this.noShowPolicy(delivery.depotId);
     return {
       attempts: state.attempts,
-      eligibleAt: noShowEligibleAt(state, this.noShowPolicy),
-      canMarkNoShow: canMarkNoShow(state, this.noShowPolicy, now),
+      eligibleAt: noShowEligibleAt(state, policy),
+      canMarkNoShow: canMarkNoShow(state, policy, now),
     };
   }
 
@@ -237,10 +238,10 @@ export class DeliveryService {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     const state = await this.deliveries.contactState(id);
-    if (!canMarkNoShow(state, this.noShowPolicy, now)) {
+    if (!canMarkNoShow(state, this.noShowPolicy(delivery.depotId), now)) {
       throw new NoShowNotEligibleError(
-        this.config.noShowMinContactAttempts,
-        this.config.noShowMinWaitSeconds,
+        this.config.noShowMinContactAttempts(delivery.depotId),
+        this.config.noShowMinWaitSeconds(delivery.depotId),
       );
     }
     const reason = 'Pelanggan tidak di tempat (no-show).';
@@ -281,10 +282,10 @@ export class DeliveryService {
     return updated;
   }
 
-  private get noShowPolicy(): NoShowPolicy {
+  private noShowPolicy(depotId: string | null): NoShowPolicy {
     return {
-      minAttempts: this.config.noShowMinContactAttempts,
-      minWaitSeconds: this.config.noShowMinWaitSeconds,
+      minAttempts: this.config.noShowMinContactAttempts(depotId),
+      minWaitSeconds: this.config.noShowMinWaitSeconds(depotId),
     };
   }
 
@@ -397,7 +398,7 @@ export class DeliveryService {
       delivery.destinationLat,
       delivery.destinationLng,
     );
-    const metersPerMinute = (this.config.urbanSpeedKmph * 1000) / 60;
+    const metersPerMinute = (this.config.urbanSpeedKmph(delivery.depotId) * 1000) / 60;
     const minutes = meters / metersPerMinute;
     return new Date(Date.now() + minutes * 60_000);
   }

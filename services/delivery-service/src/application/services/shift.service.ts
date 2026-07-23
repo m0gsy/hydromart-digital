@@ -51,7 +51,7 @@ export class ShiftService {
 
     const depot = await this.loadDepot(depotId);
     const distance = haversineMeters(lat, lng, depot.lat, depot.lng);
-    const radius = this.config.shiftCheckInRadiusMeters;
+    const radius = this.config.shiftCheckInRadiusMeters(depotId);
     if (distance > radius) {
       throw new NotAtDepotError(distance, radius);
     }
@@ -63,7 +63,7 @@ export class ShiftService {
       checkInLat: lat,
       checkInLng: lng,
       checkInAt: now,
-      expectedEndAt: expectedEndAt(now, this.config.shiftLengthHours),
+      expectedEndAt: expectedEndAt(now, this.config.shiftLengthHours(depotId)),
     });
     this.logger.log(`Shift ${shift.id} opened by driver ${driverId} at depot ${depotId}`);
     return this.view(shift);
@@ -180,7 +180,7 @@ export class ShiftService {
       ...shift,
       breakSecondsRemaining: breakSecondsRemaining(
         shift.breakSecondsUsed,
-        this.config.shiftBreakQuotaMinutes,
+        this.config.shiftBreakQuotaMinutes(shift.depotId),
       ),
       acceptsAssignments: acceptsAssignments(shift.status),
     };

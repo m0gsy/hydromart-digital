@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DELIVERY_TOKENS } from '../application/tokens';
@@ -42,6 +42,11 @@ import { RetentionController } from './retention.controller';
 
 const providers: Provider[] = [
   PrismaService,
+  // ponytail: placeholder cache — always empty, so every DeliveryConfigService
+  // getter falls through to its ENV value (today's behavior). Real wiring (the
+  // Prisma-backed SettingsRepository + boot refresh timer) lands with the
+  // settings controller.
+  { provide: SettingsCache, useFactory: () => new SettingsCache({ loadAll: async () => [] }) },
   DeliveryConfigService,
   DeliveryService,
   ReportService,
