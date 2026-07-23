@@ -37,8 +37,9 @@ export function resolveRaw(key: string, depotId: string | null, rows: SettingRow
 }
 
 /**
- * In-memory snapshot of one service's settings rows, refreshed on a TTL. Keeps the
- * config getters synchronous: they read the last snapshot, never hit the DB inline.
+ * In-memory snapshot of one service's settings rows, intended to be refreshed by the
+ * caller on the `ttl` cadence. Keeps the config getters synchronous: they read the
+ * last snapshot, never hit the DB inline.
  * Empty snapshot (pre-first-refresh or empty table) ⇒ every effective() returns the
  * env default, i.e. today's behavior.
  */
@@ -69,6 +70,15 @@ export class SettingsCache {
     depotId: string | null = null,
   ): number | string {
     const raw = resolveRaw(key, depotId, this.rows);
-    return raw == null ? envDefault : coerce(raw, type);
+    if (raw == null) {
+      return envDefault;
+    }
+    // A row exists but its value is garbage (e.g. non-numeric 'money'): treat it as if
+    // the row didn't exist rather than silently coercing to 0 (coerce()'s own belt-and-
+    // suspenders default).
+    if ((type === 'int' || type === 'number' || type === 'money') && Number.isNaN(Number(raw))) {
+      return envDefault;
+    }
+    return coerce(raw, type);
   }
 }

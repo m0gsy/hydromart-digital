@@ -44,4 +44,19 @@ describe('SettingsCache.effective', () => {
     const cache = new SettingsCache(source);
     expect(cache.effective('fee', 'money', 5000, 'd1')).toBe(5000);
   });
+  it('defers to env default when the GLOBAL row value is non-numeric', async () => {
+    const badSource: SettingsSource = {
+      loadAll: async () => [{ scope: 'GLOBAL', depotId: null, key: 'fee', value: 'abc' }],
+    };
+    const cache = new SettingsCache(badSource);
+    await cache.refresh();
+    expect(cache.effective('fee', 'money', 5000)).toBe(5000);
+  });
+});
+
+describe('SettingsCache defaults', () => {
+  it('defaults ttl to 30_000ms', () => {
+    const source: SettingsSource = { loadAll: async () => [] };
+    expect(new SettingsCache(source).ttl).toBe(30_000);
+  });
 });
