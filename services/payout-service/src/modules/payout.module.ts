@@ -2,7 +2,7 @@ import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, SettingsCache } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
 
 import { PayoutConfigService } from '../config/payout-config.service';
 import { PAYOUT_TOKENS } from '../application/tokens';
@@ -50,6 +50,7 @@ const providers: Provider[] = [
   { provide: PAYOUT_TOKENS.ExpenseClaimRepository, useClass: ExpenseClaimPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({

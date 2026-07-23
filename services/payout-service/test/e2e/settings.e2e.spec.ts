@@ -158,6 +158,21 @@ describe('Settings HTTP flows (e2e)', () => {
     expect(res.body.effective.expenseAutoApproveMaxIdr).toBe(75000);
   });
 
+  it('forbids a depot manager from reading/writing another depot via depotId (403, DepotScopeGuard)', async () => {
+    const foreignDepotId = randomUUID();
+
+    await request(server())
+      .get(`/api/v1/settings/schema?depotId=${foreignDepotId}`)
+      .set(auth(managerToken))
+      .expect(403);
+
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: foreignDepotId, key: 'expenseAutoApproveMaxIdr', value: '75000' })
+      .expect(403);
+  });
+
   it('forbids a driver from writing settings (403)', async () => {
     await request(server())
       .put('/api/v1/settings')
