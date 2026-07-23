@@ -17,4 +17,7 @@ export const settings = {
   emptyBody: 'Layanan ini belum mengekspos parameter yang bisa diubah.',
   gateTitle: 'Khusus manajer depot',
   gateBody: 'Editor pengaturan hanya untuk manajer depot dan super admin.',
+  globalOnly: 'Nilai ini diatur secara global untuk seluruh jaringan, tidak bisa di-override per depot.',
+  globalOnlyDeliveryFee:
+    'Ini hanya nilai cadangan global. Ongkir per galon yang sebenarnya diatur per depot di halaman Depot.',
 };

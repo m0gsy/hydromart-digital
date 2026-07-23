@@ -38,6 +38,9 @@ export class SettingsService {
     if (input.scope === 'DEPOT' && !input.depotId) {
       throw new BadRequestException('depotId required for a DEPOT override');
     }
+    if (def.global && input.scope === 'DEPOT') {
+      throw new BadRequestException(`${input.key} is a global-only setting; no per-depot override`);
+    }
     const coerced = coerce(input.value, def.type);
     if (def.type !== 'string') {
       const n = coerced as number;

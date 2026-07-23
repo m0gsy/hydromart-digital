@@ -50,6 +50,20 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
+  it('put rejects a DEPOT override on a global-only key (deliveryFee)', async () => {
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(
+      svc.put({
+        scope: 'DEPOT',
+        depotId: '11111111-1111-1111-1111-111111111111',
+        key: 'deliveryFee',
+        value: '2000',
+        updatedBy: 'u1',
+      }),
+    ).rejects.toThrow();
+  });
+
   it('put rejects a prototype-inherited key like "constructor"', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));

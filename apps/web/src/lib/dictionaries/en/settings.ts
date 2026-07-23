@@ -15,4 +15,7 @@ export const settings = {
   emptyBody: 'This service does not expose any editable parameters yet.',
   gateTitle: 'Depot managers only',
   gateBody: 'The settings editor is available to depot managers and super admins.',
+  globalOnly: 'This value is set globally for the whole network and cannot be overridden per depot.',
+  globalOnlyDeliveryFee:
+    'This is only the global fallback. The actual per-gallon delivery fee is set per depot on the Depots page.',
 };

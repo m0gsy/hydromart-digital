@@ -64,6 +64,23 @@ function SettingRow({
   // reset action; add a real flag server-side if a false positive ever bites.
   const hasOverride = String(effective) !== String(def.envDefault);
 
+  // A global-only def offers no per-depot override: server rejects a DEPOT write, so
+  // don't show an input/save/reset the user could act on under a depot scope.
+  if (def.global && scope === 'DEPOT') {
+    return (
+      <Card className="flex flex-col gap-2 p-4">
+        <div>
+          <p className="font-semibold">{def.label}</p>
+          <p className="text-xs text-muted">{t('settings.envDefault', { v: def.envDefault })}</p>
+        </div>
+        <p className="text-sm font-medium">{effective}</p>
+        <p className="text-xs text-muted">
+          {def.key === 'deliveryFee' ? t('settings.globalOnlyDeliveryFee') : t('settings.globalOnly')}
+        </p>
+      </Card>
+    );
+  }
+
   async function save() {
     setBusy('save');
     setError(null);

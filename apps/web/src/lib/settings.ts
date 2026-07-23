@@ -11,6 +11,8 @@ export interface SettingDef {
   min?: number;
   max?: number;
   envDefault: number | string;
+  /** Global-only tunable: no per-depot override — server rejects a DEPOT write. */
+  global?: boolean;
 }
 
 export interface SettingsSchema {

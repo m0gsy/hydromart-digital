@@ -8,6 +8,8 @@ export interface SettingDef {
   min?: number;
   max?: number;
   envDefault: number | string;
+  /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
+  global?: boolean;
 }
 
 // Business tunables ONLY. Env keys stay the boot-time fallback; values here are the
