@@ -19,6 +19,7 @@ const make = (over: Partial<Address> & { id: string }): Address => ({
   postalCode: '40111',
   latitude: -6.9,
   longitude: 107.6,
+  notes: null,
   isPrimary: false,
   ...over,
 });

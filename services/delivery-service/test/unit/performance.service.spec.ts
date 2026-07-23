@@ -25,6 +25,7 @@ function seed(
     recipientPhone: null,
     items: null,
     codAmount: null,
+    notes: null,
     estimatedArrivalAt: null,
     lastLat: null,
     lastLng: null,

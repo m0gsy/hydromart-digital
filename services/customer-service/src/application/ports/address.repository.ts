@@ -10,6 +10,7 @@ export interface AddressRecord {
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  notes: string | null;
   isPrimary: boolean;
   createdAt: Date;
   updatedAt: Date;

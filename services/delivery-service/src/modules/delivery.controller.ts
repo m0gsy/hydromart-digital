@@ -38,6 +38,7 @@ export class DeliveryController {
         driverPhone: dto.driverPhone,
         items: dto.items,
         codAmount: dto.codAmount,
+        notes: dto.notes,
       },
       authorization,
     );

@@ -202,6 +202,7 @@ export interface Address {
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  notes: string | null;
   isPrimary: boolean;
 }
 
@@ -945,6 +946,8 @@ export interface Delivery {
   recipientPhone?: string | null;
   items?: DeliveryItem[] | null;
   codAmount?: number | null;
+  /** Delivery note / landmark (patokan) snapshotted from the order. */
+  notes?: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: string | null;

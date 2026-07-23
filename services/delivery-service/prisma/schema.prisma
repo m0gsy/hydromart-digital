@@ -122,6 +122,9 @@ model Delivery {
   recipientPhone String?
   items          Json?
   codAmount      Int?
+  // Delivery note / landmark (patokan) snapshotted from the order at assignment so the
+  // courier sees "pagar hijau sebelah warung" on the delivery detail. Optional.
+  notes          String?
 
   // Latest reported driver position (live tracking, PRD 10a). Overwritten on each
   // ping while en route; no history kept (MVP — "where is the driver now").

@@ -50,6 +50,7 @@ interface DeliveryRow {
   recipientPhone: string | null;
   items: Prisma.JsonValue | null;
   codAmount: number | null;
+  notes: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
@@ -99,6 +100,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       recipientPhone: row.recipientPhone,
       items: (row.items as DeliveryItem[] | null) ?? null,
       codAmount: row.codAmount,
+      notes: row.notes,
       lastLat: row.lastLat,
       lastLng: row.lastLng,
       lastLocationAt: row.lastLocationAt,

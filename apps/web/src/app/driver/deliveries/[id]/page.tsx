@@ -69,6 +69,12 @@ function Detail() {
       <Card className="overflow-hidden p-0">
         <div className="p-4">
         <div className="text-sm font-bold">{delivery.destinationAddress}</div>
+        {delivery.notes && (
+          <div className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-[12.5px] text-brand-900">
+            <span className="font-bold">Patokan: </span>
+            {delivery.notes}
+          </div>
+        )}
         <div className="mt-3 flex gap-2">
           <a
             href={`https://maps.google.com/?q=${delivery.destinationLat ?? ''},${delivery.destinationLng ?? ''}`}

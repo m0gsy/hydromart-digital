@@ -62,6 +62,15 @@ export class CreateAddressDto {
   @IsLongitude()
   longitude?: number;
 
+  @ApiPropertyOptional({
+    example: 'Pagar hijau sebelah warung Bu Ani, gang masuk 50m.',
+    description: 'Landmark / patokan shown to the courier.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  notes?: string;
+
   @ApiPropertyOptional({ description: 'Make this the primary address.', example: true })
   @IsOptional()
   @IsBoolean()

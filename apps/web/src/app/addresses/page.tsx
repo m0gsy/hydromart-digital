@@ -287,6 +287,15 @@ function AddressForm({
           placeholder={t('profile.addresses.form.addressPlaceholder')}
         />
       </Field>
+      <Field label={t('profile.addresses.form.notes')} htmlFor="notes" hint={t('profile.addresses.form.notesHint')}>
+        <Input
+          id="notes"
+          value={form.notes}
+          onChange={set('notes')}
+          maxLength={255}
+          placeholder={t('profile.addresses.form.notesPlaceholder')}
+        />
+      </Field>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label={t('profile.addresses.form.city')} htmlFor="city">
           <Input id="city" required value={form.city} onChange={set('city')} />
