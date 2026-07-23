@@ -129,8 +129,6 @@ export const profile: typeof base = {
       pinned: 'Location pinned ✓',
       clear: 'Remove pin',
       useLocation: 'Use my location',
-      showManual: 'Enter coordinates manually',
-      hideManual: 'Hide manual coordinates',
       unsupported: "This device doesn't support automatic location. Enter coordinates manually.",
       failed: "Couldn't get location. Allow location access or enter it manually.",
     },

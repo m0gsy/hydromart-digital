@@ -232,8 +232,6 @@ export const dashC = {
     courier: 'Courier #{id}',
     eta: 'ETA {minutes} min · {time}',
     awaitingPosition: 'Awaiting driver position',
-    mapCourier: 'Courier location',
-    mapDestination: 'Delivery destination',
     heading: 'Live tracking',
     refreshNote: 'Drivers currently delivering. Positions refresh automatically every {n} seconds.',
     emptyTitle: 'No active deliveries',

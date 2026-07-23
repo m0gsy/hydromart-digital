@@ -1,16 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import dynamic from 'next/dynamic';
 import { Crosshair, MapPin, PencilSimple, Plus, Star, Trash, X } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-
-// Leaflet touches window — load client-only so `next build` doesn't SSR it (gap 13c).
-const AddressMapPicker = dynamic(() => import('@/components/address-map-picker'), {
-  ssr: false,
-  loading: () => <div className="h-[220px] w-full animate-pulse rounded-2xl bg-[color:var(--surface-muted)]" />,
-});
 import { ConfirmDialog, Sheet } from '@/components/overlay';
 import { Button, Card, Chip, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -248,7 +241,6 @@ function AddressForm({
   const { t } = useT();
   const [locating, setLocating] = useState(false);
   const [geoHint, setGeoHint] = useState<string | null>(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const pinned = form.latitude.trim() !== '' && form.longitude.trim() !== '';
 
@@ -306,14 +298,14 @@ function AddressForm({
         </Field>
       </div>
 
-      {/* Pin picker over raw lat/lng — coords stay optional and flow through toAddressPayload. */}
+      {/* Coords stay optional and flow through toAddressPayload. ponytail: no map picker —
+          browser geolocation + manual entry are the only sources, so both stay visible. */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MapPin size={16} weight="fill" className="text-brand-600" />
           {t('profile.addresses.pin.title')}
           <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.optional')}</span>
         </div>
-        <AddressMapPicker lat={form.latitude} lng={form.longitude} onChange={setCoords} />
         {pinned ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--success)]">
@@ -346,23 +338,14 @@ function AddressForm({
         )}
         {geoHint && <p className="text-xs text-muted">{geoHint}</p>}
 
-        <button
-          type="button"
-          onClick={() => setShowAdvanced((v) => !v)}
-          className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
-        >
-          {showAdvanced ? t('profile.addresses.pin.hideManual') : t('profile.addresses.pin.showManual')}
-        </button>
-        {showAdvanced && (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
-              <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
-            </Field>
-            <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
-              <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
-            </Field>
-          </div>
-        )}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
+            <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
+          </Field>
+          <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
+            <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
+          </Field>
+        </div>
       </div>
 
       {error && (

@@ -127,8 +127,6 @@ export const profile = {
       pinned: 'Lokasi tersemat ✓',
       clear: 'Hapus pin',
       useLocation: 'Gunakan lokasi saya',
-      showManual: 'Masukkan koordinat manual',
-      hideManual: 'Sembunyikan koordinat manual',
       unsupported: 'Perangkat ini tidak mendukung lokasi otomatis. Masukkan koordinat manual.',
       failed: 'Tidak bisa mengambil lokasi. Izinkan akses lokasi atau isi manual.',
     },
