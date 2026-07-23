@@ -18,4 +18,5 @@ export const settings = {
   globalOnly: 'This value is set globally for the whole network and cannot be overridden per depot.',
   globalOnlyDeliveryFee:
     'This is only the global fallback. The actual per-gallon delivery fee is set per depot on the Depots page.',
+  globalWriteDenied: 'Only a SUPER_ADMIN can change network-wide defaults.',
 };

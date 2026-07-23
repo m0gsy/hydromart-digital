@@ -19,6 +19,7 @@ const SECRET = 'test-access-secret-that-is-long-enough-01';
 describe('Settings HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
+  let managerDepotId: string;
   let customerToken: string;
   let superToken: string;
 
@@ -63,8 +64,9 @@ describe('Settings HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
+    managerDepotId = randomUUID();
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
@@ -88,15 +90,37 @@ describe('Settings HTTP flows (e2e)', () => {
     expect(res.body.effective.earnRateRupiah).toBe(1000);
   });
 
-  it('lets a depot manager set a GLOBAL override, then reads it back', async () => {
+  it('lets SUPER_ADMIN set a GLOBAL override, then reads it back', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'earnRateRupiah', value: '500' })
       .expect(204);
 
     const res = await request(server())
       .get('/api/v1/settings/schema')
+      .set(auth(superToken))
+      .expect(200);
+    expect(res.body.effective.earnRateRupiah).toBe(500);
+  });
+
+  it('forbids a depot manager from writing a GLOBAL override (403)', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'earnRateRupiah', value: '500' })
+      .expect(403);
+  });
+
+  it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'earnRateRupiah', value: '500' })
+      .expect(204);
+
+    const res = await request(server())
+      .get(`/api/v1/settings/schema?depotId=${managerDepotId}`)
       .set(auth(managerToken))
       .expect(200);
     expect(res.body.effective.earnRateRupiah).toBe(500);
@@ -140,7 +164,7 @@ describe('Settings HTTP flows (e2e)', () => {
   it('rejects an out-of-range value (400)', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'pointExpiryMonths', value: '999' })
       .expect(400);
   });

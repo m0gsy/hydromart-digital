@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
@@ -25,6 +25,9 @@ export class SettingsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Set a GLOBAL or DEPOT override' })
   async put(@Body() dto: PutSettingDto, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    if (dto.scope === 'GLOBAL' && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only SUPER_ADMIN can change global defaults');
+    }
     await this.settings.put({
       scope: dto.scope,
       depotId: dto.depotId ?? null,
@@ -37,7 +40,10 @@ export class SettingsController {
   @Delete()
   @HttpCode(204)
   @ApiOperation({ summary: 'Remove an override, falling back to the parent scope' })
-  async reset(@Body() dto: ResetSettingDto): Promise<void> {
+  async reset(@Body() dto: ResetSettingDto, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    if (dto.scope === 'GLOBAL' && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only SUPER_ADMIN can change global defaults');
+    }
     await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key);
   }
 }

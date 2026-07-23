@@ -9,7 +9,7 @@ import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepots } from '@/lib/roles';
+import { canManageDepots, isSuperAdmin } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import {
   fetchSettingsSchema,
@@ -46,6 +46,7 @@ function SettingRow({
   effective,
   scope,
   depotId,
+  canWrite,
   onSaved,
 }: {
   base: string;
@@ -53,6 +54,7 @@ function SettingRow({
   effective: number | string;
   scope: 'GLOBAL' | 'DEPOT';
   depotId: string | null;
+  canWrite: boolean;
   onSaved: () => void;
 }) {
   const { t } = useT();
@@ -77,6 +79,21 @@ function SettingRow({
         <p className="text-xs text-muted">
           {def.key === 'deliveryFee' ? t('settings.globalOnlyDeliveryFee') : t('settings.globalOnly')}
         </p>
+      </Card>
+    );
+  }
+
+  // GLOBAL-scope writes are SUPER_ADMIN-only server-side — don't offer an input the
+  // server will 403 for anyone else.
+  if (scope === 'GLOBAL' && !canWrite) {
+    return (
+      <Card className="flex flex-col gap-2 p-4">
+        <div>
+          <p className="font-semibold">{def.label}</p>
+          <p className="text-xs text-muted">{t('settings.envDefault', { v: def.envDefault })}</p>
+        </div>
+        <p className="text-sm font-medium">{effective}</p>
+        <p className="text-xs text-muted">{t('settings.globalWriteDenied')}</p>
       </Card>
     );
   }
@@ -154,11 +171,13 @@ function ServiceSection({
   label,
   scope,
   depotId,
+  canWrite,
 }: {
   base: string;
   label: string;
   scope: 'GLOBAL' | 'DEPOT';
   depotId: string | null;
+  canWrite: boolean;
 }) {
   const { t } = useT();
   const schema = useAsync(() => fetchSettingsSchema(base, scope === 'DEPOT' ? depotId : null), [base, scope, depotId]);
@@ -182,6 +201,7 @@ function ServiceSection({
               effective={schema.data!.effective[def.key] ?? def.envDefault}
               scope={scope}
               depotId={depotId}
+              canWrite={canWrite}
               onSaved={schema.reload}
             />
           ))}
@@ -193,9 +213,11 @@ function ServiceSection({
 
 function SettingsBody() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { depots } = useDepot();
   const [scope, setScope] = useState<'GLOBAL' | 'DEPOT'>('GLOBAL');
   const [depotId, setDepotId] = useState<string | null>(null);
+  const canWriteGlobal = isSuperAdmin(customer?.role);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -245,7 +267,14 @@ function SettingsBody() {
 
       {(scope === 'GLOBAL' || depotId) &&
         SETTINGS_SERVICES.map((svc) => (
-          <ServiceSection key={svc.id} base={svc.base} label={svc.label} scope={scope} depotId={depotId} />
+          <ServiceSection
+            key={svc.id}
+            base={svc.base}
+            label={svc.label}
+            scope={scope}
+            depotId={depotId}
+            canWrite={scope === 'GLOBAL' ? canWriteGlobal : true}
+          />
         ))}
     </div>
   );

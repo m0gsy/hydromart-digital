@@ -26,6 +26,7 @@ describe('Settings HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
   let customerToken: string;
+  let superToken: string;
 
   beforeAll(async () => {
     process.env.REFERRAL_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
@@ -83,6 +84,7 @@ describe('Settings HTTP flows (e2e)', () => {
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -101,18 +103,38 @@ describe('Settings HTTP flows (e2e)', () => {
     expect(res.body.effective.refereePoints).toBe(250);
   });
 
-  it('lets a depot manager set a GLOBAL override, then reads it back', async () => {
+  it('lets SUPER_ADMIN set a GLOBAL override, then reset it back to the default', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'referrerPoints', value: '600' })
       .expect(204);
 
     const res = await request(server())
       .get('/api/v1/settings/schema')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .expect(200);
     expect(res.body.effective.referrerPoints).toBe(600);
+
+    await request(server())
+      .delete('/api/v1/settings')
+      .set(auth(superToken))
+      .send({ scope: 'GLOBAL', key: 'referrerPoints' })
+      .expect(204);
+
+    const afterReset = await request(server())
+      .get('/api/v1/settings/schema')
+      .set(auth(superToken))
+      .expect(200);
+    expect(afterReset.body.effective.referrerPoints).toBe(500);
+  });
+
+  it('forbids a depot manager from writing a GLOBAL override (403)', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'referrerPoints', value: '600' })
+      .expect(403);
   });
 
   it('forbids a customer from writing settings (403)', async () => {
@@ -126,13 +148,12 @@ describe('Settings HTTP flows (e2e)', () => {
   it('rejects an out-of-range value (400)', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'referrerPoints', value: '999999' })
       .expect(400);
   });
 
-  // The DEPOT-scope global-only rejection is unit-tested in settings.service.spec.ts;
-  // exercising it here would additionally require a matching depotId on the JWT to
-  // clear DepotScopeGuard first (SUPER_ADMIN is not depot-locked and would bypass the
-  // guard, muddying what the test demonstrates).
+  // Both referral settings are global-only (see setting-defs.ts) — there is no DEPOT-scope
+  // write to exercise as a depot manager here. The DEPOT-scope global-only rejection is
+  // unit-tested in settings.service.spec.ts.
 });

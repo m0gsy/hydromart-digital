@@ -60,6 +60,9 @@ export const canViewDepotFinance = (role: string | null | undefined) => can('dep
 // Role identity helpers for shell selection (operator gets the top-tab console).
 export const isDepotOperator = (role: string | null | undefined) => role === 'DEPOT_OPERATOR';
 export const isDepotManager = (role: string | null | undefined) => role === 'DEPOT_MANAGER';
+// GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
+// this mirrors that gate so the UI doesn't offer inputs the server will 403.
+export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';
 
 /**
  * Which landing `/dashboard` renders for a role. One shared route serves four

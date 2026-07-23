@@ -24,7 +24,9 @@ const SECRET = 'test-access-secret-that-is-long-enough-01';
 describe('Settings HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
+  let managerDepotId: string;
   let customerToken: string;
+  let superToken: string;
 
   beforeAll(async () => {
     process.env.DEPOT_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
@@ -73,11 +75,13 @@ describe('Settings HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
+    managerDepotId = randomUUID();
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
+    superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -96,15 +100,49 @@ describe('Settings HTTP flows (e2e)', () => {
     expect(res.body.effective.approvalAutoPassIdr).toBe(100000);
   });
 
-  it('lets a depot manager set a GLOBAL override, then reads it back', async () => {
+  it('lets SUPER_ADMIN set a GLOBAL override, then reset it back to the default', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'gallonDepositIdr', value: '15000' })
       .expect(204);
 
     const res = await request(server())
       .get('/api/v1/settings/schema')
+      .set(auth(superToken))
+      .expect(200);
+    expect(res.body.effective.gallonDepositIdr).toBe(15000);
+
+    await request(server())
+      .delete('/api/v1/settings')
+      .set(auth(superToken))
+      .send({ scope: 'GLOBAL', key: 'gallonDepositIdr' })
+      .expect(204);
+
+    const afterReset = await request(server())
+      .get('/api/v1/settings/schema')
+      .set(auth(superToken))
+      .expect(200);
+    expect(afterReset.body.effective.gallonDepositIdr).toBe(20000);
+  });
+
+  it('forbids a depot manager from writing a GLOBAL override (403)', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'gallonDepositIdr', value: '15000' })
+      .expect(403);
+  });
+
+  it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'gallonDepositIdr', value: '15000' })
+      .expect(204);
+
+    const res = await request(server())
+      .get(`/api/v1/settings/schema?depotId=${managerDepotId}`)
       .set(auth(managerToken))
       .expect(200);
     expect(res.body.effective.gallonDepositIdr).toBe(15000);
@@ -121,7 +159,7 @@ describe('Settings HTTP flows (e2e)', () => {
   it('rejects an out-of-range value (400)', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'approvalAutoPassIdr', value: '999999999' })
       .expect(400);
   });

@@ -32,7 +32,9 @@ const SECRET = 'test-access-secret-that-is-long-enough-01';
 describe('Settings HTTP flows (e2e)', () => {
   let app: INestApplication;
   let managerToken: string;
+  let managerDepotId: string;
   let driverToken: string;
+  let superToken: string;
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
@@ -101,11 +103,13 @@ describe('Settings HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
+    managerDepotId = randomUUID();
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
       { secret },
     );
     driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
+    superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -123,18 +127,53 @@ describe('Settings HTTP flows (e2e)', () => {
     expect(res.body.effective.deliveryFee).toBe(1000);
   });
 
-  it('lets a depot manager set a GLOBAL override, then reads it back', async () => {
+  it('lets SUPER_ADMIN set a GLOBAL override, then reset it back to the default', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '2500' })
       .expect(204);
 
     const res = await request(server())
       .get('/api/v1/settings/schema')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .expect(200);
     expect(res.body.effective.deliveryFee).toBe(2500);
+
+    await request(server())
+      .delete('/api/v1/settings')
+      .set(auth(superToken))
+      .send({ scope: 'GLOBAL', key: 'deliveryFee' })
+      .expect(204);
+
+    const afterReset = await request(server())
+      .get('/api/v1/settings/schema')
+      .set(auth(superToken))
+      .expect(200);
+    expect(afterReset.body.effective.deliveryFee).toBe(1000);
+  });
+
+  it('forbids a depot manager from writing a GLOBAL override (403)', async () => {
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '2500' })
+      .expect(403);
+  });
+
+  it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
+    // deliveryFee is global-only (see setting-defs.ts); abandonMinutes takes a DEPOT override.
+    await request(server())
+      .put('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'abandonMinutes', value: '90' })
+      .expect(204);
+
+    const res = await request(server())
+      .get(`/api/v1/settings/schema?depotId=${managerDepotId}`)
+      .set(auth(managerToken))
+      .expect(200);
+    expect(res.body.effective.abandonMinutes).toBe(90);
   });
 
   it('forbids a driver from writing settings (403)', async () => {
@@ -148,7 +187,7 @@ describe('Settings HTTP flows (e2e)', () => {
   it('rejects an out-of-range value (400)', async () => {
     await request(server())
       .put('/api/v1/settings')
-      .set(auth(managerToken))
+      .set(auth(superToken))
       .send({ scope: 'GLOBAL', key: 'deliveryFee', value: '999999' })
       .expect(400);
   });
