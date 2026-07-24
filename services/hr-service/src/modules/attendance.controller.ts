@@ -28,6 +28,12 @@ export class AttendanceController {
     return this.attendance.checkOut(user, this.toPunch(dto));
   }
 
+  @Get('me')
+  @ApiOperation({ summary: 'My attendance log (self)' })
+  listSelf(@Query() query: ListAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.attendance.listSelf(user, query);
+  }
+
   @Get()
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Attendance log (depot-scoped for depot roles)' })

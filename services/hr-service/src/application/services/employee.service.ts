@@ -71,6 +71,15 @@ export class EmployeeService {
     return employee;
   }
 
+  /** Resolve the caller's OWN employee record via the linked auth account (self-service). */
+  async getSelf(user: AuthenticatedUser): Promise<Employee> {
+    const employee = await this.repo.findByAuthSubjectId(user.sub);
+    if (!employee) {
+      throw new NotFoundException('Akun ini belum tertaut ke data karyawan');
+    }
+    return employee;
+  }
+
   async getHistory(user: AuthenticatedUser, id: string): Promise<EmploymentHistory[]> {
     await this.getById(user, id); // 404 + depot check
     return this.repo.listHistory(id);

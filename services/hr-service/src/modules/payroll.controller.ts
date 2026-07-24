@@ -21,6 +21,12 @@ export class PayrollController {
     return this.payroll.list(query);
   }
 
+  @Get('me')
+  @ApiOperation({ summary: 'My payroll history (self)' })
+  listSelf(@Query() query: ListPayrollDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.payroll.listSelf(user, query);
+  }
+
   @Get(':id')
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Get one payroll with its item lines (salary slip)' })

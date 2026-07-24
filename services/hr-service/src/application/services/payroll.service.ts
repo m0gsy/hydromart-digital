@@ -122,6 +122,17 @@ export class PayrollService {
     });
   }
 
+  /** The caller's OWN payroll history (self-service PWA). Scoped by the linked employee. */
+  async listSelf(user: AuthenticatedUser, query: { periodMonth?: string; page: number; pageSize: number }) {
+    const employee = await this.employees.getSelf(user);
+    return this.repo.list({
+      employeeId: employee.id,
+      periodMonth: query.periodMonth,
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    });
+  }
+
   private async load(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
     const payroll = await this.repo.findById(id);
     if (!payroll) throw new NotFoundException('Payroll tidak ditemukan');

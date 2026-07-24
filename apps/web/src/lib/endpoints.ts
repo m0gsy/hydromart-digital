@@ -1004,6 +1004,23 @@ export const endpoints = {
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
     checkIn: '/attendance/api/v1/attendance/check-in',
     checkOut: '/attendance/api/v1/attendance/check-out',
+    attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/attendance/api/v1/attendance/me${qs ? `?${qs}` : ''}`;
+    },
+    payrollMe: (q: { periodMonth?: string; page?: number; pageSize?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.periodMonth) p.set('periodMonth', q.periodMonth);
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/payroll/api/v1/payroll/me${qs ? `?${qs}` : ''}`;
+    },
     attendance: (q: { depotId?: string; employeeId?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);

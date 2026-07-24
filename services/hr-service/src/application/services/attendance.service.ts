@@ -100,6 +100,22 @@ export class AttendanceService {
     return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
+  /** The caller's OWN attendance log (self-service PWA). Scoped by the linked employee. */
+  async listSelf(
+    user: AuthenticatedUser,
+    query: { from?: string; to?: string; page: number; pageSize: number },
+  ): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {
+    const employee = await this.resolveSelf(user);
+    const { rows, total } = await this.repo.list({
+      employeeId: employee.id,
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+      skip: (query.page - 1) * query.pageSize,
+      take: query.pageSize,
+    });
+    return { rows, total, page: query.page, pageSize: query.pageSize };
+  }
+
   private async resolveSelf(user: AuthenticatedUser): Promise<Employee> {
     const employee = await this.employees.findByAuthSubjectId(user.sub);
     if (!employee) {
