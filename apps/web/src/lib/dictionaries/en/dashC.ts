@@ -197,6 +197,7 @@ export const dashC = {
       HEAD_OFFICE: 'Head office',
       FINANCE: 'Finance',
       MARKETING: 'Marketing',
+      HR: 'HR',
       SUPER_ADMIN: 'Super admin',
     },
     matrix: {

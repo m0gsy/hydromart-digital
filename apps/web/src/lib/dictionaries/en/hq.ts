@@ -26,6 +26,7 @@ export const hq = {
     access: 'Roles & access',
     depots: 'Depot directory',
     staff: 'Staff directory',
+    hr: 'HR',
     franchise: 'Franchise',
     payments: 'Payments',
     pricing: 'Network pricing',
@@ -102,6 +103,7 @@ export const hq = {
     HEAD_OFFICE: 'Head office',
     FINANCE: 'Finance',
     MARKETING: 'Marketing',
+    HR: 'HR',
     SUPER_ADMIN: 'Super admin',
   },
   common: {

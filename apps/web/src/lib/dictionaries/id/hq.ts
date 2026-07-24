@@ -28,6 +28,7 @@ export const hq = {
     access: 'Peran & hak akses',
     depots: 'Direktori depot',
     staff: 'Direktori staf',
+    hr: 'HR (SDM)',
     franchise: 'Waralaba',
     payments: 'Pembayaran',
     pricing: 'Harga jaringan',
@@ -105,6 +106,7 @@ export const hq = {
     HEAD_OFFICE: 'Head office',
     FINANCE: 'Finance',
     MARKETING: 'Marketing',
+    HR: 'HR',
     SUPER_ADMIN: 'Super admin',
   },
   common: {

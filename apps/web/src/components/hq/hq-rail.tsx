@@ -108,7 +108,10 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
   {
     headKey: 'staff',
-    items: [{ href: '/hq/staff', labelKey: 'staff', icon: UserGear, ready: true }],
+    items: [
+      { href: '/hq/staff', labelKey: 'staff', icon: UserGear, ready: true },
+      { href: '/hr', labelKey: 'hr', icon: UsersThree, ready: true },
+    ],
   },
   {
     headKey: 'franchise',
