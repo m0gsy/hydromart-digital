@@ -370,6 +370,37 @@ services:
       timeout: 5s
       retries: 12
 
+  hr:
+    <<: *svc
+    build: { context: ., dockerfile: services/hr-service/Dockerfile }
+    environment:
+      <<: *shared
+      HR_SERVICE_PORT: 3018
+      HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public
+      # Attendance/payroll boot defaults (per-depot override via /hr/settings).
+      HR_WORK_START_TIME: ${HR_WORK_START_TIME:-08:00}
+      HR_LATE_TOLERANCE_MINUTES: ${HR_LATE_TOLERANCE_MINUTES:-15}
+      HR_LATE_DEDUCTION_IDR: ${HR_LATE_DEDUCTION_IDR:-10000}
+      HR_DAILY_RATE_TRAINING_IDR: ${HR_DAILY_RATE_TRAINING_IDR:-30000}
+      # Face recognition runs in-process (onnxruntime-node ArcFace); no cloud, no GPU.
+      FACE_VERIFIER_DRIVER: ${FACE_VERIFIER_DRIVER:-onnx}
+      HR_FACE_MATCH_THRESHOLD: ${HR_FACE_MATCH_THRESHOLD:-0.62}
+      HR_FACE_DUPLICATE_THRESHOLD: ${HR_FACE_DUPLICATE_THRESHOLD:-0.75}
+      HR_FACE_MODEL_PATH: ${HR_FACE_MODEL_PATH:-./models/arcface.onnx}
+      # Employee photo / face-enrollment storage (per-service S3 bucket in prod).
+      STORAGE_DRIVER: ${HR_STORAGE_DRIVER:-s3}
+      STORAGE_PUBLIC_BASE_URL: ${HR_STORAGE_PUBLIC_BASE_URL:-}
+      STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-}
+      STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
+      STORAGE_S3_BUCKET: ${HR_STORAGE_S3_BUCKET:-}
+      STORAGE_S3_ACCESS_KEY_ID: ${HR_STORAGE_S3_ACCESS_KEY_ID:-}
+      STORAGE_S3_SECRET_ACCESS_KEY: ${HR_STORAGE_S3_SECRET_ACCESS_KEY:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3018/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     <<: *svc
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
@@ -395,6 +426,7 @@ services:
       FORECAST_SERVICE_URL: http://forecast:3014
       PAYOUT_SERVICE_URL: http://payout:3016
       ADMIN_SERVICE_URL: http://admin:3017
+      HR_SERVICE_URL: http://hr:3018
     ports:
       - "8080:8080"
     healthcheck:
