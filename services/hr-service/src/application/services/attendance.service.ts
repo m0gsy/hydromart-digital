@@ -4,12 +4,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthenticatedUser, depotScopeFilter } from '@hydromart/platform';
 
 import { Attendance, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { uploadFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
@@ -17,6 +19,7 @@ import {
   FaceEmbeddingRepository,
 } from '../ports/face-embedding.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
+import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 
 export interface FacePunch {
   image: Buffer;
@@ -32,6 +35,7 @@ export class AttendanceService {
     @Inject(FACE_EMBEDDING_REPOSITORY) private readonly faces: FaceEmbeddingRepository,
     @Inject(EMPLOYEE_REPOSITORY) private readonly employees: EmployeeRepository,
     private readonly config: HrConfigService,
+    @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
   ) {}
 
   async checkIn(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
@@ -48,13 +52,14 @@ export class AttendanceService {
     const tolerance = this.config.lateToleranceMinutes(employee.depotId);
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;
+    const photoUrl = punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
 
     return this.repo.create({
       employeeId: employee.id,
       depotId: employee.depotId,
       workDate,
       checkInAt: now,
-      checkInPhotoUrl: punch.photoUrl,
+      checkInPhotoUrl: photoUrl,
       checkInScore: score,
       lateMinutes,
       status: late ? 'LATE' : 'PRESENT',
@@ -75,9 +80,10 @@ export class AttendanceService {
     }
 
     const workingMinutes = Math.max(0, Math.round((now.getTime() - row.checkInAt.getTime()) / 60000));
+    const photoUrl = punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
     return this.repo.patchCheckOut(row.id, {
       checkOutAt: now,
-      checkOutPhotoUrl: punch.photoUrl,
+      checkOutPhotoUrl: photoUrl,
       checkOutScore: score,
       workingMinutes,
     });

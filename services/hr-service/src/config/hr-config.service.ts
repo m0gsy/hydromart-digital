@@ -88,4 +88,22 @@ export class HrConfigService {
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
   }
+
+  // --- Photo storage (attendance frames + enrolled face source photos). Same env var
+  // names as auth-service; 's3' enables uploads, anything else = no-op (photoUrl null). ---
+  get storageDriver(): string {
+    return this.config.get<string>('STORAGE_DRIVER', 'disabled');
+  }
+  get storagePublicBaseUrl(): string {
+    return this.config.get<string>('STORAGE_PUBLIC_BASE_URL', '');
+  }
+  get s3(): { region: string; endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string } {
+    return {
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      endpoint: this.config.get<string>('STORAGE_S3_ENDPOINT', ''),
+      bucket: this.config.get<string>('STORAGE_S3_BUCKET', ''),
+      accessKeyId: this.config.get<string>('STORAGE_S3_ACCESS_KEY_ID', ''),
+      secretAccessKey: this.config.get<string>('STORAGE_S3_SECRET_ACCESS_KEY', ''),
+    };
+  }
 }

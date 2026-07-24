@@ -37,6 +37,9 @@ import { AuditInterceptor } from '../infrastructure/http/audit.interceptor';
 import { ANALYTICS_REPOSITORY } from '../application/ports/analytics.repository';
 import { AnalyticsService } from '../application/services/analytics.service';
 import { AnalyticsPrismaRepository } from '../infrastructure/prisma/analytics.prisma.repository';
+import { STORAGE_PORT } from '../application/ports/storage.port';
+import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
+import { DisabledStorageAdapter } from '../infrastructure/storage/disabled-storage.adapter';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController } from './face.controller';
@@ -69,6 +72,14 @@ const providers: Provider[] = [
       config.faceVerifierDriver === 'stub'
         ? new StubFaceVerifier(config)
         : new OnnxArcFaceVerifier(config),
+    inject: [HrConfigService],
+  },
+  // Photo storage: S3 in prod (HR_STORAGE_DRIVER=s3), no-op otherwise. Injected @Optional
+  // into Face/Attendance services — an absent binding just skips persisting photoUrls.
+  {
+    provide: STORAGE_PORT,
+    useFactory: (config: HrConfigService) =>
+      config.storageDriver === 's3' ? new S3StorageAdapter(config) : new DisabledStorageAdapter(),
     inject: [HrConfigService],
   },
   FaceService,

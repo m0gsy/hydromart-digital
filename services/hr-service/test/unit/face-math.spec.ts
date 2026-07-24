@@ -1,4 +1,26 @@
-import { bestMatch, cosineSimilarity, l2normalize, meanNormalize } from '../../src/domain/face-math';
+import { bestMatch, cosineSimilarity, l2normalize, meanNormalize, rgbToNchw } from '../../src/domain/face-math';
+
+describe('rgbToNchw (ArcFace preprocessing)', () => {
+  it('packs interleaved RGB into planar NCHW with (v-127.5)/128 normalization', () => {
+    // 1×1 image: one RGB pixel [255, 127.5→127, 0].
+    const out = rgbToNchw([255, 127, 0], 1);
+    expect(out.length).toBe(3);
+    expect(out[0]).toBeCloseTo((255 - 127.5) / 128); // R plane
+    expect(out[1]).toBeCloseTo((127 - 127.5) / 128); // G plane
+    expect(out[2]).toBeCloseTo((0 - 127.5) / 128); // B plane
+  });
+
+  it('separates channels into contiguous planes for a 2×2 image', () => {
+    const rgb = new Uint8Array(2 * 2 * 3).fill(128);
+    const out = rgbToNchw(rgb, 2);
+    expect(out.length).toBe(12); // 3 planes × 4 px
+    expect(Array.from(out).every((v) => Math.abs(v - (128 - 127.5) / 128) < 1e-6)).toBe(true);
+  });
+
+  it('rejects a buffer whose length does not match the declared size', () => {
+    expect(() => rgbToNchw([1, 2, 3], 2)).toThrow(/expected 12 bytes/);
+  });
+});
 
 describe('face-math', () => {
   it('cosineSimilarity: identical = 1, orthogonal = 0', () => {

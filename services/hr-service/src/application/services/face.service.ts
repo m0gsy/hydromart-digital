@@ -1,14 +1,16 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { FaceEmbedding } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { bestMatch } from '../../domain/face-math';
+import { uploadFrame } from '../../infrastructure/storage/upload-frame';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
 } from '../ports/face-embedding.repository';
+import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { EmployeeService } from './employee.service';
 
 @Injectable()
@@ -18,6 +20,7 @@ export class FaceService {
     @Inject(FACE_EMBEDDING_REPOSITORY) private readonly repo: FaceEmbeddingRepository,
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
+    @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
   ) {}
 
   /**
@@ -46,7 +49,10 @@ export class FaceService {
       throw new BadRequestException('Wajah ini sudah terdaftar untuk karyawan lain');
     }
 
+    // Persist the first source frame (best-effort) if the caller didn't pass a url.
+    const storedUrl = sourcePhotoUrl ?? (await uploadFrame(this.storage, images[0], 'hr/faces'));
+
     await this.repo.deactivateForEmployee(employeeId);
-    return this.repo.create({ employeeId, vector, quality, sourcePhotoUrl });
+    return this.repo.create({ employeeId, vector, quality, sourcePhotoUrl: storedUrl });
   }
 }

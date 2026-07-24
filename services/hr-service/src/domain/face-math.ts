@@ -38,6 +38,23 @@ export function meanNormalize(vectors: readonly (readonly number[])[]): number[]
   return l2normalize(sum.map((s) => s / vectors.length));
 }
 
+/**
+ * Pack an interleaved RGB pixel buffer (length size*size*3) into an ArcFace input tensor:
+ * planar NCHW (1×3×H×W), each channel `(pixel - 127.5) / 128` — the standard InsightFace
+ * normalization. Pure so the preprocessing is unit-tested without the model.
+ */
+export function rgbToNchw(rgb: Uint8Array | readonly number[], size: number): Float32Array {
+  const plane = size * size;
+  if (rgb.length !== plane * 3) throw new Error(`rgbToNchw: expected ${plane * 3} bytes, got ${rgb.length}`);
+  const out = new Float32Array(plane * 3);
+  for (let i = 0; i < plane; i++) {
+    out[i] = (rgb[i * 3] - 127.5) / 128;
+    out[plane + i] = (rgb[i * 3 + 1] - 127.5) / 128;
+    out[2 * plane + i] = (rgb[i * 3 + 2] - 127.5) / 128;
+  }
+  return out;
+}
+
 /** Highest-scoring enrolled vector for a probe. Empty set → score 0, index -1. */
 export function bestMatch(
   probe: readonly number[],
