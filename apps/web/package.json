@@ -17,7 +17,7 @@
     "@hydromart/access": "*",
     "@phosphor-icons/react": "^2.1.7",
     "framer-motion": "^11.18.2",
-    "next": "15.5.20",
+    "next": "15.5.21",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },

@@ -72,6 +72,12 @@ jobs:
       - name: Install
         run: npm ci
 
+      # Fails on any high/critical vuln in production deps that isn't in the
+      # reviewed allowlist (scripts/audit-gate.mjs). Reads the installed lockfile
+      # — no network. New unreviewed highs block the PR (T4 dep-vuln gate).
+      - name: Dependency vulnerability gate
+        run: npm run audit:ci
+
       # Static schema validation — no database required.
       - name: Validate Prisma schemas
         run: npm run db:validate

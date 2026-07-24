@@ -46,7 +46,7 @@
   },
   "optionalDependencies": {
     "onnxruntime-node": "^1.20.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

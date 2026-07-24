@@ -30,7 +30,8 @@
     "auth:migrate": "npm run prisma:migrate --workspace @hydromart/auth-service",
     "test:integration": "node test/integration/run.mjs",
     "db:seed": "node scripts/seed.mjs",
-    "gen:vapid": "node scripts/gen-vapid.mjs"
+    "gen:vapid": "node scripts/gen-vapid.mjs",
+    "audit:ci": "node scripts/audit-gate.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3.3",
