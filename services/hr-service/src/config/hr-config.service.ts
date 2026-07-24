@@ -71,6 +71,10 @@ export class HrConfigService {
   standardWorkingMinutes(depotId: string | null = null): number {
     return this.tunableNum('standardWorkingMinutes', this.num('HR_STANDARD_WORKING_MINUTES'), depotId);
   }
+  /** Weekly non-working weekdays as a CSV ("0,6"); '' = every day is a working day. */
+  weeklyOffDays(depotId: string | null = null): string {
+    return this.tunableStr('weeklyOffDays', this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''), depotId);
+  }
 
   // --- Face recognition (read straight from ENV; not per-depot user-facing) ---
   get faceVerifierDriver(): string {

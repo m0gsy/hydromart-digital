@@ -47,11 +47,14 @@ function build(opts: {
   bonuses?: Partial<Bonus>[];
   deductions?: Partial<Deduction>[];
   repo?: FakePayrollRepo;
+  absenceRate?: number;
+  weeklyOff?: string;
+  holidayDates?: string[];
 }) {
   const repo = opts.repo ?? new FakePayrollRepo();
   const attendance: AttendanceRepository = {
     findByEmployeeAndDate: async () => null,
-    summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0 },
+    summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
     create: async () => ({}) as never,
     patchCheckOut: async () => ({}) as never,
     list: async () => ({ rows: [], total: 0 }),
@@ -70,15 +73,18 @@ function build(opts: {
   const config = {
     lateDeductionAmount: () => 10000,
     dailyRateTraining: () => 30000,
+    absenceDeductionAmount: () => opts.absenceRate ?? 0,
+    weeklyOffDays: () => opts.weeklyOff ?? '',
   } as unknown as HrConfigService;
-  return { repo, svc: new PayrollService(repo, attendance, bonuses, deductions, employees, config) };
+  const holidays = { listDates: async () => opts.holidayDates ?? [] } as unknown as import('../../src/application/ports/holiday.repository').HolidayRepository;
+  return { repo, svc: new PayrollService(repo, attendance, bonuses, deductions, employees, config, holidays) };
 }
 
 describe('PayrollService.generate', () => {
   it('DAILY base = dailyRate × presentDays; net folds bonus and deductions', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 50000 as never },
-      summary: { presentDays: 20, lateDays: 2 },
+      summary: { presentDays: 20, lateDays: 2, leaveDays: 0 },
       bonuses: [{ id: 'b1', type: 'MANUAL', amount: 100000 as never, note: 'THR' }],
       deductions: [{ id: 'd1', type: 'CASH_ADVANCE', amount: 50000 as never, note: 'Kasbon' }],
     });
@@ -94,7 +100,7 @@ describe('PayrollService.generate', () => {
   it('TRAINING with no dailyRate falls back to the config training rate', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: null, employmentStatus: 'TRAINING' as never },
-      summary: { presentDays: 10, lateDays: 0 },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.gross).toBe(300_000); // 30k × 10
@@ -103,11 +109,34 @@ describe('PayrollService.generate', () => {
   it('MONTHLY base = monthlyRate regardless of present days', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
-      summary: { presentDays: 18, lateDays: 5 },
+      summary: { presentDays: 18, lateDays: 5, leaveDays: 0 },
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.gross).toBe(4_000_000);
     expect(repo.lastWrite!.totalDeduction).toBe(50_000); // 5 late × 10k
+  });
+
+  it('MONTHLY auto-absence: deducts (workingDays − present − leave) × absenceRate', async () => {
+    // July 2026 = 31 days; no weekly-off, one holiday → 30 working days. 20 present + 2 leave
+    // → 8 absent × 25k = 200k, on top of 5 late × 10k = 50k.
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      summary: { presentDays: 20, lateDays: 5, leaveDays: 2 },
+      absenceRate: 25_000,
+      holidayDates: ['2026-07-17'],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.totalDeduction).toBe(250_000); // 200k absence + 50k late
+  });
+
+  it('DAILY never gets an absence deduction (missing days already earn nothing)', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
+      summary: { presentDays: 5, lateDays: 0, leaveDays: 0 },
+      absenceRate: 25_000,
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.totalDeduction).toBe(0);
   });
 
   it('rejects a malformed period', async () => {
@@ -116,7 +145,7 @@ describe('PayrollService.generate', () => {
   });
 
   it('re-generates a DRAFT in place but refuses a locked (APPROVED) payroll', async () => {
-    const draft = build({ employee: { dailyRate: 1000 as never }, summary: { presentDays: 1, lateDays: 0 } });
+    const draft = build({ employee: { dailyRate: 1000 as never }, summary: { presentDays: 1, lateDays: 0, leaveDays: 0 } });
     draft.repo.existing = { id: 'p1', status: 'DRAFT' } as PayrollWithItems;
     await draft.svc.generate(user, 'e1', '2026-07');
     expect(draft.repo.regenerated).toBe(true);

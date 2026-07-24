@@ -1088,5 +1088,20 @@ export const endpoints = {
       `/hr/api/v1/hr/settings/schema${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     putSetting: '/hr/api/v1/hr/settings',
     resetSetting: '/hr/api/v1/hr/settings',
+    holidays: (q: { depotId?: string; from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/holidays/api/v1/holidays${qs ? `?${qs}` : ''}`;
+    },
+    createHoliday: '/holidays/api/v1/holidays',
+    deleteHoliday: (id: string) => `/holidays/api/v1/holidays/${id}`,
+    shifts: (depotId?: string) =>
+      `/hr-shifts/api/v1/hr-shifts${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    createShift: '/hr-shifts/api/v1/hr-shifts',
+    updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
+    deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
   },
 } as const;

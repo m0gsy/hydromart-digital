@@ -17,7 +17,7 @@ describe('self-scoped reads', () => {
     let filter: { employeeId?: string } = {};
     const repo = {
       findByEmployeeAndDate: async () => null,
-      summary: async () => ({ presentDays: 0, lateDays: 0 }),
+      summary: async () => ({ presentDays: 0, lateDays: 0, leaveDays: 0 }),
       create: async () => ({}) as never,
       patchCheckOut: async () => ({}) as never,
       list: async (f: { employeeId?: string }) => { filter = f; return { rows: [{ id: 'a1' } as Attendance], total: 1 }; },

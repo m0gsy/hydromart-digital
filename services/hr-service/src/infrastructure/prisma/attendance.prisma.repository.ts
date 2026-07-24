@@ -26,11 +26,12 @@ export class AttendancePrismaRepository implements AttendanceRepository {
 
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
     const workDate = { gte: from, lte: to };
-    const [presentDays, lateDays] = await this.prisma.$transaction([
+    const [presentDays, lateDays, leaveDays] = await this.prisma.$transaction([
       this.prisma.attendance.count({ where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } } }),
       this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LATE' } }),
+      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LEAVE' } }),
     ]);
-    return { presentDays, lateDays };
+    return { presentDays, lateDays, leaveDays };
   }
 
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance> {

@@ -20,6 +20,7 @@ import {
 } from '../ports/face-embedding.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
+import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 
 export interface FacePunch {
   image: Buffer;
@@ -36,6 +37,7 @@ export class AttendanceService {
     @Inject(EMPLOYEE_REPOSITORY) private readonly employees: EmployeeRepository,
     private readonly config: HrConfigService,
     @Optional() @Inject(STORAGE_PORT) private readonly storage?: StoragePort,
+    @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
   ) {}
 
   async checkIn(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
@@ -48,7 +50,9 @@ export class AttendanceService {
       throw new BadRequestException('Sudah check-in hari ini');
     }
 
-    const startMinutes = this.parseHHMM(this.config.workStartTime(employee.depotId));
+    // Late is measured against the depot's active shift start, falling back to config.
+    const shift = this.shifts ? await this.shifts.findActiveForDepot(employee.depotId) : null;
+    const startMinutes = this.parseHHMM(shift?.startTime ?? this.config.workStartTime(employee.depotId));
     const tolerance = this.config.lateToleranceMinutes(employee.depotId);
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;

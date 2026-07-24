@@ -40,6 +40,13 @@ import { AnalyticsPrismaRepository } from '../infrastructure/prisma/analytics.pr
 import { STORAGE_PORT } from '../application/ports/storage.port';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { DisabledStorageAdapter } from '../infrastructure/storage/disabled-storage.adapter';
+import { HOLIDAY_REPOSITORY } from '../application/ports/holiday.repository';
+import { SHIFT_REPOSITORY } from '../application/ports/shift.repository';
+import { HolidayService } from '../application/services/holiday.service';
+import { ShiftService } from '../application/services/shift.service';
+import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
+import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
+import { HolidayController, ShiftController } from './calendar.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController } from './face.controller';
@@ -95,6 +102,10 @@ const providers: Provider[] = [
   AuditService,
   { provide: ANALYTICS_REPOSITORY, useClass: AnalyticsPrismaRepository },
   AnalyticsService,
+  { provide: HOLIDAY_REPOSITORY, useClass: HolidayPrismaRepository },
+  { provide: SHIFT_REPOSITORY, useClass: ShiftPrismaRepository },
+  HolidayService,
+  ShiftService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -115,6 +126,8 @@ const providers: Provider[] = [
     PerformanceController,
     AuditController,
     ReportsController,
+    HolidayController,
+    ShiftController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

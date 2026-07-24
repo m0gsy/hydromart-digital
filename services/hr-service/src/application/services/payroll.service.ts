@@ -1,9 +1,18 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
+import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
 import {
   BONUS_REPOSITORY,
   BonusRepository,
@@ -29,6 +38,7 @@ export class PayrollService {
     @Inject(DEDUCTION_REPOSITORY) private readonly deductions: DeductionRepository,
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
+    @Optional() @Inject(HOLIDAY_REPOSITORY) private readonly holidays?: HolidayRepository,
   ) {}
 
   /**
@@ -47,7 +57,7 @@ export class PayrollService {
     }
 
     const { from, to } = this.monthRange(periodMonth);
-    const { presentDays, lateDays } = await this.attendance.summary(employeeId, from, to);
+    const { presentDays, lateDays, leaveDays } = await this.attendance.summary(employeeId, from, to);
 
     const items: PayrollItemInput[] = [];
 
@@ -70,6 +80,16 @@ export class PayrollService {
     if (lateDays > 0 && lateRate > 0) {
       items.push({ kind: 'DEDUCTION', label: `Potongan terlambat (${lateDays} hari)`, amount: lateDays * lateRate });
     }
+    // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
+    // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
+    if (employee.salaryType === 'MONTHLY') {
+      const absentDays = await this.absentDays(periodMonth, employee.depotId, from, to, presentDays, leaveDays);
+      const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
+      if (absentDays > 0 && absenceRate > 0) {
+        items.push({ kind: 'DEDUCTION', label: `Potongan absen (${absentDays} hari)`, amount: absentDays * absenceRate });
+      }
+    }
+
     const deductionRows = await this.deductions.listByEmployeePeriod(employeeId, periodMonth);
     for (const d of deductionRows) {
       items.push({ kind: 'DEDUCTION', label: d.note ?? `Potongan ${d.type}`, amount: Number(d.amount), sourceRef: d.id });
@@ -138,6 +158,26 @@ export class PayrollService {
     if (!payroll) throw new NotFoundException('Payroll tidak ditemukan');
     await this.employees.getById(user, payroll.employeeId); // depot check on the owning employee
     return payroll;
+  }
+
+  /** Expected working days (calendar − weekly-off − holidays) minus days present or on leave. */
+  private async absentDays(
+    periodMonth: string,
+    depotId: string,
+    from: Date,
+    to: Date,
+    presentDays: number,
+    leaveDays: number,
+  ): Promise<number> {
+    const [year, month] = periodMonth.split('-').map(Number);
+    const holidayDates = this.holidays ? await this.holidays.listDates(depotId, from, to) : [];
+    const workingDays = workingDaysInMonth(
+      year,
+      month,
+      new Set(holidayDates),
+      parseWeeklyOffDays(this.config.weeklyOffDays(depotId)),
+    );
+    return Math.max(0, workingDays - presentDays - leaveDays);
   }
 
   private basePay(employee: Employee, presentDays: number): number {

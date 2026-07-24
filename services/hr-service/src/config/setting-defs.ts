@@ -22,6 +22,7 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'dailyRateTraining', label: 'Upah harian training', type: 'money', unit: 'Rp', min: 0, max: 10000000, envDefault: 30000 },
   { key: 'absenceDeductionAmount', label: 'Potongan absen', type: 'money', unit: 'Rp', min: 0, max: 10000000, envDefault: 0 },
   { key: 'standardWorkingMinutes', label: 'Jam kerja standar', type: 'int', unit: 'menit', min: 0, max: 1440, envDefault: 480 },
+  { key: 'weeklyOffDays', label: 'Hari libur mingguan', type: 'string', unit: '0=Min..6=Sab, koma', envDefault: '' },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

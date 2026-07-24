@@ -31,6 +31,7 @@ const ITEMS: NavItem[] = [
   { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },
   { href: '/hr/performance', label: 'Kinerja', icon: Star },
+  { href: '/hr/calendar', label: 'Kalender Kerja', icon: CalendarCheck },
   { href: '/hr/reports', label: 'Laporan', icon: ChartBar },
   { href: '/hr/settings', label: 'Konfigurasi Gaji', icon: GearSix, adminOnly: true },
   { href: '/hr/audit', label: 'Log Audit', icon: ClipboardText, adminOnly: true },

@@ -29,7 +29,7 @@ class FakeAtt implements AttendanceRepository {
     return this.row;
   }
   async summary() {
-    return { presentDays: 0, lateDays: 0 };
+    return { presentDays: 0, lateDays: 0, leaveDays: 0 };
   }
   async create(input: CreateAttendanceInput): Promise<Attendance> {
     this.created = input;

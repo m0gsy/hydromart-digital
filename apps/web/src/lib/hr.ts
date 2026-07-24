@@ -129,6 +129,22 @@ export interface AuditLog {
   at: string;
 }
 
+export interface Holiday {
+  id: string;
+  date: string;
+  name: string;
+  depotId: string | null;
+}
+
+export interface Shift {
+  id: string;
+  depotId: string | null;
+  name: string;
+  startTime: string;
+  endTime: string;
+  active: boolean;
+}
+
 export interface GroupCount {
   key: string;
   count: number;

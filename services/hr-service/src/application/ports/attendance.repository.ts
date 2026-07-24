@@ -33,6 +33,8 @@ export interface AttendanceListFilter {
 export interface AttendanceSummary {
   presentDays: number;
   lateDays: number;
+  /** Days marked LEAVE (approved) — not counted as absent in payroll. */
+  leaveDays: number;
 }
 
 export interface AttendanceRepository {
