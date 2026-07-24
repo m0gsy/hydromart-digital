@@ -33,18 +33,18 @@ export class FaceService {
     images: Buffer[],
     sourcePhotoUrl: string | null,
   ): Promise<FaceEmbedding> {
-    await this.employees.getById(user, employeeId); // 404 + depot check (admin)
-    return this.enrollFor(employeeId, images, sourcePhotoUrl);
+    const employee = await this.employees.getById(user, employeeId); // 404 + depot check (admin)
+    return this.enrollFor(employee, images, sourcePhotoUrl);
   }
 
   /** Self-enrollment (PWA): the caller enrolls their OWN linked employee record. */
   async enrollSelf(user: AuthenticatedUser, images: Buffer[]): Promise<FaceEmbedding> {
     const employee = await this.employees.getSelf(user); // resolves by authSubjectId
-    return this.enrollFor(employee.id, images, null);
+    return this.enrollFor(employee, images, null);
   }
 
   private async enrollFor(
-    employeeId: string,
+    employee: { id: string; fullName: string },
     images: Buffer[],
     sourcePhotoUrl: string | null,
   ): Promise<FaceEmbedding> {
@@ -52,21 +52,28 @@ export class FaceService {
       throw new BadRequestException('Minimal satu frame wajah diperlukan');
     }
 
-    const { vector, quality } = await this.verifier.enroll(images);
+    const { vector, quality } = await this.verifier.enroll(images, {
+      userId: employee.id,
+      userName: employee.fullName,
+    });
 
-    const others = await this.repo.listActiveVectorsExcept(employeeId);
-    const { score } = bestMatch(
-      vector,
-      others.map((o) => o.vector),
-    );
-    if (score >= this.config.faceDuplicateThreshold) {
-      throw new BadRequestException('Wajah ini sudah terdaftar untuk karyawan lain');
+    // Local-embedding drivers (onnx/stub) dedup here; remote galleries (neo) return an empty
+    // vector and dedup server-side, so skip the cosine check.
+    if (vector.length > 0) {
+      const others = await this.repo.listActiveVectorsExcept(employee.id);
+      const { score } = bestMatch(
+        vector,
+        others.map((o) => o.vector),
+      );
+      if (score >= this.config.faceDuplicateThreshold) {
+        throw new BadRequestException('Wajah ini sudah terdaftar untuk karyawan lain');
+      }
     }
 
     // Persist the first source frame (best-effort) if the caller didn't pass a url.
     const storedUrl = sourcePhotoUrl ?? (await uploadFrame(this.storage, images[0], 'hr/faces'));
 
-    await this.repo.deactivateForEmployee(employeeId);
-    return this.repo.create({ employeeId, vector, quality, sourcePhotoUrl: storedUrl });
+    await this.repo.deactivateForEmployee(employee.id);
+    return this.repo.create({ employeeId: employee.id, vector, quality, sourcePhotoUrl: storedUrl });
   }
 }

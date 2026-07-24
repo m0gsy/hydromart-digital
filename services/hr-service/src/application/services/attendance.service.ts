@@ -42,7 +42,7 @@ export class AttendanceService {
 
   async checkIn(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
-    const score = await this.assertFace(employee.id, punch);
+    const score = await this.assertFace(employee, punch);
 
     const { workDate, minutesOfDay } = this.localParts(now, this.config.timeZone);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
@@ -72,7 +72,7 @@ export class AttendanceService {
 
   async checkOut(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
-    const score = await this.assertFace(employee.id, punch);
+    const score = await this.assertFace(employee, punch);
 
     const { workDate } = this.localParts(now, this.config.timeZone);
     const row = await this.repo.findByEmployeeAndDate(employee.id, workDate);
@@ -190,9 +190,9 @@ export class AttendanceService {
     return employee;
   }
 
-  /** Liveness + 1:N face match against the employee's enrolled set; returns the match score. */
-  private async assertFace(employeeId: string, punch: FacePunch): Promise<number> {
-    const enrolled = await this.faces.listActiveByEmployee(employeeId);
+  /** Liveness + face match against the employee's enrolled set; returns the match score. */
+  private async assertFace(employee: Employee, punch: FacePunch): Promise<number> {
+    const enrolled = await this.faces.listActiveByEmployee(employee.id);
     if (enrolled.length === 0) {
       throw new BadRequestException('Wajah belum di-enroll');
     }
@@ -200,6 +200,7 @@ export class AttendanceService {
       punch.image,
       enrolled.map((e) => e.vector),
       punch.live,
+      { userId: employee.id, userName: employee.fullName },
     );
     if (!result.live) {
       throw new BadRequestException('Deteksi liveness gagal, coba lagi');

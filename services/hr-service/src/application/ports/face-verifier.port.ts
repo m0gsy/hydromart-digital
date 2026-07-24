@@ -17,14 +17,29 @@ export interface FaceVerifyResult {
 }
 
 /**
+ * Subject identity for a remote face gallery (NEO/RisetAI). Local drivers (onnx/stub)
+ * ignore it; the NEO provider keys enroll/verify on `userId` (= Employee.id).
+ */
+export interface FaceIdentity {
+  userId: string;
+  userName: string;
+}
+
+/**
  * Face embedding + 1:N match. The production binding is ONNX ArcFace in-process
  * (OnnxArcFaceVerifier); a deterministic StubFaceVerifier serves dev/test
  * (FACE_VERIFIER_DRIVER=stub). Swappable to a remote GPU service (http) later —
  * the application only ever depends on this port.
  */
 export interface FaceVerifier {
-  /** Enroll N aligned frames into one averaged, normalized embedding. */
-  enroll(images: Buffer[]): Promise<FaceEmbeddingResult>;
-  /** Match one aligned probe frame against an employee's enrolled vectors. */
-  verify(image: Buffer, enrolled: number[][], live: boolean): Promise<FaceVerifyResult>;
+  /**
+   * Enroll N aligned frames into one averaged, normalized embedding. Remote drivers (neo)
+   * return an empty `vector` (identity lives in the gallery, keyed by `identity.userId`).
+   */
+  enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult>;
+  /**
+   * Match one aligned probe frame against an employee's enrolled faces. Local drivers use
+   * `enrolled` vectors; remote drivers (neo) ignore them and verify 1:1 by `identity.userId`.
+   */
+  verify(image: Buffer, enrolled: number[][], live: boolean, identity?: FaceIdentity): Promise<FaceVerifyResult>;
 }

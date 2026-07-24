@@ -19,6 +19,7 @@ import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.pris
 import { EmployeePrismaRepository } from '../infrastructure/prisma/employee.prisma.repository';
 import { FaceEmbeddingPrismaRepository } from '../infrastructure/prisma/face-embedding.prisma.repository';
 import { AttendancePrismaRepository } from '../infrastructure/prisma/attendance.prisma.repository';
+import { NeoFaceProvider } from '../infrastructure/face/neo-face.provider';
 import { OnnxArcFaceVerifier } from '../infrastructure/face/onnx-arcface.verifier';
 import { StubFaceVerifier } from '../infrastructure/face/stub-face.verifier';
 import { PAYROLL_REPOSITORY } from '../application/ports/payroll.repository';
@@ -71,14 +72,20 @@ const providers: Provider[] = [
   EmployeeService,
   { provide: FACE_EMBEDDING_REPOSITORY, useClass: FaceEmbeddingPrismaRepository },
   { provide: ATTENDANCE_REPOSITORY, useClass: AttendancePrismaRepository },
-  // Face engine bound by FACE_VERIFIER_DRIVER: onnx (prod, needs vendored model) or
-  // stub (dev/test, deterministic). 'http' remote driver is a future swap.
+  // Face engine bound by FACE_VERIFIER_DRIVER: neo (prod, BiznetGio NEO cloud gallery),
+  // onnx (in-process, needs vendored model), or stub (dev/test, deterministic).
   {
     provide: FACE_VERIFIER,
-    useFactory: (config: HrConfigService) =>
-      config.faceVerifierDriver === 'stub'
-        ? new StubFaceVerifier(config)
-        : new OnnxArcFaceVerifier(config),
+    useFactory: (config: HrConfigService) => {
+      switch (config.faceVerifierDriver) {
+        case 'stub':
+          return new StubFaceVerifier(config);
+        case 'neo':
+          return new NeoFaceProvider(config);
+        default:
+          return new OnnxArcFaceVerifier(config);
+      }
+    },
     inject: [HrConfigService],
   },
   // Photo storage: S3 in prod (HR_STORAGE_DRIVER=s3), no-op otherwise. Injected @Optional

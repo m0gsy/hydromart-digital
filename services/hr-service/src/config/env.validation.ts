@@ -17,12 +17,17 @@ export const envValidationSchema = Joi.object({
   HR_DAILY_RATE_TRAINING_IDR: Joi.number().integer().min(0).default(30000),
   HR_ABSENCE_DEDUCTION_IDR: Joi.number().integer().min(0).default(0),
   HR_STANDARD_WORKING_MINUTES: Joi.number().integer().min(0).default(480),
-  // Face recognition (in-process ArcFace via onnxruntime-node; no cloud, no GPU required).
-  FACE_VERIFIER_DRIVER: Joi.string().valid('onnx', 'http', 'stub').default('onnx'),
+  // Face recognition. neo = BiznetGio NEO cloud gallery (prod); onnx = in-process ArcFace;
+  // stub = dev/test deterministic.
+  FACE_VERIFIER_DRIVER: Joi.string().valid('neo', 'onnx', 'http', 'stub').default('onnx'),
   HR_FACE_MATCH_THRESHOLD: Joi.number().min(0).max(1).default(0.62),
   HR_FACE_DUPLICATE_THRESHOLD: Joi.number().min(0).max(1).default(0.75),
   HR_FACE_MODEL_PATH: Joi.string().default('./models/arcface.onnx'),
   FACE_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only, never committed.
+  NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),
+  NEO_FR_TOKEN: Joi.string().allow('').default(''),
+  NEO_FR_GALLERY_ID: Joi.string().default('hydromart-hr'),
   // Photo storage (shared StoragePort). Local disk in dev; S3-compatible in prod.
   STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),

@@ -92,6 +92,14 @@ export class HrConfigService {
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
   }
+  /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
+  get neoFr(): { endpoint: string; token: string; galleryId: string } {
+    return {
+      endpoint: this.config.get<string>('NEO_FR_ENDPOINT', 'https://fr.neoapi.id'),
+      token: this.config.get<string>('NEO_FR_TOKEN', ''),
+      galleryId: this.config.get<string>('NEO_FR_GALLERY_ID', 'hydromart-hr'),
+    };
+  }
 
   // --- Photo storage (attendance frames + enrolled face source photos). Same env var
   // names as auth-service; 's3' enables uploads, anything else = no-op (photoUrl null). ---
