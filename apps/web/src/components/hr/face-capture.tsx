@@ -25,8 +25,11 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
 
   useEffect(() => {
     let cancelled = false;
-    navigator.mediaDevices
-      ?.getUserMedia({ video: { facingMode: 'user' }, audio: false })
+    // Prefer the front camera, but fall back to any camera — some devices (and headless
+    // fake devices) reject the facingMode constraint outright.
+    (navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' }, audio: false }) ??
+      Promise.reject(new Error('no mediaDevices')))
+      .catch(() => navigator.mediaDevices.getUserMedia({ video: true, audio: false }))
       .then((stream) => {
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
