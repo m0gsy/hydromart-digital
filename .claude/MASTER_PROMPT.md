@@ -261,6 +261,80 @@ Purpose
 
 ECC is responsible for ensuring nothing deviates from the BRD or PRD.
 
+------------------------------------------------------
+
+======================================================
+11. Graphify
+======================================================
+
+Repository
+
+https://github.com/Graphify-Labs/graphify
+
+Purpose
+
+- Codebase Knowledge Graph
+- Architecture Mapping
+- File Relationship Analysis
+- Call Flow Inspection
+- Dependency Tracing
+- Impact / Affected Analysis
+- Fast Code Navigation
+
+Trigger: /graphify
+
+Before touching any existing code, query the graph first
+(`graphify query`) instead of blindly reading raw files.
+
+Any question about the codebase, its architecture, or file
+relationships MUST be treated as a graphify query first.
+
+------------------------------------------------------
+
+======================================================
+12. UI/UX Pro Max
+======================================================
+
+Repository
+
+https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+
+Purpose
+
+- Design Intelligence (styles, palettes, typography)
+- Design Tokens & Design System
+- Component Specifications
+- Charts & Data Visualization
+- Accessibility Guidelines
+- Stack-specific UI patterns
+
+Apply UI/UX Pro Max alongside Taste Skill whenever UI is
+designed, built, or reviewed. Taste Skill sets the taste;
+UI/UX Pro Max supplies the concrete design system.
+
+------------------------------------------------------
+
+======================================================
+13. Matt Pocock Skills
+======================================================
+
+Repository
+
+https://github.com/mattpocock/skills
+
+Purpose
+
+- Test Driven Development (red-green-refactor)
+- Bug Diagnosis Loop
+- Code Review (Standards + Spec axes)
+- Domain Modeling / Ubiquitous Language
+- Codebase Design (deep modules)
+- Prototyping & Research
+
+Use TDD for every feature and bug fix.
+Use the diagnosing-bugs loop for hard defects.
+Run code-review before every commit, alongside Impeccable.
+
 ======================================================
 PLUGIN ACTIVATION RULES
 ======================================================
@@ -274,10 +348,13 @@ Mandatory for every milestone
 
 Activate when applicable
 
+- Graphify → Codebase understanding, architecture/dependency queries (query before reading raw files)
 - Skills → Engineering patterns
 - Superpowers → Repository analysis, debugging, large refactoring
+- Matt Pocock Skills → TDD, bug diagnosis, code review, domain modeling
 - Ponytail → Workflow, automation, tooling
 - Taste Skill → UI/UX generation
+- UI/UX Pro Max → Design system, tokens, palettes, charts, component specs
 - Marketing Skills → CRM, campaign, marketing assets
 - Humanizer → Any customer-facing or user-facing communication
 
@@ -295,6 +372,10 @@ Claude Memory
 
 ↓
 
+Graphify (query codebase before touching code)
+
+↓
+
 Skills
 
 ↓
@@ -307,11 +388,11 @@ Ponytail
 
 ↓
 
-Implementation
+Implementation (Matt Pocock TDD: red → green → refactor)
 
 ↓
 
-Taste Skill
+Taste Skill + UI/UX Pro Max
 
 ↓
 
@@ -320,6 +401,10 @@ Marketing Skills
 ↓
 
 Humanizer
+
+↓
+
+Matt Pocock Code Review
 
 ↓
 

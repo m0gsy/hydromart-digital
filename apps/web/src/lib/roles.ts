@@ -55,6 +55,11 @@ export const canViewDepotCrm = (role: string | null | undefined) => can('depotCr
 export const canViewIncidents = (role: string | null | undefined) => can('incidents', role);
 export const canViewAudit = (role: string | null | undefined) => can('auditRead', role);
 export const canManageProcurement = (role: string | null | undefined) => can('procurement', role);
+// HRIS Lite (hr-service). hrView = read consoles/dashboards (incl. depot manager, scoped);
+// hrAdmin = manage employees/config/face; hrPayroll = generate/approve/pay payroll.
+export const canViewHr = (role: string | null | undefined) => can('hrView', role);
+export const canManageHr = (role: string | null | undefined) => can('hrAdmin', role);
+export const canRunPayroll = (role: string | null | undefined) => can('hrPayroll', role);
 export const canReviewApprovals = (role: string | null | undefined) => can('approvals', role);
 export const canViewDepotFinance = (role: string | null | undefined) => can('depotFinance', role);
 // Role identity helpers for shell selection (operator gets the top-tab console).

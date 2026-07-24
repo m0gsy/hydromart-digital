@@ -6,6 +6,8 @@ Every milestone MUST satisfy all quality gates before it is considered complete.
 ENGINEERING
 ======================================================
 
+✓ Tests written first (Matt Pocock TDD: red → green → refactor)
+
 ✓ Project builds successfully
 
 ✓ Lint passes with zero errors
@@ -27,6 +29,8 @@ ENGINEERING
 ======================================================
 ARCHITECTURE
 ======================================================
+
+✓ Graphify query run before modifying existing code; impact/affected verified against the graph
 
 ✓ Clean Architecture preserved
 
@@ -82,6 +86,8 @@ UI / UX
 
 ✓ Taste Skill review completed
 
+✓ UI/UX Pro Max design system applied (tokens, palette, typography, component specs)
+
 ✓ Responsive design verified
 
 ✓ Accessibility verified
@@ -109,6 +115,8 @@ COMMUNICATION
 ======================================================
 ENGINEERING REVIEW
 ======================================================
+
+✓ Matt Pocock code-review passed (Standards + Spec axes)
 
 ✓ Impeccable review passed
 

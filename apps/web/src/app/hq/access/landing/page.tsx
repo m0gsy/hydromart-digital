@@ -34,6 +34,7 @@ const LANDING: Record<Role, string> = {
   FRANCHISE_OWNER: '/dashboard/franchise',
   FINANCE: '/hq/payments',
   MARKETING: '/dashboard/campaigns',
+  HR: '/hr',
   CUSTOMER: '/products',
 };
 
