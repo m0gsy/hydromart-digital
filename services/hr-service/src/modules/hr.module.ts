@@ -7,9 +7,13 @@ import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydro
 import { HrConfigService } from '../config/hr-config.service';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { SettingsService } from '../application/services/settings.service';
+import { EMPLOYEE_REPOSITORY } from '../application/ports/employee.repository';
+import { EmployeeService } from '../application/services/employee.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
+import { EmployeePrismaRepository } from '../infrastructure/prisma/employee.prisma.repository';
 import { SettingsController } from './settings.controller';
+import { EmployeesController } from './employees.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -21,6 +25,8 @@ const providers: Provider[] = [
   },
   HrConfigService,
   SettingsService,
+  { provide: EMPLOYEE_REPOSITORY, useClass: EmployeePrismaRepository },
+  EmployeeService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -28,7 +34,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [SettingsController],
+  controllers: [SettingsController, EmployeesController],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],
 })
