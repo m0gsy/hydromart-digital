@@ -25,6 +25,7 @@ env:
   FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
   PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payout?schema=public
   ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
+  HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
 jobs:
   verify:
