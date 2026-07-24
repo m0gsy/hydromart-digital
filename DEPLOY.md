@@ -74,6 +74,22 @@ published on `127.0.0.1:5432`. Each Prisma schema reads its own
 `.github/workflows/ci.yml`'s integration job), so every URL must point at
 `localhost:5432` with your **prod** `POSTGRES_PASSWORD`.
 
+**Verify schema state first.** Some of these migrations add *unique* indexes
+(one active payment per order, one primary address per customer, …). If the live
+data already violates one, `db:migrate:prod` aborts partway through while building
+that index. Check before you migrate:
+
+```bash
+bash scripts/verify-indexes.sh   # read-only; needs the stack (§3) up
+```
+
+[`scripts/verify-indexes.sh`](scripts/verify-indexes.sh) reports, per index,
+whether it is already present and whether current data would violate it. **PASS**
+= safe to migrate. A **DIRTY** result means resolve the duplicate rows first, or
+the migration will fail. (On a first deploy every index shows MISSING — that's
+expected; the migrate step below creates them. Re-run the check after migrating to
+confirm PASS.)
+
 ```bash
 # from the repo root, with .env already filled in:
 npm ci                    # installs workspaces + generates Prisma clients (postinstall)
