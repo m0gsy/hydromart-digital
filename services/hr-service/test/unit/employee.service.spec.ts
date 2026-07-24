@@ -33,6 +33,9 @@ class FakeRepo implements EmployeeRepository {
   async findById(id: string): Promise<Employee | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
+  async findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
+    return this.rows.find((r) => r.authSubjectId === authSubjectId) ?? null;
+  }
   async listHistory(employeeId: string): Promise<EmploymentHistory[]> {
     return this.history
       .filter((h) => (h as { employeeId?: string }).employeeId === employeeId)

@@ -17,6 +17,8 @@ export interface EmployeeRepository {
   count(): Promise<number>;
   list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }>;
   findById(id: string): Promise<Employee | null>;
+  /** Resolve the HR record linked to an auth account (self-service check-in/profile). */
+  findByAuthSubjectId(authSubjectId: string): Promise<Employee | null>;
   /** Change log for one employee, newest first. */
   listHistory(employeeId: string): Promise<EmploymentHistory[]>;
   /** Create the employee and (optionally) its first employment-history row atomically. */
