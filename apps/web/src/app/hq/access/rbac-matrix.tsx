@@ -29,6 +29,7 @@ const ROLE_ABBR: Record<Role, string> = {
   HEAD_OFFICE: 'HO',
   FINANCE: 'Fin',
   MARKETING: 'Mkt',
+  HR: 'HR',
   SUPER_ADMIN: 'SA',
 };
 
