@@ -22,6 +22,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@hydromart/access": "*",
     "@hydromart/platform": "*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",

@@ -52,3 +52,18 @@ model Referral {
   @@index([referrerCustomerId])
   @@map("referrals")
 }
+
+/// Per-depot editable business settings (GLOBAL default + optional DEPOT override).
+/// See setting-defs.ts for the registry of keys this service exposes.
+model ServiceSetting {
+  id        String   @id @default(uuid())
+  scope     String   // 'GLOBAL' | 'DEPOT'
+  depotId   String?  @map("depot_id")
+  key       String
+  value     String
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([scope, depotId])
+  @@map("service_settings")
+}

@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../src/config/order-config.service';
+import { SettingsRepository } from '../../src/application/ports/settings.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CartItemRecord, CartRepository } from '../../src/application/ports/cart.repository';
 import {
@@ -509,6 +511,25 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   }
 }
 
+export class InMemorySettingsRepository implements SettingsRepository {
+  rows: (SettingRow & { updatedBy: string })[] = [];
+
+  async loadAll(): Promise<SettingRow[]> {
+    return this.rows.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value }));
+  }
+  async upsert(row: SettingRow & { updatedBy: string }): Promise<void> {
+    const i = this.rows.findIndex(
+      (r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key,
+    );
+    if (i >= 0) this.rows[i] = row;
+    else this.rows.push(row);
+  }
+  async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
+    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    if (i >= 0) this.rows.splice(i, 1);
+  }
+}
+
 export class FakeDepotDirectory implements DepotDirectoryPort {
   depots: DepotLocation[] = [];
   /** Simulate the directory being unreachable (fail-open null), not just empty. */
@@ -559,6 +580,7 @@ export interface AwardCall {
   customerId: string;
   orderId: string;
   subtotal: number;
+  depotId: string | null;
   authorization: string;
 }
 
@@ -568,9 +590,10 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
     customerId: string,
     orderId: string,
     subtotal: number,
+    depotId: string | null,
     authorization: string,
   ): Promise<void> {
-    this.calls.push({ customerId, orderId, subtotal, authorization });
+    this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
   }
 }
 
@@ -767,5 +790,10 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
       return env[k];
     },
   };
-  return new OrderConfigService(fake as unknown as ConfigService);
+  // ponytail: empty-row cache — every business getter falls through to the env value
+  // above, matching today's (pre-settings-cache) behavior exactly.
+  return new OrderConfigService(
+    fake as unknown as ConfigService,
+    new SettingsCache({ loadAll: async () => [] }),
+  );
 }

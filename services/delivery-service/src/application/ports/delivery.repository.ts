@@ -3,7 +3,7 @@ import { ContactMethod, ContactState } from '../../domain/no-show';
 
 export interface ProofRecord {
   photoUrl: string;
-  signatureUrl: string;
+  signatureUrl: string | null;
   recipientName: string;
   latitude: number;
   longitude: number;
@@ -37,6 +37,7 @@ export interface DeliveryRecord {
   recipientPhone: string | null;
   items: DeliveryItem[] | null;
   codAmount: number | null;
+  notes: string | null;
   lastLat: number | null;
   lastLng: number | null;
   lastLocationAt: Date | null;
@@ -67,6 +68,7 @@ export interface CreateDeliveryData {
   recipientPhone: string | null;
   items: DeliveryItem[] | null;
   codAmount: number | null;
+  notes: string | null;
 }
 
 export interface DeliveryTimestamps {

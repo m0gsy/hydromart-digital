@@ -202,11 +202,23 @@ describe('RecommendationCoordinationHttpAdapter', () => {
 
 describe('LoyaltyCoordinationHttpAdapter', () => {
   it('skips without key + awards on happy path', async () => {
-    await new LoyaltyCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).awardPoints('c1', 'o1', 50000, '');
+    await new LoyaltyCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).awardPoints('c1', 'o1', 50000, 'd1', '');
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
-    await new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, '');
+    await new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', '');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards depotId in the POST body', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', '');
+    const [, init] = fetchMock.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      customerId: 'c1',
+      orderId: 'o1',
+      subtotal: 50000,
+      depotId: 'd1',
+    });
   });
 });
 

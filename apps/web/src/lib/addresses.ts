@@ -24,7 +24,8 @@ export function addressToForm(a: Address): AddressForm {
     city: a.city,
     province: a.province,
     postalCode: a.postalCode ?? '',
-    notes: '',
+    // Prefill the per-order driver note from the saved landmark; the customer can still edit it.
+    notes: a.notes ?? '',
   };
 }
 
@@ -41,6 +42,7 @@ export interface AddressBookForm {
   postalCode: string;
   latitude: string;
   longitude: string;
+  notes: string;
 }
 
 export const EMPTY_ADDRESS_FORM: AddressBookForm = {
@@ -53,6 +55,7 @@ export const EMPTY_ADDRESS_FORM: AddressBookForm = {
   postalCode: '',
   latitude: '',
   longitude: '',
+  notes: '',
 };
 
 /** Fills the management form from an existing address (blank string for absent coords). */
@@ -67,6 +70,7 @@ export function addressToBookForm(a: Address): AddressBookForm {
     postalCode: a.postalCode ?? '',
     latitude: a.latitude === null ? '' : String(a.latitude),
     longitude: a.longitude === null ? '' : String(a.longitude),
+    notes: a.notes ?? '',
   };
 }
 
@@ -80,6 +84,7 @@ export interface AddressPayload {
   postalCode?: string;
   latitude?: number;
   longitude?: number;
+  notes?: string;
 }
 
 function numOrNull(v: string): number | null {
@@ -111,6 +116,8 @@ export function toAddressPayload(
   const value: AddressPayload = { ...text };
   const postalCode = form.postalCode.trim();
   if (postalCode) value.postalCode = postalCode;
+  const notes = form.notes.trim();
+  if (notes) value.notes = notes;
 
   const hasLat = form.latitude.trim() !== '';
   const hasLng = form.longitude.trim() !== '';

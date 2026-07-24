@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 
+import { SettingRow, SettingsCache } from '@hydromart/platform';
+
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
 import {
@@ -55,6 +57,7 @@ import {
   SettlementRepository,
 } from '../../src/application/ports/settlement.repository';
 import { SettlementStatus } from '../../src/domain/settlement';
+import { SettingsRepository } from '../../src/application/ports/settings.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -481,7 +484,12 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
       return env[k];
     },
   };
-  return new DeliveryConfigService(fake as unknown as ConfigService);
+  // ponytail: empty-row cache — every business getter falls through to the env value
+  // above, matching today's (pre-settings-cache) behavior exactly.
+  return new DeliveryConfigService(
+    fake as unknown as ConfigService,
+    new SettingsCache({ loadAll: async () => [] }),
+  );
 }
 
 export class InMemorySettlementRepository implements SettlementRepository {
@@ -599,6 +607,25 @@ export class FakeRating implements RatingPort {
     const found = orderIds.map((id) => this.ratings.get(id)).filter((r): r is number => r != null);
     if (found.length === 0) return { average: null, count: 0 };
     return { average: found.reduce((s, r) => s + r, 0) / found.length, count: found.length };
+  }
+}
+
+export class InMemorySettingsRepository implements SettingsRepository {
+  rows: (SettingRow & { updatedBy: string })[] = [];
+
+  async loadAll(): Promise<SettingRow[]> {
+    return this.rows.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value }));
+  }
+  async upsert(row: SettingRow & { updatedBy: string }): Promise<void> {
+    const i = this.rows.findIndex(
+      (r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key,
+    );
+    if (i >= 0) this.rows[i] = row;
+    else this.rows.push(row);
+  }
+  async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
+    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    if (i >= 0) this.rows.splice(i, 1);
   }
 }
 

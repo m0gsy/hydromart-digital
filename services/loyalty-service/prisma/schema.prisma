@@ -110,3 +110,19 @@ model RewardRedemption {
   @@index([customerId, createdAt])
   @@map("reward_redemptions")
 }
+
+/// Per-depot editable business settings (business/settings-editor plan). One GLOBAL
+/// row per key + optional DEPOT override rows, enforced by the partial unique
+/// indexes in the migration (Prisma can't express a WHERE-scoped unique).
+model ServiceSetting {
+  id        String   @id @default(uuid())
+  scope     String   // 'GLOBAL' | 'DEPOT'
+  depotId   String?  @map("depot_id")
+  key       String
+  value     String
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([scope, depotId])
+  @@map("service_settings")
+}

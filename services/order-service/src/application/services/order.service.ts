@@ -164,7 +164,7 @@ export class OrderService {
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
 
     // FR-032: the customer's membership tier gives an always-on discount on the
@@ -276,7 +276,7 @@ export class OrderService {
     }
 
     const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee;
+    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);
@@ -502,11 +502,14 @@ export class OrderService {
         updated.customerId,
         updated.id,
         updated.subtotal,
+        updated.depotId,
         authorization,
       );
       // Notify the customer of the points they just earned (spec 5h feed). Points mirror
       // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
       // message copy — loyalty-service remains the source of truth for the balance.
+      // ponytail: this copy uses the global rate and may differ from a depot-overridden
+      // earn rate; the awarded balance itself (via awardPoints above) is still correct.
       const pointsEarned = pointsForSubtotal(updated.subtotal);
       if (pointsEarned > 0) {
         await this.notification

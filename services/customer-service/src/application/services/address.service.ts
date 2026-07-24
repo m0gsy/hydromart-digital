@@ -19,6 +19,7 @@ export interface CreateAddressInput {
   postalCode?: string;
   latitude?: number;
   longitude?: number;
+  notes?: string;
   isPrimary?: boolean;
 }
 
@@ -70,6 +71,7 @@ export class AddressService {
       postalCode: input.postalCode ?? null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      notes: input.notes ?? null,
       isPrimary: makePrimary,
     });
   }

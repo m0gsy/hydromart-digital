@@ -137,6 +137,8 @@ function AssignPanel({
           // CASH order → the courier collects the order total on delivery (COD). Non-cash
           // (TRANSFER/QRIS, already settled to the depot) sends nothing → non-COD.
           codAmount: payment?.method === 'CASH' ? order.total : undefined,
+          // Snapshot the customer's landmark/note so the courier sees it on the delivery.
+          notes: order.notes ?? undefined,
         },
         true,
       );

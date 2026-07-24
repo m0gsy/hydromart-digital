@@ -21,6 +21,7 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
     customerId: string,
     orderId: string,
     subtotal: number,
+    depotId: string | null,
     _authorization: string,
   ): Promise<void> {
     const { internalServiceKey } = this.config;
@@ -35,7 +36,7 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
-        body: JSON.stringify({ customerId, orderId, subtotal }),
+        body: JSON.stringify({ customerId, orderId, subtotal, depotId }),
         signal: controller.signal,
       });
       if (!res.ok) {

@@ -397,6 +397,7 @@ describe('OrderService', () => {
       customerId: customer,
       orderId: order.id,
       subtotal: 60000,
+      depotId: order.depotId,
       authorization: 'Bearer tok',
     });
     // FR-092: completion also qualifies any pending referral for this customer.

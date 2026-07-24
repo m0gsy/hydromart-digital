@@ -61,7 +61,7 @@ export class LoyaltyController {
   @Post('earn')
   @ApiOperation({ summary: 'Award points for a completed order (internal service auth, BR-013, idempotent)' })
   async earn(@Body() dto: EarnPointsDto): Promise<LoyaltyAccountDto> {
-    const result = await this.loyalty.earnForOrder(dto.customerId, dto.orderId, dto.subtotal);
+    const result = await this.loyalty.earnForOrder(dto.customerId, dto.orderId, dto.subtotal, dto.depotId ?? null);
     return LoyaltyAccountDto.from(result.account);
   }
 

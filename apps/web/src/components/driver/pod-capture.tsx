@@ -127,24 +127,29 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     if (!photo) return setError('Ambil foto bukti pengantaran dulu.');
     if (!sealOk) return setError('Konfirmasi cek segel galon dulu.');
     if (!recipientName.trim()) return setError('Isi nama penerima.');
-    if (!canvas || isCanvasBlank(canvas)) return setError('Minta penerima tanda tangan dulu.');
 
     setSubmitting(true);
     try {
       const position = await currentPosition();
-      const signatureBlob = await canvasToBlob(canvas);
-      if (!signatureBlob) throw new Error('Gagal menyiapkan tanda tangan.');
 
-      // Two upload calls: photo (downscaled), then signature.
+      // Photo (downscaled) is mandatory. Signature is optional: upload it only if the
+      // recipient actually drew one, otherwise complete without it.
       const photoBlob = await compressImage(photo);
       const { url: photoUrl } = await uploadFile(
         endpoints.deliveries.driver.upload,
         new File([photoBlob], 'photo.jpg', { type: photoBlob.type || 'image/jpeg' }),
       );
-      const { url: signatureUrl } = await uploadFile(
-        endpoints.deliveries.driver.upload,
-        new File([signatureBlob], 'signature.png', { type: 'image/png' }),
-      );
+
+      let signatureUrl: string | undefined;
+      if (canvas && !isCanvasBlank(canvas)) {
+        const signatureBlob = await canvasToBlob(canvas);
+        if (signatureBlob) {
+          ({ url: signatureUrl } = await uploadFile(
+            endpoints.deliveries.driver.upload,
+            new File([signatureBlob], 'signature.png', { type: 'image/png' }),
+          ));
+        }
+      }
 
       await api.post(
         endpoints.deliveries.driver.complete(deliveryId),
@@ -205,11 +210,12 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
       <div className="space-y-2">
         <span className="flex items-center gap-1 text-sm font-medium">
           <PencilLine size={16} /> Tanda tangan penerima
+          <span className="text-xs font-normal text-[color:var(--muted)]">(opsional)</span>
         </span>
-        {/* UU PDP consent: the recipient must be told their signature + delivery
-            photo are stored, and consents by signing. */}
+        {/* UU PDP notice: the delivery photo is always stored; the signature is optional
+            and, when given, consents to being stored too. */}
         <p className="text-xs leading-relaxed text-[color:var(--muted)]">
-          Dengan menandatangani, penerima menyetujui foto & tanda tangan bukti antar disimpan sesuai{' '}
+          Foto bukti antar disimpan sesuai Kebijakan Privasi. Tanda tangan bersifat opsional; dengan menandatangani, penerima menyetujui tanda tangan disimpan sesuai{' '}
           <a href="/kebijakan-privasi" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-600">
             Kebijakan Privasi
           </a>

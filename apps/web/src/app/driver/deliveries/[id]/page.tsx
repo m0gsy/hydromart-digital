@@ -65,20 +65,16 @@ function Detail() {
         <Badge tone={DELIVERY_STATUS_TONE[delivery.status]}>{DELIVERY_STATUS_LABEL[delivery.status]}</Badge>
       </header>
 
+      {/* ponytail: no embedded map — "Navigasi" hands off to the courier's own maps app. */}
       <Card className="overflow-hidden p-0">
-        {delivery.destinationLat != null && delivery.destinationLng != null && (
-          // ponytail: keyless Google Maps embed iframe — a live map with no SDK/API key.
-          // Swap for the Maps JS SDK (turn-by-turn) once a billing key is provisioned.
-          <iframe
-            title="Peta tujuan"
-            aria-label={`Peta lokasi ${delivery.destinationAddress}`}
-            loading="lazy"
-            className="h-44 w-full border-0"
-            src={`https://maps.google.com/maps?q=${delivery.destinationLat},${delivery.destinationLng}&z=16&output=embed`}
-          />
-        )}
         <div className="p-4">
         <div className="text-sm font-bold">{delivery.destinationAddress}</div>
+        {delivery.notes && (
+          <div className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-[12.5px] text-brand-900">
+            <span className="font-bold">Patokan: </span>
+            {delivery.notes}
+          </div>
+        )}
         <div className="mt-3 flex gap-2">
           <a
             href={`https://maps.google.com/?q=${delivery.destinationLat ?? ''},${delivery.destinationLng ?? ''}`}

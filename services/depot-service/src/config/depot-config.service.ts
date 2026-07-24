@@ -1,12 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SettingsCache } from '@hydromart/platform';
+
+import { SETTING_DEF_BY_KEY } from './setting-defs';
 
 @Injectable()
 export class DepotConfigService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly settings: SettingsCache,
+  ) {}
 
   private num(key: string): number {
     return Number(this.config.getOrThrow(key));
+  }
+
+  /**
+   * Effective business value: depot override ?? global override ?? `envValue`.
+   * `envValue` is always the getter's own current ENV read (not
+   * `SETTING_DEF_BY_KEY[key].envDefault` — that field is only the UI's documented
+   * default and, for a couple of keys, intentionally differs from the real ENV
+   * default; using it here would silently change today's behavior).
+   */
+  private tunable(key: string, envValue: number, depotId: string | null = null): number {
+    const def = SETTING_DEF_BY_KEY[key];
+    return this.settings.effective(key, def.type, envValue, depotId) as number;
   }
 
   get nodeEnv(): string {
@@ -44,11 +62,11 @@ export class DepotConfigService {
   }
   /** Per-gallon deposit refunded on a courier-recorded return (design 2e). Server derives
    *  the refund as GALLON_DEPOSIT_IDR × quantity — the courier never enters an amount. */
-  get gallonDepositIdr(): number {
-    return this.num('GALLON_DEPOSIT_IDR');
+  gallonDepositIdr(depotId: string | null = null): number {
+    return this.tunable('gallonDepositIdr', this.num('GALLON_DEPOSIT_IDR'), depotId);
   }
   /** Manager approval queue: value changes at/under this rupiah amount auto-pass without review. */
-  get approvalAutoPassIdr(): number {
-    return this.num('APPROVAL_AUTO_PASS_IDR');
+  approvalAutoPassIdr(depotId: string | null = null): number {
+    return this.tunable('approvalAutoPassIdr', this.num('APPROVAL_AUTO_PASS_IDR'), depotId);
   }
 }

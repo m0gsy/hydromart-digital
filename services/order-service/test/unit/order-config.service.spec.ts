@@ -4,7 +4,7 @@ describe('OrderConfigService', () => {
   it('exposes numeric env as numbers', () => {
     const cfg = buildTestConfig({ ORDER_ABANDON_MINUTES: '30' });
     expect(cfg.port).toBe(3004);
-    expect(cfg.deliveryFee).toBe(5000);
+    expect(cfg.deliveryFee()).toBe(5000);
     expect(cfg.abandonMinutes).toBe(30);
     expect(cfg.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
   });

@@ -17,11 +17,9 @@
     "@hydromart/access": "*",
     "@phosphor-icons/react": "^2.1.7",
     "framer-motion": "^11.18.2",
-    "leaflet": "^1.9.4",
     "next": "15.5.20",
     "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-leaflet": "^5.0.0"
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
@@ -29,7 +27,6 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/leaflet": "^1.9.21",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

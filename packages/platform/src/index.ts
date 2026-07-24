@@ -25,3 +25,11 @@ export { alertServerError } from './nest/error-alerter';
 export { GlobalValidationPipe } from './nest/validation.pipe';
 export { enableMetrics } from './nest/metrics';
 export { requiredSecret, optionalSecret } from './config/env-secret';
+export {
+  SettingType,
+  SettingRow,
+  SettingsSource,
+  coerce,
+  resolveRaw,
+  SettingsCache,
+} from './config/settings';

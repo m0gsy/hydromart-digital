@@ -1,12 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SettingsCache } from '@hydromart/platform';
+
+import { SETTING_DEF_BY_KEY } from './setting-defs';
 
 @Injectable()
 export class DeliveryConfigService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly settings: SettingsCache,
+  ) {}
 
   private num(key: string): number {
     return Number(this.config.getOrThrow(key));
+  }
+
+  /**
+   * Effective business value: depot override ?? global override ?? `envValue`.
+   * `envValue` is always the getter's own current ENV read (not
+   * `SETTING_DEF_BY_KEY[key].envDefault` — that field is only the UI's documented
+   * default and, for a couple of keys, intentionally differs from the real ENV
+   * default; using it here would silently change today's behavior).
+   */
+  private tunable(key: string, envValue: number, depotId: string | null = null): number {
+    const def = SETTING_DEF_BY_KEY[key];
+    return this.settings.effective(key, def.type, envValue, depotId) as number;
   }
 
   get nodeEnv(): string {
@@ -44,29 +62,42 @@ export class DeliveryConfigService {
   get opsAlertPhone(): string {
     return this.config.get<string>('OPS_ALERT_PHONE', '');
   }
-  get maxActiveDeliveriesPerDriver(): number {
-    return this.num('MAX_ACTIVE_DELIVERIES_PER_DRIVER');
+  /** Per-driver active-delivery cap (BR: one driver = one active order at a time). */
+  maxActiveDeliveriesPerDriver(depotId: string | null = null): number {
+    return this.tunable(
+      'maxActiveDeliveriesPerDriver',
+      this.num('MAX_ACTIVE_DELIVERIES_PER_DRIVER'),
+      depotId,
+    );
   }
   /** How close to the depot a courier must be to check in, in metres. */
-  get shiftCheckInRadiusMeters(): number {
-    return this.num('SHIFT_CHECKIN_RADIUS_M');
+  shiftCheckInRadiusMeters(depotId: string | null = null): number {
+    return this.tunable('shiftCheckInRadiusMeters', this.num('SHIFT_CHECKIN_RADIUS_M'), depotId);
   }
-  get shiftLengthHours(): number {
-    return this.num('SHIFT_LENGTH_HOURS');
+  shiftLengthHours(depotId: string | null = null): number {
+    return this.tunable('shiftLengthHours', this.num('SHIFT_LENGTH_HOURS'), depotId);
   }
-  get shiftBreakQuotaMinutes(): number {
-    return this.num('SHIFT_BREAK_QUOTA_MINUTES');
+  shiftBreakQuotaMinutes(depotId: string | null = null): number {
+    return this.tunable(
+      'shiftBreakQuotaMinutes',
+      this.num('SHIFT_BREAK_QUOTA_MINUTES'),
+      depotId,
+    );
   }
   /** Minimum contact attempts before a no-show may be declared (design 5a). */
-  get noShowMinContactAttempts(): number {
-    return this.num('NO_SHOW_MIN_CONTACT_ATTEMPTS');
+  noShowMinContactAttempts(depotId: string | null = null): number {
+    return this.tunable(
+      'noShowMinContactAttempts',
+      this.num('NO_SHOW_MIN_CONTACT_ATTEMPTS'),
+      depotId,
+    );
   }
   /** Minimum wait (seconds, from first attempt) before a no-show may be declared. */
-  get noShowMinWaitSeconds(): number {
-    return this.num('NO_SHOW_MIN_WAIT_SECONDS');
+  noShowMinWaitSeconds(depotId: string | null = null): number {
+    return this.tunable('noShowMinWaitSeconds', this.num('NO_SHOW_MIN_WAIT_SECONDS'), depotId);
   }
-  get slaMinutes(): number {
-    return this.num('DELIVERY_SLA_MINUTES');
+  slaMinutes(depotId: string | null = null): number {
+    return this.tunable('slaMinutes', this.num('DELIVERY_SLA_MINUTES'), depotId);
   }
   /**
    * Assumed average urban courier speed (km/h) for the customer-facing ETA at
@@ -75,25 +106,37 @@ export class DeliveryConfigService {
    * compose change is needed.
    * // ponytail: flat constant — no traffic / time-of-day / road-network model.
    * // Calibrate against real assignedAt→deliveredAt data once enough deliveries
-   * // exist (make it per-depot if speeds diverge across cities).
+   * // exist (now editable per-depot via the settings cache if speeds diverge).
    */
-  get urbanSpeedKmph(): number {
-    return Number(this.config.get('DELIVERY_URBAN_SPEED_KMPH', 18));
+  urbanSpeedKmph(depotId: string | null = null): number {
+    return this.tunable(
+      'urbanSpeedKmph',
+      Number(this.config.get('DELIVERY_URBAN_SPEED_KMPH', 18)),
+      depotId,
+    );
   }
   /** Weekly delivered-orders target on the courier performance card (design 4c). */
-  get courierWeeklyTarget(): number {
-    return this.num('COURIER_WEEKLY_TARGET');
+  courierWeeklyTarget(depotId: string | null = null): number {
+    return this.tunable('courierWeeklyTarget', this.num('COURIER_WEEKLY_TARGET'), depotId);
   }
   /**
    * Flat per-delivery commission paid to a courier from depot cash (design 11c).
    * A pay/display figure only; the default fills it so no compose change is needed.
    */
-  get courierRatePerDeliveryIdr(): number {
-    return Number(this.config.get('COURIER_RATE_PER_DELIVERY_IDR', 12000));
+  courierRatePerDeliveryIdr(depotId: string | null = null): number {
+    return this.tunable(
+      'courierRatePerDeliveryIdr',
+      Number(this.config.get('COURIER_RATE_PER_DELIVERY_IDR', 12000)),
+      depotId,
+    );
   }
-  /** UU PDP retention window for proof-of-delivery records, in days. */
+  /**
+   * UU PDP retention window for proof-of-delivery records, in days. No per-depot
+   * caller exists (the retention sweep runs once, service-wide) so this stays a
+   * no-arg getter; it still resolves a GLOBAL override through the settings cache.
+   */
   get podRetentionDays(): number {
-    return this.num('POD_RETENTION_DAYS');
+    return this.tunable('podRetentionDays', this.num('POD_RETENTION_DAYS'));
   }
   get corsOrigins(): string[] {
     return this.config

@@ -164,7 +164,7 @@ describe('Customer HTTP flows (e2e)', () => {
 
   it('resolves the CRM broadcast segment by tier + city, staff-only (FR-087)', async () => {
     // Seed a SILVER customer in Depok and a BASIC customer in Bogor, each with a primary address.
-    const nullGeo = { postalCode: null, latitude: null, longitude: null };
+    const nullGeo = { postalCode: null, latitude: null, longitude: null, notes: null };
     await profiles.setTier('seg-silver', MembershipTier.SILVER);
     await addresses.create({
       customerId: 'seg-silver',

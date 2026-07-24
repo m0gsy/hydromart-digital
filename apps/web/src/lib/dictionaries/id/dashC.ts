@@ -234,8 +234,6 @@ export const dashC = {
     courier: 'Kurir #{id}',
     eta: 'ETA {minutes} mnt · {time}',
     awaitingPosition: 'Menunggu posisi driver',
-    mapCourier: 'Posisi kurir',
-    mapDestination: 'Tujuan pengantaran',
     heading: 'Live tracking',
     refreshNote: 'Driver yang sedang mengantar. Posisi diperbarui otomatis tiap {n} detik.',
     emptyTitle: 'Tidak ada pengiriman aktif',

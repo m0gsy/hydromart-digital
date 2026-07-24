@@ -1,12 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SettingsCache } from '@hydromart/platform';
+
+import { SETTING_DEF_BY_KEY } from './setting-defs';
 
 @Injectable()
 export class ReferralConfigService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly settings: SettingsCache,
+  ) {}
 
   private num(key: string): number {
     return Number(this.config.getOrThrow(key));
+  }
+
+  /**
+   * Effective business value: depot override ?? global override ?? `envValue`.
+   * `envValue` is always the getter's own current ENV read (not
+   * `SETTING_DEF_BY_KEY[key].envDefault` — that field is only the UI's documented
+   * default; using it here would silently change today's behavior if they ever drift).
+   */
+  private tunable(key: string, envValue: number, depotId: string | null = null): number {
+    const def = SETTING_DEF_BY_KEY[key];
+    return this.settings.effective(key, def.type, envValue, depotId) as number;
   }
 
   get nodeEnv(): string {
@@ -41,12 +58,18 @@ export class ReferralConfigService {
   get customerServiceUrl(): string {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
   }
-  /** Points granted to the referrer when a referral qualifies (FR-092). */
+  /**
+   * Points granted to the referrer when a referral qualifies (FR-092). Global-only
+   * tunable — qualify() has no depotId in scope (see setting-defs.ts).
+   */
   get referrerPoints(): number {
-    return this.num('REFERRAL_REFERRER_POINTS');
+    return this.tunable('referrerPoints', this.num('REFERRAL_REFERRER_POINTS'));
   }
-  /** Welcome-bonus points granted to the referee when a referral qualifies (FR-092). */
+  /**
+   * Welcome-bonus points granted to the referee when a referral qualifies (FR-092).
+   * Global-only tunable — qualify() has no depotId in scope (see setting-defs.ts).
+   */
   get refereePoints(): number {
-    return this.num('REFERRAL_REFEREE_POINTS');
+    return this.tunable('refereePoints', this.num('REFERRAL_REFEREE_POINTS'));
   }
 }

@@ -1,7 +1,11 @@
 import type { ConfigService } from '@nestjs/config';
+import { SettingsCache } from '@hydromart/platform';
 
 import { PayoutConfigService } from '../src/config/payout-config.service';
 import { envValidationSchema } from '../src/config/env.validation';
+
+// Empty-repo cache: every effective() falls through to the getter's own env read.
+const emptyCache = () => new SettingsCache({ loadAll: async () => [] });
 
 // Thin ConfigService fake: get(key, default) + getOrThrow(key). The config is a money
 // boundary (auto-approve threshold, commission rate) so the parsing is worth pinning.
@@ -18,7 +22,7 @@ class FakeConfig {
 }
 
 const make = (map: Record<string, string>) =>
-  new PayoutConfigService(new FakeConfig(map) as unknown as ConfigService);
+  new PayoutConfigService(new FakeConfig(map) as unknown as ConfigService, emptyCache());
 
 describe('PayoutConfigService', () => {
   it('reads numeric settings via getOrThrow', () => {
@@ -30,7 +34,7 @@ describe('PayoutConfigService', () => {
     });
     expect(cfg.port).toBe(3016);
     expect(cfg.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
-    expect(cfg.expenseAutoApproveMaxIdr).toBe(50000);
+    expect(cfg.expenseAutoApproveMaxIdr()).toBe(50000);
   });
 
   it('throws when a required numeric setting is absent', () => {

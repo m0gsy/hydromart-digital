@@ -5,7 +5,9 @@ describe('CAPABILITIES', () => {
     expect(can('inventoryWrite', 'DEPOT_OPERATOR')).toBe(true);
     expect(can('inventoryWrite', 'HEAD_OFFICE')).toBe(false); // read-only, not write
     expect(can('payout', 'FRANCHISE_OWNER')).toBe(true);
-    expect(can('payout', 'SUPER_ADMIN')).toBe(false);
+    // SUPER_ADMIN is a superuser: holds every capability even when not listed.
+    expect(can('payout', 'SUPER_ADMIN')).toBe(true);
+    expect(can('courierPayout', 'SUPER_ADMIN')).toBe(true);
   });
 
   it('rejects null / empty / customer roles', () => {

@@ -48,7 +48,7 @@ export class PerformanceService {
   ): Promise<CourierPerformance> {
     const week = weekWindow(weekStartIso);
     const prev = previousWeek(week);
-    const sla = this.config.slaMinutes;
+    const sla = this.config.slaMinutes(depotId ?? null);
 
     const [rows, prevRows, failed, depotCounts, depotCountsPrev] = await Promise.all([
       this.deliveries.driverDeliveredInWindow(driverId, week.from, week.to),
@@ -85,7 +85,7 @@ export class PerformanceService {
       depotId === undefined || prevRows.length === 0
         ? null
         : 1 + depotCountsPrev.filter((c) => c.count > prevRows.length).length;
-    const target = this.config.courierWeeklyTarget;
+    const target = this.config.courierWeeklyTarget(depotId ?? null);
 
     return {
       weekStart: weekStartIso,

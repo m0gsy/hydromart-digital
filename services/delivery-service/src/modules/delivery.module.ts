@@ -1,11 +1,12 @@
-import { Module, Provider } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DELIVERY_TOKENS } from '../application/tokens';
+import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { DeliveryService } from '../application/services/delivery.service';
 import { ReportService } from '../application/services/report.service';
 import { ShiftService } from '../application/services/shift.service';
@@ -13,11 +14,13 @@ import { IncidentService } from '../application/services/incident.service';
 import { SettlementService } from '../application/services/settlement.service';
 import { PerformanceService } from '../application/services/performance.service';
 import { CommissionService } from '../application/services/commission.service';
+import { SettingsService } from '../application/services/settings.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../infrastructure/prisma/delivery.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { SettlementPrismaRepository } from '../infrastructure/prisma/settlement.prisma.repository';
+import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
 import { CashCollectionHttpAdapter } from '../infrastructure/http/cash-collection.http.adapter';
 import { CourierPayoutHttpAdapter } from '../infrastructure/http/courier-payout.http.adapter';
@@ -39,9 +42,16 @@ import { CommissionController } from './commission.controller';
 import { ReportController } from './report.controller';
 import { UploadController } from './upload.controller';
 import { RetentionController } from './retention.controller';
+import { SettingsController } from './settings.controller';
 
 const providers: Provider[] = [
   PrismaService,
+  { provide: SETTINGS_REPOSITORY, useClass: SettingsPrismaRepository },
+  {
+    provide: SettingsCache,
+    useFactory: (repo: SettingsRepository) => new SettingsCache(repo),
+    inject: [SETTINGS_REPOSITORY],
+  },
   DeliveryConfigService,
   DeliveryService,
   ReportService,
@@ -50,6 +60,7 @@ const providers: Provider[] = [
   SettlementService,
   PerformanceService,
   CommissionService,
+  SettingsService,
   { provide: DELIVERY_TOKENS.DeliveryRepository, useClass: DeliveryPrismaRepository },
   { provide: DELIVERY_TOKENS.ShiftRepository, useClass: ShiftPrismaRepository },
   { provide: DELIVERY_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
@@ -88,8 +99,21 @@ const providers: Provider[] = [
     ReportController,
     UploadController,
     RetentionController,
+    SettingsController,
   ],
   providers,
   exports: [PrismaService, DeliveryConfigService],
 })
-export class DeliveryModule {}
+export class DeliveryModule implements OnApplicationBootstrap {
+  constructor(private readonly settingsCache: SettingsCache) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    // ponytail: fail-open — a boot-time DB hiccup must not crash the service; an
+    // empty snapshot just means every getter falls through to its env default
+    // (SettingsCache's own documented behavior), and the interval retries anyway.
+    await this.settingsCache.refresh().catch(() => {});
+    setInterval(() => {
+      this.settingsCache.refresh().catch(() => {});
+    }, this.settingsCache.ttl).unref();
+  }
+}

@@ -78,7 +78,9 @@ export class GallonReturnService {
     await this.requireDepot(depotId);
     const condition = input.condition ?? GallonCondition.GOOD;
     const depositRefunded =
-      condition === GallonCondition.GOOD ? this.config.gallonDepositIdr * input.quantity : 0;
+      condition === GallonCondition.GOOD
+        ? this.config.gallonDepositIdr(depotId) * input.quantity
+        : 0;
     return this.returns.create({
       depotId,
       customerId: input.customerId ?? null,

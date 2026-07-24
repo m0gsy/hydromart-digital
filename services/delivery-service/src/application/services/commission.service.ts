@@ -44,7 +44,7 @@ export class CommissionService {
   ) {}
 
   async run(depotId: string, from: Date, to: Date): Promise<CommissionRun> {
-    const rate = this.config.courierRatePerDeliveryIdr;
+    const rate = this.config.courierRatePerDeliveryIdr(depotId);
     const [counts, shortfalls] = await Promise.all([
       this.deliveries.depotDeliveredCountsInWindow(depotId, from, to),
       this.settlements.chargedShortfallByDriver(depotId, from, to),

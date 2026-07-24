@@ -1,11 +1,13 @@
-import { Module, Provider } from '@nestjs/common';
+import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
+import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
 
 import { DepotConfigService } from '../config/depot-config.service';
 import { DEPOT_TOKENS } from '../application/tokens';
+import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
+import { SettingsService } from '../application/services/settings.service';
 import { DepotService } from '../application/services/depot.service';
 import { InventoryService } from '../application/services/inventory.service';
 import { PricingService } from '../application/services/pricing.service';
@@ -50,6 +52,7 @@ import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscript
 import { HuddlePrismaRepository } from '../infrastructure/prisma/huddle.prisma.repository';
 import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.prisma.repository';
 import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
+import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
@@ -77,10 +80,18 @@ import { SubscriptionController } from './subscription.controller';
 import { HuddleController } from './huddle.controller';
 import { HandoverController } from './handover.controller';
 import { OperationalReportController } from './operational-report.controller';
+import { SettingsController } from './settings.controller';
 
 const providers: Provider[] = [
   PrismaService,
+  { provide: SETTINGS_REPOSITORY, useClass: SettingsPrismaRepository },
+  {
+    provide: SettingsCache,
+    useFactory: (repo: SettingsRepository) => new SettingsCache(repo),
+    inject: [SETTINGS_REPOSITORY],
+  },
   DepotConfigService,
+  SettingsService,
   DepotService,
   InventoryService,
   PricingService,
@@ -167,8 +178,21 @@ const providers: Provider[] = [
     HuddleController,
     HandoverController,
     OperationalReportController,
+    SettingsController,
   ],
   providers,
   exports: [PrismaService, DepotConfigService],
 })
-export class DepotModule {}
+export class DepotModule implements OnApplicationBootstrap {
+  constructor(private readonly settingsCache: SettingsCache) {}
+
+  async onApplicationBootstrap(): Promise<void> {
+    // ponytail: fail-open — a boot-time DB hiccup must not crash the service; an
+    // empty snapshot just means every getter falls through to its env default
+    // (SettingsCache's own documented behavior), and the interval retries anyway.
+    await this.settingsCache.refresh().catch(() => {});
+    setInterval(() => {
+      this.settingsCache.refresh().catch(() => {});
+    }, this.settingsCache.ttl).unref();
+  }
+}

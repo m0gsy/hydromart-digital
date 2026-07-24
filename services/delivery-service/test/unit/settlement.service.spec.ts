@@ -79,6 +79,7 @@ describe('SettlementService', () => {
       recipientPhone: null,
       items: null,
       codAmount: null,
+      notes: null,
     });
     await deliveryRepo.applyStatus(d.id, DeliveryStatus.DELIVERED, { deliveredAt: new Date() }, driverId, null);
     return d.orderId;

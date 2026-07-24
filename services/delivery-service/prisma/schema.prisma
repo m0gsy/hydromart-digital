@@ -122,6 +122,9 @@ model Delivery {
   recipientPhone String?
   items          Json?
   codAmount      Int?
+  // Delivery note / landmark (patokan) snapshotted from the order at assignment so the
+  // courier sees "pagar hijau sebelah warung" on the delivery detail. Optional.
+  notes          String?
 
   // Latest reported driver position (live tracking, PRD 10a). Overwritten on each
   // ping while en route; no history kept (MVP — "where is the driver now").
@@ -205,7 +208,9 @@ model ProofOfDelivery {
   deliveryId    String   @unique @db.Uuid
   delivery      Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   photoUrl      String
-  signatureUrl  String
+  // Optional: the recipient signature is a courtesy, not a gate. Photo + GPS +
+  // timestamp remain the mandatory proof. Null when the recipient didn't sign.
+  signatureUrl  String?
   recipientName String
   latitude      Float
   longitude     Float
@@ -263,4 +268,18 @@ model DeliveryStatusHistory {
 
   @@index([deliveryId])
   @@map("delivery_status_history")
+}
+
+/// Per-depot/global overridable service settings (key-value, GLOBAL falls back to DEPOT).
+model ServiceSetting {
+  id        String   @id @default(uuid())
+  scope     String   // 'GLOBAL' | 'DEPOT'
+  depotId   String?  @map("depot_id")
+  key       String
+  value     String
+  updatedBy String   @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([scope, depotId])
+  @@map("service_settings")
 }

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { Clock, Lock, NavigationArrow, Truck, User } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -16,11 +15,6 @@ import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
 
 const REFRESH_MS = 15000;
 const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
-
-const DeliveryTrackingMap = dynamic(() => import('@/components/delivery-tracking-map'), {
-  ssr: false,
-  loading: () => <div className="h-[220px] w-full animate-pulse rounded-2xl bg-[color:var(--surface-muted)]" />,
-});
 
 type T = (key: string, vars?: TVars) => string;
 
@@ -73,7 +67,6 @@ function Stepper({ status }: { status: DeliveryStatus }) {
 function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | null }) {
   const { t } = useT();
   const hasPos = d.lastLat != null && d.lastLng != null;
-  const hasDestination = d.destinationLat != null && d.destinationLng != null;
   const eta = d.estimatedArrivalAt ? new Date(d.estimatedArrivalAt) : null;
   const hasEta = eta !== null && !Number.isNaN(eta.getTime());
   const etaMinutes = hasEta ? Math.max(0, Math.ceil((eta.getTime() - Date.now()) / 60_000)) : 0;
@@ -117,14 +110,6 @@ function DeliveryCard({ d, courierName }: { d: Delivery; courierName: string | n
         </span>
         <span className="text-xs text-muted">{relative(d.lastLocationAt, t)}</span>
       </div>
-      {hasPos && (
-        <DeliveryTrackingMap
-          courier={[d.lastLat!, d.lastLng!]}
-          destination={hasDestination ? [d.destinationLat!, d.destinationLng!] : null}
-          courierLabel={t('dashC.tracking.mapCourier')}
-          destinationLabel={t('dashC.tracking.mapDestination')}
-        />
-      )}
     </Card>
   );
 }
