@@ -204,3 +204,37 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 
 > Tip: alias the long invocation once —
 > `alias dcp='docker compose -f docker-compose.yml -f docker-compose.prod.yml'`.
+
+### Backups + restore drill (host cron)
+
+[`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster
+nightly; [`scripts/restore-db.sh --drill`](scripts/restore-db.sh) proves a dump
+actually restores (a backup you have never restored is not a backup). Both run
+from **host cron**, not the `scheduler` container:
+
+```cron
+# /etc/crontab (or `crontab -e`) on the VPS — paths assume /opt/hydromart
+0 3 * * *  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/backup-db.sh      >> /var/log/hydromart-backup.log 2>&1
+0 4 * * 1  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
+```
+
+**Why host cron and not the `scheduler` container:** the drill spins an *ephemeral
+scratch Postgres* (`docker run` + `docker exec`) to restore into. The scheduler
+container is busybox `crond` with no Docker CLI and no Docker socket — giving it
+one would mean mounting the host socket into a long-running container (a privilege
+escalation) just for a weekly job. The host already owns the Docker daemon and
+already runs the nightly backup, so the drill belongs next to it.
+
+**Set `ALERT_WEBHOOK_URL`** in the cron env (same incoming webhook the services
+use). A failed drill then POSTs a `🚨 ... restore drill FAILED` message to it —
+without it a broken/empty dump fails silently into the log and you find out only
+when you need the backup for real.
+
+- **Run one manually:** `bash scripts/restore-db.sh --drill`
+- **Passing drill** ends with `drill OK: <dump> restores cleanly (<N> db)` and
+  exit 0 — non-destructive, the scratch container is always torn down.
+- **Failed drill:** read `/var/log/hydromart-restore-drill.log` for the reason
+  (no dump found / corrupt gzip / restore produced no databases). Until a drill
+  passes, treat the backups as unusable: check that `backup-db.sh` is actually
+  running and producing non-tiny `.sql.gz` files in `BACKUP_DIR`, and re-run the
+  drill against a known-good dump to confirm the restore path itself works.

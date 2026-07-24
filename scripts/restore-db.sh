@@ -15,7 +15,12 @@
 #       DESTRUCTIVE real recovery into $PG_CONTAINER. Refuses unless CONFIRM=RESTORE is set.
 #
 # With no dump path, the newest hydromart-*.sql.gz in BACKUP_DIR is used.
-# Env overrides: PG_CONTAINER, PG_USER, PG_IMAGE, BACKUP_DIR.
+# Env overrides: PG_CONTAINER, PG_USER, PG_IMAGE, BACKUP_DIR, ALERT_WEBHOOK_URL.
+#
+# A --drill that fails must be LOUD — a silent failure into a cron log nobody reads
+# manufactures false confidence in the backups. Set ALERT_WEBHOOK_URL (the same
+# incoming webhook the services use, packages/platform/.../error-alerter.ts) and any
+# drill failure POSTs to it. Unset = local log only (fine for a manual run).
 set -euo pipefail
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
@@ -23,8 +28,33 @@ PG_USER="${PG_USER:-hydromart}"
 PG_IMAGE="${PG_IMAGE:-postgres:16-alpine}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/hydromart}"
 
+# Fire-and-forget alert to the shared webhook, mirroring error-alerter.ts's payload
+# ({text} for Slack, {content} for Discord — one URL works for either). No-op when
+# ALERT_WEBHOOK_URL is blank. ponytail: message is a controlled literal (no quotes,
+# no untrusted data), so it's inlined into the JSON directly — add real escaping only
+# if this ever interpolates a dump path or error string.
+alert(){
+  local url="${ALERT_WEBHOOK_URL:-}"
+  [ -z "$url" ] && return 0
+  local host text
+  host="$(hostname 2>/dev/null || echo host)"
+  text="🚨 Hydromart restore drill FAILED on ${host}: $1. Backups are UNVERIFIED until this passes."
+  curl -fsS -m 10 -X POST -H 'content-type: application/json' \
+    --data "{\"text\":\"${text}\",\"content\":\"${text}\"}" "$url" >/dev/null 2>&1 || true
+}
+
 MODE="${1:-}"
 DUMP="${2:-}"
+SCRATCH="hydromart-restore-drill"
+
+# In --drill mode, one EXIT trap covers the WHOLE run (missing dump, corrupt gzip,
+# restore mismatch — all of it): tear down the scratch container and, on any non-zero
+# exit, alert. Registered here (before the dump checks below) so those failures alert
+# too. ponytail: generic message + exit code; the detail is in the drill log the alert
+# tells you to read — richer per-failure messages aren't worth threading through.
+if [ "$MODE" = "--drill" ]; then
+  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; [ "$rc" -ne 0 ] && alert "drill exited $rc, check the drill log"; exit $rc' EXIT
+fi
 
 if [ -z "$DUMP" ]; then
   DUMP="$(ls -1t "$BACKUP_DIR"/hydromart-*.sql.gz 2>/dev/null | head -n1 || true)"
@@ -42,9 +72,7 @@ fi
 
 case "$MODE" in
   --drill)
-    SCRATCH="hydromart-restore-drill"
-    # Clean up the scratch container on any exit, success or failure.
-    trap 'docker rm -f "$SCRATCH" >/dev/null 2>&1 || true' EXIT
+    # Scratch teardown + failure alert are handled by the EXIT trap set above.
     docker rm -f "$SCRATCH" >/dev/null 2>&1 || true
     echo "drill: starting scratch Postgres ($PG_IMAGE)..."
     docker run -d --name "$SCRATCH" \
