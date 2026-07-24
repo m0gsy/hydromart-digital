@@ -15,7 +15,8 @@ function mockFetch(handler: (url: string, init: RequestInit) => { ok?: boolean; 
     const body = JSON.parse(init.body as string);
     calls.push({ url, body });
     const r = handler(url, init);
-    return { ok: r.ok ?? true, status: r.status ?? 200, json: async () => r.body } as Response;
+    // NEO wraps every body under `risetai`.
+    return { ok: r.ok ?? true, status: r.status ?? 200, json: async () => ({ risetai: r.body }) } as Response;
   }) as unknown as typeof fetch;
   return calls;
 }
@@ -34,7 +35,7 @@ describe('NeoFaceProvider', () => {
     expect(paths.filter((p) => p.endsWith('create-facegallery'))).toHaveLength(1);
     expect(paths.filter((p) => p.endsWith('enroll-face'))).toHaveLength(2);
     const enroll = calls.find((c) => c.url.endsWith('enroll-face'))!;
-    expect(enroll.body).toMatchObject({ facegallery_id: 'g1', user_id: 'e1', user_name: 'Budi', force_register: 'true' });
+    expect(enroll.body).toMatchObject({ facegallery_id: 'g1', user_id: 'e1', user_name: 'Budi', force_register: true });
     expect(enroll.body.image).toBe(Buffer.from('img').toString('base64'));
     expect(enroll.body.trx_id).toBeTruthy();
   });
@@ -46,12 +47,12 @@ describe('NeoFaceProvider', () => {
     expect(res).toEqual({ score: 0.925, matched: true, live: true });
   });
 
-  it('verify reports no match when NEO says unverified', async () => {
-    mockFetch(() => ({ body: { status: '200', verified: false, similarity: '10' } }));
+  it('verify reports no match (not an error) when NEO returns 411 Face Not Verified', async () => {
+    // A genuine non-match uses a non-2xx status but still carries verified:false.
+    mockFetch(() => ({ status: 200, body: { status: '411', verified: false, similarity: 0 } }));
     const neo = new NeoFaceProvider(makeConfig());
     const res = await neo.verify(Buffer.from('p'), [], false, identity);
-    expect(res.matched).toBe(false);
-    expect(res.live).toBe(false);
+    expect(res).toEqual({ score: 0, matched: false, live: false });
   });
 
   it('throws ServiceUnavailable on a NEO error status', async () => {
