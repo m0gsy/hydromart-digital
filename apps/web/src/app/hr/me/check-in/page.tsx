@@ -17,13 +17,15 @@ export default function MeCheckInPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Attendance | null>(null);
 
-  async function punch(dataUrl: string) {
+  async function punch(dataUrl: string, live: boolean) {
+    if (!live) {
+      toast('Deteksi wajah kurang meyakinkan. Gerakkan kepala/kedip lalu coba lagi.', 'error');
+      return;
+    }
     setBusy(true);
     try {
       const path = mode === 'in' ? endpoints.hr.checkIn : endpoints.hr.checkOut;
-      // ponytail: live:true on manual capture — passive liveness (MediaPipe) deferred;
-      // the server face verifier still gates the match.
-      const row = await api.post<Attendance>(path, { image: dataUrl, live: true }, true);
+      const row = await api.post<Attendance>(path, { image: dataUrl, live }, true);
       setResult(row);
       toast(mode === 'in' ? 'Check-in berhasil' : 'Check-out berhasil');
     } catch (e) {
