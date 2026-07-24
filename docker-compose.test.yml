@@ -311,6 +311,7 @@ services:
       # admin-service isn't booted in the integration loop; the gateway only needs the
       # URL set to pass config validation (no /admin request is driven).
       ADMIN_SERVICE_URL: http://admin:3017
+      HR_SERVICE_URL: http://hr:3018
     ports:
       - "8080:8080"
     healthcheck:

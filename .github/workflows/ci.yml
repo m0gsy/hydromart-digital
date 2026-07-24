@@ -59,6 +59,7 @@ jobs:
       RECOMMENDATION_SERVICE_URL: https://recommendation.example.com
       FORECAST_SERVICE_URL: https://forecast.example.com
       DASHBOARD_SERVICE_URL: https://dashboard.example.com
+      HR_SERVICE_URL: https://hr.example.com
     steps:
       - uses: actions/checkout@v4
 
