@@ -4,6 +4,7 @@ import { Attendance, Prisma } from '../../../prisma/generated/client';
 import {
   AttendanceListFilter,
   AttendanceRepository,
+  AttendanceSummary,
   CheckOutPatch,
   CreateAttendanceInput,
 } from '../../application/ports/attendance.repository';
@@ -21,6 +22,15 @@ export class AttendancePrismaRepository implements AttendanceRepository {
 
   create(input: CreateAttendanceInput): Promise<Attendance> {
     return this.prisma.attendance.create({ data: input });
+  }
+
+  async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
+    const workDate = { gte: from, lte: to };
+    const [presentDays, lateDays] = await this.prisma.$transaction([
+      this.prisma.attendance.count({ where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } } }),
+      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LATE' } }),
+    ]);
+    return { presentDays, lateDays };
   }
 
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance> {

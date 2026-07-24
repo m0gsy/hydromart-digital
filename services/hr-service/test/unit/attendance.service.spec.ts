@@ -28,6 +28,9 @@ class FakeAtt implements AttendanceRepository {
   async findByEmployeeAndDate(): Promise<Attendance | null> {
     return this.row;
   }
+  async summary() {
+    return { presentDays: 0, lateDays: 0 };
+  }
   async create(input: CreateAttendanceInput): Promise<Attendance> {
     this.created = input;
     this.row = { id: 'a1', ...input } as unknown as Attendance;

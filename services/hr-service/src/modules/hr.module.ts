@@ -21,10 +21,18 @@ import { FaceEmbeddingPrismaRepository } from '../infrastructure/prisma/face-emb
 import { AttendancePrismaRepository } from '../infrastructure/prisma/attendance.prisma.repository';
 import { OnnxArcFaceVerifier } from '../infrastructure/face/onnx-arcface.verifier';
 import { StubFaceVerifier } from '../infrastructure/face/stub-face.verifier';
+import { PAYROLL_REPOSITORY } from '../application/ports/payroll.repository';
+import { BONUS_REPOSITORY, DEDUCTION_REPOSITORY } from '../application/ports/adjustment.repository';
+import { PayrollService } from '../application/services/payroll.service';
+import { AdjustmentService } from '../application/services/adjustment.service';
+import { PayrollPrismaRepository } from '../infrastructure/prisma/payroll.prisma.repository';
+import { BonusPrismaRepository, DeductionPrismaRepository } from '../infrastructure/prisma/adjustment.prisma.repository';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController } from './face.controller';
 import { AttendanceController } from './attendance.controller';
+import { PayrollController } from './payroll.controller';
+import { BonusController, DeductionController } from './adjustment.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -52,6 +60,11 @@ const providers: Provider[] = [
   },
   FaceService,
   AttendanceService,
+  { provide: PAYROLL_REPOSITORY, useClass: PayrollPrismaRepository },
+  { provide: BONUS_REPOSITORY, useClass: BonusPrismaRepository },
+  { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
+  PayrollService,
+  AdjustmentService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -59,7 +72,15 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [SettingsController, EmployeesController, FaceController, AttendanceController],
+  controllers: [
+    SettingsController,
+    EmployeesController,
+    FaceController,
+    AttendanceController,
+    PayrollController,
+    BonusController,
+    DeductionController,
+  ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],
 })
