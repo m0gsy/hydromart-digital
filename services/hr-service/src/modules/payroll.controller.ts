@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 
 import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
@@ -32,6 +33,16 @@ export class PayrollController {
   @ApiOperation({ summary: 'Get one payroll with its item lines (salary slip)' })
   getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.payroll.getById(user, id);
+  }
+
+  @Get(':id/slip')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Download a payroll as a salary-slip PDF' })
+  async slip(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
+    const pdf = await this.payroll.slip(user, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="slip-${id}.pdf"`);
+    res.send(pdf);
   }
 
   @Post('generate')

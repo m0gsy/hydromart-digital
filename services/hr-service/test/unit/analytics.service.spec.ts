@@ -71,7 +71,7 @@ describe('AnalyticsService CSV exports', () => {
         monthlyRate: null, status: 'ACTIVE', joinDate: new Date('2026-01-15T00:00:00Z') },
     ] as unknown as Employee[];
     const { svc } = build({ employeesForReport: async () => rows });
-    const csv = await svc.employeesCsv(hq);
+    const csv = await svc.csv(await svc.employeeReport(hq));
     const lines = csv.split('\r\n');
     expect(lines[0]).toContain('employeeCode');
     expect(lines[1]).toBe('HR-0001,A,08,,Kasir,PERMANENT,DAILY,50000,0,ACTIVE,2026-01-15');
@@ -83,7 +83,7 @@ describe('AnalyticsService CSV exports', () => {
         lateMinutes: 12, workingMinutes: null, employee: { employeeCode: 'HR-0001', fullName: 'A' } },
     ] as unknown as AttendanceWithEmployee[];
     const { svc } = build({ attendanceForReport: async () => rows });
-    const csv = await svc.attendanceCsv(hq, { from: '2026-07-01', to: '2026-07-31' });
+    const csv = await svc.csv(await svc.attendanceReport(hq, { from: '2026-07-01', to: '2026-07-31' }));
     expect(csv.split('\r\n')[1]).toBe('2026-07-01,HR-0001,A,LATE,,,12,');
   });
 
@@ -94,7 +94,7 @@ describe('AnalyticsService CSV exports', () => {
         totalDeduction: dec(50), net: dec(1050), presentDays: 20, employee: { employeeCode: 'HR-0001', fullName: 'A' } },
     ] as unknown as PayrollWithEmployee[];
     const { svc } = build({ payrollForReport: async () => rows });
-    const csv = await svc.payrollCsv(hq, { periodMonth: '2026-07' });
+    const csv = await svc.csv(await svc.payrollReport(hq, { periodMonth: '2026-07' }));
     expect(csv.split('\r\n')[1]).toBe('2026-07,HR-0001,A,APPROVED,1000,100,50,1050,20');
   });
 });

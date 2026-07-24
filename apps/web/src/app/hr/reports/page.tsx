@@ -46,7 +46,10 @@ export default function ReportsPage() {
 
       <Card className="flex items-center justify-between gap-3 p-4">
         <div><p className="font-semibold">Direktori Karyawan</p><p className="text-xs text-muted">Semua karyawan (sesuai cakupan depot).</p></div>
-        <Button variant="secondary" loading={busy === 'emp'} onClick={() => run('emp', endpoints.hr.reportEmployees(), 'employees.csv')}>Unduh</Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" loading={busy === 'emp'} onClick={() => run('emp', endpoints.hr.reportEmployees(), 'employees.csv')}>CSV</Button>
+          <Button variant="secondary" loading={busy === 'empx'} onClick={() => run('empx', endpoints.hr.reportEmployees(undefined, 'xlsx'), 'employees.xlsx')}>Excel</Button>
+        </div>
       </Card>
 
       <Card className="space-y-3 p-4">
@@ -61,7 +64,15 @@ export default function ReportsPage() {
               if (!from || !to) { toast('Isi rentang tanggal', 'error'); return; }
               run('att', endpoints.hr.reportAttendance(from, to), `attendance-${from}_${to}.csv`);
             }}
-          >Unduh</Button>
+          >CSV</Button>
+          <Button
+            variant="secondary"
+            loading={busy === 'attx'}
+            onClick={() => {
+              if (!from || !to) { toast('Isi rentang tanggal', 'error'); return; }
+              run('attx', endpoints.hr.reportAttendance(from, to, undefined, 'xlsx'), `attendance-${from}_${to}.xlsx`);
+            }}
+          >Excel</Button>
         </div>
       </Card>
 
@@ -69,7 +80,8 @@ export default function ReportsPage() {
         <p className="font-semibold">Payroll</p>
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
-          <Button variant="secondary" loading={busy === 'pay'} onClick={() => run('pay', endpoints.hr.reportPayroll(period), `payroll-${period}.csv`)}>Unduh</Button>
+          <Button variant="secondary" loading={busy === 'pay'} onClick={() => run('pay', endpoints.hr.reportPayroll(period), `payroll-${period}.csv`)}>CSV</Button>
+          <Button variant="secondary" loading={busy === 'payx'} onClick={() => run('payx', endpoints.hr.reportPayroll(period, undefined, 'xlsx'), `payroll-${period}.xlsx`)}>Excel</Button>
         </div>
       </Card>
     </div>

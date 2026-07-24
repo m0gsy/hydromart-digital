@@ -34,6 +34,22 @@ export default function PayrollDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  async function downloadSlip() {
+    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+    try {
+      const r = await fetch(`${base}${endpoints.hr.payrollSlip(id)}`, { credentials: 'include' });
+      if (!r.ok) throw new Error(`Gagal (${r.status})`);
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `slip-${id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
+    }
+  }
+
   if (loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (error) return <div className="mx-auto max-w-2xl"><ErrorState message={error} onRetry={reload} /></div>;
   const p = data!;
@@ -41,7 +57,16 @@ export default function PayrollDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
-      <SectionHeader title={`Slip Gaji ${p.periodMonth}`} subtitle={`${p.presentDays} hari hadir`} action={<Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>} />
+      <SectionHeader
+        title={`Slip Gaji ${p.periodMonth}`}
+        subtitle={`${p.presentDays} hari hadir`}
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={downloadSlip}>Unduh PDF</Button>
+            <Badge tone={TONE[p.status]}>{PAYROLL_STATUS_LABEL[p.status]}</Badge>
+          </div>
+        }
+      />
 
       <Card className="p-5">
         <table className="w-full text-sm">

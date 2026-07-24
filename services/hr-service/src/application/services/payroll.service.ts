@@ -11,6 +11,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
+import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
 import {
@@ -130,6 +131,24 @@ export class PayrollService {
 
   async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
     return this.load(user, id);
+  }
+
+  /** Render a salary-slip PDF for one payroll. */
+  async slip(user: AuthenticatedUser, id: string): Promise<Buffer> {
+    const payroll = await this.load(user, id); // 404 + depot check
+    const employee = await this.employees.getById(user, payroll.employeeId);
+    return payrollSlipPdf({
+      employeeName: employee.fullName,
+      employeeCode: employee.employeeCode,
+      periodMonth: payroll.periodMonth,
+      status: payroll.status,
+      lines: payroll.items.map((i) => ({
+        label: i.label,
+        amount: Math.abs(Number(i.amount)),
+        deduction: i.kind === 'DEDUCTION',
+      })),
+      net: Number(payroll.net),
+    });
   }
 
   list(query: { periodMonth?: string; employeeId?: string; status?: Payroll['status']; page: number; pageSize: number }) {

@@ -1065,18 +1065,26 @@ export const endpoints = {
       const qs = p.toString();
       return `/hr-reports/api/v1/hr-reports/dashboard${qs ? `?${qs}` : ''}`;
     },
-    reportEmployees: (depotId?: string) =>
-      `/hr-reports/api/v1/hr-reports/employees${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
-    reportAttendance: (from: string, to: string, depotId?: string) => {
+    reportEmployees: (depotId?: string, format?: string) => {
+      const p = new URLSearchParams();
+      if (depotId) p.set('depotId', depotId);
+      if (format) p.set('format', format);
+      const qs = p.toString();
+      return `/hr-reports/api/v1/hr-reports/employees${qs ? `?${qs}` : ''}`;
+    },
+    reportAttendance: (from: string, to: string, depotId?: string, format?: string) => {
       const p = new URLSearchParams({ from, to });
       if (depotId) p.set('depotId', depotId);
+      if (format) p.set('format', format);
       return `/hr-reports/api/v1/hr-reports/attendance?${p}`;
     },
-    reportPayroll: (periodMonth: string, depotId?: string) => {
+    reportPayroll: (periodMonth: string, depotId?: string, format?: string) => {
       const p = new URLSearchParams({ periodMonth });
       if (depotId) p.set('depotId', depotId);
+      if (format) p.set('format', format);
       return `/hr-reports/api/v1/hr-reports/payroll?${p}`;
     },
+    payrollSlip: (id: string) => `/payroll/api/v1/payroll/${id}/slip`,
     audit: (q: { entity?: string; entityId?: string; actorId?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.entity) p.set('entity', q.entity);
