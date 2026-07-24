@@ -10,11 +10,15 @@ import {
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
 
-interface NeoResponse {
+interface NeoPayload {
   status?: string | number;
   status_message?: string;
   similarity?: string | number;
   verified?: boolean | string;
+}
+// NEO wraps every response body under a `risetai` key.
+interface NeoResponse {
+  risetai?: NeoPayload;
 }
 
 /**
@@ -46,7 +50,7 @@ export class NeoFaceProvider implements FaceVerifier {
       facegallery_id: this.gallery,
       user_id: id.userId,
       user_name: id.userName,
-      force_register: 'true',
+      force_register: true, // NEO wants a JSON bool, not a string
       image: toBase64(images[0]),
     });
     return { vector: [], quality: 1 };
@@ -59,11 +63,15 @@ export class NeoFaceProvider implements FaceVerifier {
     identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
     const id = this.requireIdentity(identity);
-    const res = await this.call('POST', 'verify-face', {
+    // A genuine non-match comes back with a non-2xx status ("411 Face Not Verified") plus
+    // `verified:false` — a valid business result, NOT a transport error. Tolerate any
+    // response that carries a `verified` verdict; only a missing verdict is a real failure.
+    const res = await this.request('POST', 'verify-face', {
       facegallery_id: this.gallery,
       user_id: id.userId,
       image: toBase64(image),
     });
+    if (res.verified === undefined) this.ensureOk('verify-face', res);
     return { score: normalizeSimilarity(res.similarity), matched: isTruthy(res.verified), live };
   }
 
@@ -91,7 +99,15 @@ export class NeoFaceProvider implements FaceVerifier {
     return this.galleryReady;
   }
 
-  private async call(method: string, path: string, body: Record<string, unknown>): Promise<NeoResponse> {
+  /** A NEO call that must succeed (create/enroll): unwraps the body and throws on a non-2xx status. */
+  private async call(method: string, path: string, body: Record<string, unknown>): Promise<NeoPayload> {
+    const payload = await this.request(method, path, body);
+    this.ensureOk(path, payload);
+    return payload;
+  }
+
+  /** Raw NEO call: fetch + unwrap the `risetai` envelope. Does NOT throw on a business status. */
+  private async request(method: string, path: string, body: Record<string, unknown>): Promise<NeoPayload> {
     const { endpoint, token } = this.config.neoFr;
     if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
     let res: Response;
@@ -104,11 +120,14 @@ export class NeoFaceProvider implements FaceVerifier {
     } catch (err) {
       throw this.unavailable(`tidak bisa menghubungi NEO (${path}): ${String(err)}`);
     }
-    const json = (await res.json().catch(() => ({}))) as NeoResponse;
-    // NEO returns HTTP 200 with a status field; enroll/verify failures use a non-"200" status.
-    const ok = res.ok && String(json.status ?? '200').startsWith('2');
-    if (!ok) throw this.unavailable(`${path}: ${json.status_message ?? `HTTP ${res.status}`}`);
-    return json;
+    // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok).
+    return ((await res.json().catch(() => ({})) as NeoResponse).risetai) ?? {};
+  }
+
+  private ensureOk(path: string, payload: NeoPayload): void {
+    if (!String(payload.status ?? '').startsWith('2')) {
+      throw this.unavailable(`${path}: ${payload.status_message ?? 'unknown error'}`);
+    }
   }
 
   private unavailable(reason: string): ServiceUnavailableException {
