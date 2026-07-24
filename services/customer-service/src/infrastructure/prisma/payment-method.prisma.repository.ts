@@ -6,7 +6,15 @@ import {
   PaymentMethodRepository,
   UpdatePaymentMethodData,
 } from '../../application/ports/payment-method.repository';
+import { DefaultPaymentMethodConflictError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
+
+/** Prisma unique-constraint violation (P2002), detected without importing the client namespace. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002'
+  );
+}
 
 @Injectable()
 export class PaymentMethodPrismaRepository implements PaymentMethodRepository {
@@ -25,6 +33,28 @@ export class PaymentMethodPrismaRepository implements PaymentMethodRepository {
 
   create(data: CreatePaymentMethodData): Promise<PaymentMethodRecord> {
     return this.prisma.savedPaymentMethod.create({ data });
+  }
+
+  async createExclusiveDefault(data: CreatePaymentMethodData): Promise<PaymentMethodRecord> {
+    // Audit DB-2 (create path): clear the existing default and insert the new one in
+    // one transaction, mirroring setDefaultExclusive. The loser of two concurrent
+    // "add as default" hits the partial unique index
+    // (saved_payment_methods_one_default_per_customer) as P2002 — translate to 409.
+    try {
+      const [, row] = await this.prisma.$transaction([
+        this.prisma.savedPaymentMethod.updateMany({
+          where: { customerId: data.customerId, isDefault: true },
+          data: { isDefault: false },
+        }),
+        this.prisma.savedPaymentMethod.create({ data }),
+      ]);
+      return row;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new DefaultPaymentMethodConflictError();
+      }
+      throw error;
+    }
   }
 
   update(

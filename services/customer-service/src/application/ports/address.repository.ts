@@ -26,6 +26,12 @@ export interface AddressRepository {
   findByIdForCustomer(customerId: string, id: string): Promise<AddressRecord | null>;
   countByCustomer(customerId: string): Promise<number>;
   create(data: CreateAddressData): Promise<AddressRecord>;
+  /**
+   * Insert a new PRIMARY address, unsetting any existing primary in the SAME
+   * transaction — audit DB-2 (create path). Rejects with PrimaryAddressConflictError
+   * (409) if a concurrent create wins the partial-unique-index race first.
+   */
+  createExclusivePrimary(data: CreateAddressData): Promise<AddressRecord>;
   update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord>;
   /** Clear the primary flag on all of a customer's addresses. */
   unsetPrimary(customerId: string): Promise<void>;
