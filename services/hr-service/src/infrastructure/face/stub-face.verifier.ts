@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { HrConfigService } from '../../config/hr-config.service';
 import {
   FaceEmbeddingResult,
+  FaceIdentity,
   FaceVerifier,
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
@@ -21,12 +22,17 @@ const DIM = 512;
 export class StubFaceVerifier implements FaceVerifier {
   constructor(private readonly config: HrConfigService) {}
 
-  async enroll(images: Buffer[]): Promise<FaceEmbeddingResult> {
+  async enroll(images: Buffer[], _identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
     if (images.length === 0) throw new Error('enroll: no frames');
     return { vector: meanNormalize(images.map((b) => this.embed(b))), quality: 0.99 };
   }
 
-  async verify(image: Buffer, enrolled: number[][], live: boolean): Promise<FaceVerifyResult> {
+  async verify(
+    image: Buffer,
+    enrolled: number[][],
+    live: boolean,
+    _identity?: FaceIdentity,
+  ): Promise<FaceVerifyResult> {
     const { score } = bestMatch(this.embed(image), enrolled);
     return { score, matched: score >= this.config.faceMatchThreshold, live };
   }
