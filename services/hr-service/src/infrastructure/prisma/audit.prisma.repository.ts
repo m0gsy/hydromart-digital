@@ -15,8 +15,8 @@ export class AuditPrismaRepository implements AuditRepository {
         action: entry.action,
         entity: entry.entity,
         entityId: entry.entityId,
-        before: entry.before ?? Prisma.JsonNull,
-        after: entry.after ?? Prisma.JsonNull,
+        before: (entry.before ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        after: (entry.after ?? Prisma.JsonNull) as Prisma.InputJsonValue,
         ip: entry.ip,
       },
     });

@@ -29,6 +29,7 @@ export class AuditInterceptor implements NestInterceptor {
     const user = (request as Request & { user?: AuthenticatedUser }).user;
     const { ipAddress } = getRequestContext(request);
     const { entity, entityId } = this.parseRoute(request.path);
+    const submitted = this.sanitize(request.body);
 
     return next.handle().pipe(
       tap((body) => {
@@ -37,12 +38,30 @@ export class AuditInterceptor implements NestInterceptor {
           action: request.method,
           entity,
           entityId: entityId ?? this.bodyId(body),
+          // `after` = the fields the caller submitted (sanitized). A true prior-state `before`
+          // is captured explicitly where it matters (e.g. AttendanceAdjustment before/after).
           before: null,
-          after: null,
+          after: submitted,
           ip: ipAddress,
         });
       }),
     );
+  }
+
+  /** Drop heavy/sensitive keys (face frames, vectors, secrets) and cap the payload size. */
+  private sanitize(body: unknown): Record<string, unknown> | null {
+    if (!body || typeof body !== 'object') return null;
+    const DROP = new Set(['image', 'images', 'vector', 'password', 'secret', 'photoUrl', 'sourcePhotoUrl']);
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
+      if (DROP.has(k)) {
+        out[k] = '[omitted]';
+        continue;
+      }
+      const s = typeof v === 'string' ? v : JSON.stringify(v);
+      out[k] = s != null && s.length > 500 ? `${s.slice(0, 500)}…` : v;
+    }
+    return Object.keys(out).length ? out : null;
   }
 
   /** `/api/v1/employees/<uuid>/face/enroll` -> entity "employees", entityId the uuid (if any). */

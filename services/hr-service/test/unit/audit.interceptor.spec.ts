@@ -5,11 +5,12 @@ import { AuditInterceptor } from '../../src/infrastructure/http/audit.intercepto
 import { AuditService } from '../../src/application/services/audit.service';
 import { AuditWrite } from '../../src/application/ports/audit.repository';
 
-function ctx(method: string, path: string, body: unknown = null): { context: ExecutionContext; handler: CallHandler } {
+function ctx(method: string, path: string, body: unknown = null, reqBody: unknown = undefined): { context: ExecutionContext; handler: CallHandler } {
   const request = {
     method,
     path,
     url: path,
+    body: reqBody,
     user: { sub: 'actor-1' },
     headers: { 'x-forwarded-for': '9.9.9.9' },
     socket: { remoteAddress: '127.0.0.1' },
@@ -47,6 +48,13 @@ describe('AuditInterceptor', () => {
     await firstValueFrom(interceptor.intercept(context, handler));
     expect(recorded[0].entity).toBe('bonuses');
     expect(recorded[0].entityId).toBe('b-99');
+  });
+
+  it('captures the submitted body as `after`, omitting heavy/sensitive keys', async () => {
+    const { interceptor, recorded } = build();
+    const { context, handler } = ctx('PATCH', '/api/v1/attendance/a1/adjust', null, { status: 'LEAVE', reason: 'cuti', image: 'BIGBASE64' });
+    await firstValueFrom(interceptor.intercept(context, handler));
+    expect(recorded[0].after).toMatchObject({ status: 'LEAVE', reason: 'cuti', image: '[omitted]' });
   });
 
   it('does not record read (GET) requests', async () => {

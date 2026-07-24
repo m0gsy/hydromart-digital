@@ -49,7 +49,7 @@ import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.rep
 import { HolidayController, ShiftController } from './calendar.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
-import { FaceController } from './face.controller';
+import { FaceController, SelfFaceController } from './face.controller';
 import { AttendanceController } from './attendance.controller';
 import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
@@ -119,6 +119,7 @@ const providers: Provider[] = [
     SettingsController,
     EmployeesController,
     FaceController,
+    SelfFaceController,
     AttendanceController,
     PayrollController,
     BonusController,

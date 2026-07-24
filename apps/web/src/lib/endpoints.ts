@@ -1002,6 +1002,7 @@ export const endpoints = {
     createEmployee: '/employees/api/v1/employees',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
+    enrollFaceMe: '/attendance/api/v1/attendance/me/face/enroll',
     checkIn: '/attendance/api/v1/attendance/check-in',
     checkOut: '/attendance/api/v1/attendance/check-out',
     attendanceManual: '/attendance/api/v1/attendance/manual',

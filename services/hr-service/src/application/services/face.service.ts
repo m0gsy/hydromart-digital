@@ -33,7 +33,21 @@ export class FaceService {
     images: Buffer[],
     sourcePhotoUrl: string | null,
   ): Promise<FaceEmbedding> {
-    await this.employees.getById(user, employeeId); // 404 + depot check
+    await this.employees.getById(user, employeeId); // 404 + depot check (admin)
+    return this.enrollFor(employeeId, images, sourcePhotoUrl);
+  }
+
+  /** Self-enrollment (PWA): the caller enrolls their OWN linked employee record. */
+  async enrollSelf(user: AuthenticatedUser, images: Buffer[]): Promise<FaceEmbedding> {
+    const employee = await this.employees.getSelf(user); // resolves by authSubjectId
+    return this.enrollFor(employee.id, images, null);
+  }
+
+  private async enrollFor(
+    employeeId: string,
+    images: Buffer[],
+    sourcePhotoUrl: string | null,
+  ): Promise<FaceEmbedding> {
     if (images.length === 0) {
       throw new BadRequestException('Minimal satu frame wajah diperlukan');
     }

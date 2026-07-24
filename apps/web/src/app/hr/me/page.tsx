@@ -31,6 +31,11 @@ export default function MePage() {
           </Card>
         </Link>
       </div>
+      <Link href="/hr/me/enroll">
+        <Card className="p-4 text-center transition-colors hover:bg-brand-50">
+          <p className="text-sm font-semibold text-brand-700">Daftar / Perbarui Wajah</p>
+        </Card>
+      </Link>
     </div>
   );
 }
