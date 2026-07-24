@@ -1004,6 +1004,8 @@ export const endpoints = {
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
     checkIn: '/attendance/api/v1/attendance/check-in',
     checkOut: '/attendance/api/v1/attendance/check-out',
+    attendanceManual: '/attendance/api/v1/attendance/manual',
+    attendanceAdjust: (id: string) => `/attendance/api/v1/attendance/${id}/adjust`,
     attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);

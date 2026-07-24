@@ -4,6 +4,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsISO8601,
   IsOptional,
@@ -46,6 +47,23 @@ export class FacePunchDto {
   @IsOptional()
   @IsBoolean()
   live?: boolean;
+}
+
+const ATTENDANCE_STATUS = ['PRESENT', 'LATE', 'ABSENT', 'LEAVE', 'HOLIDAY'] as const;
+
+export class AdjustAttendanceDto {
+  @IsOptional() @IsIn(ATTENDANCE_STATUS) status?: (typeof ATTENDANCE_STATUS)[number];
+  @IsOptional() @IsISO8601() checkInAt?: string;
+  @IsOptional() @IsISO8601() checkOutAt?: string;
+  @IsOptional() @IsInt() @Min(0) lateMinutes?: number;
+  @IsString() @MaxLength(200) reason!: string;
+}
+
+export class ManualAttendanceDto {
+  @IsUUID() employeeId!: string;
+  @IsISO8601() workDate!: string;
+  @IsIn(ATTENDANCE_STATUS) status!: (typeof ATTENDANCE_STATUS)[number];
+  @IsString() @MaxLength(200) reason!: string;
 }
 
 export class ListAttendanceDto {

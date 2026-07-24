@@ -7,6 +7,7 @@ import {
   AttendanceSummary,
   CheckOutPatch,
   CreateAttendanceInput,
+  ManualAttendanceInput,
 } from '../../application/ports/attendance.repository';
 import { PrismaService } from './prisma.service';
 
@@ -17,6 +18,43 @@ export class AttendancePrismaRepository implements AttendanceRepository {
   findByEmployeeAndDate(employeeId: string, workDate: Date): Promise<Attendance | null> {
     return this.prisma.attendance.findUnique({
       where: { employeeId_workDate: { employeeId, workDate } },
+    });
+  }
+
+  findById(id: string): Promise<Attendance | null> {
+    return this.prisma.attendance.findUnique({ where: { id } });
+  }
+
+  upsertManual(input: ManualAttendanceInput): Promise<Attendance> {
+    const { employeeId, depotId, workDate, status, lateMinutes, checkInAt, checkOutAt } = input;
+    const patch = {
+      status,
+      ...(lateMinutes !== undefined ? { lateMinutes } : {}),
+      ...(checkInAt !== undefined ? { checkInAt } : {}),
+      ...(checkOutAt !== undefined ? { checkOutAt } : {}),
+    };
+    return this.prisma.attendance.upsert({
+      where: { employeeId_workDate: { employeeId, workDate } },
+      create: { employeeId, depotId, workDate, lateMinutes: lateMinutes ?? 0, ...patch },
+      update: patch,
+    });
+  }
+
+  async recordAdjustment(data: {
+    attendanceId: string;
+    reason: string;
+    before: unknown;
+    after: unknown;
+    approvedBy: string | null;
+  }): Promise<void> {
+    await this.prisma.attendanceAdjustment.create({
+      data: {
+        attendanceId: data.attendanceId,
+        reason: data.reason,
+        before: (data.before ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        after: (data.after ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+        approvedBy: data.approvedBy,
+      },
     });
   }
 

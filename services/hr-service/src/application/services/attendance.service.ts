@@ -7,9 +7,9 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
 
-import { Attendance, Employee } from '../../../prisma/generated/client';
+import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { uploadFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
@@ -126,6 +126,59 @@ export class AttendanceService {
     return { rows, total, page: query.page, pageSize: query.pageSize };
   }
 
+  /** HR manual correction of an existing attendance row (status/times), kept in the audit log. */
+  async adjust(
+    user: AuthenticatedUser,
+    id: string,
+    patch: { status?: AttendanceStatus; checkInAt?: string; checkOutAt?: string; lateMinutes?: number; reason: string },
+  ): Promise<Attendance> {
+    const row = await this.repo.findById(id);
+    if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
+    const employee = await this.employees.findById(row.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    assertDepotAccess(user, employee.depotId);
+
+    const before = snapshot(row);
+    const updated = await this.repo.upsertManual({
+      employeeId: row.employeeId,
+      depotId: row.depotId,
+      workDate: row.workDate,
+      status: patch.status ?? row.status,
+      lateMinutes: patch.lateMinutes,
+      checkInAt: patch.checkInAt ? new Date(patch.checkInAt) : undefined,
+      checkOutAt: patch.checkOutAt ? new Date(patch.checkOutAt) : undefined,
+    });
+    await this.repo.recordAdjustment({ attendanceId: row.id, reason: patch.reason, before, after: snapshot(updated), approvedBy: user.sub });
+    return updated;
+  }
+
+  /** HR manual attendance entry for a day with no check-in (e.g. LEAVE/HOLIDAY/ABSENT). */
+  async createManual(
+    user: AuthenticatedUser,
+    input: { employeeId: string; workDate: string; status: AttendanceStatus; reason: string },
+  ): Promise<Attendance> {
+    const employee = await this.employees.findById(input.employeeId);
+    if (!employee) throw new NotFoundException('Karyawan tidak ditemukan');
+    assertDepotAccess(user, employee.depotId);
+
+    const workDate = new Date(`${input.workDate.slice(0, 10)}T00:00:00.000Z`);
+    const existing = await this.repo.findByEmployeeAndDate(input.employeeId, workDate);
+    const updated = await this.repo.upsertManual({
+      employeeId: input.employeeId,
+      depotId: employee.depotId,
+      workDate,
+      status: input.status,
+    });
+    await this.repo.recordAdjustment({
+      attendanceId: updated.id,
+      reason: input.reason,
+      before: existing ? snapshot(existing) : null,
+      after: snapshot(updated),
+      approvedBy: user.sub,
+    });
+    return updated;
+  }
+
   private async resolveSelf(user: AuthenticatedUser): Promise<Employee> {
     const employee = await this.employees.findByAuthSubjectId(user.sub);
     if (!employee) {
@@ -178,4 +231,14 @@ export class AttendanceService {
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
   }
+}
+
+/** Compact before/after view of an attendance row for the audit trail. */
+function snapshot(row: Attendance): Record<string, unknown> {
+  return {
+    status: row.status,
+    checkInAt: row.checkInAt?.toISOString() ?? null,
+    checkOutAt: row.checkOutAt?.toISOString() ?? null,
+    lateMinutes: row.lateMinutes,
+  };
 }

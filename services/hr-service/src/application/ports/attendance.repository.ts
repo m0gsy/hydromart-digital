@@ -37,8 +37,29 @@ export interface AttendanceSummary {
   leaveDays: number;
 }
 
+export interface ManualAttendanceInput {
+  employeeId: string;
+  depotId: string;
+  workDate: Date;
+  status: AttendanceStatus;
+  lateMinutes?: number;
+  checkInAt?: Date | null;
+  checkOutAt?: Date | null;
+}
+
 export interface AttendanceRepository {
   findByEmployeeAndDate(employeeId: string, workDate: Date): Promise<Attendance | null>;
+  findById(id: string): Promise<Attendance | null>;
+  /** Create-or-update the (employee, workDate) row from an HR manual entry/correction. */
+  upsertManual(input: ManualAttendanceInput): Promise<Attendance>;
+  /** Append an audit row for a manual attendance change (before/after snapshots). */
+  recordAdjustment(data: {
+    attendanceId: string;
+    reason: string;
+    before: unknown;
+    after: unknown;
+    approvedBy: string | null;
+  }): Promise<void>;
   /** Present/late day counts for [from, to] (inclusive), used by the payroll engine. */
   summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary>;
   create(input: CreateAttendanceInput): Promise<Attendance>;

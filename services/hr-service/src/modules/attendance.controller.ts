@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
-import { FacePunchDto, ListAttendanceDto } from './dto/attendance.dto';
+import { AdjustAttendanceDto, FacePunchDto, ListAttendanceDto, ManualAttendanceDto } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
 
 @ApiTags('HR Attendance')
@@ -39,6 +39,20 @@ export class AttendanceController {
   @ApiOperation({ summary: 'Attendance log (depot-scoped for depot roles)' })
   list(@Query() query: ListAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
     return this.attendance.list(user, query);
+  }
+
+  @Post('manual')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Manual attendance entry (LEAVE/HOLIDAY/ABSENT) for a day' })
+  createManual(@Body() dto: ManualAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.attendance.createManual(user, dto);
+  }
+
+  @Patch(':id/adjust')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Correct an attendance row (audited)' })
+  adjust(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdjustAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.attendance.adjust(user, id, dto);
   }
 
   private toPunch(dto: FacePunchDto): FacePunch {

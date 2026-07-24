@@ -28,6 +28,15 @@ class FakeAtt implements AttendanceRepository {
   async findByEmployeeAndDate(): Promise<Attendance | null> {
     return this.row;
   }
+  async findById(): Promise<Attendance | null> {
+    return this.row;
+  }
+  async upsertManual(): Promise<Attendance> {
+    return this.row as Attendance;
+  }
+  async recordAdjustment(): Promise<void> {
+    return undefined;
+  }
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
   }

@@ -54,6 +54,9 @@ function build(opts: {
   const repo = opts.repo ?? new FakePayrollRepo();
   const attendance: AttendanceRepository = {
     findByEmployeeAndDate: async () => null,
+    findById: async () => null,
+    upsertManual: async () => ({}) as never,
+    recordAdjustment: async () => undefined,
     summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
     create: async () => ({}) as never,
     patchCheckOut: async () => ({}) as never,
