@@ -297,7 +297,9 @@ services:
       # No ArcFace model / object storage in CI — the stub verifier runs the whole
       # attendance flow deterministically and photos are dropped.
       FACE_VERIFIER_DRIVER: stub
-      STORAGE_DRIVER: disabled
+      # 'local' validates and the factory falls through to the no-op adapter
+      # (only 's3' builds the real S3 client) — no bucket needed in CI.
+      STORAGE_DRIVER: local
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3018/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
