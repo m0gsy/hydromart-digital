@@ -1,5 +1,5 @@
 import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
 import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
@@ -27,12 +27,25 @@ import { PayrollService } from '../application/services/payroll.service';
 import { AdjustmentService } from '../application/services/adjustment.service';
 import { PayrollPrismaRepository } from '../infrastructure/prisma/payroll.prisma.repository';
 import { BonusPrismaRepository, DeductionPrismaRepository } from '../infrastructure/prisma/adjustment.prisma.repository';
+import { PERFORMANCE_REPOSITORY } from '../application/ports/performance.repository';
+import { PerformanceService } from '../application/services/performance.service';
+import { PerformancePrismaRepository } from '../infrastructure/prisma/performance.prisma.repository';
+import { AUDIT_REPOSITORY } from '../application/ports/audit.repository';
+import { AuditService } from '../application/services/audit.service';
+import { AuditPrismaRepository } from '../infrastructure/prisma/audit.prisma.repository';
+import { AuditInterceptor } from '../infrastructure/http/audit.interceptor';
+import { ANALYTICS_REPOSITORY } from '../application/ports/analytics.repository';
+import { AnalyticsService } from '../application/services/analytics.service';
+import { AnalyticsPrismaRepository } from '../infrastructure/prisma/analytics.prisma.repository';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController } from './face.controller';
 import { AttendanceController } from './attendance.controller';
 import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
+import { PerformanceController } from './performance.controller';
+import { AuditController } from './audit.controller';
+import { ReportsController } from './reports.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -65,9 +78,17 @@ const providers: Provider[] = [
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
   PayrollService,
   AdjustmentService,
+  { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
+  PerformanceService,
+  { provide: AUDIT_REPOSITORY, useClass: AuditPrismaRepository },
+  AuditService,
+  { provide: ANALYTICS_REPOSITORY, useClass: AnalyticsPrismaRepository },
+  AnalyticsService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
+  // Audit trail: one row per successful mutating HR request.
+  { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
 ];
 
 @Module({
@@ -80,6 +101,9 @@ const providers: Provider[] = [
     PayrollController,
     BonusController,
     DeductionController,
+    PerformanceController,
+    AuditController,
+    ReportsController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],
