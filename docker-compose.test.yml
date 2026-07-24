@@ -287,6 +287,23 @@ services:
       timeout: 5s
       retries: 12
 
+  hr:
+    <<: *svc
+    build: { context: ., dockerfile: services/hr-service/Dockerfile }
+    environment:
+      <<: *shared
+      HR_SERVICE_PORT: 3018
+      HR_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_hr?schema=public
+      # No ArcFace model / object storage in CI — the stub verifier runs the whole
+      # attendance flow deterministically and photos are dropped.
+      FACE_VERIFIER_DRIVER: stub
+      STORAGE_DRIVER: disabled
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3018/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     restart: "no"
