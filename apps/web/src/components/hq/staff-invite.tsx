@@ -18,6 +18,7 @@ const STAFF_ROLES = [
   'DRIVER',
   'MARKETING',
   'FINANCE',
+  'HR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'SUPER_ADMIN',

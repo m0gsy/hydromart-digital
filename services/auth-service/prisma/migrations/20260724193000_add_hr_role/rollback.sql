@@ -1,0 +1,7 @@
+-- Postgres cannot DROP a single enum value. To roll back HR, recreate the type without
+-- it (only safe while no row/claim uses 'HR'):
+--   ALTER TYPE "Role" RENAME TO "Role_old";
+--   CREATE TYPE "Role" AS ENUM ('CUSTOMER','DRIVER','DEPOT_OPERATOR','DEPOT_MANAGER',
+--     'FRANCHISE_OWNER','HEAD_OFFICE','FINANCE','MARKETING','SUPER_ADMIN');
+--   ALTER TABLE "Customer" ALTER COLUMN "role" TYPE "Role" USING "role"::text::"Role";
+--   DROP TYPE "Role_old";

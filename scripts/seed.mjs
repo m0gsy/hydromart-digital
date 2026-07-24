@@ -99,6 +99,15 @@ const STAFF = [
   { phone: '+6281100000001', role: 'SUPER_ADMIN', fullName: 'Admin Hydromart' },
   { phone: '+6281100000002', role: 'DEPOT_MANAGER', fullName: 'Manajer Depot Cikini' },
   { phone: '+6281100000003', role: 'DRIVER', fullName: 'Driver Satu' },
+  { phone: '+6281100000004', role: 'HR', fullName: 'HR Hydromart' },
+];
+
+// Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for
+// idempotency. dailyRate/monthlyRate follow the salaryType the server validates.
+const EMPLOYEES = [
+  { fullName: 'Budi Santoso', phone: '+6281100000101', position: 'Kepala Depot', employmentStatus: 'DEPOT_MANAGER', salaryType: 'MONTHLY', monthlyRate: 5_000_000 },
+  { fullName: 'Siti Aminah', phone: '+6281100000102', position: 'Kasir', employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100_000 },
+  { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
 ];
 
 const STOCK_QTY = 200;
@@ -166,6 +175,19 @@ async function seedStaff() {
   }
 }
 
+// HR employees list returns { rows, total }, not { items } — read .rows directly.
+async function seedEmployees(depotByCode) {
+  const depotId = [...depotByCode.values()][0];
+  if (!depotId) return;
+  const listed = ok(await api('GET', '/employees/api/v1/employees?pageSize=100'), 'list employees');
+  const existing = new Set((listed.rows ?? []).map((e) => e.phone));
+  for (const e of EMPLOYEES) {
+    if (existing.has(e.phone)) continue;
+    ok(await api('POST', '/employees/api/v1/employees', { ...e, depotId, joinDate: '2026-01-06T00:00:00.000Z' }), `employee ${e.fullName}`);
+    console.log(`+ employee ${e.fullName}`);
+  }
+}
+
 async function main() {
   console.log(`Seeding ${GATEWAY} ...`);
   const catBySlug = await seedCategories();
@@ -173,6 +195,7 @@ async function main() {
   const depotByCode = await seedDepots();
   await seedStock(depotByCode, productBySku);
   await seedStaff();
+  await seedEmployees(depotByCode);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);
 }

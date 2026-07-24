@@ -35,6 +35,19 @@ const SEGMENT_ENV: Record<string, string> = {
   // Courier shift roster (depot-service, design 6d/7b). Own public segment; reuses the
   // depot-service upstream (no new env var).
   shifts: 'DEPOT_SERVICE_URL',
+  // hr-service (HRIS Lite): employees, face-recognition attendance, payroll, bonus/deduction,
+  // salary config, HR reports. Several public segments, one upstream.
+  hr: 'HR_SERVICE_URL',
+  employees: 'HR_SERVICE_URL',
+  attendance: 'HR_SERVICE_URL',
+  payroll: 'HR_SERVICE_URL',
+  bonuses: 'HR_SERVICE_URL',
+  deductions: 'HR_SERVICE_URL',
+  performance: 'HR_SERVICE_URL',
+  'hr-reports': 'HR_SERVICE_URL',
+  'hr-audit': 'HR_SERVICE_URL',
+  holidays: 'HR_SERVICE_URL',
+  'hr-shifts': 'HR_SERVICE_URL',
 };
 
 @Injectable()

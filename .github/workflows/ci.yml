@@ -25,6 +25,7 @@ env:
   FORECAST_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_forecast?schema=public
   PAYOUT_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_payout?schema=public
   ADMIN_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_admin?schema=public
+  HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
 jobs:
   verify:
@@ -58,6 +59,7 @@ jobs:
       RECOMMENDATION_SERVICE_URL: https://recommendation.example.com
       FORECAST_SERVICE_URL: https://forecast.example.com
       DASHBOARD_SERVICE_URL: https://dashboard.example.com
+      HR_SERVICE_URL: https://hr.example.com
     steps:
       - uses: actions/checkout@v4
 
@@ -154,10 +156,16 @@ jobs:
       - name: Start infra + wait for Postgres
         run: |
           docker compose up -d postgres redis
-          for i in $(seq 1 30); do
-            if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then break; fi
+          # Fail loudly instead of racing db:migrate against a cold Postgres — a fresh
+          # runner's initdb creates all 16 databases, which can take >60s. The old loop
+          # only `break`ed on ready and fell through silently on timeout, so the first
+          # workspace to migrate (admin) intermittently hit P1001.
+          for i in $(seq 1 60); do
+            if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then exit 0; fi
             sleep 2
           done
+          echo "Postgres did not become ready in time" >&2
+          exit 1
 
       - name: Migrate + boot services
         run: |

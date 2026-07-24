@@ -18,6 +18,7 @@ export type Role =
   | 'FRANCHISE_OWNER'
   | 'HEAD_OFFICE'
   | 'FINANCE'
+  | 'HR'
   | 'MARKETING'
   | 'SUPER_ADMIN';
 
@@ -102,6 +103,14 @@ export const CAPABILITIES = {
   depotWholesale: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
   depotSubscriptions: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
   depotDisputes: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // hr-service (HRIS Lite). Manage employees, face enrollment, attendance edits, and the
+  // SalaryConfiguration tunables. HR desk + head office; SUPER_ADMIN always.
+  hrAdmin: ['HR', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
+  hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
+  // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
+  // manager see their own depot (DepotScopeGuard keeps it to their depot).
+  hrView: ['HR', 'HEAD_OFFICE', 'FINANCE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

@@ -6,6 +6,10 @@ Claude Memory
 
 ↓
 
+Graphify (query codebase before touching code)
+
+↓
+
 Skills
 
 ↓
@@ -18,11 +22,11 @@ Ponytail
 
 ↓
 
-Implementation
+Implementation (Matt Pocock TDD: red → green → refactor)
 
 ↓
 
-Taste Skill
+Taste Skill + UI/UX Pro Max
 
 ↓
 
@@ -31,6 +35,10 @@ Marketing Skills
 ↓
 
 Humanizer
+
+↓
+
+Matt Pocock Code Review
 
 ↓
 

@@ -287,6 +287,25 @@ services:
       timeout: 5s
       retries: 12
 
+  hr:
+    <<: *svc
+    build: { context: ., dockerfile: services/hr-service/Dockerfile }
+    environment:
+      <<: *shared
+      HR_SERVICE_PORT: 3018
+      HR_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_hr?schema=public
+      # No ArcFace model / object storage in CI — the stub verifier runs the whole
+      # attendance flow deterministically and photos are dropped.
+      FACE_VERIFIER_DRIVER: stub
+      # 'local' validates and the factory falls through to the no-op adapter
+      # (only 's3' builds the real S3 client) — no bucket needed in CI.
+      STORAGE_DRIVER: local
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3018/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   gateway:
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     restart: "no"
@@ -311,6 +330,7 @@ services:
       # admin-service isn't booted in the integration loop; the gateway only needs the
       # URL set to pass config validation (no /admin request is driven).
       ADMIN_SERVICE_URL: http://admin:3017
+      HR_SERVICE_URL: http://hr:3018
     ports:
       - "8080:8080"
     healthcheck:
