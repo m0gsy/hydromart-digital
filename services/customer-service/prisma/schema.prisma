@@ -121,3 +121,21 @@ model NotificationPreference {
 
   @@map("notification_preferences")
 }
+
+/// A bulk reseller ("agen"): an existing customer who buys in bulk from one home depot
+/// and resells. Registry + monthly gallon target only — achievement volume is derived at
+/// read time from order-service (mirrors DepotTarget: goals stored, actuals derived).
+model ResellerProfile {
+  customerId       String   @id @db.Uuid // = existing CustomerProfile.customerId
+  homeDepotId      String   @db.Uuid
+  /// Monthly target in gallons (units, not IDR). 0 = no target set.
+  monthlyTargetQty Int      @default(0)
+  active           Boolean  @default(true)
+  joinDate         DateTime @db.Date
+  note             String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([homeDepotId])
+  @@map("reseller_profiles")
+}
