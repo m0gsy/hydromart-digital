@@ -11,6 +11,7 @@ export const envValidationSchema = Joi.object({
   PRODUCT_SERVICE_URL: Joi.string().uri().required(),
   DEPOT_SERVICE_URL: Joi.string().uri().required(),
   LOYALTY_SERVICE_URL: Joi.string().uri().required(),
+  CUSTOMER_SERVICE_URL: Joi.string().uri().required(),
   PROMO_SERVICE_URL: Joi.string().uri().required(),
   REFERRAL_SERVICE_URL: Joi.string().uri().required(),
   CRM_SERVICE_URL: Joi.string().uri().required(),

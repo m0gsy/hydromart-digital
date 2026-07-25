@@ -43,6 +43,9 @@ export class OrderConfigService {
   get loyaltyServiceUrl(): string {
     return this.config.getOrThrow<string>('LOYALTY_SERVICE_URL').replace(/\/+$/, '');
   }
+  get customerServiceUrl(): string {
+    return this.config.getOrThrow<string>('CUSTOMER_SERVICE_URL').replace(/\/+$/, '');
+  }
   get promoServiceUrl(): string {
     return this.config.getOrThrow<string>('PROMO_SERVICE_URL').replace(/\/+$/, '');
   }
