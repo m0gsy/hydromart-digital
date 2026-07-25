@@ -46,9 +46,10 @@ export async function readLatestOtp(phone: string, purpose = 'LOGIN'): Promise<s
 function safeExec(cmd: string): string {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 });
-  } catch (e: any) {
+  } catch (e: unknown) {
     // `docker logs` writes app output to stderr; a non-zero exit still carries it.
-    return `${e?.stdout ?? ''}${e?.stderr ?? ''}`;
+    const err = e as { stdout?: string; stderr?: string };
+    return `${err.stdout ?? ''}${err.stderr ?? ''}`;
   }
 }
 
