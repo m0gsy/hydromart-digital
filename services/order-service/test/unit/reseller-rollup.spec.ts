@@ -6,11 +6,11 @@ function order(over: any) {
     id: over.id ?? 'o',
     customerId: over.customerId,
     status: over.status ?? OrderStatus.DELIVERED,
-    createdAt: new Date(over.createdAt),
     total: 0,
     driverName: null,
     items: [{ productName: 'Galon 19L', unit: 'galon', quantity: over.qty ?? 0 }],
     ...over,
+    createdAt: new Date(over.createdAt),
   };
 }
 

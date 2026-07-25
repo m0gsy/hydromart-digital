@@ -484,8 +484,7 @@ export class ReportService {
       const cur = agg.get(o.customerId) ?? { volumeQty: 0, orderCount: 0, lastOrderAt: null };
       cur.volumeQty += gallonQty(o);
       cur.orderCount += 1;
-      const orderDate = new Date(o.createdAt);
-      if (!cur.lastOrderAt || orderDate > cur.lastOrderAt) cur.lastOrderAt = orderDate;
+      if (!cur.lastOrderAt || o.createdAt > cur.lastOrderAt) cur.lastOrderAt = o.createdAt;
       agg.set(o.customerId, cur);
     }
 
