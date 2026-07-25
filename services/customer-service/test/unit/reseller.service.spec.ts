@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { ResellerService } from '../../src/application/services/reseller.service';
+import { ProfileRepository } from '../../src/application/ports/profile.repository';
 import { Reseller, ResellerRepository } from '../../src/application/ports/reseller.repository';
 import {
   CustomerNotFoundError,
@@ -35,7 +36,7 @@ function makeRepo(): jest.Mocked<ResellerRepository> {
 
 // Minimal ProfileRepository stub: only `exists` is used by the service.
 function makeProfiles(exists: boolean) {
-  return { exists: jest.fn().mockResolvedValue(exists) } as any;
+  return { exists: jest.fn().mockResolvedValue(exists) } as unknown as ProfileRepository;
 }
 
 const manager = (depotId = 'd1'): AuthenticatedUser => ({
