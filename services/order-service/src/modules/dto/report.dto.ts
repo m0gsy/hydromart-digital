@@ -1,4 +1,4 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsISO8601, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
 
@@ -140,6 +140,13 @@ export class DepotMonthlyQueryDto {
   @ApiPropertyOptional({ description: 'Reported month, YYYY-MM.' })
   @Matches(/^\d{4}-\d{2}$/, { message: 'month must be YYYY-MM' })
   month!: string;
+}
+
+export class ResellerRollupQueryDto {
+  @ApiProperty() @IsUUID() depotId!: string;
+  @ApiProperty({ example: '2026-07' }) @Matches(/^\d{4}-(0[1-9]|1[0-2])$/) month!: string;
+  /** Comma-separated reseller customerIds. */
+  @ApiProperty({ example: 'uuid1,uuid2' }) @IsString() customerIds!: string;
 }
 
 export class TopReportQueryDto {
