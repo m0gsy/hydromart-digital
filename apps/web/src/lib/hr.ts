@@ -220,6 +220,20 @@ export function currentPeriod(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+/** Completed full years of service since joinDate (mirrors hr-service tenure math). "—" if invalid. */
+export function tenureLabel(joinDate: string | null | undefined, asOf: Date = new Date()): string {
+  if (!joinDate) return '—';
+  const join = new Date(joinDate);
+  if (Number.isNaN(join.getTime())) return '—';
+  let years = asOf.getUTCFullYear() - join.getUTCFullYear();
+  const before =
+    asOf.getUTCMonth() < join.getUTCMonth() ||
+    (asOf.getUTCMonth() === join.getUTCMonth() && asOf.getUTCDate() < join.getUTCDate());
+  if (before) years--;
+  years = Math.max(0, years);
+  return `${years} tahun`;
+}
+
 // --- employee form ---
 export interface EmployeeForm {
   fullName: string;

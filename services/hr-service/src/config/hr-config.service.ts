@@ -75,6 +75,10 @@ export class HrConfigService {
   weeklyOffDays(depotId: string | null = null): string {
     return this.tunableStr('weeklyOffDays', this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''), depotId);
   }
+  /** Depot-head tenure raise ladder as CSV ("1:5,2:10"); '' = no automatic raise (Rule-E). */
+  tenureRaiseLadder(depotId: string | null = null): string {
+    return this.tunableStr('tenureRaiseLadder', this.config.get<string>('HR_TENURE_RAISE_LADDER', ''), depotId);
+  }
 
   // --- Face recognition (read straight from ENV; not per-depot user-facing) ---
   get faceVerifierDriver(): string {

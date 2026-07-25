@@ -17,6 +17,9 @@ export const envValidationSchema = Joi.object({
   HR_DAILY_RATE_TRAINING_IDR: Joi.number().integer().min(0).default(30000),
   HR_ABSENCE_DEDUCTION_IDR: Joi.number().integer().min(0).default(0),
   HR_STANDARD_WORKING_MINUTES: Joi.number().integer().min(0).default(480),
+  // Tenure raise ladder for depot heads (Rule-E): "years:pct" CSV, e.g. "1:5,2:10,3:15".
+  // Empty = no automatic raise.
+  HR_TENURE_RAISE_LADDER: Joi.string().allow('').default(''),
   // Face recognition. neo = BiznetGio NEO cloud gallery (prod); onnx = in-process ArcFace;
   // stub = dev/test deterministic.
   FACE_VERIFIER_DRIVER: Joi.string().valid('neo', 'onnx', 'http', 'stub').default('onnx'),

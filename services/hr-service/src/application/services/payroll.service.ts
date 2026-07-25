@@ -11,6 +11,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
+import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../domain/tenure';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
@@ -69,6 +70,20 @@ export class PayrollService {
       label: employee.salaryType === 'DAILY' ? `Gaji pokok (${presentDays} hari)` : 'Gaji pokok',
       amount: base,
     });
+
+    // Tenure raise for depot heads (Rule-E): % uplift on base pay by completed years.
+    if (employee.employmentStatus === 'DEPOT_MANAGER' && base > 0) {
+      const ladder = parseRaiseLadder(this.config.tenureRaiseLadder(employee.depotId));
+      const years = tenureYears(employee.joinDate, to);
+      const pct = tenureRaisePercent(ladder, years);
+      if (pct > 0) {
+        items.push({
+          kind: 'BASE',
+          label: `Kenaikan masa kerja (${years} th, +${pct}%)`,
+          amount: Math.round((base * pct) / 100),
+        });
+      }
+    }
 
     // BONUS lines
     const bonusRows = await this.bonuses.listByEmployeePeriod(employeeId, periodMonth);
