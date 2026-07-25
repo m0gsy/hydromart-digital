@@ -13,6 +13,7 @@ import {
   OrderNotReviewableError,
   OutOfServiceAreaError,
   ProductUnavailableError,
+  ResellerVoucherNotAllowedError,
 } from '../../domain/errors';
 import {
   OrderStatus,
@@ -21,7 +22,7 @@ import {
   notificationEventFor,
 } from '../../domain/order-status';
 import { selectNearestDepot } from '../../domain/geo';
-import { applyAdjustment, galonQuantity } from '../../domain/pricing';
+import { applyAdjustment, galonQuantity, percentDiscount } from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
@@ -43,6 +44,7 @@ import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
+import { ResellerDiscountPort } from '../ports/reseller-discount.port';
 import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { InventoryPort } from '../ports/inventory.port';
@@ -92,6 +94,7 @@ export class OrderService {
     @Inject(ORDER_TOKENS.ReferralCoordination)
     private readonly referral: ReferralCoordinationPort,
     @Inject(ORDER_TOKENS.Membership) private readonly membership: MembershipPort,
+    @Inject(ORDER_TOKENS.ResellerDiscount) private readonly resellerDiscount: ResellerDiscountPort,
     @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
@@ -167,27 +170,40 @@ export class OrderService {
     const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
 
-    // FR-032: the customer's membership tier gives an always-on discount on the
-    // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
-    const membershipRate = await this.membership.getDiscountRate(authorization);
-    const membershipDiscount = money(subtotal * membershipRate);
+    // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
+    // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
+    const reseller = await this.resellerDiscount.get(authorization ?? '');
+    const isReseller = reseller?.active === true && reseller.discountPct > 0;
 
-    // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
-    // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
-    // rather than silently dropping it.
-    const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
-    let voucherDiscount = 0;
-    if (voucherCode) {
-      // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
-      const quote = await this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization);
-      voucherDiscount = quote.discount;
+    // voucherCode is null for resellers so the later redeem block is skipped too.
+    const voucherCode = isReseller ? null : input.voucherCode?.trim().toUpperCase() || null;
+
+    let discount: number;
+    if (isReseller) {
+      if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
+      discount = money(Math.min(subtotal, percentDiscount(subtotal, reseller!.discountPct)));
+    } else {
+      // FR-032: the customer's membership tier gives an always-on discount on the
+      // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
+      const membershipRate = await this.membership.getDiscountRate(authorization);
+      const membershipDiscount = money(subtotal * membershipRate);
+
+      // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
+      // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
+      // rather than silently dropping it.
+      let voucherDiscount = 0;
+      if (voucherCode) {
+        // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
+        const quote = await this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization);
+        voucherDiscount = quote.discount;
+      }
+
+      // Membership and voucher discounts stack (BR-015 forbids stacking multiple
+      // vouchers, not a voucher with a tier benefit). The combined discount can never
+      // exceed the whole bill — a FREE_SHIPPING voucher discounts against the delivery
+      // fee, so the ceiling is subtotal + deliveryFee, not subtotal alone.
+      discount = money(Math.min(subtotal + deliveryFee, membershipDiscount + voucherDiscount));
     }
-
-    // Membership and voucher discounts stack (BR-015 forbids stacking multiple
-    // vouchers, not a voucher with a tier benefit). The combined discount can never
-    // exceed the whole bill — a FREE_SHIPPING voucher discounts against the delivery
-    // fee, so the ceiling is subtotal + deliveryFee, not subtotal alone.
-    const discount = money(Math.min(subtotal + deliveryFee, membershipDiscount + voucherDiscount));
     const total = money(subtotal + deliveryFee - discount);
 
     // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves

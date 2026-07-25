@@ -50,6 +50,10 @@ import { ReferralCoordinationPort } from '../../src/application/ports/referral-c
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
 import { ForecastCoordinationPort } from '../../src/application/ports/forecast-coordination.port';
 import { MembershipPort } from '../../src/application/ports/membership.port';
+import {
+  ResellerDiscount,
+  ResellerDiscountPort,
+} from '../../src/application/ports/reseller-discount.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
@@ -690,6 +694,13 @@ export class FakeMembership implements MembershipPort {
   rate = 0;
   async getDiscountRate(_authorization: string): Promise<number> {
     return this.rate;
+  }
+}
+
+export class FakeResellerDiscount implements ResellerDiscountPort {
+  result: ResellerDiscount | null = null;
+  async get(_authorization: string): Promise<ResellerDiscount | null> {
+    return this.result;
   }
 }
 
