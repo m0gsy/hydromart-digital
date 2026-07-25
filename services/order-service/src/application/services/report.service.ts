@@ -140,6 +140,22 @@ export interface DepotWeeklyReport {
   topCourier?: { name: string; delivered: number; rating?: number };
 }
 
+/** One reseller's monthly rollup (design: reseller achievement). All figures are gallons. */
+export interface ResellerRollupRow {
+  customerId: string;
+  volumeQty: number;
+  prevVolumeQty: number;
+  orderCount: number;
+  lastOrderAt: string | null;
+}
+
+export interface ResellerRollupReport {
+  depotId: string;
+  /** Reported month, 'YYYY-MM'. */
+  month: string;
+  rows: ResellerRollupRow[];
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A line item counts as a gallon (galon) when its unit or product name says so. */
 function isGallon(unit: string, productName: string): boolean {
@@ -430,6 +446,61 @@ export class ReportService {
       slaPct: null,
       ...(top ? { topCourier: { name: top[0], delivered: top[1] } } : {}),
     };
+  }
+
+  /**
+   * Per-reseller monthly achievement (design: reseller evaluation). For the requested
+   * customerIds within one depot: delivered gallon volume this month + previous month
+   * (drives growth), delivered order count, and the last delivered order time. Read-time
+   * only — no stored actuals. Empty customerIds short-circuits to no rows.
+   */
+  async resellerRollup(
+    depotId: string,
+    month: string,
+    customerIds: string[],
+  ): Promise<ResellerRollupReport> {
+    if (customerIds.length === 0) return { depotId, month, rows: [] };
+    const wanted = new Set(customerIds);
+
+    const from = new Date(`${month}-01T00:00:00.000Z`);
+    const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
+    const prevFrom = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - 1, 1));
+
+    const [thisRows, prevRows] = await Promise.all([
+      this.orders.ordersForDepot(depotId, { from, to }),
+      this.orders.ordersForDepot(depotId, { from: prevFrom, to: from }),
+    ]);
+
+    const delivered = (rows: typeof thisRows) =>
+      rows.filter((o) => wanted.has(o.customerId) && isDelivered(o.status));
+
+    const prevVol = new Map<string, number>();
+    for (const o of delivered(prevRows)) {
+      prevVol.set(o.customerId, (prevVol.get(o.customerId) ?? 0) + gallonQty(o));
+    }
+
+    const agg = new Map<string, { volumeQty: number; orderCount: number; lastOrderAt: Date | null }>();
+    for (const o of delivered(thisRows)) {
+      const cur = agg.get(o.customerId) ?? { volumeQty: 0, orderCount: 0, lastOrderAt: null };
+      cur.volumeQty += gallonQty(o);
+      cur.orderCount += 1;
+      const orderDate = new Date(o.createdAt);
+      if (!cur.lastOrderAt || orderDate > cur.lastOrderAt) cur.lastOrderAt = orderDate;
+      agg.set(o.customerId, cur);
+    }
+
+    const rows: ResellerRollupRow[] = customerIds.map((customerId) => {
+      const a = agg.get(customerId);
+      return {
+        customerId,
+        volumeQty: a?.volumeQty ?? 0,
+        prevVolumeQty: prevVol.get(customerId) ?? 0,
+        orderCount: a?.orderCount ?? 0,
+        lastOrderAt: a?.lastOrderAt ? a.lastOrderAt.toISOString() : null,
+      };
+    });
+
+    return { depotId, month, rows };
   }
 
   private static clampLimit(limit: number): number {
