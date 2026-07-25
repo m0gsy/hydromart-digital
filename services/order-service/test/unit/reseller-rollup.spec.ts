@@ -1,7 +1,16 @@
+import { OrderRecord, OrderRepository } from '../../src/application/ports/order.repository';
 import { ReportService } from '../../src/application/services/report.service';
 import { OrderStatus } from '../../src/domain/order-status';
 
-function order(over: any) {
+interface OrderOverrides {
+  customerId: string;
+  createdAt: string;
+  qty?: number;
+  id?: string;
+  status?: OrderStatus;
+}
+
+function order(over: OrderOverrides): OrderRecord {
   return {
     id: over.id ?? 'o',
     customerId: over.customerId,
@@ -9,14 +18,13 @@ function order(over: any) {
     total: 0,
     driverName: null,
     items: [{ productName: 'Galon 19L', unit: 'galon', quantity: over.qty ?? 0 }],
-    ...over,
     createdAt: new Date(over.createdAt),
-  };
+  } as unknown as OrderRecord;
 }
 
 describe('ReportService.resellerRollup', () => {
   it('sums gallons this month and previous month per reseller, with order count + last order', async () => {
-    const repo: any = {
+    const repo = {
       ordersForDepot: jest.fn(async (_depotId: string, range: { from: Date; to: Date }) => {
         const isJuly = range.from.getUTCMonth() === 6; // 0-based: July = 6
         if (isJuly) {
@@ -31,7 +39,7 @@ describe('ReportService.resellerRollup', () => {
         return [order({ customerId: 'r1', qty: 4, createdAt: '2026-06-10T00:00:00Z' })];
       }),
     };
-    const svc = new ReportService(repo);
+    const svc = new ReportService(repo as unknown as OrderRepository);
 
     const out = await svc.resellerRollup('d1', '2026-07', ['r1']);
 
@@ -45,8 +53,8 @@ describe('ReportService.resellerRollup', () => {
   });
 
   it('returns no rows when customerIds is empty', async () => {
-    const repo: any = { ordersForDepot: jest.fn() };
-    const svc = new ReportService(repo);
+    const repo = { ordersForDepot: jest.fn() };
+    const svc = new ReportService(repo as unknown as OrderRepository);
     const out = await svc.resellerRollup('d1', '2026-07', []);
     expect(out.rows).toEqual([]);
     expect(repo.ordersForDepot).not.toHaveBeenCalled();
