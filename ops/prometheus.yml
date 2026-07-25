@@ -6,6 +6,15 @@ global:
   scrape_interval: 15s
   scrape_timeout: 10s
 
+# Infra-level alerts (service down / crash-loop / 5xx / latency / event-loop lag).
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   - job_name: hydromart
     metrics_path: /metrics

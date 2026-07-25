@@ -23,6 +23,12 @@ export interface PaymentMethodRepository {
   listByCustomer(customerId: string): Promise<PaymentMethodRecord[]>;
   findByIdForCustomer(customerId: string, id: string): Promise<PaymentMethodRecord | null>;
   create(data: CreatePaymentMethodData): Promise<PaymentMethodRecord>;
+  /**
+   * Insert a new DEFAULT method, unsetting any existing default in the SAME
+   * transaction — audit DB-2 (create path). Rejects with
+   * DefaultPaymentMethodConflictError (409) on the partial-unique-index race.
+   */
+  createExclusiveDefault(data: CreatePaymentMethodData): Promise<PaymentMethodRecord>;
   update(customerId: string, id: string, patch: UpdatePaymentMethodData): Promise<PaymentMethodRecord>;
   /** Clear the default flag on all of a customer's methods. */
   unsetDefault(customerId: string): Promise<void>;

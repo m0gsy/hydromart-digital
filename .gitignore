@@ -50,5 +50,8 @@ temp/
 var/
 **/var/uploads/
 
+# Alertmanager webhook secret (operator-created — see ops/alertmanager.yml)
+ops/alertmanager.webhook-url
+
 # Claude Code personal settings
 .claude/settings.local.json

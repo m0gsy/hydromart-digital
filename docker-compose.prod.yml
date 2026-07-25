@@ -488,9 +488,24 @@ services:
     restart: unless-stopped
     volumes:
       - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+
+  # Routes Prometheus alerts (ops/alert-rules.yml) to ALERT_WEBHOOK_URL. Loopback
+  # only. The webhook URL is read from ops/alertmanager.webhook-url (operator
+  # creates it, gitignored — see ops/alertmanager.yml header). No file → the
+  # container fails to start, which is the honest signal that alerting is unset.
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./ops/alertmanager.webhook-url:/etc/alertmanager/webhook-url:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
 
   # Grafana dashboards over Prometheus. Loopback only (SSH tunnel to view).
   # Set GRAFANA_ADMIN_PASSWORD in .env; defaults to admin on first boot otherwise.
@@ -538,4 +553,5 @@ volumes:
   caddy_data:
   caddy_config:
   prometheus_data:
+  alertmanager_data:
   grafana_data:

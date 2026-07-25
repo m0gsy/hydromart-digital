@@ -5,6 +5,7 @@ import { AddressLimitError, AddressNotFoundError } from '../../domain/errors';
 import {
   AddressRecord,
   AddressRepository,
+  CreateAddressData,
   UpdateAddressData,
 } from '../ports/address.repository';
 import { CUSTOMER_TOKENS } from '../tokens';
@@ -56,11 +57,7 @@ export class AddressService {
     }
 
     const makePrimary = input.isPrimary === true || count === 0;
-    if (makePrimary) {
-      await this.addresses.unsetPrimary(customerId);
-    }
-
-    return this.addresses.create({
+    const data: CreateAddressData = {
       customerId,
       label: input.label,
       recipientName: input.recipientName,
@@ -73,7 +70,14 @@ export class AddressService {
       longitude: input.longitude ?? null,
       notes: input.notes ?? null,
       isPrimary: makePrimary,
-    });
+    };
+
+    // Audit DB-2 (create path): a new primary must unset the old one and insert
+    // atomically, or two concurrent "add as primary" both win. A non-primary insert
+    // can't violate the partial unique index, so it stays a plain create.
+    return makePrimary
+      ? this.addresses.createExclusivePrimary(data)
+      : this.addresses.create(data);
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {

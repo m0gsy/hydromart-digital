@@ -17,11 +17,33 @@ export class AddressLimitError extends DomainError {
   }
 }
 
+/**
+ * Audit DB-2 (create path): two concurrent "add as primary" both cleared the old
+ * primary then inserted, colliding on the partial unique index
+ * `addresses_one_primary_per_customer`. The loser's P2002 maps here → 409.
+ */
+export class PrimaryAddressConflictError extends DomainError {
+  readonly code = 'CUSTOMER_PRIMARY_ADDRESS_CONFLICT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Another primary address was set at the same time. Please retry.');
+  }
+}
+
 export class PaymentMethodNotFoundError extends DomainError {
   readonly code = 'CUSTOMER_PAYMENT_METHOD_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;
   constructor() {
     super('Payment method not found.');
+  }
+}
+
+/** Default-payment-method counterpart of PrimaryAddressConflictError (409). */
+export class DefaultPaymentMethodConflictError extends DomainError {
+  readonly code = 'CUSTOMER_DEFAULT_PAYMENT_METHOD_CONFLICT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Another default payment method was set at the same time. Please retry.');
   }
 }
 

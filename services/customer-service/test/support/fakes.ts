@@ -135,6 +135,10 @@ export class InMemoryAddressRepository implements AddressRepository {
     this.rows.push(rec);
     return { ...rec };
   }
+  async createExclusivePrimary(data: CreateAddressData): Promise<AddressRecord> {
+    await this.unsetPrimary(data.customerId);
+    return this.create(data);
+  }
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
     const rec = this.rows.find((r) => r.id === id && r.customerId === customerId)!;
     Object.assign(rec, patch, { updatedAt: nextDate() });
@@ -177,6 +181,10 @@ export class InMemoryPaymentMethodRepository implements PaymentMethodRepository 
     const rec: PaymentMethodRecord = { ...data, id: randomUUID(), createdAt: now, updatedAt: now };
     this.rows.push(rec);
     return { ...rec };
+  }
+  async createExclusiveDefault(data: CreatePaymentMethodData): Promise<PaymentMethodRecord> {
+    await this.unsetDefault(data.customerId);
+    return this.create(data);
   }
   async update(
     customerId: string,

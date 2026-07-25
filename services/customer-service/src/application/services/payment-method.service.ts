@@ -45,9 +45,6 @@ export class PaymentMethodService {
   async create(customerId: string, input: CreatePaymentMethodInput): Promise<PaymentMethodRecord> {
     const count = (await this.methods.listByCustomer(customerId)).length;
     const makeDefault = input.isDefault === true || count === 0;
-    if (makeDefault) {
-      await this.methods.unsetDefault(customerId);
-    }
     const data: CreatePaymentMethodData = {
       customerId,
       type: input.type,
@@ -55,7 +52,11 @@ export class PaymentMethodService {
       maskedIdentifier: input.maskedIdentifier ?? null,
       isDefault: makeDefault,
     };
-    return this.methods.create(data);
+    // Audit DB-2 (create path): a new default must unset the old one and insert
+    // atomically. A non-default insert can't violate the partial unique index.
+    return makeDefault
+      ? this.methods.createExclusiveDefault(data)
+      : this.methods.create(data);
   }
 
   async update(

@@ -74,6 +74,22 @@ published on `127.0.0.1:5432`. Each Prisma schema reads its own
 `.github/workflows/ci.yml`'s integration job), so every URL must point at
 `localhost:5432` with your **prod** `POSTGRES_PASSWORD`.
 
+**Verify schema state first.** Some of these migrations add *unique* indexes
+(one active payment per order, one primary address per customer, …). If the live
+data already violates one, `db:migrate:prod` aborts partway through while building
+that index. Check before you migrate:
+
+```bash
+bash scripts/verify-indexes.sh   # read-only; needs the stack (§3) up
+```
+
+[`scripts/verify-indexes.sh`](scripts/verify-indexes.sh) reports, per index,
+whether it is already present and whether current data would violate it. **PASS**
+= safe to migrate. A **DIRTY** result means resolve the duplicate rows first, or
+the migration will fail. (On a first deploy every index shows MISSING — that's
+expected; the migrate step below creates them. Re-run the check after migrating to
+confirm PASS.)
+
 ```bash
 # from the repo root, with .env already filled in:
 npm ci                    # installs workspaces + generates Prisma clients (postinstall)
@@ -188,3 +204,93 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 
 > Tip: alias the long invocation once —
 > `alias dcp='docker compose -f docker-compose.yml -f docker-compose.prod.yml'`.
+
+### Backups + restore drill (host cron)
+
+[`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster
+nightly; [`scripts/restore-db.sh --drill`](scripts/restore-db.sh) proves a dump
+actually restores (a backup you have never restored is not a backup). Both run
+from **host cron**, not the `scheduler` container:
+
+```cron
+# /etc/crontab (or `crontab -e`) on the VPS — paths assume /opt/hydromart
+0 3 * * *  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/backup-db.sh      >> /var/log/hydromart-backup.log 2>&1
+0 4 * * 1  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
+```
+
+**Why host cron and not the `scheduler` container:** the drill spins an *ephemeral
+scratch Postgres* (`docker run` + `docker exec`) to restore into. The scheduler
+container is busybox `crond` with no Docker CLI and no Docker socket — giving it
+one would mean mounting the host socket into a long-running container (a privilege
+escalation) just for a weekly job. The host already owns the Docker daemon and
+already runs the nightly backup, so the drill belongs next to it.
+
+**Set `ALERT_WEBHOOK_URL`** in the cron env (same incoming webhook the services
+use). A failed drill then POSTs a `🚨 ... restore drill FAILED` message to it —
+without it a broken/empty dump fails silently into the log and you find out only
+when you need the backup for real.
+
+- **Run one manually:** `bash scripts/restore-db.sh --drill`
+- **Passing drill** ends with `drill OK: <dump> restores cleanly (<N> db)` and
+  exit 0 — non-destructive, the scratch container is always torn down.
+- **Failed drill:** read `/var/log/hydromart-restore-drill.log` for the reason
+  (no dump found / corrupt gzip / restore produced no databases). Until a drill
+  passes, treat the backups as unusable: check that `backup-db.sh` is actually
+  running and producing non-tiny `.sql.gz` files in `BACKUP_DIR`, and re-run the
+  drill against a known-good dump to confirm the restore path itself works.
+
+### Checkout load test (k6 — DB-7 hot path)
+
+[`scripts/load/checkout.k6.js`](scripts/load/checkout.k6.js) load-tests the
+checkout hot path. DB-7 (sequential per-product catalog fetch at checkout) is now
+a parallel fan-out (`order.service.ts` `pricedAll`); this proves p95 stays flat as
+`CART_LINES` grows instead of degrading linearly. Run it against **staging**, not
+prod — it places real orders.
+
+```bash
+# Install k6 (once): https://k6.io/docs/get-started/installation
+# Mint one bearer token per test customer the smoke.sh way, then:
+TOKENS="<t1>,<t2>,...,<tN>" VUS=10 CART_LINES=3 \
+  k6 run scripts/load/checkout.k6.js
+```
+
+- **One token per VU.** Checkout drains a customer's server-side cart, so VUs
+  sharing a token contend on one cart and skew latency. Supply `VUS` tokens
+  (comma-separated in `TOKENS`); the run warns if you give fewer.
+- **DB-7 check:** bump `CART_LINES` (3 → 8 → 15) across runs. `checkout_latency`
+  p95 should stay roughly flat. Linear growth means the fan-out regressed to
+  sequential — inspect `pricedAll`.
+- **Thresholds** (override via env): `checkout_latency` p95 < `CHECKOUT_P95_MS`
+  (1500), `checkout_success` rate > 0.99, `http_req_failed` < 0.01. k6 exits
+  non-zero if any breaches, so it gates in CI/pipeline use.
+- Needs a seeded catalog (`scripts/seed.mjs`) — setup() reads the live product
+  list and fails fast if there are fewer than `CART_LINES` products.
+
+### Alerting (Prometheus + Alertmanager)
+
+Each service already pings `ALERT_WEBHOOK_URL` on its own 5xx (error-alerter). The
+`alertmanager` service adds the **infra-level** alerts a broken process can't send
+about itself — down, crash-looping, high 5xx rate, high p95 latency, event-loop
+lag — from Prometheus rules in [`ops/alert-rules.yml`](ops/alert-rules.yml).
+
+One-time setup (the webhook URL is a secret, so it lives in a gitignored file, not
+in `alertmanager.yml`):
+
+```bash
+# same URL the rest of ops uses; for Discord append /slack to the webhook
+printf '%s' "$ALERT_WEBHOOK_URL" > ops/alertmanager.webhook-url
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d alertmanager
+```
+
+- No `ops/alertmanager.webhook-url` file → the container won't start. That's
+  intentional: a missing webhook means alerting is unconfigured, and a silent
+  no-op alerter is worse than a loud failure at boot.
+- **Alerts:** `ServiceDown`/`ServiceCrashLooping` (critical), `HighErrorRate`
+  (critical, >5% 5xx / 5m), `HighLatencyP95` (warning, >1.5s p95 / 10m),
+  `EventLoopLagHigh` (warning, >200ms / 5m). A firing critical inhibits same-service
+  warnings so an incident pages once, not three times.
+- **View state:** Prometheus `Alerts` tab at `127.0.0.1:9090` (SSH-tunnel), or
+  Alertmanager UI at `127.0.0.1:9093`. Both are loopback-only.
+- **Validate after editing rules/config:**
+  `docker run --rm --entrypoint promtool -v "$PWD/ops:/ops:ro" prom/prometheus:v2.54.1 check rules /ops/alert-rules.yml`
+  and `... --entrypoint amtool ... prom/alertmanager:v0.27.0 check-config /ops/alertmanager.yml`.
