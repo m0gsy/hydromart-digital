@@ -61,6 +61,7 @@ import {
   Sun,
   Moon,
   Command,
+  Handshake,
   type Icon,
 } from '@phosphor-icons/react';
 
@@ -153,6 +154,9 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/campaigns', labelKey: 'campaigns', icon: Megaphone, ready: true },
       { href: '/hq/promotions', labelKey: 'promotions', icon: ImageIcon, ready: true },
       { href: '/hq/customers', labelKey: 'customers', icon: UserCircle, ready: true },
+      // ponytail: depot managers reach /resellers by direct URL for now — no manager-rail
+      // entry yet (out of scope for this pass).
+      { href: '/resellers', labelKey: 'resellers', icon: Handshake, ready: true },
     ],
   },
   {

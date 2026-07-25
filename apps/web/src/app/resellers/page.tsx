@@ -103,6 +103,138 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
   );
 }
 
+// One reseller row: shows target/volume/attainment, plus edit (target+note) and
+// activate/deactivate row actions. Mirrors the inline-edit idiom from
+// apps/web/src/app/addresses/page.tsx (openEdit/save/cancel local state) but keeps the
+// form inline in the row rather than a Sheet — the edited fields are just two inputs.
+function ResellerRow({
+  reseller: r,
+  roll,
+  onChanged,
+}: {
+  reseller: Reseller;
+  roll: ResellerRollupRow | undefined;
+  onChanged: () => void;
+}) {
+  const { toast: notify } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [target, setTarget] = useState(String(r.monthlyTargetQty));
+  const [note, setNote] = useState(r.note ?? '');
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+
+  const m = evaluateReseller({
+    volumeQty: roll?.volumeQty ?? 0,
+    prevVolumeQty: roll?.prevVolumeQty ?? 0,
+    monthlyTargetQty: r.monthlyTargetQty,
+    lastOrderAt: roll?.lastOrderAt ?? null,
+  });
+
+  function openEdit() {
+    setTarget(String(r.monthlyTargetQty));
+    setNote(r.note ?? '');
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!(Number(target) >= 0)) {
+      notify('Target bulanan harus berupa angka 0 atau lebih.', 'error');
+      return;
+    }
+    setSaving(true);
+    try {
+      await api.patch(
+        endpoints.resellers.detail(r.customerId),
+        { monthlyTargetQty: Number(target), note: note.trim() || null },
+        true,
+      );
+      notify('Reseller diperbarui');
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : 'Gagal memperbarui reseller.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleActive() {
+    setToggling(true);
+    try {
+      await api.patch(endpoints.resellers.detail(r.customerId), { active: !r.active }, true);
+      notify(r.active ? 'Reseller dinonaktifkan' : 'Reseller diaktifkan kembali');
+      onChanged();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : 'Gagal mengubah status reseller.', 'error');
+    } finally {
+      setToggling(false);
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="p-4 text-sm">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Field label="Target bulanan (galon)">
+            <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} />
+          </Field>
+          <Field label="Catatan (opsional)">
+            <Input value={note} onChange={(e) => setNote(e.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-3 flex gap-2">
+          <Button type="button" loading={saving} onClick={saveEdit}>
+            Simpan
+          </Button>
+          <Button type="button" variant="secondary" disabled={saving} onClick={() => setEditing(false)}>
+            Batal
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`flex items-center justify-between gap-4 p-4 text-sm ${r.active ? '' : 'opacity-60'}`}>
+      <div>
+        <div className="font-semibold">{r.customerId}</div>
+        <div className="text-muted">
+          {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
+          {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
+          {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {!r.active && <Badge tone="neutral">Nonaktif</Badge>}
+        {r.active && m.pasif && <Badge tone="danger">Pasif</Badge>}
+        <Badge
+          tone={
+            m.status === 'lampaui' || m.status === 'tercapai'
+              ? 'success'
+              : m.status === 'no-target'
+                ? 'neutral'
+                : 'danger'
+          }
+        >
+          {RESELLER_STATUS_LABEL[m.status]}
+        </Badge>
+        <Button type="button" variant="secondary" onClick={openEdit} className="px-3 py-1.5 text-xs">
+          Ubah
+        </Button>
+        <Button
+          type="button"
+          variant={r.active ? 'danger' : 'secondary'}
+          loading={toggling}
+          onClick={toggleActive}
+          className="px-3 py-1.5 text-xs"
+        >
+          {r.active ? 'Nonaktifkan' : 'Aktifkan'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // Reseller (agen) achievement console — joins the reseller registry (target) with the
 // order-service rollup (actual volume/growth) for one depot + month. HQ picks the depot
 // via a select; a depot manager is pinned to their own (customer.assignedDepotId).
@@ -142,6 +274,8 @@ export default function ResellersPage() {
     );
   }
 
+  // MVP shows customerId as the row label — a name lookup is deferred (no id→name
+  // endpoint exists yet; customerLookup is phone→customer, not id→name).
   const byId = new Map((rollup.data?.rows ?? []).map((r) => [r.customerId, r]));
 
   return (
@@ -184,42 +318,9 @@ export default function ResellersPage() {
       )}
       {registry.data && registry.data.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)] p-0">
-          {registry.data.map((r) => {
-            const roll = byId.get(r.customerId);
-            const m = evaluateReseller({
-              volumeQty: roll?.volumeQty ?? 0,
-              prevVolumeQty: roll?.prevVolumeQty ?? 0,
-              monthlyTargetQty: r.monthlyTargetQty,
-              lastOrderAt: roll?.lastOrderAt ?? null,
-            });
-            return (
-              <div key={r.customerId} className="flex items-center justify-between gap-4 p-4 text-sm">
-                <div>
-                  {/* MVP shows customerId as the row label — a name lookup is deferred. */}
-                  <div className="font-semibold">{r.customerId}</div>
-                  <div className="text-muted">
-                    {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
-                    {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
-                    {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {m.pasif && <Badge tone="danger">Pasif</Badge>}
-                  <Badge
-                    tone={
-                      m.status === 'lampaui' || m.status === 'tercapai'
-                        ? 'success'
-                        : m.status === 'no-target'
-                          ? 'neutral'
-                          : 'danger'
-                    }
-                  >
-                    {RESELLER_STATUS_LABEL[m.status]}
-                  </Badge>
-                </div>
-              </div>
-            );
-          })}
+          {registry.data.map((r) => (
+            <ResellerRow key={r.customerId} reseller={r} roll={byId.get(r.customerId)} onChanged={registry.reload} />
+          ))}
         </Card>
       )}
     </div>
