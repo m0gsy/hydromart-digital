@@ -20,7 +20,7 @@ import {
 import Link from 'next/link';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
@@ -96,6 +96,12 @@ function CheckoutInner() {
   // Voucher wallet — powers the min-spend progress bar (gap 13n) and the "usable now"
   // suggestions. Fail-soft: absence just hides those hints, never blocks checkout.
   const { data: myVouchers } = useAsync<MyVoucher[]>(() => api.get(endpoints.vouchers.me, true));
+  // Reseller ("agen") pricing status. Fail-soft: 404 (not a reseller) or any error just
+  // leaves data null — useAsync already swallows the rejection into its ignored `error`.
+  const { data: reseller } = useAsync<{ active: boolean; discountPct: number }>(() =>
+    api.get(endpoints.resellers.me, true),
+  );
+  const isReseller = !!reseller?.active && reseller.discountPct > 0;
 
   const [voucherCode, setVoucherCode] = useState('');
   const [quote, setQuote] = useState<VoucherQuote | null>(null);
@@ -610,7 +616,15 @@ function CheckoutInner() {
             {express && <p className="text-xs text-muted">{t('customerFix.slot.feeNote')}</p>}
           </Card>
 
-          {/* Voucher */}
+          {/* Voucher — hidden for active resellers (flat reseller price, no stacking) */}
+          {isReseller ? (
+            <Card className="flex flex-col gap-2 rounded-[22px] p-[22px]">
+              <Badge tone="success">Harga reseller −{reseller!.discountPct}%</Badge>
+              <p className="text-sm text-muted">
+                Diskon reseller berlaku otomatis. Voucher tidak bisa dipakai bersama harga reseller.
+              </p>
+            </Card>
+          ) : (
           <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
             <h2 className="text-base font-extrabold">{t('order.checkout.voucher')}</h2>
             <div className="flex items-center gap-2.5">
@@ -702,6 +716,7 @@ function CheckoutInner() {
               </div>
             )}
           </Card>
+          )}
         </div>
 
         {/* RIGHT summary */}
