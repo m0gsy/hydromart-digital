@@ -47,6 +47,7 @@ export const hq = {
     campaigns: 'Campaigns',
     promotions: 'Promotions & banners',
     customers: 'Customer 360',
+    resellers: 'Resellers',
     catalog: 'Product catalog',
     loyalty: 'Loyalty program',
     subscriptions: 'Gallon subscriptions',

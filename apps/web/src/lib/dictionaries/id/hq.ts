@@ -49,6 +49,7 @@ export const hq = {
     campaigns: 'Kampanye',
     promotions: 'Promosi & banner',
     customers: 'Customer 360',
+    resellers: 'Reseller',
     catalog: 'Katalog produk',
     loyalty: 'Program loyalti',
     subscriptions: 'Langganan galon',
