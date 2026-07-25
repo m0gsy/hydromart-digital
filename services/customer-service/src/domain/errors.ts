@@ -54,3 +54,27 @@ export class ProfileNotFoundError extends DomainError {
     super('Customer profile not found.');
   }
 }
+
+export class ResellerNotFoundError extends DomainError {
+  readonly code = 'CUSTOMER_RESELLER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Reseller tidak ditemukan');
+  }
+}
+
+export class ResellerExistsError extends DomainError {
+  readonly code = 'CUSTOMER_RESELLER_EXISTS';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Customer ini sudah terdaftar sebagai reseller');
+  }
+}
+
+export class CustomerNotFoundError extends DomainError {
+  readonly code = 'CUSTOMER_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Customer tidak ditemukan');
+  }
+}

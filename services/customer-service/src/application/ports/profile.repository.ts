@@ -26,6 +26,8 @@ export interface SegmentFilter {
 
 export interface ProfileRepository {
   findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null>;
+  /** Whether a customer profile exists for this id (reseller registration precondition). */
+  exists(customerId: string): Promise<boolean>;
   /** Create a default (BASIC, 0 points) profile. */
   create(customerId: string): Promise<CustomerProfileRecord>;
   updateFavoriteDepot(customerId: string, favoriteDepotId: string | null): Promise<CustomerProfileRecord>;
