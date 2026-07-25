@@ -90,6 +90,7 @@ export default function ResellersPage() {
 
       {registry.loading && depotId && <Skeleton className="h-64" />}
       {registry.error && <ErrorState message={registry.error} onRetry={registry.reload} />}
+      {rollup.error && <ErrorState message={rollup.error} onRetry={rollup.reload} />}
       {!depotId && !registry.loading && (
         <p className="text-sm text-muted">
           {hq ? 'Pilih depot untuk melihat reseller.' : 'Depot belum ditentukan.'}
