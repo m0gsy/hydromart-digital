@@ -84,6 +84,18 @@ export const endpoints = {
     add: '/customers/api/v1/favorites',
     remove: (productId: string) => `/customers/api/v1/favorites/${productId}`,
   },
+  // Reseller ("agen") registry (customer-service). Staff-only (HQ + depot-manager).
+  resellers: {
+    list: (q: { depotId?: string; active?: boolean } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.active != null) p.set('active', String(q.active));
+      const qs = p.toString();
+      return `/customers/api/v1/resellers${qs ? `?${qs}` : ''}`;
+    },
+    create: '/customers/api/v1/resellers',
+    detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
+  },
   products: {
     browse: (q: { page?: number; limit?: number; search?: string; categoryId?: string }) => {
       const p = new URLSearchParams();
@@ -352,6 +364,13 @@ export const endpoints = {
       if (q.to) p.set('to', q.to);
       return `/orders/api/v1/reports/depot-ratings?${p}`;
     },
+    // Per-reseller monthly achievement rollup (volume/prev/orders/last order).
+    resellerRollup: (q: { depotId: string; month: string; customerIds: string[] }) =>
+      `/orders/api/v1/reports/reseller-rollup?${new URLSearchParams({
+        depotId: q.depotId,
+        month: q.month,
+        customerIds: q.customerIds.join(','),
+      })}`,
   },
   // Activity-based segment sizing (21d). recency/frequency/depot are order-owned;
   // loyalty tier is NOT expressible here (loyalty-service owns it → badged in the UI).

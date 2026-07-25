@@ -69,6 +69,10 @@ export const isDepotManager = (role: string | null | undefined) => role === 'DEP
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';
 
+/** Reseller registry gate: HQ + depot managers (mirrors the order-service report roles). */
+export const canViewResellers = (role: string | null | undefined) =>
+  isHq(role) || isDepotManager(role);
+
 /**
  * Which landing `/dashboard` renders for a role. One shared route serves four
  * audiences, so the selection is a pure function here (tested in roles.test.ts)
