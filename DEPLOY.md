@@ -265,3 +265,32 @@ TOKENS="<t1>,<t2>,...,<tN>" VUS=10 CART_LINES=3 \
   non-zero if any breaches, so it gates in CI/pipeline use.
 - Needs a seeded catalog (`scripts/seed.mjs`) — setup() reads the live product
   list and fails fast if there are fewer than `CART_LINES` products.
+
+### Alerting (Prometheus + Alertmanager)
+
+Each service already pings `ALERT_WEBHOOK_URL` on its own 5xx (error-alerter). The
+`alertmanager` service adds the **infra-level** alerts a broken process can't send
+about itself — down, crash-looping, high 5xx rate, high p95 latency, event-loop
+lag — from Prometheus rules in [`ops/alert-rules.yml`](ops/alert-rules.yml).
+
+One-time setup (the webhook URL is a secret, so it lives in a gitignored file, not
+in `alertmanager.yml`):
+
+```bash
+# same URL the rest of ops uses; for Discord append /slack to the webhook
+printf '%s' "$ALERT_WEBHOOK_URL" > ops/alertmanager.webhook-url
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d alertmanager
+```
+
+- No `ops/alertmanager.webhook-url` file → the container won't start. That's
+  intentional: a missing webhook means alerting is unconfigured, and a silent
+  no-op alerter is worse than a loud failure at boot.
+- **Alerts:** `ServiceDown`/`ServiceCrashLooping` (critical), `HighErrorRate`
+  (critical, >5% 5xx / 5m), `HighLatencyP95` (warning, >1.5s p95 / 10m),
+  `EventLoopLagHigh` (warning, >200ms / 5m). A firing critical inhibits same-service
+  warnings so an incident pages once, not three times.
+- **View state:** Prometheus `Alerts` tab at `127.0.0.1:9090` (SSH-tunnel), or
+  Alertmanager UI at `127.0.0.1:9093`. Both are loopback-only.
+- **Validate after editing rules/config:**
+  `docker run --rm --entrypoint promtool -v "$PWD/ops:/ops:ro" prom/prometheus:v2.54.1 check rules /ops/alert-rules.yml`
+  and `... --entrypoint amtool ... prom/alertmanager:v0.27.0 check-config /ops/alertmanager.yml`.

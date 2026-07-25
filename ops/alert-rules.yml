@@ -1,0 +1,71 @@
+# Prometheus alerting rules for the single-VPS stack (T7).
+#
+# These are INFRA-level alerts — the failure modes a service can't report about
+# itself. App-level 5xx already pings ALERT_WEBHOOK_URL from inside each service
+# (error-alerter.ts); a crashed, wedged, or restart-looping process cannot, which
+# is exactly what Prometheus + Alertmanager catch from the outside.
+#
+# Metrics come from enableMetrics() (packages/platform): the
+# http_request_duration_seconds histogram (labels service/method/route/status)
+# plus prom-client default node metrics. `up` is synthesised by Prometheus per
+# scrape target and carries the `service` label set in ops/prometheus.yml.
+groups:
+  - name: hydromart-availability
+    rules:
+      - alert: ServiceDown
+        expr: up{job="hydromart"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $labels.service }} is down'
+          description: 'Prometheus has failed to scrape {{ $labels.service }} for >2m (target {{ $labels.instance }}).'
+
+      - alert: ServiceCrashLooping
+        # process_start_time_seconds jumps on every restart; >2 restarts in 15m = looping.
+        expr: changes(process_start_time_seconds{job="hydromart"}[15m]) > 2
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $labels.service }} is crash-looping'
+          description: '{{ $labels.service }} restarted {{ $value }} times in the last 15m.'
+
+  - name: hydromart-latency-errors
+    rules:
+      - alert: HighErrorRate
+        # 5xx share of traffic per service over 5m. 0/0 is NaN (never > 0.05), so a
+        # quiet service can't false-fire — the threshold self-guards divide-by-zero.
+        expr: |
+          sum by (service) (rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+            / sum by (service) (rate(http_request_duration_seconds_count[5m]))
+            > 0.05
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $labels.service }} 5xx rate above 5%'
+          description: '{{ $labels.service }} is serving {{ $value | humanizePercentage }} 5xx over the last 5m.'
+
+      - alert: HighLatencyP95
+        # p95 request latency per service. Histogram tops out at the 5s bucket, so
+        # treat a firing p95 near 5s as "at least this slow".
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 1.5
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} p95 latency above 1.5s'
+          description: '{{ $labels.service }} p95 request latency is {{ $value | humanizeDuration }} over 5m.'
+
+  - name: hydromart-runtime-health
+    rules:
+      - alert: EventLoopLagHigh
+        # Node event-loop lag: the process is up and scraping but stalling on CPU or
+        # blocking I/O — requests queue behind it. 200ms sustained is unhealthy.
+        expr: nodejs_eventloop_lag_seconds{job="hydromart"} > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} event-loop lag high'
+          description: '{{ $labels.service }} event-loop lag is {{ $value | humanizeDuration }} (>200ms) for 5m.'
