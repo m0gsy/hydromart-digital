@@ -238,3 +238,30 @@ when you need the backup for real.
   passes, treat the backups as unusable: check that `backup-db.sh` is actually
   running and producing non-tiny `.sql.gz` files in `BACKUP_DIR`, and re-run the
   drill against a known-good dump to confirm the restore path itself works.
+
+### Checkout load test (k6 — DB-7 hot path)
+
+[`scripts/load/checkout.k6.js`](scripts/load/checkout.k6.js) load-tests the
+checkout hot path. DB-7 (sequential per-product catalog fetch at checkout) is now
+a parallel fan-out (`order.service.ts` `pricedAll`); this proves p95 stays flat as
+`CART_LINES` grows instead of degrading linearly. Run it against **staging**, not
+prod — it places real orders.
+
+```bash
+# Install k6 (once): https://k6.io/docs/get-started/installation
+# Mint one bearer token per test customer the smoke.sh way, then:
+TOKENS="<t1>,<t2>,...,<tN>" VUS=10 CART_LINES=3 \
+  k6 run scripts/load/checkout.k6.js
+```
+
+- **One token per VU.** Checkout drains a customer's server-side cart, so VUs
+  sharing a token contend on one cart and skew latency. Supply `VUS` tokens
+  (comma-separated in `TOKENS`); the run warns if you give fewer.
+- **DB-7 check:** bump `CART_LINES` (3 → 8 → 15) across runs. `checkout_latency`
+  p95 should stay roughly flat. Linear growth means the fan-out regressed to
+  sequential — inspect `pricedAll`.
+- **Thresholds** (override via env): `checkout_latency` p95 < `CHECKOUT_P95_MS`
+  (1500), `checkout_success` rate > 0.99, `http_req_failed` < 0.01. k6 exits
+  non-zero if any breaches, so it gates in CI/pipeline use.
+- Needs a seeded catalog (`scripts/seed.mjs`) — setup() reads the live product
+  list and fails fast if there are fewer than `CART_LINES` products.
