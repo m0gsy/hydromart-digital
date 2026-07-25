@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 
-import { Badge, Card, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, ErrorState, Field, Input, SectionHeader, Skeleton } from '@/components/ui';
+import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { canViewResellers, isHq } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -14,13 +15,89 @@ import {
   type Reseller,
   type ResellerRollupRow,
 } from '@/lib/reseller';
-import type { DepotAdmin, Page } from '@/lib/types';
+import type { Customer, DepotAdmin, Page } from '@/lib/types';
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
 const EMPTY_DEPOTS: Page<DepotAdmin> = { items: [], total: 0, page: 1, limit: 100 };
+
+// Register a customer (by phone) as a reseller for the picked depot. Resolves phone → customerId
+// via the same staff-only lookup the voucher-grant panel uses, then POSTs the registry entry.
+function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+  const { toast: notify } = useToast();
+  const [phone, setPhone] = useState('');
+  const [target, setTarget] = useState('');
+  const [joinDate, setJoinDate] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!phone.trim() || !target.trim() || !joinDate) {
+      setError('Nomor HP, target bulanan, dan tanggal bergabung wajib diisi.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const customer = await api.get<Customer>(endpoints.auth.customerLookup(phone.trim()), true);
+      await api.post(
+        endpoints.resellers.create,
+        {
+          customerId: customer.id,
+          homeDepotId: depotId,
+          monthlyTargetQty: Number(target),
+          joinDate: new Date(joinDate).toISOString(),
+        },
+        true,
+      );
+      notify('Reseller ditambahkan');
+      setPhone('');
+      setTarget('');
+      setJoinDate('');
+      onDone();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.status === 404
+            ? 'Pelanggan dengan nomor itu tidak ditemukan.'
+            : err.status === 400
+              ? 'Nomor tersebut bukan pelanggan terdaftar.'
+              : err.status === 409
+                ? 'Pelanggan ini sudah menjadi reseller.'
+                : err.message
+          : 'Gagal menambahkan reseller.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="p-4">
+      <h2 className="mb-3 font-semibold">Tambah reseller</h2>
+      <form onSubmit={submit} className="grid gap-4 sm:grid-cols-3">
+        <Field label="Nomor HP pelanggan" hint="Format 0812…, +62…, atau 62…">
+          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="081234567890" />
+        </Field>
+        <Field label="Target bulanan (galon)">
+          <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="100" />
+        </Field>
+        <Field label="Tanggal bergabung">
+          <Input type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
+        </Field>
+        {error && <p className="text-sm text-red-600 sm:col-span-3">{error}</p>}
+        <div className="sm:col-span-3">
+          <Button type="submit" loading={busy}>
+            Tambah reseller
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
 
 // Reseller (agen) achievement console — joins the reseller registry (target) with the
 // order-service rollup (actual volume/growth) for one depot + month. HQ picks the depot
@@ -87,6 +164,8 @@ export default function ResellersPage() {
           </select>
         </Card>
       )}
+
+      {depotId && <RegisterResellerForm depotId={depotId} onDone={registry.reload} />}
 
       {registry.loading && depotId && <Skeleton className="h-64" />}
       {registry.error && <ErrorState message={registry.error} onRetry={registry.reload} />}
