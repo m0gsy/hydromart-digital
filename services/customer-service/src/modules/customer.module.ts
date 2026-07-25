@@ -12,6 +12,7 @@ import { PaymentMethodService } from '../application/services/payment-method.ser
 import { ProfileService } from '../application/services/profile.service';
 import { DepotCrmService } from '../application/services/depot-crm.service';
 import { FavoriteService } from '../application/services/favorite.service';
+import { ResellerService } from '../application/services/reseller.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
 import { FavoritePrismaRepository } from '../infrastructure/prisma/favorite.prisma.repository';
@@ -19,12 +20,14 @@ import { NotificationPrismaRepository } from '../infrastructure/prisma/notificat
 import { PaymentMethodPrismaRepository } from '../infrastructure/prisma/payment-method.prisma.repository';
 import { ProfilePrismaRepository } from '../infrastructure/prisma/profile.prisma.repository';
 import { DepotCrmPrismaRepository } from '../infrastructure/prisma/depot-crm.prisma.repository';
+import { ResellerPrismaRepository } from '../infrastructure/prisma/reseller.prisma.repository';
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { AddressController } from './address.controller';
 import { PaymentMethodController } from './payment-method.controller';
 import { ProfileController } from './profile.controller';
 import { DepotCrmController } from './depot-crm.controller';
 import { FavoriteController } from './favorite.controller';
+import { ResellerController } from './reseller.controller';
 import { InternalController } from './internal.controller';
 
 const providers: Provider[] = [
@@ -36,6 +39,7 @@ const providers: Provider[] = [
   PaymentMethodService,
   DepotCrmService,
   FavoriteService,
+  ResellerService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   { provide: CUSTOMER_TOKENS.NotificationPreferenceRepository, useClass: NotificationPrismaRepository },
@@ -43,6 +47,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.LoyaltyRewardPort, useClass: LoyaltyRewardHttpAdapter },
   { provide: CUSTOMER_TOKENS.DepotCrmRepository, useClass: DepotCrmPrismaRepository },
   { provide: CUSTOMER_TOKENS.FavoriteRepository, useClass: FavoritePrismaRepository },
+  { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -56,6 +61,7 @@ const providers: Provider[] = [
     PaymentMethodController,
     DepotCrmController,
     FavoriteController,
+    ResellerController,
     InternalController,
   ],
   providers,
