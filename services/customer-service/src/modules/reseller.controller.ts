@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
 import { ResellerService } from '../application/services/reseller.service';
 import {
@@ -34,15 +34,18 @@ export class ResellerController {
 
   @Get()
   @ApiOperation({ summary: 'List resellers (optionally by depot / active)' })
-  list(@Query() q: ListResellerQueryDto) {
-    return this.resellers.list({ homeDepotId: q.depotId, active: q.active });
+  list(@CurrentUser() user: AuthenticatedUser, @Query() q: ListResellerQueryDto) {
+    return this.resellers.list(user, { homeDepotId: q.depotId, active: q.active });
   }
 
   @Get(':customerId')
   @ApiOperation({ summary: 'Get one reseller' })
-  async get(@Param('customerId', ParseUUIDPipe) customerId: string) {
+  async get(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+  ) {
     try {
-      return await this.resellers.get(customerId);
+      return await this.resellers.get(user, customerId);
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;
@@ -51,9 +54,9 @@ export class ResellerController {
 
   @Post()
   @ApiOperation({ summary: 'Register an existing customer as a reseller' })
-  async register(@Body() dto: RegisterResellerDto) {
+  async register(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegisterResellerDto) {
     try {
-      return await this.resellers.register({
+      return await this.resellers.register(user, {
         customerId: dto.customerId,
         homeDepotId: dto.homeDepotId,
         monthlyTargetQty: dto.monthlyTargetQty,
@@ -70,11 +73,12 @@ export class ResellerController {
   @Patch(':customerId')
   @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active)' })
   async update(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('customerId', ParseUUIDPipe) customerId: string,
     @Body() dto: UpdateResellerDto,
   ) {
     try {
-      return await this.resellers.update(customerId, dto);
+      return await this.resellers.update(user, customerId, dto);
     } catch (e) {
       if (e instanceof ResellerNotFoundError) throw new NotFoundException(e.message);
       throw e;

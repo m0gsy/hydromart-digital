@@ -39,6 +39,10 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       setError('Nomor HP, target bulanan, dan tanggal bergabung wajib diisi.');
       return;
     }
+    if (!(Number(target) >= 0)) {
+      setError('Target bulanan harus berupa angka 0 atau lebih.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
