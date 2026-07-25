@@ -62,6 +62,18 @@ export class AccountController {
     return PublicCustomerDto.from(customer);
   }
 
+  // Staff-only: resolve a batch of customer ids to names (reseller console row labels).
+  // Same staff scope as the reseller registry it feeds (HQ + depot-manager).
+  @Roles(Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN)
+  @Get('auth/customers/by-ids')
+  @ApiOperation({ summary: 'Staff: resolve customer ids to public profiles (comma-separated)' })
+  @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
+  async lookupByIds(@Query('ids') ids?: string): Promise<PublicCustomerDto[]> {
+    const list = (ids ?? '').split(',').map((s) => s.trim());
+    const customers = await this.account.lookupByIds(list);
+    return customers.map(PublicCustomerDto.from);
+  }
+
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
   @Roles(...CAPABILITIES.staffAdmin, Role.DEPOT_MANAGER)

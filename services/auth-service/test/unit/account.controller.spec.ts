@@ -47,3 +47,25 @@ describe('AccountController.listStaff depot-manager scope', () => {
     expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.DRIVER, otherDepot);
   });
 });
+
+describe('AccountController.lookupByIds', () => {
+  const account = { lookupByIds: jest.fn() };
+  const controller = new AccountController(account as never, {} as never);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    account.lookupByIds.mockResolvedValue([{ id: 'a', fullName: 'Agus' }]);
+  });
+
+  it('splits/trims the comma list and maps the result to DTOs', async () => {
+    const result = await controller.lookupByIds(' a , b ');
+    expect(account.lookupByIds).toHaveBeenCalledWith(['a', 'b']);
+    expect(result).toEqual([{ id: 'a', fullName: 'Agus' }]);
+  });
+
+  it('passes an empty list when the query is absent', async () => {
+    account.lookupByIds.mockResolvedValue([]);
+    await controller.lookupByIds(undefined);
+    expect(account.lookupByIds).toHaveBeenCalledWith(['']);
+  });
+});

@@ -46,6 +46,18 @@ export class AccountService {
   }
 
   /**
+   * Resolve a batch of customer ids to their public profiles (reseller-name display).
+   * Deduplicates, caps the batch, and silently drops ids with no account — callers only
+   * need names for the ids they already hold, order is not guaranteed.
+   */
+  async lookupByIds(ids: string[]): Promise<PublicCustomer[]> {
+    const unique = [...new Set(ids.filter((id) => id.length > 0))].slice(0, 200);
+    if (unique.length === 0) return [];
+    const customers = await this.customers.findByIds(unique);
+    return customers.map(toPublicCustomer);
+  }
+
+  /**
    * Update the caller's own name and/or email (FR-009). Email is unique across
    * accounts; a normalized-lowercase pre-check rejects a collision before the
    * write (the repository translates a P2002 race into the same error).
