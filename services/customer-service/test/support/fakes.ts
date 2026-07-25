@@ -48,6 +48,9 @@ export class InMemoryProfileRepository implements ProfileRepository {
   async findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null> {
     return this.rows.get(customerId) ?? null;
   }
+  async exists(customerId: string): Promise<boolean> {
+    return this.rows.has(customerId);
+  }
   async create(customerId: string): Promise<CustomerProfileRecord> {
     const now = nextDate();
     const rec: CustomerProfileRecord = {

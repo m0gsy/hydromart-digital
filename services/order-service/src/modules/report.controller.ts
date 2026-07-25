@@ -13,6 +13,7 @@ import {
   DepotRatingsQueryDto,
   DepotWeeklyQueryDto,
   RangeReportQueryDto,
+  ResellerRollupQueryDto,
   SalesReportQueryDto,
   SegmentEstimateQueryDto,
   TopReportQueryDto,
@@ -138,6 +139,13 @@ export class ReportController {
   @ApiOperation({ summary: 'Live size of an activity-based segment: recency/frequency/depot (21d)' })
   segmentEstimate(@Query() q: SegmentEstimateQueryDto) {
     return this.reports.segmentEstimate(q);
+  }
+
+  @Get('reseller-rollup')
+  @ApiOperation({ summary: 'Per-reseller monthly achievement rollup (volume/prev/orders/last)' })
+  resellerRollup(@Query() q: ResellerRollupQueryDto) {
+    const ids = q.customerIds.split(',').map((s) => s.trim()).filter(Boolean);
+    return this.reports.resellerRollup(q.depotId, q.month, ids);
   }
 
   @Roles(...HQ_ROLES)

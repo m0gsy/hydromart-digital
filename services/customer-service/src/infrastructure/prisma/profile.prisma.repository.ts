@@ -33,6 +33,10 @@ export class ProfilePrismaRepository implements ProfileRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async exists(customerId: string): Promise<boolean> {
+    return (await this.prisma.customerProfile.count({ where: { customerId } })) > 0;
+  }
+
   async create(customerId: string): Promise<CustomerProfileRecord> {
     const row = await this.prisma.customerProfile.create({ data: { customerId } });
     return this.toRecord(row);
