@@ -18,6 +18,7 @@ const row: Reseller = {
   customerId: 'c1',
   homeDepotId: 'd1',
   monthlyTargetQty: 100,
+  discountPct: 0,
   active: true,
   joinDate: new Date('2026-01-01'),
   note: null,

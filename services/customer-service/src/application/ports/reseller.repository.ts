@@ -2,6 +2,7 @@ export interface Reseller {
   customerId: string;
   homeDepotId: string;
   monthlyTargetQty: number;
+  discountPct: number;
   active: boolean;
   joinDate: Date;
   note: string | null;
@@ -13,6 +14,7 @@ export interface CreateResellerData {
   customerId: string;
   homeDepotId: string;
   monthlyTargetQty: number;
+  discountPct?: number;
   joinDate: Date;
   note?: string | null;
 }
@@ -20,6 +22,7 @@ export interface CreateResellerData {
 export interface UpdateResellerData {
   homeDepotId?: string;
   monthlyTargetQty?: number;
+  discountPct?: number;
   active?: boolean;
   note?: string | null;
 }

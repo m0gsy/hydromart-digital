@@ -130,6 +130,8 @@ model ResellerProfile {
   homeDepotId      String   @db.Uuid
   /// Monthly target in gallons (units, not IDR). 0 = no target set.
   monthlyTargetQty Int      @default(0)
+  /// Flat reseller discount percent off subtotal at checkout (0-100). 0 = no reseller price.
+  discountPct      Int      @default(0)
   active           Boolean  @default(true)
   joinDate         DateTime @db.Date
   note             String?

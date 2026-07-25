@@ -5,6 +5,7 @@ const row: Reseller = {
   customerId: 'c1',
   homeDepotId: 'd1',
   monthlyTargetQty: 100,
+  discountPct: 0,
   active: true,
   joinDate: new Date('2026-01-01'),
   note: null,
@@ -71,7 +72,22 @@ describe('ResellerPrismaRepository', () => {
       joinDate: new Date('2026-01-01'),
     });
     expect(prisma.resellerProfile.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ note: null }),
+      data: expect.objectContaining({ note: null, discountPct: 0 }),
+    });
+  });
+
+  it('create passes a provided discountPct through', async () => {
+    const prisma = prismaMock();
+    const repo = new ResellerPrismaRepository(prisma as never);
+    await repo.create({
+      customerId: 'c1',
+      homeDepotId: 'd1',
+      monthlyTargetQty: 100,
+      discountPct: 15,
+      joinDate: new Date('2026-01-01'),
+    });
+    expect(prisma.resellerProfile.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ discountPct: 15 }),
     });
   });
 
