@@ -13,6 +13,7 @@ import {
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
   fmtDate,
+  tenureLabel,
   type Employee,
   type EmploymentHistory,
 } from '@/lib/hr';
@@ -73,6 +74,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         <Row label="No. HP" value={e.phone} />
         <Row label="Email" value={e.email ?? '—'} />
         <Row label="Tanggal masuk" value={fmtDate(e.joinDate)} />
+        <Row label="Masa kerja" value={tenureLabel(e.joinDate)} />
         <Row label="Tipe gaji" value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />
         <Row label="Nominal gaji" value={<Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />} />
         <Row label="Bank" value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'} />
