@@ -245,7 +245,8 @@ function CheckoutInner() {
           },
           // order-service re-validates the voucher (fail-closed) and applies the
           // membership discount itself; sending the raw code is enough.
-          voucherCode: voucherCode.trim() || undefined,
+          // Gate on isReseller: never send voucher code for resellers (flat pricing, no stacking).
+          voucherCode: isReseller ? undefined : voucherCode.trim() || undefined,
           deliveryWindow: deliveryWindow || undefined,
         },
         true,
