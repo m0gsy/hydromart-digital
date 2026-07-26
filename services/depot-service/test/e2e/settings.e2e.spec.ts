@@ -134,6 +134,14 @@ describe('Settings HTTP flows (e2e)', () => {
       .expect(403);
   });
 
+  it('forbids a depot manager from resetting a GLOBAL override (403)', async () => {
+    await request(server())
+      .delete('/api/v1/settings')
+      .set(auth(managerToken))
+      .send({ scope: 'GLOBAL', key: 'gallonDepositIdr' })
+      .expect(403);
+  });
+
   it('lets a depot manager set a DEPOT override for their own depot, then reads it back', async () => {
     await request(server())
       .put('/api/v1/settings')

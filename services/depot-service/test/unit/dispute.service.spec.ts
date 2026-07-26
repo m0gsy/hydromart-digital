@@ -7,7 +7,11 @@ import {
   DisputeStatus,
   OrderDispute,
 } from '../../src/domain/order-dispute';
-import { DisputeAlreadyResolvedError, DisputeNotFoundError } from '../../src/domain/errors';
+import {
+  DepotNotFoundError,
+  DisputeAlreadyResolvedError,
+  DisputeNotFoundError,
+} from '../../src/domain/errors';
 import { OwnershipType } from '../../src/domain/inventory';
 import { DepotService } from '../../src/application/services/depot.service';
 import {
@@ -60,6 +64,7 @@ class InMemoryDisputeRepository implements DisputeRepository {
 
 const RAISER = '11111111-1111-1111-1111-111111111111';
 const MANAGER = '22222222-2222-2222-2222-222222222222';
+const UNKNOWN = '00000000-0000-0000-0000-000000000000';
 
 describe('DisputeService', () => {
   let repo: InMemoryDisputeRepository;
@@ -132,7 +137,51 @@ describe('DisputeService', () => {
 
   it('rejects an unknown id', async () => {
     await expect(
-      service.resolve('00000000-0000-0000-0000-000000000000', DisputeResolution.REFUND, null, MANAGER),
+      service.resolve(UNKNOWN, DisputeResolution.REFUND, null, MANAGER),
     ).rejects.toBeInstanceOf(DisputeNotFoundError);
+    await expect(service.get(UNKNOWN)).rejects.toBeInstanceOf(DisputeNotFoundError);
+  });
+
+  it('rejects raising or listing against an unknown depot', async () => {
+    await expect(
+      service.raise(
+        {
+          depotId: UNKNOWN,
+          orderRef: 'HM-000477',
+          customerName: 'Ibu Sari',
+          category: DisputeCategory.NOT_RECEIVED,
+          description: 'Telat',
+        },
+        RAISER,
+      ),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
+    await expect(service.list(UNKNOWN)).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  it('lists depot disputes newest-first, filters by status, and reads one by id', async () => {
+    const a = await raise();
+    const b = await raise();
+    await service.resolve(a.id, DisputeResolution.REFUND, 'ok', MANAGER);
+
+    expect((await service.list(depotId)).map((d) => d.id)).toEqual([b.id, a.id]);
+    expect((await service.list(depotId, DisputeStatus.OPEN)).map((d) => d.id)).toEqual([b.id]);
+    expect((await service.get(a.id)).status).toBe(DisputeStatus.RESOLVED);
+  });
+
+  it('keeps an explicit amount and courier name instead of the defaults', async () => {
+    const d = await service.raise(
+      {
+        depotId,
+        orderRef: 'HM-000478',
+        customerName: 'Pak Budi',
+        category: DisputeCategory.WRONG_ITEM,
+        description: 'Salah',
+        amountIdr: 45_000,
+        courierName: 'Andi',
+      },
+      RAISER,
+    );
+    expect(d.amountIdr).toBe(45_000);
+    expect(d.courierName).toBe('Andi');
   });
 });
