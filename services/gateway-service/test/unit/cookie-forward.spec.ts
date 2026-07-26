@@ -9,19 +9,15 @@ import request from 'supertest';
 import { GatewayConfigService } from '../../src/config/gateway-config.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 import { configureGateway } from '../../src/gateway.setup';
+import { AT_COOKIE } from '../../src/routing/session-bff';
 
-// An echo upstream that reflects back what the gateway forwarded, so the test can
-// assert the client-supplied internal key was stripped before proxying.
+// Echo upstream reflecting the Authorization header the gateway forwarded, so the
+// test can assert the httpOnly access cookie was translated into a bearer header.
 function startEcho(): Promise<{ server: Server; url: string }> {
   return new Promise((resolve) => {
     const server = createServer((req, res) => {
       res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({
-          internalKey: req.headers['x-internal-key'] ?? null,
-          passthrough: req.headers['x-passthrough'] ?? null,
-        }),
-      );
+      res.end(JSON.stringify({ auth: req.headers['authorization'] ?? null }));
     });
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address() as AddressInfo;
@@ -30,7 +26,7 @@ function startEcho(): Promise<{ server: Server; url: string }> {
   });
 }
 
-describe('Gateway internal-key strip (e2e)', () => {
+describe('Gateway cookie -> bearer translation', () => {
   let app: INestApplication;
   let echo: { server: Server; url: string };
 
@@ -84,14 +80,22 @@ describe('Gateway internal-key strip (e2e)', () => {
     await new Promise<void>((resolve) => echo.server.close(() => resolve()));
   });
 
-  it('strips a client-injected x-internal-key but forwards other headers', async () => {
+  it('injects an Authorization: Bearer header from the access cookie', async () => {
     const res = await request(app.getHttpServer())
       .get('/orders/api/v1/anything')
-      .set('x-internal-key', 'attacker-supplied')
-      .set('x-passthrough', 'kept')
+      .set('Cookie', `${AT_COOKIE}=AT-9`)
       .expect(200);
 
-    expect(res.body.internalKey).toBeNull(); // stripped at the gateway
-    expect(res.body.passthrough).toBe('kept'); // unrelated headers untouched
+    expect(res.body.auth).toBe('Bearer AT-9');
+  });
+
+  it('leaves an explicit Authorization header untouched (no cookie override)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/orders/api/v1/anything')
+      .set('Cookie', `${AT_COOKIE}=AT-9`)
+      .set('Authorization', 'Bearer explicit')
+      .expect(200);
+
+    expect(res.body.auth).toBe('Bearer explicit');
   });
 });

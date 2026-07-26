@@ -28,6 +28,7 @@ const testEnv: Record<string, string> = {
   FORECAST_SERVICE_URL: 'http://localhost:3014',
   PAYOUT_SERVICE_URL: 'http://localhost:3016',
   ADMIN_SERVICE_URL: 'http://localhost:3017',
+  HR_SERVICE_URL: 'http://localhost:3018',
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',
