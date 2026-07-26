@@ -1,0 +1,164 @@
+import { OrderConfigService } from '../../src/config/order-config.service';
+import type { OrderRecord } from '../../src/application/ports/order.repository';
+import { LoyaltyCoordinationHttpAdapter } from '../../src/infrastructure/http/loyalty-coordination.http.adapter';
+import { NotificationHttpAdapter } from '../../src/infrastructure/http/notification.http.adapter';
+import { ReferralCoordinationHttpAdapter } from '../../src/infrastructure/http/referral-coordination.http.adapter';
+import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/http/recommendation-coordination.http.adapter';
+import { ForecastCoordinationHttpAdapter } from '../../src/infrastructure/http/forecast-coordination.http.adapter';
+import { PromoHttpAdapter } from '../../src/infrastructure/http/promo.http.adapter';
+import { InventoryHttpAdapter } from '../../src/infrastructure/http/inventory.http.adapter';
+import { DepotPricingHttpAdapter } from '../../src/infrastructure/http/depot-pricing.http.adapter';
+import { ResellerDiscountHttpAdapter } from '../../src/infrastructure/http/reseller-discount.http.adapter';
+
+// Covers the fail-open error branches the happy-path specs don't reach: the `if (!res.ok)
+// throw` guards feeding each adapter's catch. Every fire-and-forget coordination call must
+// swallow a non-2xx (never blocking the order); the two fail-closed calls (promo.quote,
+// product) are asserted elsewhere.
+
+const KEY = 'internal-key-01';
+
+function makeConfig(over: Partial<Record<string, unknown>> = {}): OrderConfigService {
+  return {
+    depotServiceUrl: 'http://depot:3007',
+    loyaltyServiceUrl: 'http://loyalty:3009',
+    promoServiceUrl: 'http://promo:3010',
+    referralServiceUrl: 'http://referral:3011',
+    crmServiceUrl: 'http://crm:3012',
+    recommendationServiceUrl: 'http://reco:3013',
+    forecastServiceUrl: 'http://forecast:3014',
+    customerServiceUrl: 'http://customer:3002',
+    internalServiceKey: KEY,
+    ...over,
+  } as unknown as OrderConfigService;
+}
+
+function res(init: { ok?: boolean; status?: number; body?: unknown }): Response {
+  const status = init.status ?? (init.ok === false ? 500 : 200);
+  return {
+    ok: init.ok ?? status < 400,
+    status,
+    json: async () => init.body ?? {},
+  } as unknown as Response;
+}
+
+const fetchMock = jest.fn();
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  global.fetch = fetchMock as unknown as typeof fetch;
+});
+
+const order = (): OrderRecord =>
+  ({
+    id: 'o1',
+    customerId: 'c1',
+    depotId: 'd1',
+    total: 57000.4,
+    items: [{ productId: 'p1', productName: 'Galon 19L', sku: 'G19', unit: 'Galon', quantity: 2 }],
+  }) as unknown as OrderRecord;
+
+const line = [{ productId: 'p1', quantity: 2 }] as never;
+
+describe('coordination adapters fail open on a non-2xx response', () => {
+  it('loyalty.awardPoints swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('notification.notify swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(
+      new NotificationHttpAdapter(makeConfig()).notify('e', 'p', {}, 'c', ''),
+    ).resolves.toBeUndefined();
+  });
+
+  it('referral.qualify swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', ''),
+    ).resolves.toBeUndefined();
+  });
+
+  it('recommendation.recordCompleted swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new RecommendationCoordinationHttpAdapter(makeConfig()).recordCompleted(order()),
+    ).resolves.toBeUndefined();
+  });
+
+  it('forecast.ingestCompletedOrder swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new ForecastCoordinationHttpAdapter(makeConfig()).ingestCompletedOrder(order()),
+    ).resolves.toBeUndefined();
+  });
+
+  it('promo.redeem swallows a 500 (idempotent on the promo side)', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, ''),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('inventory.release swallows a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new InventoryHttpAdapter(makeConfig()).release('d1', 'o1', line, ''),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('coordination adapters short-circuit when disabled', () => {
+  it('recommendation is a no-op when the base URL is blank (never fetches)', async () => {
+    await new RecommendationCoordinationHttpAdapter(
+      makeConfig({ recommendationServiceUrl: '' }),
+    ).recordCompleted(order());
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('forecast is a no-op when the base URL is blank (never fetches)', async () => {
+    await new ForecastCoordinationHttpAdapter(makeConfig({ forecastServiceUrl: '' })).ingestCompletedOrder(
+      order(),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('inventory.reserve skips without an internal key', async () => {
+    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve('d1', 'o1', line, '');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('inventory.release skips on empty items', async () => {
+    await new InventoryHttpAdapter(makeConfig()).release('d1', 'o1', [] as never, '');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('edge-case parsing branches', () => {
+  it('reseller-discount throws->fails-open to null on a 500', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toBeNull();
+  });
+
+  it('reseller-discount returns null when discountPct is not a finite number', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { active: true, discountPct: 'x' } }));
+    expect(await new ResellerDiscountHttpAdapter(makeConfig()).get('Bearer t')).toBeNull();
+  });
+
+  it('promo.quote falls back to a generic reject message when the body has none', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 400, body: {} }));
+    await expect(new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer t')).rejects.toThrow(
+      'This voucher could not be applied.',
+    );
+  });
+
+  it('depot-pricing defaults a missing adjust value to 0', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: [{ productId: 'p1', adjustType: 'PERCENT' }] }));
+    const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1']);
+    expect(out.get('p1')).toEqual({ adjustType: 'PERCENT', value: 0 });
+  });
+});

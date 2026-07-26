@@ -1,0 +1,426 @@
+import { BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { AuthenticatedUser } from '@hydromart/platform';
+import type { Response } from 'express';
+
+// Mock the xlsx helper so the reports xlsx branch doesn't need the exceljs runtime dep.
+jest.mock('../../src/domain/xlsx', () => ({
+  toXlsx: jest.fn(async () => Buffer.from('xlsx-bytes')),
+}));
+
+import { BonusController, DeductionController } from '../../src/modules/adjustment.controller';
+import { AttendanceController } from '../../src/modules/attendance.controller';
+import { AuditController } from '../../src/modules/audit.controller';
+import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import { decodeBase64Image } from '../../src/modules/decode-image';
+import { EmployeesController } from '../../src/modules/employees.controller';
+import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
+import { HealthController } from '../../src/modules/health.controller';
+import { PayrollController } from '../../src/modules/payroll.controller';
+import { PerformanceController } from '../../src/modules/performance.controller';
+import { ReportsController } from '../../src/modules/reports.controller';
+import { BonusRuleController, LoanController } from '../../src/modules/rules.controller';
+import { SettingsController } from '../../src/modules/settings.controller';
+import { toXlsx } from '../../src/domain/xlsx';
+
+const user: AuthenticatedUser = { sub: 'u1', role: 'HR' as never, phone: null, depotId: null };
+const superAdmin: AuthenticatedUser = { sub: 'sa', role: 'SUPER_ADMIN' as never, phone: null, depotId: null };
+
+// A tiny data-URL PNG header (1x1) is not needed; any base64 with bytes works.
+const b64 = Buffer.from('abc').toString('base64');
+const dataUrl = `data:image/png;base64,${b64}`;
+
+function fakeRes(): Response & { headers: Record<string, string>; body: unknown } {
+  const res = {
+    headers: {} as Record<string, string>,
+    body: undefined as unknown,
+    setHeader: jest.fn(function (this: unknown, k: string, v: string) {
+      (res.headers as Record<string, string>)[k] = v;
+    }),
+    send: jest.fn(function (this: unknown, b: unknown) {
+      res.body = b;
+    }),
+  };
+  return res as unknown as Response & { headers: Record<string, string>; body: unknown };
+}
+
+/** Build a service mock whose named methods each resolve to a distinct sentinel. */
+function svcMock(methods: string[]): Record<string, jest.Mock> {
+  const m: Record<string, jest.Mock> = {};
+  for (const name of methods) m[name] = jest.fn().mockReturnValue(`${name}-result`);
+  return m;
+}
+
+describe('decodeBase64Image', () => {
+  it('decodes a plain base64 string', () => {
+    expect(decodeBase64Image(b64).toString()).toBe('abc');
+  });
+  it('strips a data-URL prefix before decoding', () => {
+    expect(decodeBase64Image(dataUrl).toString()).toBe('abc');
+  });
+  it('rejects input that decodes to zero bytes', () => {
+    expect(() => decodeBase64Image('')).toThrow(BadRequestException);
+  });
+});
+
+describe('HealthController', () => {
+  it('reports ok when the database answers', async () => {
+    const prisma = { $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]) };
+    const c = new HealthController(prisma as never);
+    const out = await c.check();
+    expect(out.status).toBe('ok');
+    expect(out.service).toBe('hr-service');
+    expect(out.checks.database).toBe('up');
+  });
+  it('throws 503 when the database query fails', async () => {
+    const prisma = { $queryRaw: jest.fn().mockRejectedValue(new Error('down')) };
+    const c = new HealthController(prisma as never);
+    await expect(c.check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+describe('BonusController / DeductionController', () => {
+  const adj = svcMock(['listBonuses', 'addBonus', 'listDeductions', 'addDeduction']);
+  const bonus = new BonusController(adj as never);
+  const ded = new DeductionController(adj as never);
+
+  it('lists bonuses by employee + period', () => {
+    expect(bonus.list({ employeeId: 'e1', periodMonth: '2026-07' } as never, user)).toBe('listBonuses-result');
+    expect(adj.listBonuses).toHaveBeenCalledWith(user, 'e1', '2026-07');
+  });
+  it('adds a bonus', () => {
+    const dto = { employeeId: 'e1' } as never;
+    expect(bonus.create(dto, user)).toBe('addBonus-result');
+    expect(adj.addBonus).toHaveBeenCalledWith(user, dto);
+  });
+  it('lists deductions by employee + period', () => {
+    expect(ded.list({ employeeId: 'e2', periodMonth: '2026-08' } as never, user)).toBe('listDeductions-result');
+    expect(adj.listDeductions).toHaveBeenCalledWith(user, 'e2', '2026-08');
+  });
+  it('adds a deduction', () => {
+    const dto = { employeeId: 'e2' } as never;
+    expect(ded.create(dto, user)).toBe('addDeduction-result');
+    expect(adj.addDeduction).toHaveBeenCalledWith(user, dto);
+  });
+});
+
+describe('AttendanceController', () => {
+  const att = svcMock(['checkIn', 'checkOut', 'listSelf', 'list', 'createManual', 'adjust']);
+  const c = new AttendanceController(att as never);
+
+  it('check-in decodes the frame and forwards a punch', () => {
+    const dto = { image: b64, lat: 1, lng: 2 } as never;
+    c.checkIn(dto, user);
+    const punch = att.checkIn.mock.calls[0][1];
+    expect(att.checkIn.mock.calls[0][0]).toBe(user);
+    expect(Buffer.isBuffer(punch.image)).toBe(true);
+    expect(punch).toMatchObject({ photoUrl: null, live: false, lat: 1, lng: 2 });
+  });
+  it('check-out passes through optional fields', () => {
+    const dto = { image: dataUrl, photoUrl: 'p', live: true, lat: 3, lng: 4 } as never;
+    c.checkOut(dto, user);
+    const punch = att.checkOut.mock.calls[0][1];
+    expect(punch).toMatchObject({ photoUrl: 'p', live: true, lat: 3, lng: 4 });
+  });
+  it('listSelf / list / createManual / adjust delegate', () => {
+    const q = { page: 1, pageSize: 30 } as never;
+    expect(c.listSelf(q, user)).toBe('listSelf-result');
+    expect(att.listSelf).toHaveBeenCalledWith(user, q);
+    expect(c.list(q, user)).toBe('list-result');
+    expect(att.list).toHaveBeenCalledWith(user, q);
+    const md = { employeeId: 'e1' } as never;
+    expect(c.createManual(md, user)).toBe('createManual-result');
+    expect(att.createManual).toHaveBeenCalledWith(user, md);
+    const ad = { reason: 'fix' } as never;
+    expect(c.adjust('id1', ad, user)).toBe('adjust-result');
+    expect(att.adjust).toHaveBeenCalledWith(user, 'id1', ad);
+  });
+});
+
+describe('AuditController', () => {
+  it('wraps the service result with pagination echo', async () => {
+    const audit = { list: jest.fn().mockResolvedValue({ rows: [{ id: 'a' }], total: 5 }) };
+    const c = new AuditController(audit as never);
+    const q = { page: 2, pageSize: 50 } as never;
+    const out = await c.list(q);
+    expect(audit.list).toHaveBeenCalledWith(q);
+    expect(out).toEqual({ rows: [{ id: 'a' }], total: 5, page: 2, pageSize: 50 });
+  });
+});
+
+describe('HolidayController / ShiftController', () => {
+  const holidays = svcMock(['list', 'create', 'remove']);
+  const shifts = svcMock(['list', 'create', 'update', 'remove']);
+  const hc = new HolidayController(holidays as never);
+  const sc = new ShiftController(shifts as never);
+
+  it('holidays delegate', () => {
+    const q = { depotId: 'd1' } as never;
+    expect(hc.list(q, user)).toBe('list-result');
+    expect(holidays.list).toHaveBeenCalledWith(user, q);
+    const dto = { date: '2026-01-01' } as never;
+    hc.create(dto, user);
+    expect(holidays.create).toHaveBeenCalledWith(user, dto);
+    hc.remove('h1', user);
+    expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
+  });
+  it('shifts delegate (list passes depotId)', () => {
+    sc.list({ depotId: 'd2' } as never, user);
+    expect(shifts.list).toHaveBeenCalledWith(user, 'd2');
+    const dto = { name: 'Pagi' } as never;
+    sc.create(dto, user);
+    expect(shifts.create).toHaveBeenCalledWith(user, dto);
+    const ud = { name: 'Sore' } as never;
+    sc.update('s1', ud, user);
+    expect(shifts.update).toHaveBeenCalledWith(user, 's1', ud);
+    sc.remove('s1', user);
+    expect(shifts.remove).toHaveBeenCalledWith(user, 's1');
+  });
+});
+
+describe('EmployeesController', () => {
+  const emp = svcMock(['list', 'getById', 'getHistory', 'create', 'update']);
+  const c = new EmployeesController(emp as never);
+
+  it('delegates every route', () => {
+    const q = { page: 1 } as never;
+    c.list(q, user);
+    expect(emp.list).toHaveBeenCalledWith(user, q);
+    c.getById('e1', user);
+    expect(emp.getById).toHaveBeenCalledWith(user, 'e1');
+    c.getHistory('e1', user);
+    expect(emp.getHistory).toHaveBeenCalledWith(user, 'e1');
+    const dto = { fullName: 'Budi' } as never;
+    c.create(dto, user);
+    expect(emp.create).toHaveBeenCalledWith(user, dto);
+    const ud = { fullName: 'Budi 2' } as never;
+    c.update('e1', ud, user);
+    expect(emp.update).toHaveBeenCalledWith(user, 'e1', ud);
+  });
+});
+
+describe('FaceController / SelfFaceController', () => {
+  it('self enroll decodes each frame and forwards them', () => {
+    const face = { enrollSelf: jest.fn().mockResolvedValue('ok') };
+    const c = new SelfFaceController(face as never);
+    c.enroll({ images: [b64, dataUrl] } as never, user);
+    const [passedUser, images] = face.enrollSelf.mock.calls[0];
+    expect(passedUser).toBe(user);
+    expect(images).toHaveLength(2);
+    expect(Buffer.isBuffer(images[0])).toBe(true);
+  });
+  it('admin enroll decodes frames and forwards id + sourcePhotoUrl', () => {
+    const face = { enroll: jest.fn().mockResolvedValue('ok') };
+    const c = new FaceController(face as never);
+    c.enroll('e1', { images: [b64], sourcePhotoUrl: 'src' } as never, user);
+    const [passedUser, id, images, src] = face.enroll.mock.calls[0];
+    expect(passedUser).toBe(user);
+    expect(id).toBe('e1');
+    expect(Buffer.isBuffer(images[0])).toBe(true);
+    expect(src).toBe('src');
+  });
+  it('admin enroll defaults sourcePhotoUrl to null', () => {
+    const face = { enroll: jest.fn().mockResolvedValue('ok') };
+    const c = new FaceController(face as never);
+    c.enroll('e1', { images: [b64] } as never, user);
+    expect(face.enroll.mock.calls[0][3]).toBeNull();
+  });
+});
+
+describe('PayrollController', () => {
+  const payroll = svcMock(['list', 'listSelf', 'getById', 'slip', 'generate', 'approve', 'markPaid']);
+  const c = new PayrollController(payroll as never);
+
+  it('read routes delegate', () => {
+    const q = { page: 1 } as never;
+    c.list(q);
+    expect(payroll.list).toHaveBeenCalledWith(q);
+    c.listSelf(q, user);
+    expect(payroll.listSelf).toHaveBeenCalledWith(user, q);
+    c.getById('p1', user);
+    expect(payroll.getById).toHaveBeenCalledWith(user, 'p1');
+  });
+  it('slip streams a pdf with the right headers', async () => {
+    payroll.slip.mockResolvedValue(Buffer.from('pdf'));
+    const res = fakeRes();
+    await c.slip('p1', user, res);
+    expect(payroll.slip).toHaveBeenCalledWith(user, 'p1');
+    expect(res.headers['Content-Type']).toBe('application/pdf');
+    expect(res.headers['Content-Disposition']).toBe('attachment; filename="slip-p1.pdf"');
+    expect((res.send as jest.Mock)).toHaveBeenCalled();
+  });
+  it('generate / approve / pay delegate', () => {
+    c.generate({ employeeId: 'e1', periodMonth: '2026-07' } as never, user);
+    expect(payroll.generate).toHaveBeenCalledWith(user, 'e1', '2026-07');
+    c.approve('p1', user);
+    expect(payroll.approve).toHaveBeenCalledWith(user, 'p1');
+    c.pay('p1', user);
+    expect(payroll.markPaid).toHaveBeenCalledWith(user, 'p1');
+  });
+});
+
+describe('PerformanceController', () => {
+  const perf = svcMock(['listByEmployee', 'upsert']);
+  const c = new PerformanceController(perf as never);
+  it('delegates list + upsert', () => {
+    c.list({ employeeId: 'e1' } as never, user);
+    expect(perf.listByEmployee).toHaveBeenCalledWith(user, 'e1');
+    const dto = { employeeId: 'e1', periodMonth: '2026-07' } as never;
+    c.upsert(dto, user);
+    expect(perf.upsert).toHaveBeenCalledWith(user, dto);
+  });
+});
+
+describe('ReportsController', () => {
+  function make() {
+    const analytics = {
+      dashboard: jest.fn().mockResolvedValue('dash'),
+      depotSummary: jest.fn().mockResolvedValue('summary'),
+      employeeReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
+      attendanceReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
+      payrollReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
+      csv: jest.fn().mockReturnValue('a,b\n1,2'),
+    };
+    return { analytics, c: new ReportsController(analytics as never) };
+  }
+
+  it('dashboard + internal depot-summary delegate', () => {
+    const { analytics, c } = make();
+    const q = { depotId: 'd1' } as never;
+    c.dashboard(q, user);
+    expect(analytics.dashboard).toHaveBeenCalledWith(user, q);
+    c.depotSummary('d1');
+    expect(analytics.depotSummary).toHaveBeenCalledWith('d1');
+  });
+
+  it('employees export defaults to CSV with a BOM', async () => {
+    const { analytics, c } = make();
+    const res = fakeRes();
+    await c.employees({ depotId: 'd1' } as never, user, res);
+    expect(analytics.employeeReport).toHaveBeenCalledWith(user, 'd1');
+    expect(res.headers['Content-Type']).toBe('text/csv; charset=utf-8');
+    expect(res.headers['Content-Disposition']).toBe('attachment; filename="employees.csv"');
+    expect(res.body).toBe('﻿' + 'a,b\n1,2');
+  });
+
+  it('attendance export honours xlsx format', async () => {
+    const { analytics, c } = make();
+    const res = fakeRes();
+    await c.attendance({ from: '2026-07-01', to: '2026-07-31', format: 'xlsx' } as never, user, res);
+    expect(analytics.attendanceReport).toHaveBeenCalled();
+    expect(toXlsx).toHaveBeenCalled();
+    expect(res.headers['Content-Type']).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    expect(res.headers['Content-Disposition']).toBe(
+      'attachment; filename="attendance-2026-07-01_2026-07-31.xlsx"',
+    );
+    expect(res.body).toEqual(Buffer.from('xlsx-bytes'));
+  });
+
+  it('payroll export delegates (csv)', async () => {
+    const { analytics, c } = make();
+    const res = fakeRes();
+    await c.payroll({ periodMonth: '2026-07' } as never, user, res);
+    expect(analytics.payrollReport).toHaveBeenCalled();
+    expect(res.headers['Content-Disposition']).toBe('attachment; filename="payroll-2026-07.csv"');
+  });
+});
+
+describe('BonusRuleController / LoanController', () => {
+  const rules = svcMock(['list', 'create', 'update']);
+  const loans = svcMock(['listByEmployee', 'create', 'deactivate']);
+  const rc = new BonusRuleController(rules as never);
+  const lc = new LoanController(loans as never);
+
+  it('bonus-rule list maps the depotId sentinel', () => {
+    rc.list({ depotId: 'global' } as never);
+    expect(rules.list).toHaveBeenLastCalledWith(null);
+    rc.list({ depotId: 'd1' } as never);
+    expect(rules.list).toHaveBeenLastCalledWith('d1');
+    rc.list({} as never);
+    expect(rules.list).toHaveBeenLastCalledWith(undefined);
+  });
+  it('bonus-rule create + update delegate', () => {
+    const dto = { name: 'r' } as never;
+    rc.create(dto, user);
+    expect(rules.create).toHaveBeenCalledWith(user, dto);
+    rc.update('r1', dto, user);
+    expect(rules.update).toHaveBeenCalledWith(user, 'r1', dto);
+  });
+  it('loans delegate (asOfPeriod defaults to empty string)', () => {
+    lc.list({ employeeId: 'e1' } as never, user);
+    expect(loans.listByEmployee).toHaveBeenCalledWith(user, 'e1', '');
+    lc.list({ employeeId: 'e1', asOfPeriod: '2026-07' } as never, user);
+    expect(loans.listByEmployee).toHaveBeenLastCalledWith(user, 'e1', '2026-07');
+    const dto = { employeeId: 'e1', principal: 100 } as never;
+    lc.create(dto, user);
+    expect(loans.create).toHaveBeenCalledWith(user, dto);
+    lc.deactivate('l1', user);
+    expect(loans.deactivate).toHaveBeenCalledWith(user, 'l1');
+  });
+});
+
+describe('SettingsController', () => {
+  function make() {
+    const settings = {
+      schema: jest.fn().mockResolvedValue('schema'),
+      put: jest.fn().mockResolvedValue(undefined),
+      reset: jest.fn().mockResolvedValue(undefined),
+    };
+    return { settings, c: new SettingsController(settings as never) };
+  }
+
+  it('schema passes depotId (or null)', () => {
+    const { settings, c } = make();
+    c.schema('d1');
+    expect(settings.schema).toHaveBeenCalledWith('d1');
+    c.schema();
+    expect(settings.schema).toHaveBeenLastCalledWith(null);
+  });
+
+  it('put writes a DEPOT override for a non-super-admin', async () => {
+    const { settings, c } = make();
+    await c.put({ scope: 'DEPOT', depotId: 'd1', key: 'k', value: 'v' } as never, user);
+    expect(settings.put).toHaveBeenCalledWith({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'k',
+      value: 'v',
+      updatedBy: 'u1',
+    });
+  });
+
+  it('put rejects a GLOBAL change from a non-super-admin', async () => {
+    const { settings, c } = make();
+    await expect(c.put({ scope: 'GLOBAL', key: 'k', value: 'v' } as never, user)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(settings.put).not.toHaveBeenCalled();
+  });
+
+  it('put allows a GLOBAL change for a super-admin (depotId defaults null)', async () => {
+    const { settings, c } = make();
+    await c.put({ scope: 'GLOBAL', key: 'k', value: 'v' } as never, superAdmin);
+    expect(settings.put).toHaveBeenCalledWith(expect.objectContaining({ scope: 'GLOBAL', depotId: null }));
+  });
+
+  it('reset removes a DEPOT override', async () => {
+    const { settings, c } = make();
+    await c.reset({ scope: 'DEPOT', depotId: 'd1', key: 'k' } as never, user);
+    expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'k');
+  });
+
+  it('reset rejects a GLOBAL change from a non-super-admin', async () => {
+    const { settings, c } = make();
+    await expect(c.reset({ scope: 'GLOBAL', key: 'k' } as never, user)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(settings.reset).not.toHaveBeenCalled();
+  });
+
+  it('reset allows a GLOBAL change for a super-admin (depotId defaults null)', async () => {
+    const { settings, c } = make();
+    await c.reset({ scope: 'GLOBAL', key: 'k' } as never, superAdmin);
+    expect(settings.reset).toHaveBeenCalledWith('GLOBAL', null, 'k');
+  });
+});

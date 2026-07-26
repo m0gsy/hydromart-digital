@@ -60,6 +60,8 @@ export class AttendanceController {
       image: decodeBase64Image(dto.image),
       photoUrl: dto.photoUrl ?? null,
       live: dto.live ?? false,
+      lat: dto.lat,
+      lng: dto.lng,
     };
   }
 }

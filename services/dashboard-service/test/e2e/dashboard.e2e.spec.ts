@@ -156,6 +156,8 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
       order: 'ok',
       delivery: 'ok',
       inventory: 'ok',
+      hr: 'ok',
+      crm: 'ok',
     });
   });
 });

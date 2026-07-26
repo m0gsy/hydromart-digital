@@ -6,6 +6,8 @@ import { CAPABILITIES } from '@hydromart/access';
 
 import { DepotCrmService } from '../application/services/depot-crm.service';
 import {
+  CrmDashboardDto,
+  CrmDashboardQueryDto,
   DepotCustomerDetailDto,
   DepotCustomerDto,
   DepotCustomerQueryDto,
@@ -25,6 +27,14 @@ export class DepotCrmController {
   @ApiOkResponse({ type: [DepotCustomerDto] })
   listDepotCustomers(@Query() query: DepotCustomerQueryDto): Promise<DepotCustomerDto[]> {
     return this.crm.listDepotCustomers(query.depotId, query.q);
+  }
+
+  // Static `crm/dashboard` declared before `:id/...` so it is not captured by the param route.
+  @Get('crm/dashboard')
+  @ApiOperation({ summary: 'Depot CRM lifecycle: segment counts, repeat rate, follow-up queue (Fase 4)' })
+  @ApiOkResponse({ type: CrmDashboardDto })
+  crmDashboard(@Query() query: CrmDashboardQueryDto): Promise<CrmDashboardDto> {
+    return this.crm.getCrmDashboard(query.depotId);
   }
 
   @Get(':id/depot-detail')

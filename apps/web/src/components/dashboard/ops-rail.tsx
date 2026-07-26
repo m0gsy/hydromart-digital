@@ -167,6 +167,7 @@ const GROUPS: RailGroup[] = [
     headKey: 'customers',
     items: [
       { href: '/dashboard/customers', labelKey: 'customers', icon: UsersThree, show: canViewDepotCrm },
+      { href: '/dashboard/crm', labelKey: 'crm', icon: ChartPieSlice, show: canViewDepotCrm },
       { href: '/dashboard/broadcast', labelKey: 'broadcast', icon: Megaphone, show: canBroadcastToCouriers },
       { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: isDepotManager },
       { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: isDepotManager },

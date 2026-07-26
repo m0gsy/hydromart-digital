@@ -162,7 +162,10 @@ describe('DashboardService', () => {
 
     expect(result.totals).toEqual({ depotCount: 2, revenue: 900_000, orderCount: 30, lowStockCount: 1 });
     expect(result.deliverySla?.slaRate).toBe(0.92);
-    expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok' });
+    expect(result.sources).toEqual({ depot: 'ok', order: 'ok', delivery: 'ok', inventory: 'ok', hr: 'ok', crm: 'ok' });
+    // HR + CRM owner roll-up across the 2 owned depots (Fase 5).
+    expect(result.hr).toEqual({ lateToday: 2, absentToday: 4, presentToday: 10, payrollMtdNet: 6_000_000, activeHeadcount: 16 });
+    expect(result.crm).toEqual({ baru: 2, aktif: 6, inactive: 4, total: 12, followUpCount: 2, repeatRatePct: 50 });
   });
 
   it('rolls up every depot with revenue, SLA and low-stock, null SLA when none in range', async () => {
@@ -215,6 +218,11 @@ describe('DashboardService', () => {
       order: 'unavailable',
       delivery: 'unavailable',
       inventory: 'unavailable',
+      hr: 'unavailable',
+      crm: 'unavailable',
     });
+    // No owned depots → nothing to roll up.
+    expect(result.hr).toBeNull();
+    expect(result.crm).toBeNull();
   });
 });

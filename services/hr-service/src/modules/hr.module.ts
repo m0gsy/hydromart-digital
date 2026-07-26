@@ -28,6 +28,14 @@ import { PayrollService } from '../application/services/payroll.service';
 import { AdjustmentService } from '../application/services/adjustment.service';
 import { PayrollPrismaRepository } from '../infrastructure/prisma/payroll.prisma.repository';
 import { BonusPrismaRepository, DeductionPrismaRepository } from '../infrastructure/prisma/adjustment.prisma.repository';
+import { BONUS_RULE_REPOSITORY } from '../application/ports/bonus-rule.repository';
+import { LOAN_REPOSITORY } from '../application/ports/loan.repository';
+import { BonusRuleService } from '../application/services/bonus-rule.service';
+import { LoanService } from '../application/services/loan.service';
+import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.prisma.repository';
+import { LoanPrismaRepository } from '../infrastructure/prisma/loan.prisma.repository';
+import { SALES_PORT } from '../application/ports/sales.port';
+import { OrderSalesHttpAdapter } from '../infrastructure/http/order-sales.http.adapter';
 import { PERFORMANCE_REPOSITORY } from '../application/ports/performance.repository';
 import { PerformanceService } from '../application/services/performance.service';
 import { PerformancePrismaRepository } from '../infrastructure/prisma/performance.prisma.repository';
@@ -54,6 +62,7 @@ import { FaceController, SelfFaceController } from './face.controller';
 import { AttendanceController } from './attendance.controller';
 import { PayrollController } from './payroll.controller';
 import { BonusController, DeductionController } from './adjustment.controller';
+import { BonusRuleController, LoanController } from './rules.controller';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
 import { ReportsController } from './reports.controller';
@@ -103,6 +112,11 @@ const providers: Provider[] = [
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
   PayrollService,
   AdjustmentService,
+  { provide: BONUS_RULE_REPOSITORY, useClass: BonusRulePrismaRepository },
+  { provide: LOAN_REPOSITORY, useClass: LoanPrismaRepository },
+  BonusRuleService,
+  LoanService,
+  { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,
   { provide: AUDIT_REPOSITORY, useClass: AuditPrismaRepository },
@@ -131,6 +145,8 @@ const providers: Provider[] = [
     PayrollController,
     BonusController,
     DeductionController,
+    BonusRuleController,
+    LoanController,
     PerformanceController,
     AuditController,
     ReportsController,

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { DashboardConfigService } from '../../config/dashboard-config.service';
 import {
+  CrmDepotSummary,
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
@@ -10,6 +11,7 @@ import {
   DepotOperationalCosts,
   DepotSlaByDepot,
   FranchiseDepot,
+  HrDepotSummary,
   LowStockLine,
   NetworkDepot,
   SalesReport,
@@ -188,6 +190,22 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const params = new URLSearchParams({ depotId, from: range.from, to: range.to });
     return this.getInternal<DepotOperationalCosts>(
       `${this.config.depotServiceUrl}/api/v1/reports/operational-costs?${params.toString()}`,
+    );
+  }
+
+  async hrSummary(depotId: string): Promise<HrDepotSummary | null> {
+    if (!this.config.hrServiceUrl) return null;
+    const params = new URLSearchParams({ depotId });
+    return this.getInternal<HrDepotSummary>(
+      `${this.config.hrServiceUrl}/api/v1/hr-reports/internal/depot-summary?${params.toString()}`,
+    );
+  }
+
+  async crmSummary(depotId: string): Promise<CrmDepotSummary | null> {
+    if (!this.config.customerServiceUrl) return null;
+    const params = new URLSearchParams({ depotId });
+    return this.getInternal<CrmDepotSummary>(
+      `${this.config.customerServiceUrl}/api/v1/customers/internal/crm-summary?${params.toString()}`,
     );
   }
 }

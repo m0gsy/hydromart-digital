@@ -75,6 +75,18 @@ export class HrConfigService {
   weeklyOffDays(depotId: string | null = null): string {
     return this.tunableStr('weeklyOffDays', this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''), depotId);
   }
+  /** Attendance geofence for a depot: centre (lat/lng, '' = unset) + radius (0 = disabled). */
+  geofence(depotId: string | null = null): { lat: number | null; lng: number | null; radiusM: number } {
+    const parse = (s: string): number | null => {
+      const n = Number(s);
+      return s.trim() !== '' && Number.isFinite(n) ? n : null;
+    };
+    return {
+      lat: parse(this.tunableStr('geofenceLat', '', depotId)),
+      lng: parse(this.tunableStr('geofenceLng', '', depotId)),
+      radiusM: this.tunableNum('geofenceRadiusM', 0, depotId),
+    };
+  }
   /** Depot-head tenure raise ladder as CSV ("1:5,2:10"); '' = no automatic raise (Rule-E). */
   tenureRaiseLadder(depotId: string | null = null): string {
     return this.tunableStr('tenureRaiseLadder', this.config.get<string>('HR_TENURE_RAISE_LADDER', ''), depotId);
@@ -95,6 +107,13 @@ export class HrConfigService {
   }
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
+  }
+  /** order-service base URL + internal key for the SALES_TOTAL bonus aggregate. */
+  get orderService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('ORDER_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
   }
   /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
   get neoFr(): { endpoint: string; token: string; galleryId: string } {

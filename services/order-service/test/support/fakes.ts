@@ -11,6 +11,7 @@ import {
   CreateOrderData,
   CreateReviewData,
   CustomerLifetime,
+  DepotCustomerAggregate,
   CustomerSales,
   DepotSales,
   DepotRating,
@@ -172,6 +173,12 @@ export class InMemoryOrderRepository implements OrderRepository {
     return this.rows
       .filter((row) => orderIds.includes(row.id))
       .map((row) => ({ orderId: row.id, totalIdr: row.total }));
+  }
+  async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
+    return this.rows
+      .filter((r) => r.depotId === depotId && (r.status === 'DELIVERED' || r.status === 'COMPLETED'))
+      .filter((r) => r.createdAt >= from && r.createdAt <= to)
+      .reduce((t, r) => t + Math.round(r.total), 0);
   }
   async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
     const all = this.rows
@@ -416,6 +423,27 @@ export class InMemoryOrderRepository implements OrderRepository {
       firstOrderAt: rows[0]?.createdAt ?? null,
       lastOrderAt: rows[rows.length - 1]?.createdAt ?? null,
     };
+  }
+
+  async depotCustomerAggregates(depotId: string): Promise<DepotCustomerAggregate[]> {
+    const byCustomer = new Map<string, OrderRecord[]>();
+    for (const r of this.rows) {
+      if (r.depotId !== depotId || r.status === OrderStatus.CANCELLED) continue;
+      (byCustomer.get(r.customerId) ?? byCustomer.set(r.customerId, []).get(r.customerId)!).push(r);
+    }
+    return [...byCustomer.entries()].map(([customerId, rows]) => {
+      const sorted = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const latest = sorted[sorted.length - 1]!;
+      return {
+        customerId,
+        name: latest.recipientName ?? null,
+        phone: latest.phone ?? null,
+        orderCount: rows.length,
+        totalSpent: rows.reduce((s, r) => s + r.total, 0),
+        firstOrderAt: sorted[0]!.createdAt,
+        lastOrderAt: latest.createdAt,
+      };
+    });
   }
 
   async audienceReach(depotId?: string): Promise<number> {

@@ -1004,6 +1004,9 @@ export const endpoints = {
     },
     detail: (id: string, depotId: string) =>
       `/customers/api/v1/customers/${id}/depot-detail?depotId=${encodeURIComponent(depotId)}`,
+    // CRM lifecycle dashboard: segment counts + follow-up queue (Fase 4).
+    crmDashboard: (depotId: string) =>
+      `/customers/api/v1/customers/crm/dashboard?depotId=${encodeURIComponent(depotId)}`,
   },
   // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
   // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.
@@ -1022,6 +1025,13 @@ export const endpoints = {
     employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
     createEmployee: '/employees/api/v1/employees',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
+    bonusRules: (depotId?: string) => `/bonus-rules/api/v1/bonus-rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    createBonusRule: '/bonus-rules/api/v1/bonus-rules',
+    updateBonusRule: (id: string) => `/bonus-rules/api/v1/bonus-rules/${id}`,
+    loans: (employeeId: string, asOfPeriod?: string) =>
+      `/loans/api/v1/loans?employeeId=${employeeId}${asOfPeriod ? `&asOfPeriod=${asOfPeriod}` : ''}`,
+    createLoan: '/loans/api/v1/loans',
+    deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
     enrollFaceMe: '/attendance/api/v1/attendance/me/face/enroll',
     checkIn: '/attendance/api/v1/attendance/check-in',

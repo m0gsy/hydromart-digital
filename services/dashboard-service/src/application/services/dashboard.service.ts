@@ -61,17 +61,41 @@ export interface FranchiseDepotSummary {
   lowStockCount: number;
 }
 
+/** Owner franchise HR roll-up across owned depots (Fase 5). */
+export interface FranchiseHr {
+  lateToday: number;
+  absentToday: number;
+  presentToday: number;
+  payrollMtdNet: number;
+  activeHeadcount: number;
+}
+
+/** Owner franchise CRM roll-up across owned depots (Fase 5). */
+export interface FranchiseCrm {
+  baru: number;
+  aktif: number;
+  inactive: number;
+  total: number;
+  followUpCount: number;
+  /** Customer-weighted repeat rate across depots, 0..100. */
+  repeatRatePct: number;
+}
+
 export interface FranchiseDashboard {
   from: string | null;
   to: string | null;
   depots: FranchiseDepotSummary[];
   totals: { depotCount: number; revenue: number; orderCount: number; lowStockCount: number };
   deliverySla: DeliverySla | null;
+  hr: FranchiseHr | null;
+  crm: FranchiseCrm | null;
   sources: {
     depot: 'ok' | 'unavailable';
     order: 'ok' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
+    hr: 'ok' | 'unavailable';
+    crm: 'ok' | 'unavailable';
   };
 }
 
@@ -288,7 +312,15 @@ export class DashboardService {
     const lowStockP: Promise<(LowStockLine[] | null)[]> = depots
       ? Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
       : Promise.resolve([]);
-    const [deliverySla, lowStockLists] = await Promise.all([deliverySlaP, lowStockP]);
+    // HR + CRM per-depot summaries (Fase 5) — internal-key fan-out, best-effort per depot.
+    const hrP = Promise.all(depotIds.map((id) => this.sources.hrSummary(id)));
+    const crmP = Promise.all(depotIds.map((id) => this.sources.crmSummary(id)));
+    const [deliverySla, lowStockLists, hrList, crmList] = await Promise.all([
+      deliverySlaP,
+      lowStockP,
+      hrP,
+      crmP,
+    ]);
     let inventoryOk = depots !== null;
 
     const summaries: FranchiseDepotSummary[] = (depots ?? []).map((d, i) => {
@@ -316,17 +348,60 @@ export class DashboardService {
       { depotCount: 0, revenue: 0, orderCount: 0, lowStockCount: 0 },
     );
 
+    // HR roll-up: sum across depots. 'ok' only when at least one depot summary came back.
+    const hrRows = hrList.filter((h): h is NonNullable<typeof h> => h !== null);
+    const hr: FranchiseHr | null =
+      depotIds.length > 0 && hrRows.length > 0
+        ? hrRows.reduce(
+            (acc, h) => ({
+              lateToday: acc.lateToday + h.lateToday,
+              absentToday: acc.absentToday + h.absentToday,
+              presentToday: acc.presentToday + h.presentToday,
+              payrollMtdNet: acc.payrollMtdNet + h.payrollMtdNet,
+              activeHeadcount: acc.activeHeadcount + h.activeHeadcount,
+            }),
+            { lateToday: 0, absentToday: 0, presentToday: 0, payrollMtdNet: 0, activeHeadcount: 0 },
+          )
+        : null;
+
+    // CRM roll-up: sum segment counts; repeat rate is customer-weighted across depots.
+    const crmRows = crmList.filter((c): c is NonNullable<typeof c> => c !== null);
+    let crm: FranchiseCrm | null = null;
+    if (depotIds.length > 0 && crmRows.length > 0) {
+      const acc = { baru: 0, aktif: 0, inactive: 0, total: 0, followUpCount: 0, repeatCustomers: 0 };
+      for (const c of crmRows) {
+        acc.baru += c.counts.baru;
+        acc.aktif += c.counts.aktif;
+        acc.inactive += c.counts.inactive;
+        acc.total += c.counts.total;
+        acc.followUpCount += c.followUps.length;
+        acc.repeatCustomers += Math.round((c.repeatRatePct / 100) * c.counts.total);
+      }
+      crm = {
+        baru: acc.baru,
+        aktif: acc.aktif,
+        inactive: acc.inactive,
+        total: acc.total,
+        followUpCount: acc.followUpCount,
+        repeatRatePct: acc.total > 0 ? Math.round((acc.repeatCustomers / acc.total) * 100) : 0,
+      };
+    }
+
     return {
       from: range.from ?? null,
       to: range.to ?? null,
       depots: summaries,
       totals,
       deliverySla,
+      hr,
+      crm,
       sources: {
         depot: depots !== null ? 'ok' : 'unavailable',
         order: topDepots !== null ? 'ok' : 'unavailable',
         delivery: deliverySla !== null ? 'ok' : 'unavailable',
         inventory: inventoryOk ? 'ok' : 'unavailable',
+        hr: hr !== null ? 'ok' : 'unavailable',
+        crm: crm !== null ? 'ok' : 'unavailable',
       },
     };
   }

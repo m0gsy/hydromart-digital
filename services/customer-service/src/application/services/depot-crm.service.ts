@@ -2,8 +2,16 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
+import { OrderCrmPort, DepotCustomerOrderStats } from '../ports/order-crm.port';
 import { ProfileRepository } from '../ports/profile.repository';
 import { MembershipTier } from '../../domain/membership-tier.enum';
+import {
+  classifySegment,
+  daysBetween,
+  needsFollowUp,
+  CrmSegment,
+} from '../../domain/crm-segment';
+import { CustomerConfigService } from '../../config/customer-config.service';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 /**
@@ -21,6 +29,28 @@ export interface DepotCustomerListItem {
   depositHeldIdr: number | null;
   lastOrderAt: string | null;
   isSubscriber: boolean | null;
+  /** CRM lifecycle segment (Fase 4); null when order-service is unreachable. */
+  segment: CrmSegment | null;
+}
+
+/** One at-risk customer surfaced in the depot CRM follow-up queue (Fase 4). */
+export interface CrmFollowUp {
+  customerId: string;
+  name: string | null;
+  phone: string | null;
+  lastOrderAt: string | null;
+  daysSinceLastOrder: number | null;
+  orderCount: number;
+  totalSpentIdr: number;
+}
+
+/** Depot CRM lifecycle dashboard (Fase 4, /dashboard/crm). */
+export interface CrmDashboard {
+  counts: { baru: number; aktif: number; inactive: number; total: number };
+  /** Share of customers with >1 order, 0..100. */
+  repeatRatePct: number;
+  /** Customers past the follow-up threshold, most-overdue first. */
+  followUps: CrmFollowUp[];
 }
 
 export interface DepotCrmAddress {
@@ -90,22 +120,79 @@ export class DepotCrmService {
     @Inject(CUSTOMER_TOKENS.DepotCrmRepository) private readonly crm: DepotCrmRepository,
     @Inject(CUSTOMER_TOKENS.AddressRepository) private readonly addresses: AddressRepository,
     @Inject(CUSTOMER_TOKENS.ProfileRepository) private readonly profiles: ProfileRepository,
+    @Inject(CUSTOMER_TOKENS.OrderCrmPort) private readonly orderCrm: OrderCrmPort,
+    private readonly config: CustomerConfigService,
   ) {}
 
   async listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerListItem[]> {
-    const rows = await this.crm.listDepotCustomers(depotId, q);
-    return rows.map((r) => ({
-      id: r.customerId,
-      fullName: r.fullName,
-      phone: r.phone,
-      membershipTier: r.membershipTier,
-      // Cross-service aggregates unwired — null ("unknown"), never a fabricated 0/false.
-      orderCount: null,
-      gallonsOnLoan: null,
-      depositHeldIdr: null,
-      lastOrderAt: null,
-      isSubscriber: null,
-    }));
+    const [rows, stats] = await Promise.all([
+      this.crm.listDepotCustomers(depotId, q),
+      this.orderCrm.depotCustomerStats(depotId),
+    ]);
+    const statsBy = new Map(stats.map((s) => [s.customerId, s]));
+    const now = new Date();
+    const t = this.config.crmThresholds;
+    return rows.map((r) => {
+      const s = statsBy.get(r.customerId);
+      return {
+        id: r.customerId,
+        fullName: r.fullName,
+        phone: r.phone,
+        membershipTier: r.membershipTier,
+        // Order aggregates from order-service; null (not 0) when it had no data / was unreachable.
+        orderCount: s ? s.orderCount : null,
+        lastOrderAt: s?.lastOrderAt ? s.lastOrderAt.toISOString() : null,
+        segment: s ? classifySegment(s, now, t) : null,
+        // Still cross-service-unwired (depot-service gallon/deposit ledger) — null, never fabricated.
+        gallonsOnLoan: null,
+        depositHeldIdr: null,
+        isSubscriber: null,
+      };
+    });
+  }
+
+  /**
+   * CRM lifecycle dashboard for a depot (Fase 4): segment counts, repeat rate, and the
+   * follow-up queue (customers past the follow-up threshold, most-overdue first). The WA
+   * follow-up link is built client-side from `phone` — no auto-send.
+   *
+   * ponytail: queue is DERIVED on read (no persisted follow-up table / cron) — it self-clears
+   * when a customer orders again. Add a `crm_follow_ups` table only if ops need to mark
+   * "contacted" or assign an owner; the segment math above is the reusable core either way.
+   */
+  async getCrmDashboard(depotId: string): Promise<CrmDashboard> {
+    const stats = await this.orderCrm.depotCustomerStats(depotId);
+    const now = new Date();
+    const t = this.config.crmThresholds;
+    const counts = { baru: 0, aktif: 0, inactive: 0, total: stats.length };
+    let repeat = 0;
+    const followUps: CrmFollowUp[] = [];
+    for (const s of stats) {
+      const seg = classifySegment(s, now, t);
+      if (seg === 'BARU') counts.baru++;
+      else if (seg === 'AKTIF') counts.aktif++;
+      else counts.inactive++;
+      if (s.orderCount > 1) repeat++;
+      if (needsFollowUp(s, now, t)) followUps.push(this.toFollowUp(s, now));
+    }
+    followUps.sort((a, b) => (b.daysSinceLastOrder ?? 0) - (a.daysSinceLastOrder ?? 0));
+    return {
+      counts,
+      repeatRatePct: counts.total > 0 ? Math.round((repeat / counts.total) * 100) : 0,
+      followUps,
+    };
+  }
+
+  private toFollowUp(s: DepotCustomerOrderStats, now: Date): CrmFollowUp {
+    return {
+      customerId: s.customerId,
+      name: s.name,
+      phone: s.phone,
+      lastOrderAt: s.lastOrderAt ? s.lastOrderAt.toISOString() : null,
+      daysSinceLastOrder: s.lastOrderAt ? daysBetween(s.lastOrderAt, now) : null,
+      orderCount: s.orderCount,
+      totalSpentIdr: Math.round(s.totalSpent),
+    };
   }
 
   /** Ids of all customers whose favourite depot is this one (service-to-service). */

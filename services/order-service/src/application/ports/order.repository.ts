@@ -215,6 +215,21 @@ export interface CustomerLifetime {
 }
 
 /**
+ * Per-customer order aggregate for a depot's CRM lifecycle (Fase 4). One row per
+ * customer who has ordered at the depot (CANCELLED excluded). name/phone snapshot
+ * comes from that customer's latest order at the depot — the WA follow-up target.
+ */
+export interface DepotCustomerAggregate {
+  customerId: string;
+  name: string | null;
+  phone: string | null;
+  orderCount: number;
+  totalSpent: number;
+  firstOrderAt: Date | null;
+  lastOrderAt: Date | null;
+}
+
+/**
  * Activity-based segment conditions over the order book (Phase 4c, design 21d).
  * Every condition is AND-combined; distinct customers matching them all are counted.
  * `tier` is NOT here — it is owned by loyalty-service and not joinable in order-service.
@@ -237,6 +252,8 @@ export interface OrderRepository {
   findById(id: string): Promise<OrderRecord | null>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
+  /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
+  sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
   /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
   findStaleCreated(before: Date): Promise<OrderRecord[]>;
@@ -307,6 +324,8 @@ export interface OrderRepository {
   retentionCohort(range: ReportRange): Promise<RetentionCell[]>;
   /** One customer's lifetime revenue/order-count/first-last dates (17e). */
   customerLifetime(customerId: string): Promise<CustomerLifetime>;
+  /** Per-customer order aggregates for a depot's CRM lifecycle (Fase 4, CANCELLED excluded). */
+  depotCustomerAggregates(depotId: string): Promise<DepotCustomerAggregate[]>;
   /**
    * Distinct customers reachable for a broadcast (design 10d) — anyone with a
    * non-cancelled order (every order carries a phone). Scoped to one depot when given.

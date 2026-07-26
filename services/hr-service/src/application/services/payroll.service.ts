@@ -12,9 +12,14 @@ import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
 import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../domain/tenure';
+import { evalBonusRule, BonusContext, BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
+import { loanDeductionFor } from '../../domain/loan';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
+import { BONUS_RULE_REPOSITORY, BonusRuleRepository } from '../ports/bonus-rule.repository';
+import { LOAN_REPOSITORY, LoanRepository } from '../ports/loan.repository';
+import { SALES_PORT, SalesPort } from '../ports/sales.port';
 import {
   BONUS_REPOSITORY,
   BonusRepository,
@@ -41,6 +46,9 @@ export class PayrollService {
     private readonly employees: EmployeeService,
     private readonly config: HrConfigService,
     @Optional() @Inject(HOLIDAY_REPOSITORY) private readonly holidays?: HolidayRepository,
+    @Optional() @Inject(BONUS_RULE_REPOSITORY) private readonly bonusRules?: BonusRuleRepository,
+    @Optional() @Inject(LOAN_REPOSITORY) private readonly loans?: LoanRepository,
+    @Optional() @Inject(SALES_PORT) private readonly sales?: SalesPort,
   ) {}
 
   /**
@@ -85,10 +93,40 @@ export class PayrollService {
       }
     }
 
-    // BONUS lines
+    // BONUS lines — manual rows first, then configurable auto-rules.
     const bonusRows = await this.bonuses.listByEmployeePeriod(employeeId, periodMonth);
     for (const b of bonusRows) {
       items.push({ kind: 'BONUS', label: b.note ?? `Bonus ${b.type}`, amount: Number(b.amount), sourceRef: b.id });
+    }
+
+    // Auto-bonus rules (Rule-F): base pay = BASE items so far (incl. tenure raise).
+    if (this.bonusRules) {
+      const workingDays = await this.workingDays(periodMonth, employee.depotId, from, to);
+      const rules = await this.bonusRules.listActiveForDepot(employee.depotId);
+      // Only pay the cross-service sales call when a SALES rule actually needs it.
+      const needsSales = rules.some((r) => r.metric === 'SALES_TOTAL');
+      const salesTotal = needsSales && this.sales ? await this.sales.depotSales(employee.depotId, from, to) : null;
+      const ctx: BonusContext = {
+        presentDays,
+        workingDays,
+        lateDays,
+        isDepotManager: employee.employmentStatus === 'DEPOT_MANAGER',
+        salesTotal,
+        basePay: sum(items, 'BASE'),
+      };
+      for (const r of rules) {
+        const amount = evalBonusRule(
+          {
+            metric: r.metric as BonusMetric,
+            op: r.op as CompareOp,
+            threshold: Number(r.threshold),
+            rewardKind: r.rewardKind as RewardKind,
+            rewardValue: Number(r.rewardValue),
+          },
+          ctx,
+        );
+        if (amount > 0) items.push({ kind: 'BONUS', label: r.name, amount, sourceRef: r.id });
+      }
     }
 
     // DEDUCTION lines: auto late (lateDays × config) + manual rows
@@ -109,6 +147,20 @@ export class PayrollService {
     const deductionRows = await this.deductions.listByEmployeePeriod(employeeId, periodMonth);
     for (const d of deductionRows) {
       items.push({ kind: 'DEDUCTION', label: d.note ?? `Potongan ${d.type}`, amount: Number(d.amount), sourceRef: d.id });
+    }
+
+    // Auto loan/kasbon installment (Rule-G): pure per-period deduction, idempotent on re-generate.
+    if (this.loans) {
+      const activeLoans = await this.loans.listActiveByEmployee(employeeId);
+      for (const loan of activeLoans) {
+        const amount = loanDeductionFor(
+          { principal: Number(loan.principal), installmentAmount: Number(loan.installmentAmount), startPeriod: loan.startPeriod },
+          periodMonth,
+        );
+        if (amount > 0) {
+          items.push({ kind: 'DEDUCTION', label: loan.note ? `Cicilan: ${loan.note}` : 'Cicilan pinjaman', amount, sourceRef: loan.id });
+        }
+      }
     }
 
     const gross = sum(items, 'BASE');
@@ -203,15 +255,20 @@ export class PayrollService {
     presentDays: number,
     leaveDays: number,
   ): Promise<number> {
+    const workingDays = await this.workingDays(periodMonth, depotId, from, to);
+    return Math.max(0, workingDays - presentDays - leaveDays);
+  }
+
+  /** Expected working days in the period: calendar days − weekly-off − holidays. */
+  private async workingDays(periodMonth: string, depotId: string, from: Date, to: Date): Promise<number> {
     const [year, month] = periodMonth.split('-').map(Number);
     const holidayDates = this.holidays ? await this.holidays.listDates(depotId, from, to) : [];
-    const workingDays = workingDaysInMonth(
+    return workingDaysInMonth(
       year,
       month,
       new Set(holidayDates),
       parseWeeklyOffDays(this.config.weeklyOffDays(depotId)),
     );
-    return Math.max(0, workingDays - presentDays - leaveDays);
   }
 
   private basePay(employee: Employee, presentDays: number): number {

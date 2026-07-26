@@ -3,7 +3,7 @@ import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
-import { DepotCrmService } from '../application/services/depot-crm.service';
+import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 
 /**
  * Service-to-service reads (no end-user token). @Public() bypasses the global JWT guard;
@@ -23,5 +23,13 @@ export class InternalController {
     @Query('depotId', ParseUUIDPipe) depotId: string,
   ): Promise<{ customerIds: string[] }> {
     return { customerIds: await this.crm.listCustomerIdsByDepot(depotId) };
+  }
+
+  // dashboard-service pulls per-depot CRM segments + follow-up count for the owner
+  // franchise dashboard (Fase 5). Same CRM lifecycle math as the bearer-gated dashboard.
+  @Get('internal/crm-summary')
+  @ApiOperation({ summary: 'Per-depot CRM lifecycle summary (internal service auth)' })
+  crmSummary(@Query('depotId', ParseUUIDPipe) depotId: string): Promise<CrmDashboard> {
+    return this.crm.getCrmDashboard(depotId);
   }
 }

@@ -1,9 +1,9 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
 import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Roles } from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
 import { toXlsx } from '../domain/xlsx';
@@ -26,6 +26,17 @@ export class ReportsController {
   @ApiOperation({ summary: 'HR dashboard: headcount, today’s attendance, payroll totals' })
   dashboard(@Query() q: DashboardQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.analytics.dashboard(user, q);
+  }
+
+  // Service-to-service: dashboard-service pulls a per-depot HR summary for the owner
+  // franchise dashboard (Fase 5). Internal key auth, same fail-closed path as other services.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-summary')
+  @ApiOperation({ summary: 'Per-depot HR summary: late/absent today, payroll MTD (internal service auth)' })
+  depotSummary(@Query('depotId') depotId: string) {
+    return this.analytics.depotSummary(depotId);
   }
 
   @Get('employees')

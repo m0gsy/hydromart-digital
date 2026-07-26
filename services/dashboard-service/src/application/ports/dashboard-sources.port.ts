@@ -120,6 +120,23 @@ export interface DepotOperationalCosts {
   };
 }
 
+/** One depot's HR summary (hr-service GET /hr-reports/internal/depot-summary), Fase 5. */
+export interface HrDepotSummary {
+  depotId: string;
+  lateToday: number;
+  absentToday: number;
+  presentToday: number;
+  payrollMtdNet: number;
+  activeHeadcount: number;
+}
+
+/** One depot's CRM lifecycle summary (customer-service GET /customers/internal/crm-summary), Fase 5. */
+export interface CrmDepotSummary {
+  counts: { baru: number; aktif: number; inactive: number; total: number };
+  repeatRatePct: number;
+  followUps: { customerId: string }[];
+}
+
 /**
  * Reads report data from downstream services (order + delivery + depot). Each
  * method forwards the caller's bearer token and returns `null` on any failure
@@ -149,4 +166,8 @@ export interface DashboardSourcesPort {
     range: Required<DateRange>,
     token: string,
   ): Promise<DepotOperationalCosts | null>;
+  /** One depot's HR summary (late/absent today, payroll MTD); null when hr-service is unwired/down. */
+  hrSummary(depotId: string): Promise<HrDepotSummary | null>;
+  /** One depot's CRM lifecycle summary; null when customer-service is unwired/down. */
+  crmSummary(depotId: string): Promise<CrmDepotSummary | null>;
 }

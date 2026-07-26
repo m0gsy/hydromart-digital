@@ -40,6 +40,51 @@ export class DepotCustomerDto {
   lastOrderAt!: string | null;
   @ApiProperty({ nullable: true, example: null })
   isSubscriber!: boolean | null;
+  @ApiProperty({ enum: ['BARU', 'AKTIF', 'INACTIVE'], nullable: true, description: 'CRM lifecycle segment; null when order data is unavailable.' })
+  segment!: 'BARU' | 'AKTIF' | 'INACTIVE' | null;
+}
+
+export class CrmDashboardQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot whose CRM lifecycle to summarise.' })
+  @IsUUID()
+  depotId!: string;
+}
+
+export class CrmSegmentCountsDto {
+  @ApiProperty()
+  baru!: number;
+  @ApiProperty()
+  aktif!: number;
+  @ApiProperty()
+  inactive!: number;
+  @ApiProperty()
+  total!: number;
+}
+
+export class CrmFollowUpDto {
+  @ApiProperty({ format: 'uuid' })
+  customerId!: string;
+  @ApiProperty({ nullable: true })
+  name!: string | null;
+  @ApiProperty({ nullable: true })
+  phone!: string | null;
+  @ApiProperty({ nullable: true })
+  lastOrderAt!: string | null;
+  @ApiProperty({ nullable: true })
+  daysSinceLastOrder!: number | null;
+  @ApiProperty()
+  orderCount!: number;
+  @ApiProperty()
+  totalSpentIdr!: number;
+}
+
+export class CrmDashboardDto {
+  @ApiProperty({ type: CrmSegmentCountsDto })
+  counts!: CrmSegmentCountsDto;
+  @ApiProperty()
+  repeatRatePct!: number;
+  @ApiProperty({ type: [CrmFollowUpDto] })
+  followUps!: CrmFollowUpDto[];
 }
 
 export class DepotCrmAddressDto {

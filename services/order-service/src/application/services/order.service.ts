@@ -365,6 +365,16 @@ export class OrderService {
     return this.orders.findCompletedPage(cursor, clamped);
   }
 
+  /** Total fulfilled sales for a depot in [from, to] — feeds hr-service SALES_TOTAL bonus rules. */
+  sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
+    return this.orders.sumDepotSales(depotId, from, to);
+  }
+
+  /** Per-customer order aggregates for a depot's CRM lifecycle (Fase 4). */
+  depotCustomerAggregates(depotId: string) {
+    return this.orders.depotCustomerAggregates(depotId);
+  }
+
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search(input);

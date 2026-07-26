@@ -1,0 +1,55 @@
+import { Injectable, Logger } from '@nestjs/common';
+
+import { CustomerConfigService } from '../../config/customer-config.service';
+import { DepotCustomerOrderStats, OrderCrmPort } from '../../application/ports/order-crm.port';
+
+interface RawStat {
+  customerId: string;
+  name: string | null;
+  phone: string | null;
+  orderCount: number;
+  totalSpent: number;
+  firstOrderAt: string | null;
+  lastOrderAt: string | null;
+}
+
+/**
+ * Fetches per-customer order aggregates from order-service's internal endpoint.
+ * Fails SOFT: any error / missing config → [] so the CRM directory + dashboard render
+ * with "no order data" instead of 500ing.
+ */
+@Injectable()
+export class OrderCrmHttpAdapter implements OrderCrmPort {
+  private readonly logger = new Logger(OrderCrmHttpAdapter.name);
+
+  constructor(private readonly config: CustomerConfigService) {}
+
+  async depotCustomerStats(depotId: string): Promise<DepotCustomerOrderStats[]> {
+    const url = this.config.orderServiceUrl;
+    const key = this.config.internalServiceKey;
+    if (!url || !key) return [];
+    try {
+      const res = await fetch(
+        `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-customers?depotId=${encodeURIComponent(depotId)}`,
+        { headers: { 'x-internal-key': key } },
+      );
+      if (!res.ok) {
+        this.logger.warn(`depot-customers ${res.status} for depot ${depotId}`);
+        return [];
+      }
+      const body = (await res.json()) as { customers?: RawStat[] };
+      return (body.customers ?? []).map((c) => ({
+        customerId: c.customerId,
+        name: c.name,
+        phone: c.phone,
+        orderCount: c.orderCount,
+        totalSpent: c.totalSpent,
+        firstOrderAt: c.firstOrderAt ? new Date(c.firstOrderAt) : null,
+        lastOrderAt: c.lastOrderAt ? new Date(c.lastOrderAt) : null,
+      }));
+    } catch (err) {
+      this.logger.warn(`depot-customers fetch failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+}

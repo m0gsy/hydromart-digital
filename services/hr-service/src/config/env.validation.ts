@@ -27,6 +27,10 @@ export const envValidationSchema = Joi.object({
   HR_FACE_DUPLICATE_THRESHOLD: Joi.number().min(0).max(1).default(0.75),
   HR_FACE_MODEL_PATH: Joi.string().default('./models/arcface.onnx'),
   FACE_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // order-service base URL + shared internal key for the SALES_TOTAL bonus aggregate.
+  // Both empty → SALES rules stay dormant (salesTotal resolves null, never fabricated).
+  ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
   // NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only, never committed.
   NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),
   NEO_FR_TOKEN: Joi.string().allow('').default(''),

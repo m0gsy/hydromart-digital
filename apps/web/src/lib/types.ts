@@ -721,17 +721,38 @@ export interface NetworkDashboard {
   };
 }
 
+export interface FranchiseHr {
+  lateToday: number;
+  absentToday: number;
+  presentToday: number;
+  payrollMtdNet: number;
+  activeHeadcount: number;
+}
+
+export interface FranchiseCrm {
+  baru: number;
+  aktif: number;
+  inactive: number;
+  total: number;
+  followUpCount: number;
+  repeatRatePct: number;
+}
+
 export interface FranchiseDashboard {
   from: string | null;
   to: string | null;
   depots: FranchiseDepotSummary[];
   totals: { depotCount: number; revenue: number; orderCount: number; lowStockCount: number };
   deliverySla: DeliverySla | null;
+  hr: FranchiseHr | null;
+  crm: FranchiseCrm | null;
   sources: {
     depot: 'ok' | 'unavailable';
     order: 'ok' | 'unavailable';
     delivery: 'ok' | 'unavailable';
     inventory: 'ok' | 'unavailable';
+    hr: 'ok' | 'unavailable';
+    crm: 'ok' | 'unavailable';
   };
 }
 
@@ -1770,6 +1791,25 @@ export interface DepotCustomer {
   depositHeldIdr: number | null;
   lastOrderAt: string | null;
   isSubscriber: boolean | null;
+  /** CRM lifecycle segment (Fase 4); null when order data is unavailable. */
+  segment: 'BARU' | 'AKTIF' | 'INACTIVE' | null;
+}
+
+/** Depot CRM lifecycle dashboard (Fase 4, /dashboard/crm). */
+export interface CrmDashboard {
+  counts: { baru: number; aktif: number; inactive: number; total: number };
+  repeatRatePct: number;
+  followUps: CrmFollowUp[];
+}
+
+export interface CrmFollowUp {
+  customerId: string;
+  name: string | null;
+  phone: string | null;
+  lastOrderAt: string | null;
+  daysSinceLastOrder: number | null;
+  orderCount: number;
+  totalSpentIdr: number;
 }
 
 export interface DepotCustomerAddress {

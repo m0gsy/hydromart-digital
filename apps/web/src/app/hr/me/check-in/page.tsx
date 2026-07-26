@@ -11,6 +11,21 @@ import { fmtTime, type Attendance } from '@/lib/hr';
 
 type Mode = 'in' | 'out';
 
+/** Resolve the device GPS position (needed for the attendance geofence). */
+function getPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!('geolocation' in navigator)) {
+      reject(new Error('Perangkat tidak mendukung GPS'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => reject(new Error('Izinkan akses lokasi (GPS) untuk absen')),
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 30_000 },
+    );
+  });
+}
+
 export default function MeCheckInPage() {
   const { toast } = useToast();
   const [mode, setMode] = useState<Mode>('in');
@@ -24,12 +39,13 @@ export default function MeCheckInPage() {
     }
     setBusy(true);
     try {
+      const { lat, lng } = await getPosition();
       const path = mode === 'in' ? endpoints.hr.checkIn : endpoints.hr.checkOut;
-      const row = await api.post<Attendance>(path, { image: dataUrl, live }, true);
+      const row = await api.post<Attendance>(path, { image: dataUrl, live, lat, lng }, true);
       setResult(row);
       toast(mode === 'in' ? 'Check-in berhasil' : 'Check-out berhasil');
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Gagal absen', 'error');
+      toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Gagal absen', 'error');
     } finally {
       setBusy(false);
     }

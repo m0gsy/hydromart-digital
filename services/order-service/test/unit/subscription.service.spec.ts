@@ -104,6 +104,8 @@ describe('SubscriptionService', () => {
     expect((await service.resume(customer, sub.id)).status).toBe('ACTIVE');
     expect((await service.cancel(customer, sub.id)).status).toBe('CANCELLED');
     await expect(service.pause(customer, sub.id)).rejects.toBeInstanceOf(SubscriptionNotActionableError);
+    // resume is equally blocked once cancelled (BR: a cancelled sub is terminal).
+    await expect(service.resume(customer, sub.id)).rejects.toBeInstanceOf(SubscriptionNotActionableError);
   });
 
   it('processDue places an order for a due subscription and advances its schedule', async () => {

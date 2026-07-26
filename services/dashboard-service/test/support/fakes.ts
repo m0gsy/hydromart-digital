@@ -1,4 +1,5 @@
 import {
+  CrmDepotSummary,
   DashboardSourcesPort,
   DateRange,
   DeliverySla,
@@ -7,6 +8,7 @@ import {
   DepotOperationalCosts,
   DepotSlaByDepot,
   FranchiseDepot,
+  HrDepotSummary,
   LowStockLine,
   NetworkDepot,
   SalesReport,
@@ -153,5 +155,11 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
         exclusionRule: 'NORMALIZED_CATEGORY_PO_AND_RECEIVED_PO_SOURCE_REF',
       },
     };
+  }
+  async hrSummary(depotId: string): Promise<HrDepotSummary | null> {
+    return { depotId, lateToday: 1, absentToday: 2, presentToday: 5, payrollMtdNet: 3_000_000, activeHeadcount: 8 };
+  }
+  async crmSummary(_depotId: string): Promise<CrmDepotSummary | null> {
+    return { counts: { baru: 1, aktif: 3, inactive: 2, total: 6 }, repeatRatePct: 50, followUps: [{ customerId: 'c1' }] };
   }
 }

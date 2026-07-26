@@ -7,6 +7,7 @@ import {
   CreateReviewData,
   CustomerLifetime,
   CustomerSales,
+  DepotCustomerAggregate,
   DepotSales,
   DepotRating,
   DepotRatingsDetail,
@@ -233,6 +234,14 @@ export class OrderPrismaRepository implements OrderRepository {
       select: { id: true, total: true },
     });
     return rows.map((row) => ({ orderId: row.id, totalIdr: Math.round(row.total.toNumber()) }));
+  }
+
+  async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
+    const agg = await this.prisma.order.aggregate({
+      _sum: { total: true },
+      where: { depotId, status: { in: ['DELIVERED', 'COMPLETED'] }, createdAt: { gte: from, lte: to } },
+    });
+    return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
 
   async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
@@ -570,6 +579,37 @@ export class OrderPrismaRepository implements OrderRepository {
       firstOrderAt: agg._min.createdAt,
       lastOrderAt: agg._max.createdAt,
     };
+  }
+
+  async depotCustomerAggregates(depotId: string): Promise<DepotCustomerAggregate[]> {
+    // One aggregate row per customer who has ordered at this depot (CANCELLED excluded).
+    const grouped = await this.prisma.order.groupBy({
+      by: ['customerId'],
+      where: { depotId, status: { not: DbOrderStatus.CANCELLED } },
+      _count: { _all: true },
+      _sum: { total: true },
+      _min: { createdAt: true },
+      _max: { createdAt: true },
+    });
+    if (grouped.length === 0) return [];
+    // Latest order per customer (distinct + desc) for the name/phone WA-follow-up snapshot.
+    const ids = grouped.map((g) => g.customerId);
+    const contacts = await this.prisma.order.findMany({
+      where: { customerId: { in: ids }, depotId },
+      orderBy: { createdAt: 'desc' },
+      distinct: ['customerId'],
+      select: { customerId: true, phone: true, recipientName: true },
+    });
+    const contactBy = new Map(contacts.map((c) => [c.customerId, c]));
+    return grouped.map((g) => ({
+      customerId: g.customerId,
+      name: contactBy.get(g.customerId)?.recipientName ?? null,
+      phone: contactBy.get(g.customerId)?.phone ?? null,
+      orderCount: g._count._all,
+      totalSpent: g._sum.total ? g._sum.total.toNumber() : 0,
+      firstOrderAt: g._min.createdAt,
+      lastOrderAt: g._max.createdAt,
+    }));
   }
 
   async audienceReach(depotId?: string): Promise<number> {
