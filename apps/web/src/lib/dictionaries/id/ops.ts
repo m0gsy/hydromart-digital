@@ -47,6 +47,7 @@ export const ops = {
     handover: 'Serah terima shift',
     maintenance: 'Perawatan alat',
     customers: 'Pelanggan',
+    crm: 'CRM & follow-up',
     broadcast: 'Broadcast',
     loyalty: 'Loyalty & poin',
     referral: 'Referral',

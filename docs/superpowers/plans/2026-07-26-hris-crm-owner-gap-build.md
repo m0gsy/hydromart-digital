@@ -53,7 +53,15 @@ Face-match + timestamp already exist; only GPS is net-new.
 - [x] Fase 2 — DONE. domain bonus-rules.ts + loan.ts (+tests), migration 0003 (bonus_rules+loans), ports/repos/services, payroll integration (eval rules→BONUS, loans→DEDUCTION, idempotent), controllers/DTOs/module, web /hr/rules page + EmployeeLoans on detail + hr-rail link. hr-service 112 tests green, web typecheck+hr.test green. Migration 0003 NOT on live PG.
 - [x] Fase 2b — SALES_TOTAL wired PER-DEPOT (user decision). order-service: repo.sumDepotSales + internal/depot-sales endpoint (InternalAuthGuard). hr-service: SalesPort + OrderSalesHttpAdapter (fails soft→null), env ORDER_SERVICE_URL + INTERNAL_SERVICE_KEY, payroll fetches only when a SALES rule exists. order+hr typecheck+tests green. Prod needs ORDER_SERVICE_URL + INTERNAL_SERVICE_KEY env set, else SALES rules stay dormant.
 - [x] Fase 3 — DONE. domain geofence.ts (haversine, +6 tests), migration 0004 (attendance checkIn/OutLat/Lng), HR settings geofenceLat/Lng/RadiusM (auto in /hr/settings) + config.geofence(), FacePunchDto+FacePunch lat/lng (required), attendance.service assertGeofence on check-in/out (reject outside, no-op if unconfigured) + stores GPS, controller toPunch, web check-in navigator.geolocation capture. NO QR/fingerprint (per decision). hr-service 118 tests green, web typecheck green. Migration 0004 NOT on live PG. Per-employee shiftId→start-time still deferred (needs shift picker UI; depot-shift already works).
-- [ ] Fase 4  ← next (CRM lifecycle)
-- [ ] Fase 3
-- [ ] Fase 4
-- [ ] Fase 5
+- [x] Fase 4 — DONE. order-service: repo.depotCustomerAggregates (groupBy per customer, CANCELLED excl,
+      +name/phone snapshot from latest order) + internal/depot-customers endpoint (InternalAuthGuard) + fake.
+      customer-service: domain crm-segment.ts (classifySegment BARU/AKTIF/INACTIVE + needsFollowUp, pure +tests),
+      OrderCrmPort + OrderCrmHttpAdapter (fail-soft []), config orderServiceUrl + crmThresholds (CRM_NEW/ACTIVE/FOLLOWUP_DAYS),
+      depot-crm.service: list merges real orderCount/lastOrderAt/segment + getCrmDashboard (counts/repeatRate/followUps),
+      dto + crm/dashboard controller endpoint. web: /dashboard/crm page (segment stats + WA follow-up wa.me links),
+      endpoints.depotCrm.crmDashboard, rail link, id/en i18n, DepotCustomer.segment + CrmDashboard types.
+      order 242 + customer 138 + web 125 tests green, all 3 typecheck green. NO new migration (derived/additive).
+      Prod needs ORDER_SERVICE_URL + INTERNAL_SERVICE_KEY on customer-service, else CRM shows no order data.
+      DEFERRED (ponytail): follow-up queue is derived on read — no persisted crm_follow_ups table / cron; add only
+      if ops need mark-contacted. Detail-page per-customer aggregate still null (list+dashboard is the Fase 4 scope).
+- [ ] Fase 5  ← next (owner dashboard merge HR + CRM into /dashboard/franchise)

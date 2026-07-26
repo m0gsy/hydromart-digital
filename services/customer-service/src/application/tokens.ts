@@ -6,6 +6,7 @@ export const CUSTOMER_TOKENS = {
   NotificationPreferenceRepository: Symbol('NotificationPreferenceRepository'),
   LoyaltyRewardPort: Symbol('LoyaltyRewardPort'),
   DepotCrmRepository: Symbol('DepotCrmRepository'),
+  OrderCrmPort: Symbol('OrderCrmPort'),
   FavoriteRepository: Symbol('FavoriteRepository'),
   ResellerRepository: Symbol('ResellerRepository'),
 } as const;

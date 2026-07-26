@@ -1004,6 +1004,9 @@ export const endpoints = {
     },
     detail: (id: string, depotId: string) =>
       `/customers/api/v1/customers/${id}/depot-detail?depotId=${encodeURIComponent(depotId)}`,
+    // CRM lifecycle dashboard: segment counts + follow-up queue (Fase 4).
+    crmDashboard: (depotId: string) =>
+      `/customers/api/v1/customers/crm/dashboard?depotId=${encodeURIComponent(depotId)}`,
   },
   // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
   // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.

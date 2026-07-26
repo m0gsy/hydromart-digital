@@ -370,6 +370,11 @@ export class OrderService {
     return this.orders.sumDepotSales(depotId, from, to);
   }
 
+  /** Per-customer order aggregates for a depot's CRM lifecycle (Fase 4). */
+  depotCustomerAggregates(depotId: string) {
+    return this.orders.depotCustomerAggregates(depotId);
+  }
+
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search(input);

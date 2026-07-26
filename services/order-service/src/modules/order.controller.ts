@@ -205,6 +205,36 @@ export class OrderController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
+  @Get('internal/depot-customers')
+  @ApiOperation({ summary: 'Per-customer order aggregates for a depot CRM (internal service auth)' })
+  async internalDepotCustomers(@Query('depotId') depotId: string): Promise<{
+    customers: {
+      customerId: string;
+      name: string | null;
+      phone: string | null;
+      orderCount: number;
+      totalSpent: number;
+      firstOrderAt: string | null;
+      lastOrderAt: string | null;
+    }[];
+  }> {
+    const rows = await this.orders.depotCustomerAggregates(depotId);
+    return {
+      customers: rows.map((r) => ({
+        customerId: r.customerId,
+        name: r.name,
+        phone: r.phone,
+        orderCount: r.orderCount,
+        totalSpent: Math.round(r.totalSpent),
+        firstOrderAt: r.firstOrderAt ? r.firstOrderAt.toISOString() : null,
+        lastOrderAt: r.lastOrderAt ? r.lastOrderAt.toISOString() : null,
+      })),
+    };
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('internal/values')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Batch-read authoritative order totals (internal service auth)' })

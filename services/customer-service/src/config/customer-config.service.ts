@@ -44,4 +44,16 @@ export class CustomerConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** order-service base URL for the CRM order-aggregate port; blank → CRM shows no order data. */
+  get orderServiceUrl(): string {
+    return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
+  }
+  /** CRM lifecycle thresholds (Fase 4). Env-overridable; company-policy defaults. */
+  get crmThresholds(): { newDays: number; activeDays: number; followUpDays: number } {
+    return {
+      newDays: Number(this.config.get<string>('CRM_NEW_DAYS', '30')),
+      activeDays: Number(this.config.get<string>('CRM_ACTIVE_DAYS', '30')),
+      followUpDays: Number(this.config.get<string>('CRM_FOLLOWUP_DAYS', '60')),
+    };
+  }
 }

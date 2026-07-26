@@ -44,6 +44,7 @@ export const ops = {
     handover: 'Shift handover',
     maintenance: 'Equipment maintenance',
     customers: 'Customers',
+    crm: 'CRM & follow-up',
     broadcast: 'Broadcast',
     loyalty: 'Loyalty & points',
     referral: 'Referral',
