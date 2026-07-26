@@ -64,4 +64,15 @@ Face-match + timestamp already exist; only GPS is net-new.
       Prod needs ORDER_SERVICE_URL + INTERNAL_SERVICE_KEY on customer-service, else CRM shows no order data.
       DEFERRED (ponytail): follow-up queue is derived on read — no persisted crm_follow_ups table / cron; add only
       if ops need mark-contacted. Detail-page per-customer aggregate still null (list+dashboard is the Fase 4 scope).
-- [ ] Fase 5  ← next (owner dashboard merge HR + CRM into /dashboard/franchise)
+- [x] Fase 5 — DONE. hr-service: AnalyticsService.depotSummary (late/absent today + payroll MTD net +
+      active headcount, reuses analytics repo) + internal/depot-summary endpoint (InternalAuthGuard).
+      customer-service: internal/crm-summary endpoint (reuses getCrmDashboard). dashboard-service:
+      port +hrSummary/crmSummary, http adapter (getInternal, optional HR_SERVICE_URL/CUSTOMER_SERVICE_URL
+      → null block), franchise() fans out per owned depot + rolls up HR (sum) + CRM (sum, customer-weighted
+      repeat rate), FranchiseDashboard +hr/+crm +sources.hr/crm, fakes + 3 spec assertions updated.
+      web: franchise page HR + CRM cards, FranchiseDashboard types, id/en i18n. hr 118 + dashboard 20 +
+      web tests green, all typecheck + lint clean.
+      BONUS FIX (root cause): hr OrderSalesHttpAdapter had a bogus `/orders` path prefix (order-service
+      serves /api/v1/... directly; confirmed vs payment/recommendation adapters) — SALES bonus rules
+      would have silently never fired in prod. Fixed there + avoided in the new customer order-crm adapter.
+      Prod: set HR_SERVICE_URL + CUSTOMER_SERVICE_URL on dashboard-service; ORDER_SERVICE_URL on customer-service.

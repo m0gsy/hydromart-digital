@@ -31,6 +31,19 @@ export interface HrDashboard {
   };
 }
 
+/** Compact per-depot HR summary for the owner franchise dashboard (Fase 5). */
+export interface HrDepotSummary {
+  depotId: string;
+  workDate: string;
+  periodMonth: string;
+  lateToday: number;
+  absentToday: number;
+  presentToday: number;
+  /** Net payroll month-to-date (IDR) for the depot. */
+  payrollMtdNet: number;
+  activeHeadcount: number;
+}
+
 /** HR dashboard aggregations + CSV report exports. All read-only; depot-scoped for locked roles. */
 @Injectable()
 export class AnalyticsService {
@@ -68,6 +81,33 @@ export class AnalyticsService {
       },
       attendanceToday,
       payroll: { totals: payrollTotals, byStatus: payrollByStatus },
+    };
+  }
+
+  /**
+   * Compact per-depot HR summary (Fase 5) — late/absent today + payroll MTD net +
+   * active headcount. No user scoping: the caller (dashboard-service BFF, internal key)
+   * has already resolved the owner's depots and asks per depot.
+   */
+  async depotSummary(depotId: string): Promise<HrDepotSummary> {
+    const workDate = this.today();
+    const periodMonth = workDate.slice(0, 7);
+    const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
+    const [attendanceToday, payroll, headcount] = await Promise.all([
+      this.repo.attendanceByStatus(workDateUtc, depotId),
+      this.repo.payrollTotals(periodMonth, depotId),
+      this.repo.headcountByStatus(depotId),
+    ]);
+    const count = (key: string): number => attendanceToday.find((g) => g.key === key)?.count ?? 0;
+    return {
+      depotId,
+      workDate,
+      periodMonth,
+      lateToday: count('LATE'),
+      absentToday: count('ABSENT'),
+      presentToday: count('PRESENT'),
+      payrollMtdNet: payroll.net,
+      activeHeadcount: headcount.find((g) => g.key === 'ACTIVE')?.count ?? 0,
     };
   }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Buildings, Lock, Truck, Warning } from '@phosphor-icons/react';
+import { Buildings, ChartPieSlice, Lock, Truck, UsersThree, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
@@ -40,7 +40,7 @@ function FranchiseBody() {
   if (error) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
 
-  const { depots, totals, deliverySla, sources } = data;
+  const { depots, totals, deliverySla, hr, crm, sources } = data;
   const unavailable = Object.entries(sources)
     .filter(([, v]) => v === 'unavailable')
     .map(([k]) => k);
@@ -79,6 +79,40 @@ function FranchiseBody() {
         <p className="text-sm text-amber-700" role="status">
           {t('dashboard.franchise.partial', { which: unavailable.join(', ') })}
         </p>
+      )}
+
+      {/* HR + CRM owner roll-up (Fase 5) */}
+      {(hr || crm) && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          {hr && (
+            <Card className="flex flex-col gap-3 p-5">
+              <h2 className="flex items-center gap-2 font-semibold">
+                <UsersThree size={18} weight="fill" className="text-brand-500" />
+                {t('dashboard.franchise.hrTitle')}
+              </h2>
+              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <Stat label={t('dashboard.franchise.lateToday')} value={String(hr.lateToday)} />
+                <Stat label={t('dashboard.franchise.absentToday')} value={String(hr.absentToday)} />
+                <Stat label={t('dashboard.franchise.headcount')} value={String(hr.activeHeadcount)} />
+                <Stat label={t('dashboard.franchise.payrollMtd')} value={`Rp ${hr.payrollMtdNet.toLocaleString('id-ID')}`} />
+              </div>
+            </Card>
+          )}
+          {crm && (
+            <Card className="flex flex-col gap-3 p-5">
+              <h2 className="flex items-center gap-2 font-semibold">
+                <ChartPieSlice size={18} weight="fill" className="text-brand-500" />
+                {t('dashboard.franchise.crmTitle')}
+              </h2>
+              <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <Stat label={t('dashboard.franchise.crmActive')} value={String(crm.aktif)} />
+                <Stat label={t('dashboard.franchise.crmNew')} value={String(crm.baru)} />
+                <Stat label={t('dashboard.franchise.crmInactive')} value={String(crm.inactive)} />
+                <Stat label={t('dashboard.franchise.followUps')} value={String(crm.followUpCount)} hint={t('dashboard.franchise.repeatRate', { pct: crm.repeatRatePct })} />
+              </div>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Per-depot breakdown */}

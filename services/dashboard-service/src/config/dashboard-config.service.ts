@@ -31,6 +31,14 @@ export class DashboardConfigService {
   get adminServiceUrl(): string | undefined {
     return this.config.get<string>('ADMIN_SERVICE_URL')?.replace(/\/+$/, '');
   }
+  /** Optional (Fase 5) — undefined → owner franchise dashboard omits the HR block. */
+  get hrServiceUrl(): string | undefined {
+    return this.config.get<string>('HR_SERVICE_URL')?.replace(/\/+$/, '');
+  }
+  /** Optional (Fase 5) — undefined → owner franchise dashboard omits the CRM block. */
+  get customerServiceUrl(): string | undefined {
+    return this.config.get<string>('CUSTOMER_SERVICE_URL')?.replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.getOrThrow<string>('INTERNAL_SERVICE_KEY');
   }

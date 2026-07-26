@@ -30,7 +30,7 @@ export class OrderCrmHttpAdapter implements OrderCrmPort {
     if (!url || !key) return [];
     try {
       const res = await fetch(
-        `${url.replace(/\/$/, '')}/orders/api/v1/orders/internal/depot-customers?depotId=${encodeURIComponent(depotId)}`,
+        `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-customers?depotId=${encodeURIComponent(depotId)}`,
         { headers: { 'x-internal-key': key } },
       );
       if (!res.ok) {
