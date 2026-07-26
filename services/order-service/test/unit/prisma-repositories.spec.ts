@@ -550,6 +550,30 @@ describe('OrderPrismaRepository', () => {
     ]);
   });
 
+  it('depotCustomerAggregates: empty groupBy short-circuits (no contact fetch)', async () => {
+    order.groupBy.mockResolvedValue([]);
+    expect(await repo.depotCustomerAggregates('depot-1')).toEqual([]);
+    expect(order.findMany).not.toHaveBeenCalled();
+  });
+
+  it('depotCustomerAggregates: maps aggregates + latest contact, null sum/contact defaults', async () => {
+    order.groupBy.mockResolvedValue([
+      { customerId: 'c1', _count: { _all: 3 }, _sum: { total: dec(90000) }, _min: { createdAt: new Date('2026-01-01') }, _max: { createdAt: new Date('2026-06-01') } },
+      { customerId: 'c2', _count: { _all: 1 }, _sum: { total: null }, _min: { createdAt: new Date('2026-02-01') }, _max: { createdAt: new Date('2026-02-01') } },
+    ]);
+    // c1 has a latest-order contact snapshot; c2 has none → name/phone default to null.
+    order.findMany.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
+
+    const out = await repo.depotCustomerAggregates('depot-1');
+    expect(out).toEqual([
+      { customerId: 'c1', name: 'Andi', phone: '0812', orderCount: 3, totalSpent: 90000, firstOrderAt: new Date('2026-01-01'), lastOrderAt: new Date('2026-06-01') },
+      { customerId: 'c2', name: null, phone: null, orderCount: 1, totalSpent: 0, firstOrderAt: new Date('2026-02-01'), lastOrderAt: new Date('2026-02-01') },
+    ]);
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ distinct: ['customerId'], orderBy: { createdAt: 'desc' } }),
+    );
+  });
+
   it('records a refund amount on an order', async () => {
     order.update.mockResolvedValue({});
     await repo.recordRefund('ord-1', 20000);
