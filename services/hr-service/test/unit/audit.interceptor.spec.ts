@@ -63,4 +63,33 @@ describe('AuditInterceptor', () => {
     await firstValueFrom(interceptor.intercept(context, handler));
     expect(recorded).toHaveLength(0);
   });
+
+  it('truncates long strings and stringifies non-string values in the body', async () => {
+    const { interceptor, recorded } = build();
+    const long = 'x'.repeat(600);
+    const { context, handler } = ctx('POST', '/api/v1/notes', null, { long, count: 5 });
+    await firstValueFrom(interceptor.intercept(context, handler));
+    const after = recorded[0].after as Record<string, unknown>;
+    expect(after.long).toBe(`${'x'.repeat(500)}…`);
+    expect(after.count).toBe(5);
+  });
+
+  it('records actorId null when the request has no authenticated user, and null after for an empty body', async () => {
+    const { interceptor, recorded } = build();
+    const request = {
+      method: 'POST',
+      path: '/api/v1/ping',
+      url: '/api/v1/ping',
+      body: {},
+      user: undefined,
+      headers: {},
+      socket: { remoteAddress: '127.0.0.1' },
+      ip: '127.0.0.1',
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) } as unknown as ExecutionContext;
+    const handler: CallHandler = { handle: () => of(null) };
+    await firstValueFrom(interceptor.intercept(context, handler));
+    expect(recorded[0].actorId).toBeNull();
+    expect(recorded[0].after).toBeNull();
+  });
 });
