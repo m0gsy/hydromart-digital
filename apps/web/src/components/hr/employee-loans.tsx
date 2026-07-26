@@ -6,7 +6,7 @@ import { useToast } from '@/components/toast';
 import { Badge, Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { currentPeriod, fmtDate, type LoanView } from '@/lib/hr';
+import { currentPeriod, type LoanView } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
 
 /** Employee loans / kasbon — auto-deducted from payroll. Shows computed remaining balance. */
