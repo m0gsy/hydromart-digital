@@ -6,8 +6,10 @@ import { DepotService } from '../../src/application/services/depot.service';
 import { InventoryItemType, OwnershipType, StockMovementType } from '../../src/domain/inventory';
 import { PoStatus } from '../../src/domain/purchase-order';
 import {
+  DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
   PurchaseOrderNotFoundError,
+  SupplierNotFoundError,
 } from '../../src/domain/errors';
 import {
   buildTestConfig,
@@ -20,6 +22,7 @@ import {
 } from '../support/fakes';
 
 const ACTOR = '33333333-3333-3333-3333-333333333333';
+const UNKNOWN = '00000000-0000-0000-0000-000000000000';
 
 describe('PurchaseOrderService', () => {
   let depotRepo: InMemoryDepotRepository;
@@ -151,8 +154,97 @@ describe('PurchaseOrderService', () => {
   });
 
   it('rejects an unknown PO id', async () => {
-    await expect(service.get('00000000-0000-0000-0000-000000000000')).rejects.toBeInstanceOf(
-      PurchaseOrderNotFoundError,
+    await expect(service.get(UNKNOWN)).rejects.toBeInstanceOf(PurchaseOrderNotFoundError);
+  });
+
+  it('defaults shipping to 0 and expectedAt to null when omitted', async () => {
+    const po = await service.create({
+      depotId,
+      supplierId,
+      lines: [
+        { itemType: InventoryItemType.GALON, label: 'Galon 19L', quantity: 10, unitCostIdr: 18_000 },
+      ],
+    });
+    expect(po.shippingIdr).toBe(0);
+    expect(po.totalIdr).toBe(180_000);
+    expect(po.expectedAt).toBeNull();
+  });
+
+  it('keeps an explicit expectedAt', async () => {
+    const expectedAt = new Date('2026-08-02T00:00:00.000Z');
+    const po = await service.create({
+      depotId,
+      supplierId,
+      expectedAt,
+      lines: [
+        { itemType: InventoryItemType.SEGEL, label: 'Segel', quantity: 5, unitCostIdr: 100 },
+      ],
+    });
+    expect(po.expectedAt).toEqual(expectedAt);
+  });
+
+  it('rejects creating for an unknown depot, an unknown supplier, or another depot’s supplier', async () => {
+    const lines = [
+      { itemType: InventoryItemType.GALON, label: 'Galon 19L', quantity: 1, unitCostIdr: 18_000 },
+    ];
+    await expect(service.create({ depotId: UNKNOWN, supplierId, lines })).rejects.toBeInstanceOf(
+      DepotNotFoundError,
     );
+    await expect(
+      service.create({ depotId, supplierId: UNKNOWN, lines }),
+    ).rejects.toBeInstanceOf(SupplierNotFoundError);
+
+    const other = await new DepotService(depotRepo).create({
+      code: 'JKT-02',
+      name: 'Depot Menteng',
+      ownershipType: OwnershipType.HKP,
+      address: 'b',
+      city: 'Jakarta',
+      province: 'DKI',
+      lat: -6.2,
+      lng: 106.83,
+      serviceRadiusKm: 5,
+      deliveryFee: 5000,
+      minOrderAmount: null,
+      ownerId: null,
+      operatingHours: {},
+      holidays: [],
+    });
+    const foreign = await suppliers.create({
+      depotId: other.id,
+      name: 'Tirta Lain',
+      code: 'SUP-02',
+      categories: [],
+    });
+    await expect(
+      service.create({ depotId, supplierId: foreign.id, lines }),
+    ).rejects.toBeInstanceOf(SupplierNotFoundError);
+  });
+
+  it('lists depot POs, filters by status, and rejects an unknown depot', async () => {
+    const po = await draft();
+    expect((await service.list(depotId)).map((p) => p.id)).toEqual([po.id]);
+    expect(await service.list(depotId, { status: PoStatus.SENT })).toEqual([]);
+
+    await service.send(po.id);
+    expect((await service.list(depotId, { status: PoStatus.SENT })).map((p) => p.id)).toEqual([
+      po.id,
+    ]);
+    await expect(service.list(UNKNOWN)).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  it('receives best-effort: a line with no depot stock line is skipped, PO still RECEIVED', async () => {
+    const po = await service.create({
+      depotId,
+      supplierId,
+      lines: [
+        { itemType: InventoryItemType.TUTUP, label: 'Tutup', quantity: 500, unitCostIdr: 50 },
+      ],
+    });
+    await service.send(po.id);
+    const movesBefore = inventoryRepo.moves.length;
+    const received = await service.receive(po.id, ACTOR);
+    expect(received.status).toBe(PoStatus.RECEIVED);
+    expect(inventoryRepo.moves).toHaveLength(movesBefore);
   });
 });
