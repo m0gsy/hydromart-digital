@@ -14,7 +14,7 @@ import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedd
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 
 const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: '08', depotId: 'd1' };
-const punch: FacePunch = { image: Buffer.from('x'), photoUrl: null, live: true };
+const punch: FacePunch = { image: Buffer.from('x'), photoUrl: null, live: true, lat: -6.2, lng: 106.8 };
 
 // 08:10 / 08:30 / 16:10 Asia/Jakarta (UTC+7).
 const AT_0810 = new Date('2026-07-24T01:10:00Z');
@@ -58,6 +58,7 @@ const config = {
   timeZone: 'Asia/Jakarta',
   workStartTime: () => '08:00',
   lateToleranceMinutes: () => 15,
+  geofence: () => ({ lat: null, lng: null, radiusM: 0 }),
   faceMatchThreshold: 0.62,
 } as unknown as HrConfigService;
 

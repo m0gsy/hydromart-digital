@@ -24,6 +24,9 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'standardWorkingMinutes', label: 'Jam kerja standar', type: 'int', unit: 'menit', min: 0, max: 1440, envDefault: 480 },
   { key: 'weeklyOffDays', label: 'Hari libur mingguan', type: 'string', unit: '0=Min..6=Sab, koma', envDefault: '' },
   { key: 'tenureRaiseLadder', label: 'Kenaikan gaji masa kerja (Kepala Depot)', type: 'string', unit: 'tahun:persen, koma (mis. 1:5,2:10)', envDefault: '' },
+  { key: 'geofenceLat', label: 'Titik absen — lintang', type: 'string', unit: 'desimal (mis. -6.2001)', envDefault: '' },
+  { key: 'geofenceLng', label: 'Titik absen — bujur', type: 'string', unit: 'desimal (mis. 106.8123)', envDefault: '' },
+  { key: 'geofenceRadiusM', label: 'Radius absen (geofence)', type: 'int', unit: 'meter (0 = nonaktif)', min: 0, max: 5000, envDefault: 0 },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

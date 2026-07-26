@@ -11,6 +11,7 @@ import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydroma
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
+import { withinGeofence } from '../../domain/geofence';
 import { uploadFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
@@ -26,6 +27,8 @@ export interface FacePunch {
   image: Buffer;
   photoUrl: string | null;
   live: boolean;
+  lat: number;
+  lng: number;
 }
 
 @Injectable()
@@ -43,6 +46,7 @@ export class AttendanceService {
   async checkIn(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
+    this.assertGeofence(employee.depotId, punch);
 
     const { workDate, minutesOfDay } = this.localParts(now, this.config.timeZone);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
@@ -65,6 +69,8 @@ export class AttendanceService {
       checkInAt: now,
       checkInPhotoUrl: photoUrl,
       checkInScore: score,
+      checkInLat: punch.lat,
+      checkInLng: punch.lng,
       lateMinutes,
       status: late ? 'LATE' : 'PRESENT',
     });
@@ -73,6 +79,7 @@ export class AttendanceService {
   async checkOut(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
+    this.assertGeofence(employee.depotId, punch);
 
     const { workDate } = this.localParts(now, this.config.timeZone);
     const row = await this.repo.findByEmployeeAndDate(employee.id, workDate);
@@ -89,8 +96,18 @@ export class AttendanceService {
       checkOutAt: now,
       checkOutPhotoUrl: photoUrl,
       checkOutScore: score,
+      checkOutLat: punch.lat,
+      checkOutLng: punch.lng,
       workingMinutes,
     });
+  }
+
+  /** Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured). */
+  private assertGeofence(depotId: string, punch: FacePunch): void {
+    const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
+    if (!ok) {
+      throw new ForbiddenException(`Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi.`);
+    }
   }
 
   /** Depot-scoped attendance log for the HR dashboard / manager (their own depot only). */

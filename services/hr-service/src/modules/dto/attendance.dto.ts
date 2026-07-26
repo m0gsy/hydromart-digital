@@ -7,9 +7,11 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -47,6 +49,10 @@ export class FacePunchDto {
   @IsOptional()
   @IsBoolean()
   live?: boolean;
+
+  /** GPS captured at punch time (FR + GPS + timestamp). Required for check-in/out. */
+  @IsNumber() @Min(-90) @Max(90) lat!: number;
+  @IsNumber() @Min(-180) @Max(180) lng!: number;
 }
 
 const ATTENDANCE_STATUS = ['PRESENT', 'LATE', 'ABSENT', 'LEAVE', 'HOLIDAY'] as const;

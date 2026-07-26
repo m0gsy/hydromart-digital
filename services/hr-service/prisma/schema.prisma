@@ -180,6 +180,11 @@ model Attendance {
   checkOutPhotoUrl String?
   checkInScore     Float?
   checkOutScore    Float?
+  /// GPS captured with each punch (FR + GPS + timestamp). Null on manual HR entries.
+  checkInLat       Float?
+  checkInLng       Float?
+  checkOutLat      Float?
+  checkOutLng      Float?
   lateMinutes      Int              @default(0)
   workingMinutes   Int?
   status           AttendanceStatus @default(ABSENT)

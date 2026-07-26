@@ -9,6 +9,8 @@ export interface CreateAttendanceInput {
   checkInAt: Date;
   checkInPhotoUrl: string | null;
   checkInScore: number;
+  checkInLat: number;
+  checkInLng: number;
   lateMinutes: number;
   status: AttendanceStatus;
 }
@@ -17,6 +19,8 @@ export interface CheckOutPatch {
   checkOutAt: Date;
   checkOutPhotoUrl: string | null;
   checkOutScore: number;
+  checkOutLat: number;
+  checkOutLng: number;
   workingMinutes: number;
 }
 
