@@ -49,6 +49,15 @@ export class VoucherRejectedError extends DomainError {
   }
 }
 
+/** A reseller's order already gets agen pricing — vouchers cannot stack on top of it. */
+export class ResellerVoucherNotAllowedError extends DomainError {
+  readonly code = 'ORDER_RESELLER_VOUCHER_FORBIDDEN';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Reseller pricing already applies — vouchers cannot be used on this order.');
+  }
+}
+
 /** The fulfilling depot cannot hold enough stock for the order (oversell prevention). */
 export class InsufficientStockError extends DomainError {
   readonly code = 'ORDER_INSUFFICIENT_STOCK';

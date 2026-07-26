@@ -6,6 +6,7 @@ export interface Reseller {
   customerId: string;
   homeDepotId: string;
   monthlyTargetQty: number;
+  discountPct: number;
   active: boolean;
   joinDate: string;
   note: string | null;

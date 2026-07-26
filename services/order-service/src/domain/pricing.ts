@@ -29,3 +29,8 @@ export function galonQuantity(items: { unit: string; quantity: number }[]): numb
     0,
   );
 }
+
+/** Flat reseller discount: `pct` percent of `base`, floored at 0. Caller rounds via money(). */
+export function percentDiscount(base: number, pct: number): number {
+  return Math.max(0, (base * pct) / 100);
+}

@@ -14,6 +14,7 @@ import {
   OrderNotReviewableError,
   OutOfServiceAreaError,
   ProductUnavailableError,
+  ResellerVoucherNotAllowedError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
@@ -26,6 +27,7 @@ import {
   FakeRecommendationCoordination,
   FakeForecastCoordination,
   FakeMembership,
+  FakeResellerDiscount,
   FakeNotification,
   FakePromo,
   FakeInventory,
@@ -58,6 +60,7 @@ describe('OrderService', () => {
   let recommendation: FakeRecommendationCoordination;
   let forecast: FakeForecastCoordination;
   let membership: FakeMembership;
+  let resellerDiscount: FakeResellerDiscount;
   let notification: FakeNotification;
   let promo: FakePromo;
   let inventory: FakeInventory;
@@ -76,6 +79,7 @@ describe('OrderService', () => {
     recommendation = new FakeRecommendationCoordination();
     forecast = new FakeForecastCoordination();
     membership = new FakeMembership();
+    resellerDiscount = new FakeResellerDiscount();
     notification = new FakeNotification();
     promo = new FakePromo();
     inventory = new FakeInventory();
@@ -89,6 +93,7 @@ describe('OrderService', () => {
       loyalty,
       referral,
       membership,
+      resellerDiscount,
       notification,
       promo,
       inventory,
@@ -368,6 +373,56 @@ describe('OrderService', () => {
     membership.rate = 0; // adapter returns 0 on any error
     const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
     expect(order.discount).toBe(0);
+  });
+
+  it('applies reseller percent discount and skips membership + voucher', async () => {
+    await addToCart(20000, 1); // subtotal 20000
+    resellerDiscount.result = { active: true, discountPct: 10 };
+    membership.rate = 0.05; // must be ignored
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(2000); // 10% of 20000, membership 5% ignored
+    expect(promo.quoteCalls).toHaveLength(0);
+    expect(promo.redeemCalls).toHaveLength(0);
+  });
+
+  it('rejects a voucher for an active reseller', async () => {
+    await addToCart(20000, 1);
+    resellerDiscount.result = { active: true, discountPct: 10 };
+    await expect(
+      service.checkout(
+        customer,
+        { deliveryAddress: address, voucherCode: 'hemat10' },
+        'Bearer tok',
+      ),
+    ).rejects.toBeInstanceOf(ResellerVoucherNotAllowedError);
+  });
+
+  it('uses normal membership pricing when not a reseller', async () => {
+    await addToCart(20000, 1);
+    resellerDiscount.result = null;
+    membership.rate = 0.05;
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(1000); // 5% of 20000
+  });
+
+  it('ignores a deactivated reseller and falls back to normal pricing', async () => {
+    await addToCart(20000, 1);
+    resellerDiscount.result = { active: false, discountPct: 10 };
+    membership.rate = 0.05;
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(1000); // reseller gated off; membership applies instead
+  });
+
+  it('falls back to normal pricing when reseller lookup fails open (null)', async () => {
+    await addToCart(20000, 1);
+    resellerDiscount.result = null;
+    promo.quoteDiscount = 500;
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'hemat10' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(500); // voucher path still available
   });
 
   it('awards loyalty points once, only when the order completes (BR-013)', async () => {

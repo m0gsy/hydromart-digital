@@ -16,6 +16,7 @@ function row(over: Partial<Reseller> = {}): Reseller {
     customerId: 'c1',
     homeDepotId: 'd1',
     monthlyTargetQty: 100,
+    discountPct: 0,
     active: true,
     joinDate: new Date('2026-01-01'),
     note: null,
@@ -63,6 +64,32 @@ describe('ResellerService', () => {
 
     expect(out.customerId).toBe('c1');
     expect(repo.create).toHaveBeenCalled();
+  });
+
+  it('persists discountPct on register and defaults it to 0', async () => {
+    const repo = makeRepo();
+    repo.findById.mockResolvedValue(null);
+    repo.create.mockImplementation((data) =>
+      Promise.resolve(row({ customerId: data.customerId, discountPct: data.discountPct ?? 0 })),
+    );
+    const svc = new ResellerService(repo, makeProfiles(true));
+
+    const withPct = await svc.register(hq, {
+      customerId: 'c1',
+      homeDepotId: 'd1',
+      monthlyTargetQty: 100,
+      discountPct: 15,
+      joinDate: new Date('2026-01-01'),
+    });
+    expect(withPct.discountPct).toBe(15);
+
+    const noPct = await svc.register(hq, {
+      customerId: 'c2',
+      homeDepotId: 'd1',
+      monthlyTargetQty: 0,
+      joinDate: new Date('2026-01-01'),
+    });
+    expect(noPct.discountPct).toBe(0);
   });
 
   it('rejects a customerId that is not a customer', async () => {

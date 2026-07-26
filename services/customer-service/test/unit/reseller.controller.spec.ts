@@ -3,6 +3,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { ResellerController } from '../../src/modules/reseller.controller';
+import { ResellerSelfController } from '../../src/modules/reseller-self.controller';
 import { ResellerService } from '../../src/application/services/reseller.service';
 import { Reseller } from '../../src/application/ports/reseller.repository';
 import {
@@ -18,6 +19,7 @@ const row: Reseller = {
   customerId: 'c1',
   homeDepotId: 'd1',
   monthlyTargetQty: 100,
+  discountPct: 0,
   active: true,
   joinDate: new Date('2026-01-01'),
   note: null,
@@ -121,5 +123,22 @@ describe('ResellerController', () => {
       svc.update.mockRejectedValue(boom);
       await expect(controllerWith(svc).update(user, 'c1', {})).rejects.toBe(boom);
     });
+  });
+});
+
+describe('ResellerSelfController', () => {
+  const svc = { findMy: jest.fn() };
+  const controller = new ResellerSelfController(svc as never);
+  const selfUser = { sub: 'cust-1', role: Role.CUSTOMER, phone: null };
+
+  it('returns active + discountPct for a reseller', async () => {
+    svc.findMy.mockResolvedValue({ active: true, discountPct: 12 });
+    expect(await controller.me(selfUser as never)).toEqual({ active: true, discountPct: 12 });
+    expect(svc.findMy).toHaveBeenCalledWith('cust-1');
+  });
+
+  it('404s when the caller is not a reseller', async () => {
+    svc.findMy.mockResolvedValue(null);
+    await expect(controller.me(selfUser as never)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -27,6 +27,7 @@ import { PaymentMethodController } from './payment-method.controller';
 import { ProfileController } from './profile.controller';
 import { DepotCrmController } from './depot-crm.controller';
 import { FavoriteController } from './favorite.controller';
+import { ResellerSelfController } from './reseller-self.controller';
 import { ResellerController } from './reseller.controller';
 import { InternalController } from './internal.controller';
 
@@ -61,6 +62,7 @@ const providers: Provider[] = [
     PaymentMethodController,
     DepotCrmController,
     FavoriteController,
+    ResellerSelfController,
     ResellerController,
     InternalController,
   ],

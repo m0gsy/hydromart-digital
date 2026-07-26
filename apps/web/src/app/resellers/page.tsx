@@ -29,6 +29,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
   const { toast: notify } = useToast();
   const [phone, setPhone] = useState('');
   const [target, setTarget] = useState('');
+  const [discount, setDiscount] = useState('');
   const [joinDate, setJoinDate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +44,10 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       setError('Target bulanan harus berupa angka 0 atau lebih.');
       return;
     }
+    if (discount !== '' && !(Number(discount) >= 0 && Number(discount) <= 100)) {
+      setError('Diskon harus 0–100.');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -53,6 +58,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
           customerId: customer.id,
           homeDepotId: depotId,
           monthlyTargetQty: Number(target),
+          discountPct: Number(discount) || 0,
           joinDate: new Date(joinDate).toISOString(),
         },
         true,
@@ -60,6 +66,7 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
       notify('Reseller ditambahkan');
       setPhone('');
       setTarget('');
+      setDiscount('');
       setJoinDate('');
       onDone();
     } catch (err) {
@@ -88,6 +95,9 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
         </Field>
         <Field label="Target bulanan (galon)">
           <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="100" />
+        </Field>
+        <Field label="Diskon reseller (%)" hint="0–100, kosong = 0">
+          <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" />
         </Field>
         <Field label="Tanggal bergabung">
           <Input type="date" value={joinDate} onChange={(e) => setJoinDate(e.target.value)} />
@@ -119,6 +129,7 @@ function ResellerRow({
   const { toast: notify } = useToast();
   const [editing, setEditing] = useState(false);
   const [target, setTarget] = useState(String(r.monthlyTargetQty));
+  const [discount, setDiscount] = useState(String(r.discountPct));
   const [note, setNote] = useState(r.note ?? '');
   const [saving, setSaving] = useState(false);
   const [toggling, setToggling] = useState(false);
@@ -132,6 +143,7 @@ function ResellerRow({
 
   function openEdit() {
     setTarget(String(r.monthlyTargetQty));
+    setDiscount(String(r.discountPct));
     setNote(r.note ?? '');
     setEditing(true);
   }
@@ -141,11 +153,15 @@ function ResellerRow({
       notify('Target bulanan harus berupa angka 0 atau lebih.', 'error');
       return;
     }
+    if (!(Number(discount) >= 0 && Number(discount) <= 100)) {
+      notify('Diskon harus 0–100.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(
         endpoints.resellers.detail(r.customerId),
-        { monthlyTargetQty: Number(target), note: note.trim() || null },
+        { monthlyTargetQty: Number(target), discountPct: Number(discount), note: note.trim() || null },
         true,
       );
       notify('Reseller diperbarui');
@@ -178,6 +194,9 @@ function ResellerRow({
           <Field label="Target bulanan (galon)">
             <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} />
           </Field>
+          <Field label="Diskon (%)">
+            <Input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)} />
+          </Field>
           <Field label="Catatan (opsional)">
             <Input value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
@@ -202,6 +221,7 @@ function ResellerRow({
           {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
           {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
           {' · '}pertumbuhan {m.growthPct >= 0 ? '↑' : '↓'} {Math.abs(m.growthPct)}%
+          {r.discountPct > 0 && <> · diskon {r.discountPct}%</>}
         </div>
       </div>
       <div className="flex items-center gap-2">

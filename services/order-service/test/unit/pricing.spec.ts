@@ -1,4 +1,4 @@
-import { applyAdjustment, galonQuantity } from '../../src/domain/pricing';
+import { applyAdjustment, galonQuantity, percentDiscount } from '../../src/domain/pricing';
 
 describe('applyAdjustment', () => {
   it('returns the base unchanged when there is no adjustment', () => {
@@ -40,5 +40,18 @@ describe('galonQuantity (per-galon delivery fee basis)', () => {
   it('returns 0 when no galon lines (fee becomes 0)', () => {
     expect(galonQuantity([{ unit: 'Pak', quantity: 2 }])).toBe(0);
     expect(galonQuantity([])).toBe(0);
+  });
+});
+
+describe('percentDiscount', () => {
+  it('returns the percent of the base', () => {
+    expect(percentDiscount(20000, 10)).toBe(2000);
+  });
+  it('is 0 at 0 percent and full base at 100 percent', () => {
+    expect(percentDiscount(20000, 0)).toBe(0);
+    expect(percentDiscount(20000, 100)).toBe(20000);
+  });
+  it('never goes negative', () => {
+    expect(percentDiscount(20000, -5)).toBe(0);
   });
 });

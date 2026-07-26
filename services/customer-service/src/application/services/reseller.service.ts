@@ -64,4 +64,9 @@ export class ResellerService {
     if (patch.homeDepotId) assertDepotAccess(user, patch.homeDepotId);
     return this.resellers.update(customerId, patch);
   }
+
+  /** The caller's own reseller row (self endpoint), or null if they are not a reseller. */
+  async findMy(customerId: string): Promise<Reseller | null> {
+    return this.resellers.findById(customerId);
+  }
 }

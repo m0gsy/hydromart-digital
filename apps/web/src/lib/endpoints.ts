@@ -95,6 +95,8 @@ export const endpoints = {
     },
     create: '/customers/api/v1/resellers',
     detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
+    // Caller's own reseller pricing status (customer-facing, checkout). 404 = not a reseller.
+    me: '/customers/api/v1/resellers/me',
   },
   products: {
     browse: (q: { page?: number; limit?: number; search?: string; categoryId?: string }) => {

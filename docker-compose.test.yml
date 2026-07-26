@@ -82,6 +82,7 @@ services:
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_SERVICE_URL: http://depot:3007
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011
       CRM_SERVICE_URL: http://crm:3012

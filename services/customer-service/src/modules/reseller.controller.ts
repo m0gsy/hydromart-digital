@@ -60,6 +60,7 @@ export class ResellerController {
         customerId: dto.customerId,
         homeDepotId: dto.homeDepotId,
         monthlyTargetQty: dto.monthlyTargetQty,
+        discountPct: dto.discountPct,
         joinDate: new Date(dto.joinDate),
         note: dto.note,
       });
