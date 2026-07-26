@@ -1,6 +1,34 @@
 import { NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
+// pdfkit is a runtime dep not installed in dev/CI node_modules — virtual-mock it so slip()
+// resolves deterministically regardless of whether the real package is present.
+jest.mock(
+  'pdfkit',
+  () =>
+    class FakePdfDoc {
+      private handlers: Record<string, (c?: Buffer) => void> = {};
+      fontSize(): this {
+        return this;
+      }
+      text(): this {
+        return this;
+      }
+      moveDown(): this {
+        return this;
+      }
+      on(event: string, cb: (c?: Buffer) => void): this {
+        this.handlers[event] = cb;
+        return this;
+      }
+      end(): void {
+        this.handlers['data']?.(Buffer.from('%PDF-fake'));
+        this.handlers['end']?.();
+      }
+    },
+  { virtual: true },
+);
+
 import { BonusRule, Employee, Loan, Payroll } from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { PayrollService } from '../../src/application/services/payroll.service';
@@ -156,7 +184,7 @@ describe('PayrollService.load / slip / getById / list', () => {
     await expect(svc.getById(user, 'nope')).rejects.toThrow(NotFoundException);
   });
 
-  it('slip maps the payroll into slip lines (rejects only because pdfkit is absent in tests)', async () => {
+  it('slip renders the payroll into a PDF buffer', async () => {
     const { repo, svc } = build({ employee: {} });
     repo.byId = {
       id: 'p1', employeeId: 'e1', periodMonth: '2026-07', status: 'APPROVED', net: 1_000_000,
@@ -165,7 +193,9 @@ describe('PayrollService.load / slip / getById / list', () => {
         { kind: 'DEDUCTION', label: 'Potongan', amount: 100_000 },
       ],
     } as unknown as PayrollWithItems;
-    await expect(svc.slip(user, 'p1')).rejects.toThrow(/pdfkit/);
+    const pdf = await svc.slip(user, 'p1');
+    expect(Buffer.isBuffer(pdf)).toBe(true);
+    expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-'); // pdfkit output header
   });
 
   it('list forwards pagination to the repo', async () => {
