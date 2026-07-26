@@ -237,6 +237,8 @@ export interface OrderRepository {
   findById(id: string): Promise<OrderRecord | null>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
+  /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
+  sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
   /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
   findStaleCreated(before: Date): Promise<OrderRecord[]>;

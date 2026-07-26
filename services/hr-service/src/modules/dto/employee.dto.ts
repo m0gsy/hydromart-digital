@@ -82,6 +82,29 @@ export class CreateEmployeeDto {
   @IsString()
   @MaxLength(500)
   photoUrl?: string;
+
+  @IsOptional()
+  @IsUUID()
+  supervisorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  shiftId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  npwp?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  bpjsKes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  bpjsTk?: string;
 }
 
 /** Every field optional; adds the lifecycle `status` (ACTIVE/INACTIVE/RESIGNED). */
@@ -102,6 +125,11 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MaxLength(32) emergencyPhone?: string;
   @IsOptional() @IsUUID() authSubjectId?: string;
   @IsOptional() @IsString() @MaxLength(500) photoUrl?: string;
+  @IsOptional() @IsUUID() supervisorId?: string;
+  @IsOptional() @IsUUID() shiftId?: string;
+  @IsOptional() @IsString() @MaxLength(40) npwp?: string;
+  @IsOptional() @IsString() @MaxLength(40) bpjsKes?: string;
+  @IsOptional() @IsString() @MaxLength(40) bpjsTk?: string;
   @IsOptional() @IsEnum(EmployeeStatus) status?: EmployeeStatus;
 }
 

@@ -35,6 +35,11 @@ export interface CreateEmployeeInput {
   emergencyPhone?: string;
   authSubjectId?: string;
   photoUrl?: string;
+  supervisorId?: string;
+  shiftId?: string;
+  npwp?: string;
+  bpjsKes?: string;
+  bpjsTk?: string;
 }
 
 export type UpdateEmployeeInput = Partial<CreateEmployeeInput> & {
@@ -107,6 +112,11 @@ export class EmployeeService {
       emergencyPhone: input.emergencyPhone ?? null,
       authSubjectId: input.authSubjectId ?? null,
       photoUrl: input.photoUrl ?? null,
+      supervisorId: input.supervisorId ?? null,
+      shiftId: input.shiftId ?? null,
+      npwp: input.npwp ?? null,
+      bpjsKes: input.bpjsKes ?? null,
+      bpjsTk: input.bpjsTk ?? null,
       createdBy: user.sub,
       updatedBy: user.sub,
     };
@@ -165,6 +175,11 @@ export class EmployeeService {
       'emergencyPhone',
       'authSubjectId',
       'photoUrl',
+      'supervisorId',
+      'shiftId',
+      'npwp',
+      'bpjsKes',
+      'bpjsTk',
       'status',
     ] as const) {
       if (input[key] !== undefined) (data as Record<string, unknown>)[key] = input[key];

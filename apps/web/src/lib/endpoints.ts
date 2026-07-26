@@ -1022,6 +1022,13 @@ export const endpoints = {
     employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
     createEmployee: '/employees/api/v1/employees',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
+    bonusRules: (depotId?: string) => `/bonus-rules/api/v1/bonus-rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    createBonusRule: '/bonus-rules/api/v1/bonus-rules',
+    updateBonusRule: (id: string) => `/bonus-rules/api/v1/bonus-rules/${id}`,
+    loans: (employeeId: string, asOfPeriod?: string) =>
+      `/loans/api/v1/loans?employeeId=${employeeId}${asOfPeriod ? `&asOfPeriod=${asOfPeriod}` : ''}`,
+    createLoan: '/loans/api/v1/loans',
+    deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,
     enrollFaceMe: '/attendance/api/v1/attendance/me/face/enroll',
     checkIn: '/attendance/api/v1/attendance/check-in',

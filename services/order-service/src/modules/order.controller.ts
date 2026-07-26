@@ -192,6 +192,19 @@ export class OrderController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
+  @Get('internal/depot-sales')
+  @ApiOperation({ summary: 'Sum of fulfilled depot sales in a date range (internal service auth)' })
+  async internalDepotSales(
+    @Query('depotId') depotId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ): Promise<{ depotId: string; totalIdr: number }> {
+    return { depotId, totalIdr: await this.orders.sumDepotSales(depotId, new Date(from), new Date(to)) };
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('internal/values')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Batch-read authoritative order totals (internal service auth)' })

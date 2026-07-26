@@ -96,6 +96,13 @@ export class HrConfigService {
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
   }
+  /** order-service base URL + internal key for the SALES_TOTAL bonus aggregate. */
+  get orderService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('ORDER_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
   /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
   get neoFr(): { endpoint: string; token: string; galleryId: string } {
     return {

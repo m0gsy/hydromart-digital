@@ -235,6 +235,14 @@ export class OrderPrismaRepository implements OrderRepository {
     return rows.map((row) => ({ orderId: row.id, totalIdr: Math.round(row.total.toNumber()) }));
   }
 
+  async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
+    const agg = await this.prisma.order.aggregate({
+      _sum: { total: true },
+      where: { depotId, status: { in: ['DELIVERED', 'COMPLETED'] }, createdAt: { gte: from, lte: to } },
+    });
+    return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
+  }
+
   async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),

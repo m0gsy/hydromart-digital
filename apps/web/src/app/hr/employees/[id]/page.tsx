@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { use, useState } from 'react';
 
 import { FaceCapture } from '@/components/hr/face-capture';
+import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, LinkButton, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -79,7 +80,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         <Row label="Nominal gaji" value={<Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />} />
         <Row label="Bank" value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'} />
         <Row label="Kontak darurat" value={e.emergencyName ? `${e.emergencyName} · ${e.emergencyPhone ?? ''}` : '—'} />
+        <Row label="NPWP" value={e.npwp ?? '—'} />
+        <Row label="BPJS Kesehatan" value={e.bpjsKes ?? '—'} />
+        <Row label="BPJS Ketenagakerjaan" value={e.bpjsTk ?? '—'} />
       </Card>
+
+      <EmployeeLoans employeeId={id} isAdmin={isAdmin} />
 
       <div className="flex flex-wrap gap-3">
         <Link href={`/hr/payroll?employeeId=${id}`} className="text-sm font-semibold text-brand-700 hover:underline">Lihat Payroll →</Link>

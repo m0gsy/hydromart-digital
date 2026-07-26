@@ -95,6 +95,14 @@ model Employee {
   position         String
   employmentStatus EmploymentStatus
   joinDate         DateTime         @db.Date
+  /// Direct report's manager (Employee.id, same-service). Plain UUID, no relation nav — MVP.
+  supervisorId     String?          @db.Uuid
+  /// Assigned shift (Shift.id). Null = use depot/global default start-time.
+  shiftId          String?          @db.Uuid
+  /// Tax + social-security ids (optional per PRD).
+  npwp             String?
+  bpjsKes          String?
+  bpjsTk           String?
   salaryType       SalaryType
   /// Base pay in IDR. dailyRate for DAILY, monthlyRate for MONTHLY (the other is null).
   dailyRate        Decimal?         @db.Decimal(12, 2)
@@ -116,6 +124,7 @@ model Employee {
   deductions       Deduction[]
   reviews          PerformanceReview[]
   payrolls         Payroll[]
+  loans            Loan[]
 
   @@index([depotId])
   @@index([status])
@@ -322,6 +331,49 @@ model PerformanceReview {
   @@unique([employeeId, periodMonth])
   @@index([employeeId])
   @@map("performance_reviews")
+}
+
+/// A configurable automatic-bonus rule (Rule-F). depotId null = network-wide default.
+/// metric/op/rewardKind are validated string enums (see domain/bonus-rules.ts).
+model BonusRule {
+  id          String    @id @default(uuid()) @db.Uuid
+  depotId     String?   @db.Uuid
+  bonusType   BonusType
+  name        String
+  metric      String
+  op          String
+  threshold   Decimal   @db.Decimal(14, 2)
+  rewardKind  String
+  rewardValue Decimal   @db.Decimal(14, 2)
+  active      Boolean   @default(true)
+  createdBy   String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([depotId, active])
+  @@map("bonus_rules")
+}
+
+/// An employee loan / kasbon repaid via auto payroll deductions (Rule-G). The per-period
+/// deduction is derived purely from these terms (domain/loan.ts), so there is no mutable
+/// remaining column — payroll re-generation stays idempotent. `active=false` stops deducting.
+model Loan {
+  id                String   @id @default(uuid()) @db.Uuid
+  employeeId        String   @db.Uuid
+  principal         Decimal  @db.Decimal(14, 2)
+  installmentAmount Decimal  @db.Decimal(14, 2)
+  /// First period the installment applies, "YYYY-MM".
+  startPeriod       String
+  note              String?
+  active            Boolean  @default(true)
+  createdBy         String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, active])
+  @@map("loans")
 }
 
 /// HR audit trail: who changed what. Written by an interceptor on every mutation.
