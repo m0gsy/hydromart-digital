@@ -1,15 +1,21 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Public, Role, Roles } from '@hydromart/platform';
 
 import {
   ApproveResult,
   FranchiseApplicationService,
 } from '../application/services/franchise-application.service';
 import { FranchiseApplicationRecord } from '../application/ports/franchise-application.repository';
+import { emptyChecklist, FranchiseAppStage } from '../domain/franchise-application';
 import { Page } from '../application/pagination';
-import { ListApplicationsQueryDto, PatchApplicationDto } from './dto/franchise-application.dto';
+import {
+  ListApplicationsQueryDto,
+  PatchApplicationDto,
+  SubmitFranchiseApplicationDto,
+  SubmittedApplicationView,
+} from './dto/franchise-application.dto';
 
 /**
  * HQ franchise-application approvals queue (design 5a/5b). HQ-only: HEAD_OFFICE +
@@ -22,6 +28,37 @@ import { ListApplicationsQueryDto, PatchApplicationDto } from './dto/franchise-a
 @Controller({ path: 'franchise-applications', version: '1' })
 export class FranchiseApplicationController {
   constructor(private readonly applications: FranchiseApplicationService) {}
+
+  /**
+   * A prospective partner applies. The ONLY public route here — the rest of this
+   * controller is the HQ queue. Everything that decides an application's fate (stage,
+   * checklist) is set server-side, and the response is a receipt rather than the record,
+   * so an anonymous submitter can neither pre-verify themselves nor read the pipeline.
+   *
+   * ponytail: no rate limit beyond the global per-IP throttle and no captcha. Add one if
+   * the queue starts collecting junk; a human reviews every row today.
+   */
+  @Public()
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Submit a franchise application (public)' })
+  async submit(@Body() dto: SubmitFranchiseApplicationDto): Promise<SubmittedApplicationView> {
+    const created = await this.applications.create({
+      applicantName: dto.applicantName,
+      applicantPhone: dto.applicantPhone,
+      proposedCode: dto.proposedCode.trim().toUpperCase(),
+      proposedName: dto.proposedName,
+      city: dto.city,
+      province: dto.province,
+      lat: dto.lat,
+      lng: dto.lng,
+      investmentAmount: dto.investmentAmount,
+      projectedMonthlyRevenue: dto.projectedMonthlyRevenue,
+      checklist: emptyChecklist(),
+      stage: FranchiseAppStage.PENDING,
+    });
+    return SubmittedApplicationView.from(created);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List the approvals queue (oldest-first by SLA age)' })

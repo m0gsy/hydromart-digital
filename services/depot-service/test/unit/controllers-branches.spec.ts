@@ -128,9 +128,40 @@ describe('DriverGallonReturnController', () => {
 });
 
 describe('FranchiseApplicationController', () => {
-  const svc = { list: jest.fn(), get: jest.fn(), patch: jest.fn(), approve: jest.fn(), reject: jest.fn() };
+  const svc = { list: jest.fn(), get: jest.fn(), patch: jest.fn(), approve: jest.fn(),
+    reject: jest.fn(), create: jest.fn() };
   const c = new FranchiseApplicationController(svc as never);
   beforeEach(() => jest.clearAllMocks());
+
+  const submission = {
+    applicantName: 'Budi Santoso', applicantPhone: '+628123456789',
+    proposedCode: ' bdg-02 ', proposedName: 'Depot Buah Batu',
+    city: 'Bandung', province: 'Jawa Barat', lat: -6.9421, lng: 107.6386,
+    investmentAmount: 150_000_000, projectedMonthlyRevenue: 45_000_000,
+  };
+
+  // UAT-M14-06: a prospective partner had no way to apply — the queue was HQ-only.
+  it('accepts a public submission, normalising the proposed code', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', proposedName: 'Depot Buah Batu',
+      submittedAt: new Date('2026-07-27T00:00:00Z'), stage: 'PENDING', checklist: {} });
+    await c.submit(submission as never);
+    expect(svc.create).toHaveBeenCalledWith(
+      expect.objectContaining({ proposedCode: 'BDG-02', stage: 'PENDING' }),
+    );
+  });
+
+  // Nobody submits themselves pre-verified, and nobody reads the pipeline anonymously.
+  it('forces a fresh PENDING checklist and returns a receipt, not the record', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', proposedName: 'Depot Buah Batu',
+      submittedAt: new Date('2026-07-27T00:00:00Z'), stage: 'PENDING',
+      checklist: { ktpNpwp: 'VERIFIED' } });
+    const out = await c.submit({ ...submission, stage: 'APPROVED',
+      checklist: { ktpNpwp: 'VERIFIED' } } as never);
+    const sent = svc.create.mock.calls[0][0];
+    expect(sent.stage).toBe('PENDING');
+    expect(Object.values(sent.checklist)).toEqual(['PENDING', 'PENDING', 'PENDING', 'PENDING']);
+    expect(Object.keys(out).sort()).toEqual(['id', 'proposedCode', 'proposedName', 'submittedAt']);
+  });
 
   it('lists with defaults and explicit paging', async () => {
     await c.list({} as never);
