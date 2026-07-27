@@ -11,6 +11,8 @@ import {
   UpdatePricingRuleData,
 } from '../ports/pricing-rule.repository';
 import { InventoryRepository } from '../ports/inventory.repository';
+import { WholesaleTierRepository } from '../ports/wholesale-tier.repository';
+import { pickTierPrice } from '../../domain/wholesale-tier';
 import { DepotRepository } from '../ports/depot.repository';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { DEPOT_TOKENS } from '../tokens';
@@ -33,6 +35,12 @@ export interface ResolvedProductPrice {
   sellPrice?: number;
   adjustType?: PricingAdjustType;
   value?: number;
+  /**
+   * Wholesale band price for the quantity the caller asked about (design 16b). Present
+   * only when a tier matches; it is an absolute unit price, so a caller that honours it
+   * must ignore `sellPrice` and the rule adjustment for that line.
+   */
+  tierPrice?: number;
 }
 
 @Injectable()
@@ -41,6 +49,8 @@ export class PricingService {
     @Inject(DEPOT_TOKENS.PricingRuleRepository) private readonly rules: PricingRuleRepository,
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    @Inject(DEPOT_TOKENS.WholesaleTierRepository)
+    private readonly tiers: WholesaleTierRepository,
     private readonly config: DepotConfigService,
   ) {}
 
@@ -108,30 +118,40 @@ export class PricingService {
    * plus the single winning active rule (if any). A product with neither is omitted;
    * order-service then falls back to the catalog base price.
    */
+  /**
+   * `quantities` is positional against `productIds`; a quantity of 0/absent means the
+   * caller only wants the unit price and no wholesale band is considered.
+   */
   async resolvePrices(
     depotId: string,
     productIds: string[],
     now: Date = new Date(),
+    quantities: number[] = [],
   ): Promise<ResolvedProductPrice[]> {
     if (productIds.length === 0) return [];
-    const [overrides, activeRules] = await Promise.all([
+    const wantsTiers = quantities.some((q) => q > 0);
+    const [overrides, activeRules, tiers] = await Promise.all([
       this.inventory.findPrices(depotId, productIds),
       this.rules.listActiveForDepot(depotId),
+      wantsTiers ? this.tiers.listForDepot(depotId) : Promise.resolve([]),
     ]);
     const overrideByProduct = new Map(overrides.map((o) => [o.productId, o.sellPrice]));
     const tz = this.config.pricingTimeZone;
 
     const out: ResolvedProductPrice[] = [];
-    for (const productId of productIds) {
+    productIds.forEach((productId, i) => {
       const sellPrice = overrideByProduct.get(productId);
       const rule = resolveRule(activeRules, productId, now, tz);
-      if (sellPrice === undefined && !rule) continue;
+      const qty = quantities[i] ?? 0;
+      const tierPrice = qty > 0 ? pickTierPrice(tiers, productId, qty) : undefined;
+      if (sellPrice === undefined && !rule && tierPrice === undefined) return;
       out.push({
         productId,
         ...(sellPrice !== undefined ? { sellPrice } : {}),
         ...(rule ? { adjustType: rule.adjustType, value: rule.value } : {}),
+        ...(tierPrice !== undefined ? { tierPrice } : {}),
       });
-    }
+    });
     return out;
   }
 }

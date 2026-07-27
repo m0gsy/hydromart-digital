@@ -58,3 +58,4 @@ ops/alertmanager.webhook-url
 
 # Local UAT harness (throwaway run artefacts, not part of the product)
 .uat/
+uat.json

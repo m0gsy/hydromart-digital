@@ -136,11 +136,15 @@ export class OrderService {
       ? await this.depotPricing.getPrices(
           depot.id,
           lines.map((l) => l.productId),
+          lines.map((l) => l.quantity),
         )
       : new Map<string, DepotPrice>();
 
     const productById = await this.pricedAll(lines.map((l) => l.productId));
     const items: CreateOrderItemData[] = [];
+    // Rupiah that came from a wholesale band. The bulk price is already the depot's bulk
+    // price, so the reseller percentage is not stacked on top of it (decided 2026-07-27).
+    let tierPricedTotal = 0;
     for (const line of lines) {
       const product = productById.get(line.productId)!;
       const priceRow = prices.get(product.id);
@@ -148,7 +152,12 @@ export class OrderService {
       const adj = priceRow?.adjustType
         ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
         : null;
-      const unitPrice = money(applyAdjustment(base, adj));
+      // A wholesale band is an absolute unit price and outranks both the depot override
+      // and the active pricing rule (design 16b).
+      const tiered = typeof priceRow?.tierPrice === 'number';
+      const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
+      const lineTotal = money(unitPrice * line.quantity);
+      if (tiered) tierPricedTotal += lineTotal;
       items.push({
         productId: product.id,
         productName: product.name,
@@ -156,7 +165,7 @@ export class OrderService {
         unit: product.unit,
         unitPrice,
         quantity: line.quantity,
-        lineTotal: money(unitPrice * line.quantity),
+        lineTotal,
       });
     }
 
@@ -181,7 +190,10 @@ export class OrderService {
     let discount: number;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      discount = money(Math.min(subtotal, percentDiscount(subtotal, reseller!.discountPct)));
+      // Wholesale-priced lines are excluded from the reseller percentage — they are
+      // already at the depot's bulk price and must not be discounted twice.
+      const discountable = money(Math.max(0, subtotal - tierPricedTotal));
+      discount = money(Math.min(subtotal, percentDiscount(discountable, reseller!.discountPct)));
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -267,7 +279,11 @@ export class OrderService {
     if (lines.length === 0) throw new EmptyCartError();
     const depot = await this.routeDepot(address);
     const prices = depot
-      ? await this.depotPricing.getPrices(depot.id, lines.map((l) => l.productId))
+      ? await this.depotPricing.getPrices(
+          depot.id,
+          lines.map((l) => l.productId),
+          lines.map((l) => l.quantity),
+        )
       : new Map<string, DepotPrice>();
 
     const productById = await this.pricedAll(lines.map((l) => l.productId));
@@ -279,7 +295,11 @@ export class OrderService {
       const adj = priceRow?.adjustType
         ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
         : null;
-      const unitPrice = money(applyAdjustment(base, adj));
+      // Same wholesale rule as interactive checkout: a matching band is the unit price.
+      const unitPrice =
+        typeof priceRow?.tierPrice === 'number'
+          ? money(priceRow.tierPrice)
+          : money(applyAdjustment(base, adj));
       items.push({
         productId: product.id,
         productName: product.name,

@@ -596,14 +596,29 @@ export class FakeDepotPricing implements DepotPricingPort {
     this.forDepot(depotId).set(productId, { ...row, adjustType, value });
   }
 
-  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>> {
+  /** A wholesale band that only kicks in from `minQty` units, like the real tiers. */
+  setTier(depotId: string, productId: string, minQty: number, tierPrice: number): void {
+    this.tiers.set(`${depotId}:${productId}`, { minQty, tierPrice });
+  }
+
+  private readonly tiers = new Map<string, { minQty: number; tierPrice: number }>();
+
+  async getPrices(
+    depotId: string,
+    productIds: string[],
+    quantities: number[] = [],
+  ): Promise<Map<string, DepotPrice>> {
     this.calls.push({ depotId, productIds });
     const forDepot = this.overrides.get(depotId) ?? new Map<string, DepotPrice>();
     const result = new Map<string, DepotPrice>();
-    for (const id of productIds) {
+    productIds.forEach((id, i) => {
       const row = forDepot.get(id);
-      if (row) result.set(id, row);
-    }
+      const band = this.tiers.get(`${depotId}:${id}`);
+      const qty = quantities[i] ?? 0;
+      const tiered = band && qty >= band.minQty ? { tierPrice: band.tierPrice } : {};
+      const merged = { ...(row ?? {}), ...tiered };
+      if (Object.keys(merged).length > 0) result.set(id, merged);
+    });
     return result;
   }
 }

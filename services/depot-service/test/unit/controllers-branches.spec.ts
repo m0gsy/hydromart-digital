@@ -642,9 +642,19 @@ describe('Inventory controllers', () => {
 
   it('resolves prices from a comma list and an empty query', async () => {
     await depotC.prices(DEPOT, 'a, b ,,c');
-    expect(pricing.resolvePrices).toHaveBeenCalledWith(DEPOT, ['a', 'b', 'c']);
+    expect(pricing.resolvePrices).toHaveBeenCalledWith(DEPOT, ['a', 'b', 'c'], expect.any(Date), [0]);
     await depotC.prices(DEPOT, undefined);
-    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(DEPOT, []);
+    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(DEPOT, [], expect.any(Date), [0]);
+  });
+
+  it('parses wholesale quantities positionally and zeroes out junk', async () => {
+    await depotC.prices(DEPOT, 'a,b,c', '10, 0 ,abc');
+    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(
+      DEPOT,
+      ['a', 'b', 'c'],
+      expect.any(Date),
+      [10, 0, 0],
+    );
   });
 
   it('lists movements with defaults, explicit paging and rejects a reversed window', async () => {

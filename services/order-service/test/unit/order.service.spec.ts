@@ -385,6 +385,54 @@ describe('OrderService', () => {
     expect(promo.redeemCalls).toHaveLength(0);
   });
 
+  describe('wholesale band pricing (design 16b)', () => {
+    const routed = { ...address, latitude: -6.91, longitude: 107.61 };
+    const nearDepot = {
+      id: 'depot-near',
+      lat: -6.9,
+      lng: 107.6,
+      serviceRadiusKm: 10,
+      deliveryFee: 0,
+      minOrderAmount: null,
+    };
+
+    it('charges the band price once the quantity reaches the threshold', async () => {
+      depots.depots = [nearDepot];
+      const productId = await addToCart(22000, 10);
+      pricing.setTier('depot-near', productId, 10, 5500);
+      const order = await service.checkout(customer, { deliveryAddress: routed });
+      expect(order.items[0]?.unitPrice).toBe(5500);
+      expect(order.subtotal).toBe(55000);
+    });
+
+    it('leaves an order below the threshold at the normal price', async () => {
+      depots.depots = [nearDepot];
+      const productId = await addToCart(22000, 9);
+      pricing.setTier('depot-near', productId, 10, 5500);
+      const order = await service.checkout(customer, { deliveryAddress: routed });
+      expect(order.items[0]?.unitPrice).toBe(22000);
+    });
+
+    it('outranks the depot override for that line', async () => {
+      depots.depots = [nearDepot];
+      const productId = await addToCart(22000, 10);
+      pricing.setPrice('depot-near', productId, 19000);
+      pricing.setTier('depot-near', productId, 10, 5500);
+      const order = await service.checkout(customer, { deliveryAddress: routed });
+      expect(order.items[0]?.unitPrice).toBe(5500);
+    });
+
+    it('does not stack the reseller percent on a band-priced line', async () => {
+      depots.depots = [nearDepot];
+      const productId = await addToCart(22000, 10);
+      pricing.setTier('depot-near', productId, 10, 5500);
+      resellerDiscount.result = { active: true, discountPct: 10 };
+      const order = await service.checkout(customer, { deliveryAddress: routed }, 'Bearer tok');
+      expect(order.subtotal).toBe(55000);
+      expect(order.discount).toBe(0);
+    });
+  });
+
   it('rejects a voucher for an active reseller', async () => {
     await addToCart(20000, 1);
     resellerDiscount.result = { active: true, discountPct: 10 };
