@@ -868,6 +868,11 @@ export interface DepotPaymentInfo {
   paymentQrisImageUrl: string | null;
 }
 
+/** GET /depots/:id/payment-info — the payment panel's own payload (carries the name). */
+export interface DepotPaymentPanel extends DepotPaymentInfo {
+  name: string;
+}
+
 // Full admin record (from GET /depots/manage) + the create/update payload shape.
 export interface DepotAdmin extends Depot, DepotPaymentInfo {
   ownershipType: string;

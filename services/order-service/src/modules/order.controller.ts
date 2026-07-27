@@ -1,4 +1,5 @@
 import {
+  ForbiddenException,
   Body,
   Controller,
   Get,
@@ -121,13 +122,32 @@ export class OrderController {
   @Get('manage')
   @Roles(...CAPABILITIES.orderQueue)
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
-  listManaged(
+  async listManaged(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListOrdersQueryDto,
   ): Promise<Page<OrderRecord>> {
     // Scope the list to the caller's depot for depot-locked roles (operator/manager can't
     // see other depots); HQ/finance/etc. keep the optional ?depotId filter, undefined = all.
-    const depotId = depotScopeFilter(user, query.depotId);
+    //
+    // A courier is pinned to their assigned depot here rather than via DEPOT_LOCKED_ROLES:
+    // that set also drives the courier's OWN delivery/shift routes, where the depot comes
+    // from the assigned delivery and locking the role globally locks the courier out of
+    // their own work. Unscoped, one courier token listed every depot's orders — customer
+    // names, addresses and phone numbers across the network — from a phone in the field.
+    //
+    // ponytail: pinned to the token's depotId, not to the couriers actual assignments. If
+    // couriers ever float between depots in one shift, resolve it from delivery-service.
+    let depotId: string | undefined;
+    if (user.role === Role.DRIVER) {
+      if (!user.depotId) {
+        // A courier token with no depot is a misconfigured account. Failing closed beats
+        // falling through to the unscoped branch, which would hand them the whole network.
+        throw new ForbiddenException('Akun kurir ini belum tertaut ke depot mana pun.');
+      }
+      depotId = user.depotId;
+    } else {
+      depotId = depotScopeFilter(user, query.depotId);
+    }
     return this.orders.listAll({ ...query, depotId });
   }
 

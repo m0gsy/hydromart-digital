@@ -127,6 +127,7 @@ export const profile = {
     pin: {
       title: 'Titik lokasi antar',
       optional: '(opsional)',
+      required: '(wajib)',
       pinned: 'Lokasi tersemat ✓',
       clear: 'Hapus pin',
       useLocation: 'Gunakan lokasi saya',

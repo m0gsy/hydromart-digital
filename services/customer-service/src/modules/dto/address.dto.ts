@@ -52,15 +52,16 @@ export class CreateAddressDto {
   @MaxLength(10)
   postalCode?: string;
 
-  @ApiPropertyOptional({ example: -6.9147 })
-  @IsOptional()
+  // Required: depot routing is done by distance, so an address with no pin cannot be
+  // matched to a depot at all. Saving one silently produced an address that looked fine
+  // in the list and then failed — or worse, routed anywhere — at checkout.
+  @ApiProperty({ example: -6.9147, description: 'Map pin latitude; required for depot routing.' })
   @IsLatitude()
-  latitude?: number;
+  latitude!: number;
 
-  @ApiPropertyOptional({ example: 107.6098 })
-  @IsOptional()
+  @ApiProperty({ example: 107.6098, description: 'Map pin longitude; required for depot routing.' })
   @IsLongitude()
-  longitude?: number;
+  longitude!: number;
 
   @ApiPropertyOptional({
     example: 'Pagar hijau sebelah warung Bu Ani, gang masuk 50m.',

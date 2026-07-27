@@ -1,3 +1,7 @@
+import { ForbiddenException } from '@nestjs/common';
+
+import { Role } from '@hydromart/platform';
+
 import { OrderController } from '../../src/modules/order.controller';
 import { OrderService } from '../../src/application/services/order.service';
 
@@ -96,6 +100,22 @@ describe('OrderController', () => {
   it('listManaged: applies the depot scope filter (undefined for SUPER_ADMIN)', async () => {
     await controller.listManaged(admin, { depotId: 'd9', limit: 10 } as never);
     expect(service.listAll).toHaveBeenCalledWith({ depotId: 'd9', limit: 10 });
+  });
+
+  // UAT-M28-14: a courier token used to list every depot's orders — customer names,
+  // addresses and phone numbers across the whole network — from a device in the field.
+  it('listManaged: pins a courier to their own depot, ignoring any ?depotId', async () => {
+    const driver = { sub: 'drv-1', role: Role.DRIVER, depotId: 'depot-a' } as never;
+    await controller.listManaged(driver, { depotId: 'depot-b', limit: 10 } as never);
+    expect(service.listAll).toHaveBeenCalledWith({ depotId: 'depot-a', limit: 10 });
+  });
+
+  it('listManaged: refuses a courier whose token carries no depot', async () => {
+    const orphan = { sub: 'drv-2', role: Role.DRIVER, depotId: null } as never;
+    await expect(controller.listManaged(orphan, { limit: 10 } as never)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(service.listAll).not.toHaveBeenCalled();
   });
 
   it('getManaged: loads the order then passes the depot access check', async () => {

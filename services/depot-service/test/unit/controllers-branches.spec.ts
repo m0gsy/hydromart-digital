@@ -390,6 +390,30 @@ describe('DepotController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
+    // browse/get now map through PublicDepotView, so the stubs have to return real rows.
+    svc.browse.mockResolvedValue({ items: [{ id: DEPOT, name: 'D' }], total: 1, page: 1, limit: 20 });
+    svc.get.mockResolvedValue({ id: DEPOT, name: 'D', paymentBankAccountNumber: '123' });
+  });
+
+  // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
+  // depot's bank account to anonymous callers.
+  it('keeps bank details and ownership out of the public browse/detail payloads', async () => {
+    const leaks = ['paymentBankName', 'paymentBankAccountNumber', 'paymentBankAccountHolder',
+      'paymentQrisImageUrl', 'ownerId', 'ownershipType'];
+    const page = await c.browse({ page: 1 } as never);
+    const one = await c.get(DEPOT);
+    for (const key of leaks) {
+      expect(page.items[0]).not.toHaveProperty(key);
+      expect(one).not.toHaveProperty(key);
+    }
+    expect(one).toHaveProperty('name');
+  });
+
+  it('serves the payment destination only on the dedicated authenticated route', async () => {
+    await expect(c.paymentInfo(DEPOT)).resolves.toMatchObject({
+      name: 'D',
+      paymentBankAccountNumber: '123',
+    });
   });
 
   it('browses, finds nearby (default+explicit), manages, mine, get and remove', async () => {

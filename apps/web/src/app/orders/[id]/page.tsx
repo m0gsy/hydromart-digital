@@ -24,7 +24,7 @@ import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
+import type { DepotPaymentPanel, Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
 // White card in the 2e spec: 22px radius, soft shadow, no border. `surface`
 // keeps it theme-aware (white in light, elevated dark surface in dark).
@@ -86,10 +86,12 @@ function OrderDetailInner({ id }: { id: string }) {
     [id],
   );
   // The routed depot's payment destination (bank / static QRIS), shown when a
-  // transfer/QRIS payment is still pending. Public GET, fail-soft (null on error).
+  // transfer/QRIS payment is still pending. Authenticated and one depot at a time —
+  // the bank details used to ride along on the public depot payload, which published
+  // every depot's account number to anonymous callers. Fail-soft (null on error).
   const depotId = order?.depotId ?? null;
-  const { data: depot } = useAsync<DepotAdmin | null>(
-    () => (depotId ? api.get(endpoints.depots.detail(depotId)) : Promise.resolve(null)),
+  const { data: depot } = useAsync<DepotPaymentPanel | null>(
+    () => (depotId ? api.get(endpoints.depots.paymentInfo(depotId), true) : Promise.resolve(null)),
     [depotId],
   );
 

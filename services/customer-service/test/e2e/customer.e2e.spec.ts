@@ -103,6 +103,8 @@ describe('Customer HTTP flows (e2e)', () => {
         addressLine: 'Jl. Merdeka 10',
         city: 'Bandung',
         province: 'Jawa Barat',
+        latitude: -6.9147,
+        longitude: 107.6098,
       }),
     ).expect(201);
     expect(a.body.isPrimary).toBe(true);
@@ -115,6 +117,8 @@ describe('Customer HTTP flows (e2e)', () => {
         addressLine: 'Jl. Asia Afrika 1',
         city: 'Bandung',
         province: 'Jawa Barat',
+        latitude: -6.9147,
+        longitude: 107.6098,
       }),
     ).expect(201);
 

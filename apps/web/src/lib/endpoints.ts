@@ -588,7 +588,12 @@ export const endpoints = {
     },
     create: '/depots/api/v1/depots',
     // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
+    // GET on this path returns the PUBLIC projection only — no bank details, no ownerId.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
+    // Full record incl. payment + ownership. Staff/owner only.
+    manageDetail: (id: string) => `/depots/api/v1/depots/manage/${id}`,
+    // Where to send money for ONE depot. Any signed-in user; never anonymous.
+    paymentInfo: (id: string) => `/depots/api/v1/depots/${id}/payment-info`,
     // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
     uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
   },

@@ -129,6 +129,7 @@ export const profile: typeof base = {
     pin: {
       title: 'Delivery location pin',
       optional: '(optional)',
+      required: '(required)',
       pinned: 'Location pinned ✓',
       clear: 'Remove pin',
       useLocation: 'Use my location',

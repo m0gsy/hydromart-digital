@@ -308,14 +308,14 @@ function AddressForm({
         </Field>
       </div>
 
-      {/* Coords stay optional and flow through toAddressPayload. ponytail: no map picker.
-          One-tap geolocation is the only visible control — raw lat/lng is jargon to a
-          customer ordering water, so it stays folded away as the fallback it is. */}
+      {/* The pin is REQUIRED — depot routing is by distance, so an unpinned address cannot
+          be matched to a depot. ponytail: no map picker. One-tap geolocation is the only
+          visible control; raw lat/lng is jargon to a customer ordering water. */}
       <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MapPin size={16} weight="fill" className="text-brand-600" />
           {t('profile.addresses.pin.title')}
-          <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.optional')}</span>
+          <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.required')}</span>
         </div>
         {pinned ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
