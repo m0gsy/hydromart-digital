@@ -7,6 +7,7 @@ import {
   IsIn,
   IsInt,
   IsISO8601,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -62,14 +63,20 @@ export class AdjustAttendanceDto {
   @IsOptional() @IsISO8601() checkInAt?: string;
   @IsOptional() @IsISO8601() checkOutAt?: string;
   @IsOptional() @IsInt() @Min(0) lateMinutes?: number;
-  @IsString() @MaxLength(200) reason!: string;
+  // Both attendance writes land in the HR audit trail, and an entry whose justification
+  // is an empty string is indistinguishable from no justification at all. @IsString alone
+  // accepts '' — require real text.
+  @IsString() @IsNotEmpty() @MaxLength(200) reason!: string;
 }
 
 export class ManualAttendanceDto {
   @IsUUID() employeeId!: string;
   @IsISO8601() workDate!: string;
   @IsIn(ATTENDANCE_STATUS) status!: (typeof ATTENDANCE_STATUS)[number];
-  @IsString() @MaxLength(200) reason!: string;
+  // Both attendance writes land in the HR audit trail, and an entry whose justification
+  // is an empty string is indistinguishable from no justification at all. @IsString alone
+  // accepts '' — require real text.
+  @IsString() @IsNotEmpty() @MaxLength(200) reason!: string;
 }
 
 export class ListAttendanceDto {
