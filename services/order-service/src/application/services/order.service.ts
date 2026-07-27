@@ -477,9 +477,19 @@ export class OrderService {
   }
 
   /**
-   * Auto-cancels unconfirmed CREATED orders older than the abandonment threshold,
-   * releasing any stock they held. Admin-triggered sweep (mirrors loyalty/expire) —
-   * only CREATED orders qualify, so a legitimately in-flight order is never touched.
+   * Auto-cancels orders that never went anywhere, releasing the stock they held.
+   * Admin-triggered sweep (mirrors loyalty/expire). Two windows, because the two cases
+   * are not the same risk:
+   *
+   * - CREATED beyond `abandonMinutes` — a cart the customer walked away from.
+   * - CONFIRMED / PREPARING beyond `stalledHours` — the depot accepted it and then
+   *   nothing happened. These used to be swept by nothing at all, so an order that was
+   *   never paid for held its reservation forever. The window is long and per-depot
+   *   tunable precisely because a depot may legitimately be slow: payment here is direct
+   *   to the depot, so "unpaid" is a normal state for a live order and is NOT the signal.
+   *
+   * Anything from DRIVER_ASSIGNED on is delivery-service's to close (a failed delivery
+   * cancels its own order), so it is deliberately out of scope here.
    */
   async expireAbandoned(
     changedBy: string,
@@ -487,18 +497,34 @@ export class OrderService {
     olderThanMinutes?: number,
   ): Promise<{ cancelled: number }> {
     const minutes = olderThanMinutes ?? this.config.abandonMinutes;
-    const before = new Date(Date.now() - minutes * 60_000);
-    const stale = await this.orders.findStaleCreated(before);
-    for (const order of stale) {
-      const cancelled = await this.orders.applyStatus(
-        order.id,
-        OrderStatus.CANCELLED,
-        changedBy,
-        'Auto-cancelled: order abandoned before confirmation.',
-      );
-      await this.releaseStock(cancelled, authorization);
+    const now = Date.now();
+    const sweeps: { statuses: OrderStatus[]; before: Date; note: string }[] = [
+      {
+        statuses: [OrderStatus.CREATED],
+        before: new Date(now - minutes * 60_000),
+        note: 'Auto-cancelled: order abandoned before confirmation.',
+      },
+      {
+        statuses: [OrderStatus.CONFIRMED, OrderStatus.PREPARING],
+        before: new Date(now - this.config.stalledHours * 3_600_000),
+        note: 'Auto-cancelled: order stalled at the depot with no progress.',
+      },
+    ];
+    let cancelledCount = 0;
+    for (const sweep of sweeps) {
+      const stale = await this.orders.findStaleIn(sweep.statuses, sweep.before);
+      for (const order of stale) {
+        const cancelled = await this.orders.applyStatus(
+          order.id,
+          OrderStatus.CANCELLED,
+          changedBy,
+          sweep.note,
+        );
+        await this.releaseStock(cancelled, authorization);
+        cancelledCount += 1;
+      }
     }
-    return { cancelled: stale.length };
+    return { cancelled: cancelledCount };
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */

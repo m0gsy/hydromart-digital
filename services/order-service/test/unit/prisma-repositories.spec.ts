@@ -369,14 +369,23 @@ describe('OrderPrismaRepository', () => {
     expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {}, skip: 0, take: 20 }));
   });
 
-  it('finds stale CREATED orders before a cutoff', async () => {
+  it('finds stale orders in the given statuses before a cutoff', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     const before = new Date('2026-01-05');
-    await repo.findStaleCreated(before);
+    await repo.findStaleIn([OrderStatus.CREATED, OrderStatus.CONFIRMED], before);
     expect(order.findMany).toHaveBeenCalledWith({
-      where: { status: OrderStatus.CREATED, createdAt: { lt: before } },
+      where: {
+        status: { in: [OrderStatus.CREATED, OrderStatus.CONFIRMED] },
+        createdAt: { lt: before },
+      },
       include: expect.any(Object),
     });
+  });
+
+  it('short-circuits an empty status list without querying', async () => {
+    order.findMany.mockClear();
+    expect(await repo.findStaleIn([], new Date())).toEqual([]);
+    expect(order.findMany).not.toHaveBeenCalled();
   });
 
   it('pages COMPLETED orders from the start (no cursor)', async () => {

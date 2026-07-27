@@ -28,6 +28,10 @@ export const envValidationSchema = Joi.object({
   // Age (minutes) after which an unconfirmed CREATED order is treated as abandoned
   // and can be auto-cancelled (releasing its stock hold). Company policy default.
   ORDER_ABANDON_MINUTES: Joi.number().integer().positive().default(60),
+  // Age (hours) after which an order stuck at CONFIRMED/PREPARING is treated as stalled
+  // and auto-cancelled, releasing its stock hold. Long by design — the depot has already
+  // accepted the order, and payment is collected at the depot, so being unpaid is normal.
+  ORDER_STALLED_HOURS: Joi.number().integer().positive().default(24),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

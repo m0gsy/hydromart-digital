@@ -21,7 +21,8 @@ export type OrderFulfilmentStatus =
   | 'PICKED_UP'
   | 'ON_DELIVERY'
   | 'DELIVERED'
-  | 'COMPLETED';
+  | 'COMPLETED'
+  | 'CANCELLED';
 
 const TRANSITIONS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
   [DeliveryStatus.ASSIGNED]: [

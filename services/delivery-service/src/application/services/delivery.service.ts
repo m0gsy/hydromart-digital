@@ -204,11 +204,22 @@ export class DeliveryService {
     });
   }
 
-  /** Marks the delivery failed (does not change the order status). */
-  async fail(driverId: string, id: string, reason: string): Promise<DeliveryRecord> {
+  /**
+   * Marks the delivery failed and closes its order. A FAILED delivery is terminal — use
+   * `reschedule` when the order should live on for a second attempt — so leaving the order
+   * mid-flight stranded it at ON_DELIVERY forever, still holding its stock reservation.
+   * Cancelling releases that hold through order-service's normal cancel path.
+   */
+  async fail(
+    driverId: string,
+    id: string,
+    reason: string,
+    authorization = '',
+  ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
+    await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
       DeliveryStatus.FAILED,
@@ -216,6 +227,19 @@ export class DeliveryService {
       driverId,
       reason,
     );
+  }
+
+  /**
+   * Closes the order behind a failed delivery. Fail-open: the courier's record of the
+   * failure must never be lost because order-service was unreachable — a stuck order is
+   * recoverable by hand, a lost failure report is not.
+   */
+  private async cancelOrderFor(orderId: string, authorization: string): Promise<void> {
+    try {
+      await this.advanceOrder(orderId, 'CANCELLED', authorization);
+    } catch {
+      this.logger.error(`Delivery failed but order ${orderId} could not be cancelled`);
+    }
   }
 
   /**
@@ -246,7 +270,12 @@ export class DeliveryService {
    * Fails the delivery as a no-show (design 5a), only once the contact-attempt +
    * wait gate is satisfied. Recorded as a FAILED with a no-show reason.
    */
-  async markNoShow(driverId: string, id: string, now: Date = new Date()): Promise<DeliveryRecord> {
+  async markNoShow(
+    driverId: string,
+    id: string,
+    now: Date = new Date(),
+    authorization = '',
+  ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     const state = await this.deliveries.contactState(id);
@@ -258,6 +287,7 @@ export class DeliveryService {
     }
     const reason = 'Pelanggan tidak di tempat (no-show).';
     this.logger.warn(`Delivery ${id} failed as no-show by driver ${driverId}`);
+    await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
       DeliveryStatus.FAILED,

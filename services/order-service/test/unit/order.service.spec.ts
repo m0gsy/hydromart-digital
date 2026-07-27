@@ -683,6 +683,66 @@ describe('OrderService', () => {
     expect((await service.getAny(confirmed.id)).status).toBe(OrderStatus.CONFIRMED);
   });
 
+  it('cancels an order stalled at the depot and gives back its stock', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff', undefined, 'Bearer tok');
+    await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff', undefined, 'Bearer tok');
+    orders.rows[0].createdAt = new Date(Date.now() - 48 * 60 * 60 * 1000); // 48h, window is 24h
+
+    const result = await service.expireAbandoned('admin', 'Bearer tok', 60);
+
+    expect(result.cancelled).toBe(1);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.CANCELLED);
+    expect(inventory.releaseCalls).toHaveLength(1);
+  });
+
+  it('leaves an order past a driver assignment to delivery-service, however old', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    for (const s of [OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED]) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    orders.rows[0].createdAt = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    expect((await service.expireAbandoned('admin', 'Bearer tok', 60)).cancelled).toBe(0);
+    expect((await service.getAny(order.id)).status).toBe(OrderStatus.DRIVER_ASSIGNED);
+  });
+
+  it('lets the system cancel a failed delivery mid-flight, releasing the hold', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    for (const s of [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+    ]) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    const cancelled = await service.updateStatus(
+      order.id,
+      OrderStatus.CANCELLED,
+      'courier',
+      'Delivery failed',
+      'Bearer tok',
+    );
+    expect(cancelled.status).toBe(OrderStatus.CANCELLED);
+    expect(inventory.releaseCalls).toHaveLength(1);
+  });
+
+  it('still refuses a CUSTOMER cancel once a driver is assigned (BR-006)', async () => {
+    await addToCart(20000, 2);
+    const order = await routedCheckout();
+    for (const s of [OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED]) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    await expect(service.cancel(customer, order.id)).rejects.toBeInstanceOf(
+      OrderNotCancellableError,
+    );
+  });
+
   it('enforces the legal status sequence on staff updates (BR-012)', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });

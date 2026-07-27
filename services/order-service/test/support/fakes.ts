@@ -192,9 +192,9 @@ export class InMemoryOrderRepository implements OrderRepository {
       total: all.length,
     };
   }
-  async findStaleCreated(before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
     return this.rows
-      .filter((r) => r.status === OrderStatus.CREATED && r.createdAt < before)
+      .filter((r) => statuses.includes(r.status) && r.createdAt < before)
       .map((r) => structuredClone(r));
   }
 
@@ -832,6 +832,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     REFERRAL_SERVICE_URL: 'http://localhost:3011',
     CRM_SERVICE_URL: 'http://localhost:3012',
     ORDER_DELIVERY_FEE: '5000',
+    ORDER_STALLED_HOURS: '24',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',

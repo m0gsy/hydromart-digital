@@ -304,13 +304,21 @@ describe('DeliveryService', () => {
     expect((await service.getAny(d.id)).status).toBe(DeliveryStatus.ASSIGNED);
   });
 
-  it('marks a delivery failed without touching the order', async () => {
+  it('marks a delivery failed and cancels its order', async () => {
     const d = await assign();
-    const failed = await service.fail(driver, d.id, 'address not found');
+    const failed = await service.fail(driver, d.id, 'address not found', AUTH);
     expect(failed.status).toBe(DeliveryStatus.FAILED);
     expect(failed.failureReason).toBe('address not found');
-    // Only the assignment sync happened; failure does not advance the order.
-    expect(orders.calls).toHaveLength(1);
+    // A FAILED delivery is terminal (reschedule is the retry path), so the order has to
+    // close too — otherwise it is stranded mid-flight still holding its stock reservation.
+    expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'CANCELLED']);
+  });
+
+  it('still records the failure when the order cannot be cancelled', async () => {
+    const d = await assign();
+    orders.throwOnStatus = 'CANCELLED';
+    const failed = await service.fail(driver, d.id, 'address not found', AUTH);
+    expect(failed.status).toBe(DeliveryStatus.FAILED);
   });
 
   it('gates no-show behind contact attempts + wait, then fails as no-show (5a)', async () => {
@@ -331,11 +339,11 @@ describe('DeliveryService', () => {
       NoShowNotEligibleError,
     );
 
-    // Attempts met + wait elapsed → fails as no-show, order untouched.
-    const failed = await service.markNoShow(driver, d.id, second.eligibleAt!);
+    // Attempts met + wait elapsed → fails as no-show, and the order closes with it.
+    const failed = await service.markNoShow(driver, d.id, second.eligibleAt!, AUTH);
     expect(failed.status).toBe(DeliveryStatus.FAILED);
     expect(failed.failureReason).toContain('no-show');
-    expect(orders.calls).toHaveLength(1);
+    expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'CANCELLED']);
   });
 
   it('reschedules a delivery without advancing the order (3c)', async () => {

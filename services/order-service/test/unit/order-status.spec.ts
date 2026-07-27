@@ -35,7 +35,24 @@ describe('OrderStatus state machine (BR-012, BR-005, BR-006)', () => {
     expect(isCancellable(OrderStatus.PREPARING)).toBe(true);
     expect(isCancellable(OrderStatus.DRIVER_ASSIGNED)).toBe(false);
     expect(isCancellable(OrderStatus.PICKED_UP)).toBe(false);
-    expect(canTransition(OrderStatus.DRIVER_ASSIGNED, OrderStatus.CANCELLED)).toBe(false);
+    expect(isCancellable(OrderStatus.ON_DELIVERY)).toBe(false);
+    expect(isCancellable(OrderStatus.COMPLETED)).toBe(false);
+  });
+
+  it('still lets the SYSTEM cancel mid-delivery, unlike the customer', () => {
+    // A delivery that fails on the road has to be able to close its order — otherwise the
+    // order is stranded at ON_DELIVERY holding its stock reservation forever.
+    for (const from of [
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+    ]) {
+      expect(canTransition(from, OrderStatus.CANCELLED)).toBe(true);
+      expect(isCancellable(from)).toBe(false);
+    }
+    // Terminal states stay terminal.
+    expect(canTransition(OrderStatus.COMPLETED, OrderStatus.CANCELLED)).toBe(false);
+    expect(canTransition(OrderStatus.CANCELLED, OrderStatus.CANCELLED)).toBe(false);
   });
 
   it('marks an order non-editable from pickup onward (BR-005)', () => {

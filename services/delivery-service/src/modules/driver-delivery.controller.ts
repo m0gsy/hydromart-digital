@@ -114,8 +114,10 @@ export class DriverDeliveryController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: FailDeliveryDto,
+    @Headers('authorization') authorization?: string,
   ): Promise<DeliveryRecord> {
-    return this.deliveries.fail(user.sub, id, dto.reason);
+    // Forwarded so the failure can cancel the order (and release its stock hold).
+    return this.deliveries.fail(user.sub, id, dto.reason, authorization);
   }
 
   @Post(':id/contact-attempts')
@@ -138,8 +140,9 @@ export class DriverDeliveryController {
   markNoShow(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Headers('authorization') authorization?: string,
   ): Promise<DeliveryRecord> {
-    return this.deliveries.markNoShow(user.sub, id);
+    return this.deliveries.markNoShow(user.sub, id, new Date(), authorization);
   }
 
   @Patch(':id/reschedule')

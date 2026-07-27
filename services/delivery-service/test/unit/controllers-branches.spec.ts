@@ -203,8 +203,8 @@ describe('DriverDeliveryController', () => {
   it('reports a location and fails a delivery', () => {
     void controller.reportLocation(user, id, { lat: -6.9, lng: 107.6 } as never);
     expect(deliveries.reportLocation).toHaveBeenCalledWith(user.sub, id, -6.9, 107.6);
-    void controller.fail(user, id, { reason: 'not found' } as never);
-    expect(deliveries.fail).toHaveBeenCalledWith(user.sub, id, 'not found');
+    void controller.fail(user, id, { reason: 'not found' } as never, 'Bearer t');
+    expect(deliveries.fail).toHaveBeenCalledWith(user.sub, id, 'not found', 'Bearer t');
   });
 
   it('defaults the contact-attempt method to CALL when omitted', () => {
@@ -218,8 +218,8 @@ describe('DriverDeliveryController', () => {
   });
 
   it('marks a no-show and reschedules (parsing the date)', () => {
-    void controller.markNoShow(user, id);
-    expect(deliveries.markNoShow).toHaveBeenCalledWith(user.sub, id);
+    void controller.markNoShow(user, id, 'Bearer t');
+    expect(deliveries.markNoShow).toHaveBeenCalledWith(user.sub, id, expect.any(Date), 'Bearer t');
     void controller.reschedule(user, id, { rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Sore', note: 'n' } as never);
     expect(deliveries.reschedule).toHaveBeenCalledWith(user.sub, id, {
       rescheduledFor: new Date('2026-08-01T09:00:00.000Z'),
