@@ -1,7 +1,7 @@
 import { GallonReturnService } from '../../src/application/services/gallon-return.service';
 import { GallonCondition } from '../../src/domain/gallon-return';
 import { OwnershipType } from '../../src/domain/inventory';
-import { DepotNotFoundError } from '../../src/domain/errors';
+import { DepotNotFoundError, GallonOverReturnError } from '../../src/domain/errors';
 import {
   CreateGallonReturnData,
   GallonReturnRecord,
@@ -9,7 +9,7 @@ import {
   GallonReturnSummary,
 } from '../../src/application/ports/gallon-return.repository';
 import { DepotConfigService } from '../../src/config/depot-config.service';
-import { InMemoryDepotRepository } from '../support/fakes';
+import { InMemoryDepotRepository, InMemoryGallonIssueRepository } from '../support/fakes';
 
 const GALLON_DEPOSIT_IDR = 20000;
 const configStub = { gallonDepositIdr: () => GALLON_DEPOSIT_IDR } as DepotConfigService;
@@ -68,14 +68,51 @@ const DEPOT = {
 describe('GallonReturnService', () => {
   let depots: InMemoryDepotRepository;
   let returns: InMemoryGallonReturnRepository;
+  let issues: InMemoryGallonIssueRepository;
   let service: GallonReturnService;
   let depotId: string;
 
   beforeEach(async () => {
     depots = new InMemoryDepotRepository();
     returns = new InMemoryGallonReturnRepository();
-    service = new GallonReturnService(returns, depots, configStub);
+    issues = new InMemoryGallonIssueRepository();
+    service = new GallonReturnService(returns, issues, depots, configStub);
     depotId = (await depots.create(DEPOT)).id;
+    // Returns are now capped by what the depot has outstanding, so every test needs a
+    // ledger to return AGAINST. Plenty of headroom: the cap itself is asserted below.
+    await issues.create({
+      depotId,
+      customerId: null,
+      quantity: 100,
+      depositHeld: 100 * GALLON_DEPOSIT_IDR,
+      note: null,
+      actorId: 'staff-1',
+    });
+  });
+
+  it('rejects a return of more empties than the depot has outstanding (UAT-M15-11)', async () => {
+    await service.record(depotId, { quantity: 98 }, 'staff-1');
+    await expect(service.record(depotId, { quantity: 5 }, 'staff-1')).rejects.toBeInstanceOf(
+      GallonOverReturnError,
+    );
+    expect((await service.summary(depotId)).gallons).toBe(98);
+  });
+
+  it('never refunds more deposit than the depot still holds', async () => {
+    await expect(
+      service.record(depotId, { quantity: 1, depositRefunded: 100 * GALLON_DEPOSIT_IDR + 1 }, 'staff-1'),
+    ).rejects.toBeInstanceOf(GallonOverReturnError);
+    expect((await service.summary(depotId)).depositRefunded).toBe(0);
+  });
+
+  it('caps a courier return at the outstanding balance too', async () => {
+    await expect(
+      service.recordFromCourier(
+        depotId,
+        { orderId: '00000000-0000-4000-8000-00000000000a', quantity: 101 },
+        'courier-1',
+      ),
+    ).rejects.toBeInstanceOf(GallonOverReturnError);
   });
 
   it('rejects recording a return against an unknown depot', async () => {

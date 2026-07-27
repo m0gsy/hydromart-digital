@@ -44,6 +44,10 @@ export class CustomerConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** product-service base URL for the favourite catalog check; blank → check skipped. */
+  get productServiceUrl(): string {
+    return this.config.get<string>('PRODUCT_SERVICE_URL', '').trim();
+  }
   /** order-service base URL for the CRM order-aggregate port; blank → CRM shows no order data. */
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();

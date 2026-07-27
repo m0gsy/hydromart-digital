@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from 'class-validator';
 
+import { IsIanaTimezone } from '@hydromart/platform';
+
 import { SystemSettingsRecord } from '../../application/ports/system-settings.repository';
 
 /* ---------- Requests ---------- */
@@ -10,6 +12,7 @@ export class SaveSystemSettingsDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(64)
+  @IsIanaTimezone()
   defaultTimezone!: string;
 
   @ApiProperty({ example: 'IDR', description: 'ISO-4217 currency code.' })

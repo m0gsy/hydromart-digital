@@ -8,5 +8,6 @@ export const CUSTOMER_TOKENS = {
   DepotCrmRepository: Symbol('DepotCrmRepository'),
   OrderCrmPort: Symbol('OrderCrmPort'),
   FavoriteRepository: Symbol('FavoriteRepository'),
+  ProductCatalogPort: Symbol('ProductCatalogPort'),
   ResellerRepository: Symbol('ResellerRepository'),
 } as const;

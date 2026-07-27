@@ -153,8 +153,12 @@ describe('Recommendation HTTP flows (e2e)', () => {
     const resA = await request(server()).get('/api/v1/recommendations/reorder').set(auth(customerAToken)).expect(200);
     expect(resA.body.map((i: { productId: string }) => i.productId)).toContain(productId);
 
+    // Customer B has no history, so their list is the PUBLIC trending feed (cold start,
+    // UAT-M22-08) — never A's personal ranking. Isolation is asserted by pinning B's
+    // response to exactly what an unauthenticated caller can already see.
     const resB = await request(server()).get('/api/v1/recommendations/reorder').set(auth(customerBToken)).expect(200);
-    expect(resB.body.map((i: { productId: string }) => i.productId)).not.toContain(productId);
+    const publicTrending = await request(server()).get('/api/v1/recommendations/trending?days=30').expect(200);
+    expect(resB.body).toEqual(publicTrending.body);
   });
 
   it('rebuild is restricted to SUPER_ADMIN (403 customer) and pulls the order feed (200)', async () => {

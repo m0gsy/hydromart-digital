@@ -1,6 +1,7 @@
 import { CustomerConfigService } from '../../src/config/customer-config.service';
 import { LoyaltyRewardHttpAdapter } from '../../src/infrastructure/http/loyalty-reward.http.adapter';
 import { OrderCrmHttpAdapter } from '../../src/infrastructure/http/order-crm.http.adapter';
+import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, x-internal-key header, config
 // guards, res.ok branch) against a mocked global.fetch. Unlike the fail-open adapters
@@ -114,5 +115,42 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
     expect(await new OrderCrmHttpAdapter(cfg()).depotCustomerStats('d1')).toEqual([]);
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     expect(await new OrderCrmHttpAdapter(cfg()).depotCustomerStats('d1')).toEqual([]);
+  });
+});
+
+describe('ProductCatalogHttpAdapter', () => {
+  const adapter = (over = {}) =>
+    new ProductCatalogHttpAdapter(makeConfig({ productServiceUrl: 'http://product:3003', ...over }));
+
+  it('skips the check entirely when product-service is not configured', async () => {
+    await expect(adapter({ productServiceUrl: '' }).exists('p1')).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reports unknown ONLY on a definitive 404', async () => {
+    fetchMock.mockResolvedValue(res({ status: 404 }));
+    await expect(adapter().exists('ghost')).resolves.toBe(false);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://product:3003/api/v1/products/ghost');
+  });
+
+  it('reports exists on 200', async () => {
+    fetchMock.mockResolvedValue(res({ status: 200 }));
+    await expect(adapter().exists('p1')).resolves.toBe(true);
+  });
+
+  // Fails OPEN: a catalog outage must not stop a customer favouriting a product they
+  // can already see on the page.
+  it('fails open on a 5xx and on a transport error', async () => {
+    fetchMock.mockResolvedValue(res({ status: 500 }));
+    await expect(adapter().exists('p1')).resolves.toBe(true);
+
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(adapter().exists('p1')).resolves.toBe(true);
+  });
+
+  it('url-encodes the product id', async () => {
+    fetchMock.mockResolvedValue(res({ status: 200 }));
+    await adapter().exists('a/b?c');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://product:3003/api/v1/products/a%2Fb%3Fc');
   });
 });

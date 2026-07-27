@@ -33,8 +33,15 @@ export function selectNearestDepot(
 ): DepotLocation | null {
   let best: { depot: DepotLocation; distance: number } | null = null;
   for (const depot of depots) {
+    // A depot row with a missing/garbage coordinate or radius yields NaN, and every
+    // NaN comparison is false — so `distance > radius` would NOT skip it and `!best`
+    // would elect it, silently making one bad row swallow every address on earth.
+    // Skip such rows outright: an unroutable depot is never a candidate.
+    if (!Number.isFinite(depot.serviceRadiusKm)) {
+      continue;
+    }
     const distance = haversineKm(lat, lng, depot.lat, depot.lng);
-    if (distance > depot.serviceRadiusKm) {
+    if (!Number.isFinite(distance) || distance > depot.serviceRadiusKm) {
       continue;
     }
     if (

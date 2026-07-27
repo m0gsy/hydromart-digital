@@ -12,6 +12,8 @@ const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const MIN_DAYS = 1;
 const MAX_DAYS = 365;
+/** Trending window used to fill a customer's empty reorder list (cold start). */
+const COLD_START_TRENDING_DAYS = 30;
 
 function clampLimit(limit: number): number {
   return Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, limit));
@@ -39,7 +41,16 @@ export class RecommendationService {
     const rows = await this.repo.reorderRows(customerId);
     const ranked = rankReorder(rows, new Date(), clampLimit(limit));
     // ponytail: ML re-ranker seam — a future model would re-rank `ranked` before enrichment.
-    return this.enrich(ranked);
+    const items = await this.enrich(ranked);
+    if (items.length > 0) {
+      return items;
+    }
+    // Cold start: a customer with no order history has nothing to reorder, and an empty
+    // section reads as a broken page. Fall back to what is popular right now — network-wide,
+    // since a brand-new customer has no depot affinity either.
+    // ponytail: same RecItem[] shape, so the fallback is invisible to the client. If the UI
+    // ever needs to caption it ("Populer saat ini"), that needs a response-shape change.
+    return this.trending(null, COLD_START_TRENDING_DAYS, limit);
   }
 
   async related(productId: string, limit: number): Promise<RecItem[]> {

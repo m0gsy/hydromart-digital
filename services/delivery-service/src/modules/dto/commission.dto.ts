@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class CommissionQueryDto {
   @ApiPropertyOptional({ format: 'uuid', description: 'Depot to run commission for.' })
   @IsUUID()
@@ -14,5 +16,6 @@ export class CommissionQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601); defaults to next month.' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }

@@ -1,10 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { GallonCondition } from '../../domain/gallon-return';
-import { DepotNotFoundError } from '../../domain/errors';
+import { DepotNotFoundError, GallonOverReturnError } from '../../domain/errors';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
+import { GallonIssueRepository } from '../ports/gallon-issue.repository';
 import {
   GallonReturnRecord,
   GallonReturnRepository,
@@ -41,6 +42,7 @@ export interface CourierReturnInput {
 export class GallonReturnService {
   constructor(
     @Inject(DEPOT_TOKENS.GallonReturnRepository) private readonly returns: GallonReturnRepository,
+    @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly config: DepotConfigService,
   ) {}
@@ -51,15 +53,46 @@ export class GallonReturnService {
     }
   }
 
+  /**
+   * Reject a return that hands back more empties, or refunds more deposit, than the
+   * depot has outstanding. Both write paths funnel through here so neither can leak.
+   *
+   * ponytail: the balance is DEPOT-wide, not per-customer — it reuses the two
+   * `summaryForDepot` rollups that already exist. It stops the money leak and the
+   * impossible network total; move to a per-customer balance (new repo queries on
+   * both ledgers) when ops needs to block one customer over-returning while the
+   * depot as a whole is still in credit.
+   */
+  private async assertWithinOutstanding(
+    depotId: string,
+    quantity: number,
+    depositRefunded: number,
+  ): Promise<void> {
+    const [issued, returned] = await Promise.all([
+      this.issues.summaryForDepot(depotId),
+      this.returns.summaryForDepot(depotId),
+    ]);
+    const gallonsLeft = issued.gallons - returned.gallons;
+    if (quantity > gallonsLeft) {
+      throw new GallonOverReturnError('gallons', quantity, Math.max(0, gallonsLeft));
+    }
+    const depositLeft = issued.depositHeld - returned.depositRefunded;
+    if (depositRefunded > depositLeft) {
+      throw new GallonOverReturnError('deposit', depositRefunded, Math.max(0, depositLeft));
+    }
+  }
+
   async record(depotId: string, input: RecordReturnInput, actorId: string): Promise<GallonReturnRecord> {
     await this.requireDepot(depotId);
+    const depositRefunded = input.depositRefunded ?? 0;
+    await this.assertWithinOutstanding(depotId, input.quantity, depositRefunded);
     return this.returns.create({
       depotId,
       customerId: input.customerId ?? null,
       orderId: null,
       quantity: input.quantity,
       condition: input.condition ?? GallonCondition.GOOD,
-      depositRefunded: input.depositRefunded ?? 0,
+      depositRefunded,
       note: input.note ?? null,
       actorId,
     });
@@ -81,6 +114,7 @@ export class GallonReturnService {
       condition === GallonCondition.GOOD
         ? this.config.gallonDepositIdr(depotId) * input.quantity
         : 0;
+    await this.assertWithinOutstanding(depotId, input.quantity, depositRefunded);
     return this.returns.create({
       depotId,
       customerId: input.customerId ?? null,

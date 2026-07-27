@@ -21,6 +21,8 @@ import {
 
 import { InventoryItemType, StockMovementType } from '../../domain/inventory';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class ListInventoryQueryDto {
   @ApiPropertyOptional({ enum: InventoryItemType })
   @IsOptional()
@@ -48,6 +50,7 @@ export class ListStockMovementsQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -79,6 +82,7 @@ export class WastageQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 

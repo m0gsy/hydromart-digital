@@ -13,6 +13,8 @@ import { IsUUID } from 'class-validator';
 
 import { CashDirection } from '../../domain/cashbook';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class ListCashbookQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to list cashbook entries for.' })
   @IsUUID()
@@ -26,6 +28,7 @@ export class ListCashbookQueryDto {
   @ApiPropertyOptional({ description: 'Upper occurredAt bound (inclusive), ISO date.' })
   @IsOptional()
   @IsDateString()
+  @IsNotBefore('from')
   to?: string;
 }
 
