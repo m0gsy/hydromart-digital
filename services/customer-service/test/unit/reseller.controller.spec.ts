@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -7,7 +7,6 @@ import { ResellerSelfController } from '../../src/modules/reseller-self.controll
 import { ResellerService } from '../../src/application/services/reseller.service';
 import { Reseller } from '../../src/application/ports/reseller.repository';
 import {
-  CustomerNotFoundError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../../src/domain/errors';
@@ -78,13 +77,6 @@ describe('ResellerController', () => {
       expect(svc.register).toHaveBeenCalledWith(
         user,
         expect.objectContaining({ customerId: 'c1', joinDate: new Date('2026-01-01') }),
-      );
-    });
-    it('maps CustomerNotFoundError to 400', async () => {
-      const svc = makeService();
-      svc.register.mockRejectedValue(new CustomerNotFoundError());
-      await expect(controllerWith(svc).register(user, registerDto)).rejects.toBeInstanceOf(
-        BadRequestException,
       );
     });
     it('maps ResellerExistsError to 409', async () => {

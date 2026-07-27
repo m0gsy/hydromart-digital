@@ -135,8 +135,17 @@ export class VoucherService {
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
+    // computeDiscount is pure and never throws, so it can run before validation — the
+    // budget rule needs this order's own discount to enforce a hard cap.
     const discount = computeDiscount(voucher, subtotal, shippingFee);
+    validateVoucher(
+      voucher,
+      subtotal,
+      new Date(),
+      voucher.usedCount,
+      customerRedemptionCount,
+      burned + discount,
+    );
     return { code: voucher.code, discountType: voucher.discountType, discount, valid: true };
   }
 
@@ -161,8 +170,15 @@ export class VoucherService {
     const voucher = await this.getByCode(code);
     const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
     const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
-    validateVoucher(voucher, subtotal, new Date(), voucher.usedCount, customerRedemptionCount, burned);
     const discount = computeDiscount(voucher, subtotal, shippingFee);
+    validateVoucher(
+      voucher,
+      subtotal,
+      new Date(),
+      voucher.usedCount,
+      customerRedemptionCount,
+      burned + discount,
+    );
 
     const redemption = await this.repo.recordRedemption({
       voucherId: voucher.id,

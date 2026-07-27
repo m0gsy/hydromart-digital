@@ -171,6 +171,18 @@ export class DeliveryService {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.DELIVERED);
     await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
+    // Proof of delivery is the real-world close of the order: nothing downstream of it is
+    // staff- or customer-driven. Without this step the order sits at DELIVERED forever and
+    // order-service never runs its COMPLETED block — no loyalty points (BR-013), no referral
+    // qualification (FR-092) and, worst of all, no stock consume (FR-067..074), so the
+    // checkout hold is never settled and sellable stock drifts negative.
+    // Fail-open: the delivery (and the courier's earning) must not roll back if order-service
+    // is unreachable — the order simply stays at DELIVERED, exactly as before, and is logged.
+    try {
+      await this.advanceOrder(delivery.orderId, 'COMPLETED', authorization);
+    } catch {
+      this.logger.error(`Order ${delivery.orderId} delivered but could not be completed`);
+    }
     const completed = await this.deliveries.completeWithProof(id, proof, driverId);
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed

@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   ConflictException,
   Controller,
@@ -17,7 +16,6 @@ import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform
 
 import { ResellerService } from '../application/services/reseller.service';
 import {
-  CustomerNotFoundError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../domain/errors';
@@ -65,7 +63,6 @@ export class ResellerController {
         note: dto.note,
       });
     } catch (e) {
-      if (e instanceof CustomerNotFoundError) throw new BadRequestException(e.message);
       if (e instanceof ResellerExistsError) throw new ConflictException(e.message);
       throw e;
     }

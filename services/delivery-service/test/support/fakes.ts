@@ -344,6 +344,8 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
 
 export class FakeOrderCoordination implements OrderCoordinationPort {
   throwOnAdvance = false;
+  /** Fail only this one status, leaving the earlier steps of a flow working. */
+  throwOnStatus: OrderFulfilmentStatus | null = null;
   calls: { orderId: string; status: OrderFulfilmentStatus; meta?: OrderAdvanceMeta }[] = [];
 
   async advanceStatus(
@@ -352,7 +354,7 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
     _authorization?: string,
     meta?: OrderAdvanceMeta,
   ): Promise<void> {
-    if (this.throwOnAdvance) {
+    if (this.throwOnAdvance || this.throwOnStatus === status) {
       throw new Error('order-service down');
     }
     this.calls.push({ orderId, status, ...(meta ? { meta } : {}) });

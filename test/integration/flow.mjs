@@ -93,6 +93,22 @@ async function createProduct(staff, basePrice = 20000) {
   return { productId: res.body.id, sku, basePrice };
 }
 
+// Every depot this run creates, so the run can retire them again. A left-behind active
+// ITEST depot keeps competing for order routing on the shared database — that is how six
+// "Integration Depot" rows ended up sitting in Bali/Manado/Medan and quietly turned real
+// UAT cases (out-of-service-area, nearest-depot) into false failures.
+const createdDepots = [];
+
+async function retireCreatedDepots(staff) {
+  for (const id of createdDepots.splice(0)) {
+    try {
+      await api('PATCH', `/depots/api/v1/depots/${id}`, { token: staff, body: { active: false } });
+    } catch (e) {
+      console.error(`cleanup: could not deactivate depot ${id}: ${e.message}`);
+    }
+  }
+}
+
 async function createDepot(staff, { lat, lng, deliveryFee, minOrderAmount, serviceRadiusKm }) {
   const res = await api('POST', '/depots/api/v1/depots', {
     token: staff,
@@ -106,6 +122,7 @@ async function createDepot(staff, { lat, lng, deliveryFee, minOrderAmount, servi
   });
   ok(res, 'create depot');
   assert(res.body.id, `no depot id: ${JSON.stringify(res.body)}`);
+  createdDepots.push(res.body.id);
   return res.body;
 }
 
@@ -296,11 +313,16 @@ async function failurePaths(staff) {
 
 async function main() {
   const staff = staffToken();
-  await coreLoop(staff);
-  await depotRoutedLoop(staff);
-  await onlineWebhookLoop(staff);
-  await failurePaths(staff);
-  console.log('\nALL INTEGRATION SCENARIOS PASSED');
+  try {
+    await coreLoop(staff);
+    await depotRoutedLoop(staff);
+    await onlineWebhookLoop(staff);
+    await failurePaths(staff);
+    console.log('\nALL INTEGRATION SCENARIOS PASSED');
+  } finally {
+    // Runs on failure too: a half-finished run leaves the worst litter.
+    await retireCreatedDepots(staff);
+  }
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error('FLOW FAILED:', e.message); process.exit(1); });

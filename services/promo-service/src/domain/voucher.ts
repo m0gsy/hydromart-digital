@@ -87,7 +87,8 @@ export function validateVoucher(
   now: Date,
   globalUsedCount: number,
   customerRedemptionCount: number,
-  burnedSoFar = 0,
+  /** Total discount already burned on this voucher PLUS the discount now being applied. */
+  burnedWithThis = 0,
 ): void {
   if (!v.active) throw new VoucherInactiveError();
   if (v.validFrom !== null && now < v.validFrom) throw new VoucherNotStartedError();
@@ -99,9 +100,10 @@ export function validateVoucher(
   if (customerRedemptionCount >= v.perCustomerLimit) {
     throw new VoucherCustomerLimitReachedError();
   }
-  // Budget is exhausted once cumulative discount reaches the cap (soft budget: the
-  // in-flight redemption is allowed to tip it over, but the next one is blocked).
-  if (v.budgetCap !== null && burnedSoFar >= v.budgetCap) {
+  // Hard budget: the caller passes the burn INCLUDING this redemption's discount, so the
+  // order that would tip the campaign past its cap is the one rejected. A redemption that
+  // lands exactly on the cap still goes through.
+  if (v.budgetCap !== null && burnedWithThis > v.budgetCap) {
     throw new VoucherBudgetExhaustedError();
   }
 }

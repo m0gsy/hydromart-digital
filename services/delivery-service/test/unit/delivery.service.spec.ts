@@ -258,7 +258,21 @@ describe('DeliveryService', () => {
       'PICKED_UP',
       'ON_DELIVERY',
       'DELIVERED',
+      // Proof of delivery closes the order: without this the COMPLETED block in
+      // order-service (loyalty, referral, stock consume) never runs.
+      'COMPLETED',
     ]);
+  });
+
+  it('still completes the delivery when the order cannot be closed', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    orders.throwOnStatus = 'COMPLETED';
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+
+    expect(done.status).toBe(DeliveryStatus.DELIVERED);
+    expect(orders.calls.map((c) => c.status)).toContain('DELIVERED');
   });
 
   it('frees the driver for a new delivery once the first is delivered', async () => {

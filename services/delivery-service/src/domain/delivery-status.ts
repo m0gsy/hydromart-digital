@@ -16,7 +16,12 @@ export enum DeliveryStatus {
 }
 
 /** Order statuses the delivery-service drives on order-service (BR-012). */
-export type OrderFulfilmentStatus = 'DRIVER_ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED';
+export type OrderFulfilmentStatus =
+  | 'DRIVER_ASSIGNED'
+  | 'PICKED_UP'
+  | 'ON_DELIVERY'
+  | 'DELIVERED'
+  | 'COMPLETED';
 
 const TRANSITIONS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
   [DeliveryStatus.ASSIGNED]: [
