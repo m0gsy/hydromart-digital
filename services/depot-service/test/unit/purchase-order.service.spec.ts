@@ -82,13 +82,25 @@ describe('PurchaseOrderService', () => {
     // Two raw stock lines the PO will receive into.
     const galon = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.GALON, label: 'Galon 19L', unit: 'pcs', quantity: 10, minimumStock: 0 },
+      {
+        itemType: InventoryItemType.GALON,
+        label: 'Galon 19L',
+        unit: 'pcs',
+        quantity: 10,
+        minimumStock: 0,
+      },
       ACTOR,
     );
     galonItemId = galon.id;
     const segel = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.SEGEL, label: 'Segel', unit: 'pcs', quantity: 100, minimumStock: 0 },
+      {
+        itemType: InventoryItemType.SEGEL,
+        label: 'Segel',
+        unit: 'pcs',
+        quantity: 100,
+        minimumStock: 0,
+      },
       ACTOR,
     );
     segelItemId = segel.id;
@@ -100,7 +112,12 @@ describe('PurchaseOrderService', () => {
       supplierId,
       shippingIdr: 25_000,
       lines: [
-        { itemType: InventoryItemType.GALON, label: 'Galon 19L', quantity: 50, unitCostIdr: 18_000 },
+        {
+          itemType: InventoryItemType.GALON,
+          label: 'Galon 19L',
+          quantity: 50,
+          unitCostIdr: 18_000,
+        },
         { itemType: InventoryItemType.SEGEL, label: 'Segel', quantity: 200, unitCostIdr: 100 },
       ],
     });
@@ -162,7 +179,12 @@ describe('PurchaseOrderService', () => {
       depotId,
       supplierId,
       lines: [
-        { itemType: InventoryItemType.GALON, label: 'Galon 19L', quantity: 10, unitCostIdr: 18_000 },
+        {
+          itemType: InventoryItemType.GALON,
+          label: 'Galon 19L',
+          quantity: 10,
+          unitCostIdr: 18_000,
+        },
       ],
     });
     expect(po.shippingIdr).toBe(0);
@@ -176,9 +198,7 @@ describe('PurchaseOrderService', () => {
       depotId,
       supplierId,
       expectedAt,
-      lines: [
-        { itemType: InventoryItemType.SEGEL, label: 'Segel', quantity: 5, unitCostIdr: 100 },
-      ],
+      lines: [{ itemType: InventoryItemType.SEGEL, label: 'Segel', quantity: 5, unitCostIdr: 100 }],
     });
     expect(po.expectedAt).toEqual(expectedAt);
   });
@@ -190,9 +210,9 @@ describe('PurchaseOrderService', () => {
     await expect(service.create({ depotId: UNKNOWN, supplierId, lines })).rejects.toBeInstanceOf(
       DepotNotFoundError,
     );
-    await expect(
-      service.create({ depotId, supplierId: UNKNOWN, lines }),
-    ).rejects.toBeInstanceOf(SupplierNotFoundError);
+    await expect(service.create({ depotId, supplierId: UNKNOWN, lines })).rejects.toBeInstanceOf(
+      SupplierNotFoundError,
+    );
 
     const other = await new DepotService(depotRepo).create({
       code: 'JKT-02',
@@ -216,9 +236,9 @@ describe('PurchaseOrderService', () => {
       code: 'SUP-02',
       categories: [],
     });
-    await expect(
-      service.create({ depotId, supplierId: foreign.id, lines }),
-    ).rejects.toBeInstanceOf(SupplierNotFoundError);
+    await expect(service.create({ depotId, supplierId: foreign.id, lines })).rejects.toBeInstanceOf(
+      SupplierNotFoundError,
+    );
   });
 
   it('lists depot POs, filters by status, and rejects an unknown depot', async () => {

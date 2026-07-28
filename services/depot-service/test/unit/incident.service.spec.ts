@@ -75,7 +75,12 @@ describe('IncidentService', () => {
 
   const record = () =>
     service.record(
-      { depotId, type: IncidentType.VEHICLE_BREAKDOWN, severity: IncidentSeverity.HIGH, title: 'Motor mogok' },
+      {
+        depotId,
+        type: IncidentType.VEHICLE_BREAKDOWN,
+        severity: IncidentSeverity.HIGH,
+        title: 'Motor mogok',
+      },
       'staff-1',
     );
 
@@ -129,7 +134,9 @@ describe('IncidentService', () => {
   });
 
   it('resolve throws for a missing incident', async () => {
-    await expect(service.resolve('nope', 'x', 'mgr-1')).rejects.toBeInstanceOf(IncidentNotFoundError);
+    await expect(service.resolve('nope', 'x', 'mgr-1')).rejects.toBeInstanceOf(
+      IncidentNotFoundError,
+    );
   });
 
   it('updateStatus to IN_PROGRESS keeps resolution fields cleared', async () => {

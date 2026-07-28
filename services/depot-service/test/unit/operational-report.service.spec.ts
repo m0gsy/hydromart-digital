@@ -78,7 +78,12 @@ describe('OperationalReportService', () => {
           poNumber: 'PO-LATEST',
           receivedAt: new Date('2026-07-05T10:00:00.000Z'),
           lines: [
-            { itemType: InventoryItemType.PRODUK, label: '  refill   19l ', quantity: 20, unitCostIdr: 4500 },
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: '  refill   19l ',
+              quantity: 20,
+              unitCostIdr: 4500,
+            },
           ],
         },
         {
@@ -86,7 +91,12 @@ describe('OperationalReportService', () => {
           poNumber: 'PO-OLD',
           receivedAt: new Date('2026-07-01T10:00:00.000Z'),
           lines: [
-            { itemType: InventoryItemType.PRODUK, label: 'Refill 19L', quantity: 20, unitCostIdr: 4000 },
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Refill 19L',
+              quantity: 20,
+              unitCostIdr: 4000,
+            },
           ],
         },
       ],
@@ -138,7 +148,14 @@ describe('OperationalReportService', () => {
           id: randomUUID(),
           poNumber: 'PO-1',
           receivedAt: new Date('2026-07-01T10:00:00.000Z'),
-          lines: [{ itemType: InventoryItemType.PRODUK, label: 'Produk A', quantity: 10, unitCostIdr: 5000 }],
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Produk A',
+              quantity: 10,
+              unitCostIdr: 5000,
+            },
+          ],
         },
       ],
       outflows: [],
@@ -149,7 +166,9 @@ describe('OperationalReportService', () => {
     expect(report.cogs.amountIdr).toBeNull();
     expect(report.cogs.coveredAmountIdr).toBe(0);
     expect(report.cogs.uncoveredUnits).toBe(3);
-    expect(report.cogs.uncoveredItems.every((item) => item.reason === 'AMBIGUOUS_ITEM_LABEL')).toBe(true);
+    expect(report.cogs.uncoveredItems.every((item) => item.reason === 'AMBIGUOUS_ITEM_LABEL')).toBe(
+      true,
+    );
   });
 
   it('excludes only verified received-PO outflows and reports unverified PO categories transparently', async () => {
@@ -160,9 +179,27 @@ describe('OperationalReportService', () => {
         { id: receivedPoId, poNumber: 'PO-VERIFIED', receivedAt: FROM, lines: [] },
       ],
       outflows: [
-        { id: randomUUID(), category: ' po ', amountIdr: 100_000, sourceRef: 'PO-VERIFIED', occurredAt: FROM },
-        { id: randomUUID(), category: 'PO', amountIdr: 20_000, sourceRef: 'PO-UNKNOWN', occurredAt: FROM },
-        { id: randomUUID(), category: 'SEWA', amountIdr: 50_000, sourceRef: null, occurredAt: FROM },
+        {
+          id: randomUUID(),
+          category: ' po ',
+          amountIdr: 100_000,
+          sourceRef: 'PO-VERIFIED',
+          occurredAt: FROM,
+        },
+        {
+          id: randomUUID(),
+          category: 'PO',
+          amountIdr: 20_000,
+          sourceRef: 'PO-UNKNOWN',
+          occurredAt: FROM,
+        },
+        {
+          id: randomUUID(),
+          category: 'SEWA',
+          amountIdr: 50_000,
+          sourceRef: null,
+          occurredAt: FROM,
+        },
       ],
     };
 

@@ -41,7 +41,10 @@ import {
   UpdateApprovalData,
 } from '../../src/application/ports/approval.repository';
 import { Supplier } from '../../src/domain/supplier';
-import { CreateSupplierData, SupplierRepository } from '../../src/application/ports/supplier.repository';
+import {
+  CreateSupplierData,
+  SupplierRepository,
+} from '../../src/application/ports/supplier.repository';
 import { PoStatus, PurchaseOrder } from '../../src/domain/purchase-order';
 import {
   CreatePurchaseOrderData,
@@ -63,7 +66,10 @@ const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 export class InMemoryDepotRepository implements DepotRepository {
   rows: DepotRecord[] = [];
 
-  private match(r: DepotRecord, q: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly'>): boolean {
+  private match(
+    r: DepotRecord,
+    q: Pick<DepotQuery, 'ownershipType' | 'search' | 'activeOnly'>,
+  ): boolean {
     if (q.activeOnly && !r.active) return false;
     if (q.ownershipType && r.ownershipType !== q.ownershipType) return false;
     if (q.search) {
@@ -79,9 +85,14 @@ export class InMemoryDepotRepository implements DepotRepository {
   }
 
   async search(query: DepotQuery): Promise<{ items: DepotRecord[]; total: number }> {
-    const all = this.rows.filter((r) => this.match(r, query)).sort((a, b) => a.code.localeCompare(b.code));
+    const all = this.rows
+      .filter((r) => this.match(r, query))
+      .sort((a, b) => a.code.localeCompare(b.code));
     const start = (query.page - 1) * query.limit;
-    return { items: all.slice(start, start + query.limit).map((r) => ({ ...r })), total: all.length };
+    return {
+      items: all.slice(start, start + query.limit).map((r) => ({ ...r })),
+      total: all.length,
+    };
   }
   async findById(id: string, activeOnly: boolean): Promise<DepotRecord | null> {
     const r = this.rows.find((x) => x.id === id && (!activeOnly || x.active));
@@ -224,7 +235,8 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       .filter(({ move }) => !filter.type || move.type === filter.type)
       .filter(
         ({ move }) =>
-          (!filter.from || move.createdAt >= filter.from) && (!filter.to || move.createdAt < filter.to),
+          (!filter.from || move.createdAt >= filter.from) &&
+          (!filter.to || move.createdAt < filter.to),
       )
       .sort((a, b) => b.move.createdAt.getTime() - a.move.createdAt.getTime());
     return {
@@ -244,7 +256,9 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   ): Promise<{ itemId: string; label: string; sellPrice: number | null; delta: number }[]> {
     return this.moves
       .filter((m) => m.type === StockMovementType.ADJUSTMENT && m.delta < 0)
-      .filter((m) => (!range.from || m.createdAt >= range.from) && (!range.to || m.createdAt < range.to))
+      .filter(
+        (m) => (!range.from || m.createdAt >= range.from) && (!range.to || m.createdAt < range.to),
+      )
       .map((m) => ({ move: m, item: this.items.find((x) => x.id === m.itemId) }))
       .filter((x) => x.item?.depotId === depotId)
       .map(({ move, item }) => ({
@@ -366,6 +380,7 @@ export class InMemoryApprovalRepository implements ApprovalRepository {
       [ApprovalType.OPNAME_VARIANCE]: 0,
       [ApprovalType.DEPOSIT_REFUND]: 0,
       [ApprovalType.COD_VARIANCE]: 0,
+      [ApprovalType.GALLON_VARIANCE]: 0,
     };
     for (const r of this.rows) {
       if (r.depotId === depotId && r.status === ApprovalStatus.PENDING) counts[r.type] += 1;
@@ -504,7 +519,9 @@ export class InMemorySettingsRepository {
     else this.rows.push(row);
   }
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    const i = this.rows.findIndex(
+      (r) => r.scope === scope && r.depotId === depotId && r.key === key,
+    );
     if (i >= 0) this.rows.splice(i, 1);
   }
 }

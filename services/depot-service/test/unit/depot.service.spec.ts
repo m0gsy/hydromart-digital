@@ -49,8 +49,12 @@ describe('DepotService', () => {
   });
 
   it('browses only active depots, filters by ownership type and search', async () => {
-    await service.create(base({ code: 'A1', name: 'Depot Alpha', ownershipType: OwnershipType.HKP }));
-    await service.create(base({ code: 'B1', name: 'Depot Beta', ownershipType: OwnershipType.WARALABA }));
+    await service.create(
+      base({ code: 'A1', name: 'Depot Alpha', ownershipType: OwnershipType.HKP }),
+    );
+    await service.create(
+      base({ code: 'B1', name: 'Depot Beta', ownershipType: OwnershipType.WARALABA }),
+    );
     const hidden = await service.create(base({ code: 'C1', name: 'Depot Gamma' }));
     await service.deactivate(hidden.id);
 
@@ -112,7 +116,7 @@ describe('DepotService', () => {
     expect(bare.paymentQrisImageUrl).toBeNull();
   });
 
-  it('listMine returns only the owner\'s depots (active and inactive), excluding others', async () => {
+  it("listMine returns only the owner's depots (active and inactive), excluding others", async () => {
     const owner = '11111111-1111-4111-8111-111111111111';
     const other = '22222222-2222-4222-8222-222222222222';
     const active = await service.create(base({ code: 'MINE-A', ownerId: owner }));

@@ -20,7 +20,11 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { SupplierPrismaRepository } from '../../src/infrastructure/prisma/supplier.prisma.repository';
 import { WholesaleTierPrismaRepository } from '../../src/infrastructure/prisma/wholesale-tier.prisma.repository';
 import { ApprovalStatus, ApprovalType } from '../../src/domain/approval';
-import { InventoryItemType, ReservationStatus, StockMovementType } from '../../src/domain/inventory';
+import {
+  InventoryItemType,
+  ReservationStatus,
+  StockMovementType,
+} from '../../src/domain/inventory';
 import { GallonCondition } from '../../src/domain/gallon-return';
 
 // Unit-tests every depot-service Prisma repository against a per-model jest.fn() mock of
@@ -63,9 +67,15 @@ describe('ApprovalPrismaRepository', () => {
 
   it('creates, casting payload and mapping enums', async () => {
     model.create.mockResolvedValue(row);
-    const data = { depotId: 'depot-1', type: ApprovalType.OPNAME_VARIANCE, payload: { variance: -3 } } as never;
+    const data = {
+      depotId: 'depot-1',
+      type: ApprovalType.OPNAME_VARIANCE,
+      payload: { variance: -3 },
+    } as never;
     const out = await repo.create(data);
-    expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1', type: ApprovalType.OPNAME_VARIANCE, payload: { variance: -3 } } });
+    expect(model.create).toHaveBeenCalledWith({
+      data: { depotId: 'depot-1', type: ApprovalType.OPNAME_VARIANCE, payload: { variance: -3 } },
+    });
     expect(out.type).toBe(ApprovalType.OPNAME_VARIANCE);
     expect(out.status).toBe(ApprovalStatus.PENDING);
     expect(out.payload).toEqual({ variance: -3 });
@@ -81,7 +91,10 @@ describe('ApprovalPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.listForDepot('depot-1');
     expect(out).toHaveLength(1);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('lists for a depot with a status filter', async () => {
@@ -104,7 +117,10 @@ describe('ApprovalPrismaRepository', () => {
   it('updates by id and maps the result', async () => {
     model.update.mockResolvedValue({ ...row, status: 'APPROVED' });
     const out = await repo.update('ap-1', { status: ApprovalStatus.APPROVED } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'ap-1' }, data: { status: ApprovalStatus.APPROVED } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'ap-1' },
+      data: { status: ApprovalStatus.APPROVED },
+    });
     expect(out.status).toBe(ApprovalStatus.APPROVED);
   });
 
@@ -119,7 +135,12 @@ describe('ApprovalPrismaRepository', () => {
       where: { depotId: 'depot-1', status: ApprovalStatus.PENDING },
       _count: { _all: true },
     });
-    expect(out).toEqual({ OPNAME_VARIANCE: 2, DEPOSIT_REFUND: 0, COD_VARIANCE: 5 });
+    expect(out).toEqual({
+      OPNAME_VARIANCE: 2,
+      DEPOSIT_REFUND: 0,
+      COD_VARIANCE: 5,
+      GALLON_VARIANCE: 0,
+    });
   });
 });
 
@@ -153,7 +174,10 @@ describe('CashbookPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.listForDepot('depot-1', {});
     expect(out).toHaveLength(1);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { occurredAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { occurredAt: 'desc' },
+    });
   });
 
   it('lists with a from-only range', async () => {
@@ -189,7 +213,9 @@ describe('DepotTargetPrismaRepository', () => {
   it('finds by composite depotId_month key', async () => {
     model.findUnique.mockResolvedValue(row);
     expect(await repo.findByDepotMonth('depot-1', '2026-01')).toBe(row);
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { depotId_month: { depotId: 'depot-1', month: '2026-01' } } });
+    expect(model.findUnique).toHaveBeenCalledWith({
+      where: { depotId_month: { depotId: 'depot-1', month: '2026-01' } },
+    });
   });
 
   it('returns null on miss', async () => {
@@ -251,7 +277,12 @@ describe('DepotPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
     const out = await repo.search({ page: 2, limit: 10 } as never);
-    expect(model.findMany).toHaveBeenCalledWith({ where: {}, orderBy: { code: 'asc' }, skip: 10, take: 10 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { code: 'asc' },
+      skip: 10,
+      take: 10,
+    });
     expect(model.count).toHaveBeenCalledWith({ where: {} });
     expect(out.total).toBe(1);
     expect(out.items[0].deliveryFee).toBe(5000);
@@ -264,7 +295,13 @@ describe('DepotPrismaRepository', () => {
   it('searches applying activeOnly, ownershipType and case-insensitive OR search', async () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);
-    await repo.search({ page: 1, limit: 5, activeOnly: true, ownershipType: 'HKP', search: 'sat' } as never);
+    await repo.search({
+      page: 1,
+      limit: 5,
+      activeOnly: true,
+      ownershipType: 'HKP',
+      search: 'sat',
+    } as never);
     expect(model.findMany).toHaveBeenCalledWith({
       where: {
         active: true,
@@ -306,22 +343,34 @@ describe('DepotPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.findByOwner('own-1');
     expect(out).toHaveLength(1);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { ownerId: 'own-1' }, orderBy: { code: 'asc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { ownerId: 'own-1' },
+      orderBy: { code: 'asc' },
+    });
   });
 
   it('creates, casting operatingHours/holidays json', async () => {
     model.create.mockResolvedValue(row);
     const data = { code: 'DPT002', operatingHours: { mon: '09-18' }, holidays: [] } as never;
     await repo.create(data);
-    expect(model.create).toHaveBeenCalledWith({ data: { code: 'DPT002', operatingHours: { mon: '09-18' }, holidays: [] } });
+    expect(model.create).toHaveBeenCalledWith({
+      data: { code: 'DPT002', operatingHours: { mon: '09-18' }, holidays: [] },
+    });
   });
 
   it('updates, only including json fields that are provided', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('depot-1', { name: 'Renamed' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'depot-1' }, data: { name: 'Renamed' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'depot-1' },
+      data: { name: 'Renamed' },
+    });
 
-    await repo.update('depot-1', { name: 'R2', operatingHours: { mon: '10-19' }, holidays: [{ date: 'x' }] } as never);
+    await repo.update('depot-1', {
+      name: 'R2',
+      operatingHours: { mon: '10-19' },
+      holidays: [{ date: 'x' }],
+    } as never);
     expect(model.update).toHaveBeenLastCalledWith({
       where: { id: 'depot-1' },
       data: { name: 'R2', operatingHours: { mon: '10-19' }, holidays: [{ date: 'x' }] },
@@ -330,7 +379,12 @@ describe('DepotPrismaRepository', () => {
 });
 
 describe('DisputePrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { orderDispute: model } as unknown as PrismaService;
   const repo = new DisputePrismaRepository(prisma);
   const row = {
@@ -366,7 +420,10 @@ describe('DisputePrismaRepository', () => {
   it('lists for a depot with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.listForDepot('depot-1', 'RESOLVED' as never);
     expect(model.findMany).toHaveBeenLastCalledWith({
       where: { depotId: 'depot-1', status: 'RESOLVED' },
@@ -388,12 +445,21 @@ describe('DisputePrismaRepository', () => {
   it('updates by id', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('dp-1', { status: 'RESOLVED' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'dp-1' }, data: { status: 'RESOLVED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'dp-1' },
+      data: { status: 'RESOLVED' },
+    });
   });
 });
 
 describe('FranchiseApplicationPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { franchiseApplication: model } as unknown as PrismaService;
   const repo = new FranchiseApplicationPrismaRepository(prisma);
   const row = {
@@ -420,7 +486,9 @@ describe('FranchiseApplicationPrismaRepository', () => {
   it('creates, casting checklist and coercing decimals', async () => {
     model.create.mockResolvedValue(row);
     const out = await repo.create({ applicantName: 'Budi', checklist: { legal: true } } as never);
-    expect(model.create).toHaveBeenCalledWith({ data: { applicantName: 'Budi', checklist: { legal: true } } });
+    expect(model.create).toHaveBeenCalledWith({
+      data: { applicantName: 'Budi', checklist: { legal: true } },
+    });
     expect(out.investmentAmount).toBe(150000000);
     expect(out.projectedMonthlyRevenue).toBe(30000000);
     expect(out.checklist).toEqual({ legal: true });
@@ -436,7 +504,12 @@ describe('FranchiseApplicationPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
     const out = await repo.list({ page: 1, limit: 20 } as never);
-    expect(model.findMany).toHaveBeenCalledWith({ where: {}, orderBy: { submittedAt: 'asc' }, skip: 0, take: 20 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { submittedAt: 'asc' },
+      skip: 0,
+      take: 20,
+    });
     expect(model.count).toHaveBeenCalledWith({ where: {} });
     expect(out.total).toBe(1);
   });
@@ -445,7 +518,12 @@ describe('FranchiseApplicationPrismaRepository', () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);
     await repo.list({ page: 3, limit: 10, stage: 'REVIEW' } as never);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { stage: 'REVIEW' }, orderBy: { submittedAt: 'asc' }, skip: 20, take: 10 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { stage: 'REVIEW' },
+      orderBy: { submittedAt: 'asc' },
+      skip: 20,
+      take: 10,
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -458,15 +536,27 @@ describe('FranchiseApplicationPrismaRepository', () => {
   it('updates only provided fields (stage + checklist)', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('fa-1', { stage: 'APPROVED' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'fa-1' }, data: { stage: 'APPROVED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'fa-1' },
+      data: { stage: 'APPROVED' },
+    });
 
     await repo.update('fa-1', { checklist: { legal: false } } as never);
-    expect(model.update).toHaveBeenLastCalledWith({ where: { id: 'fa-1' }, data: { checklist: { legal: false } } });
+    expect(model.update).toHaveBeenLastCalledWith({
+      where: { id: 'fa-1' },
+      data: { checklist: { legal: false } },
+    });
   });
 });
 
 describe('GallonIssuePrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn(), groupBy: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    aggregate: jest.fn(),
+    groupBy: jest.fn(),
+  };
   const prisma = { gallonIssue: model } as unknown as PrismaService;
   const repo = new GallonIssuePrismaRepository(prisma);
   const row = { id: 'gi-1', depotId: 'depot-1', quantity: 5, depositHeld: 100000 };
@@ -483,13 +573,21 @@ describe('GallonIssuePrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
     const out = await repo.listForDepot('depot-1', 2, 10);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' }, skip: 10, take: 10 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+      skip: 10,
+      take: 10,
+    });
     expect(model.count).toHaveBeenCalledWith({ where: { depotId: 'depot-1' } });
     expect(out).toEqual({ items: [row], total: 1 });
   });
 
   it('summarises a depot, defaulting null sums to zero', async () => {
-    model.aggregate.mockResolvedValue({ _count: { _all: 3 }, _sum: { quantity: 12, depositHeld: null } });
+    model.aggregate.mockResolvedValue({
+      _count: { _all: 3 },
+      _sum: { quantity: 12, depositHeld: null },
+    });
     const out = await repo.summaryForDepot('depot-1');
     expect(model.aggregate).toHaveBeenCalledWith({
       where: { depotId: 'depot-1' },
@@ -500,15 +598,26 @@ describe('GallonIssuePrismaRepository', () => {
   });
 
   it('rolls up a network summary per depot', async () => {
-    model.groupBy.mockResolvedValue([{ depotId: 'depot-1', _sum: { quantity: 5, depositHeld: 100000 } }]);
+    model.groupBy.mockResolvedValue([
+      { depotId: 'depot-1', _sum: { quantity: 5, depositHeld: 100000 } },
+    ]);
     const out = await repo.networkSummary();
-    expect(model.groupBy).toHaveBeenCalledWith({ by: ['depotId'], _sum: { quantity: true, depositHeld: true } });
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      _sum: { quantity: true, depositHeld: true },
+    });
     expect(out).toEqual([{ depotId: 'depot-1', gallons: 5, depositHeld: 100000 }]);
   });
 });
 
 describe('GallonReturnPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), aggregate: jest.fn(), groupBy: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    aggregate: jest.fn(),
+    groupBy: jest.fn(),
+  };
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
   const row = {
@@ -538,36 +647,59 @@ describe('GallonReturnPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
     const out = await repo.listForDepot('depot-1', 1, 5);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' }, skip: 0, take: 5 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 5,
+    });
     expect(out.total).toBe(1);
     expect(out.items[0].depositRefunded).toBe(80000);
   });
 
   it('summarises with a separate damaged count, coercing refund decimal', async () => {
-    model.aggregate.mockResolvedValue({ _count: { _all: 2 }, _sum: { quantity: 6, depositRefunded: decimal(120000) } });
+    model.aggregate.mockResolvedValue({
+      _count: { _all: 2 },
+      _sum: { quantity: 6, depositRefunded: decimal(120000) },
+    });
     model.count.mockResolvedValue(1);
     const out = await repo.summaryForDepot('depot-1');
-    expect(model.count).toHaveBeenCalledWith({ where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED } });
+    expect(model.count).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED },
+    });
     expect(out).toEqual({ returns: 2, gallons: 6, damaged: 1, depositRefunded: 120000 });
   });
 
   it('summarises defaulting a null refund sum to zero', async () => {
-    model.aggregate.mockResolvedValue({ _count: { _all: 0 }, _sum: { quantity: null, depositRefunded: null } });
+    model.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { quantity: null, depositRefunded: null },
+    });
     model.count.mockResolvedValue(0);
     const out = await repo.summaryForDepot('depot-1');
     expect(out).toEqual({ returns: 0, gallons: 0, damaged: 0, depositRefunded: 0 });
   });
 
   it('rolls up a network summary per depot', async () => {
-    model.groupBy.mockResolvedValue([{ depotId: 'depot-1', _sum: { quantity: 4, depositRefunded: decimal(80000) } }]);
+    model.groupBy.mockResolvedValue([
+      { depotId: 'depot-1', _sum: { quantity: 4, depositRefunded: decimal(80000) } },
+    ]);
     const out = await repo.networkSummary();
-    expect(model.groupBy).toHaveBeenCalledWith({ by: ['depotId'], _sum: { quantity: true, depositRefunded: true } });
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      _sum: { quantity: true, depositRefunded: true },
+    });
     expect(out).toEqual([{ depotId: 'depot-1', gallons: 4, depositRefunded: 80000 }]);
   });
 });
 
 describe('HandoverPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { shiftHandover: model } as unknown as PrismaService;
   const repo = new HandoverPrismaRepository(prisma);
   const row = {
@@ -589,8 +721,13 @@ describe('HandoverPrismaRepository', () => {
 
   it('creates, casting items json', async () => {
     model.create.mockResolvedValue(row);
-    const out = await repo.create({ depotId: 'depot-1', items: [{ label: 'kas', value: '100000' }] } as never);
-    expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1', items: [{ label: 'kas', value: '100000' }] } });
+    const out = await repo.create({
+      depotId: 'depot-1',
+      items: [{ label: 'kas', value: '100000' }],
+    } as never);
+    expect(model.create).toHaveBeenCalledWith({
+      data: { depotId: 'depot-1', items: [{ label: 'kas', value: '100000' }] },
+    });
     expect(out.items).toEqual([{ label: 'kas', value: '100000' }]);
   });
 
@@ -602,7 +739,10 @@ describe('HandoverPrismaRepository', () => {
   it('lists for a depot newest-first', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -659,7 +799,12 @@ describe('HuddlePrismaRepository', () => {
         agenda: [{ topic: 't' }],
         actionItems: [{ task: 'a' }],
       },
-      update: { attendance: '5/6', recordedBy: 'op-1', agenda: [{ topic: 't' }], actionItems: [{ task: 'a' }] },
+      update: {
+        attendance: '5/6',
+        recordedBy: 'op-1',
+        agenda: [{ topic: 't' }],
+        actionItems: [{ task: 'a' }],
+      },
     });
     expect(out.agenda).toEqual([{ topic: 't' }]);
     expect(out.actionItems).toEqual([{ task: 'a' }]);
@@ -668,7 +813,9 @@ describe('HuddlePrismaRepository', () => {
   it('finds a week, null on miss and coercing null json', async () => {
     model.findUnique.mockResolvedValue(null);
     expect(await repo.findForWeek('depot-1', '2026-01-05')).toBeNull();
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { depotId_weekStart: { depotId: 'depot-1', weekStart: '2026-01-05' } } });
+    expect(model.findUnique).toHaveBeenCalledWith({
+      where: { depotId_weekStart: { depotId: 'depot-1', weekStart: '2026-01-05' } },
+    });
 
     model.findUnique.mockResolvedValue({ ...row, agenda: null, actionItems: null });
     const out = await repo.findForWeek('depot-1', '2026-01-05');
@@ -679,12 +826,20 @@ describe('HuddlePrismaRepository', () => {
   it('lists for a depot newest-week-first', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { weekStart: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { weekStart: 'desc' },
+    });
   });
 });
 
 describe('IncidentPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { incident: model } as unknown as PrismaService;
   const repo = new IncidentPrismaRepository(prisma);
   const row = {
@@ -719,9 +874,15 @@ describe('IncidentPrismaRepository', () => {
   it('lists with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.listForDepot('depot-1', 'RESOLVED' as never);
-    expect(model.findMany).toHaveBeenLastCalledWith({ where: { depotId: 'depot-1', status: 'RESOLVED' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenLastCalledWith({
+      where: { depotId: 'depot-1', status: 'RESOLVED' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -733,7 +894,10 @@ describe('IncidentPrismaRepository', () => {
   it('updates by id', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('in-1', { status: 'RESOLVED' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'in-1' }, data: { status: 'RESOLVED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'in-1' },
+      data: { status: 'RESOLVED' },
+    });
   });
 });
 
@@ -754,9 +918,9 @@ describe('InventoryPrismaRepository', () => {
   const stockReservation = { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() };
   const $queryRaw = jest.fn();
   // Support both array-form ($transaction([...]) -> Promise.all) and interactive callback form.
-  const $transaction = jest.fn().mockImplementation((arg) =>
-    typeof arg === 'function' ? arg(prisma) : Promise.all(arg),
-  );
+  const $transaction = jest
+    .fn()
+    .mockImplementation((arg) => (typeof arg === 'function' ? arg(prisma) : Promise.all(arg)));
   const prisma = {
     inventoryItem,
     stockMovement,
@@ -805,7 +969,9 @@ describe('InventoryPrismaRepository', () => {
   it('finds a line by (depot,type,productId)', async () => {
     inventoryItem.findFirst.mockResolvedValue(item);
     await repo.findLine('depot-1', InventoryItemType.PRODUK, 'prod-1');
-    expect(inventoryItem.findFirst).toHaveBeenCalledWith({ where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: 'prod-1' } });
+    expect(inventoryItem.findFirst).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: 'prod-1' },
+    });
     inventoryItem.findFirst.mockResolvedValue(null);
     expect(await repo.findLine('depot-1', InventoryItemType.AIR, null)).toBeNull();
   });
@@ -819,7 +985,12 @@ describe('InventoryPrismaRepository', () => {
     inventoryItem.findMany.mockResolvedValue([{ productId: 'prod-1', sellPrice: 5000 }]);
     const out = await repo.findPrices('depot-1', ['prod-1']);
     expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: { in: ['prod-1'] }, sellPrice: { not: null } },
+      where: {
+        depotId: 'depot-1',
+        itemType: InventoryItemType.PRODUK,
+        productId: { in: ['prod-1'] },
+        sellPrice: { not: null },
+      },
       select: { productId: true, sellPrice: true },
     });
     expect(out).toEqual([{ productId: 'prod-1', sellPrice: 5000 }]);
@@ -839,7 +1010,10 @@ describe('InventoryPrismaRepository', () => {
     // quantity 10, reserved 2 -> available 8 > min 3 : NOT low. Add a low line.
     const low = { ...item, id: 'it-2', quantity: 4, reserved: 2, minimumStock: 3 }; // available 2 <= 3 : low
     inventoryItem.findMany.mockResolvedValue([item, low]);
-    const out = await repo.listForDepot('depot-1', { itemType: InventoryItemType.PRODUK, lowStockOnly: true } as never);
+    const out = await repo.listForDepot('depot-1', {
+      itemType: InventoryItemType.PRODUK,
+      lowStockOnly: true,
+    } as never);
     expect(inventoryItem.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK },
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
@@ -870,7 +1044,10 @@ describe('InventoryPrismaRepository', () => {
   it('updates an item', async () => {
     inventoryItem.update.mockResolvedValue(item);
     await repo.update('it-1', { quantity: 20 } as never);
-    expect(inventoryItem.update).toHaveBeenCalledWith({ where: { id: 'it-1' }, data: { quantity: 20 } });
+    expect(inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: 'it-1' },
+      data: { quantity: 20 },
+    });
   });
 
   it('applies a movement atomically (item update + movement create in one txn)', async () => {
@@ -878,7 +1055,10 @@ describe('InventoryPrismaRepository', () => {
     stockMovement.create.mockResolvedValue({ id: 'mv-1' });
     const movement = { type: StockMovementType.RECEIPT, delta: 5 } as never;
     const out = await repo.applyMovement('it-1', 15, movement);
-    expect(inventoryItem.update).toHaveBeenCalledWith({ where: { id: 'it-1' }, data: { quantity: 15 } });
+    expect(inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: 'it-1' },
+      data: { quantity: 15 },
+    });
     expect(stockMovement.create).toHaveBeenCalledWith({ data: movement });
     expect($transaction).toHaveBeenCalledTimes(1);
     expect(out.id).toBe('it-1');
@@ -887,7 +1067,10 @@ describe('InventoryPrismaRepository', () => {
   it('detects an existing movement for an order', async () => {
     stockMovement.findFirst.mockResolvedValue({ id: 'mv-1' });
     expect(await repo.hasMovementForOrder('it-1', 'ord-1')).toBe(true);
-    expect(stockMovement.findFirst).toHaveBeenCalledWith({ where: { itemId: 'it-1', orderId: 'ord-1' }, select: { id: true } });
+    expect(stockMovement.findFirst).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', orderId: 'ord-1' },
+      select: { id: true },
+    });
     stockMovement.findFirst.mockResolvedValue(null);
     expect(await repo.hasMovementForOrder('it-1', 'ord-2')).toBe(false);
   });
@@ -895,7 +1078,10 @@ describe('InventoryPrismaRepository', () => {
   it('lists movements newest-first, mapping the type', async () => {
     stockMovement.findMany.mockResolvedValue([{ id: 'mv-1', type: 'ADJUSTMENT', delta: -1 }]);
     const out = await repo.listMovements('it-1');
-    expect(stockMovement.findMany).toHaveBeenCalledWith({ where: { itemId: 'it-1' }, orderBy: { createdAt: 'desc' } });
+    expect(stockMovement.findMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1' },
+      orderBy: { createdAt: 'desc' },
+    });
     expect(out[0].type).toBe(StockMovementType.ADJUSTMENT);
   });
 
@@ -998,9 +1184,17 @@ describe('InventoryPrismaRepository', () => {
   });
 
   it('finds a reservation by composite key, mapping status', async () => {
-    stockReservation.findUnique.mockResolvedValue({ id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' });
+    stockReservation.findUnique.mockResolvedValue({
+      id: 'rs-1',
+      itemId: 'it-1',
+      orderId: 'ord-1',
+      quantity: 2,
+      status: 'ACTIVE',
+    });
     const out = await repo.findReservation('it-1', 'ord-1');
-    expect(stockReservation.findUnique).toHaveBeenCalledWith({ where: { itemId_orderId: { itemId: 'it-1', orderId: 'ord-1' } } });
+    expect(stockReservation.findUnique).toHaveBeenCalledWith({
+      where: { itemId_orderId: { itemId: 'it-1', orderId: 'ord-1' } },
+    });
     expect(out?.status).toBe(ReservationStatus.ACTIVE);
     stockReservation.findUnique.mockResolvedValue(null);
     expect(await repo.findReservation('it-1', 'ord-2')).toBeNull();
@@ -1033,33 +1227,70 @@ describe('InventoryPrismaRepository', () => {
     );
     expect(out).toEqual({ shortfalls: [] });
     // Deterministic lock order: sorted a before b.
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(1, { where: { id: 'a' }, data: { reserved: { increment: 2 } } });
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(2, { where: { id: 'b' }, data: { reserved: { increment: 1 } } });
-    expect(stockReservation.create).toHaveBeenCalledWith({ data: { itemId: 'a', orderId: 'ord-1', quantity: 2 } });
-    expect(stockReservation.create).toHaveBeenCalledWith({ data: { itemId: 'b', orderId: 'ord-1', quantity: 1 } });
+    expect(inventoryItem.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'a' },
+      data: { reserved: { increment: 2 } },
+    });
+    expect(inventoryItem.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'b' },
+      data: { reserved: { increment: 1 } },
+    });
+    expect(stockReservation.create).toHaveBeenCalledWith({
+      data: { itemId: 'a', orderId: 'ord-1', quantity: 2 },
+    });
+    expect(stockReservation.create).toHaveBeenCalledWith({
+      data: { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+    });
   });
 
   it('releaseReservation flips an ACTIVE hold to RELEASED and gives units back', async () => {
-    stockReservation.findUnique.mockResolvedValue({ id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' });
+    stockReservation.findUnique.mockResolvedValue({
+      id: 'rs-1',
+      itemId: 'it-1',
+      orderId: 'ord-1',
+      quantity: 2,
+      status: 'ACTIVE',
+    });
     stockReservation.update.mockResolvedValue({});
     inventoryItem.update.mockResolvedValue(item);
     await repo.releaseReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({ where: { id: 'rs-1' }, data: { status: ReservationStatus.RELEASED } });
-    expect(inventoryItem.update).toHaveBeenCalledWith({ where: { id: 'it-1' }, data: { reserved: { decrement: 2 } } });
+    expect(stockReservation.update).toHaveBeenCalledWith({
+      where: { id: 'rs-1' },
+      data: { status: ReservationStatus.RELEASED },
+    });
+    expect(inventoryItem.update).toHaveBeenCalledWith({
+      where: { id: 'it-1' },
+      data: { reserved: { decrement: 2 } },
+    });
   });
 
   it('consumeReservation flips an ACTIVE hold to CONSUMED', async () => {
-    stockReservation.findUnique.mockResolvedValue({ id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' });
+    stockReservation.findUnique.mockResolvedValue({
+      id: 'rs-1',
+      itemId: 'it-1',
+      orderId: 'ord-1',
+      quantity: 2,
+      status: 'ACTIVE',
+    });
     stockReservation.update.mockResolvedValue({});
     inventoryItem.update.mockResolvedValue(item);
     await repo.consumeReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({ where: { id: 'rs-1' }, data: { status: ReservationStatus.CONSUMED } });
+    expect(stockReservation.update).toHaveBeenCalledWith({
+      where: { id: 'rs-1' },
+      data: { status: ReservationStatus.CONSUMED },
+    });
   });
 
   it('settling is idempotent: no txn for a missing or already-terminal reservation', async () => {
     stockReservation.findUnique.mockResolvedValue(null);
     await repo.releaseReservation('it-1', 'ord-1');
-    stockReservation.findUnique.mockResolvedValue({ id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'RELEASED' });
+    stockReservation.findUnique.mockResolvedValue({
+      id: 'rs-1',
+      itemId: 'it-1',
+      orderId: 'ord-1',
+      quantity: 2,
+      status: 'RELEASED',
+    });
     await repo.consumeReservation('it-1', 'ord-1');
     expect(stockReservation.update).not.toHaveBeenCalled();
     expect($transaction).not.toHaveBeenCalled();
@@ -1067,7 +1298,12 @@ describe('InventoryPrismaRepository', () => {
 });
 
 describe('MaintenancePrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { maintenanceItem: model } as unknown as PrismaService;
   const repo = new MaintenancePrismaRepository(prisma);
   const row = {
@@ -1096,7 +1332,10 @@ describe('MaintenancePrismaRepository', () => {
   it('lists for a depot by next-due ascending', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { nextDueAt: 'asc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { nextDueAt: 'asc' },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -1113,7 +1352,14 @@ describe('MaintenancePrismaRepository', () => {
 });
 
 describe('PriceOverrideProposalPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), groupBy: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+    groupBy: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { priceOverrideProposal: model } as unknown as PrismaService;
   const repo = new PriceOverrideProposalPrismaRepository(prisma);
   const row = {
@@ -1149,7 +1395,12 @@ describe('PriceOverrideProposalPrismaRepository', () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
     const out = await repo.list({ page: 1, limit: 20 } as never);
-    expect(model.findMany).toHaveBeenCalledWith({ where: {}, orderBy: { createdAt: 'desc' }, skip: 0, take: 20 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
     expect(out.total).toBe(1);
     expect(out.items[0].currentPrice).toBe(5000);
   });
@@ -1158,17 +1409,30 @@ describe('PriceOverrideProposalPrismaRepository', () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);
     await repo.list({ page: 2, limit: 5, status: 'APPROVED' } as never);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { status: 'APPROVED' }, orderBy: { createdAt: 'desc' }, skip: 5, take: 5 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { status: 'APPROVED' },
+      orderBy: { createdAt: 'desc' },
+      skip: 5,
+      take: 5,
+    });
   });
 
   it('counts by product, optionally filtering by status', async () => {
     model.groupBy.mockResolvedValue([{ productId: 'prod-1', _count: { _all: 3 } }]);
     const out = await repo.countByProduct('PENDING' as never);
-    expect(model.groupBy).toHaveBeenCalledWith({ by: ['productId'], where: { status: 'PENDING' }, _count: { _all: true } });
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['productId'],
+      where: { status: 'PENDING' },
+      _count: { _all: true },
+    });
     expect(out).toEqual([{ productId: 'prod-1', count: 3 }]);
 
     await repo.countByProduct();
-    expect(model.groupBy).toHaveBeenLastCalledWith({ by: ['productId'], where: {}, _count: { _all: true } });
+    expect(model.groupBy).toHaveBeenLastCalledWith({
+      by: ['productId'],
+      where: {},
+      _count: { _all: true },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -1181,7 +1445,10 @@ describe('PriceOverrideProposalPrismaRepository', () => {
   it('updates only provided fields (status + decidedBy)', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('po-1', { status: 'APPROVED', decidedBy: 'boss' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'po-1' }, data: { status: 'APPROVED', decidedBy: 'boss' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'po-1' },
+      data: { status: 'APPROVED', decidedBy: 'boss' },
+    });
 
     await repo.update('po-1', {} as never);
     expect(model.update).toHaveBeenLastCalledWith({ where: { id: 'po-1' }, data: {} });
@@ -1189,7 +1456,13 @@ describe('PriceOverrideProposalPrismaRepository', () => {
 });
 
 describe('PricingRulePrismaRepository', () => {
-  const model = { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), update: jest.fn(), delete: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
   const prisma = { pricingRule: model } as unknown as PrismaService;
   const repo = new PricingRulePrismaRepository(prisma);
   const row = {
@@ -1229,7 +1502,10 @@ describe('PricingRulePrismaRepository', () => {
   it('lists for a depot by priority then recency', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }] });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+    });
   });
 
   it('lists only active rules for a depot', async () => {
@@ -1252,7 +1528,12 @@ describe('PricingRulePrismaRepository', () => {
 });
 
 describe('PurchaseOrderPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { purchaseOrder: model } as unknown as PrismaService;
   const repo = new PurchaseOrderPrismaRepository(prisma);
   const row = {
@@ -1275,8 +1556,13 @@ describe('PurchaseOrderPrismaRepository', () => {
 
   it('creates, casting lines json and mapping status', async () => {
     model.create.mockResolvedValue(row);
-    const out = await repo.create({ depotId: 'depot-1', lines: [{ label: 'Galon', qty: 10 }] } as never);
-    expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1', lines: [{ label: 'Galon', qty: 10 }] } });
+    const out = await repo.create({
+      depotId: 'depot-1',
+      lines: [{ label: 'Galon', qty: 10 }],
+    } as never);
+    expect(model.create).toHaveBeenCalledWith({
+      data: { depotId: 'depot-1', lines: [{ label: 'Galon', qty: 10 }] },
+    });
     expect(out.status).toBe('DRAFT');
     expect(out.lines).toEqual([{ label: 'Galon', qty: 10 }]);
   });
@@ -1289,9 +1575,15 @@ describe('PurchaseOrderPrismaRepository', () => {
   it('lists with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.listForDepot('depot-1', 'RECEIVED' as never);
-    expect(model.findMany).toHaveBeenLastCalledWith({ where: { depotId: 'depot-1', status: 'RECEIVED' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenLastCalledWith({
+      where: { depotId: 'depot-1', status: 'RECEIVED' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -1303,7 +1595,10 @@ describe('PurchaseOrderPrismaRepository', () => {
   it('updates by id', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('po-1', { status: 'RECEIVED' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'po-1' }, data: { status: 'RECEIVED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'po-1' },
+      data: { status: 'RECEIVED' },
+    });
   });
 });
 
@@ -1312,23 +1607,47 @@ describe('RosterPrismaRepository', () => {
   const $transaction = jest.fn().mockImplementation((ops) => Promise.all(ops));
   const prisma = { shiftAssignment: model, $transaction } as unknown as PrismaService;
   const repo = new RosterPrismaRepository(prisma);
-  const row = { id: 's-1', depotId: 'depot-1', staffId: 'st-1', staffName: 'Ana', weekStart: '2026-01-05', day: 1, shift: 'PAGI' };
+  const row = {
+    id: 's-1',
+    depotId: 'depot-1',
+    staffId: 'st-1',
+    staffName: 'Ana',
+    weekStart: '2026-01-05',
+    day: 1,
+    shift: 'PAGI',
+  };
 
   beforeEach(() => jest.clearAllMocks());
 
   it('lists a week for a depot, mapping shift kind', async () => {
     model.findMany.mockResolvedValue([row]);
     const out = await repo.listForWeek('depot-1', '2026-01-05');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1', weekStart: '2026-01-05' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', weekStart: '2026-01-05' },
+    });
     expect(out[0].shift).toBe('PAGI');
   });
 
   it('upserts a single cell on the composite key', async () => {
     model.upsert.mockResolvedValue(row);
-    const a = { depotId: 'depot-1', weekStart: '2026-01-05', staffId: 'st-1', staffName: 'Ana', day: 1, shift: 'PAGI' } as never;
+    const a = {
+      depotId: 'depot-1',
+      weekStart: '2026-01-05',
+      staffId: 'st-1',
+      staffName: 'Ana',
+      day: 1,
+      shift: 'PAGI',
+    } as never;
     await repo.upsertCell(a);
     expect(model.upsert).toHaveBeenCalledWith({
-      where: { depotId_weekStart_staffId_day: { depotId: 'depot-1', weekStart: '2026-01-05', staffId: 'st-1', day: 1 } },
+      where: {
+        depotId_weekStart_staffId_day: {
+          depotId: 'depot-1',
+          weekStart: '2026-01-05',
+          staffId: 'st-1',
+          day: 1,
+        },
+      },
       create: a,
       update: { shift: 'PAGI', staffName: 'Ana' },
     });
@@ -1337,8 +1656,22 @@ describe('RosterPrismaRepository', () => {
   it('bulk upserts each assignment inside one transaction', async () => {
     model.upsert.mockResolvedValue(row);
     const out = await repo.bulkUpsert([
-      { depotId: 'depot-1', weekStart: '2026-01-05', staffId: 'st-1', staffName: 'Ana', day: 1, shift: 'PAGI' },
-      { depotId: 'depot-1', weekStart: '2026-01-05', staffId: 'st-1', staffName: 'Ana', day: 2, shift: 'SORE' },
+      {
+        depotId: 'depot-1',
+        weekStart: '2026-01-05',
+        staffId: 'st-1',
+        staffName: 'Ana',
+        day: 1,
+        shift: 'PAGI',
+      },
+      {
+        depotId: 'depot-1',
+        weekStart: '2026-01-05',
+        staffId: 'st-1',
+        staffName: 'Ana',
+        day: 2,
+        shift: 'SORE',
+      },
     ] as never);
     expect(model.upsert).toHaveBeenCalledTimes(2);
     expect($transaction).toHaveBeenCalledTimes(1);
@@ -1348,7 +1681,12 @@ describe('RosterPrismaRepository', () => {
 });
 
 describe('SubscriptionPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { subscription: model } as unknown as PrismaService;
   const repo = new SubscriptionPrismaRepository(prisma);
   const row = {
@@ -1379,9 +1717,15 @@ describe('SubscriptionPrismaRepository', () => {
   it('lists with and without status', async () => {
     model.findMany.mockResolvedValue([row]);
     await repo.listForDepot('depot-1');
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.listForDepot('depot-1', 'PAUSED' as never);
-    expect(model.findMany).toHaveBeenLastCalledWith({ where: { depotId: 'depot-1', status: 'PAUSED' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenLastCalledWith({
+      where: { depotId: 'depot-1', status: 'PAUSED' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -1393,7 +1737,10 @@ describe('SubscriptionPrismaRepository', () => {
   it('updates by id', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('sb-1', { status: 'PAUSED' } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'sb-1' }, data: { status: 'PAUSED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'sb-1' },
+      data: { status: 'PAUSED' },
+    });
   });
 });
 
@@ -1414,7 +1761,10 @@ describe('SupplierPrismaRepository', () => {
   it('lists for a depot newest-first', async () => {
     model.findMany.mockResolvedValue([row]);
     expect(await repo.listForDepot('depot-1')).toEqual([row]);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { createdAt: 'desc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('finds by id', async () => {
@@ -1426,12 +1776,20 @@ describe('SupplierPrismaRepository', () => {
   it('finds by composite depotId_code key', async () => {
     model.findUnique.mockResolvedValue(null);
     expect(await repo.findByCode('depot-1', 'SUP1')).toBeNull();
-    expect(model.findUnique).toHaveBeenCalledWith({ where: { depotId_code: { depotId: 'depot-1', code: 'SUP1' } } });
+    expect(model.findUnique).toHaveBeenCalledWith({
+      where: { depotId_code: { depotId: 'depot-1', code: 'SUP1' } },
+    });
   });
 });
 
 describe('WholesaleTierPrismaRepository', () => {
-  const model = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() };
+  const model = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  };
   const prisma = { wholesaleTier: model } as unknown as PrismaService;
   const repo = new WholesaleTierPrismaRepository(prisma);
   const row = { id: 'wt-1', depotId: 'depot-1', minQty: 10, unitPriceIdr: 4500 };
@@ -1447,7 +1805,10 @@ describe('WholesaleTierPrismaRepository', () => {
   it('lists for a depot ordered by minQty ascending', async () => {
     model.findMany.mockResolvedValue([row]);
     expect(await repo.listForDepot('depot-1')).toEqual([row]);
-    expect(model.findMany).toHaveBeenCalledWith({ where: { depotId: 'depot-1' }, orderBy: { minQty: 'asc' } });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1' },
+      orderBy: { minQty: 'asc' },
+    });
   });
 
   it('finds by id', async () => {
@@ -1459,7 +1820,10 @@ describe('WholesaleTierPrismaRepository', () => {
   it('updates by id', async () => {
     model.update.mockResolvedValue(row);
     await repo.update('wt-1', { unitPriceIdr: 4000 } as never);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'wt-1' }, data: { unitPriceIdr: 4000 } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'wt-1' },
+      data: { unitPriceIdr: 4000 },
+    });
   });
 
   it('deletes by id', async () => {

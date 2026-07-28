@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { ApprovalType } from '../../domain/approval';
 import { GallonCondition } from '../../domain/gallon-return';
 import { DepotNotFoundError, GallonOverReturnError } from '../../domain/errors';
 import { DepotConfigService } from '../../config/depot-config.service';
@@ -12,6 +13,7 @@ import {
   GallonReturnSummary,
 } from '../ports/gallon-return.repository';
 import { DEPOT_TOKENS } from '../tokens';
+import { ApprovalService } from './approval.service';
 
 export interface RecordReturnInput {
   customerId?: string | null;
@@ -45,6 +47,7 @@ export class GallonReturnService {
     @Inject(DEPOT_TOKENS.GallonIssueRepository) private readonly issues: GallonIssueRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly config: DepotConfigService,
+    private readonly approvals: ApprovalService,
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
@@ -54,32 +57,95 @@ export class GallonReturnService {
   }
 
   /**
-   * Reject a return that hands back more empties, or refunds more deposit, than the
-   * depot has outstanding. Both write paths funnel through here so neither can leak.
+   * Measure a return against what the depot still has outstanding.
+   *
+   * M15-11: handing back more empties than the depot issued is a DISCREPANCY, not an
+   * impossibility — the gallons are physically on the counter (a customer bought
+   * elsewhere, an issue went unrecorded, a depot transfer was missed). Rejecting the
+   * return loses that fact entirely. So the excess is reported back to the caller,
+   * which records the return and queues a GALLON_VARIANCE approval for a manager.
+   *
+   * Money is treated differently: an operator-entered refund above the deposit still
+   * held is a typo, not a physical fact, and is still refused outright.
    *
    * ponytail: the balance is DEPOT-wide, not per-customer — it reuses the two
-   * `summaryForDepot` rollups that already exist. It stops the money leak and the
-   * impossible network total; move to a per-customer balance (new repo queries on
-   * both ledgers) when ops needs to block one customer over-returning while the
-   * depot as a whole is still in credit.
+   * `summaryForDepot` rollups that already exist. Move to a per-customer balance (new
+   * repo queries on both ledgers) when ops needs to block one customer over-returning
+   * while the depot as a whole is still in credit.
    */
-  private async assertWithinOutstanding(
+  private async measureAgainstOutstanding(
     depotId: string,
     quantity: number,
-    depositRefunded: number,
-  ): Promise<void> {
+  ): Promise<{ excessGallons: number; depositLeft: number }> {
     const [issued, returned] = await Promise.all([
       this.issues.summaryForDepot(depotId),
       this.returns.summaryForDepot(depotId),
     ]);
     const gallonsLeft = issued.gallons - returned.gallons;
-    if (quantity > gallonsLeft) {
-      throw new GallonOverReturnError('gallons', quantity, Math.max(0, gallonsLeft));
-    }
-    const depositLeft = issued.depositHeld - returned.depositRefunded;
-    if (depositRefunded > depositLeft) {
-      throw new GallonOverReturnError('deposit', depositRefunded, Math.max(0, depositLeft));
-    }
+    return {
+      excessGallons: Math.max(0, quantity - Math.max(0, gallonsLeft)),
+      depositLeft: Math.max(0, issued.depositHeld - returned.depositRefunded),
+    };
+  }
+
+  /**
+   * Queue the discrepancy for a manager (M15-11). The rupiah at stake is the deposit
+   * value of the unexplained empties, so the depot's existing auto-pass threshold
+   * decides whether this needs a human at all.
+   */
+  private async queueVariance(
+    depotId: string,
+    excessGallons: number,
+    returnId: string,
+    actorId: string,
+  ): Promise<void> {
+    await this.approvals.create(
+      {
+        depotId,
+        type: ApprovalType.GALLON_VARIANCE,
+        title: `Retur galon melebihi saldo beredar (${excessGallons} galon)`,
+        subjectRef: returnId,
+        amountIdr: this.config.gallonDepositIdr(depotId) * excessGallons,
+        payload: { excessGallons, returnId },
+      },
+      actorId,
+    );
+  }
+
+  /**
+   * M15-04: a DAMAGED empty is a deposit decision, not an automatic refund. It goes to
+   * the queue under the DEPOSIT_REFUND type that already exists, carrying the value the
+   * operator proposes and the reason they gave. Small amounts still auto-pass on the
+   * depot's threshold, so this adds a paper trail without adding friction.
+   */
+  private async queueDamagedRefund(
+    depotId: string,
+    record: GallonReturnRecord,
+    reason: string | null,
+    actorId: string,
+  ): Promise<void> {
+    // What the operator proposes to refund; falls back to the deposit value at stake
+    // when they proposed nothing, so the manager still sees the real exposure.
+    const proposed =
+      record.depositRefunded > 0
+        ? record.depositRefunded
+        : this.config.gallonDepositIdr(depotId) * record.quantity;
+    await this.approvals.create(
+      {
+        depotId,
+        type: ApprovalType.DEPOSIT_REFUND,
+        title: `Retur galon rusak (${record.quantity} galon)`,
+        subjectRef: record.id,
+        amountIdr: proposed,
+        payload: {
+          returnId: record.id,
+          quantity: record.quantity,
+          depositRefunded: record.depositRefunded,
+          reason,
+        },
+      },
+      actorId,
+    );
   }
 
   async record(
@@ -89,17 +155,31 @@ export class GallonReturnService {
   ): Promise<GallonReturnRecord> {
     await this.requireDepot(depotId);
     const depositRefunded = input.depositRefunded ?? 0;
-    await this.assertWithinOutstanding(depotId, input.quantity, depositRefunded);
-    return this.returns.create({
+    const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
+      depotId,
+      input.quantity,
+    );
+    if (depositRefunded > depositLeft) {
+      throw new GallonOverReturnError('deposit', depositRefunded, depositLeft);
+    }
+    const condition = input.condition ?? GallonCondition.GOOD;
+    const record = await this.returns.create({
       depotId,
       customerId: input.customerId ?? null,
       orderId: null,
       quantity: input.quantity,
-      condition: input.condition ?? GallonCondition.GOOD,
+      condition,
       depositRefunded,
       note: input.note ?? null,
       actorId,
     });
+    if (excessGallons > 0) {
+      await this.queueVariance(depotId, excessGallons, record.id, actorId);
+    }
+    if (condition === GallonCondition.DAMAGED) {
+      await this.queueDamagedRefund(depotId, record, input.note ?? null, actorId);
+    }
+    return record;
   }
 
   /**
@@ -114,12 +194,18 @@ export class GallonReturnService {
   ): Promise<GallonReturnRecord> {
     await this.requireDepot(depotId);
     const condition = input.condition ?? GallonCondition.GOOD;
+    const { excessGallons, depositLeft } = await this.measureAgainstOutstanding(
+      depotId,
+      input.quantity,
+    );
+    // The courier never supplies an amount, so instead of refusing the handover when
+    // the depot's held deposit is short, refund what is actually held. The gallons are
+    // still recorded, and the shortfall surfaces as the variance approval below.
     const depositRefunded =
       condition === GallonCondition.GOOD
-        ? this.config.gallonDepositIdr(depotId) * input.quantity
+        ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
         : 0;
-    await this.assertWithinOutstanding(depotId, input.quantity, depositRefunded);
-    return this.returns.create({
+    const record = await this.returns.create({
       depotId,
       customerId: input.customerId ?? null,
       orderId: input.orderId,
@@ -129,6 +215,13 @@ export class GallonReturnService {
       note: input.note ?? null,
       actorId: courierId,
     });
+    if (excessGallons > 0) {
+      await this.queueVariance(depotId, excessGallons, record.id, courierId);
+    }
+    if (condition === GallonCondition.DAMAGED) {
+      await this.queueDamagedRefund(depotId, record, input.note ?? null, courierId);
+    }
+    return record;
   }
 
   async list(depotId: string, page: number, limit: number): Promise<Page<GallonReturnRecord>> {

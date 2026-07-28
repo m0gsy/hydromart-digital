@@ -5,7 +5,9 @@ import { OperationalReportController } from '../../src/modules/operational-repor
 
 describe('OperationalReportController', () => {
   const report = jest.fn();
-  const controller = new OperationalReportController({ report } as unknown as OperationalReportService);
+  const controller = new OperationalReportController({
+    report,
+  } as unknown as OperationalReportService);
 
   beforeEach(() => jest.clearAllMocks());
 

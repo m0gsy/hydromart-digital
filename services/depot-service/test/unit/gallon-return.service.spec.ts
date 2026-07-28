@@ -9,6 +9,11 @@ import {
   GallonReturnSummary,
 } from '../../src/application/ports/gallon-return.repository';
 import { DepotConfigService } from '../../src/config/depot-config.service';
+import {
+  ApprovalService,
+  CreateApprovalInput,
+} from '../../src/application/services/approval.service';
+import { ApprovalType } from '../../src/domain/approval';
 import { InMemoryDepotRepository, InMemoryGallonIssueRepository } from '../support/fakes';
 
 const GALLON_DEPOSIT_IDR = 20000;
@@ -65,10 +70,23 @@ const DEPOT = {
   holidays: [],
 };
 
+/** Records what the service pushed into the approval queue (M15-11 / M15-04). */
+class SpyApprovalService {
+  created: CreateApprovalInput[] = [];
+  async create(input: CreateApprovalInput, _submittedBy: string): Promise<unknown> {
+    this.created.push(input);
+    return { id: `approval-${this.created.length}` };
+  }
+  ofType(type: ApprovalType): CreateApprovalInput[] {
+    return this.created.filter((c) => c.type === type);
+  }
+}
+
 describe('GallonReturnService', () => {
   let depots: InMemoryDepotRepository;
   let returns: InMemoryGallonReturnRepository;
   let issues: InMemoryGallonIssueRepository;
+  let approvals: SpyApprovalService;
   let service: GallonReturnService;
   let depotId: string;
 
@@ -76,7 +94,14 @@ describe('GallonReturnService', () => {
     depots = new InMemoryDepotRepository();
     returns = new InMemoryGallonReturnRepository();
     issues = new InMemoryGallonIssueRepository();
-    service = new GallonReturnService(returns, issues, depots, configStub);
+    approvals = new SpyApprovalService();
+    service = new GallonReturnService(
+      returns,
+      issues,
+      depots,
+      configStub,
+      approvals as unknown as ApprovalService,
+    );
     depotId = (await depots.create(DEPOT)).id;
     // Returns are now capped by what the depot has outstanding, so every test needs a
     // ledger to return AGAINST. Plenty of headroom: the cap itself is asserted below.
@@ -90,29 +115,99 @@ describe('GallonReturnService', () => {
     });
   });
 
-  it('rejects a return of more empties than the depot has outstanding (UAT-M15-11)', async () => {
+  it('records an over-return and queues it for review instead of rejecting it (M15-11)', async () => {
     await service.record(depotId, { quantity: 98 }, 'staff-1');
-    await expect(service.record(depotId, { quantity: 5 }, 'staff-1')).rejects.toBeInstanceOf(
-      GallonOverReturnError,
+    const record = await service.record(depotId, { quantity: 5 }, 'staff-1');
+
+    // The empties are physically there, so they are recorded...
+    expect((await service.summary(depotId)).gallons).toBe(103);
+    // ...and the 3 unexplained ones become a manager's problem, priced at deposit value.
+    const variances = approvals.ofType(ApprovalType.GALLON_VARIANCE);
+    expect(variances).toHaveLength(1);
+    expect(variances[0]).toMatchObject({
+      depotId,
+      subjectRef: record.id,
+      amountIdr: 3 * GALLON_DEPOSIT_IDR,
+      payload: { excessGallons: 3, returnId: record.id },
+    });
+  });
+
+  it('queues nothing when the return is within the outstanding balance (M15-11)', async () => {
+    await service.record(depotId, { quantity: 10 }, 'staff-1');
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)).toHaveLength(0);
+  });
+
+  it('queues a damaged return as a deposit-refund decision (M15-04)', async () => {
+    const record = await service.record(
+      depotId,
+      { quantity: 2, condition: GallonCondition.DAMAGED, depositRefunded: 15000, note: 'retak' },
+      'staff-1',
     );
-    expect((await service.summary(depotId)).gallons).toBe(98);
+
+    const refunds = approvals.ofType(ApprovalType.DEPOSIT_REFUND);
+    expect(refunds).toHaveLength(1);
+    expect(refunds[0]).toMatchObject({
+      depotId,
+      subjectRef: record.id,
+      amountIdr: 15000, // the value the operator proposed
+      payload: { quantity: 2, reason: 'retak' },
+    });
+  });
+
+  it('prices a damaged return at the deposit at stake when the operator proposes nothing (M15-04)', async () => {
+    await service.record(depotId, { quantity: 2, condition: GallonCondition.DAMAGED }, 'staff-1');
+    expect(approvals.ofType(ApprovalType.DEPOSIT_REFUND)[0]).toMatchObject({
+      amountIdr: 2 * GALLON_DEPOSIT_IDR,
+      payload: { reason: null },
+    });
+  });
+
+  it('queues a courier-reported damaged return too, refunding nothing automatically (M15-04)', async () => {
+    const record = await service.recordFromCourier(
+      depotId,
+      {
+        orderId: '00000000-0000-4000-8000-00000000000a',
+        quantity: 1,
+        condition: GallonCondition.DAMAGED,
+        note: 'pecah di jalan',
+      },
+      'courier-1',
+    );
+    expect(record.depositRefunded).toBe(0);
+    expect(approvals.ofType(ApprovalType.DEPOSIT_REFUND)[0]).toMatchObject({
+      payload: { reason: 'pecah di jalan', depositRefunded: 0 },
+    });
+  });
+
+  it('does not queue a deposit decision for a good return (M15-04)', async () => {
+    await service.record(depotId, { quantity: 2, condition: GallonCondition.GOOD }, 'staff-1');
+    expect(approvals.ofType(ApprovalType.DEPOSIT_REFUND)).toHaveLength(0);
   });
 
   it('never refunds more deposit than the depot still holds', async () => {
     await expect(
-      service.record(depotId, { quantity: 1, depositRefunded: 100 * GALLON_DEPOSIT_IDR + 1 }, 'staff-1'),
+      service.record(
+        depotId,
+        { quantity: 1, depositRefunded: 100 * GALLON_DEPOSIT_IDR + 1 },
+        'staff-1',
+      ),
     ).rejects.toBeInstanceOf(GallonOverReturnError);
     expect((await service.summary(depotId)).depositRefunded).toBe(0);
   });
 
-  it('caps a courier return at the outstanding balance too', async () => {
-    await expect(
-      service.recordFromCourier(
-        depotId,
-        { orderId: '00000000-0000-4000-8000-00000000000a', quantity: 101 },
-        'courier-1',
-      ),
-    ).rejects.toBeInstanceOf(GallonOverReturnError);
+  it('caps a courier refund at the deposit held and queues the excess (M15-11)', async () => {
+    const record = await service.recordFromCourier(
+      depotId,
+      { orderId: '00000000-0000-4000-8000-00000000000a', quantity: 101 },
+      'courier-1',
+    );
+    // 100 gallons were issued, so only 100 deposits are held — never refund the 101st.
+    expect(record.depositRefunded).toBe(100 * GALLON_DEPOSIT_IDR);
+    expect(record.quantity).toBe(101);
+    expect(approvals.ofType(ApprovalType.GALLON_VARIANCE)[0]).toMatchObject({
+      amountIdr: 1 * GALLON_DEPOSIT_IDR,
+      payload: { excessGallons: 1 },
+    });
   });
 
   it('rejects recording a return against an unknown depot', async () => {
@@ -147,7 +242,11 @@ describe('GallonReturnService', () => {
   it('refunds nothing for a DAMAGED courier return but still records the empties', async () => {
     const rec = await service.recordFromCourier(
       depotId,
-      { orderId: '00000000-0000-4000-8000-00000000abce', quantity: 3, condition: GallonCondition.DAMAGED },
+      {
+        orderId: '00000000-0000-4000-8000-00000000abce',
+        quantity: 3,
+        condition: GallonCondition.DAMAGED,
+      },
       'courier-1',
     );
     expect(rec.depositRefunded).toBe(0);

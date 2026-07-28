@@ -119,7 +119,13 @@ describe('InventoryService', () => {
   });
 
   it('allows distinct PRODUK lines and blocks duplicates of the same product', async () => {
-    const p = { itemType: InventoryItemType.PRODUK, label: 'Air RO', unit: 'unit', quantity: 0, minimumStock: 0 };
+    const p = {
+      itemType: InventoryItemType.PRODUK,
+      label: 'Air RO',
+      unit: 'unit',
+      quantity: 0,
+      minimumStock: 0,
+    };
     await inventory.createLine(depotId, { ...p, productId: PRODUCT_ID }, ACTOR);
     await expect(
       inventory.createLine(depotId, { ...p, productId: PRODUCT_ID }, ACTOR),
@@ -168,7 +174,14 @@ describe('InventoryService', () => {
   const produkLine = (productId: string, quantity: number) =>
     inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId, label: 'Air RO', unit: 'unit', quantity, minimumStock: 0 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity,
+        minimumStock: 0,
+      },
       ACTOR,
     );
 
@@ -213,7 +226,12 @@ describe('InventoryService', () => {
 
   it('lets a SALE drive stock negative (records reality, not silently dropped)', async () => {
     const line = await produkLine(PRODUCT_ID, 2);
-    await inventory.consumeForOrder(depotId, 'order-3', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);
+    await inventory.consumeForOrder(
+      depotId,
+      'order-3',
+      [{ productId: PRODUCT_ID, quantity: 5 }],
+      ACTOR,
+    );
     expect((await inventory.get(line.id)).quantity).toBe(-3);
   });
 
@@ -250,17 +268,36 @@ describe('InventoryService', () => {
 
   it('does not alert when minimum is 0 (alerting disabled for the line)', async () => {
     await produkLine(PRODUCT_ID, 2); // minimumStock 0
-    await inventory.consumeForOrder(depotId, 'order-low', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR, TOKEN);
+    await inventory.consumeForOrder(
+      depotId,
+      'order-low',
+      [{ productId: PRODUCT_ID, quantity: 5 }],
+      ACTOR,
+      TOKEN,
+    );
     expect(alerts.emitted).toHaveLength(0);
   });
 
   it('alerts when a SALE crosses a PRODUK line below minimum', async () => {
     await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 12, minimumStock: 10 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 12,
+        minimumStock: 10,
+      },
       ACTOR,
     );
-    await inventory.consumeForOrder(depotId, 'order-x', [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR, TOKEN); // 12 -> 7
+    await inventory.consumeForOrder(
+      depotId,
+      'order-x',
+      [{ productId: PRODUCT_ID, quantity: 5 }],
+      ACTOR,
+      TOKEN,
+    ); // 12 -> 7
     expect(alerts.emitted).toHaveLength(1);
     expect(alerts.emitted[0].alert.quantity).toBe(7);
   });
@@ -269,7 +306,12 @@ describe('InventoryService', () => {
 
   it('reserves stock, reducing available without touching physical quantity', async () => {
     const line = await produkLine(PRODUCT_ID, 10);
-    const result = await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+    const result = await inventory.reserveForOrder(
+      depotId,
+      ORDER,
+      [{ productId: PRODUCT_ID, quantity: 3 }],
+      ACTOR,
+    );
     expect(result.reserved).toEqual([PRODUCT_ID]);
     const view = await inventory.get(line.id);
     expect(view.quantity).toBe(10);
@@ -280,10 +322,23 @@ describe('InventoryService', () => {
   it('alerts when a reservation crosses a line into sellable-low, before physical stock drops', async () => {
     await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 10,
+        minimumStock: 8,
+      },
       ACTOR,
     );
-    await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR, TOKEN);
+    await inventory.reserveForOrder(
+      depotId,
+      ORDER,
+      [{ productId: PRODUCT_ID, quantity: 3 }],
+      ACTOR,
+      TOKEN,
+    );
     // available 10 -> 7 (<= 8) though physical quantity is still 10
     expect(alerts.emitted).toHaveLength(1);
     expect(alerts.emitted[0].alert.quantity).toBe(7);
@@ -292,7 +347,14 @@ describe('InventoryService', () => {
   it('does not re-alert when a reserved sale merely converts a hold into a deduction', async () => {
     await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 10,
+        minimumStock: 8,
+      },
       ACTOR,
     );
     const items = [{ productId: PRODUCT_ID, quantity: 3 }];
@@ -304,10 +366,23 @@ describe('InventoryService', () => {
   it('lists a line as low when reservations exhaust sellable stock (physical still on hand)', async () => {
     const line = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 10, minimumStock: 8 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 10,
+        minimumStock: 8,
+      },
       ACTOR,
     );
-    await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR, TOKEN);
+    await inventory.reserveForOrder(
+      depotId,
+      ORDER,
+      [{ productId: PRODUCT_ID, quantity: 3 }],
+      ACTOR,
+      TOKEN,
+    );
     expect((await inventory.get(line.id)).lowStock).toBe(true); // available 7 <= 8
     const low = await inventory.listLowStock(depotId);
     expect(low.map((l) => l.id)).toContain(line.id);
@@ -326,7 +401,14 @@ describe('InventoryService', () => {
     const a = await produkLine(PRODUCT_ID, 10);
     const b = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: other, label: 'B', unit: 'unit', quantity: 1, minimumStock: 0 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: other,
+        label: 'B',
+        unit: 'unit',
+        quantity: 1,
+        minimumStock: 0,
+      },
       ACTOR,
     );
     await expect(
@@ -387,7 +469,15 @@ describe('InventoryService', () => {
   it('stores and returns a per-depot price override for a PRODUK line', async () => {
     const line = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 0, minimumStock: 0, sellPrice: 22000 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 0,
+        minimumStock: 0,
+        sellPrice: 22000,
+      },
       ACTOR,
     );
     expect(line.sellPrice).toBe(22000);
@@ -411,7 +501,15 @@ describe('InventoryService', () => {
   it('summarizes wastage from negative ADJUSTMENT movements, valuing only priced lines', async () => {
     const produk = await inventory.createLine(
       depotId,
-      { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'Air RO', unit: 'unit', quantity: 100, minimumStock: 0, sellPrice: 5000 },
+      {
+        itemType: InventoryItemType.PRODUK,
+        productId: PRODUCT_ID,
+        label: 'Air RO',
+        unit: 'unit',
+        quantity: 100,
+        minimumStock: 0,
+        sellPrice: 5000,
+      },
       ACTOR,
     );
     const galon = await inventory.createLine(depotId, raw(), ACTOR); // GALON 'Galon 19L', no sellPrice

@@ -11,8 +11,12 @@ import { HandoverPrismaRepository } from '../../src/infrastructure/prisma/handov
 describe('prisma repository null/empty branches', () => {
   it('falls back to 0 for null gallon-issue aggregates', async () => {
     const gallonIssue = {
-      aggregate: jest.fn().mockResolvedValue({ _count: { _all: 0 }, _sum: { quantity: null, depositHeld: null } }),
-      groupBy: jest.fn().mockResolvedValue([{ depotId: 'd', _sum: { quantity: null, depositHeld: null } }]),
+      aggregate: jest
+        .fn()
+        .mockResolvedValue({ _count: { _all: 0 }, _sum: { quantity: null, depositHeld: null } }),
+      groupBy: jest
+        .fn()
+        .mockResolvedValue([{ depotId: 'd', _sum: { quantity: null, depositHeld: null } }]),
     };
     const repo = new GallonIssuePrismaRepository({ gallonIssue } as unknown as PrismaService);
     expect(await repo.summaryForDepot('d')).toEqual({ issues: 0, gallons: 0, depositHeld: 0 });
@@ -21,14 +25,19 @@ describe('prisma repository null/empty branches', () => {
 
   it('falls back to 0 for null gallon-return network aggregates', async () => {
     const gallonReturn = {
-      groupBy: jest.fn().mockResolvedValue([{ depotId: 'd', _sum: { quantity: null, depositRefunded: null } }]),
+      groupBy: jest
+        .fn()
+        .mockResolvedValue([{ depotId: 'd', _sum: { quantity: null, depositRefunded: null } }]),
     };
     const repo = new GallonReturnPrismaRepository({ gallonReturn } as unknown as PrismaService);
     expect(await repo.networkSummary()).toEqual([{ depotId: 'd', gallons: 0, depositRefunded: 0 }]);
   });
 
   it('returns null from incident findById when the row is missing', async () => {
-    const incident = { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) };
+    const incident = {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
     const repo = new IncidentPrismaRepository({ incident } as unknown as PrismaService);
     expect(await repo.findById('x')).toBeNull();
     await repo.listForDepot('d');
@@ -37,7 +46,10 @@ describe('prisma repository null/empty branches', () => {
   });
 
   it('returns null from subscription findById when the row is missing', async () => {
-    const subscription = { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]) };
+    const subscription = {
+      findUnique: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
     const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
     expect(await repo.findById('x')).toBeNull();
     await repo.listForDepot('d');

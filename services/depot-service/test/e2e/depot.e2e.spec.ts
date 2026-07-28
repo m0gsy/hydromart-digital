@@ -41,7 +41,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   const OWNER_SUB = '99999999-9999-4999-8999-999999999999';
 
   beforeAll(async () => {
-    process.env.DEPOT_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.DEPOT_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
     process.env.JWT_ACCESS_SECRET = SECRET;
     // The validation schema defaults INTERNAL_SERVICE_KEY to '' and that shadows the
     // load() value, so set it on the env too (same as promo/order e2e) — otherwise the
@@ -139,15 +139,24 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
 
     // depot shows in public browse
-    await request(server()).get('/api/v1/depots?search=cikini').expect(200).expect((r) => {
-      expect(r.body.total).toBe(1);
-    });
+    await request(server())
+      .get('/api/v1/depots?search=cikini')
+      .expect(200)
+      .expect((r) => {
+        expect(r.body.total).toBe(1);
+      });
 
     // operator adds a galon stock line with opening balance
     const line = await request(server())
       .post(`/api/v1/depots/${depotId}/inventory`)
       .set(auth(oprAt))
-      .send({ itemType: 'GALON', label: 'Galon 19L', unit: 'unit', quantity: 100, minimumStock: 20 })
+      .send({
+        itemType: 'GALON',
+        label: 'Galon 19L',
+        unit: 'unit',
+        quantity: 100,
+        minimumStock: 20,
+      })
       .expect(201);
     const itemId = line.body.id;
     expect(line.body.quantity).toBe(100);
@@ -212,7 +221,14 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       await request(server())
         .post(`/api/v1/depots/${depotId}/inventory`)
         .set(auth(oprAt))
-        .send({ itemType: 'PRODUK', productId, label: 'Air RO', unit: 'unit', quantity: 50, minimumStock: 0 })
+        .send({
+          itemType: 'PRODUK',
+          productId,
+          label: 'Air RO',
+          unit: 'unit',
+          quantity: 50,
+          minimumStock: 0,
+        })
         .expect(201)
     ).body.id;
 
@@ -256,9 +272,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   });
 
   it('returns 404 for a missing depot', async () => {
-    await request(server())
-      .get('/api/v1/depots/11111111-1111-1111-1111-111111111111')
-      .expect(404);
+    await request(server()).get('/api/v1/depots/11111111-1111-1111-1111-111111111111').expect(404);
   });
 
   it('rejects an invalid depot payload (400)', async () => {

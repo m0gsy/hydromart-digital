@@ -133,8 +133,14 @@ describe('HuddleService', () => {
   });
 
   it('lists notes newest week first', async () => {
-    await service.record({ depotId, weekStart: '2026-07-07', agenda: [], actionItems: [] }, RECORDER);
-    await service.record({ depotId, weekStart: '2026-07-14', agenda: [], actionItems: [] }, RECORDER);
+    await service.record(
+      { depotId, weekStart: '2026-07-07', agenda: [], actionItems: [] },
+      RECORDER,
+    );
+    await service.record(
+      { depotId, weekStart: '2026-07-14', agenda: [], actionItems: [] },
+      RECORDER,
+    );
     const all = await service.list(depotId);
     expect(all.map((n) => n.weekStart)).toEqual(['2026-07-14', '2026-07-07']);
   });
