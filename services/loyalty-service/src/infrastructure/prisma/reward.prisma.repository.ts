@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  CreateRewardItemData,
   RedeemMutation,
   RewardItemRecord,
   RewardRedemptionRecord,
   RewardRepository,
+  UpdateRewardItemData,
 } from '../../application/ports/reward.repository';
 import { PointsTxnType as PrismaTxnType } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
@@ -20,8 +22,20 @@ export class RewardPrismaRepository implements RewardRepository {
     });
   }
 
+  async listAllItems(): Promise<RewardItemRecord[]> {
+    return this.prisma.rewardItem.findMany({ orderBy: [{ active: 'desc' }, { pointsCost: 'asc' }] });
+  }
+
   async findItem(id: string): Promise<RewardItemRecord | null> {
     return this.prisma.rewardItem.findUnique({ where: { id } });
+  }
+
+  async createItem(data: CreateRewardItemData): Promise<RewardItemRecord> {
+    return this.prisma.rewardItem.create({ data });
+  }
+
+  async updateItem(id: string, data: UpdateRewardItemData): Promise<RewardItemRecord> {
+    return this.prisma.rewardItem.update({ where: { id }, data });
   }
 
   async findRedemptionByKey(

@@ -98,4 +98,36 @@ describe('RewardService', () => {
     await service.redeem(CUSTOMER, 'seg', 'key-1');
     expect((await rewardRepo.findItem('seg'))?.stock).toBe(2);
   });
+
+  describe('catalogue management', () => {
+    it('lists retired items that the customer catalogue hides', async () => {
+      rewardRepo.seedItem({ id: 'live', pointsCost: 100 });
+      rewardRepo.seedItem({ id: 'gone', pointsCost: 100, active: false });
+      expect(await service.listCatalog()).toHaveLength(1);
+      expect(await service.listAll()).toHaveLength(2);
+    });
+
+    it('creates an item that then shows in the catalogue', async () => {
+      const created = await service.createItem({
+        name: 'Galon gratis', unit: 'gratis 1 galon', pointsCost: 500, imageUrl: null, stock: 10, active: true,
+      });
+      expect(created.id).toBeDefined();
+      expect(await service.listCatalog()).toHaveLength(1);
+    });
+
+    it('retires an item with active:false so it leaves the catalogue', async () => {
+      const created = await service.createItem({
+        name: 'Galon gratis', unit: 'gratis 1 galon', pointsCost: 500, imageUrl: null, stock: null, active: true,
+      });
+      const updated = await service.updateItem(created.id, { active: false });
+      expect(updated.active).toBe(false);
+      expect(await service.listCatalog()).toHaveLength(0);
+    });
+
+    it('rejects an update to an item that does not exist', async () => {
+      await expect(service.updateItem('missing', { stock: 5 })).rejects.toBeInstanceOf(
+        RewardItemNotFoundError,
+      );
+    });
+  });
 });

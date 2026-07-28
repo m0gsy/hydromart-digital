@@ -6,9 +6,11 @@ import {
   RewardOutOfStockError,
 } from '../../domain/errors';
 import {
+  CreateRewardItemData,
   RewardItemRecord,
   RewardRedemptionRecord,
   RewardRepository,
+  UpdateRewardItemData,
 } from '../ports/reward.repository';
 import { LOYALTY_TOKENS } from '../tokens';
 import { LoyaltyService } from './loyalty.service';
@@ -29,6 +31,21 @@ export class RewardService {
 
   listCatalog(): Promise<RewardItemRecord[]> {
     return this.rewards.listActiveItems();
+  }
+
+  /** Catalogue management list — retired items included so they can be brought back. */
+  listAll(): Promise<RewardItemRecord[]> {
+    return this.rewards.listAllItems();
+  }
+
+  createItem(data: CreateRewardItemData): Promise<RewardItemRecord> {
+    return this.rewards.createItem(data);
+  }
+
+  /** Edit price/stock/label, or retire the item with `active: false`. */
+  async updateItem(id: string, data: UpdateRewardItemData): Promise<RewardItemRecord> {
+    if (!(await this.rewards.findItem(id))) throw new RewardItemNotFoundError();
+    return this.rewards.updateItem(id, data);
   }
 
   /**

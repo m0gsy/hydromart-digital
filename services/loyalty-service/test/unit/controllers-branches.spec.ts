@@ -123,6 +123,9 @@ describe('RewardController (delegation)', () => {
   const item: RewardItemRecord = { id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, active: true, stock: 5 };
   const rewards = {
     listCatalog: jest.fn(async () => [item]),
+    listAll: jest.fn(async () => [item, { ...item, id: 'ri-2', active: false }]),
+    createItem: jest.fn(async () => item),
+    updateItem: jest.fn(async () => ({ ...item, active: false })),
     redeem: jest.fn(async () => ({ redemption: { id: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800 }, pointsBalance: 400 })),
   };
   const ctrl = new RewardController(rewards as never);
@@ -130,7 +133,33 @@ describe('RewardController (delegation)', () => {
 
   it('catalog() maps active items', async () => {
     const out = await ctrl.catalog();
-    expect(out).toEqual([{ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, stock: 5 }]);
+    expect(out).toEqual([{ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, stock: 5, active: true }]);
+  });
+
+  it('items() lists retired entries too', async () => {
+    const out = await ctrl.items();
+    expect(out).toHaveLength(2);
+    expect(out[1]).toMatchObject({ id: 'ri-2', active: false });
+  });
+
+  it('createItem() defaults optional fields instead of passing undefined through', async () => {
+    await ctrl.createItem({ name: 'Galon', unit: 'galon', pointsCost: 800 } as never);
+    expect(rewards.createItem).toHaveBeenCalledWith({
+      name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, stock: null, active: true,
+    });
+  });
+
+  it('createItem() keeps an explicit finite stock and inactive flag', async () => {
+    await ctrl.createItem({ name: 'Galon', unit: 'galon', pointsCost: 800, stock: 0, active: false, imageUrl: 'u' } as never);
+    expect(rewards.createItem).toHaveBeenCalledWith({
+      name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'u', stock: 0, active: false,
+    });
+  });
+
+  it('updateItem() forwards the patch and maps the result', async () => {
+    const out = await ctrl.updateItem('ri-1', { active: false } as never);
+    expect(rewards.updateItem).toHaveBeenCalledWith('ri-1', { active: false });
+    expect(out).toMatchObject({ id: 'ri-1', active: false });
   });
 
   it('redeem() maps the redeem result', async () => {
@@ -221,7 +250,7 @@ describe('response DTO mappers', () => {
 
   it('RewardItemDto.from projects catalog fields', () => {
     const item: RewardItemRecord = { id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'x', active: true, stock: null };
-    expect(RewardItemDto.from(item)).toEqual({ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'x', stock: null });
+    expect(RewardItemDto.from(item)).toEqual({ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'x', stock: null, active: true });
   });
 
   it('RedeemResultDto.from projects the redemption + balance', () => {
