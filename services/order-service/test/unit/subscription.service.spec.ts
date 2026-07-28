@@ -3,10 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
-import {
-  ProductUnavailableError,
-  SubscriptionNotFoundError,
-} from '../../src/domain/errors';
+import { ProductUnavailableError, SubscriptionNotFoundError } from '../../src/domain/errors';
 import { SubscriptionNotActionableError } from '../../src/domain/errors';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
@@ -105,9 +102,13 @@ describe('SubscriptionService', () => {
     expect((await service.pause(customer, sub.id)).status).toBe('PAUSED');
     expect((await service.resume(customer, sub.id)).status).toBe('ACTIVE');
     expect((await service.cancel(customer, sub.id)).status).toBe('CANCELLED');
-    await expect(service.pause(customer, sub.id)).rejects.toBeInstanceOf(SubscriptionNotActionableError);
+    await expect(service.pause(customer, sub.id)).rejects.toBeInstanceOf(
+      SubscriptionNotActionableError,
+    );
     // resume is equally blocked once cancelled (BR: a cancelled sub is terminal).
-    await expect(service.resume(customer, sub.id)).rejects.toBeInstanceOf(SubscriptionNotActionableError);
+    await expect(service.resume(customer, sub.id)).rejects.toBeInstanceOf(
+      SubscriptionNotActionableError,
+    );
   });
 
   it('processDue places an order for a due subscription and advances its schedule', async () => {
@@ -167,8 +168,12 @@ describe('SubscriptionService', () => {
       firstDeliveryAt: new Date('2026-07-20T00:00:00Z'),
       address,
     });
-    await expect(service.pause(randomUUID(), sub.id)).rejects.toBeInstanceOf(SubscriptionNotFoundError);
-    await expect(service.cancel(customer, randomUUID())).rejects.toBeInstanceOf(SubscriptionNotFoundError);
+    await expect(service.pause(randomUUID(), sub.id)).rejects.toBeInstanceOf(
+      SubscriptionNotFoundError,
+    );
+    await expect(service.cancel(customer, randomUUID())).rejects.toBeInstanceOf(
+      SubscriptionNotFoundError,
+    );
   });
 
   it('estimates monthly network delivery volume by cadence (18c)', async () => {

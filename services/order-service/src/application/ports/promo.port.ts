@@ -16,7 +16,7 @@ export interface PromoPort {
     subtotal: number,
     shippingFee: number,
     authorization: string,
-  ): Promise<{ discount: number }>;
+  ): Promise<{ discount: number; discountType?: string }>;
 
   redeem(
     code: string,

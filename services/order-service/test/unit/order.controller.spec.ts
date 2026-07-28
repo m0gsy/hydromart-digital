@@ -71,7 +71,13 @@ describe('OrderController', () => {
 
   it('checkout: preserves supplied voucher, window and optional address fields', async () => {
     const dto = {
-      deliveryAddress: { ...address, postalCode: '40111', latitude: -6.9, longitude: 107.6, notes: 'n' },
+      deliveryAddress: {
+        ...address,
+        postalCode: '40111',
+        latitude: -6.9,
+        longitude: 107.6,
+        notes: 'n',
+      },
       voucherCode: 'HEMAT',
       deliveryWindow: 'MORNING',
     } as never;
@@ -84,7 +90,9 @@ describe('OrderController', () => {
   });
 
   it('expireAbandoned: passes a positive minutes override, else undefined', async () => {
-    await expect(controller.expireAbandoned(admin, 'Bearer t', '30')).resolves.toEqual({ cancelled: 3 });
+    await expect(controller.expireAbandoned(admin, 'Bearer t', '30')).resolves.toEqual({
+      cancelled: 3,
+    });
     expect(service.expireAbandoned).toHaveBeenCalledWith('admin-1', 'Bearer t', 30);
     await controller.expireAbandoned(admin, undefined, '0');
     expect(service.expireAbandoned).toHaveBeenLastCalledWith('admin-1', undefined, undefined);
@@ -132,7 +140,9 @@ describe('OrderController', () => {
           depotId: 'd1',
           updatedAt: new Date('2026-01-01T00:00:00.000Z'),
           total: 42000.7,
-          items: [{ productId: 'p1', productName: 'Galon', sku: 'G19', unit: 'Galon', quantity: 2 }],
+          items: [
+            { productId: 'p1', productName: 'Galon', sku: 'G19', unit: 'Galon', quantity: 2 },
+          ],
         },
       ],
       nextCursor: 'cur2',
@@ -187,7 +197,10 @@ describe('OrderController', () => {
       },
     ]);
     const out = await controller.internalDepotCustomers('d1');
-    expect(out.customers[0]).toMatchObject({ totalSpent: 100000, firstOrderAt: '2026-01-01T00:00:00.000Z' });
+    expect(out.customers[0]).toMatchObject({
+      totalSpent: 100000,
+      firstOrderAt: '2026-01-01T00:00:00.000Z',
+    });
     expect(out.customers[1]).toMatchObject({ firstOrderAt: null, lastOrderAt: null });
   });
 
@@ -236,7 +249,11 @@ describe('OrderController', () => {
   });
 
   it('review: maps rating/aspects/comment/tip, defaulting aspects to []', async () => {
-    await controller.review(customer, 'o1', { rating: 5, comment: 'good', tipAmount: 2000 } as never);
+    await controller.review(customer, 'o1', {
+      rating: 5,
+      comment: 'good',
+      tipAmount: 2000,
+    } as never);
     expect(service.reviewOrder).toHaveBeenCalledWith('cust-1', 'o1', {
       rating: 5,
       aspects: [],

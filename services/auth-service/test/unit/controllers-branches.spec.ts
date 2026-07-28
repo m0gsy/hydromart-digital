@@ -2,6 +2,7 @@ import {
   BadRequestException,
   NotFoundException,
   PayloadTooLargeException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Request } from 'express';
 
@@ -58,7 +59,10 @@ describe('AccountController delegation', () => {
     account.updateProfile.mockResolvedValue(publicCustomer({ fullName: 'Budi S' }));
     const dto = await controller.updateProfile(user, { fullName: 'Budi S', email: 'x@y.com' });
     expect(dto.fullName).toBe('Budi S');
-    expect(account.updateProfile).toHaveBeenCalledWith('cust-1', { fullName: 'Budi S', email: 'x@y.com' });
+    expect(account.updateProfile).toHaveBeenCalledWith('cust-1', {
+      fullName: 'Budi S',
+      email: 'x@y.com',
+    });
   });
 
   it('looks up a customer by phone', async () => {
@@ -99,10 +103,16 @@ describe('AccountController delegation', () => {
       vehicleType: 'MOTOR',
       plateNumber: 'B 1 A',
     });
-    expect(account.inviteStaff).toHaveBeenCalledWith('+628990001111', Role.DRIVER, 'Joko', 'depot-1', {
-      vehicleType: 'MOTOR',
-      plateNumber: 'B 1 A',
-    });
+    expect(account.inviteStaff).toHaveBeenCalledWith(
+      '+628990001111',
+      Role.DRIVER,
+      'Joko',
+      'depot-1',
+      {
+        vehicleType: 'MOTOR',
+        plateNumber: 'B 1 A',
+      },
+    );
   });
 
   it('lists active device sessions', async () => {
@@ -122,7 +132,9 @@ describe('AccountController delegation', () => {
 
   it('404s revoking an unknown session', async () => {
     account.revokeSession.mockResolvedValue(false);
-    await expect(controller.revokeSession('missing', user)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.revokeSession('missing', user)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('logs out the current session', async () => {
@@ -166,19 +178,27 @@ describe('AuditController delegation', () => {
     audit.list.mockResolvedValue({ items: [auditItem()], total: 1, page: 1, limit: 20 });
     const result = await controller.list({});
     expect(result.items[0].target).toBe('Depot A');
-    expect(audit.list).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, limit: 20 }),
-    );
+    expect(audit.list).toHaveBeenCalledWith(expect.objectContaining({ page: 1, limit: 20 }));
   });
 
   it('honours explicit HQ pagination + filters', async () => {
     audit.list.mockResolvedValue({ items: [], total: 0, page: 2, limit: 5 });
     await controller.list({ page: 2, limit: 5, action: 'depot.suspend', actorId: 'cust-1' });
-    expect(audit.list).toHaveBeenCalledWith({ page: 2, limit: 5, action: 'depot.suspend', customerId: 'cust-1' });
+    expect(audit.list).toHaveBeenCalledWith({
+      page: 2,
+      limit: 5,
+      action: 'depot.suspend',
+      customerId: 'cust-1',
+    });
   });
 
   it('lists a depot-scoped trail with defaults', async () => {
-    audit.list.mockResolvedValue({ items: [auditItem({ metadata: null })], total: 1, page: 1, limit: 50 });
+    audit.list.mockResolvedValue({
+      items: [auditItem({ metadata: null })],
+      total: 1,
+      page: 1,
+      limit: 50,
+    });
     const result = await controller.listForDepot({ depotId: 'depot-1' });
     expect(result.items[0].target).toBeNull();
     expect(audit.list).toHaveBeenCalledWith(
@@ -189,7 +209,12 @@ describe('AuditController delegation', () => {
   it('honours explicit depot pagination + type', async () => {
     audit.list.mockResolvedValue({ items: [], total: 0, page: 3, limit: 10 });
     await controller.listForDepot({ depotId: 'depot-1', type: 'depot', page: 3, limit: 10 });
-    expect(audit.list).toHaveBeenCalledWith({ page: 3, limit: 10, depotId: 'depot-1', type: 'depot' });
+    expect(audit.list).toHaveBeenCalledWith({
+      page: 3,
+      limit: 10,
+      depotId: 'depot-1',
+      type: 'depot',
+    });
   });
 
   it('ingests a cross-service event with an actor', async () => {
@@ -218,7 +243,12 @@ describe('AvatarController', () => {
   const controller = new AvatarController(storage as never, account as never);
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+62' };
   const file = (overrides: Partial<Express.Multer.File> = {}): Express.Multer.File =>
-    ({ mimetype: 'image/png', size: 1024, buffer: Buffer.from('img'), ...overrides } as Express.Multer.File);
+    ({
+      mimetype: 'image/png',
+      size: 1024,
+      buffer: Buffer.from('img'),
+      ...overrides,
+    }) as Express.Multer.File;
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -248,5 +278,14 @@ describe('AvatarController', () => {
       expect.objectContaining({ contentType: 'image/png', ext: 'png' }),
     );
     expect(account.setAvatar).toHaveBeenCalledWith('cust-1', 'https://cdn/x.png');
+  });
+
+  it('answers 503, not a bare 500, when object storage is unreachable (M1-10)', async () => {
+    storage.put.mockRejectedValue(new Error('getaddrinfo ENOTFOUND dummy.local'));
+
+    await expect(controller.upload(user, file())).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(account.setAvatar).not.toHaveBeenCalled(); // no half-written profile
   });
 });

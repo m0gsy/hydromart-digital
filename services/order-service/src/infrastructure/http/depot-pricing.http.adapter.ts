@@ -25,7 +25,8 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
       return prices;
     }
     const query = encodeURIComponent(productIds.join(','));
-    const qty = quantities.length > 0 ? `&quantities=${encodeURIComponent(quantities.join(','))}` : '';
+    const qty =
+      quantities.length > 0 ? `&quantities=${encodeURIComponent(quantities.join(','))}` : '';
     const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/prices?productIds=${query}${qty}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotPricingHttpAdapter.TIMEOUT_MS);

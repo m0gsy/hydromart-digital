@@ -172,14 +172,9 @@ const isDelivered = (s: OrderStatus): boolean =>
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
 
-  constructor(
-    @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
-  ) {}
+  constructor(@Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository) {}
 
-  async sales(
-    granularity: 'daily' | 'monthly',
-    range: ReportRange,
-  ): Promise<SalesReport> {
+  async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
     const buckets = await this.orders.salesSeries(granularity, range);
     return { granularity, ...ReportService.rangeView(range), buckets };
   }
@@ -289,7 +284,12 @@ export class ReportService {
     newWithinDays?: number;
     minOrders?: number;
     depotId?: string;
-  }): Promise<{ count: number; recencyDays: number | null; minOrders: number | null; depotId: string | null }> {
+  }): Promise<{
+    count: number;
+    recencyDays: number | null;
+    minOrders: number | null;
+    depotId: string | null;
+  }> {
     const daysAgo = (d: number): Date => new Date(Date.now() - d * 24 * 60 * 60 * 1000);
     const count = await this.orders.segmentEstimate({
       recencyCutoff: input.recencyDays != null ? daysAgo(input.recencyDays) : undefined,
@@ -372,7 +372,8 @@ export class ReportService {
     for (const o of live) {
       const day = o.createdAt.toISOString().slice(0, 10);
       byDay.set(day, (byDay.get(day) ?? 0) + o.total);
-      for (const i of o.items) byProduct.set(i.productName, (byProduct.get(i.productName) ?? 0) + i.quantity);
+      for (const i of o.items)
+        byProduct.set(i.productName, (byProduct.get(i.productName) ?? 0) + i.quantity);
       if (isDelivered(o.status) && o.driverName)
         byCourier.set(o.driverName, (byCourier.get(o.driverName) ?? 0) + 1);
     }
@@ -479,7 +480,10 @@ export class ReportService {
       prevVol.set(o.customerId, (prevVol.get(o.customerId) ?? 0) + gallonQty(o));
     }
 
-    const agg = new Map<string, { volumeQty: number; orderCount: number; lastOrderAt: Date | null }>();
+    const agg = new Map<
+      string,
+      { volumeQty: number; orderCount: number; lastOrderAt: Date | null }
+    >();
     for (const o of delivered(thisRows)) {
       const cur = agg.get(o.customerId) ?? { volumeQty: 0, orderCount: 0, lastOrderAt: null };
       cur.volumeQty += gallonQty(o);

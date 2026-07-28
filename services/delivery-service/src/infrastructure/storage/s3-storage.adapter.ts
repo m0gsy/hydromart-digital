@@ -4,7 +4,11 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
-import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
+import {
+  StoragePort,
+  StoragePutInput,
+  StoragePutResult,
+} from '../../application/ports/storage.port';
 
 /**
  * Production storage: S3-compatible object storage via @aws-sdk/client-s3. Same
@@ -17,6 +21,9 @@ import { StoragePort, StoragePutInput, StoragePutResult } from '../../applicatio
  */
 @Injectable()
 export class S3StorageAdapter implements StoragePort {
+  /** Bounded so an unreachable endpoint fails fast instead of hanging the request. */
+  private static readonly TIMEOUT_MS = 10_000;
+
   private readonly client: S3Client;
 
   constructor(private readonly config: DeliveryConfigService) {
@@ -38,6 +45,7 @@ export class S3StorageAdapter implements StoragePort {
         Body: body,
         ContentType: contentType,
       }),
+      { abortSignal: AbortSignal.timeout(S3StorageAdapter.TIMEOUT_MS) },
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
   }

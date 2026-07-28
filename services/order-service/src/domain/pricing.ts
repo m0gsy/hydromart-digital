@@ -25,7 +25,8 @@ export function applyAdjustment(base: number, adj: PriceAdjustment | null): numb
  */
 export function galonQuantity(items: { unit: string; quantity: number }[]): number {
   return items.reduce(
-    (total, item) => (item.unit.trim().toLowerCase().startsWith('galon') ? total + item.quantity : total),
+    (total, item) =>
+      item.unit.trim().toLowerCase().startsWith('galon') ? total + item.quantity : total,
     0,
   );
 }

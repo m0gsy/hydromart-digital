@@ -5,7 +5,11 @@ import { dirname, join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
-import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
+import {
+  StoragePort,
+  StoragePutInput,
+  StoragePutResult,
+} from '../../application/ports/storage.port';
 
 /**
  * Development storage: writes blobs to the local filesystem and returns a URL

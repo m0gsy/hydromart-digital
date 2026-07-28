@@ -23,7 +23,7 @@ export class PromoHttpAdapter implements PromoPort {
     subtotal: number,
     shippingFee: number,
     authorization: string,
-  ): Promise<{ discount: number }> {
+  ): Promise<{ discount: number; discountType?: string }> {
     const url = `${this.config.promoServiceUrl}/api/v1/vouchers/quote`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PromoHttpAdapter.TIMEOUT_MS);
@@ -42,12 +42,18 @@ export class PromoHttpAdapter implements PromoPort {
       clearTimeout(timer);
     }
 
-    const body = (await res.json().catch(() => ({}))) as { discount?: number; message?: string };
+    const body = (await res.json().catch(() => ({}))) as {
+      discount?: number;
+      discountType?: string;
+      message?: string;
+    };
     if (!res.ok) {
       // Surface the promo-service's specific reason (e.g. minimum spend not met).
       throw new VoucherRejectedError(body.message ?? 'This voucher could not be applied.');
     }
-    return { discount: body.discount ?? 0 };
+    // discountType decides which ceiling the discount is capped against at checkout
+    // (value vs delivery fee) — promo-service already returns it on every quote.
+    return { discount: body.discount ?? 0, discountType: body.discountType };
   }
 
   async redeem(

@@ -95,7 +95,9 @@ export class OrderController {
 
   @Roles(Role.SUPER_ADMIN)
   @Post('expire-abandoned')
-  @ApiOperation({ summary: 'Auto-cancel unconfirmed abandoned orders, releasing their stock (admin sweep)' })
+  @ApiOperation({
+    summary: 'Auto-cancel unconfirmed abandoned orders, releasing their stock (admin sweep)',
+  })
   expireAbandoned(
     @CurrentUser() user: AuthenticatedUser,
     @Headers('authorization') authorization?: string,
@@ -182,7 +184,13 @@ export class OrderController {
       depotId: string | null;
       completedAt: Date;
       total: number;
-      items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
+      items: {
+        productId: string;
+        productName: string;
+        sku: string;
+        unit: string;
+        quantity: number;
+      }[];
     }[];
     nextCursor: string | null;
   }> {
@@ -219,14 +227,19 @@ export class OrderController {
     @Query('from') from: string,
     @Query('to') to: string,
   ): Promise<{ depotId: string; totalIdr: number }> {
-    return { depotId, totalIdr: await this.orders.sumDepotSales(depotId, new Date(from), new Date(to)) };
+    return {
+      depotId,
+      totalIdr: await this.orders.sumDepotSales(depotId, new Date(from), new Date(to)),
+    };
   }
 
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/depot-customers')
-  @ApiOperation({ summary: 'Per-customer order aggregates for a depot CRM (internal service auth)' })
+  @ApiOperation({
+    summary: 'Per-customer order aggregates for a depot CRM (internal service auth)',
+  })
   async internalDepotCustomers(@Query('depotId') depotId: string): Promise<{
     customers: {
       customerId: string;

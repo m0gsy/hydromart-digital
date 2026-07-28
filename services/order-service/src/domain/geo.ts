@@ -7,18 +7,12 @@ function toRad(deg: number): number {
 }
 
 /** Great-circle distance in km between two lat/lng points (haversine). */
-export function haversineKm(
-  aLat: number,
-  aLng: number,
-  bLat: number,
-  bLng: number,
-): number {
+export function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const dLat = toRad(bLat - aLat);
   const dLng = toRad(bLng - aLng);
   const lat1 = toRad(aLat);
   const lat2 = toRad(bLat);
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  const h = Math.sin(dLat / 2) ** 2 + Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
 }
 

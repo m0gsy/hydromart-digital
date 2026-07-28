@@ -55,7 +55,9 @@ describe('CartPrismaRepository', () => {
 
   it('removes one product and clears the whole cart', async () => {
     await repo.remove('cust-1', 'p-1');
-    expect(model.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'cust-1', productId: 'p-1' } });
+    expect(model.deleteMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1', productId: 'p-1' },
+    });
     await repo.clear('cust-1');
     expect(model.deleteMany).toHaveBeenLastCalledWith({ where: { customerId: 'cust-1' } });
   });
@@ -118,7 +120,9 @@ describe('SubscriptionPrismaRepository', () => {
     });
     expect(out.frequency).toBe('WEEKLY');
     expect(out.status).toBe('ACTIVE');
-    expect(model.create).toHaveBeenCalledWith({ data: expect.objectContaining({ productId: 'p-1' }) });
+    expect(model.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ productId: 'p-1' }),
+    });
   });
 
   it('finds by id, null on miss', async () => {
@@ -150,10 +154,16 @@ describe('SubscriptionPrismaRepository', () => {
   it('sets status and advances the next delivery date', async () => {
     model.update.mockResolvedValue(row);
     await repo.setStatus('sub-1', 'PAUSED');
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'sub-1' }, data: { status: 'PAUSED' } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'sub-1' },
+      data: { status: 'PAUSED' },
+    });
     const next = new Date('2026-02-08');
     await repo.advance('sub-1', next);
-    expect(model.update).toHaveBeenLastCalledWith({ where: { id: 'sub-1' }, data: { nextDeliveryAt: next } });
+    expect(model.update).toHaveBeenLastCalledWith({
+      where: { id: 'sub-1' },
+      data: { nextDeliveryAt: next },
+    });
   });
 
   it('summarizes the active network, sorted by subscriber count desc', async () => {
@@ -235,7 +245,9 @@ describe('OrderPrismaRepository', () => {
         lineTotal: dec(100000),
       },
     ],
-    history: [{ status: 'CREATED', changedBy: null, note: null, createdAt: new Date('2026-01-01') }],
+    history: [
+      { status: 'CREATED', changedBy: null, note: null, createdAt: new Date('2026-01-01') },
+    ],
     review: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
@@ -307,7 +319,10 @@ describe('OrderPrismaRepository', () => {
     order.findUnique.mockResolvedValue({ ...orderRow(), review: { id: 'rev-1' } });
     const out = await repo.findById('ord-1');
     expect(out?.reviewed).toBe(true);
-    expect(order.findUnique).toHaveBeenCalledWith({ where: { id: 'ord-1' }, include: expect.any(Object) });
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { id: 'ord-1' },
+      include: expect.any(Object),
+    });
   });
 
   it('batch-reads order totals in one selected findMany query', async () => {
@@ -366,7 +381,9 @@ describe('OrderPrismaRepository', () => {
     order.findMany.mockResolvedValue([]);
     order.count.mockResolvedValue(0);
     await repo.search({ page: 1, limit: 20 });
-    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {}, skip: 0, take: 20 }));
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {}, skip: 0, take: 20 }),
+    );
   });
 
   it('finds stale orders in the given statuses before a cutoff', async () => {
@@ -427,7 +444,11 @@ describe('OrderPrismaRepository', () => {
   });
 
   it('sets the driver name when provided', async () => {
-    order.update.mockResolvedValue({ ...orderRow(), driverName: 'Joko', status: 'DRIVER_ASSIGNED' });
+    order.update.mockResolvedValue({
+      ...orderRow(),
+      driverName: 'Joko',
+      status: 'DRIVER_ASSIGNED',
+    });
     await repo.applyStatus('ord-1', OrderStatus.DRIVER_ASSIGNED, null, null, 'Joko');
     expect(order.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ driverName: 'Joko' }) }),
@@ -440,7 +461,9 @@ describe('OrderPrismaRepository', () => {
       { customerId: 'cust-new', _max: { createdAt: new Date('2026-01-10') } },
       { customerId: 'cust-null', _max: { createdAt: null } },
     ]);
-    order.findMany.mockResolvedValue([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
+    order.findMany.mockResolvedValue([
+      { customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' },
+    ]);
     const cutoff = new Date('2026-01-01');
     const out = await repo.findReorderReminderTargets(cutoff, 10);
     expect(out).toEqual([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
@@ -453,7 +476,9 @@ describe('OrderPrismaRepository', () => {
   });
 
   it('returns [] and skips the snapshot query when nobody is due', async () => {
-    order.groupBy.mockResolvedValue([{ customerId: 'cust-new', _max: { createdAt: new Date('2026-06-01') } }]);
+    order.groupBy.mockResolvedValue([
+      { customerId: 'cust-new', _max: { createdAt: new Date('2026-06-01') } },
+    ]);
     expect(await repo.findReorderReminderTargets(new Date('2026-01-01'), 10)).toEqual([]);
     expect(order.findMany).not.toHaveBeenCalled();
   });
@@ -516,7 +541,10 @@ describe('OrderPrismaRepository', () => {
 
   it('builds daily and monthly sales series from raw rows', async () => {
     $queryRaw.mockResolvedValue([{ period: '2026-01-01', orderCount: BigInt(3), revenue: 300000 }]);
-    const daily = await repo.salesSeries('daily', { from: new Date('2026-01-01'), to: new Date('2026-02-01') });
+    const daily = await repo.salesSeries('daily', {
+      from: new Date('2026-01-01'),
+      to: new Date('2026-02-01'),
+    });
     expect(daily).toEqual([{ period: '2026-01-01', orderCount: 3, revenue: 300000 }]);
 
     $queryRaw.mockResolvedValue([{ period: '2026-01', orderCount: BigInt(3), revenue: null }]);
@@ -537,7 +565,9 @@ describe('OrderPrismaRepository', () => {
   });
 
   it('ranks top depots by revenue', async () => {
-    order.groupBy.mockResolvedValue([{ depotId: 'depot-1', _sum: { total: dec(400000) }, _count: { _all: 3 } }]);
+    order.groupBy.mockResolvedValue([
+      { depotId: 'depot-1', _sum: { total: dec(400000) }, _count: { _all: 3 } },
+    ]);
     const out = await repo.topDepots({}, 5);
     expect(out).toEqual([{ depotId: 'depot-1', orderCount: 3, revenue: 400000 }]);
   });
@@ -567,16 +597,44 @@ describe('OrderPrismaRepository', () => {
 
   it('depotCustomerAggregates: maps aggregates + latest contact, null sum/contact defaults', async () => {
     order.groupBy.mockResolvedValue([
-      { customerId: 'c1', _count: { _all: 3 }, _sum: { total: dec(90000) }, _min: { createdAt: new Date('2026-01-01') }, _max: { createdAt: new Date('2026-06-01') } },
-      { customerId: 'c2', _count: { _all: 1 }, _sum: { total: null }, _min: { createdAt: new Date('2026-02-01') }, _max: { createdAt: new Date('2026-02-01') } },
+      {
+        customerId: 'c1',
+        _count: { _all: 3 },
+        _sum: { total: dec(90000) },
+        _min: { createdAt: new Date('2026-01-01') },
+        _max: { createdAt: new Date('2026-06-01') },
+      },
+      {
+        customerId: 'c2',
+        _count: { _all: 1 },
+        _sum: { total: null },
+        _min: { createdAt: new Date('2026-02-01') },
+        _max: { createdAt: new Date('2026-02-01') },
+      },
     ]);
     // c1 has a latest-order contact snapshot; c2 has none → name/phone default to null.
     order.findMany.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
 
     const out = await repo.depotCustomerAggregates('depot-1');
     expect(out).toEqual([
-      { customerId: 'c1', name: 'Andi', phone: '0812', orderCount: 3, totalSpent: 90000, firstOrderAt: new Date('2026-01-01'), lastOrderAt: new Date('2026-06-01') },
-      { customerId: 'c2', name: null, phone: null, orderCount: 1, totalSpent: 0, firstOrderAt: new Date('2026-02-01'), lastOrderAt: new Date('2026-02-01') },
+      {
+        customerId: 'c1',
+        name: 'Andi',
+        phone: '0812',
+        orderCount: 3,
+        totalSpent: 90000,
+        firstOrderAt: new Date('2026-01-01'),
+        lastOrderAt: new Date('2026-06-01'),
+      },
+      {
+        customerId: 'c2',
+        name: null,
+        phone: null,
+        orderCount: 1,
+        totalSpent: 0,
+        firstOrderAt: new Date('2026-02-01'),
+        lastOrderAt: new Date('2026-02-01'),
+      },
     ]);
     expect(order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ distinct: ['customerId'], orderBy: { createdAt: 'desc' } }),
@@ -586,7 +644,10 @@ describe('OrderPrismaRepository', () => {
   it('records a refund amount on an order', async () => {
     order.update.mockResolvedValue({});
     await repo.recordRefund('ord-1', 20000);
-    expect(order.update).toHaveBeenCalledWith({ where: { id: 'ord-1' }, data: { refundedAmount: 20000 } });
+    expect(order.update).toHaveBeenCalledWith({
+      where: { id: 'ord-1' },
+      data: { refundedAmount: 20000 },
+    });
   });
 
   it('computes average rating per depot from raw rows', async () => {
@@ -626,7 +687,12 @@ describe('OrderPrismaRepository', () => {
 
   it('ranks revenue by product from order items', async () => {
     orderItem.groupBy.mockResolvedValue([
-      { productId: 'p-1', productName: 'Galon 19L', _sum: { lineTotal: dec(300000) }, _count: { _all: 6 } },
+      {
+        productId: 'p-1',
+        productName: 'Galon 19L',
+        _sum: { lineTotal: dec(300000) },
+        _count: { _all: 6 },
+      },
       { productId: 'p-2', productName: 'Botol', _sum: { lineTotal: null }, _count: { _all: 0 } },
     ]);
     const out = await repo.revenueByProduct({}, 10);
@@ -667,9 +733,15 @@ describe('OrderPrismaRepository', () => {
 
   it('lists every order for a depot within a range', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
-    await repo.ordersForDepot('depot-1', { from: new Date('2026-01-01'), to: new Date('2026-02-01') });
+    await repo.ordersForDepot('depot-1', {
+      from: new Date('2026-01-01'),
+      to: new Date('2026-02-01'),
+    });
     expect(order.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') } },
+      where: {
+        depotId: 'depot-1',
+        createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') },
+      },
       include: expect.any(Object),
       orderBy: { createdAt: 'asc' },
     });

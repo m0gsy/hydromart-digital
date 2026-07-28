@@ -15,7 +15,12 @@ describe('OrderValueBatchDto', () => {
     { orderIds: [] },
     { orderIds: ['not-a-uuid'] },
     { orderIds: [id, id] },
-    { orderIds: Array.from({ length: 501 }, (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`) },
+    {
+      orderIds: Array.from(
+        { length: 501 },
+        (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      ),
+    },
   ])('rejects invalid, duplicate, empty, or oversized input', async (body) => {
     expect(await validate(plainToInstance(OrderValueBatchDto, body))).not.toEqual([]);
   });

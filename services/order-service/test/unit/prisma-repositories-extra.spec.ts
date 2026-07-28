@@ -15,7 +15,9 @@ describe('OrderPrismaRepository.sumDepotSales', () => {
 
   it('rounds the aggregate sum over DELIVERED/COMPLETED orders in range', async () => {
     order.aggregate.mockResolvedValue({ _sum: { total: dec(150000.6) } });
-    expect(await repo.sumDepotSales('d1', new Date('2026-01-01'), new Date('2026-02-01'))).toBe(150001);
+    expect(await repo.sumDepotSales('d1', new Date('2026-01-01'), new Date('2026-02-01'))).toBe(
+      150001,
+    );
     expect(order.aggregate).toHaveBeenCalledWith({
       _sum: { total: true },
       where: {
@@ -73,7 +75,11 @@ describe('OrderPrismaRepository report range filters (bounded-window branches)',
   const order = { groupBy: jest.fn().mockResolvedValue([]) };
   const orderItem = { groupBy: jest.fn().mockResolvedValue([]) };
   const $queryRaw = jest.fn().mockResolvedValue([]);
-  const repo = new OrderPrismaRepository({ order, orderItem, $queryRaw } as unknown as PrismaService);
+  const repo = new OrderPrismaRepository({
+    order,
+    orderItem,
+    $queryRaw,
+  } as unknown as PrismaService);
   const from = new Date('2026-01-01');
   const to = new Date('2026-02-01');
 

@@ -93,7 +93,8 @@ export class CheckoutDto {
 
   @ApiPropertyOptional({
     example: '2026-07-20 09:00-12:00',
-    description: 'Optional customer-preferred delivery time-window (free-form label, not slot-checked).',
+    description:
+      'Optional customer-preferred delivery time-window (free-form label, not slot-checked).',
   })
   @IsOptional()
   @IsString()
@@ -129,7 +130,10 @@ export class ListOrdersQueryDto {
   @IsEnum(OrderStatus)
   status?: OrderStatus;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict the staff queue to one depot (6a).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Restrict the staff queue to one depot (6a).',
+  })
   @IsOptional()
   @IsUUID()
   depotId?: string;
@@ -156,7 +160,11 @@ export class InternalRefundDto {
 
 /** Internal: batch-read the mean rating over a courier's delivered orders (design 4c). */
 export class RatingBatchDto {
-  @ApiProperty({ type: [String], format: 'uuid', description: 'Order ids to average reviews over.' })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: 'Order ids to average reviews over.',
+  })
   @IsArray()
   @ArrayMaxSize(500)
   @IsUUID('all', { each: true })
@@ -252,7 +260,9 @@ export class UpdateOrderStatusDto {
   @MaxLength(120)
   driverName?: string;
 
-  @ApiPropertyOptional({ description: "Courier phone (set on DRIVER_ASSIGNED); lets the customer call the driver." })
+  @ApiPropertyOptional({
+    description: 'Courier phone (set on DRIVER_ASSIGNED); lets the customer call the driver.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(30)

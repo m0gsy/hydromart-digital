@@ -1,4 +1,8 @@
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { UploadController } from '../../src/modules/upload.controller';
 import { StoragePort } from '../../src/application/ports/storage.port';
@@ -25,15 +29,15 @@ describe('UploadController', () => {
   });
 
   it('rejects a non-image mime with 400', async () => {
-    await expect(controller.upload(fakeFile({ mimetype: 'application/pdf' }))).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      controller.upload(fakeFile({ mimetype: 'application/pdf' })),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a file over 5MB with 413', async () => {
-    await expect(
-      controller.upload(fakeFile({ size: 5 * 1024 * 1024 + 1 })),
-    ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    await expect(controller.upload(fakeFile({ size: 5 * 1024 * 1024 + 1 }))).rejects.toBeInstanceOf(
+      PayloadTooLargeException,
+    );
   });
 
   it('accepts a png and returns the storage url', async () => {
@@ -44,5 +48,14 @@ describe('UploadController', () => {
       contentType: 'image/png',
       ext: 'png',
     });
+  });
+
+  it('answers 503, not a bare 500, when object storage is unreachable', async () => {
+    (storage.put as jest.Mock).mockRejectedValueOnce(
+      new Error('getaddrinfo ENOTFOUND dummy.local'),
+    );
+    await expect(controller.upload(fakeFile({ mimetype: 'image/png' }))).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });

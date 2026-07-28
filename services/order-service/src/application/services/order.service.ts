@@ -206,18 +206,35 @@ export class OrderService {
       // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
       // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
       // rather than silently dropping it.
-      let voucherDiscount = 0;
+      // A voucher discounts EITHER the goods (PERCENTAGE/FIXED) or the delivery fee
+      // (FREE_SHIPPING) — never both. Keeping them apart is what lets each be capped
+      // against the bill component it actually belongs to.
+      let voucherValueDiscount = 0;
+      let voucherShippingDiscount = 0;
       if (voucherCode) {
         // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
-        const quote = await this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization);
-        voucherDiscount = quote.discount;
+        const quote = await this.promo.quote(
+          voucherCode,
+          customerId,
+          subtotal,
+          deliveryFee,
+          authorization,
+        );
+        if (quote.discountType === 'FREE_SHIPPING') {
+          voucherShippingDiscount = quote.discount;
+        } else {
+          voucherValueDiscount = quote.discount;
+        }
       }
 
-      // Membership and voucher discounts stack (BR-015 forbids stacking multiple
-      // vouchers, not a voucher with a tier benefit). The combined discount can never
-      // exceed the whole bill — a FREE_SHIPPING voucher discounts against the delivery
-      // fee, so the ceiling is subtotal + deliveryFee, not subtotal alone.
-      discount = money(Math.min(subtotal + deliveryFee, membershipDiscount + voucherDiscount));
+      // M5-18: a discount on the goods may never eat into the delivery fee, so the
+      // membership + value-voucher stack is capped at `subtotal` alone (BR-015 forbids
+      // stacking multiple vouchers, not a voucher with a tier benefit). A FREE_SHIPPING
+      // voucher is capped separately against the delivery fee it exists to waive, so a
+      // small order with a large fee still gets its shipping fully covered.
+      const valueDiscount = Math.min(subtotal, membershipDiscount + voucherValueDiscount);
+      const shippingDiscount = Math.min(deliveryFee, voucherShippingDiscount);
+      discount = money(valueDiscount + shippingDiscount);
     }
     const total = money(subtotal + deliveryFee - discount);
 
@@ -252,7 +269,14 @@ export class OrderService {
     // Record the redemption now that the order exists. Idempotent per order and
     // fail-open — a failure here never unwinds a placed order.
     if (voucherCode) {
-      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, deliveryFee, authorization);
+      await this.promo.redeem(
+        voucherCode,
+        customerId,
+        order.id,
+        subtotal,
+        deliveryFee,
+        authorization,
+      );
     }
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
@@ -364,7 +388,13 @@ export class OrderService {
     let reminded = 0;
     for (const target of targets) {
       const ok = await this.notification
-        .notify('REORDER_REMINDER', target.phone, { name: target.recipientName }, target.customerId, '')
+        .notify(
+          'REORDER_REMINDER',
+          target.phone,
+          { name: target.recipientName },
+          target.customerId,
+          '',
+        )
         .then(() => true)
         .catch(() => false);
       if (ok) reminded += 1;
@@ -582,8 +612,8 @@ export class OrderService {
       to,
       changedBy,
       note ?? null,
-      to === OrderStatus.DRIVER_ASSIGNED ? driverName ?? null : undefined,
-      to === OrderStatus.DRIVER_ASSIGNED ? driverPhone ?? null : undefined,
+      to === OrderStatus.DRIVER_ASSIGNED ? (driverName ?? null) : undefined,
+      to === OrderStatus.DRIVER_ASSIGNED ? (driverPhone ?? null) : undefined,
       to === OrderStatus.ON_DELIVERY && estimatedArrivalAt
         ? new Date(estimatedArrivalAt)
         : undefined,
@@ -610,7 +640,11 @@ export class OrderService {
           .notify(
             'POINTS_EARNED',
             updated.phone,
-            { name: updated.recipientName, points: String(pointsEarned), orderNumber: updated.orderNumber },
+            {
+              name: updated.recipientName,
+              points: String(pointsEarned),
+              orderNumber: updated.orderNumber,
+            },
             updated.customerId,
             authorization,
           )

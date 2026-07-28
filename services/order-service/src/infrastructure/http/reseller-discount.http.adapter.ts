@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { ResellerDiscount, ResellerDiscountPort } from '../../application/ports/reseller-discount.port';
+import {
+  ResellerDiscount,
+  ResellerDiscountPort,
+} from '../../application/ports/reseller-discount.port';
 
 /**
  * Reads the checking-out customer's reseller pricing from customer-service

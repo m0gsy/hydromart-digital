@@ -180,7 +180,9 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     return this.rows
-      .filter((r) => r.depotId === depotId && (r.status === 'DELIVERED' || r.status === 'COMPLETED'))
+      .filter(
+        (r) => r.depotId === depotId && (r.status === 'DELIVERED' || r.status === 'COMPLETED'),
+      )
       .filter((r) => r.createdAt >= from && r.createdAt <= to)
       .reduce((t, r) => t + Math.round(r.total), 0);
   }
@@ -209,7 +211,12 @@ export class InMemoryOrderRepository implements OrderRepository {
     const sorted = this.rows
       .filter((r) => r.status === OrderStatus.COMPLETED)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
-    const start = cursor ? Math.max(0, sorted.findIndex((r) => r.id === cursor)) : 0;
+    const start = cursor
+      ? Math.max(
+          0,
+          sorted.findIndex((r) => r.id === cursor),
+        )
+      : 0;
     const slice = sorted.slice(start, start + limit + 1);
     const hasMore = slice.length > limit;
     const page = hasMore ? slice.slice(0, limit) : slice;
@@ -245,10 +252,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => !range.to || r.createdAt < range.to);
   }
 
-  async salesSeries(
-    granularity: 'daily' | 'monthly',
-    range: ReportRange,
-  ): Promise<SalesBucket[]> {
+  async salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]> {
     const buckets = new Map<string, { orderCount: number; revenue: number }>();
     for (const r of this.reportRows(range)) {
       const iso = r.createdAt.toISOString();
@@ -474,7 +478,11 @@ export class InMemoryOrderRepository implements OrderRepository {
     for (const r of this.rows) {
       if (r.status === OrderStatus.CANCELLED) continue;
       if (conditions.depotId && r.depotId !== conditions.depotId) continue;
-      const cur = byCustomer.get(r.customerId) ?? { count: 0, first: r.createdAt, last: r.createdAt };
+      const cur = byCustomer.get(r.customerId) ?? {
+        count: 0,
+        first: r.createdAt,
+        last: r.createdAt,
+      };
       cur.count += 1;
       if (r.createdAt > cur.last) cur.last = r.createdAt;
       if (r.createdAt < cur.first) cur.first = r.createdAt;
@@ -497,7 +505,13 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
 
   async create(data: CreateSubscriptionData): Promise<SubscriptionRecord> {
     const now = nextDate();
-    const rec: SubscriptionRecord = { ...data, id: randomUUID(), status: 'ACTIVE', createdAt: now, updatedAt: now };
+    const rec: SubscriptionRecord = {
+      ...data,
+      id: randomUUID(),
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    };
     this.rows.push(rec);
     return structuredClone(rec);
   }
@@ -561,7 +575,9 @@ export class InMemorySettingsRepository implements SettingsRepository {
     else this.rows.push(row);
   }
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    const i = this.rows.findIndex(
+      (r) => r.scope === scope && r.depotId === depotId && r.key === key,
+    );
     if (i >= 0) this.rows.splice(i, 1);
   }
 }
@@ -576,7 +592,7 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
   }
   async findOwnerId(depotId: string): Promise<string | null> {
-    return this.unreachable ? null : this.owners.get(depotId) ?? null;
+    return this.unreachable ? null : (this.owners.get(depotId) ?? null);
   }
 }
 
@@ -607,7 +623,12 @@ export class FakeDepotPricing implements DepotPricingPort {
     this.forDepot(depotId).set(productId, { ...row, sellPrice });
   }
 
-  setRule(depotId: string, productId: string, adjustType: 'PERCENT' | 'FIXED', value: number): void {
+  setRule(
+    depotId: string,
+    productId: string,
+    adjustType: 'PERCENT' | 'FIXED',
+    value: number,
+  ): void {
     const row = this.forDepot(depotId).get(productId) ?? {};
     this.forDepot(depotId).set(productId, { ...row, adjustType, value });
   }
@@ -695,7 +716,13 @@ export class FakeForecastCoordination implements ForecastCoordinationPort {
     customerId: string;
     depotId: string | null;
     total: number;
-    items: { productId: string; productName: string; sku: string; unit: string; quantity: number }[];
+    items: {
+      productId: string;
+      productName: string;
+      sku: string;
+      unit: string;
+      quantity: number;
+    }[];
   }[] = [];
   async ingestCompletedOrder(order: OrderRecord): Promise<void> {
     this.calls.push({
@@ -716,8 +743,10 @@ export class FakeForecastCoordination implements ForecastCoordinationPort {
 
 export class FakeInventory implements InventoryPort {
   calls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
-  reserveCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
-  releaseCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] = [];
+  reserveCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] =
+    [];
+  releaseCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] =
+    [];
   /** When set, reserve() throws it (simulates a stock shortfall reject). */
   reserveError: Error | null = null;
   async consume(
@@ -784,6 +813,8 @@ export class FakeNotification implements NotificationPort {
 
 export class FakePromo implements PromoPort {
   quoteDiscount = 0;
+  /** Mirrors promo-service's DiscountType; FREE_SHIPPING is capped against the fee. */
+  quoteDiscountType: string | undefined = undefined;
   rejectQuote = false;
   quoteCalls: { code: string; subtotal: number; shippingFee: number }[] = [];
   redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
@@ -794,10 +825,10 @@ export class FakePromo implements PromoPort {
     subtotal: number,
     shippingFee: number,
     _authorization: string,
-  ): Promise<{ discount: number }> {
+  ): Promise<{ discount: number; discountType?: string }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
     this.quoteCalls.push({ code, subtotal, shippingFee });
-    return { discount: this.quoteDiscount };
+    return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
   }
   async redeem(
     code: string,

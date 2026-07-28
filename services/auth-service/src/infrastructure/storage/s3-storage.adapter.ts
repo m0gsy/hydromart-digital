@@ -4,7 +4,11 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 
 import { AuthConfigService } from '../../config/auth-config.service';
-import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
+import {
+  StoragePort,
+  StoragePutInput,
+  StoragePutResult,
+} from '../../application/ports/storage.port';
 
 /**
  * Production storage: S3-compatible object storage via @aws-sdk/client-s3. Same
@@ -17,6 +21,13 @@ import { StoragePort, StoragePutInput, StoragePutResult } from '../../applicatio
  */
 @Injectable()
 export class S3StorageAdapter implements StoragePort {
+  /**
+   * M1-10: a wrong or unreachable endpoint used to hang the request for the SDK's
+   * default retry window before failing. Bound it so the caller gets its 503 quickly
+   * instead of the browser timing out with nothing to show.
+   */
+  private static readonly TIMEOUT_MS = 10_000;
+
   private readonly client: S3Client;
 
   constructor(private readonly config: AuthConfigService) {
@@ -38,6 +49,7 @@ export class S3StorageAdapter implements StoragePort {
         Body: body,
         ContentType: contentType,
       }),
+      { abortSignal: AbortSignal.timeout(S3StorageAdapter.TIMEOUT_MS) },
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
   }

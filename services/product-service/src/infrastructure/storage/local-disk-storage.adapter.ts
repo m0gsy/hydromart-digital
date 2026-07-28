@@ -5,7 +5,11 @@ import { dirname, join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 
 import { ProductConfigService } from '../../config/product-config.service';
-import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
+import {
+  StoragePort,
+  StoragePutInput,
+  StoragePutResult,
+} from '../../application/ports/storage.port';
 
 /**
  * Development storage: writes product images to the local filesystem and returns a

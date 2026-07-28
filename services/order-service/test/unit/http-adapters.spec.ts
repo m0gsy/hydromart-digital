@@ -39,7 +39,12 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): OrderConfigSer
   } as unknown as OrderConfigService;
 }
 
-function res(init: { ok?: boolean; status?: number; body?: unknown; throwJson?: boolean }): Response {
+function res(init: {
+  ok?: boolean;
+  status?: number;
+  body?: unknown;
+  throwJson?: boolean;
+}): Response {
   const status = init.status ?? (init.ok === false ? 500 : 200);
   return {
     ok: init.ok ?? status < 400,
@@ -120,7 +125,12 @@ describe('InventoryHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new InventoryHttpAdapter(makeConfig()).release('d1', 'o1', items, '');
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).release('d1', 'o1', items, '');
+    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).release(
+      'd1',
+      'o1',
+      items,
+      '',
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
@@ -131,7 +141,14 @@ describe('DepotDirectoryHttpAdapter', () => {
       res({
         body: {
           items: [
-            { id: 'd1', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 3000, minOrderAmount: 10000 },
+            {
+              id: 'd1',
+              lat: 1,
+              lng: 2,
+              serviceRadiusKm: 5,
+              deliveryFee: 3000,
+              minOrderAmount: 10000,
+            },
             { id: 'd2', lat: 3, lng: 4, serviceRadiusKm: 8, deliveryFee: 4000 },
           ],
         },
@@ -164,41 +181,61 @@ describe('DepotDirectoryHttpAdapter', () => {
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1')).toBeNull();
 
     fetchMock.mockClear();
-    expect(await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwnerId('d1')).toBeNull();
+    expect(
+      await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwnerId('d1'),
+    ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
 describe('FranchiseRevenueHttpAdapter', () => {
   const event = {
-    orderId: 'o1', orderNumber: 'HM-1', franchiseOwnerId: 'owner-9',
-    depotId: 'd1', amountIdr: 240000, completedAt: '2026-07-28T00:00:00.000Z',
+    orderId: 'o1',
+    orderNumber: 'HM-1',
+    franchiseOwnerId: 'owner-9',
+    depotId: 'd1',
+    amountIdr: 240000,
+    completedAt: '2026-07-28T00:00:00.000Z',
   };
 
   it('posts the completed order with the internal key', async () => {
     fetchMock.mockResolvedValue(res({ body: { recorded: true } }));
-    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event);
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+    ).orderCompleted(event);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://payout:3016/api/v1/payout/revenue/internal');
     expect(init.headers['x-internal-key']).toBe(KEY);
-    expect(JSON.parse(init.body)).toMatchObject({ orderId: 'o1', amountIdr: 240000, franchiseOwnerId: 'owner-9' });
+    expect(JSON.parse(init.body)).toMatchObject({
+      orderId: 'o1',
+      amountIdr: 240000,
+      franchiseOwnerId: 'owner-9',
+    });
   });
 
   it('skips the push when payout integration is not configured', async () => {
-    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: '' })).orderCompleted(event);
-    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016', internalServiceKey: '' })).orderCompleted(event);
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: '' })).orderCompleted(
+      event,
+    );
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016', internalServiceKey: '' }),
+    ).orderCompleted(event);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('swallows a payout failure — completion must never depend on it', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
     await expect(
-      new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event),
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderCompleted(event),
     ).resolves.toBeUndefined();
 
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     await expect(
-      new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event),
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderCompleted(event),
     ).resolves.toBeUndefined();
   });
 });
@@ -233,7 +270,9 @@ describe('DepotPricingHttpAdapter', () => {
 
 describe('ForecastCoordinationHttpAdapter', () => {
   it('skips without key', async () => {
-    await new ForecastCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).ingestCompletedOrder(order());
+    await new ForecastCoordinationHttpAdapter(
+      makeConfig({ internalServiceKey: '' }),
+    ).ingestCompletedOrder(order());
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('posts on happy path + fails open on non-2xx', async () => {
@@ -248,7 +287,9 @@ describe('ForecastCoordinationHttpAdapter', () => {
 
 describe('RecommendationCoordinationHttpAdapter', () => {
   it('skips without key + posts on happy path', async () => {
-    await new RecommendationCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).recordCompleted(order());
+    await new RecommendationCoordinationHttpAdapter(
+      makeConfig({ internalServiceKey: '' }),
+    ).recordCompleted(order());
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new RecommendationCoordinationHttpAdapter(makeConfig()).recordCompleted(order());
@@ -258,7 +299,13 @@ describe('RecommendationCoordinationHttpAdapter', () => {
 
 describe('LoyaltyCoordinationHttpAdapter', () => {
   it('skips without key + awards on happy path', async () => {
-    await new LoyaltyCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).awardPoints('c1', 'o1', 50000, 'd1', '');
+    await new LoyaltyCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).awardPoints(
+      'c1',
+      'o1',
+      50000,
+      'd1',
+      '',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', '');
@@ -299,7 +346,13 @@ describe('MembershipHttpAdapter', () => {
 
 describe('NotificationHttpAdapter', () => {
   it('skips without key + notifies on happy path', async () => {
-    await new NotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify('e', 'p', {}, 'c', '');
+    await new NotificationHttpAdapter(makeConfig({ internalServiceKey: '' })).notify(
+      'e',
+      'p',
+      {},
+      'c',
+      '',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new NotificationHttpAdapter(makeConfig()).notify('e', 'p', {}, 'c', '');
@@ -314,7 +367,16 @@ describe('ProductCatalogHttpAdapter', () => {
   });
   it('maps product on happy path', async () => {
     fetchMock.mockResolvedValue(
-      res({ body: { id: 'p1', name: 'Galon', sku: 'G19', unit: 'Galon', basePrice: 20000, active: true } }),
+      res({
+        body: {
+          id: 'p1',
+          name: 'Galon',
+          sku: 'G19',
+          unit: 'Galon',
+          basePrice: 20000,
+          active: true,
+        },
+      }),
     );
     const p = await new ProductCatalogHttpAdapter(makeConfig()).getProduct('p1');
     expect(p).toMatchObject({ id: 'p1', basePrice: 20000 });
@@ -328,8 +390,25 @@ describe('ProductCatalogHttpAdapter', () => {
 describe('PromoHttpAdapter', () => {
   it('quote: returns discount on happy path', async () => {
     fetchMock.mockResolvedValue(res({ body: { discount: 5000 } }));
-    const out = await new PromoHttpAdapter(makeConfig()).quote('HEMAT', 'c1', 50000, 3000, 'Bearer x');
-    expect(out).toEqual({ discount: 5000 });
+    const out = await new PromoHttpAdapter(makeConfig()).quote(
+      'HEMAT',
+      'c1',
+      50000,
+      3000,
+      'Bearer x',
+    );
+    expect(out).toEqual({ discount: 5000, discountType: undefined });
+  });
+  it('quote: forwards discountType so checkout can pick the right ceiling (M5-18)', async () => {
+    fetchMock.mockResolvedValue(res({ body: { discount: 3000, discountType: 'FREE_SHIPPING' } }));
+    const out = await new PromoHttpAdapter(makeConfig()).quote(
+      'ONGKIR',
+      'c1',
+      50000,
+      3000,
+      'Bearer x',
+    );
+    expect(out).toEqual({ discount: 3000, discountType: 'FREE_SHIPPING' });
   });
   it('quote: rejects on non-2xx with server message', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 400, body: { message: 'Kadaluarsa' } }));
@@ -344,7 +423,14 @@ describe('PromoHttpAdapter', () => {
     ).rejects.toBeInstanceOf(VoucherRejectedError);
   });
   it('redeem: skips without key + posts on happy path', async () => {
-    await new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem('X', 'c', 'o', 1, 0, '');
+    await new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem(
+      'X',
+      'c',
+      'o',
+      1,
+      0,
+      '',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, '');
@@ -354,7 +440,11 @@ describe('PromoHttpAdapter', () => {
 
 describe('ReferralCoordinationHttpAdapter', () => {
   it('skips without key + qualifies on happy path', async () => {
-    await new ReferralCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).qualify('c1', 'o1', '');
+    await new ReferralCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' })).qualify(
+      'c1',
+      'o1',
+      '',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', '');
