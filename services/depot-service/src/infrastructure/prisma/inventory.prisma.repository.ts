@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
-import { available, InventoryItemType, ReservationStatus, StockMovementType } from '../../domain/inventory';
+import {
+  available,
+  InventoryItemType,
+  ReservationStatus,
+  StockMovementType,
+} from '../../domain/inventory';
 import {
   CreateInventoryItemData,
   DepotMovementFilter,
@@ -64,7 +69,8 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return {
       ...row,
       itemType: row.itemType as InventoryItemType,
-      sellPrice: row.sellPrice === null || row.sellPrice === undefined ? null : Number(row.sellPrice),
+      sellPrice:
+        row.sellPrice === null || row.sellPrice === undefined ? null : Number(row.sellPrice),
     };
   }
 
@@ -109,10 +115,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return rows.map((r) => ({ productId: r.productId as string, sellPrice: Number(r.sellPrice) }));
   }
 
-  async listForDepot(
-    depotId: string,
-    filter: InventoryListFilter,
-  ): Promise<InventoryItemRecord[]> {
+  async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     const rows = await this.prisma.inventoryItem.findMany({
       where: { depotId, ...(filter.itemType ? { itemType: filter.itemType } : {}) },
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
@@ -121,7 +124,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
     // lowStockOnly is a computed predicate on SELLABLE stock (min > 0 && available <= min),
     // not a column — reserved units don't count as fulfillable.
     return filter.lowStockOnly
-      ? items.filter((i) => i.minimumStock > 0 && available(i.quantity, i.reserved) <= i.minimumStock)
+      ? items.filter(
+          (i) => i.minimumStock > 0 && available(i.quantity, i.reserved) <= i.minimumStock,
+        )
       : items;
   }
 
@@ -238,7 +243,10 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return rows.map((r) => ({
       itemId: r.itemId,
       label: r.item.label,
-      sellPrice: r.item.sellPrice === null || r.item.sellPrice === undefined ? null : Number(r.item.sellPrice),
+      sellPrice:
+        r.item.sellPrice === null || r.item.sellPrice === undefined
+          ? null
+          : Number(r.item.sellPrice),
       delta: r.delta,
     }));
   }
@@ -260,7 +268,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
   ): Promise<{ shortfalls: { itemId: string; requested: number; available: number }[] }> {
     if (plans.length === 0) return { shortfalls: [] };
     // Deterministic lock order (by itemId) prevents deadlocks between concurrent orders.
-    const ordered = [...plans].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0));
+    const ordered = [...plans].sort((a, b) =>
+      a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0,
+    );
     return this.prisma.$transaction(async (tx) => {
       const shortfalls: { itemId: string; requested: number; available: number }[] = [];
       for (const p of ordered) {
@@ -268,7 +278,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
         // then re-reads the updated `reserved` — so the last unit can't be double-sold.
         const rows = await tx.$queryRaw<{ quantity: number; reserved: number }[]>`
           SELECT "quantity", "reserved" FROM "inventory_items" WHERE "id" = ${p.itemId}::uuid FOR UPDATE`;
-        const sellable = rows.length ? available(Number(rows[0].quantity), Number(rows[0].reserved)) : 0;
+        const sellable = rows.length
+          ? available(Number(rows[0].quantity), Number(rows[0].reserved))
+          : 0;
         if (sellable < p.quantity) {
           shortfalls.push({ itemId: p.itemId, requested: p.quantity, available: sellable });
         }
@@ -279,7 +291,9 @@ export class InventoryPrismaRepository implements InventoryRepository {
           where: { id: p.itemId },
           data: { reserved: { increment: p.quantity } },
         });
-        await tx.stockReservation.create({ data: { itemId: p.itemId, orderId, quantity: p.quantity } });
+        await tx.stockReservation.create({
+          data: { itemId: p.itemId, orderId, quantity: p.quantity },
+        });
       }
       return { shortfalls: [] };
     });

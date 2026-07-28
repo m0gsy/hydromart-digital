@@ -3,7 +3,10 @@ import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsPositive, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class CreateGallonIssueDto {
-  @ApiPropertyOptional({ format: 'uuid', description: 'Customer who took the empties (omit for walk-ins).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Customer who took the empties (omit for walk-ins).',
+  })
   @IsOptional()
   @IsUUID()
   customerId?: string;

@@ -23,7 +23,10 @@ export class ApprovalController {
 
   @Post()
   @ApiOperation({ summary: 'Raise an approval item (auto-passes under the depot threshold)' })
-  create(@Body() dto: CreateApprovalDto, @CurrentUser() user: AuthenticatedUser): Promise<Approval> {
+  create(
+    @Body() dto: CreateApprovalDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Approval> {
     return this.approvals.create(
       {
         depotId: dto.depotId,

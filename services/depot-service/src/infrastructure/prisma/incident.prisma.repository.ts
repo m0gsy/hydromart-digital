@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  Incident,
-  IncidentSeverity,
-  IncidentStatus,
-  IncidentType,
-} from '../../domain/incident';
+import { Incident, IncidentSeverity, IncidentStatus, IncidentType } from '../../domain/incident';
 import {
   CreateIncidentData,
   IncidentRepository,

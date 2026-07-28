@@ -9,7 +9,10 @@ import request from 'supertest';
 import { AllExceptionsFilter, GlobalValidationPipe, Role, SettingRow } from '@hydromart/platform';
 
 import { PayoutModule } from '../../src/modules/payout.module';
-import { SETTINGS_REPOSITORY, SettingsRepository } from '../../src/application/ports/settings.repository';
+import {
+  SETTINGS_REPOSITORY,
+  SettingsRepository,
+} from '../../src/application/ports/settings.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { envValidationSchema } from '../../src/config/env.validation';
 
@@ -29,7 +32,9 @@ class InMemorySettingsRepository implements SettingsRepository {
     else this.rows.push(row);
   }
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    const i = this.rows.findIndex(
+      (r) => r.scope === scope && r.depotId === depotId && r.key === key,
+    );
     if (i >= 0) this.rows.splice(i, 1);
   }
 }
@@ -148,7 +153,12 @@ describe('Settings HTTP flows (e2e)', () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
-      .send({ scope: 'DEPOT', depotId: managerDepotId, key: 'expenseAutoApproveMaxIdr', value: '75000' })
+      .send({
+        scope: 'DEPOT',
+        depotId: managerDepotId,
+        key: 'expenseAutoApproveMaxIdr',
+        value: '75000',
+      })
       .expect(204);
 
     const res = await request(server())
@@ -169,7 +179,12 @@ describe('Settings HTTP flows (e2e)', () => {
     await request(server())
       .put('/api/v1/settings')
       .set(auth(managerToken))
-      .send({ scope: 'DEPOT', depotId: foreignDepotId, key: 'expenseAutoApproveMaxIdr', value: '75000' })
+      .send({
+        scope: 'DEPOT',
+        depotId: foreignDepotId,
+        key: 'expenseAutoApproveMaxIdr',
+        value: '75000',
+      })
       .expect(403);
   });
 

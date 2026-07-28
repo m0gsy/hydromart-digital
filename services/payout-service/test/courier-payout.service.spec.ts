@@ -57,11 +57,7 @@ class FakeCourierLedger implements CourierLedgerRepository {
   async balanceFor(courierId: string): Promise<number> {
     return this.entries.filter((e) => e.courierId === courierId).reduce((s, e) => s + e.amount, 0);
   }
-  async sumByType(
-    courierId: string,
-    type: CourierLedgerEntryType,
-    since: Date,
-  ): Promise<number> {
+  async sumByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number> {
     return this.entries
       .filter((e) => e.courierId === courierId && e.type === type && e.occurredAt >= since)
       .reduce((s, e) => s + e.amount, 0);
@@ -72,11 +68,7 @@ class FakeCourierLedger implements CourierLedgerRepository {
       .sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
   }
-  async countByType(
-    courierId: string,
-    type: CourierLedgerEntryType,
-    since: Date,
-  ): Promise<number> {
+  async countByType(courierId: string, type: CourierLedgerEntryType, since: Date): Promise<number> {
     return this.entries.filter(
       (e) => e.courierId === courierId && e.type === type && e.occurredAt >= since,
     ).length;
@@ -103,7 +95,12 @@ class FakeCourierWithdrawals implements CourierWithdrawalRepository {
   created: CreateCourierWithdrawalData[] = [];
   async create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord> {
     this.created.push(data);
-    return { ...data, id: `w-${this.created.length}`, createdAt: new Date(), updatedAt: new Date() };
+    return {
+      ...data,
+      id: `w-${this.created.length}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
   }
   async listForCourier(courierId: string): Promise<CourierWithdrawalRecord[]> {
     return this.created

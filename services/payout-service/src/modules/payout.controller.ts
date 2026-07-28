@@ -1,7 +1,22 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Roles,
+} from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import {
@@ -54,7 +69,9 @@ export class PayoutController {
   @ApiSecurity('internal-key')
   @Post('revenue/internal')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Record a completed order as franchise revenue (internal service auth)' })
+  @ApiOperation({
+    summary: 'Record a completed order as franchise revenue (internal service auth)',
+  })
   recordRevenue(@Body() dto: OrderRevenueDto): Promise<OrderRevenueResult> {
     return this.payout.recordOrderRevenue({
       orderId: dto.orderId,

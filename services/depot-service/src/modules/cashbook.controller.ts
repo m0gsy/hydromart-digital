@@ -17,7 +17,9 @@ export class CashbookController {
   constructor(private readonly cashbook: CashbookService) {}
 
   @Get()
-  @ApiOperation({ summary: "List a depot's cashbook entries (newest first) with in/out/net summary" })
+  @ApiOperation({
+    summary: "List a depot's cashbook entries (newest first) with in/out/net summary",
+  })
   list(@Query() query: ListCashbookQueryDto): Promise<CashbookView> {
     return this.cashbook.list(query.depotId, {
       from: query.from ? new Date(query.from) : undefined,

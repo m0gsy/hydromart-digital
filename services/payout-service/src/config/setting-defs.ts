@@ -16,7 +16,15 @@ export interface SettingDef {
 // documented defaults so the UI can show "ikut default (N)" before any override.
 // envDefault must mirror this service's env.validation.ts defaults
 export const SETTING_DEFS: SettingDef[] = [
-  { key: 'expenseAutoApproveMaxIdr', label: 'Batas auto-approve klaim biaya', type: 'money', unit: 'Rp', min: 0, max: 10000000, envDefault: 50000 },
+  {
+    key: 'expenseAutoApproveMaxIdr',
+    label: 'Batas auto-approve klaim biaya',
+    type: 'money',
+    unit: 'Rp',
+    min: 0,
+    max: 10000000,
+    envDefault: 50000,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

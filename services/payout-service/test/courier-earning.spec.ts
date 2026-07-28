@@ -42,14 +42,27 @@ describe('courier earning domain', () => {
     expect(tiersReached(RULE.tiers, 24)).toEqual([]);
     expect(tiersReached(RULE.tiers, 25)).toEqual([{ deliveries: 25, bonus: 25_000 }]); // boundary is inclusive
     expect(tiersReached(RULE.tiers, 41)).toHaveLength(2);
-    expect(tiersReached([{ deliveries: 40, bonus: 1 }, { deliveries: 25, bonus: 2 }], 40)[0].deliveries).toBe(25);
+    expect(
+      tiersReached(
+        [
+          { deliveries: 40, bonus: 1 },
+          { deliveries: 25, bonus: 2 },
+        ],
+        40,
+      )[0].deliveries,
+    ).toBe(25);
   });
 
   it('rejects a ladder with duplicate or non-positive delivery counts', () => {
     expect(tiersValid(RULE.tiers)).toBe(true);
     expect(tiersValid([])).toBe(true);
     expect(tiersValid([{ deliveries: 0, bonus: 1000 }])).toBe(false);
-    expect(tiersValid([{ deliveries: 25, bonus: 1 }, { deliveries: 25, bonus: 2 }])).toBe(false);
+    expect(
+      tiersValid([
+        { deliveries: 25, bonus: 1 },
+        { deliveries: 25, bonus: 2 },
+      ]),
+    ).toBe(false);
     expect(tiersValid([{ deliveries: 25, bonus: -1 }])).toBe(false);
   });
 });

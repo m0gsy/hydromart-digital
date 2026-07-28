@@ -6,6 +6,7 @@ import {
   TaxSettingsRepository,
 } from '../ports/tax-settings.repository';
 import { PAYMENT_TOKENS } from '../tokens';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../domain/tax';
 
 /**
  * Defaults returned before HQ has saved any tax settings. These are editable config
@@ -14,6 +15,7 @@ import { PAYMENT_TOKENS } from '../tokens';
 const DEFAULTS: TaxSettingsRecord = {
   ppnPercent: 11,
   priceIncludesTax: true,
+  taxRounding: DEFAULT_TAX_ROUNDING,
   invoiceFormat: 'HM/{YYYY}/{MM}/{SEQ}',
   companyName: 'PT Hydromart Nusantara',
   npwp: '',
@@ -33,7 +35,11 @@ export class TaxSettingsService {
     return (await this.repo.get()) ?? DEFAULTS;
   }
 
-  async update(input: TaxSettingsInput): Promise<TaxSettingsRecord> {
-    return this.repo.upsert(input);
+  async update(
+    input: Omit<TaxSettingsInput, 'taxRounding'> & { taxRounding?: TaxRounding },
+  ): Promise<TaxSettingsRecord> {
+    // Omitting the rounding method keeps the legal default rather than clearing it —
+    // an older client that doesn't know the field must not silently change the maths.
+    return this.repo.upsert({ ...input, taxRounding: input.taxRounding ?? DEFAULT_TAX_ROUNDING });
   }
 }

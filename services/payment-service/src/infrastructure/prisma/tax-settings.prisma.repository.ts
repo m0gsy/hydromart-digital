@@ -5,6 +5,7 @@ import {
   TaxSettingsRecord,
   TaxSettingsRepository,
 } from '../../application/ports/tax-settings.repository';
+import { DEFAULT_TAX_ROUNDING, isTaxRounding } from '../../domain/tax';
 import { PrismaService } from './prisma.service';
 
 type Decimalish = { toNumber(): number };
@@ -13,6 +14,7 @@ interface TaxSettingsRow {
   id: string;
   ppnPercent: Decimalish;
   priceIncludesTax: boolean;
+  taxRounding: string;
   invoiceFormat: string;
   companyName: string;
   npwp: string;
@@ -28,6 +30,9 @@ export class TaxSettingsPrismaRepository implements TaxSettingsRepository {
     return {
       ppnPercent: row.ppnPercent.toNumber(),
       priceIncludesTax: row.priceIncludesTax,
+      // A row written before this column existed, or hand-edited, falls back to the
+      // legal default rather than propagating an unknown method into money maths.
+      taxRounding: isTaxRounding(row.taxRounding) ? row.taxRounding : DEFAULT_TAX_ROUNDING,
       invoiceFormat: row.invoiceFormat,
       companyName: row.companyName,
       npwp: row.npwp,

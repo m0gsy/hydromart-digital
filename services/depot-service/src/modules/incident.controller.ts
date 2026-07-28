@@ -18,7 +18,10 @@ export class IncidentController {
 
   @Post()
   @ApiOperation({ summary: 'Record a depot incident' })
-  record(@Body() dto: CreateIncidentDto, @CurrentUser() user: AuthenticatedUser): Promise<Incident> {
+  record(
+    @Body() dto: CreateIncidentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Incident> {
     return this.incidents.record(
       {
         depotId: dto.depotId,

@@ -1,6 +1,10 @@
+import { TaxRounding } from '../../domain/tax';
+
 export interface TaxSettingsRecord {
   ppnPercent: number;
   priceIncludesTax: boolean;
+  /** How a fractional rupiah is resolved (M29-10). */
+  taxRounding: TaxRounding;
   invoiceFormat: string;
   companyName: string;
   npwp: string;

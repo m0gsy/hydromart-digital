@@ -62,10 +62,7 @@ import { DriverGallonReturnController } from './driver-gallon-return.controller'
 import { GallonIssueController } from './gallon-issue.controller';
 import { GallonNetworkController } from './gallon-network.controller';
 import { FranchiseApplicationController } from './franchise-application.controller';
-import {
-  DepotPriceOverrideController,
-  PriceOverrideController,
-} from './price-override.controller';
+import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
 import { SupplierController } from './supplier.controller';

@@ -25,7 +25,14 @@ export class RosterController {
   @Put()
   @ApiOperation({ summary: 'Set one roster cell (create or overwrite)' })
   setCell(@Body() dto: SetShiftDto): Promise<ShiftAssignment> {
-    return this.roster.setCell(dto.depotId, dto.weekStart, dto.staffId, dto.staffName, dto.day, dto.shift);
+    return this.roster.setCell(
+      dto.depotId,
+      dto.weekStart,
+      dto.staffId,
+      dto.staffName,
+      dto.day,
+      dto.shift,
+    );
   }
 
   @Put('bulk')

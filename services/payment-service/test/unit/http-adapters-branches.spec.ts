@@ -17,7 +17,12 @@ function makeConfig(): PaymentConfigService {
 }
 
 const charge = (): ChargeRequest =>
-  ({ method: 'VA_BCA', amount: 57000, orderId: 'o1', paymentId: 'pay1' }) as unknown as ChargeRequest;
+  ({
+    method: 'VA_BCA',
+    amount: 57000,
+    orderId: 'o1',
+    paymentId: 'pay1',
+  }) as unknown as ChargeRequest;
 
 const fetchMock = jest.fn();
 

@@ -38,7 +38,9 @@ export class CreateApprovalDto {
   @IsInt()
   amountIdr!: number;
 
-  @ApiPropertyOptional({ description: 'Snapshot for the detail view (system/physical/variance, etc).' })
+  @ApiPropertyOptional({
+    description: 'Snapshot for the detail view (system/physical/variance, etc).',
+  })
   @IsOptional()
   @IsObject()
   payload?: ApprovalPayload;

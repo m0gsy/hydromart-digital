@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { Supplier } from '../../domain/supplier';
-import { DepotNotFoundError, DuplicateSupplierCodeError, SupplierNotFoundError } from '../../domain/errors';
+import {
+  DepotNotFoundError,
+  DuplicateSupplierCodeError,
+  SupplierNotFoundError,
+} from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
 import { SupplierRepository } from '../ports/supplier.repository';
 import { DEPOT_TOKENS } from '../tokens';

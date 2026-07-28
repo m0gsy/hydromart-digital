@@ -5,9 +5,12 @@ import { SettingsRepository } from '../../src/application/ports/settings.reposit
 function repoWith(rows: SettingRow[]): SettingsRepository {
   const store = [...rows] as (SettingRow & { updatedBy: string })[];
   return {
-    loadAll: async () => store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
+    loadAll: async () =>
+      store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
     upsert: async (row) => {
-      const i = store.findIndex((r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key);
+      const i = store.findIndex(
+        (r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key,
+      );
       if (i >= 0) store[i] = row;
       else store.push(row);
     },
@@ -20,7 +23,9 @@ function repoWith(rows: SettingRow[]): SettingsRepository {
 
 describe('SettingsService', () => {
   it('schema returns effective values with env-default fallback', async () => {
-    const repo = repoWith([{ scope: 'GLOBAL', depotId: null, key: 'expenseAutoApproveMaxIdr', value: '75000' }]);
+    const repo = repoWith([
+      { scope: 'GLOBAL', depotId: null, key: 'expenseAutoApproveMaxIdr', value: '75000' },
+    ]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     const out = await svc.schema(null);
     expect(out.effective.expenseAutoApproveMaxIdr).toBe(75000); // global override
@@ -73,7 +78,13 @@ describe('SettingsService', () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'DEPOT', depotId: null, key: 'expenseAutoApproveMaxIdr', value: '1000', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'DEPOT',
+        depotId: null,
+        key: 'expenseAutoApproveMaxIdr',
+        value: '1000',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow('depotId required for a DEPOT override');
   });
 
@@ -84,7 +95,9 @@ describe('SettingsService', () => {
   });
 
   it('reset removes an override so it falls back', async () => {
-    const repo = repoWith([{ scope: 'DEPOT', depotId: 'd1', key: 'expenseAutoApproveMaxIdr', value: '90000' }]);
+    const repo = repoWith([
+      { scope: 'DEPOT', depotId: 'd1', key: 'expenseAutoApproveMaxIdr', value: '90000' },
+    ]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await svc.reset('DEPOT', 'd1', 'expenseAutoApproveMaxIdr');
     const out = await svc.schema('d1');

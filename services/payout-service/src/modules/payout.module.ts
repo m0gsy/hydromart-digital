@@ -46,7 +46,10 @@ const providers: Provider[] = [
   { provide: PAYOUT_TOKENS.WithdrawalRepository, useClass: WithdrawalPrismaRepository },
   { provide: PAYOUT_TOKENS.CommissionSchemeRepository, useClass: CommissionSchemePrismaRepository },
   { provide: PAYOUT_TOKENS.CourierLedgerRepository, useClass: CourierLedgerPrismaRepository },
-  { provide: PAYOUT_TOKENS.CourierWithdrawalRepository, useClass: CourierWithdrawalPrismaRepository },
+  {
+    provide: PAYOUT_TOKENS.CourierWithdrawalRepository,
+    useClass: CourierWithdrawalPrismaRepository,
+  },
   { provide: PAYOUT_TOKENS.ExpenseClaimRepository, useClass: ExpenseClaimPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },

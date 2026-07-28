@@ -37,3 +37,31 @@ export interface PriceOverrideProposalRecord {
 export function isTerminalStatus(status: PriceOverrideStatus): boolean {
   return status === PriceOverrideStatus.APPROVED || status === PriceOverrideStatus.REJECTED;
 }
+
+/**
+ * Rupiah the override moves the price by, regardless of direction — the figure the
+ * four-eyes threshold is measured against. PERCENT is signed percent of the snapshot
+ * price; FIXED is a signed rupiah delta.
+ */
+export function overrideImpactIdr(
+  currentPrice: number,
+  adjustType: PricingAdjustType,
+  value: number,
+): number {
+  const raw = adjustType === PricingAdjustType.PERCENT ? (currentPrice * value) / 100 : value;
+  return Math.abs(Math.round(raw));
+}
+
+/**
+ * M18-15: four-eyes rule. Whoever proposed an override may not also decide it once the
+ * money at stake clears the depot's auto-pass threshold — that decision belongs to HQ.
+ * A non-positive threshold means every self-approval needs a second pair of eyes.
+ */
+export function needsSecondApprover(
+  proposedBy: string,
+  decidedBy: string,
+  impactIdr: number,
+  autoPassIdr: number,
+): boolean {
+  return proposedBy === decidedBy && !(autoPassIdr > 0 && impactIdr <= autoPassIdr);
+}

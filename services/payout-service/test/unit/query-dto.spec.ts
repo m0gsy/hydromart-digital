@@ -52,7 +52,9 @@ describe('DeliveryCompletedEventDto', () => {
     expect(validateSync(plainToInstance(DeliveryCompletedEventDto, valid))).toEqual([]);
   });
   it('rejects a non-boolean onTime', () => {
-    const errs = validateSync(plainToInstance(DeliveryCompletedEventDto, { ...valid, onTime: 'yes' }));
+    const errs = validateSync(
+      plainToInstance(DeliveryCompletedEventDto, { ...valid, onTime: 'yes' }),
+    );
     expect(errs.map((e) => e.property)).toContain('onTime');
   });
 });

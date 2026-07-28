@@ -1,12 +1,24 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class CreateWholesaleTierDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the tier belongs to.' })
   @IsUUID()
   depotId!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Pins the tier to one product; omit for any.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Pins the tier to one product; omit for any.',
+  })
   @IsOptional()
   @IsUUID()
   productId?: string;

@@ -17,7 +17,12 @@ export enum ChecklistItemStatus {
 }
 
 /** The four requirement items every application is reviewed against. */
-export const CHECKLIST_ITEMS = ['ktpNpwp', 'locationProof', 'capitalDeposit', 'fieldSurvey'] as const;
+export const CHECKLIST_ITEMS = [
+  'ktpNpwp',
+  'locationProof',
+  'capitalDeposit',
+  'fieldSurvey',
+] as const;
 export type ChecklistItem = (typeof CHECKLIST_ITEMS)[number];
 
 export type Checklist = Record<ChecklistItem, ChecklistItemStatus>;

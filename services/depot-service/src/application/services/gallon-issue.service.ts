@@ -38,7 +38,11 @@ export class GallonIssueService {
     }
   }
 
-  async record(depotId: string, input: RecordIssueInput, actorId: string): Promise<GallonIssueRecord> {
+  async record(
+    depotId: string,
+    input: RecordIssueInput,
+    actorId: string,
+  ): Promise<GallonIssueRecord> {
     await this.requireDepot(depotId);
     return this.issues.create({
       depotId,

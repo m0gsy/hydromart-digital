@@ -1,6 +1,7 @@
 import { PaymentPrismaRepository } from '../../src/infrastructure/prisma/payment.prisma.repository';
 import { TaxSettingsPrismaRepository } from '../../src/infrastructure/prisma/tax-settings.prisma.repository';
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../src/domain/payment';
+import { TaxRounding } from '../../src/domain/tax';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
 // Prisma returns Decimal instances for money columns; the repos only rely on toNumber().
@@ -193,7 +194,9 @@ describe('PaymentPrismaRepository', () => {
   });
 
   it('aggregateRevenueByMethod groups PAID with a one-sided range', async () => {
-    model.groupBy.mockResolvedValue([{ method: 'CASH', _sum: { amount: 90000 }, _count: { _all: 5 } }]);
+    model.groupBy.mockResolvedValue([
+      { method: 'CASH', _sum: { amount: 90000 }, _count: { _all: 5 } },
+    ]);
     const from = new Date('2026-02-01');
     const out = await repo.aggregateRevenueByMethod({ from });
     expect(model.groupBy).toHaveBeenCalledWith({
@@ -233,7 +236,11 @@ describe('PaymentPrismaRepository', () => {
 
   it('update applies the patch and returns the mapped row', async () => {
     model.update.mockResolvedValue(fullRow());
-    const patch = { status: PaymentStatus.PAID, paidAt: new Date('2026-01-02'), cashReceived: 20000 };
+    const patch = {
+      status: PaymentStatus.PAID,
+      paidAt: new Date('2026-01-02'),
+      cashReceived: 20000,
+    };
     const record = await repo.update('pay-1', patch);
     expect(model.update).toHaveBeenCalledWith({ where: { id: 'pay-1' }, data: patch });
     expect(record.status).toBe(PaymentStatus.PAID);
@@ -254,6 +261,7 @@ describe('TaxSettingsPrismaRepository', () => {
     id: 'tax-1',
     ppnPercent: dec(11),
     priceIncludesTax: true,
+    taxRounding: 'HALF_UP',
     invoiceFormat: 'INV-{seq}',
     companyName: 'Hydromart',
     npwp: '00.000.000.0-000.000',
@@ -264,6 +272,7 @@ describe('TaxSettingsPrismaRepository', () => {
   const input = {
     ppnPercent: 11,
     priceIncludesTax: true,
+    taxRounding: TaxRounding.HALF_UP,
     invoiceFormat: 'INV-{seq}',
     companyName: 'Hydromart',
     npwp: '00.000.000.0-000.000',
@@ -276,6 +285,7 @@ describe('TaxSettingsPrismaRepository', () => {
     model.findFirst.mockResolvedValue(taxRow());
     const record = await repo.get();
     expect(record?.ppnPercent).toBe(11);
+    expect(record?.taxRounding).toBe(TaxRounding.HALF_UP);
     expect(record?.companyName).toBe('Hydromart');
     expect(model.findFirst).toHaveBeenCalledWith({ orderBy: { updatedAt: 'desc' } });
   });

@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsInt, IsOptional, IsPositive, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsPositive,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 
 /** Delivery-completion event pushed by delivery-service (internal auth). */
 export class DeliveryCompletedEventDto {

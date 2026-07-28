@@ -12,9 +12,7 @@ import { DEPOT_TOKENS } from '../tokens';
 
 export type CogsCoverageStatus = 'complete' | 'partial';
 export type CogsUncoveredReason =
-  | 'NO_MATCHING_RECEIVED_PO'
-  | 'AMBIGUOUS_ITEM_LABEL'
-  | 'AMBIGUOUS_PO_COST';
+  'NO_MATCHING_RECEIVED_PO' | 'AMBIGUOUS_ITEM_LABEL' | 'AMBIGUOUS_PO_COST';
 
 export interface OperationalCostReport {
   depotId: string;
@@ -81,10 +79,7 @@ export class OperationalReportService {
 
     let coveredAmountIdr = 0;
     let coveredUnits = 0;
-    const uncovered = new Map<
-      string,
-      OperationalCostReport['cogs']['uncoveredItems'][number]
-    >();
+    const uncovered = new Map<string, OperationalCostReport['cogs']['uncoveredItems'][number]>();
 
     const addUncovered = (sale: SaleCostInput, reason: CogsUncoveredReason): void => {
       const key = `${sale.itemId}\u0000${reason}`;
@@ -193,9 +188,7 @@ export class OperationalReportService {
       const po = purchaseOrders[index];
       if (po.receivedAt > sale.occurredAt) continue;
       const costs = new Set(
-        po.lines
-          .filter((line) => itemKey(line) === key)
-          .map((line) => line.unitCostIdr),
+        po.lines.filter((line) => itemKey(line) === key).map((line) => line.unitCostIdr),
       );
       if (costs.size === 0) continue;
       if (costs.size > 1) return 'ambiguous';

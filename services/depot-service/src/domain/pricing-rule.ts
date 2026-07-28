@@ -23,7 +23,13 @@ export interface PricingRuleRecord {
 }
 
 const WEEKDAY_INDEX: Record<string, number> = {
-  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
 };
 
 /** Weekday (0=Sun..6=Sat) and minute-of-day for `now` in the given IANA timezone. */
@@ -66,8 +72,7 @@ export function resolveRule(
   timeZone: string,
 ): PricingRuleRecord | null {
   const candidates = rules.filter(
-    (r) =>
-      (r.productId === productId || r.productId === null) && isRuleActive(r, now, timeZone),
+    (r) => (r.productId === productId || r.productId === null) && isRuleActive(r, now, timeZone),
   );
   if (candidates.length === 0) return null;
   candidates.sort((a, b) => {

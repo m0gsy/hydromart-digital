@@ -39,7 +39,15 @@ export class GallonNetworkService {
     const row = (depotId: string): GallonOutstandingRow => {
       let r = rows.get(depotId);
       if (!r) {
-        r = { depotId, issued: 0, returned: 0, outstanding: 0, depositHeld: 0, depositRefunded: 0, netDeposit: 0 };
+        r = {
+          depotId,
+          issued: 0,
+          returned: 0,
+          outstanding: 0,
+          depositHeld: 0,
+          depositRefunded: 0,
+          netDeposit: 0,
+        };
         rows.set(depotId, r);
       }
       return r;

@@ -28,7 +28,9 @@ describe('RequestWithdrawalDto', () => {
   });
 
   it('rejects an empty bank ref', () => {
-    expect(invalidProps(RequestWithdrawalDto, { ...valid, bankAccountRef: '' })).toContain('bankAccountRef');
+    expect(invalidProps(RequestWithdrawalDto, { ...valid, bankAccountRef: '' })).toContain(
+      'bankAccountRef',
+    );
   });
 });
 
@@ -65,11 +67,15 @@ describe('ApplySchemeDto', () => {
   const item = { depotId: '11111111-1111-4111-8111-111111111111', pct: 20 };
 
   it('accepts a dated scheme with at least one item', () => {
-    expect(invalidProps(ApplySchemeDto, { effectiveDate: '2026-08-01', items: [item] })).toEqual([]);
+    expect(invalidProps(ApplySchemeDto, { effectiveDate: '2026-08-01', items: [item] })).toEqual(
+      [],
+    );
   });
 
   it('rejects an empty items array', () => {
-    expect(invalidProps(ApplySchemeDto, { effectiveDate: '2026-08-01', items: [] })).toContain('items');
+    expect(invalidProps(ApplySchemeDto, { effectiveDate: '2026-08-01', items: [] })).toContain(
+      'items',
+    );
   });
 });
 
@@ -92,7 +98,11 @@ describe('ApplyEarningRuleDto', () => {
   });
 
   it('rejects an out-of-clock peak window', () => {
-    expect(invalidProps(ApplyEarningRuleDto, { ...valid, peakStartHour: 24 })).toContain('peakStartHour');
-    expect(invalidProps(ApplyEarningRuleDto, { ...valid, peakEndHour: 25 })).toContain('peakEndHour');
+    expect(invalidProps(ApplyEarningRuleDto, { ...valid, peakStartHour: 24 })).toContain(
+      'peakStartHour',
+    );
+    expect(invalidProps(ApplyEarningRuleDto, { ...valid, peakEndHour: 25 })).toContain(
+      'peakEndHour',
+    );
   });
 });

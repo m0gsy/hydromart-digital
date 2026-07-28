@@ -115,7 +115,10 @@ export class InventoryService {
     availableAfter: number,
     authorization: string,
   ): Promise<void> {
-    if (!isLowStock(availableAfter, line.minimumStock) || isLowStock(availableBefore, line.minimumStock)) {
+    if (
+      !isLowStock(availableAfter, line.minimumStock) ||
+      isLowStock(availableBefore, line.minimumStock)
+    ) {
       return;
     }
     const depot = await this.depots.findById(line.depotId, false);
@@ -349,7 +352,12 @@ export class InventoryService {
     }
     const reserved: string[] = [];
     const skipped: string[] = [];
-    const plans: { itemId: string; productId: string; quantity: number; line: InventoryItemRecord }[] = [];
+    const plans: {
+      itemId: string;
+      productId: string;
+      quantity: number;
+      line: InventoryItemRecord;
+    }[] = [];
 
     for (const { productId, quantity } of items) {
       if (quantity <= 0) {

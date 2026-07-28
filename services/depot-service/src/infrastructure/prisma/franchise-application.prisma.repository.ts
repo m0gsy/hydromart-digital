@@ -73,7 +73,10 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     return row ? this.toRecord(row as unknown as ApplicationRow) : null;
   }
 
-  async update(id: string, patch: UpdateFranchiseApplicationData): Promise<FranchiseApplicationRecord> {
+  async update(
+    id: string,
+    patch: UpdateFranchiseApplicationData,
+  ): Promise<FranchiseApplicationRecord> {
     const row = await this.prisma.franchiseApplication.update({
       where: { id },
       data: {

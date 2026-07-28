@@ -44,8 +44,10 @@ export class SettingsService {
     const coerced = coerce(input.value, def.type);
     if (def.type !== 'string') {
       const n = coerced as number;
-      if (def.min != null && n < def.min) throw new BadRequestException(`${input.key} below min ${def.min}`);
-      if (def.max != null && n > def.max) throw new BadRequestException(`${input.key} above max ${def.max}`);
+      if (def.min != null && n < def.min)
+        throw new BadRequestException(`${input.key} below min ${def.min}`);
+      if (def.max != null && n > def.max)
+        throw new BadRequestException(`${input.key} above max ${def.max}`);
     }
     await this.repo.upsert({
       scope: input.scope,

@@ -14,7 +14,12 @@ describe('ExpenseApprovalController', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('list maps provided depot + status filters', async () => {
-    await controller.list({ depotId: 'd1', status: 'PENDING', page: 2, limit: 30 } as ExpenseQueryDto);
+    await controller.list({
+      depotId: 'd1',
+      status: 'PENDING',
+      page: 2,
+      limit: 30,
+    } as ExpenseQueryDto);
     expect(expenses.searchForDepot).toHaveBeenCalledWith('d1', 'PENDING', 2, 30);
   });
 

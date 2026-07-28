@@ -9,13 +9,7 @@ export {
 } from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext } from './http/request-context';
-export {
-  Public,
-  Roles,
-  CurrentUser,
-  IS_PUBLIC_KEY,
-  ROLES_KEY,
-} from './nest/decorators';
+export { Public, Roles, CurrentUser, IS_PUBLIC_KEY, ROLES_KEY } from './nest/decorators';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
 export { DepotScopeGuard } from './nest/depot-scope.guard';
@@ -34,6 +28,7 @@ export { IsNotBefore } from './nest/date-range.validator';
 export { IsPublicHttpsUrl } from './nest/public-url.validator';
 export { IsIanaTimezone } from './nest/timezone.validator';
 export { enableMetrics } from './nest/metrics';
+export { protectDocs } from './nest/docs-guard';
 export { requiredSecret, optionalSecret } from './config/env-secret';
 export {
   SettingType,

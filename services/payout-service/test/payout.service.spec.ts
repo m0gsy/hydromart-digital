@@ -101,14 +101,22 @@ class FakeWithdrawals implements WithdrawalRepository {
 
 describe('PayoutService.requestWithdrawal', () => {
   it('rejects a non-positive amount', async () => {
-    const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(
+      new FakeLedger([100000]),
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+    );
     await expect(svc.requestWithdrawal('owner-1', 0, 'BCA')).rejects.toBeInstanceOf(
       InvalidWithdrawalAmountError,
     );
   });
 
   it('rejects when the amount exceeds available balance', async () => {
-    const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(
+      new FakeLedger([100000]),
+      new FakeWithdrawals(),
+      new FakeSchemes(),
+    );
     await expect(svc.requestWithdrawal('owner-1', 150000, 'BCA')).rejects.toBeInstanceOf(
       InsufficientBalanceError,
     );
@@ -155,9 +163,27 @@ describe('PayoutService.ledgerPage', () => {
 describe('PayoutService HQ release queue', () => {
   it('lists every owner with a positive balance, highest first', async () => {
     const ledger = new FakeLedger();
-    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 300000, description: '' });
-    await ledger.create({ franchiseOwnerId: 'owner-b', depotId: null, type: 'SALE_SETTLEMENT', amount: 900000, description: '' });
-    await ledger.create({ franchiseOwnerId: 'owner-c', depotId: null, type: 'WITHDRAWAL', amount: -100000, description: '' });
+    await ledger.create({
+      franchiseOwnerId: 'owner-a',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 300000,
+      description: '',
+    });
+    await ledger.create({
+      franchiseOwnerId: 'owner-b',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 900000,
+      description: '',
+    });
+    await ledger.create({
+      franchiseOwnerId: 'owner-c',
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -100000,
+      description: '',
+    });
     const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
 
     const pending = await svc.pendingPayouts();
@@ -168,8 +194,20 @@ describe('PayoutService HQ release queue', () => {
 
   it('reports one owner balance for the depot-detail payout card', async () => {
     const ledger = new FakeLedger();
-    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 300000, description: '' });
-    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'WITHDRAWAL', amount: -100000, description: '' });
+    await ledger.create({
+      franchiseOwnerId: 'owner-a',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 300000,
+      description: '',
+    });
+    await ledger.create({
+      franchiseOwnerId: 'owner-a',
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -100000,
+      description: '',
+    });
     const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
 
     const bal = await svc.availableForOwner('owner-a');
@@ -182,7 +220,13 @@ describe('PayoutService HQ release queue', () => {
 
   it('releasing an owner cashes out their full balance via the withdrawal path', async () => {
     const ledger = new FakeLedger();
-    await ledger.create({ franchiseOwnerId: 'owner-a', depotId: null, type: 'SALE_SETTLEMENT', amount: 500000, description: '' });
+    await ledger.create({
+      franchiseOwnerId: 'owner-a',
+      depotId: null,
+      type: 'SALE_SETTLEMENT',
+      amount: 500000,
+      description: '',
+    });
     const withdrawals = new FakeWithdrawals();
     const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
 
@@ -207,11 +251,20 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('credits the sale and debits commission at the depot scheme rate', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]));
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
 
     const out = await svc.recordOrderRevenue(order);
 
-    expect(out).toMatchObject({ recorded: true, revenue: 240000, commission: 12000, commissionPct: 5 });
+    expect(out).toMatchObject({
+      recorded: true,
+      revenue: 240000,
+      commission: 12000,
+      commissionPct: 5,
+    });
     expect(ledger.entries.map((e) => [e.type, e.amount])).toEqual([
       ['SALE_SETTLEMENT', 240000],
       ['COMMISSION', -12000],
@@ -232,16 +285,28 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('ignores a scheme belonging to another depot, and an order with no depot at all', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes([{ depotId: 'other', pct: 9 }]));
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'other', pct: 9 }]),
+    );
 
     expect((await svc.recordOrderRevenue(order)).commissionPct).toBe(0);
-    const unrouted = await svc.recordOrderRevenue({ ...order, orderId: '22222222-2222-4222-8222-222222222222', depotId: null });
+    const unrouted = await svc.recordOrderRevenue({
+      ...order,
+      orderId: '22222222-2222-4222-8222-222222222222',
+      depotId: null,
+    });
     expect(unrouted.commissionPct).toBe(0);
   });
 
   it('is idempotent — a retried push never credits the owner twice', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]));
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
 
     await svc.recordOrderRevenue(order);
     const replay = await svc.recordOrderRevenue(order);

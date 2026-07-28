@@ -20,7 +20,14 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
@@ -94,9 +101,7 @@ export class DepotController {
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id/owner')
   @ApiOperation({ summary: 'Franchise owner of one depot (internal service auth)' })
-  async internalOwner(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ ownerId: string | null }> {
+  async internalOwner(@Param('id', ParseUUIDPipe) id: string): Promise<{ ownerId: string | null }> {
     const depot = await this.depots.get(id, false);
     return { ownerId: depot.ownerId };
   }
@@ -196,7 +201,9 @@ export class DepotController {
   @ApiBearerAuth()
   @Roles(...CAPABILITIES.depotAdmin)
   @Post(':id/qris')
-  @ApiOperation({ summary: 'Upload the depot static QRIS image (admin); returns the updated depot' })
+  @ApiOperation({
+    summary: 'Upload the depot static QRIS image (admin); returns the updated depot',
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: QRIS_MAX_BYTES } }))
   async uploadQris(

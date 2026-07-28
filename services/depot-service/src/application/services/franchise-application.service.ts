@@ -72,9 +72,7 @@ export class FranchiseApplicationService {
     // A decided application is frozen; use approve/reject for the decision itself.
     if (isTerminalStage(app.stage)) throw new ApplicationAlreadyDecidedError();
     // Merge only known items/statuses over the stored checklist (partial PATCH).
-    const checklist = patch.checklist
-      ? mergeChecklist(app.checklist, patch.checklist)
-      : undefined;
+    const checklist = patch.checklist ? mergeChecklist(app.checklist, patch.checklist) : undefined;
     return this.applications.update(id, { stage: patch.stage, checklist });
   }
 

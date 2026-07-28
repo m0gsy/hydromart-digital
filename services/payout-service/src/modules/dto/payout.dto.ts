@@ -54,7 +54,10 @@ export class OrderRevenueDto {
   @IsPositive()
   amountIdr!: number;
 
-  @ApiPropertyOptional({ example: 'HM-20260728-000123', description: 'Shown in the ledger description.' })
+  @ApiPropertyOptional({
+    example: 'HM-20260728-000123',
+    description: 'Shown in the ledger description.',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(40)

@@ -43,9 +43,7 @@ export class DepotService {
   // ponytail: single unpaged scan of active depots; fine into the low thousands, see findNearby.
   private static readonly NEARBY_SCAN_LIMIT = 5000;
 
-  constructor(
-    @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
-  ) {}
+  constructor(@Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository) {}
 
   async browse(input: BrowseDepotsInput, activeOnly: boolean): Promise<Page<DepotRecord>> {
     const page = Math.max(1, input.page ?? 1);

@@ -6,10 +6,7 @@ import {
   InvalidPricingWindowError,
   PricingRuleNotFoundError,
 } from '../../domain/errors';
-import {
-  PricingRuleRepository,
-  UpdatePricingRuleData,
-} from '../ports/pricing-rule.repository';
+import { PricingRuleRepository, UpdatePricingRuleData } from '../ports/pricing-rule.repository';
 import { InventoryRepository } from '../ports/inventory.repository';
 import { WholesaleTierRepository } from '../ports/wholesale-tier.repository';
 import { pickTierPrice } from '../../domain/wholesale-tier';

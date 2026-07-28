@@ -6,7 +6,10 @@ import { CAPABILITIES } from '@hydromart/access';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
 import { DepotService } from '../application/services/depot.service';
-import { GallonIssueRecord, GallonIssueSummary } from '../application/ports/gallon-issue.repository';
+import {
+  GallonIssueRecord,
+  GallonIssueSummary,
+} from '../application/ports/gallon-issue.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto';
 

@@ -82,7 +82,10 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       .filter((r) => r.refundApproval === RefundApproval.PENDING)
       .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
     const start = (query.page - 1) * query.limit;
-    return { items: all.slice(start, start + query.limit).map((r) => ({ ...r })), total: all.length };
+    return {
+      items: all.slice(start, start + query.limit).map((r) => ({ ...r })),
+      total: all.length,
+    };
   }
   async aggregateUnsettledByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     const map = new Map<PaymentMethod, { amount: number; count: number }>();
@@ -116,9 +119,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const set = new Set(orderIds);
     const matched = this.rows.filter(
       (r) =>
-        set.has(r.orderId) &&
-        r.method === PaymentMethod.CASH &&
-        r.status === PaymentStatus.PAID,
+        set.has(r.orderId) && r.method === PaymentMethod.CASH && r.status === PaymentStatus.PAID,
     );
     return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
   }

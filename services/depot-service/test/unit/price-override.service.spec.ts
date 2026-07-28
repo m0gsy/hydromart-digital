@@ -6,7 +6,9 @@ import {
   DepotNotFoundError,
   PriceOverrideProposalDecidedError,
   PriceOverrideProposalNotFoundError,
+  PriceOverrideSelfApprovalError,
 } from '../../src/domain/errors';
+import { DepotConfigService } from '../../src/config/depot-config.service';
 import {
   CreatePriceOverrideProposalData,
   ListProposalsFilter,
@@ -86,8 +88,13 @@ describe('PriceOverrideService', () => {
     pricing = { create: pricingCreate } as unknown as PricingService;
   });
 
-  const service = (depotName: string | null = 'Depot Kelapa Gading') =>
-    new PriceOverrideService(repo, fakeDepots(depotName), pricing);
+  // PROPOSE is -10% of 20000 = 2000 impact, well under this auto-pass limit, so the
+  // existing tests keep their old behaviour; the M18-15 cases tune it per test.
+  const fakeConfig = (autoPassIdr = 100000) =>
+    ({ approvalAutoPassIdr: () => autoPassIdr }) as unknown as DepotConfigService;
+
+  const service = (depotName: string | null = 'Depot Kelapa Gading', autoPassIdr = 100000) =>
+    new PriceOverrideService(repo, fakeDepots(depotName), pricing, fakeConfig(autoPassIdr));
 
   it('proposes an override, denormalizing the depot name', async () => {
     const created = await service().propose('d1', 'mgr-1', PROPOSE);
@@ -128,6 +135,52 @@ describe('PriceOverrideService', () => {
       priority: 100,
       active: true,
     });
+  });
+
+  it('blocks the proposer from approving their own above-threshold override (M18-15)', async () => {
+    const svc = service('Depot Kelapa Gading', 1000); // impact 2000 > 1000 auto-pass
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+
+    await expect(svc.approve(created.id, 'mgr-1')).rejects.toBeInstanceOf(
+      PriceOverrideSelfApprovalError,
+    );
+    expect(pricingCreate).not.toHaveBeenCalled();
+    // Stays in HQ's queue rather than being closed off.
+    expect((await svc.get(created.id)).status).toBe(PriceOverrideStatus.PENDING);
+  });
+
+  it('still lets the proposer approve their own override under the threshold (M18-15)', async () => {
+    const svc = service('Depot Kelapa Gading', 100000); // impact 2000 <= 100000
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+    const decided = await svc.approve(created.id, 'mgr-1');
+    expect(decided.status).toBe(PriceOverrideStatus.APPROVED);
+  });
+
+  it('lets a different approver decide an above-threshold override (M18-15)', async () => {
+    const svc = service('Depot Kelapa Gading', 1000);
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+    const decided = await svc.approve(created.id, 'hq-1');
+    expect(decided.status).toBe(PriceOverrideStatus.APPROVED);
+  });
+
+  it('a zero auto-pass limit blocks every self-approval (M18-15)', async () => {
+    const svc = service('Depot Kelapa Gading', 0);
+    const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+    await expect(svc.approve(created.id, 'mgr-1')).rejects.toBeInstanceOf(
+      PriceOverrideSelfApprovalError,
+    );
+  });
+
+  it('measures a FIXED override by its rupiah delta, either direction (M18-15)', async () => {
+    const svc = service('Depot Kelapa Gading', 1000);
+    const created = await svc.propose('d1', 'mgr-1', {
+      ...PROPOSE,
+      adjustType: PricingAdjustType.FIXED,
+      value: -5000,
+    });
+    await expect(svc.approve(created.id, 'mgr-1')).rejects.toBeInstanceOf(
+      PriceOverrideSelfApprovalError,
+    );
   });
 
   it('rejecting closes the proposal without creating a rule', async () => {

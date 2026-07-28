@@ -94,8 +94,16 @@ describe('PaymentService (branch coverage)', () => {
 
     const rows = await service.revenueByMethod({});
     const byMethod = Object.fromEntries(rows.map((r) => [r.method, r]));
-    expect(byMethod[PaymentMethod.VA]).toEqual({ method: PaymentMethod.VA, amount: 99_000, count: 1 });
-    expect(byMethod[PaymentMethod.CASH]).toEqual({ method: PaymentMethod.CASH, amount: 10_000, count: 1 });
+    expect(byMethod[PaymentMethod.VA]).toEqual({
+      method: PaymentMethod.VA,
+      amount: 99_000,
+      count: 1,
+    });
+    expect(byMethod[PaymentMethod.CASH]).toEqual({
+      method: PaymentMethod.CASH,
+      amount: 10_000,
+      count: 1,
+    });
   });
 
   describe('listing (search paths)', () => {

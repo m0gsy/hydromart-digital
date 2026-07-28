@@ -91,9 +91,7 @@ export class PaymentController {
   @Get('revenue-by-method')
   @Roles(...SETTLEMENT_READ_ROLES)
   @ApiOperation({ summary: 'Network collected revenue grouped by method (finance/super-admin)' })
-  revenueByMethod(
-    @Query() query: UnsettledByMethodQueryDto,
-  ): Promise<UnsettledMethodAggregate[]> {
+  revenueByMethod(@Query() query: UnsettledByMethodQueryDto): Promise<UnsettledMethodAggregate[]> {
     return this.payments.revenueByMethod({
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,

@@ -113,11 +113,14 @@ const COURIER = 'c-courier';
 const REVIEWER = 'r-reviewer';
 const config = { expenseAutoApproveMaxIdr: () => 50000 } as unknown as PayoutConfigService;
 
-const input = (amount: number) => ({
+// M20-15: a receipt is part of the happy path — auto-approve requires one, so the
+// default input carries one and the no-receipt cases pass null explicitly.
+const input = (amount: number, receiptUrl: string | null = 'https://x/receipt.jpg') => ({
   category: 'FUEL' as const,
   amount,
   description: 'Bensin',
   depotId: 'depot-1',
+  receiptUrl,
 });
 
 describe('ExpenseClaimService', () => {
@@ -132,7 +135,9 @@ describe('ExpenseClaimService', () => {
   });
 
   it('rejects a non-positive amount', async () => {
-    await expect(service.submit(COURIER, input(0))).rejects.toBeInstanceOf(InvalidExpenseAmountError);
+    await expect(service.submit(COURIER, input(0))).rejects.toBeInstanceOf(
+      InvalidExpenseAmountError,
+    );
   });
 
   it('auto-approves and credits a claim under the threshold', async () => {
@@ -144,6 +149,19 @@ describe('ExpenseClaimService', () => {
     expect(await ledger.balanceFor(COURIER)).toBe(25000);
   });
 
+  it('queues a claim with no receipt even when it is under the threshold (M20-15)', async () => {
+    const claim = await service.submit(COURIER, input(25000, null));
+    expect(claim.status).toBe('PENDING');
+    expect(ledger.entries).toHaveLength(0);
+  });
+
+  it('treats a blank receipt url as no receipt (M20-15)', async () => {
+    const claim = await service.submit(COURIER, input(25000, '   '));
+    expect(claim.status).toBe('PENDING');
+    expect(claim.receiptUrl).toBeNull();
+    expect(ledger.entries).toHaveLength(0);
+  });
+
   it('leaves a claim over the threshold pending with no ledger movement', async () => {
     const claim = await service.submit(COURIER, input(80000));
     expect(claim.status).toBe('PENDING');
@@ -151,11 +169,9 @@ describe('ExpenseClaimService', () => {
   });
 
   it('a zero threshold disables auto-approve', async () => {
-    const strict = new ExpenseClaimService(
-      claims,
-      ledger,
-      { expenseAutoApproveMaxIdr: () => 0 } as unknown as PayoutConfigService,
-    );
+    const strict = new ExpenseClaimService(claims, ledger, {
+      expenseAutoApproveMaxIdr: () => 0,
+    } as unknown as PayoutConfigService);
     const claim = await strict.submit(COURIER, input(1000));
     expect(claim.status).toBe('PENDING');
     expect(ledger.entries).toHaveLength(0);
@@ -185,7 +201,9 @@ describe('ExpenseClaimService', () => {
   });
 
   it('throws for an unknown claim id', async () => {
-    await expect(service.approve('nope', REVIEWER)).rejects.toBeInstanceOf(ExpenseClaimNotFoundError);
+    await expect(service.approve('nope', REVIEWER)).rejects.toBeInstanceOf(
+      ExpenseClaimNotFoundError,
+    );
   });
 
   it('cannot reject a claim that is not pending', async () => {

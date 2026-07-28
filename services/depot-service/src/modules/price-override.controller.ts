@@ -97,9 +97,7 @@ export class PriceOverrideController {
 
   @Get()
   @ApiOperation({ summary: 'List override proposals (defaults to the pending queue)' })
-  list(
-    @Query() query: ListPriceOverridesQueryDto,
-  ): Promise<Page<PriceOverrideProposalRecord>> {
+  list(@Query() query: ListPriceOverridesQueryDto): Promise<Page<PriceOverrideProposalRecord>> {
     return this.overrides.list({
       page: query.page ?? 1,
       limit: query.limit ?? 20,

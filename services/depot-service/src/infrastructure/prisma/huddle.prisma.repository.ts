@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { HuddleActionItem, HuddleAgendaItem, HuddleNote } from '../../domain/huddle';
-import {
-  HuddleRepository,
-  UpsertHuddleNoteData,
-} from '../../application/ports/huddle.repository';
+import { HuddleRepository, UpsertHuddleNoteData } from '../../application/ports/huddle.repository';
 import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
