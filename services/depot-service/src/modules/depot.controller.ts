@@ -87,6 +87,20 @@ export class DepotController {
     return { depotIds: depots.map((d) => d.id) };
   }
 
+  // Service-to-service: order-service asks who owns the fulfilling depot so a completed
+  // order can be credited to that franchise owner's payout ledger. Ownership is kept out
+  // of the public depot projection on purpose, hence the internal-key route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id/owner')
+  @ApiOperation({ summary: 'Franchise owner of one depot (internal service auth)' })
+  async internalOwner(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ ownerId: string | null }> {
+    const depot = await this.depots.get(id, false);
+    return { ownerId: depot.ownerId };
+  }
+
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
   @ApiBearerAuth()

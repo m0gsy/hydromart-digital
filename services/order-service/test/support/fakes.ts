@@ -45,6 +45,10 @@ import {
   DepotDirectoryPort,
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
+import {
+  FranchiseRevenuePort,
+  OrderRevenueEvent,
+} from '../../src/application/ports/franchise-revenue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
@@ -566,8 +570,20 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   depots: DepotLocation[] = [];
   /** Simulate the directory being unreachable (fail-open null), not just empty. */
   unreachable = false;
+  /** depotId -> franchise owner; unset means the depot has no owner (or lookup failed). */
+  owners = new Map<string, string>();
   async listActiveDepots(): Promise<DepotLocation[] | null> {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
+  }
+  async findOwnerId(depotId: string): Promise<string | null> {
+    return this.unreachable ? null : this.owners.get(depotId) ?? null;
+  }
+}
+
+export class FakeFranchiseRevenue implements FranchiseRevenuePort {
+  posted: OrderRevenueEvent[] = [];
+  async orderCompleted(event: OrderRevenueEvent): Promise<void> {
+    this.posted.push(event);
   }
 }
 

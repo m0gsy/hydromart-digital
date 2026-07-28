@@ -42,6 +42,7 @@ import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
+import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
@@ -104,6 +105,8 @@ export class OrderService {
     private readonly recommendation: RecommendationCoordinationPort,
     @Inject(ORDER_TOKENS.ForecastCoordination)
     private readonly forecastCoordination: ForecastCoordinationPort,
+    @Inject(ORDER_TOKENS.FranchiseRevenue)
+    private readonly franchiseRevenue: FranchiseRevenuePort,
   ) {}
 
   /**
@@ -527,6 +530,25 @@ export class OrderService {
     return { cancelled: cancelledCount };
   }
 
+  /**
+   * Credits a completed order to the fulfilling depot's franchise owner (design 6a).
+   * No depot, no owner, or an unreachable depot-service → nothing is posted; completion
+   * itself is never affected.
+   */
+  private async postFranchiseRevenue(order: OrderRecord): Promise<void> {
+    if (!order.depotId || !(order.total > 0)) return;
+    const franchiseOwnerId = await this.depotDirectory.findOwnerId(order.depotId);
+    if (!franchiseOwnerId) return;
+    await this.franchiseRevenue.orderCompleted({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      franchiseOwnerId,
+      depotId: order.depotId,
+      amountIdr: order.total,
+      completedAt: new Date().toISOString(),
+    });
+  }
+
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
   private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
     if (!order.depotId) {
@@ -613,6 +635,10 @@ export class OrderService {
       // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
       // guard as above — the adapter never throws, but never let a bug there block completion.
       await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
+      // Design 6a: credit the fulfilling depot's franchise owner. Nothing wrote that
+      // ledger before, so every owner balance and the HQ release queue read an empty
+      // table. Fail-open and idempotent on the payout side (keyed by order id).
+      await this.postFranchiseRevenue(updated).catch(() => {});
     }
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {

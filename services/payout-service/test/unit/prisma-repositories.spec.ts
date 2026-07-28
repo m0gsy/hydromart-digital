@@ -104,6 +104,7 @@ describe('LedgerPrismaRepository', () => {
     aggregate: jest.fn(),
     groupBy: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
     count: jest.fn(),
   };
   const prisma = { ledgerEntry: model } as unknown as PrismaService;
@@ -129,6 +130,16 @@ describe('LedgerPrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(5000);
     expect(result.depotId).toBe('dep-1');
+  });
+
+  it('finds a pushed entry by source ref, and returns null when there is none', async () => {
+    model.findUnique.mockResolvedValueOnce(row);
+    const found = await repo.findBySourceRef('order:o1:SALE');
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { sourceRef: 'order:o1:SALE' } });
+    expect(found?.amount).toBe(5000);
+
+    model.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.findBySourceRef('order:none:SALE')).toBeNull();
   });
 
   it('returns balance sum, coercing null _sum to 0', async () => {

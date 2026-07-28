@@ -21,6 +21,8 @@ export const envValidationSchema = Joi.object({
   // forecast-service base URL; the completed-order ingest push is fail-open, so
   // a blank value (unset) simply disables it rather than blocking startup.
   FORECAST_SERVICE_URL: Joi.string().allow('').default(''),
+  // Blank = franchise revenue push disabled (order completion still succeeds).
+  PAYOUT_SERVICE_URL: Joi.string().allow('').default(''),
   // Shared service-to-service secret. Notifications to crm and the payment→order
   // confirm callback authenticate with this (not a user JWT). Blank = fail-closed.
   INTERNAL_SERVICE_KEY: optionalSecret(16),

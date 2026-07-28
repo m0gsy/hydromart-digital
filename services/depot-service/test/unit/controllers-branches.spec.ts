@@ -456,6 +456,11 @@ describe('DepotController', () => {
     expect(svc.findNearby).toHaveBeenLastCalledWith(1, 2, 3);
     const owned = await c.internalOwned('owner-1');
     expect(owned).toEqual({ depotIds: [DEPOT] });
+    // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
+    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1' });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: 'owner-1' });
+    svc.get.mockResolvedValueOnce({ ownerId: null });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null });
     await c.manage({} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);

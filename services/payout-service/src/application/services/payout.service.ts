@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { InsufficientBalanceError, InvalidWithdrawalAmountError } from '../../domain/errors';
+import {
+  InsufficientBalanceError,
+  InvalidRevenueAmountError,
+  InvalidWithdrawalAmountError,
+} from '../../domain/errors';
 import { LedgerEntryRecord, WithdrawalRecord } from '../../domain/ledger';
+import { CommissionSchemeRepository } from '../ports/commission-scheme.repository';
 import { LedgerRepository } from '../ports/ledger.repository';
 import { WithdrawalRepository } from '../ports/withdrawal.repository';
 import { PAYOUT_TOKENS } from '../tokens';
@@ -23,12 +28,84 @@ export interface PendingPayout {
   nextPayoutDate: string;
 }
 
+/** A completed order pushed by order-service (design 6a franchise revenue). */
+export interface OrderRevenueInput {
+  orderId: string;
+  franchiseOwnerId: string;
+  depotId: string | null;
+  /** Order total in whole IDR; must be positive. */
+  amountIdr: number;
+  occurredAt?: Date;
+  orderNumber?: string | null;
+}
+
+export interface OrderRevenueResult {
+  recorded: boolean;
+  revenue: number;
+  commission: number;
+  commissionPct: number;
+}
+
 @Injectable()
 export class PayoutService {
   constructor(
     @Inject(PAYOUT_TOKENS.LedgerRepository) private readonly ledger: LedgerRepository,
     @Inject(PAYOUT_TOKENS.WithdrawalRepository) private readonly withdrawals: WithdrawalRepository,
+    @Inject(PAYOUT_TOKENS.CommissionSchemeRepository)
+    private readonly schemes: CommissionSchemeRepository,
   ) {}
+
+  /**
+   * Records one completed order as franchise revenue: a SALE_SETTLEMENT credit for the
+   * full order total, and — when the depot has a commission scheme — a matching
+   * COMMISSION debit at the scheme's current percentage. Both entries carry a sourceRef
+   * derived from the order id, so a retried push is a no-op rather than a double credit.
+   *
+   * Until this existed nothing wrote the owner ledger at all: every franchise balance,
+   * the depot payout card and the HQ release queue read a table only manual SQL filled.
+   */
+  async recordOrderRevenue(input: OrderRevenueInput): Promise<OrderRevenueResult> {
+    const saleRef = `order:${input.orderId}:SALE`;
+    const pct = await this.commissionPctFor(input.depotId);
+    const commission = Math.round((input.amountIdr * pct) / 100);
+
+    if (!(input.amountIdr > 0)) throw new InvalidRevenueAmountError();
+    if (await this.ledger.findBySourceRef(saleRef)) {
+      return { recorded: false, revenue: input.amountIdr, commission, commissionPct: pct };
+    }
+
+    const label = input.orderNumber ?? input.orderId;
+    const occurredAt = input.occurredAt ?? new Date();
+    await this.ledger.create({
+      franchiseOwnerId: input.franchiseOwnerId,
+      depotId: input.depotId,
+      type: 'SALE_SETTLEMENT',
+      amount: input.amountIdr,
+      description: `Penjualan pesanan ${label}`,
+      sourceRef: saleRef,
+      occurredAt,
+    });
+    // Commission is stored as a debit (negative), matching how the summary reports it.
+    if (commission > 0) {
+      await this.ledger.create({
+        franchiseOwnerId: input.franchiseOwnerId,
+        depotId: input.depotId,
+        type: 'COMMISSION',
+        amount: -commission,
+        description: `Komisi HQ ${pct}% pesanan ${label}`,
+        sourceRef: `order:${input.orderId}:COMMISSION`,
+        occurredAt,
+      });
+    }
+    return { recorded: true, revenue: input.amountIdr, commission, commissionPct: pct };
+  }
+
+  /** Current scheme percentage for a depot; 0 when the depot has no scheme yet. */
+  private async commissionPctFor(depotId: string | null): Promise<number> {
+    if (!depotId) return 0;
+    const current = await this.schemes.listCurrent();
+    return current.find((s) => s.depotId === depotId)?.pct ?? 0;
+  }
 
   async summary(ownerId: string): Promise<PayoutSummary> {
     const monthStart = startOfMonth(new Date());

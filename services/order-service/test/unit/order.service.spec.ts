@@ -26,6 +26,7 @@ import {
   FakeReferralCoordination,
   FakeRecommendationCoordination,
   FakeForecastCoordination,
+  FakeFranchiseRevenue,
   FakeMembership,
   FakeResellerDiscount,
   FakeNotification,
@@ -59,6 +60,7 @@ describe('OrderService', () => {
   let referral: FakeReferralCoordination;
   let recommendation: FakeRecommendationCoordination;
   let forecast: FakeForecastCoordination;
+  let franchiseRevenue: FakeFranchiseRevenue;
   let membership: FakeMembership;
   let resellerDiscount: FakeResellerDiscount;
   let notification: FakeNotification;
@@ -78,6 +80,7 @@ describe('OrderService', () => {
     referral = new FakeReferralCoordination();
     recommendation = new FakeRecommendationCoordination();
     forecast = new FakeForecastCoordination();
+    franchiseRevenue = new FakeFranchiseRevenue();
     membership = new FakeMembership();
     resellerDiscount = new FakeResellerDiscount();
     notification = new FakeNotification();
@@ -101,6 +104,7 @@ describe('OrderService', () => {
       buildTestConfig(),
       recommendation,
       forecast,
+      franchiseRevenue,
     );
   });
 
@@ -1001,5 +1005,83 @@ describe('OrderService', () => {
     const order = await service.checkout(customer, { deliveryAddress: address });
     await expect(service.recordRefund(order.id, 15000)).resolves.toBeUndefined();
     await expect(service.recordRefund(randomUUID(), 15000)).rejects.toBeInstanceOf(OrderNotFoundError);
+  });
+});
+
+describe('OrderService franchise revenue on completion', () => {
+  // Kept separate from the big lifecycle suite: this needs a routed depot WITH an owner,
+  // which the shared setup deliberately does not have.
+  const routedAddress = {
+    recipientName: 'Budi', phone: '+628111', addressLine: 'Jl. Mawar 1',
+    city: 'Bandung', province: 'Jawa Barat', postalCode: '40111', latitude: -6.9, longitude: 107.6, notes: null,
+  };
+  const depot = {
+    id: 'depot-owned', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null,
+  };
+
+  async function build(withOwner: boolean) {
+    const orders = new InMemoryOrderRepository();
+    const cart = new InMemoryCartRepository();
+    const catalog = new FakeProductCatalog();
+    const depots = new FakeDepotDirectory();
+    const revenue = new FakeFranchiseRevenue();
+    depots.depots = [depot];
+    if (withOwner) depots.owners.set(depot.id, 'owner-9');
+    const cartService = new CartService(cart, catalog);
+    const service = new OrderService(
+      orders, cart, catalog, depots, new FakeDepotPricing(), new FakeLoyaltyCoordination(),
+      new FakeReferralCoordination(), new FakeMembership(), new FakeResellerDiscount(),
+      new FakeNotification(), new FakePromo(), new FakeInventory(), cartService, buildTestConfig(),
+      new FakeRecommendationCoordination(), new FakeForecastCoordination(), revenue,
+    );
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    await cartService.setItem('cust-rev', product.id, 3, false);
+    const order = await service.checkout('cust-rev', { deliveryAddress: routedAddress });
+    return { service, order, revenue };
+  }
+
+  async function complete(service: OrderService, orderId: string): Promise<void> {
+    for (const s of [
+      OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP, OrderStatus.ON_DELIVERY, OrderStatus.DELIVERED, OrderStatus.COMPLETED,
+    ]) {
+      await service.updateStatus(orderId, s, 'staff', undefined, 'Bearer tok');
+    }
+  }
+
+  it('credits the depot owner with the order total exactly once, and not before completion', async () => {
+    const { service, order, revenue } = await build(true);
+    await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff', undefined, 'Bearer tok');
+    expect(revenue.posted).toHaveLength(0);
+
+    for (const s of [
+      OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED, OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY, OrderStatus.DELIVERED, OrderStatus.COMPLETED,
+    ]) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+
+    expect(revenue.posted).toHaveLength(1);
+    expect(revenue.posted[0]).toMatchObject({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      franchiseOwnerId: 'owner-9',
+      depotId: depot.id,
+      amountIdr: order.total,
+    });
+  });
+
+  it('posts nothing when the depot has no franchise owner', async () => {
+    const { service, order, revenue } = await build(false);
+    await complete(service, order.id);
+    expect(revenue.posted).toHaveLength(0);
+  });
+
+  it('completes normally when the payout push throws', async () => {
+    const { service, order, revenue } = await build(true);
+    revenue.orderCompleted = async () => {
+      throw new Error('payout down');
+    };
+    await expect(complete(service, order.id)).resolves.not.toThrow();
   });
 });

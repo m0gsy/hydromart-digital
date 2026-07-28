@@ -22,4 +22,10 @@ export interface DepotLocation {
  */
 export interface DepotDirectoryPort {
   listActiveDepots(): Promise<DepotLocation[] | null>;
+  /**
+   * Franchise owner of one depot, for crediting a completed order. Ownership is not part
+   * of the public depot projection, so this reads the internal-key route. Null when the
+   * depot has no owner, or when depot-service is unreachable (caller skips the push).
+   */
+  findOwnerId(depotId: string): Promise<string | null>;
 }

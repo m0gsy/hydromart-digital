@@ -61,6 +61,10 @@ export class OrderConfigService {
   get forecastServiceUrl(): string {
     return this.config.get<string>('FORECAST_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** Blank disables the franchise revenue push (dev default), like the other optionals. */
+  get payoutServiceUrl(): string {
+    return this.config.get<string>('PAYOUT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }

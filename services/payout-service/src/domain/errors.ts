@@ -16,6 +16,14 @@ export class InvalidWithdrawalAmountError extends DomainError {
   }
 }
 
+export class InvalidRevenueAmountError extends DomainError {
+  readonly code = 'PAYOUT_INVALID_REVENUE_AMOUNT';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Order revenue amount must be greater than zero.');
+  }
+}
+
 export class InvalidExpenseAmountError extends DomainError {
   readonly code = 'EXPENSE_INVALID_AMOUNT';
   readonly status = HTTP_STATUS.BAD_REQUEST;

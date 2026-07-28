@@ -1,13 +1,17 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Roles } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
-import { PayoutService, PayoutSummary } from '../application/services/payout.service';
+import {
+  OrderRevenueResult,
+  PayoutService,
+  PayoutSummary,
+} from '../application/services/payout.service';
 import { LedgerEntryRecord, WithdrawalRecord } from '../domain/ledger';
 import { Page } from '../application/pagination';
-import { LedgerQueryDto, RequestWithdrawalDto } from './dto/payout.dto';
+import { LedgerQueryDto, OrderRevenueDto, RequestWithdrawalDto } from './dto/payout.dto';
 
 // Owner-scoped: every endpoint reads the caller's own franchise ledger (user.sub).
 @ApiTags('Payout')
@@ -40,5 +44,25 @@ export class PayoutController {
     @Body() dto: RequestWithdrawalDto,
   ): Promise<WithdrawalRecord> {
     return this.payout.requestWithdrawal(user.sub, dto.amount, dto.bankAccountRef);
+  }
+
+  // System-triggered: order-service posts an order the moment it completes, authenticated
+  // by the shared INTERNAL_SERVICE_KEY (no end-user token). @Public() skips the JWT guard;
+  // InternalAuthGuard is the sole (fail-closed) auth. Idempotent by orderId.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('revenue/internal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Record a completed order as franchise revenue (internal service auth)' })
+  recordRevenue(@Body() dto: OrderRevenueDto): Promise<OrderRevenueResult> {
+    return this.payout.recordOrderRevenue({
+      orderId: dto.orderId,
+      franchiseOwnerId: dto.franchiseOwnerId,
+      depotId: dto.depotId ?? null,
+      amountIdr: dto.amountIdr,
+      orderNumber: dto.orderNumber ?? null,
+      occurredAt: dto.completedAt ? new Date(dto.completedAt) : undefined,
+    });
   }
 }
