@@ -10,4 +10,5 @@ export const CUSTOMER_TOKENS = {
   FavoriteRepository: Symbol('FavoriteRepository'),
   ProductCatalogPort: Symbol('ProductCatalogPort'),
   ResellerRepository: Symbol('ResellerRepository'),
+  IdentityPort: Symbol('IdentityPort'),
 } as const;

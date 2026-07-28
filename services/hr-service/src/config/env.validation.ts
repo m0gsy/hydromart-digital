@@ -30,6 +30,9 @@ export const envValidationSchema = Joi.object({
   // order-service base URL + shared internal key for the SALES_TOTAL bonus aggregate.
   // Both empty → SALES rules stay dormant (salesTotal resolves null, never fabricated).
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // auth-service base URL for provisioning staff logins during a bulk employee import.
+  // Empty → the import rejects every row (503) rather than creating staff who can't sign in.
+  AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
   // NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only, never committed.
   NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),

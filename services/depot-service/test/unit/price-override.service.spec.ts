@@ -96,6 +96,15 @@ describe('PriceOverrideService', () => {
     expect(created.proposedBy).toBe('mgr-1');
   });
 
+  it('bulk-imports proposals, failing only the rows whose depot is gone', async () => {
+    const svc = service();
+    const summary = await svc.importProposals('d1', 'mgr-1', [PROPOSE, PROPOSE]);
+    expect(summary).toMatchObject({ created: 2, skipped: 0, failed: 0 });
+
+    const missingDepot = await service(null).importProposals('d0', 'mgr-1', [PROPOSE]);
+    expect(missingDepot).toMatchObject({ created: 0, failed: 1 });
+  });
+
   it('rejects a proposal for an unknown depot', async () => {
     await expect(service(null).propose('d0', 'mgr-1', PROPOSE)).rejects.toBeInstanceOf(
       DepotNotFoundError,

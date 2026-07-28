@@ -49,6 +49,11 @@ export class CustomerConfigService {
     return this.config.get<string>('PRODUCT_SERVICE_URL', '').trim();
   }
   /** order-service base URL for the CRM order-aggregate port; blank → CRM shows no order data. */
+  /** auth-service base URL — pre-registers imported customers (bulk import). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').trim();
+  }
+
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
   }

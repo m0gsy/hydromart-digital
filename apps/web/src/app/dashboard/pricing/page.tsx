@@ -4,7 +4,18 @@ import { useState } from 'react';
 import { Lock, Tag } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LinkButton,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
@@ -346,6 +357,9 @@ function PricingBody() {
         </div>
         {depotId && editing === null && (
           <div className="flex gap-2">
+            <LinkButton href="/dashboard/pricing/import" variant="secondary">
+              Import CSV
+            </LinkButton>
             <Button variant="secondary" onClick={() => setPreview((v) => !v)}>
               {preview ? t('dashboard.pricing.previewClose') : t('dashboard.pricing.previewOpen')}
             </Button>

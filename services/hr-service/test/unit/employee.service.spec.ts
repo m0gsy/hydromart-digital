@@ -4,6 +4,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { Employee, EmploymentHistory, Prisma } from '../../prisma/generated/client';
 import { EmployeeRepository, EmployeeListFilter } from '../../src/application/ports/employee.repository';
 import { EmployeeService } from '../../src/application/services/employee.service';
+import { fakeIdentity } from './support/identity';
 
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const DEPOT_B = '22222222-2222-2222-2222-222222222222';
@@ -52,6 +53,15 @@ class FakeRepo implements EmployeeRepository {
         meta: { target: ['employeeCode'] },
       });
     }
+    // Employee.authSubjectId is @unique in the schema — the fake honours it so the
+    // import specs exercise the real duplicate path.
+    if (data.authSubjectId && this.rows.some((r) => r.authSubjectId === data.authSubjectId)) {
+      throw new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'x',
+        meta: { target: ['authSubjectId'] },
+      });
+    }
     const row = { id: `emp-${++this.seq}`, ...data } as unknown as Employee;
     this.rows.push(row);
     if (history) this.history.push(history);
@@ -82,7 +92,8 @@ const baseInput = {
 
 function make() {
   const repo = new FakeRepo();
-  return { repo, svc: new EmployeeService(repo) };
+  const identity = fakeIdentity();
+  return { repo, identity, svc: new EmployeeService(repo, identity) };
 }
 
 describe('EmployeeService (M1)', () => {
@@ -152,5 +163,88 @@ describe('EmployeeService (M1)', () => {
     repo.history = [];
     await svc.update(hr, e.id, { position: 'Kurir', fullName: 'Budi Baru' });
     expect(repo.history).toHaveLength(0);
+  });
+});
+
+describe('EmployeeService.importMany', () => {
+  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+
+  it('provisions a login per row and links it to the employee', async () => {
+    const { repo, identity, svc } = make();
+
+    const summary = await svc.importMany(hr, [
+      row,
+      { ...row, fullName: 'Siti', phone: '0812', role: 'DRIVER' },
+    ]);
+
+    expect(summary).toMatchObject({ created: 2, skipped: 0, failed: 0 });
+    expect(identity.calls).toEqual([
+      { phone: '0811', role: 'DEPOT_OPERATOR', fullName: 'Budi', depotId: DEPOT_A },
+      { phone: '0812', role: 'DRIVER', fullName: 'Siti', depotId: DEPOT_A },
+    ]);
+    expect(repo.rows.map((r) => r.authSubjectId)).toEqual([
+      '00000000-0000-4000-8000-000000000001',
+      '00000000-0000-4000-8000-000000000002',
+    ]);
+  });
+
+  it('fails only the offending row and keeps importing the rest', async () => {
+    const { repo, svc } = make();
+
+    const summary = await svc.importMany(hr, [
+      { ...row, dailyRate: undefined },
+      { ...row, fullName: 'Siti', phone: '0812' },
+    ]);
+
+    expect(summary).toMatchObject({ created: 1, failed: 1 });
+    expect(summary.results[0]).toMatchObject({ row: 1, status: 'failed' });
+    expect(summary.results[0]?.message).toContain('dailyRate');
+    expect(summary.results[1]).toMatchObject({ row: 2, status: 'created' });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('skips a row whose account is already linked to an employee (re-upload)', async () => {
+    const repo = new FakeRepo();
+    // Same phone twice -> auth-service hands back the same account both times.
+    const svc = new EmployeeService(repo, {
+      provisionStaff: async () => ({ customerId: 'auth-same' }),
+    });
+
+    await svc.importMany(hr, [row]);
+    const second = await svc.importMany(hr, [row]);
+
+    expect(second).toMatchObject({ created: 0, skipped: 1, failed: 0 });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('writes no employee when auth-service refuses to create the account', async () => {
+    const { repo, identity, svc } = make();
+    identity.fail(new Error('auth-service menolak pembuatan akun (503)'));
+
+    const summary = await svc.importMany(hr, [row]);
+
+    expect(summary).toMatchObject({ created: 0, failed: 1 });
+    expect(summary.results[0]?.message).toContain('503');
+    // The whole point of failing hard: no employee left behind without a login.
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it('refuses to import into a depot the caller cannot touch', async () => {
+    const { repo, svc } = make();
+
+    const summary = await svc.importMany(manager(DEPOT_B), [row]);
+
+    expect(summary).toMatchObject({ created: 0, failed: 1 });
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  it('returns an empty summary for an empty batch', async () => {
+    const { svc } = make();
+    await expect(svc.importMany(hr, [])).resolves.toEqual({
+      created: 0,
+      skipped: 0,
+      failed: 0,
+      results: [],
+    });
   });
 });

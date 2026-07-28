@@ -94,6 +94,7 @@ export const endpoints = {
       return `/customers/api/v1/resellers${qs ? `?${qs}` : ''}`;
     },
     create: '/customers/api/v1/resellers',
+    import: '/customers/api/v1/resellers/import',
     detail: (customerId: string) => `/customers/api/v1/resellers/${customerId}`, // GET / PATCH
     // Caller's own reseller pricing status (customer-facing, checkout). 404 = not a reseller.
     me: '/customers/api/v1/resellers/me',
@@ -606,6 +607,7 @@ export const endpoints = {
       const qs = p.toString();
       return `/depots/api/v1/depots/${depotId}/inventory${qs ? `?${qs}` : ''}`;
     },
+    import: (depotId: string) => `/depots/api/v1/depots/${depotId}/inventory/import`,
     adjust: (itemId: string) => `/depots/api/v1/inventory/${itemId}/adjust`,
     opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,
     // Update line meta incl. per-depot sellPrice override (PATCH; sellPrice:null clears).
@@ -927,6 +929,7 @@ export const endpoints = {
     approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
     reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
     propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
+    import: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides/import`,
     // Per-product pending-override counts for the 7a base list.
     countByProduct: '/depots/api/v1/price-overrides/count-by-product',
   },
@@ -1012,6 +1015,7 @@ export const endpoints = {
     // CRM lifecycle dashboard: segment counts + follow-up queue (Fase 4).
     crmDashboard: (depotId: string) =>
       `/customers/api/v1/customers/crm/dashboard?depotId=${encodeURIComponent(depotId)}`,
+    import: '/customers/api/v1/customers/import',
   },
   // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
   // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.
@@ -1029,6 +1033,7 @@ export const endpoints = {
     employee: (id: string) => `/employees/api/v1/employees/${id}`,
     employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
     createEmployee: '/employees/api/v1/employees',
+    importEmployees: '/employees/api/v1/employees/import',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
     bonusRules: (depotId?: string) => `/bonus-rules/api/v1/bonus-rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     createBonusRule: '/bonus-rules/api/v1/bonus-rules',

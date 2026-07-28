@@ -1,5 +1,12 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
 export { Role } from './domain/role.enum';
+export {
+  runImport,
+  type ImportRowResult,
+  type ImportRowOutcome,
+  type ImportRowStatus,
+  type ImportSummary,
+} from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext } from './http/request-context';
 export {

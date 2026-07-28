@@ -12,23 +12,33 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  ImportSummary,
+  Roles,
+} from '@hydromart/platform';
+import { CAPABILITIES } from '@hydromart/access';
 
+import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService } from '../application/services/reseller.service';
 import {
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../domain/errors';
 import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './dto/reseller.dto';
+import { ImportResellersDto } from './dto/customer-import.dto';
 
-const RESELLER_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Resellers')
 @ApiBearerAuth()
-@Roles(...RESELLER_ROLES)
+@Roles(...CAPABILITIES.resellerView)
 @Controller({ path: 'resellers', version: '1' })
 export class ResellerController {
-  constructor(private readonly resellers: ResellerService) {}
+  constructor(
+    private readonly resellers: ResellerService,
+    private readonly imports: CustomerImportService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List resellers (optionally by depot / active)' })
@@ -50,7 +60,18 @@ export class ResellerController {
     }
   }
 
+  @Post('import')
+  @Roles(...CAPABILITIES.resellerAdmin)
+  @ApiOperation({ summary: 'Bulk-import resellers from the CSV wizard (pre-registers new phones)' })
+  import(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ImportResellersDto,
+  ): Promise<ImportSummary> {
+    return this.imports.importResellers(user, dto.depotId, dto.rows);
+  }
+
   @Post()
+  @Roles(...CAPABILITIES.resellerAdmin)
   @ApiOperation({ summary: 'Register an existing customer as a reseller' })
   async register(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegisterResellerDto) {
     try {
@@ -69,6 +90,7 @@ export class ResellerController {
   }
 
   @Patch(':customerId')
+  @Roles(...CAPABILITIES.resellerAdmin)
   @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active)' })
   async update(
     @CurrentUser() user: AuthenticatedUser,

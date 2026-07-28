@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { ImportSummary, runImport } from '@hydromart/platform';
+
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
   PriceOverrideProposalRecord,
@@ -46,6 +48,18 @@ export class PriceOverrideService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly pricing: PricingService,
   ) {}
+
+  /** Bulk-propose overrides from the CSV wizard; each row still enters the HQ queue. */
+  async importProposals(
+    depotId: string,
+    proposedBy: string,
+    rows: readonly ProposeOverrideInput[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async (row) => ({
+      status: 'created',
+      id: (await this.propose(depotId, proposedBy, row)).id,
+    }));
+  }
 
   async propose(
     depotId: string,

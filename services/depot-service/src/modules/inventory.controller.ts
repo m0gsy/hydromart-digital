@@ -19,6 +19,7 @@ import {
   InternalAuthGuard,
   Public,
   Roles,
+  ImportSummary,
 } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
@@ -32,6 +33,7 @@ import {
 import {
   AdjustStockDto,
   ConsumeStockDto,
+  ImportInventoryDto,
   CreateInventoryItemDto,
   ListInventoryQueryDto,
   ListStockMovementsQueryDto,
@@ -75,6 +77,29 @@ export class DepotInventoryController {
         minimumStock: dto.minimumStock ?? 0,
         sellPrice: dto.sellPrice ?? null,
       },
+      user.sub,
+    );
+  }
+
+  @Roles(...CAPABILITIES.inventoryWrite)
+  @Post('import')
+  @ApiOperation({ summary: 'Bulk-create stock lines from the CSV wizard (staff)' })
+  import(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ImportInventoryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ImportSummary> {
+    return this.inventory.importLines(
+      depotId,
+      dto.rows.map((row) => ({
+        itemType: row.itemType,
+        productId: row.productId ?? null,
+        label: row.label,
+        unit: row.unit,
+        quantity: row.quantity ?? 0,
+        minimumStock: row.minimumStock ?? 0,
+        sellPrice: row.sellPrice ?? null,
+      })),
       user.sub,
     );
   }

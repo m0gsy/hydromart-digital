@@ -143,6 +143,34 @@ export class AccountService {
   }
 
   /**
+   * Pre-register an end customer imported by depot staff (bulk import). Creates the
+   * identity in PENDING_VERIFICATION so the customer still claims it themselves: the
+   * normal `/auth/register` flow re-issues an OTP for a PENDING phone and activates
+   * it on verify. Never touches an account that is already past PENDING — an active
+   * customer's row is somebody else's, not the importer's to overwrite.
+   */
+  async preRegisterCustomer(
+    rawPhone: string,
+    fullName?: string | null,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' }> {
+    const phone = PhoneNumber.create(rawPhone).value;
+    const existing = await this.customers.findByPhone(phone);
+    if (existing) {
+      return {
+        customerId: existing.id,
+        status: existing.status === CustomerStatus.PENDING_VERIFICATION ? 'pending' : 'active',
+      };
+    }
+    const created = await this.customers.create({
+      phone,
+      email: null,
+      fullName: fullName?.trim() || null,
+      role: Role.CUSTOMER,
+    });
+    return { customerId: created.id, status: 'created' };
+  }
+
+  /**
    * Set the caller's avatar to a freshly uploaded image URL (FR-009). The upload
    * itself is handled by the storage port at the controller edge; this only
    * persists the resulting public URL onto the account.

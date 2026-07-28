@@ -30,8 +30,10 @@ function makeService(): jest.Mocked<Pick<ResellerService, 'list' | 'get' | 'regi
   return { list: jest.fn(), get: jest.fn(), register: jest.fn(), update: jest.fn() };
 }
 
+const importsMock = { importResellers: jest.fn() };
+
 function controllerWith(svc: ReturnType<typeof makeService>): ResellerController {
-  return new ResellerController(svc as unknown as ResellerService);
+  return new ResellerController(svc as unknown as ResellerService, importsMock as never);
 }
 
 const registerDto: RegisterResellerDto = {
@@ -132,5 +134,22 @@ describe('ResellerSelfController', () => {
   it('404s when the caller is not a reseller', async () => {
     svc.findMy.mockResolvedValue(null);
     await expect(controller.me(selfUser as never)).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('ResellerController.import', () => {
+  it('hands the rows and home depot to the import service', async () => {
+    importsMock.importResellers.mockResolvedValue({
+      created: 1,
+      skipped: 0,
+      failed: 0,
+      results: [],
+    });
+    const rows = [{ fullName: 'Toko', phone: '0812' }];
+    const user = { sub: 'mgr-1' } as never;
+
+    await controllerWith(makeService()).import(user, { depotId: 'd1', rows } as never);
+
+    expect(importsMock.importResellers).toHaveBeenCalledWith(user, 'd1', rows);
   });
 });

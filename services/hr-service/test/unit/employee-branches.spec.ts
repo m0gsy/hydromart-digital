@@ -4,6 +4,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { Employee, EmploymentHistory, Prisma } from '../../prisma/generated/client';
 import { EmployeeRepository, EmployeeListFilter } from '../../src/application/ports/employee.repository';
 import { EmployeeService } from '../../src/application/services/employee.service';
+import { fakeIdentity } from './support/identity';
 
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
@@ -73,14 +74,14 @@ const baseInput = {
 describe('EmployeeService self / history', () => {
   it('getSelf resolves the linked employee', async () => {
     const repo = new FakeRepo();
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, { ...baseInput, authSubjectId: hr.sub });
     await expect(svc.getSelf(hr)).resolves.toMatchObject({ id: e.id });
   });
 
   it('getHistory returns the row’s history after the depot check', async () => {
     const repo = new FakeRepo();
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, baseInput);
     const hist = await svc.getHistory(hr, e.id);
     expect(hist).toHaveLength(1);
@@ -93,7 +94,7 @@ describe('EmployeeService.create collisions', () => {
   it('retries the sequential code on an employeeCode unique violation', async () => {
     const repo = new FakeRepo();
     repo.throwOnCreate = ['employeeCode']; // first attempt collides, second succeeds
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, baseInput);
     expect(e.employeeCode).toBe('HR-0002'); // attempt index 1 → count(0)+1+1
   });
@@ -101,14 +102,14 @@ describe('EmployeeService.create collisions', () => {
   it('maps an authSubjectId unique violation to a friendly 400', async () => {
     const repo = new FakeRepo();
     repo.throwOnCreate = ['authSubjectId'];
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     await expect(svc.create(hr, { ...baseInput, authSubjectId: 'dup' })).rejects.toThrow(/tertaut ke karyawan lain/);
   });
 
   it('rethrows an unrelated error', async () => {
     const repo = new FakeRepo();
     repo.throwOnCreate = ['someOtherField'];
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     await expect(svc.create(hr, baseInput)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
   });
 });
@@ -116,7 +117,7 @@ describe('EmployeeService.create collisions', () => {
 describe('EmployeeService.update salary + depot move', () => {
   it('re-shapes rates on a salaryType switch and moves depot', async () => {
     const repo = new FakeRepo();
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, baseInput); // DAILY
     const updated = await svc.update(hr, e.id, {
       salaryType: 'MONTHLY',
@@ -130,7 +131,7 @@ describe('EmployeeService.update salary + depot move', () => {
 
   it('rejects a switch to MONTHLY without a monthlyRate', async () => {
     const repo = new FakeRepo();
-    const svc = new EmployeeService(repo);
+    const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, baseInput);
     await expect(svc.update(hr, e.id, { salaryType: 'MONTHLY' })).rejects.toThrow(BadRequestException);
   });

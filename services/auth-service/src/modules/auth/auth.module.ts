@@ -35,6 +35,7 @@ import { AccountController } from './account.controller';
 import { AuditController } from './audit.controller';
 import { AuthController } from './auth.controller';
 import { AvatarController } from './avatar.controller';
+import { InternalAccountController } from './internal.controller';
 
 /** Binds each application port to its infrastructure adapter (dependency inversion). */
 const adapterProviders: Provider[] = [
@@ -105,7 +106,13 @@ const globalGuards: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController, AccountController, AvatarController, AuditController],
+  controllers: [
+    AuthController,
+    AccountController,
+    AvatarController,
+    AuditController,
+    InternalAccountController,
+  ],
   providers: [...adapterProviders, ...applicationServices, ...globalGuards],
   exports: [PrismaService, AuthConfigService],
 })

@@ -5,7 +5,12 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { EmployeeService } from '../application/services/employee.service';
-import { CreateEmployeeDto, ListEmployeesDto, UpdateEmployeeDto } from './dto/employee.dto';
+import {
+  CreateEmployeeDto,
+  ImportEmployeesDto,
+  ListEmployeesDto,
+  UpdateEmployeeDto,
+} from './dto/employee.dto';
 
 /** Employee directory (M1). Read = hrView (incl. depot manager, depot-scoped); write = hrAdmin. */
 @ApiTags('HR Employees')
@@ -40,6 +45,15 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Create an employee (auto-assigns HR-#### code)' })
   create(@Body() dto: CreateEmployeeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.employees.create(user, dto);
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({
+    summary: 'Bulk-import employees from the CSV wizard (provisions a login per row)',
+  })
+  import(@Body() dto: ImportEmployeesDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.employees.importMany(user, dto.rows);
   }
 
   @Patch(':id')

@@ -38,7 +38,16 @@ export default function EmployeesPage() {
       <SectionHeader
         title="Karyawan"
         subtitle={data ? `${data.total} karyawan` : undefined}
-        action={canManageHr(customer?.role) ? <LinkButton href="/hr/employees/new">+ Tambah</LinkButton> : undefined}
+        action={
+          canManageHr(customer?.role) ? (
+            <div className="flex gap-2">
+              <LinkButton href="/hr/employees/import" variant="secondary">
+                Import CSV
+              </LinkButton>
+              <LinkButton href="/hr/employees/new">+ Tambah</LinkButton>
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="flex flex-wrap gap-3">

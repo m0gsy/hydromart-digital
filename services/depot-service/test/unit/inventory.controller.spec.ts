@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { StockMovementType } from '../../src/domain/inventory';
+import { InventoryItemType, StockMovementType } from '../../src/domain/inventory';
 import { DepotInventoryController } from '../../src/modules/inventory.controller';
 
 describe('DepotInventoryController.movements', () => {
@@ -37,5 +37,37 @@ describe('DepotInventoryController.movements', () => {
         to: '2026-08-01T00:00:00.000Z',
       }),
     ).toThrow(BadRequestException);
+  });
+});
+
+describe('DepotInventoryController.import', () => {
+  const inventory = { importLines: jest.fn() };
+  const controller = new DepotInventoryController(inventory as never, {} as never);
+  const DEPOT = '00000000-0000-4000-8000-000000000001';
+
+  it('defaults the optional columns a CSV may leave blank', async () => {
+    inventory.importLines.mockResolvedValue({ created: 1, skipped: 0, failed: 0, results: [] });
+
+    await controller.import(
+      DEPOT,
+      { rows: [{ itemType: InventoryItemType.GALON, label: 'Galon 19L', unit: 'unit' }] } as never,
+      { sub: 'staff-1' } as never,
+    );
+
+    expect(inventory.importLines).toHaveBeenCalledWith(
+      DEPOT,
+      [
+        {
+          itemType: InventoryItemType.GALON,
+          productId: null,
+          label: 'Galon 19L',
+          unit: 'unit',
+          quantity: 0,
+          minimumStock: 0,
+          sellPrice: null,
+        },
+      ],
+      'staff-1',
+    );
   });
 });

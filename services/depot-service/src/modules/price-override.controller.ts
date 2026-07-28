@@ -11,7 +11,14 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles, assertDepotAccess } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  ImportSummary,
+  Role,
+  Roles,
+  assertDepotAccess,
+} from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
 import { PriceOverrideService } from '../application/services/price-override.service';
@@ -20,7 +27,11 @@ import {
   PriceOverrideStatus,
 } from '../domain/price-override-proposal';
 import { Page } from '../application/pagination';
-import { ListPriceOverridesQueryDto, ProposePriceOverrideDto } from './dto/price-override.dto';
+import {
+  ImportPriceOverridesDto,
+  ListPriceOverridesQueryDto,
+  ProposePriceOverrideDto,
+} from './dto/price-override.dto';
 
 /**
  * Depot-side propose (design 7a): a depot manager proposes a per-product price
@@ -48,6 +59,28 @@ export class DepotPriceOverrideController {
       value: dto.value,
       note: dto.note ?? null,
     });
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.depotAdmin)
+  @ApiOperation({ summary: 'Bulk-propose per-product price overrides from the CSV wizard' })
+  import(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ImportPriceOverridesDto,
+  ): Promise<ImportSummary> {
+    return this.overrides.importProposals(
+      depotId,
+      user.sub,
+      dto.rows.map((row) => ({
+        productId: row.productId,
+        productName: row.productName,
+        currentPrice: row.currentPrice,
+        adjustType: row.adjustType,
+        value: row.value,
+        note: row.note ?? null,
+      })),
+    );
   }
 }
 
