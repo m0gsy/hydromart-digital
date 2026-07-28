@@ -129,7 +129,7 @@ function CustomersBody() {
           {canWriteDepotCrm(customer?.role) && (
             <LinkButton href="/dashboard/customers/import" variant="secondary">
               <UserPlus size={16} />
-              Import CSV
+              Import Excel
             </LinkButton>
           )}
         </div>

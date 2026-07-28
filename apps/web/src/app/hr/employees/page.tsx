@@ -42,7 +42,7 @@ export default function EmployeesPage() {
           canManageHr(customer?.role) ? (
             <div className="flex gap-2">
               <LinkButton href="/hr/employees/import" variant="secondary">
-                Import CSV
+                Import Excel
               </LinkButton>
               <LinkButton href="/hr/employees/new">+ Tambah</LinkButton>
             </div>

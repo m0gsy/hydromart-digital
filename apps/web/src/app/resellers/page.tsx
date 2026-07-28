@@ -316,7 +316,7 @@ export default function ResellersPage() {
         action={
           canManageResellers(customer?.role) ? (
             <LinkButton href="/dashboard/resellers/import" variant="secondary">
-              Import CSV
+              Import Excel
             </LinkButton>
           ) : undefined
         }

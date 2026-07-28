@@ -1,13 +1,13 @@
 'use client';
 
-import { CsvImport, intCell, type ImportColumn } from '@/components/csv-import';
+import { CsvImport, intCell, phoneCell, type ImportColumn } from '@/components/csv-import';
 import { CenterState } from '@/components/ui';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
 
 const COLUMNS: ImportColumn[] = [
   { key: 'fullName', required: true, example: 'Toko Berkah' },
-  { key: 'phone', required: true, example: '081234567890' },
+  { key: 'phone', required: true, example: '081234567890', text: true, parse: phoneCell },
   { key: 'discountPct', required: true, example: '5', parse: intCell },
   { key: 'monthlyTargetQty', required: true, example: '100', parse: intCell },
   { key: 'joinDate', required: true, example: '2026-01-01' },
@@ -27,7 +27,7 @@ export default function ImportResellersPage() {
       description="Nomor yang belum punya akun akan didaftarkan lebih dulu, lalu terdaftar sebagai reseller depot ini dengan persen diskonnya."
       columns={COLUMNS}
       endpoint={endpoints.resellers.import}
-      templateName="reseller.csv"
+      templateName="reseller"
       body={{ depotId: scopedId }}
     />
   );

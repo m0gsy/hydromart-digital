@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCsv, parseCsvRecords, toCsv } from '@/lib/csv';
+import { detectDelimiter, parseCsv, parseCsvRecords, toCsv } from '@/lib/csv';
 
 describe('parseCsv', () => {
   it('splits a plain LF document into cells', () => {
@@ -89,5 +89,47 @@ describe('toCsv', () => {
 
   it('doubles embedded quotes', () => {
     expect(toCsv(['a'], [['say "hi"']])).toBe('a\r\n"say ""hi"""');
+  });
+});
+
+describe('detectDelimiter', () => {
+  it('defaults to a comma', () => {
+    expect(detectDelimiter('a,b,c\n1,2,3')).toBe(',');
+  });
+
+  it('picks the semicolon Excel writes on an Indonesian locale', () => {
+    expect(detectDelimiter('fullName;phone;depotCode\nBudi;0812;JKT-01')).toBe(';');
+  });
+
+  it('picks tab for a pasted-from-Excel file', () => {
+    expect(detectDelimiter('a\tb\tc')).toBe('\t');
+  });
+
+  it('ignores separators inside a quoted header', () => {
+    expect(detectDelimiter('"nama, lengkap";phone')).toBe(';');
+  });
+
+  it('survives an empty document', () => {
+    expect(detectDelimiter('')).toBe(',');
+  });
+});
+
+describe('parseCsv with a detected separator', () => {
+  it('splits a semicolon file into real columns', () => {
+    expect(parseCsv('fullName;phone\nBudi;0812')).toEqual([
+      ['fullName', 'phone'],
+      ['Budi', '0812'],
+    ]);
+  });
+
+  it('keeps a comma inside a cell when the separator is a semicolon', () => {
+    expect(parseCsv('name;address\nBudi;"Jl. Melati 3, RT 04"')).toEqual([
+      ['name', 'address'],
+      ['Budi', 'Jl. Melati 3, RT 04'],
+    ]);
+  });
+
+  it('honours an explicitly passed separator', () => {
+    expect(parseCsv('a;b', ',')).toEqual([['a;b']]);
   });
 });

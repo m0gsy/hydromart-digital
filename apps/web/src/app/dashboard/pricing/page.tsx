@@ -358,7 +358,7 @@ function PricingBody() {
         {depotId && editing === null && (
           <div className="flex gap-2">
             <LinkButton href="/dashboard/pricing/import" variant="secondary">
-              Import CSV
+              Import Excel
             </LinkButton>
             <Button variant="secondary" onClick={() => setPreview((v) => !v)}>
               {preview ? t('dashboard.pricing.previewClose') : t('dashboard.pricing.previewOpen')}

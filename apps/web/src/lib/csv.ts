@@ -7,10 +7,35 @@ export type CsvCell = string | number | null | undefined;
 export type CsvRecord = Record<string, string>;
 
 /**
- * RFC-4180 parse. Handles quoted cells containing commas, CRLF/LF newlines and
- * escaped `""` quotes; strips a leading UTF-8 BOM (Excel writes one).
+ * Pick the separator from the header line. Excel on an Indonesian (or most European)
+ * locale saves CSV with ';' — assuming ',' turns the whole file into one column.
+ * Counts only separators OUTSIDE quotes so a quoted header can't skew the vote.
  */
-export function parseCsv(text: string): string[][] {
+export function detectDelimiter(text: string): string {
+  const header = text.replace(/^\uFEFF/, '').split(/\r?\n/)[0] ?? '';
+  const counts = new Map<string, number>([
+    [',', 0],
+    [';', 0],
+    ['\t', 0],
+  ]);
+  let quoted = false;
+  for (const ch of header) {
+    if (ch === '"') quoted = !quoted;
+    else if (!quoted && counts.has(ch)) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  }
+  let best = ',';
+  for (const [candidate, count] of counts) {
+    if (count > (counts.get(best) ?? 0)) best = candidate;
+  }
+  return best;
+}
+
+/**
+ * RFC-4180 parse. Handles quoted cells containing the separator, CRLF/LF newlines and
+ * escaped `""` quotes; strips a leading UTF-8 BOM (Excel writes one). The separator is
+ * auto-detected unless given.
+ */
+export function parseCsv(text: string, delimiter = detectDelimiter(text)): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -45,7 +70,7 @@ export function parseCsv(text: string): string[][] {
     }
     if (ch === '"' && cell === '') {
       quoted = true;
-    } else if (ch === ',') {
+    } else if (ch === delimiter) {
       endCell();
     } else if (ch === '\r') {
       // swallow — the \n that follows ends the row (a lone \r ends it too)
@@ -87,12 +112,17 @@ export function toCsv(headers: string[], rows: CsvCell[][]): string {
   return [headers, ...rows].map((r) => r.map(escapeCell).join(',')).join('\r\n');
 }
 
-/** Trigger a browser download of `csv` as `filename`. BOM so Excel reads UTF-8. */
-export function downloadCsv(filename: string, csv: string): void {
-  const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+/** Trigger a browser download of `blob` as `filename`. */
+export function downloadBlob(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/** Download `csv` as `filename`. BOM so Excel reads it as UTF-8. */
+export function downloadCsv(filename: string, csv: string): void {
+  downloadBlob(filename, new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
 }

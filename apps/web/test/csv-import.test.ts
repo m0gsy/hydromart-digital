@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { enumCell, intCell, numberCell, prepareRows, type ImportColumn } from '@/components/csv-import';
+import {
+  enumCell,
+  intCell,
+  numberCell,
+  phoneCell,
+  prepareRows,
+  type ImportColumn,
+} from '@/components/csv-import';
 
 const COLUMNS: ImportColumn[] = [
   { key: 'fullName', required: true, example: 'Budi' },
@@ -102,5 +109,63 @@ describe('numberCell', () => {
 
   it('rejects an empty cell instead of returning 0', () => {
     expect(() => numberCell(' ')).toThrow();
+  });
+});
+
+describe('phoneCell', () => {
+  it('canonicalizes every local form to +628…', () => {
+    expect(phoneCell('081234567890')).toBe('+6281234567890');
+    expect(phoneCell('6281234567890')).toBe('+6281234567890');
+    expect(phoneCell('+6281234567890')).toBe('+6281234567890');
+    expect(phoneCell('0812-3456-7890')).toBe('+6281234567890');
+  });
+
+  it('accepts a number Excel stripped the leading zero from', () => {
+    // Harmless: the canonical form drops the 0 anyway, so 81… means the same number.
+    expect(phoneCell('81234567890')).toBe('+6281234567890');
+  });
+
+  it('rejects scientific notation instead of guessing the lost digits', () => {
+    expect(() => phoneCell('8.12E+10')).toThrow(/notasi ilmiah/);
+    expect(() => phoneCell('8,1235E+11')).toThrow(/notasi ilmiah/);
+  });
+
+  it('rejects a landline or a number that is too short', () => {
+    expect(() => phoneCell('02112345678')).toThrow(/bukan nomor HP/);
+    expect(() => phoneCell('0812345')).toThrow(/bukan nomor HP/);
+  });
+});
+
+describe('column options and field alias', () => {
+  const columns: ImportColumn[] = [
+    {
+      key: 'depotCode',
+      field: 'depotId',
+      required: true,
+      example: 'JKT-01',
+      parse: (raw) => (raw === 'JKT-01' ? 'depot-uuid-1' : (() => { throw new Error('tidak dikenal'); })()),
+    },
+    { key: 'itemType', required: true, example: 'GALON', options: ['GALON', 'TUTUP'] },
+  ];
+
+  it('posts the resolved value under the field name, not the header name', () => {
+    const row = firstRow([{ depotCode: 'JKT-01', itemType: 'GALON' }], columns);
+    expect(row.payload).toEqual({ depotId: 'depot-uuid-1', itemType: 'GALON' });
+    expect(row.payload).not.toHaveProperty('depotCode');
+  });
+
+  it('uses options as the parser when no explicit one is given', () => {
+    expect(firstRow([{ depotCode: 'JKT-01', itemType: 'galon' }], columns).payload).toMatchObject({
+      itemType: 'GALON',
+    });
+    expect(firstRow([{ depotCode: 'JKT-01', itemType: 'AIR' }], columns).error).toContain(
+      'GALON/TUTUP',
+    );
+  });
+
+  it('reports the header name in the error, not the field name', () => {
+    expect(firstRow([{ depotCode: 'SBY-99', itemType: 'GALON' }], columns).error).toBe(
+      'depotCode: tidak dikenal',
+    );
   });
 });

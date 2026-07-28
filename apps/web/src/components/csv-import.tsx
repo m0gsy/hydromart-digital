@@ -5,21 +5,28 @@ import { CheckCircle, DownloadSimple, UploadSimple, Warning } from '@phosphor-ic
 
 import { Badge, Button, Card } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { downloadCsv, parseCsvRecords, toCsv, type CsvRecord } from '@/lib/csv';
+import { downloadBlob, downloadCsv, parseCsvRecords, toCsv, type CsvRecord } from '@/lib/csv';
+import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords } from '@/lib/xlsx';
 
 /** Server-side row cap — mirrors @ArrayMaxSize(500) on every import DTO. */
 export const MAX_IMPORT_ROWS = 500;
 
 export interface ImportColumn {
-  /** CSV header AND the JSON key posted to the API. */
+  /** Column header in the file — what the person filling it in reads. */
   key: string;
+  /** JSON key posted to the API. Defaults to `key`; set it when the human-facing
+   *  header differs from the field (e.g. `depotCode` in, `depotId` out). */
+  field?: string;
   required?: boolean;
   /** Sample value written into the downloadable template. */
   example: string;
-  hint?: string;
+  /** Allowed values — becomes a dropdown in the template and the default parser. */
+  options?: readonly string[];
+  /** Format the template column as Text so Excel keeps it verbatim (phones, codes). */
+  text?: boolean;
   /**
    * Convert a raw cell into the value sent to the API. Throw an Error to reject
-   * the row with that message. Omitted = send the trimmed string as-is.
+   * the row with that message. Defaults to the `options` check, else the trimmed string.
    */
   parse?: (raw: string) => unknown;
 }
@@ -76,6 +83,43 @@ export function enumCell(allowed: readonly string[]) {
   };
 }
 
+/**
+ * Indonesian mobile number, canonicalized to the +628… form the server stores.
+ *
+ * Excel is the real adversary here. A phone typed into a General cell becomes a
+ * number: losing the leading 0 is harmless (the server reads a bare 8… as +628…),
+ * but a long one flips to scientific notation and genuinely loses digits. That case
+ * is rejected loudly rather than guessed at — the fix belongs in the spreadsheet.
+ */
+export function phoneCell(raw: string): string {
+  const cleaned = raw.replace(/[\s\-().]/g, '');
+  if (/e[+-]?\d+$/i.test(cleaned)) {
+    throw new Error(
+      `"${raw}" rusak jadi notasi ilmiah oleh Excel — format kolom telepon sebagai Teks lalu ketik ulang`,
+    );
+  }
+  const e164 = cleaned.startsWith('+62')
+    ? cleaned
+    : cleaned.startsWith('62')
+      ? `+${cleaned}`
+      : cleaned.startsWith('0')
+        ? `+62${cleaned.slice(1)}`
+        : cleaned.startsWith('8')
+          ? `+62${cleaned}`
+          : cleaned;
+  if (!/^\+628\d{7,11}$/.test(e164)) {
+    throw new Error(`"${raw}" bukan nomor HP Indonesia yang sah`);
+  }
+  return e164;
+}
+
+/** The parser a column uses: explicit `parse`, else its `options`, else raw text. */
+function parserFor(column: ImportColumn): (raw: string) => unknown {
+  if (column.parse) return column.parse;
+  if (column.options) return enumCell(column.options);
+  return (raw) => raw;
+}
+
 /** Validate + shape each record into the JSON payload; a rejected row carries its reason. */
 export function prepareRows(records: CsvRecord[], columns: ImportColumn[]): PreparedRow[] {
   return records.map((raw, i) => {
@@ -88,7 +132,7 @@ export function prepareRows(records: CsvRecord[], columns: ImportColumn[]): Prep
         continue;
       }
       try {
-        payload[col.key] = col.parse ? col.parse(cell) : cell;
+        payload[col.field ?? col.key] = parserFor(col)(cell);
       } catch (err) {
         return { row, raw, error: `${col.key}: ${err instanceof Error ? err.message : 'tidak valid'}` };
       }
@@ -129,8 +173,16 @@ export function CsvImport({
   const valid = rows?.filter((r) => r.payload) ?? [];
   const invalid = rows?.filter((r) => r.error) ?? [];
 
-  function downloadTemplate() {
-    downloadCsv(templateName, toCsv(headers, [columns.map((c) => c.example)]));
+  async function downloadTemplate() {
+    // The template is .xlsx on purpose: only a spreadsheet can carry the Text format
+    // on the phone column and the dropdowns on the enum columns. A CSV template can't.
+    setFileError(null);
+    try {
+      downloadBlob(`${templateName}.xlsx`, await buildTemplateXlsx(columns, templateName));
+    } catch {
+      // Excel writer unavailable (offline chunk) — the CSV template still gets them going.
+      downloadCsv(`${templateName}.csv`, toCsv(headers, [columns.map((c) => c.example)]));
+    }
   }
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -141,7 +193,28 @@ export function CsvImport({
     setFileError(null);
     setRows(null);
 
-    const records = parseCsvRecords(await file.text());
+    const kind = classifyImportFile(file.name);
+    if (kind === 'legacy') {
+      setFileError(
+        'Format lama (.xls / .ods) tidak bisa dibaca. Buka filenya, lalu "Save As" → Excel Workbook (.xlsx).',
+      );
+      return;
+    }
+    if (kind === 'unsupported') {
+      setFileError(`"${file.name}" bukan file Excel atau CSV. Pilih file .xlsx atau .csv.`);
+      return;
+    }
+
+    let records: CsvRecord[];
+    try {
+      records =
+        kind === 'spreadsheet' ? await parseXlsxRecords(file) : parseCsvRecords(await file.text());
+    } catch {
+      // A file with the right extension can still be corrupt or password-protected.
+      setFileError('File tidak bisa dibaca. Pastikan tidak rusak atau terkunci password.');
+      return;
+    }
+
     const first = records[0];
     if (!first) {
       setFileError('File kosong atau tidak punya baris data.');
@@ -183,7 +256,7 @@ export function CsvImport({
         .map((r) => ({ raw: valid[r.row - 1]?.raw ?? {}, reason: r.message ?? '' })),
     ];
     downloadCsv(
-      `gagal-${templateName}`,
+      `gagal-${templateName}.csv`,
       toCsv(
         [...headers, 'alasan_gagal'],
         failed.map(({ raw, reason }) => [...headers.map((h) => raw[h] ?? ''), reason]),
@@ -201,17 +274,22 @@ export function CsvImport({
       <Card className="flex flex-col gap-3 p-5">
         <div className="flex flex-wrap items-center gap-2.5">
           <Button variant="secondary" onClick={downloadTemplate}>
-            <DownloadSimple size={16} weight="bold" /> Unduh template CSV
+            <DownloadSimple size={16} weight="bold" /> Unduh template Excel
           </Button>
           <label className="inline-flex">
-            <input type="file" accept=".csv,text/csv" onChange={onPick} className="hidden" />
+            <input
+              type="file"
+              accept=".xlsx,.xlsm,.csv,text/csv"
+              onChange={onPick}
+              className="hidden"
+            />
             <span className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-bold text-white">
-              <UploadSimple size={16} weight="bold" /> Pilih file CSV
+              <UploadSimple size={16} weight="bold" /> Pilih file
             </span>
           </label>
         </div>
         <p className="text-[12.5px] text-muted">
-          Maksimal {MAX_IMPORT_ROWS} baris. Kolom wajib:{' '}
+          Terima .xlsx dan .csv. Maksimal {MAX_IMPORT_ROWS} baris. Kolom wajib:{' '}
           {columns
             .filter((c) => c.required)
             .map((c) => c.key)

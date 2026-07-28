@@ -659,7 +659,7 @@ function InventoryBody() {
         <div className="flex flex-wrap items-center gap-2">
           {canWriteInventory(customer?.role) && (
             <LinkButton href="/dashboard/inventory/import" variant="secondary">
-              Import CSV
+              Import Excel
             </LinkButton>
           )}
           <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
