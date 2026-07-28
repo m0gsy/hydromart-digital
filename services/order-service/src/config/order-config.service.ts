@@ -61,6 +61,10 @@ export class OrderConfigService {
   get forecastServiceUrl(): string {
     return this.config.get<string>('FORECAST_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** Blank disables the franchise revenue push (dev default), like the other optionals. */
+  get payoutServiceUrl(): string {
+    return this.config.get<string>('PAYOUT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
@@ -75,6 +79,16 @@ export class OrderConfigService {
    */
   get abandonMinutes(): number {
     return this.tunable('abandonMinutes', this.num('ORDER_ABANDON_MINUTES'));
+  }
+  /**
+   * Age (hours) after which an order still sitting at CONFIRMED/PREPARING is treated as
+   * stalled and auto-cancelled, giving back its stock hold. Deliberately far longer than
+   * `abandonMinutes`: the depot has already accepted this order, so the sweep must not
+   * pull it out from under a depot that is merely slow. Same platform-wide GLOBAL
+   * resolution as the abandonment window.
+   */
+  get stalledHours(): number {
+    return this.tunable('stalledHours', this.num('ORDER_STALLED_HOURS'));
   }
   get corsOrigins(): string[] {
     return this.config

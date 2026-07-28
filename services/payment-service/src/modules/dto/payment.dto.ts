@@ -18,6 +18,8 @@ import {
 
 import { PaymentMethod, PaymentStatus } from '../../domain/payment';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class InitiatePaymentDto {
   @ApiProperty({ format: 'uuid', description: 'The order being paid for.' })
   @IsUUID()
@@ -69,6 +71,7 @@ export class UnsettledByMethodQueryDto {
   @ApiPropertyOptional({ format: 'date-time', description: 'End of the window (inclusive).' })
   @IsOptional()
   @IsDateString()
+  @IsNotBefore('from')
   to?: string;
 }
 

@@ -50,6 +50,12 @@ import {
 } from '../../src/application/ports/purchase-order.repository';
 import { ShiftAssignment } from '../../src/domain/shift';
 import { RosterRepository, UpsertShiftData } from '../../src/application/ports/roster.repository';
+import {
+  CreateGallonIssueData,
+  GallonIssueRecord,
+  GallonIssueRepository,
+  GallonIssueSummary,
+} from '../../src/application/ports/gallon-issue.repository';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -500,5 +506,39 @@ export class InMemorySettingsRepository {
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
     const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
     if (i >= 0) this.rows.splice(i, 1);
+  }
+}
+
+/** Shared by the gallon issue AND return specs (the return guard reads both ledgers). */
+export class InMemoryGallonIssueRepository implements GallonIssueRepository {
+  private rows: GallonIssueRecord[] = [];
+  private seq = 0;
+
+  async create(data: CreateGallonIssueData): Promise<GallonIssueRecord> {
+    const row: GallonIssueRecord = { id: `i${++this.seq}`, createdAt: new Date(), ...data };
+    this.rows.push(row);
+    return row;
+  }
+  async listForDepot(depotId: string, page: number, limit: number) {
+    const all = this.rows.filter((r) => r.depotId === depotId).reverse();
+    return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
+  }
+  async summaryForDepot(depotId: string): Promise<GallonIssueSummary> {
+    const all = this.rows.filter((r) => r.depotId === depotId);
+    return {
+      issues: all.length,
+      gallons: all.reduce((s, r) => s + r.quantity, 0),
+      depositHeld: all.reduce((s, r) => s + r.depositHeld, 0),
+    };
+  }
+  async networkSummary() {
+    const map = new Map<string, { gallons: number; depositHeld: number }>();
+    for (const r of this.rows) {
+      const e = map.get(r.depotId) ?? { gallons: 0, depositHeld: 0 };
+      e.gallons += r.quantity;
+      e.depositHeld += r.depositHeld;
+      map.set(r.depotId, e);
+    }
+    return [...map.entries()].map(([depotId, v]) => ({ depotId, ...v }));
   }
 }

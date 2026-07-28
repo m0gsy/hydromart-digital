@@ -55,6 +55,8 @@ model LedgerEntry {
   /// Signed IDR amount: positive = credit (balance up), negative = debit.
   amount           Decimal         @db.Decimal(14, 2)
   description      String
+  /// Idempotency key for pushed entries (e.g. "order:<id>:SALE"); null for manual ones.
+  sourceRef        String?         @unique
   occurredAt       DateTime        @default(now())
   createdAt        DateTime        @default(now())
 

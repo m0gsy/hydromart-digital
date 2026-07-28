@@ -45,6 +45,10 @@ import {
   DepotDirectoryPort,
   DepotLocation,
 } from '../../src/application/ports/depot-directory.port';
+import {
+  FranchiseRevenuePort,
+  OrderRevenueEvent,
+} from '../../src/application/ports/franchise-revenue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
@@ -192,9 +196,9 @@ export class InMemoryOrderRepository implements OrderRepository {
       total: all.length,
     };
   }
-  async findStaleCreated(before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
     return this.rows
-      .filter((r) => r.status === OrderStatus.CREATED && r.createdAt < before)
+      .filter((r) => statuses.includes(r.status) && r.createdAt < before)
       .map((r) => structuredClone(r));
   }
 
@@ -566,8 +570,20 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   depots: DepotLocation[] = [];
   /** Simulate the directory being unreachable (fail-open null), not just empty. */
   unreachable = false;
+  /** depotId -> franchise owner; unset means the depot has no owner (or lookup failed). */
+  owners = new Map<string, string>();
   async listActiveDepots(): Promise<DepotLocation[] | null> {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
+  }
+  async findOwnerId(depotId: string): Promise<string | null> {
+    return this.unreachable ? null : this.owners.get(depotId) ?? null;
+  }
+}
+
+export class FakeFranchiseRevenue implements FranchiseRevenuePort {
+  posted: OrderRevenueEvent[] = [];
+  async orderCompleted(event: OrderRevenueEvent): Promise<void> {
+    this.posted.push(event);
   }
 }
 
@@ -596,14 +612,29 @@ export class FakeDepotPricing implements DepotPricingPort {
     this.forDepot(depotId).set(productId, { ...row, adjustType, value });
   }
 
-  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>> {
+  /** A wholesale band that only kicks in from `minQty` units, like the real tiers. */
+  setTier(depotId: string, productId: string, minQty: number, tierPrice: number): void {
+    this.tiers.set(`${depotId}:${productId}`, { minQty, tierPrice });
+  }
+
+  private readonly tiers = new Map<string, { minQty: number; tierPrice: number }>();
+
+  async getPrices(
+    depotId: string,
+    productIds: string[],
+    quantities: number[] = [],
+  ): Promise<Map<string, DepotPrice>> {
     this.calls.push({ depotId, productIds });
     const forDepot = this.overrides.get(depotId) ?? new Map<string, DepotPrice>();
     const result = new Map<string, DepotPrice>();
-    for (const id of productIds) {
+    productIds.forEach((id, i) => {
       const row = forDepot.get(id);
-      if (row) result.set(id, row);
-    }
+      const band = this.tiers.get(`${depotId}:${id}`);
+      const qty = quantities[i] ?? 0;
+      const tiered = band && qty >= band.minQty ? { tierPrice: band.tierPrice } : {};
+      const merged = { ...(row ?? {}), ...tiered };
+      if (Object.keys(merged).length > 0) result.set(id, merged);
+    });
     return result;
   }
 }
@@ -817,6 +848,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     REFERRAL_SERVICE_URL: 'http://localhost:3011',
     CRM_SERVICE_URL: 'http://localhost:3012',
     ORDER_DELIVERY_FEE: '5000',
+    ORDER_STALLED_HOURS: '24',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',

@@ -44,4 +44,19 @@ describe('selectNearestDepot', () => {
     const a = depot({ id: 'depot-a' });
     expect(selectNearestDepot(-6.9, 107.6, [b, a])?.id).toBe('depot-a');
   });
+
+  // A depot row whose coordinates or radius are missing produces NaN distances. Every NaN
+  // comparison is false, so without an explicit guard `distance > radius` fails to skip it
+  // and the row is elected for EVERY address on earth — silently swallowing out-of-area
+  // checkouts that ORDER_OUT_OF_SERVICE_AREA exists to reject.
+  it('ignores depots with a non-finite coordinate or radius', () => {
+    const good = depot({ id: 'good', lat: -6.9, lng: 107.6 });
+    const noCoords = depot({ id: 'broken', lat: undefined as unknown as number, lng: undefined as unknown as number });
+    const noRadius = depot({ id: 'no-radius', serviceRadiusKm: undefined as unknown as number });
+
+    expect(selectNearestDepot(-6.9, 107.6, [noCoords, good])?.id).toBe('good');
+    expect(selectNearestDepot(-6.9, 107.6, [noRadius, good])?.id).toBe('good');
+    // …and a broken row alone must not make a far-away address look serviceable.
+    expect(selectNearestDepot(-8.65, 115.22, [noCoords])).toBeNull();
+  });
 });

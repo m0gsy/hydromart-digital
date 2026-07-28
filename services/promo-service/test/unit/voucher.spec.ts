@@ -90,10 +90,11 @@ describe('validateVoucher', () => {
     );
   });
 
-  it('rejects once the discount budget cap is exhausted', () => {
-    // Under the cap → ok; at/over the cap → blocked.
-    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 99999)).not.toThrow();
-    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000)).toThrow(
+  it('rejects the redemption that would take the budget past its cap', () => {
+    // Hard cap: the burn passed in already includes this order's own discount, so
+    // landing exactly on the cap is allowed and the first rupiah over is rejected.
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100000)).not.toThrow();
+    expect(() => validateVoucher(rules({ budgetCap: 100000 }), 60000, now, 0, 0, 100001)).toThrow(
       VoucherBudgetExhaustedError,
     );
   });

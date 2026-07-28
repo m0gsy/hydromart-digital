@@ -42,6 +42,7 @@ import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
+import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
@@ -104,6 +105,8 @@ export class OrderService {
     private readonly recommendation: RecommendationCoordinationPort,
     @Inject(ORDER_TOKENS.ForecastCoordination)
     private readonly forecastCoordination: ForecastCoordinationPort,
+    @Inject(ORDER_TOKENS.FranchiseRevenue)
+    private readonly franchiseRevenue: FranchiseRevenuePort,
   ) {}
 
   /**
@@ -136,11 +139,15 @@ export class OrderService {
       ? await this.depotPricing.getPrices(
           depot.id,
           lines.map((l) => l.productId),
+          lines.map((l) => l.quantity),
         )
       : new Map<string, DepotPrice>();
 
     const productById = await this.pricedAll(lines.map((l) => l.productId));
     const items: CreateOrderItemData[] = [];
+    // Rupiah that came from a wholesale band. The bulk price is already the depot's bulk
+    // price, so the reseller percentage is not stacked on top of it (decided 2026-07-27).
+    let tierPricedTotal = 0;
     for (const line of lines) {
       const product = productById.get(line.productId)!;
       const priceRow = prices.get(product.id);
@@ -148,7 +155,12 @@ export class OrderService {
       const adj = priceRow?.adjustType
         ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
         : null;
-      const unitPrice = money(applyAdjustment(base, adj));
+      // A wholesale band is an absolute unit price and outranks both the depot override
+      // and the active pricing rule (design 16b).
+      const tiered = typeof priceRow?.tierPrice === 'number';
+      const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
+      const lineTotal = money(unitPrice * line.quantity);
+      if (tiered) tierPricedTotal += lineTotal;
       items.push({
         productId: product.id,
         productName: product.name,
@@ -156,7 +168,7 @@ export class OrderService {
         unit: product.unit,
         unitPrice,
         quantity: line.quantity,
-        lineTotal: money(unitPrice * line.quantity),
+        lineTotal,
       });
     }
 
@@ -181,7 +193,10 @@ export class OrderService {
     let discount: number;
     if (isReseller) {
       if (input.voucherCode?.trim()) throw new ResellerVoucherNotAllowedError();
-      discount = money(Math.min(subtotal, percentDiscount(subtotal, reseller!.discountPct)));
+      // Wholesale-priced lines are excluded from the reseller percentage — they are
+      // already at the depot's bulk price and must not be discounted twice.
+      const discountable = money(Math.max(0, subtotal - tierPricedTotal));
+      discount = money(Math.min(subtotal, percentDiscount(discountable, reseller!.discountPct)));
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
@@ -267,7 +282,11 @@ export class OrderService {
     if (lines.length === 0) throw new EmptyCartError();
     const depot = await this.routeDepot(address);
     const prices = depot
-      ? await this.depotPricing.getPrices(depot.id, lines.map((l) => l.productId))
+      ? await this.depotPricing.getPrices(
+          depot.id,
+          lines.map((l) => l.productId),
+          lines.map((l) => l.quantity),
+        )
       : new Map<string, DepotPrice>();
 
     const productById = await this.pricedAll(lines.map((l) => l.productId));
@@ -279,7 +298,11 @@ export class OrderService {
       const adj = priceRow?.adjustType
         ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
         : null;
-      const unitPrice = money(applyAdjustment(base, adj));
+      // Same wholesale rule as interactive checkout: a matching band is the unit price.
+      const unitPrice =
+        typeof priceRow?.tierPrice === 'number'
+          ? money(priceRow.tierPrice)
+          : money(applyAdjustment(base, adj));
       items.push({
         productId: product.id,
         productName: product.name,
@@ -457,9 +480,19 @@ export class OrderService {
   }
 
   /**
-   * Auto-cancels unconfirmed CREATED orders older than the abandonment threshold,
-   * releasing any stock they held. Admin-triggered sweep (mirrors loyalty/expire) —
-   * only CREATED orders qualify, so a legitimately in-flight order is never touched.
+   * Auto-cancels orders that never went anywhere, releasing the stock they held.
+   * Admin-triggered sweep (mirrors loyalty/expire). Two windows, because the two cases
+   * are not the same risk:
+   *
+   * - CREATED beyond `abandonMinutes` — a cart the customer walked away from.
+   * - CONFIRMED / PREPARING beyond `stalledHours` — the depot accepted it and then
+   *   nothing happened. These used to be swept by nothing at all, so an order that was
+   *   never paid for held its reservation forever. The window is long and per-depot
+   *   tunable precisely because a depot may legitimately be slow: payment here is direct
+   *   to the depot, so "unpaid" is a normal state for a live order and is NOT the signal.
+   *
+   * Anything from DRIVER_ASSIGNED on is delivery-service's to close (a failed delivery
+   * cancels its own order), so it is deliberately out of scope here.
    */
   async expireAbandoned(
     changedBy: string,
@@ -467,18 +500,53 @@ export class OrderService {
     olderThanMinutes?: number,
   ): Promise<{ cancelled: number }> {
     const minutes = olderThanMinutes ?? this.config.abandonMinutes;
-    const before = new Date(Date.now() - minutes * 60_000);
-    const stale = await this.orders.findStaleCreated(before);
-    for (const order of stale) {
-      const cancelled = await this.orders.applyStatus(
-        order.id,
-        OrderStatus.CANCELLED,
-        changedBy,
-        'Auto-cancelled: order abandoned before confirmation.',
-      );
-      await this.releaseStock(cancelled, authorization);
+    const now = Date.now();
+    const sweeps: { statuses: OrderStatus[]; before: Date; note: string }[] = [
+      {
+        statuses: [OrderStatus.CREATED],
+        before: new Date(now - minutes * 60_000),
+        note: 'Auto-cancelled: order abandoned before confirmation.',
+      },
+      {
+        statuses: [OrderStatus.CONFIRMED, OrderStatus.PREPARING],
+        before: new Date(now - this.config.stalledHours * 3_600_000),
+        note: 'Auto-cancelled: order stalled at the depot with no progress.',
+      },
+    ];
+    let cancelledCount = 0;
+    for (const sweep of sweeps) {
+      const stale = await this.orders.findStaleIn(sweep.statuses, sweep.before);
+      for (const order of stale) {
+        const cancelled = await this.orders.applyStatus(
+          order.id,
+          OrderStatus.CANCELLED,
+          changedBy,
+          sweep.note,
+        );
+        await this.releaseStock(cancelled, authorization);
+        cancelledCount += 1;
+      }
     }
-    return { cancelled: stale.length };
+    return { cancelled: cancelledCount };
+  }
+
+  /**
+   * Credits a completed order to the fulfilling depot's franchise owner (design 6a).
+   * No depot, no owner, or an unreachable depot-service → nothing is posted; completion
+   * itself is never affected.
+   */
+  private async postFranchiseRevenue(order: OrderRecord): Promise<void> {
+    if (!order.depotId || !(order.total > 0)) return;
+    const franchiseOwnerId = await this.depotDirectory.findOwnerId(order.depotId);
+    if (!franchiseOwnerId) return;
+    await this.franchiseRevenue.orderCompleted({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      franchiseOwnerId,
+      depotId: order.depotId,
+      amountIdr: order.total,
+      completedAt: new Date().toISOString(),
+    });
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
@@ -567,6 +635,10 @@ export class OrderService {
       // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
       // guard as above — the adapter never throws, but never let a bug there block completion.
       await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
+      // Design 6a: credit the fulfilling depot's franchise owner. Nothing wrote that
+      // ledger before, so every owner balance and the HQ release queue read an empty
+      // table. Fail-open and idempotent on the payout side (keyed by order id).
+      await this.postFranchiseRevenue(updated).catch(() => {});
     }
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {

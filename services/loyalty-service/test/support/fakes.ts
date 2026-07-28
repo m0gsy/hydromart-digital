@@ -22,6 +22,8 @@ import {
   RewardItemRecord,
   RewardRedemptionRecord,
   RewardRepository,
+  CreateRewardItemData,
+  UpdateRewardItemData,
 } from '../../src/application/ports/reward.repository';
 
 let seq = 0;
@@ -190,9 +192,25 @@ export class InMemoryRewardRepository implements RewardRepository {
     return this.items.filter((i) => i.active).map((i) => ({ ...i }));
   }
 
+  async listAllItems(): Promise<RewardItemRecord[]> {
+    return this.items.map((i) => ({ ...i }));
+  }
+
   async findItem(id: string): Promise<RewardItemRecord | null> {
     const i = this.items.find((x) => x.id === id);
     return i ? { ...i } : null;
+  }
+
+  async createItem(data: CreateRewardItemData): Promise<RewardItemRecord> {
+    const item: RewardItemRecord = { id: randomUUID(), ...data };
+    this.items.push(item);
+    return { ...item };
+  }
+
+  async updateItem(id: string, data: UpdateRewardItemData): Promise<RewardItemRecord> {
+    const i = this.items.find((x) => x.id === id)!;
+    Object.assign(i, data);
+    return { ...i };
   }
 
   async findRedemptionByKey(

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -28,7 +29,9 @@ import { Page } from '../application/pagination';
 import {
   BrowseDepotsQueryDto,
   CreateDepotDto,
+  DepotPaymentInfoView,
   NearbyDepotsQueryDto,
+  PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
 
@@ -51,11 +54,14 @@ interface UploadedImage {
 export class DepotController {
   constructor(private readonly depots: DepotService) {}
 
+  // Anonymous browse: the trimmed projection only. Serving the whole DepotRecord here
+  // published every depot's bank account to the open internet — see PublicDepotView.
   @Public()
   @Get()
   @ApiOperation({ summary: 'Browse depots (paginated, active only)' })
-  browse(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
-    return this.depots.browse(query, true);
+  async browse(@Query() query: BrowseDepotsQueryDto): Promise<Page<PublicDepotView>> {
+    const page = await this.depots.browse(query, true);
+    return { ...page, items: page.items.map(PublicDepotView.from) };
   }
 
   // Static `nearby` segment declared before `:id` so it is not swallowed by the param route.
@@ -81,6 +87,20 @@ export class DepotController {
     return { depotIds: depots.map((d) => d.id) };
   }
 
+  // Service-to-service: order-service asks who owns the fulfilling depot so a completed
+  // order can be credited to that franchise owner's payout ledger. Ownership is kept out
+  // of the public depot projection on purpose, hence the internal-key route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id/owner')
+  @ApiOperation({ summary: 'Franchise owner of one depot (internal service auth)' })
+  async internalOwner(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ ownerId: string | null }> {
+    const depot = await this.depots.get(id, false);
+    return { ownerId: depot.ownerId };
+  }
+
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
   @ApiBearerAuth()
@@ -101,11 +121,38 @@ export class DepotController {
     return this.depots.listMine(user.sub);
   }
 
+  // Full record for staff/owner tooling (edit forms, HQ onboarding, payment setup).
+  // Declared before ':id' so the static `manage` segment wins the route match.
+  @ApiBearerAuth()
+  @Roles(...CAPABILITIES.depotAdmin, Role.HEAD_OFFICE, Role.FRANCHISE_OWNER)
+  @Get('manage/:id')
+  @ApiOperation({ summary: 'Get one depot in full, incl. payment + ownership (staff)' })
+  async manageOne(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<DepotRecord> {
+    const depot = await this.depots.get(id, false);
+    // A franchise owner may only open their OWN depot's record.
+    if (user.role === Role.FRANCHISE_OWNER && depot.ownerId !== user.sub) {
+      throw new ForbiddenException('This depot belongs to another owner.');
+    }
+    return depot;
+  }
+
+  // Where to send money for ONE depot. Any signed-in user (a customer paying for an
+  // order needs it), never anonymous and never in bulk.
+  @ApiBearerAuth()
+  @Get(':id/payment-info')
+  @ApiOperation({ summary: "A depot's payment destination (signed-in callers)" })
+  async paymentInfo(@Param('id', ParseUUIDPipe) id: string): Promise<DepotPaymentInfoView> {
+    return DepotPaymentInfoView.from(await this.depots.get(id, true));
+  }
+
   @Public()
   @Get(':id')
-  @ApiOperation({ summary: 'Get an active depot by id' })
-  get(@Param('id', ParseUUIDPipe) id: string): Promise<DepotRecord> {
-    return this.depots.get(id, true);
+  @ApiOperation({ summary: 'Get an active depot by id (public projection)' })
+  async get(@Param('id', ParseUUIDPipe) id: string): Promise<PublicDepotView> {
+    return PublicDepotView.from(await this.depots.get(id, true));
   }
 
   @ApiBearerAuth()

@@ -1,11 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsPublicHttpsUrl } from '@hydromart/platform';
+
 import {
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
   IsOptional,
   IsString,
-  IsUrl,
   MaxLength,
 } from 'class-validator';
 
@@ -15,7 +16,7 @@ import { WebhookRecord } from '../../application/ports/webhook.repository';
 
 export class CreateWebhookDto {
   @ApiProperty({ example: 'https://partner.example.com/hooks' })
-  @IsUrl({ require_tld: false })
+  @IsPublicHttpsUrl()
   @MaxLength(500)
   url!: string;
 
@@ -41,7 +42,7 @@ export class CreateWebhookDto {
 export class UpdateWebhookDto {
   @ApiPropertyOptional({ example: 'https://partner.example.com/hooks' })
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsPublicHttpsUrl()
   @MaxLength(500)
   url?: string;
 

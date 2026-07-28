@@ -40,6 +40,24 @@ export class ProductLineRequiresProductError extends DomainError {
   }
 }
 
+/**
+ * A return would hand back more empties — or refund more deposit — than the depot
+ * ever issued/held. Accepting it silently inflates `depositRefunded` far beyond
+ * `depositHeld` (a real money leak) while the `Math.max(0, …)` clamp on the
+ * outstanding rollup hides the discrepancy.
+ */
+export class GallonOverReturnError extends DomainError {
+  readonly code = 'GALLON_OVER_RETURN';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(kind: 'gallons' | 'deposit', requested: number, remaining: number) {
+    super(
+      kind === 'gallons'
+        ? `Return exceeds the empties this depot has outstanding (returning ${requested}, ${remaining} outstanding).`
+        : `Deposit refund exceeds the deposit this depot still holds (refunding ${requested}, ${remaining} held).`,
+    );
+  }
+}
+
 export class NegativeStockError extends DomainError {
   readonly code = 'INVENTORY_NEGATIVE_STOCK';
   readonly status = HTTP_STATUS.CONFLICT;

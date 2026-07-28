@@ -255,8 +255,8 @@ export interface OrderRepository {
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
-  /** CREATED orders placed before `before` — unconfirmed, treated as abandoned. */
-  findStaleCreated(before: Date): Promise<OrderRecord[]>;
+  /** Orders in any of `statuses` placed before `before` — candidates for the stale sweep. */
+  findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]>;
   /**
    * Keyset-paginated COMPLETED orders ordered by (createdAt asc, id asc), for the
    * recommendation-service rebuild feed. `cursor` is opaque (the id of the first

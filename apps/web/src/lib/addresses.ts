@@ -119,22 +119,21 @@ export function toAddressPayload(
   const notes = form.notes.trim();
   if (notes) value.notes = notes;
 
-  const hasLat = form.latitude.trim() !== '';
-  const hasLng = form.longitude.trim() !== '';
-  if (hasLat !== hasLng) {
-    return { ok: false, error: 'Provide both latitude and longitude, or neither.' };
+  // The pin is REQUIRED: depot routing is by distance, so an address without one cannot
+  // be matched to any depot. It used to save fine and then fail at checkout, which reads
+  // as a broken order rather than an incomplete address. Mirrors CreateAddressDto.
+  if (form.latitude.trim() === '' || form.longitude.trim() === '') {
+    return { ok: false, error: 'Titik peta wajib diisi — tekan "Gunakan lokasi saya".' };
   }
-  if (hasLat) {
-    const lat = numOrNull(form.latitude);
-    if (lat === null || lat < -90 || lat > 90) {
-      return { ok: false, error: 'Latitude must be between -90 and 90.' };
-    }
-    const lng = numOrNull(form.longitude);
-    if (lng === null || lng < -180 || lng > 180) {
-      return { ok: false, error: 'Longitude must be between -180 and 180.' };
-    }
-    value.latitude = lat;
-    value.longitude = lng;
+  const lat = numOrNull(form.latitude);
+  if (lat === null || lat < -90 || lat > 90) {
+    return { ok: false, error: 'Latitude must be between -90 and 90.' };
   }
+  const lng = numOrNull(form.longitude);
+  if (lng === null || lng < -180 || lng > 180) {
+    return { ok: false, error: 'Longitude must be between -180 and 180.' };
+  }
+  value.latitude = lat;
+  value.longitude = lng;
   return { ok: true, value };
 }

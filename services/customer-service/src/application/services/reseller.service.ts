@@ -10,7 +10,6 @@ import {
 } from '../ports/reseller.repository';
 import { ProfileRepository } from '../ports/profile.repository';
 import {
-  CustomerNotFoundError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../../domain/errors';
@@ -51,7 +50,13 @@ export class ResellerService {
   async register(user: AuthenticatedUser, data: CreateResellerData): Promise<Reseller> {
     // Forced to the caller's own depot for depot-locked roles; HQ keeps the free selector.
     const homeDepotId = depotScopeFilter(user, data.homeDepotId) ?? data.homeDepotId;
-    if (!(await this.profiles.exists(data.customerId))) throw new CustomerNotFoundError();
+    // The profile row is customer-service's lazily-created shell for a customer — it only
+    // appears once that customer opens something that reads it. Demanding one up front made
+    // a real, signed-up customer unenrollable purely because they had never viewed their
+    // profile, so create the shell here instead of rejecting.
+    if (!(await this.profiles.exists(data.customerId))) {
+      await this.profiles.create(data.customerId);
+    }
     if (await this.resellers.findById(data.customerId)) throw new ResellerExistsError();
     return this.resellers.create({ ...data, homeDepotId });
   }

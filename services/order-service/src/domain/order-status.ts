@@ -1,8 +1,13 @@
 /**
- * Order lifecycle (BR-012). The status graph is strictly forward except that a
- * CANCELLED terminal state is reachable only before a driver is assigned
- * (BR-006). This module is framework-free domain logic — the single source of
- * truth for which transitions are legal.
+ * Order lifecycle (BR-012). The status graph is strictly forward, with CANCELLED
+ * reachable from every pre-completion state. This module is framework-free domain
+ * logic — the single source of truth for which transitions are legal.
+ *
+ * The graph is the SYSTEM's rule; BR-006 ("a customer may cancel only before a driver
+ * is assigned") is a narrower CUSTOMER rule and lives in `isCancellable`. They used to
+ * be the same table, which meant a delivery that failed on the road could not cancel
+ * its order at all — the order stayed ON_DELIVERY forever, holding its stock
+ * reservation, because the customer-facing restriction was also binding the system.
  */
 export enum OrderStatus {
   CREATED = 'CREATED',
@@ -21,9 +26,15 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   [OrderStatus.CREATED]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
   [OrderStatus.CONFIRMED]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.PREPARING]: [OrderStatus.DRIVER_ASSIGNED, OrderStatus.CANCELLED],
-  [OrderStatus.DRIVER_ASSIGNED]: [OrderStatus.PICKED_UP],
-  [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY],
-  [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED],
+  // CANCELLED stays reachable here so a failed delivery can close its order (and
+  // release the stock hold). Customers cannot reach these — see isCancellable.
+  // PREPARING is reachable back from every in-flight state: when a delivery is rescheduled
+  // (design 3c) the courier is released and the order returns to the dispatch queue for a
+  // second attempt. Without it the order stayed pinned to the abandoned attempt's state and
+  // could never be assigned or delivered again.
+  [OrderStatus.DRIVER_ASSIGNED]: [OrderStatus.PICKED_UP, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED],
   [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELLED]: [],
@@ -37,9 +48,17 @@ export function nextStatuses(from: OrderStatus): readonly OrderStatus[] {
   return TRANSITIONS[from];
 }
 
-/** BR-006: a customer may cancel only while CANCELLED is still a legal transition. */
+/**
+ * BR-006: a customer may cancel only before a driver is assigned. Deliberately NOT
+ * derived from the transition graph — the system may cancel later than the customer may
+ * (e.g. a delivery that failed on the road).
+ */
 export function isCancellable(status: OrderStatus): boolean {
-  return canTransition(status, OrderStatus.CANCELLED);
+  return (
+    status === OrderStatus.CREATED ||
+    status === OrderStatus.CONFIRMED ||
+    status === OrderStatus.PREPARING
+  );
 }
 
 /**

@@ -2,7 +2,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { Role } from '../src/domain/role.enum';
-import { IS_PUBLIC_KEY, ROLES_KEY } from '../src/nest/decorators';
+import { IS_PUBLIC_KEY } from '../src/nest/decorators';
 import { RolesGuard } from '../src/nest/roles.guard';
 
 function makeGuard(meta: { isPublic?: boolean; roles?: readonly string[] }): RolesGuard {

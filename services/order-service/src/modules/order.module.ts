@@ -24,6 +24,7 @@ import { LoyaltyCoordinationHttpAdapter } from '../infrastructure/http/loyalty-c
 import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral-coordination.http.adapter';
 import { RecommendationCoordinationHttpAdapter } from '../infrastructure/http/recommendation-coordination.http.adapter';
 import { ForecastCoordinationHttpAdapter } from '../infrastructure/http/forecast-coordination.http.adapter';
+import { FranchiseRevenueHttpAdapter } from '../infrastructure/http/franchise-revenue.http.adapter';
 import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
 import { ResellerDiscountHttpAdapter } from '../infrastructure/http/reseller-discount.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
@@ -62,6 +63,7 @@ const providers: Provider[] = [
     useClass: RecommendationCoordinationHttpAdapter,
   },
   { provide: ORDER_TOKENS.ForecastCoordination, useClass: ForecastCoordinationHttpAdapter },
+  { provide: ORDER_TOKENS.FranchiseRevenue, useClass: FranchiseRevenueHttpAdapter },
   { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },
   { provide: ORDER_TOKENS.ResellerDiscount, useClass: ResellerDiscountHttpAdapter },
   { provide: ORDER_TOKENS.Notification, useClass: NotificationHttpAdapter },

@@ -6,7 +6,6 @@ import { ResellerService } from '../../src/application/services/reseller.service
 import { ProfileRepository } from '../../src/application/ports/profile.repository';
 import { Reseller, ResellerRepository } from '../../src/application/ports/reseller.repository';
 import {
-  CustomerNotFoundError,
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../../src/domain/errors';
@@ -37,7 +36,10 @@ function makeRepo(): jest.Mocked<ResellerRepository> {
 
 // Minimal ProfileRepository stub: only `exists` is used by the service.
 function makeProfiles(exists: boolean) {
-  return { exists: jest.fn().mockResolvedValue(exists) } as unknown as ProfileRepository;
+  return {
+    exists: jest.fn().mockResolvedValue(exists),
+    create: jest.fn().mockResolvedValue({ customerId: 'x' }),
+  } as unknown as ProfileRepository;
 }
 
 const manager = (depotId = 'd1'): AuthenticatedUser => ({
@@ -92,12 +94,18 @@ describe('ResellerService', () => {
     expect(noPct.discountPct).toBe(0);
   });
 
-  it('rejects a customerId that is not a customer', async () => {
+  it('creates the profile shell for a customer who has never opened theirs', async () => {
     const repo = makeRepo();
-    const svc = new ResellerService(repo, makeProfiles(false));
-    await expect(
-      svc.register(hq, { customerId: 'x', homeDepotId: 'd1', monthlyTargetQty: 0, joinDate: new Date() }),
-    ).rejects.toBeInstanceOf(CustomerNotFoundError);
+    const profiles = makeProfiles(false);
+    const svc = new ResellerService(repo, profiles);
+    await svc.register(hq, {
+      customerId: 'x',
+      homeDepotId: 'd1',
+      monthlyTargetQty: 0,
+      joinDate: new Date(),
+    });
+    expect(profiles.create).toHaveBeenCalledWith('x');
+    expect(repo.create).toHaveBeenCalled();
   });
 
   it('rejects registering the same customer twice', async () => {

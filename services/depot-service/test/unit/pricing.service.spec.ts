@@ -19,13 +19,27 @@ class DepotStub {
   }
 }
 
+class TierStub {
+  rows: unknown[] = [];
+  async listForDepot() {
+    return this.rows;
+  }
+}
+
 function make() {
   const rules = new FakePricingRuleRepository();
   const inv = new InvStub();
   const depots = new DepotStub();
+  const tiers = new TierStub();
   const config = { pricingTimeZone: 'Asia/Jakarta' } as never;
-  const service = new PricingService(rules as never, inv as never, depots as never, config);
-  return { service, rules, inv, depots };
+  const service = new PricingService(
+    rules as never,
+    inv as never,
+    depots as never,
+    tiers as never,
+    config,
+  );
+  return { service, rules, inv, depots, tiers };
 }
 
 const baseInput: CreateRuleInput = {
@@ -108,5 +122,51 @@ describe('PricingService.resolvePrices', () => {
     const { service } = make();
     const out = await service.resolvePrices('d1', ['p9'], at);
     expect(out).toHaveLength(0);
+  });
+
+  describe('wholesale bands (design 16b)', () => {
+    const tier = (over: Record<string, unknown> = {}) => ({
+      id: 't1',
+      depotId: 'd1',
+      productId: null,
+      label: '10+',
+      minQty: 10,
+      maxQty: null,
+      priceIdr: 5500,
+      active: true,
+      ...over,
+    });
+
+    it('prices a quantity inside the band and leaves smaller orders alone', async () => {
+      const { service, tiers } = make();
+      tiers.rows = [tier()];
+      const ten = await service.resolvePrices('d1', ['p9'], at, [10]);
+      const nine = await service.resolvePrices('d1', ['p9'], at, [9]);
+      expect(ten[0]).toMatchObject({ productId: 'p9', tierPrice: 5500 });
+      expect(nine).toHaveLength(0);
+    });
+
+    it('ignores bands entirely when the caller sends no quantities', async () => {
+      const { service, tiers } = make();
+      tiers.rows = [tier()];
+      expect(await service.resolvePrices('d1', ['p9'], at)).toHaveLength(0);
+    });
+
+    it('does not apply an inactive band or one the quantity has outgrown', async () => {
+      const { service, tiers } = make();
+      tiers.rows = [tier({ active: false }), tier({ id: 't2', minQty: 1, maxQty: 5 })];
+      expect(await service.resolvePrices('d1', ['p9'], at, [10])).toHaveLength(0);
+    });
+
+    it('prefers a band pinned to the product over a depot-wide one, cheapest among equals', async () => {
+      const { service, tiers } = make();
+      tiers.rows = [
+        tier({ id: 'wide', priceIdr: 5000 }),
+        tier({ id: 'pinned', productId: 'p9', priceIdr: 5800 }),
+        tier({ id: 'pinned2', productId: 'p9', priceIdr: 5600 }),
+      ];
+      const out = await service.resolvePrices('d1', ['p9'], at, [12]);
+      expect(out[0]?.tierPrice).toBe(5600);
+    });
   });
 });

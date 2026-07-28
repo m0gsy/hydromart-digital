@@ -36,6 +36,11 @@ export class LedgerPrismaRepository implements LedgerRepository {
     };
   }
 
+  async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
+    const row = await this.prisma.ledgerEntry.findUnique({ where: { sourceRef } });
+    return row ? this.toEntry(row as LedgerRow) : null;
+  }
+
   async create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord> {
     const row = await this.prisma.ledgerEntry.create({ data });
     return this.toEntry(row as unknown as LedgerRow);

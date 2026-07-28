@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsInt, IsOptional, IsISO8601, IsUUID, Min } from 'class-validator';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class SlaReportQueryDto {
   @ApiPropertyOptional({ description: 'Inclusive lower bound on deliveredAt/failedAt (ISO 8601).' })
   @IsOptional()
@@ -11,6 +13,7 @@ export class SlaReportQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound on deliveredAt/failedAt (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 
   @ApiPropertyOptional({
@@ -49,5 +52,6 @@ export class DepotTeamReportQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601); defaults to next month.' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }

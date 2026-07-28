@@ -2,6 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsISO8601, IsString, IsUUID, Matches, Max, Min } from 'class-validator';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class SalesReportQueryDto {
   @ApiPropertyOptional({ enum: ['daily', 'monthly'], default: 'daily' })
   @IsOptional()
@@ -16,6 +18,7 @@ export class SalesReportQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 
@@ -28,6 +31,7 @@ export class RangeReportQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 
@@ -97,6 +101,7 @@ export class DepotWeeklyQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601); defaults to now.' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 
@@ -113,6 +118,7 @@ export class DepotCompareQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 
@@ -129,6 +135,7 @@ export class DepotRatingsQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }
 
@@ -166,5 +173,6 @@ export class TopReportQueryDto {
   @ApiPropertyOptional({ description: 'Exclusive upper bound (ISO 8601).' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
   to?: string;
 }

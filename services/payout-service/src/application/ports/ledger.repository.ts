@@ -6,6 +6,8 @@ export interface CreateLedgerEntryData {
   type: LedgerEntryType;
   amount: number;
   description: string;
+  /** Idempotency key for pushed entries ("order:<id>:SALE"); null for manual ones. */
+  sourceRef?: string | null;
   occurredAt?: Date;
 }
 
@@ -17,6 +19,8 @@ export interface OwnerBalance {
 
 export interface LedgerRepository {
   create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord>;
+  /** The entry already posted under this source reference, if any (push idempotency). */
+  findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null>;
   /** Signed sum of every entry for one owner (the available balance). */
   balanceFor(franchiseOwnerId: string): Promise<number>;
   /** Every owner with a positive balance (the HQ payout-release queue), highest first. */

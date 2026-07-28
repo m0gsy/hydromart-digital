@@ -16,6 +16,7 @@ import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product
 import { PromoHttpAdapter } from '../../src/infrastructure/http/promo.http.adapter';
 import { ReferralCoordinationHttpAdapter } from '../../src/infrastructure/http/referral-coordination.http.adapter';
 import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/http/recommendation-coordination.http.adapter';
+import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
 // branches, fail-open catch, response parsing) against a mocked global.fetch — the
@@ -144,6 +145,61 @@ describe('DepotDirectoryHttpAdapter', () => {
   it('returns null on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     expect(await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots()).toBeNull();
+  });
+
+  it('reads the depot owner over the internal-key route', async () => {
+    fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9' } }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1');
+    expect(out).toBe('owner-9');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/depots/internal/d1/owner');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('returns null for an ownerless depot, a non-2xx, and a missing internal key', async () => {
+    fetchMock.mockResolvedValueOnce(res({ body: {} }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1')).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 404 }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1')).toBeNull();
+
+    fetchMock.mockClear();
+    expect(await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwnerId('d1')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('FranchiseRevenueHttpAdapter', () => {
+  const event = {
+    orderId: 'o1', orderNumber: 'HM-1', franchiseOwnerId: 'owner-9',
+    depotId: 'd1', amountIdr: 240000, completedAt: '2026-07-28T00:00:00.000Z',
+  };
+
+  it('posts the completed order with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ body: { recorded: true } }));
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payout:3016/api/v1/payout/revenue/internal');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toMatchObject({ orderId: 'o1', amountIdr: 240000, franchiseOwnerId: 'owner-9' });
+  });
+
+  it('skips the push when payout integration is not configured', async () => {
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: '' })).orderCompleted(event);
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016', internalServiceKey: '' })).orderCompleted(event);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('swallows a payout failure — completion must never depend on it', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event),
+    ).resolves.toBeUndefined();
+
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(
+      new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: 'http://payout:3016' })).orderCompleted(event),
+    ).resolves.toBeUndefined();
   });
 });
 

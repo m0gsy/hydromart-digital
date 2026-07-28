@@ -19,6 +19,7 @@ import {
 } from 'class-validator';
 
 import { OwnershipType } from '../../domain/inventory';
+import { DepotRecord } from '../../application/ports/depot.repository';
 
 export class BrowseDepotsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
@@ -176,4 +177,74 @@ export class UpdateDepotDto extends PartialType(CreateDepotDto) {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+/* ---------- Public projection ---------- */
+
+/**
+ * What an UNAUTHENTICATED caller may see about a depot: enough to browse, locate and
+ * price a delivery, and nothing else.
+ *
+ * The full `DepotRecord` used to be served straight off the public browse/detail
+ * routes, which published every depot's bank name, account number and account holder
+ * to anyone who asked — scrapeable in bulk and ideal material for "transfer to this
+ * account" fraud using a real depot's details. Payment destinations now live behind
+ * `GET /depots/:id/payment-info` (any signed-in user, one depot at a time) and the
+ * ownership/audit fields behind the staff route `GET /depots/manage/:id`.
+ */
+export class PublicDepotView {
+  @ApiProperty() id!: string;
+  @ApiProperty() code!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() address!: string;
+  @ApiProperty() city!: string;
+  @ApiProperty() province!: string;
+  @ApiProperty() lat!: number;
+  @ApiProperty() lng!: number;
+  @ApiProperty() serviceRadiusKm!: number;
+  @ApiProperty() deliveryFee!: number;
+  @ApiProperty({ nullable: true }) minOrderAmount!: number | null;
+  @ApiProperty() operatingHours!: unknown;
+  @ApiProperty({ type: [Object] }) holidays!: unknown[];
+  @ApiProperty() active!: boolean;
+
+  static from(d: DepotRecord): PublicDepotView {
+    return {
+      id: d.id,
+      code: d.code,
+      name: d.name,
+      address: d.address,
+      city: d.city,
+      province: d.province,
+      lat: d.lat,
+      lng: d.lng,
+      serviceRadiusKm: d.serviceRadiusKm,
+      deliveryFee: d.deliveryFee,
+      minOrderAmount: d.minOrderAmount,
+      operatingHours: d.operatingHours,
+      holidays: d.holidays,
+      active: d.active,
+    };
+  }
+}
+
+/** Where to send money for ONE depot. Signed-in callers only. */
+export class DepotPaymentInfoView {
+  /** Public anyway, and the payment panel reads "transfer masuk ke <nama depot>" — carrying
+   *  it here saves the page a second fetch just to render the sentence. */
+  @ApiProperty() name!: string;
+  @ApiProperty({ nullable: true }) paymentBankName!: string | null;
+  @ApiProperty({ nullable: true }) paymentBankAccountNumber!: string | null;
+  @ApiProperty({ nullable: true }) paymentBankAccountHolder!: string | null;
+  @ApiProperty({ nullable: true }) paymentQrisImageUrl!: string | null;
+
+  static from(d: DepotRecord): DepotPaymentInfoView {
+    return {
+      name: d.name,
+      paymentBankName: d.paymentBankName,
+      paymentBankAccountNumber: d.paymentBankAccountNumber,
+      paymentBankAccountHolder: d.paymentBankAccountHolder,
+      paymentQrisImageUrl: d.paymentQrisImageUrl,
+    };
+  }
 }

@@ -4,6 +4,8 @@ import { IsDateString, IsEnum, IsLatitude, IsLongitude, IsOptional, IsUUID } fro
 
 import { ShiftStatus } from '../../domain/shift';
 
+import { IsNotBefore } from '@hydromart/platform';
+
 export class CheckInDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the courier is checking in at.' })
   @IsUUID()
@@ -55,5 +57,6 @@ export class ListShiftsQueryDto {
   @ApiPropertyOptional({ example: '2026-07-17T23:59:59.999Z' })
   @IsOptional()
   @IsDateString()
+  @IsNotBefore('from')
   to?: string;
 }

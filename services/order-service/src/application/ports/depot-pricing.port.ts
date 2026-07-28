@@ -5,6 +5,11 @@ export interface DepotPrice {
   sellPrice?: number;
   adjustType?: PriceAdjustType;
   value?: number;
+  /**
+   * Wholesale band price for the quantity being ordered (design 16b). An absolute unit
+   * price: when present it replaces `sellPrice` AND the rule adjustment for that line.
+   */
+  tierPrice?: number;
 }
 
 /**
@@ -15,6 +20,14 @@ export interface DepotPrice {
  * to placing an order, so implementations fail OPEN: any error returns an empty map.
  */
 export interface DepotPricingPort {
-  /** productId -> resolved price. Absent products use the catalog base price, no adjustment. */
-  getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>>;
+  /**
+   * productId -> resolved price. Absent products use the catalog base price, no
+   * adjustment. `quantities` is positional against `productIds` and opts into wholesale
+   * band pricing; omit it to price a single unit.
+   */
+  getPrices(
+    depotId: string,
+    productIds: string[],
+    quantities?: number[],
+  ): Promise<Map<string, DepotPrice>>;
 }

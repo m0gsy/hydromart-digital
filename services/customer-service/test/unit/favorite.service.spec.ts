@@ -1,5 +1,16 @@
+import { NotFoundException } from '@nestjs/common';
+
 import { FavoriteService } from '../../src/application/services/favorite.service';
+import { ProductCatalogPort } from '../../src/application/ports/product-catalog.port';
 import { InMemoryFavoriteRepository } from '../support/fakes';
+
+/** Knows every id except those explicitly listed as unknown. */
+class FakeCatalog implements ProductCatalogPort {
+  constructor(private readonly unknown: string[] = []) {}
+  async exists(productId: string): Promise<boolean> {
+    return !this.unknown.includes(productId);
+  }
+}
 
 describe('FavoriteService', () => {
   let repo: InMemoryFavoriteRepository;
@@ -8,7 +19,18 @@ describe('FavoriteService', () => {
 
   beforeEach(() => {
     repo = new InMemoryFavoriteRepository();
-    service = new FavoriteService(repo);
+    service = new FavoriteService(repo, new FakeCatalog());
+  });
+
+  it('rejects a product the catalog does not know (UAT-M27-13)', async () => {
+    const guarded = new FavoriteService(repo, new FakeCatalog(['ghost']));
+    await expect(guarded.add(CUST, 'ghost')).rejects.toBeInstanceOf(NotFoundException);
+    expect(await guarded.list(CUST)).toEqual([]);
+  });
+
+  it('still adds when the catalog check passes', async () => {
+    const guarded = new FavoriteService(repo, new FakeCatalog(['ghost']));
+    expect(await guarded.add(CUST, 'p1')).toEqual(['p1']);
   });
 
   it('adds a favorite and returns the updated list', async () => {

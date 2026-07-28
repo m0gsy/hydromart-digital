@@ -59,4 +59,28 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
       clearTimeout(timer);
     }
   }
+
+  async findOwnerId(depotId: string): Promise<string | null> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) return null;
+    const url = `${this.config.depotServiceUrl}/api/v1/depots/internal/${depotId}/owner`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DepotDirectoryHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json', 'x-internal-key': internalServiceKey },
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`depot-service responded ${res.status}`);
+      }
+      const body = (await res.json()) as { ownerId?: string | null };
+      return body.ownerId ?? null;
+    } catch (error) {
+      this.logger.warn(`Depot owner lookup failed for ${depotId}: ${(error as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

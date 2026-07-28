@@ -77,6 +77,8 @@ export interface RescheduleInput {
   rescheduledFor: Date;
   slot?: string;
   note?: string;
+  /** Forwarded so the order can be handed back to dispatch on the caller's behalf. */
+  authorization?: string;
 }
 
 @Injectable()
@@ -104,7 +106,12 @@ export class DeliveryService {
     input: AssignInput,
     authorization: string,
   ): Promise<DeliveryRecord> {
-    if (await this.deliveries.findByOrder(input.orderId)) {
+    // One delivery row per order (orderId is unique). A RESCHEDULED row is the exception:
+    // reschedule deliberately keeps the order alive for a second attempt, but the row was
+    // terminal AND this guard refused a fresh assignment, so a rescheduled order could
+    // never be delivered by anyone. Re-open that row instead of rejecting the dispatch.
+    const existing = await this.deliveries.findByOrder(input.orderId);
+    if (existing && existing.status !== DeliveryStatus.RESCHEDULED) {
       throw new DeliveryAlreadyExistsError();
     }
     // Every delivery must fall inside exactly one shift, or the end-of-shift COD
@@ -136,8 +143,17 @@ export class DeliveryService {
       codAmount: input.codAmount ?? null,
       notes: input.notes ?? null,
     };
-    const delivery = await this.deliveries.create(data);
-    this.logger.log(`Delivery ${delivery.id} assigned to driver ${input.driverId} by ${actorId}`);
+    const delivery = existing
+      ? await this.deliveries.reassign(
+          existing.id,
+          input.driverId,
+          actorId,
+          'Penugasan ulang setelah dijadwalkan ulang.',
+        )
+      : await this.deliveries.create(data);
+    this.logger.log(
+      `Delivery ${delivery.id} ${existing ? 're-assigned' : 'assigned'} to driver ${input.driverId} by ${actorId}`,
+    );
     return delivery;
   }
 
@@ -171,6 +187,18 @@ export class DeliveryService {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.DELIVERED);
     await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
+    // Proof of delivery is the real-world close of the order: nothing downstream of it is
+    // staff- or customer-driven. Without this step the order sits at DELIVERED forever and
+    // order-service never runs its COMPLETED block — no loyalty points (BR-013), no referral
+    // qualification (FR-092) and, worst of all, no stock consume (FR-067..074), so the
+    // checkout hold is never settled and sellable stock drifts negative.
+    // Fail-open: the delivery (and the courier's earning) must not roll back if order-service
+    // is unreachable — the order simply stays at DELIVERED, exactly as before, and is logged.
+    try {
+      await this.advanceOrder(delivery.orderId, 'COMPLETED', authorization);
+    } catch {
+      this.logger.error(`Order ${delivery.orderId} delivered but could not be completed`);
+    }
     const completed = await this.deliveries.completeWithProof(id, proof, driverId);
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
@@ -192,11 +220,22 @@ export class DeliveryService {
     });
   }
 
-  /** Marks the delivery failed (does not change the order status). */
-  async fail(driverId: string, id: string, reason: string): Promise<DeliveryRecord> {
+  /**
+   * Marks the delivery failed and closes its order. A FAILED delivery is terminal — use
+   * `reschedule` when the order should live on for a second attempt — so leaving the order
+   * mid-flight stranded it at ON_DELIVERY forever, still holding its stock reservation.
+   * Cancelling releases that hold through order-service's normal cancel path.
+   */
+  async fail(
+    driverId: string,
+    id: string,
+    reason: string,
+    authorization = '',
+  ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
+    await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
       DeliveryStatus.FAILED,
@@ -204,6 +243,19 @@ export class DeliveryService {
       driverId,
       reason,
     );
+  }
+
+  /**
+   * Closes the order behind a failed delivery. Fail-open: the courier's record of the
+   * failure must never be lost because order-service was unreachable — a stuck order is
+   * recoverable by hand, a lost failure report is not.
+   */
+  private async cancelOrderFor(orderId: string, authorization: string): Promise<void> {
+    try {
+      await this.advanceOrder(orderId, 'CANCELLED', authorization);
+    } catch {
+      this.logger.error(`Delivery failed but order ${orderId} could not be cancelled`);
+    }
   }
 
   /**
@@ -234,7 +286,12 @@ export class DeliveryService {
    * Fails the delivery as a no-show (design 5a), only once the contact-attempt +
    * wait gate is satisfied. Recorded as a FAILED with a no-show reason.
    */
-  async markNoShow(driverId: string, id: string, now: Date = new Date()): Promise<DeliveryRecord> {
+  async markNoShow(
+    driverId: string,
+    id: string,
+    now: Date = new Date(),
+    authorization = '',
+  ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
     const state = await this.deliveries.contactState(id);
@@ -246,6 +303,7 @@ export class DeliveryService {
     }
     const reason = 'Pelanggan tidak di tempat (no-show).';
     this.logger.warn(`Delivery ${id} failed as no-show by driver ${driverId}`);
+    await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
       DeliveryStatus.FAILED,
@@ -274,6 +332,10 @@ export class DeliveryService {
       driverId,
       input.note ?? null,
     );
+    // Hand the order back to the dispatch queue. reschedule frees the courier, so leaving
+    // the order on the abandoned attempt's status (ON_DELIVERY etc.) pinned it there: the
+    // re-assignment could not advance it and the order could never be delivered.
+    await this.advanceOrder(delivery.orderId, 'PREPARING', input.authorization ?? '');
     // ponytail: best-effort customer notice, logged for now. The real crm push
     // (customer notification feed) is wired in slice 6 when crm plumbing lands.
     this.logger.log(

@@ -1,11 +1,15 @@
 import { ApiProperty, ApiPropertyOptional, PartialType, PickType } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 const PAYMENT_TYPES = ['CASH', 'TRANSFER', 'QRIS', 'EWALLET', 'VA'] as const;
 
 export class CreatePaymentMethodDto {
   @ApiProperty({ enum: PAYMENT_TYPES, example: 'EWALLET' })
-  @IsEnum(PAYMENT_TYPES)
+  // @IsIn, not @IsEnum: PAYMENT_TYPES is a const ARRAY, whose only keys are numeric
+  // indices — @IsEnum builds its message from the key names and so rendered the allowed
+  // list as blank ("type must be one of the following values: "), leaving the caller
+  // nothing to correct.
+  @IsIn(PAYMENT_TYPES)
   type!: (typeof PAYMENT_TYPES)[number];
 
   @ApiProperty({ example: 'GoPay' })

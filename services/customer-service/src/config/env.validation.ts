@@ -13,6 +13,8 @@ export const envValidationSchema = Joi.object({
   MAX_ADDRESSES_PER_CUSTOMER: Joi.number().integer().positive().max(100).default(20),
   // Birthday promo (FR-091). Blank LOYALTY_SERVICE_URL = feature disabled (non-breaking).
   LOYALTY_SERVICE_URL: Joi.string().allow('').default(''),
+  // Favourite catalog check. Blank = check skipped (unknown product ids are accepted).
+  PRODUCT_SERVICE_URL: Joi.string().allow('').default(''),
   BIRTHDAY_REWARD_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret authenticating the birthday reward call to
   // loyalty. Blank = fail-closed (birthday sweep can't award, retries next run).

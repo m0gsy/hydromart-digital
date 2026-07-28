@@ -71,12 +71,18 @@ describe('RecommendationService', () => {
     expect(items.map((i) => i.productId).sort()).toEqual(['a', 'b', 'c']);
   });
 
-  it('reorder for a different customer returns empty', async () => {
+  // A customer with no history has nothing of their OWN to reorder. The list is filled
+  // from network-wide trending (cold start, UAT-M22-08) rather than left blank — what must
+  // never happen is the other customer's personal ranking leaking through.
+  it('reorder for a customer with no history falls back to trending, not their neighbour’s list', async () => {
     await service.ingest(makeIngest());
 
-    const items = await service.reorder('someone-else', 10);
+    const mine = await service.reorder('cust-1', 10);
+    const cold = await service.reorder('someone-else', 10);
+    const trending = await service.trending(null, 30, 10);
 
-    expect(items).toEqual([]);
+    expect(cold.map((i) => i.productId)).toEqual(trending.map((i) => i.productId));
+    expect(cold.map((i) => i.score)).not.toEqual(mine.map((i) => i.score));
   });
 
   it('related(unseen productId) returns empty', async () => {

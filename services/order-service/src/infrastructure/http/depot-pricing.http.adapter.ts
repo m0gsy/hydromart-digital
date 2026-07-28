@@ -15,13 +15,18 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async getPrices(depotId: string, productIds: string[]): Promise<Map<string, DepotPrice>> {
+  async getPrices(
+    depotId: string,
+    productIds: string[],
+    quantities: number[] = [],
+  ): Promise<Map<string, DepotPrice>> {
     const prices = new Map<string, DepotPrice>();
     if (productIds.length === 0) {
       return prices;
     }
     const query = encodeURIComponent(productIds.join(','));
-    const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/prices?productIds=${query}`;
+    const qty = quantities.length > 0 ? `&quantities=${encodeURIComponent(quantities.join(','))}` : '';
+    const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/prices?productIds=${query}${qty}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotPricingHttpAdapter.TIMEOUT_MS);
     try {
@@ -34,11 +39,13 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
         sellPrice?: number;
         adjustType?: 'PERCENT' | 'FIXED';
         value?: number;
+        tierPrice?: number;
       }[];
       for (const row of body) {
         prices.set(row.productId, {
           ...(typeof row.sellPrice === 'number' ? { sellPrice: row.sellPrice } : {}),
           ...(row.adjustType ? { adjustType: row.adjustType, value: row.value ?? 0 } : {}),
+          ...(typeof row.tierPrice === 'number' ? { tierPrice: row.tierPrice } : {}),
         });
       }
     } catch (error) {

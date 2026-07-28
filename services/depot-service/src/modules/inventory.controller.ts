@@ -88,12 +88,19 @@ export class DepotInventoryController {
   prices(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query('productIds') productIds?: string,
+    @Query('quantities') quantities?: string,
   ): Promise<ResolvedProductPrice[]> {
     const ids = (productIds ?? '')
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    return this.pricing.resolvePrices(depotId, ids);
+    // Positional against productIds. Supplying it opts the caller into wholesale bands
+    // (design 16b); junk or missing entries resolve to 0, i.e. "no band for this line".
+    const qty = (quantities ?? '')
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .map((n) => (Number.isFinite(n) && n > 0 ? n : 0));
+    return this.pricing.resolvePrices(depotId, ids, new Date(), qty);
   }
 
   @Roles(...CAPABILITIES.inventoryRead)

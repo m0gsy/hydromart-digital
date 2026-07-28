@@ -194,7 +194,7 @@ function PaymentsBody() {
   const detail = useAsync<DepotAdmin>(
     () =>
       scopedId
-        ? api.get(endpoints.depots.detail(scopedId), true)
+        ? api.get(endpoints.depots.manageDetail(scopedId), true)
         : Promise.reject(new ApiError(0, 'no depot')),
     [scopedId],
   );

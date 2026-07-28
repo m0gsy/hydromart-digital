@@ -128,9 +128,40 @@ describe('DriverGallonReturnController', () => {
 });
 
 describe('FranchiseApplicationController', () => {
-  const svc = { list: jest.fn(), get: jest.fn(), patch: jest.fn(), approve: jest.fn(), reject: jest.fn() };
+  const svc = { list: jest.fn(), get: jest.fn(), patch: jest.fn(), approve: jest.fn(),
+    reject: jest.fn(), create: jest.fn() };
   const c = new FranchiseApplicationController(svc as never);
   beforeEach(() => jest.clearAllMocks());
+
+  const submission = {
+    applicantName: 'Budi Santoso', applicantPhone: '+628123456789',
+    proposedCode: ' bdg-02 ', proposedName: 'Depot Buah Batu',
+    city: 'Bandung', province: 'Jawa Barat', lat: -6.9421, lng: 107.6386,
+    investmentAmount: 150_000_000, projectedMonthlyRevenue: 45_000_000,
+  };
+
+  // UAT-M14-06: a prospective partner had no way to apply — the queue was HQ-only.
+  it('accepts a public submission, normalising the proposed code', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', proposedName: 'Depot Buah Batu',
+      submittedAt: new Date('2026-07-27T00:00:00Z'), stage: 'PENDING', checklist: {} });
+    await c.submit(submission as never);
+    expect(svc.create).toHaveBeenCalledWith(
+      expect.objectContaining({ proposedCode: 'BDG-02', stage: 'PENDING' }),
+    );
+  });
+
+  // Nobody submits themselves pre-verified, and nobody reads the pipeline anonymously.
+  it('forces a fresh PENDING checklist and returns a receipt, not the record', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', proposedName: 'Depot Buah Batu',
+      submittedAt: new Date('2026-07-27T00:00:00Z'), stage: 'PENDING',
+      checklist: { ktpNpwp: 'VERIFIED' } });
+    const out = await c.submit({ ...submission, stage: 'APPROVED',
+      checklist: { ktpNpwp: 'VERIFIED' } } as never);
+    const sent = svc.create.mock.calls[0][0];
+    expect(sent.stage).toBe('PENDING');
+    expect(Object.values(sent.checklist)).toEqual(['PENDING', 'PENDING', 'PENDING', 'PENDING']);
+    expect(Object.keys(out).sort()).toEqual(['id', 'proposedCode', 'proposedName', 'submittedAt']);
+  });
 
   it('lists with defaults and explicit paging', async () => {
     await c.list({} as never);
@@ -390,6 +421,30 @@ describe('DepotController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
+    // browse/get now map through PublicDepotView, so the stubs have to return real rows.
+    svc.browse.mockResolvedValue({ items: [{ id: DEPOT, name: 'D' }], total: 1, page: 1, limit: 20 });
+    svc.get.mockResolvedValue({ id: DEPOT, name: 'D', paymentBankAccountNumber: '123' });
+  });
+
+  // UAT-M11-09: the public routes used to serve the whole DepotRecord, publishing every
+  // depot's bank account to anonymous callers.
+  it('keeps bank details and ownership out of the public browse/detail payloads', async () => {
+    const leaks = ['paymentBankName', 'paymentBankAccountNumber', 'paymentBankAccountHolder',
+      'paymentQrisImageUrl', 'ownerId', 'ownershipType'];
+    const page = await c.browse({ page: 1 } as never);
+    const one = await c.get(DEPOT);
+    for (const key of leaks) {
+      expect(page.items[0]).not.toHaveProperty(key);
+      expect(one).not.toHaveProperty(key);
+    }
+    expect(one).toHaveProperty('name');
+  });
+
+  it('serves the payment destination only on the dedicated authenticated route', async () => {
+    await expect(c.paymentInfo(DEPOT)).resolves.toMatchObject({
+      name: 'D',
+      paymentBankAccountNumber: '123',
+    });
   });
 
   it('browses, finds nearby (default+explicit), manages, mine, get and remove', async () => {
@@ -401,6 +456,11 @@ describe('DepotController', () => {
     expect(svc.findNearby).toHaveBeenLastCalledWith(1, 2, 3);
     const owned = await c.internalOwned('owner-1');
     expect(owned).toEqual({ depotIds: [DEPOT] });
+    // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
+    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1' });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: 'owner-1' });
+    svc.get.mockResolvedValueOnce({ ownerId: null });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null });
     await c.manage({} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);
@@ -587,9 +647,19 @@ describe('Inventory controllers', () => {
 
   it('resolves prices from a comma list and an empty query', async () => {
     await depotC.prices(DEPOT, 'a, b ,,c');
-    expect(pricing.resolvePrices).toHaveBeenCalledWith(DEPOT, ['a', 'b', 'c']);
+    expect(pricing.resolvePrices).toHaveBeenCalledWith(DEPOT, ['a', 'b', 'c'], expect.any(Date), [0]);
     await depotC.prices(DEPOT, undefined);
-    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(DEPOT, []);
+    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(DEPOT, [], expect.any(Date), [0]);
+  });
+
+  it('parses wholesale quantities positionally and zeroes out junk', async () => {
+    await depotC.prices(DEPOT, 'a,b,c', '10, 0 ,abc');
+    expect(pricing.resolvePrices).toHaveBeenLastCalledWith(
+      DEPOT,
+      ['a', 'b', 'c'],
+      expect.any(Date),
+      [10, 0, 0],
+    );
   });
 
   it('lists movements with defaults, explicit paging and rejects a reversed window', async () => {

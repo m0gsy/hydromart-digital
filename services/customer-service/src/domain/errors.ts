@@ -71,10 +71,3 @@ export class ResellerExistsError extends DomainError {
   }
 }
 
-export class CustomerNotFoundError extends DomainError {
-  readonly code = 'CUSTOMER_NOT_FOUND';
-  readonly status = HTTP_STATUS.NOT_FOUND;
-  constructor() {
-    super('Customer tidak ditemukan');
-  }
-}

@@ -55,3 +55,7 @@ ops/alertmanager.webhook-url
 
 # Claude Code personal settings
 .claude/settings.local.json
+
+# Local UAT harness (throwaway run artefacts, not part of the product)
+.uat/
+uat.json

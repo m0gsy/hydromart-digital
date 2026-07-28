@@ -21,6 +21,8 @@ export const envValidationSchema = Joi.object({
   // forecast-service base URL; the completed-order ingest push is fail-open, so
   // a blank value (unset) simply disables it rather than blocking startup.
   FORECAST_SERVICE_URL: Joi.string().allow('').default(''),
+  // Blank = franchise revenue push disabled (order completion still succeeds).
+  PAYOUT_SERVICE_URL: Joi.string().allow('').default(''),
   // Shared service-to-service secret. Notifications to crm and the payment→order
   // confirm callback authenticate with this (not a user JWT). Blank = fail-closed.
   INTERNAL_SERVICE_KEY: optionalSecret(16),
@@ -28,6 +30,10 @@ export const envValidationSchema = Joi.object({
   // Age (minutes) after which an unconfirmed CREATED order is treated as abandoned
   // and can be auto-cancelled (releasing its stock hold). Company policy default.
   ORDER_ABANDON_MINUTES: Joi.number().integer().positive().default(60),
+  // Age (hours) after which an order stuck at CONFIRMED/PREPARING is treated as stalled
+  // and auto-cancelled, releasing its stock hold. Long by design — the depot has already
+  // accepted the order, and payment is collected at the depot, so being unpaid is normal.
+  ORDER_STALLED_HOURS: Joi.number().integer().positive().default(24),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

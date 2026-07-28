@@ -86,6 +86,7 @@ services:
       CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public
       MAX_ADDRESSES_PER_CUSTOMER: 20
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      PRODUCT_SERVICE_URL: http://product:3003
       BIRTHDAY_REWARD_POINTS: 250
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3002/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -131,6 +132,8 @@ services:
       CRM_SERVICE_URL: http://crm:3012
       RECOMMENDATION_SERVICE_URL: http://recommendation:3013
       FORECAST_SERVICE_URL: http://forecast:3014
+      # Franchise revenue push on order completion (design 6a). Blank disables it silently.
+      PAYOUT_SERVICE_URL: http://payout:3016
       ORDER_DELIVERY_FEE: 5000
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3004/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
