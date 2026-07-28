@@ -239,7 +239,11 @@ export class OrderPrismaRepository implements OrderRepository {
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     const agg = await this.prisma.order.aggregate({
       _sum: { total: true },
-      where: { depotId, status: { in: ['DELIVERED', 'COMPLETED'] }, createdAt: { gte: from, lte: to } },
+      where: {
+        depotId,
+        status: { in: ['DELIVERED', 'COMPLETED'] },
+        createdAt: { gte: from, lte: to },
+      },
     });
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
@@ -342,10 +346,7 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
-  async salesSeries(
-    granularity: 'daily' | 'monthly',
-    range: ReportRange,
-  ): Promise<SalesBucket[]> {
+  async salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]> {
     // Whitelisted so the trunc unit / format are never attacker-controlled.
     const unit = granularity === 'monthly' ? 'month' : 'day';
     const fmt = granularity === 'monthly' ? 'YYYY-MM' : 'YYYY-MM-DD';

@@ -79,7 +79,9 @@ export class ReportController {
   }
 
   @Get('depot-ratings')
-  @ApiOperation({ summary: "One depot's ratings: average, star distribution, recent reviews (14b)" })
+  @ApiOperation({
+    summary: "One depot's ratings: average, star distribution, recent reviews (14b)",
+  })
   depotRatings(@Query() q: DepotRatingsQueryDto) {
     return this.reports.depotRatings(q.depotId, toRange(q));
   }
@@ -117,7 +119,10 @@ export class ReportController {
   @Get('depot-compare')
   @ApiOperation({ summary: 'Cross-depot comparison: orders + revenue per depot (design 14d)' })
   depotCompare(@Query() q: DepotCompareQueryDto) {
-    const ids = q.depotIds.split(',').map((s) => s.trim()).filter(Boolean);
+    const ids = q.depotIds
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     return this.reports.reportsDepotCompare(ids, toRange(q));
   }
 
@@ -136,7 +141,9 @@ export class ReportController {
 
   @Roles(...AUDIENCE_ROLES)
   @Get('segment-estimate')
-  @ApiOperation({ summary: 'Live size of an activity-based segment: recency/frequency/depot (21d)' })
+  @ApiOperation({
+    summary: 'Live size of an activity-based segment: recency/frequency/depot (21d)',
+  })
   segmentEstimate(@Query() q: SegmentEstimateQueryDto) {
     return this.reports.segmentEstimate(q);
   }
@@ -144,7 +151,10 @@ export class ReportController {
   @Get('reseller-rollup')
   @ApiOperation({ summary: 'Per-reseller monthly achievement rollup (volume/prev/orders/last)' })
   resellerRollup(@Query() q: ResellerRollupQueryDto) {
-    const ids = q.customerIds.split(',').map((s) => s.trim()).filter(Boolean);
+    const ids = q.customerIds
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     return this.reports.resellerRollup(q.depotId, q.month, ids);
   }
 

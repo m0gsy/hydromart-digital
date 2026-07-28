@@ -26,10 +26,7 @@ export class ForecastCoordinationHttpAdapter implements ForecastCoordinationPort
     }
     const url = `${baseUrl}/api/v1/forecast/ingest`;
     const controller = new AbortController();
-    const timer = setTimeout(
-      () => controller.abort(),
-      ForecastCoordinationHttpAdapter.TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => controller.abort(), ForecastCoordinationHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         method: 'POST',

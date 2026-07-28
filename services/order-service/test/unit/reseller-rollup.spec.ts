@@ -32,7 +32,12 @@ describe('ReportService.resellerRollup', () => {
             order({ customerId: 'r1', qty: 5, createdAt: '2026-07-03T00:00:00Z', id: 'a' }),
             order({ customerId: 'r1', qty: 7, createdAt: '2026-07-20T00:00:00Z', id: 'b' }),
             order({ customerId: 'other', qty: 99, createdAt: '2026-07-10T00:00:00Z' }),
-            order({ customerId: 'r1', qty: 3, createdAt: '2026-07-15T00:00:00Z', status: OrderStatus.CANCELLED }),
+            order({
+              customerId: 'r1',
+              qty: 3,
+              createdAt: '2026-07-15T00:00:00Z',
+              status: OrderStatus.CANCELLED,
+            }),
           ];
         }
         // June (previous month)

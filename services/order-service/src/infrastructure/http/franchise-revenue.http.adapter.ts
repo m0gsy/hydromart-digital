@@ -24,7 +24,9 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
   async orderCompleted(event: OrderRevenueEvent): Promise<void> {
     const { payoutServiceUrl, internalServiceKey } = this.config;
     if (!payoutServiceUrl || !internalServiceKey) {
-      this.logger.debug(`Franchise revenue push skipped (payout integration disabled): ${event.orderNumber}`);
+      this.logger.debug(
+        `Franchise revenue push skipped (payout integration disabled): ${event.orderNumber}`,
+      );
       return;
     }
     const controller = new AbortController();

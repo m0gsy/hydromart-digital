@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Controller,
   Inject,
+  Logger,
   PayloadTooLargeException,
   Post,
+  ServiceUnavailableException,
   UploadedFile,
   UseFilters,
   UseInterceptors,
@@ -31,6 +33,8 @@ const ALLOWED: Record<string, string> = {
 @UseFilters(MulterExceptionFilter)
 @Controller({ path: 'driver/deliveries', version: '1' })
 export class UploadController {
+  private readonly logger = new Logger(UploadController.name);
+
   constructor(@Inject(DELIVERY_TOKENS.Storage) private readonly storage: StoragePort) {}
 
   @Post('uploads')
@@ -48,7 +52,21 @@ export class UploadController {
     if (file.size > MAX_BYTES) {
       throw new PayloadTooLargeException('file exceeds 5MB');
     }
-    const { url } = await this.storage.put({ body: file.buffer, contentType: file.mimetype, ext });
-    return { url };
+    // Same fault class as M1-10 in auth-service. A courier losing a PoD photo to a
+    // bare 500 mid-delivery is the worst version of this bug, so fail loudly here:
+    // 503 tells the app the upload is retryable, and the cause lands in the log.
+    try {
+      const { url } = await this.storage.put({
+        body: file.buffer,
+        contentType: file.mimetype,
+        ext,
+      });
+      return { url };
+    } catch (error) {
+      this.logger.error(`PoD upload failed: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
   }
 }

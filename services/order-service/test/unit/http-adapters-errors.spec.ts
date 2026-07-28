@@ -121,14 +121,19 @@ describe('coordination adapters short-circuit when disabled', () => {
   });
 
   it('forecast is a no-op when the base URL is blank (never fetches)', async () => {
-    await new ForecastCoordinationHttpAdapter(makeConfig({ forecastServiceUrl: '' })).ingestCompletedOrder(
-      order(),
-    );
+    await new ForecastCoordinationHttpAdapter(
+      makeConfig({ forecastServiceUrl: '' }),
+    ).ingestCompletedOrder(order());
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('inventory.reserve skips without an internal key', async () => {
-    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve('d1', 'o1', line, '');
+    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve(
+      'd1',
+      'o1',
+      line,
+      '',
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -151,13 +156,15 @@ describe('edge-case parsing branches', () => {
 
   it('promo.quote falls back to a generic reject message when the body has none', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 400, body: {} }));
-    await expect(new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer t')).rejects.toThrow(
-      'This voucher could not be applied.',
-    );
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer t'),
+    ).rejects.toThrow('This voucher could not be applied.');
   });
 
   it('depot-pricing defaults a missing adjust value to 0', async () => {
-    fetchMock.mockResolvedValue(res({ ok: true, body: [{ productId: 'p1', adjustType: 'PERCENT' }] }));
+    fetchMock.mockResolvedValue(
+      res({ ok: true, body: [{ productId: 'p1', adjustType: 'PERCENT' }] }),
+    );
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1']);
     expect(out.get('p1')).toEqual({ adjustType: 'PERCENT', value: 0 });
   });

@@ -8,7 +8,10 @@ function cacheWith(rows: SettingRow[]): SettingsCache {
 }
 
 describe('OrderConfigService with settings cache', () => {
-  const env = new ConfigService({ ORDER_DELIVERY_FEE: '1000', ORDER_ABANDON_MINUTES: '60' } as never);
+  const env = new ConfigService({
+    ORDER_DELIVERY_FEE: '1000',
+    ORDER_ABANDON_MINUTES: '60',
+  } as never);
 
   it('returns depot override when present', async () => {
     const cache = cacheWith([{ scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '2500' }]);
@@ -38,7 +41,9 @@ describe('OrderConfigService with settings cache', () => {
   });
 
   it('abandonMinutes resolves a GLOBAL override (no per-depot caller exists)', async () => {
-    const cache = cacheWith([{ scope: 'GLOBAL', depotId: null, key: 'abandonMinutes', value: '30' }]);
+    const cache = cacheWith([
+      { scope: 'GLOBAL', depotId: null, key: 'abandonMinutes', value: '30' },
+    ]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
     expect(cfg.abandonMinutes).toBe(30);

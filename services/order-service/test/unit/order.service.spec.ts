@@ -250,9 +250,9 @@ describe('OrderService', () => {
     const order = await service.checkout(customer, { deliveryAddress: address });
 
     // Not reviewable while still in flight.
-    await expect(service.reviewOrder(customer, order.id, { rating: 5, aspects: [] })).rejects.toBeInstanceOf(
-      OrderNotReviewableError,
-    );
+    await expect(
+      service.reviewOrder(customer, order.id, { rating: 5, aspects: [] }),
+    ).rejects.toBeInstanceOf(OrderNotReviewableError);
 
     for (const s of [
       OrderStatus.CONFIRMED,
@@ -275,9 +275,9 @@ describe('OrderService', () => {
     expect(rev.comment).toBe('mantap'); // trimmed
     expect((await service.getForCustomer(customer, order.id)).reviewed).toBe(true);
 
-    await expect(service.reviewOrder(customer, order.id, { rating: 3, aspects: [] })).rejects.toBeInstanceOf(
-      OrderAlreadyReviewedError,
-    );
+    await expect(
+      service.reviewOrder(customer, order.id, { rating: 3, aspects: [] }),
+    ).rejects.toBeInstanceOf(OrderAlreadyReviewedError);
   });
 
   it('averages ratings over a batch of orders, null when none reviewed (design 4c)', async () => {
@@ -370,6 +370,46 @@ describe('OrderService', () => {
     );
     expect(order.discount).toBe(9000); // 3000 + 6000
     expect(order.total).toBe(60000 + 5000 * 3 - 9000);
+  });
+
+  it('caps the value discount at the subtotal, never touching the delivery fee (M5-18)', async () => {
+    await addToCart(20000, 3); // subtotal 60000, fee 15000
+    membership.rate = 0.5; // 30000
+    promo.quoteDiscount = 50000; // FIXED voucher; 30000 + 50000 would overshoot
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'besar' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(60000); // capped at subtotal, fee untouched
+    expect(order.total).toBe(5000 * 3); // customer still pays the full delivery fee
+  });
+
+  it('lets FREE_SHIPPING waive the whole fee even when it exceeds the subtotal (M5-18)', async () => {
+    await addToCart(1000, 3); // subtotal 3000, fee 15000
+    promo.quoteDiscount = 15000;
+    promo.quoteDiscountType = 'FREE_SHIPPING';
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'gratisongkir' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(15000); // whole fee waived, not clipped to subtotal
+    expect(order.total).toBe(3000);
+  });
+
+  it('caps FREE_SHIPPING at the delivery fee and stacks it with a value discount (M5-18)', async () => {
+    await addToCart(20000, 3); // subtotal 60000, fee 15000
+    membership.rate = 0.05; // 3000
+    promo.quoteDiscount = 99000; // over-generous FREE_SHIPPING quote
+    promo.quoteDiscountType = 'FREE_SHIPPING';
+    const order = await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'gratisongkir' },
+      'Bearer tok',
+    );
+    expect(order.discount).toBe(3000 + 15000);
+    expect(order.total).toBe(60000 + 15000 - 18000);
   });
 
   it('fails open on membership discount — no discount when loyalty is unavailable', async () => {
@@ -563,7 +603,14 @@ describe('OrderService', () => {
 
   it('deducts routed-depot stock once, only when a routed order completes (FR-067..074)', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     const productId = await addToCart(20000, 2);
     const order = await service.checkout(customer, {
@@ -612,7 +659,14 @@ describe('OrderService', () => {
 
   const routedCheckout = () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     return service.checkout(
       customer,
@@ -679,7 +733,13 @@ describe('OrderService', () => {
     await addToCart(20000, 1);
     const confirmed = await routedCheckout();
     orders.rows[1].createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
-    await service.updateStatus(confirmed.id, OrderStatus.CONFIRMED, 'staff', undefined, 'Bearer tok');
+    await service.updateStatus(
+      confirmed.id,
+      OrderStatus.CONFIRMED,
+      'staff',
+      undefined,
+      'Bearer tok',
+    );
 
     const result = await service.expireAbandoned('admin', 'Bearer tok', 60);
     expect(result.cancelled).toBe(0); // fresh is recent; confirmed is no longer CREATED
@@ -787,8 +847,22 @@ describe('OrderService', () => {
 
   it('filters the staff queue by depotId, and returns all depots when omitted (6a)', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null }, // ~Bandung
-      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 9000, minOrderAmount: null }, // ~Jakarta
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 7000,
+        minOrderAmount: null,
+      }, // ~Bandung
+      {
+        id: 'depot-far',
+        lat: -6.2,
+        lng: 106.8,
+        serviceRadiusKm: 10,
+        deliveryFee: 9000,
+        minOrderAmount: null,
+      }, // ~Jakarta
     ];
     await addToCart(20000, 1);
     const near = await service.checkout(customer, {
@@ -811,8 +885,22 @@ describe('OrderService', () => {
 
   it('routes an order to the nearest in-range depot at checkout', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null }, // ~Bandung
-      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 9000, minOrderAmount: null }, // ~Jakarta
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 7000,
+        minOrderAmount: null,
+      }, // ~Bandung
+      {
+        id: 'depot-far',
+        lat: -6.2,
+        lng: 106.8,
+        serviceRadiusKm: 10,
+        deliveryFee: 9000,
+        minOrderAmount: null,
+      }, // ~Jakarta
     ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, {
@@ -823,7 +911,14 @@ describe('OrderService', () => {
 
   it('charges the routed depot delivery fee instead of the flat config fee', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 8000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 8000,
+        minOrderAmount: null,
+      },
     ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, {
@@ -835,7 +930,14 @@ describe('OrderService', () => {
 
   it('rejects checkout when the subtotal is below the depot minimum', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: 50000 },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 7000,
+        minOrderAmount: 50000,
+      },
     ];
     await addToCart(20000, 1);
     await expect(
@@ -847,7 +949,14 @@ describe('OrderService', () => {
 
   it('rejects checkout when depots exist but none covers the address (out of service area)', async () => {
     depots.depots = [
-      { id: 'depot-far', lat: -6.2, lng: 106.8, serviceRadiusKm: 5, deliveryFee: 7000, minOrderAmount: 50000 },
+      {
+        id: 'depot-far',
+        lat: -6.2,
+        lng: 106.8,
+        serviceRadiusKm: 5,
+        deliveryFee: 7000,
+        minOrderAmount: 50000,
+      },
     ];
     await addToCart(20000, 1);
     await expect(
@@ -879,7 +988,14 @@ describe('OrderService', () => {
 
   it('leaves an order unrouted when the address has no coordinates', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 7000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 7000,
+        minOrderAmount: null,
+      },
     ];
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
@@ -888,7 +1004,14 @@ describe('OrderService', () => {
 
   it('prices lines from the routed depot override, not the catalog base', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     const productId = await addToCart(20000, 2); // catalog base 20000
     pricing.setPrice('depot-near', productId, 22000); // this depot sells at 22000
@@ -904,7 +1027,14 @@ describe('OrderService', () => {
 
   it('applies an active depot pricing rule to the unit price at checkout', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     const productId = await addToCart(20000, 2); // catalog base 20000, no sellPrice override
     pricing.setRule('depot-near', productId, 'PERCENT', -10); // 10% off -> 18000
@@ -920,7 +1050,14 @@ describe('OrderService', () => {
 
   it('falls back to the catalog base price when the depot has no override', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     await addToCart(20000, 1); // no depot override set
     const order = await service.checkout(customer, {
@@ -939,7 +1076,14 @@ describe('OrderService', () => {
 
   it('placeScheduled routes to a depot: reserves stock, uses depot pricing and the discount rate', async () => {
     depots.depots = [
-      { id: 'depot-near', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null },
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+      },
     ];
     const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     pricing.setPrice('depot-near', p.id, 22000); // depot sells at 22000
@@ -963,9 +1107,9 @@ describe('OrderService', () => {
   });
 
   it('placeScheduled rejects an empty line list', async () => {
-    await expect(
-      service.placeScheduled(customer, [], coordAddress, 0),
-    ).rejects.toBeInstanceOf(EmptyCartError);
+    await expect(service.placeScheduled(customer, [], coordAddress, 0)).rejects.toBeInstanceOf(
+      EmptyCartError,
+    );
   });
 
   const deliver = async (): Promise<string> => {
@@ -995,16 +1139,18 @@ describe('OrderService', () => {
 
   it('getReview enforces ownership (404 for another customer)', async () => {
     const orderId = await deliver();
-    await expect(
-      service.getReview(randomUUID(), orderId),
-    ).rejects.toBeInstanceOf(OrderNotFoundError);
+    await expect(service.getReview(randomUUID(), orderId)).rejects.toBeInstanceOf(
+      OrderNotFoundError,
+    );
   });
 
   it('recordRefund persists a refund amount and 404s on an unknown order', async () => {
     await addToCart(20000, 1);
     const order = await service.checkout(customer, { deliveryAddress: address });
     await expect(service.recordRefund(order.id, 15000)).resolves.toBeUndefined();
-    await expect(service.recordRefund(randomUUID(), 15000)).rejects.toBeInstanceOf(OrderNotFoundError);
+    await expect(service.recordRefund(randomUUID(), 15000)).rejects.toBeInstanceOf(
+      OrderNotFoundError,
+    );
   });
 });
 
@@ -1012,11 +1158,23 @@ describe('OrderService franchise revenue on completion', () => {
   // Kept separate from the big lifecycle suite: this needs a routed depot WITH an owner,
   // which the shared setup deliberately does not have.
   const routedAddress = {
-    recipientName: 'Budi', phone: '+628111', addressLine: 'Jl. Mawar 1',
-    city: 'Bandung', province: 'Jawa Barat', postalCode: '40111', latitude: -6.9, longitude: 107.6, notes: null,
+    recipientName: 'Budi',
+    phone: '+628111',
+    addressLine: 'Jl. Mawar 1',
+    city: 'Bandung',
+    province: 'Jawa Barat',
+    postalCode: '40111',
+    latitude: -6.9,
+    longitude: 107.6,
+    notes: null,
   };
   const depot = {
-    id: 'depot-owned', lat: -6.9, lng: 107.6, serviceRadiusKm: 10, deliveryFee: 5000, minOrderAmount: null,
+    id: 'depot-owned',
+    lat: -6.9,
+    lng: 107.6,
+    serviceRadiusKm: 10,
+    deliveryFee: 5000,
+    minOrderAmount: null,
   };
 
   async function build(withOwner: boolean) {
@@ -1029,10 +1187,23 @@ describe('OrderService franchise revenue on completion', () => {
     if (withOwner) depots.owners.set(depot.id, 'owner-9');
     const cartService = new CartService(cart, catalog);
     const service = new OrderService(
-      orders, cart, catalog, depots, new FakeDepotPricing(), new FakeLoyaltyCoordination(),
-      new FakeReferralCoordination(), new FakeMembership(), new FakeResellerDiscount(),
-      new FakeNotification(), new FakePromo(), new FakeInventory(), cartService, buildTestConfig(),
-      new FakeRecommendationCoordination(), new FakeForecastCoordination(), revenue,
+      orders,
+      cart,
+      catalog,
+      depots,
+      new FakeDepotPricing(),
+      new FakeLoyaltyCoordination(),
+      new FakeReferralCoordination(),
+      new FakeMembership(),
+      new FakeResellerDiscount(),
+      new FakeNotification(),
+      new FakePromo(),
+      new FakeInventory(),
+      cartService,
+      buildTestConfig(),
+      new FakeRecommendationCoordination(),
+      new FakeForecastCoordination(),
+      revenue,
     );
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     await cartService.setItem('cust-rev', product.id, 3, false);
@@ -1042,8 +1213,13 @@ describe('OrderService franchise revenue on completion', () => {
 
   async function complete(service: OrderService, orderId: string): Promise<void> {
     for (const s of [
-      OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED,
-      OrderStatus.PICKED_UP, OrderStatus.ON_DELIVERY, OrderStatus.DELIVERED, OrderStatus.COMPLETED,
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
     ]) {
       await service.updateStatus(orderId, s, 'staff', undefined, 'Bearer tok');
     }
@@ -1055,8 +1231,12 @@ describe('OrderService franchise revenue on completion', () => {
     expect(revenue.posted).toHaveLength(0);
 
     for (const s of [
-      OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED, OrderStatus.PICKED_UP,
-      OrderStatus.ON_DELIVERY, OrderStatus.DELIVERED, OrderStatus.COMPLETED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
     ]) {
       await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
     }

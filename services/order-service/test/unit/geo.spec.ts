@@ -51,7 +51,11 @@ describe('selectNearestDepot', () => {
   // checkouts that ORDER_OUT_OF_SERVICE_AREA exists to reject.
   it('ignores depots with a non-finite coordinate or radius', () => {
     const good = depot({ id: 'good', lat: -6.9, lng: 107.6 });
-    const noCoords = depot({ id: 'broken', lat: undefined as unknown as number, lng: undefined as unknown as number });
+    const noCoords = depot({
+      id: 'broken',
+      lat: undefined as unknown as number,
+      lng: undefined as unknown as number,
+    });
     const noRadius = depot({ id: 'no-radius', serviceRadiusKm: undefined as unknown as number });
 
     expect(selectNearestDepot(-6.9, 107.6, [noCoords, good])?.id).toBe('good');

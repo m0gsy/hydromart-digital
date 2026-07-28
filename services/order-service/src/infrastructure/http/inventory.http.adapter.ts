@@ -57,9 +57,7 @@ export class InventoryHttpAdapter implements InventoryPort {
         throw new Error(`depot-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(
-        `Stock consume skipped for order ${orderId}: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Stock consume skipped for order ${orderId}: ${(error as Error).message}`);
     } finally {
       clearTimeout(timer);
     }
@@ -97,9 +95,7 @@ export class InventoryHttpAdapter implements InventoryPort {
       if (error instanceof InsufficientStockError) {
         throw error; // propagate the reject; everything else fails open
       }
-      this.logger.warn(
-        `Stock reserve skipped for order ${orderId}: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Stock reserve skipped for order ${orderId}: ${(error as Error).message}`);
     } finally {
       clearTimeout(timer);
     }
@@ -129,9 +125,7 @@ export class InventoryHttpAdapter implements InventoryPort {
         throw new Error(`depot-service responded ${res.status}`);
       }
     } catch (error) {
-      this.logger.warn(
-        `Stock release skipped for order ${orderId}: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Stock release skipped for order ${orderId}: ${(error as Error).message}`);
     } finally {
       clearTimeout(timer);
     }

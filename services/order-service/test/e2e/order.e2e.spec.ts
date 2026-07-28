@@ -122,10 +122,7 @@ describe('Order HTTP flows (e2e)', () => {
       { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
       { secret },
     );
-    adminToken = jwt.sign(
-      { sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' },
-      { secret },
-    );
+    adminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -158,7 +155,9 @@ describe('Order HTTP flows (e2e)', () => {
     // Delivery fee is per-galon and env-configurable, so assert the pricing identity
     // rather than a magic total: total = subtotal + deliveryFee - discount.
     expect(order.body.subtotal).toBe(40000);
-    expect(order.body.total).toBe(order.body.subtotal + order.body.deliveryFee - order.body.discount);
+    expect(order.body.total).toBe(
+      order.body.subtotal + order.body.deliveryFee - order.body.discount,
+    );
     expect(order.body.status).toBe('CREATED');
 
     const list = await request(server()).get('/api/v1/orders').set(auth(customerToken)).expect(200);
@@ -244,7 +243,15 @@ describe('Order HTTP flows (e2e)', () => {
       .send({ deliveryAddress: ADDRESS })
       .expect(201);
     const id = order.body.id;
-    const flow = ['CONFIRMED', 'PREPARING', 'DRIVER_ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVERED', 'COMPLETED'];
+    const flow = [
+      'CONFIRMED',
+      'PREPARING',
+      'DRIVER_ASSIGNED',
+      'PICKED_UP',
+      'ON_DELIVERY',
+      'DELIVERED',
+      'COMPLETED',
+    ];
     for (const status of flow) {
       await request(server())
         .patch(`/api/v1/orders/${id}/status`)
@@ -349,7 +356,9 @@ describe('Order HTTP flows (e2e)', () => {
       .get('/api/v1/orders/manage?status=CANCELLED')
       .set(auth(adminToken))
       .expect(200);
-    expect(cancelled.body.items.every((o: { status: string }) => o.status === 'CANCELLED')).toBe(true);
+    expect(cancelled.body.items.every((o: { status: string }) => o.status === 'CANCELLED')).toBe(
+      true,
+    );
 
     await request(server())
       .get(`/api/v1/orders/manage/${randomUUID()}`)

@@ -115,8 +115,24 @@ describe('ReportService', () => {
     const svc = new ReportService(r2);
     await r2.create(
       withItems({ total: 60000 }, [
-        { productId: p1, productName: 'Galon 19L', sku: 'G19', unit: 'Galon', unitPrice: 20000, quantity: 2, lineTotal: 40000 },
-        { productId: p2, productName: 'Air 600ml', sku: 'A600', unit: 'Dus', unitPrice: 20000, quantity: 1, lineTotal: 20000 },
+        {
+          productId: p1,
+          productName: 'Galon 19L',
+          sku: 'G19',
+          unit: 'Galon',
+          unitPrice: 20000,
+          quantity: 2,
+          lineTotal: 40000,
+        },
+        {
+          productId: p2,
+          productName: 'Air 600ml',
+          sku: 'A600',
+          unit: 'Dus',
+          unitPrice: 20000,
+          quantity: 1,
+          lineTotal: 20000,
+        },
       ]),
     );
     const report = await svc.revenueByProduct({}, 10);
@@ -186,7 +202,15 @@ describe('ReportService', () => {
     const day = '2026-07-15';
     const at = (h: number) => new Date(`${day}T0${h}:00:00.000Z`);
     const gallon = [
-      { productId: randomUUID(), productName: 'Galon 19L', sku: 'G19', unit: 'Galon', unitPrice: 20000, quantity: 3, lineTotal: 60000 },
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        unitPrice: 20000,
+        quantity: 3,
+        lineTotal: 60000,
+      },
     ];
     // Two delivered gallon orders + one cancelled (counts as a failed delivery, not revenue).
     const o1 = await r.create({ ...orderData({ depotId: depot, total: 60000 }), items: gallon });
@@ -219,7 +243,17 @@ describe('ReportService', () => {
     const mk = async (dayIso: string, total: number, qty: number, driver: string | null) => {
       const o = await r.create({
         ...orderData({ depotId: depot, total }),
-        items: [{ productId: randomUUID(), productName: 'Galon 19L', sku: 'G19', unit: 'Galon', unitPrice: 20000, quantity: qty, lineTotal: total }],
+        items: [
+          {
+            productId: randomUUID(),
+            productName: 'Galon 19L',
+            sku: 'G19',
+            unit: 'Galon',
+            unitPrice: 20000,
+            quantity: qty,
+            lineTotal: total,
+          },
+        ],
       });
       const row = r.rows.find((x) => x.id === o.id)!;
       row.createdAt = new Date(dayIso);
@@ -259,7 +293,14 @@ describe('ReportService', () => {
     const other = randomUUID();
     const review = async (depotId: string, rating: number, comment: string | null) => {
       const o = await r.create(orderData({ depotId }));
-      await r.createReview({ orderId: o.id, customerId: o.customerId, rating, aspects: [], comment, tipAmount: 0 });
+      await r.createReview({
+        orderId: o.id,
+        customerId: o.customerId,
+        rating,
+        aspects: [],
+        comment,
+        tipAmount: 0,
+      });
     };
     await review(depot, 5, 'Mantap!');
     await review(depot, 5, 'Cepat');
@@ -292,7 +333,12 @@ describe('ReportService', () => {
     const depot = randomUUID();
     const custX = randomUUID();
     const custY = randomUUID();
-    const mk = async (customerId: string, total: number, driver: string | null, status: OrderStatus) => {
+    const mk = async (
+      customerId: string,
+      total: number,
+      driver: string | null,
+      status: OrderStatus,
+    ) => {
       const o = await r.create(orderData({ depotId: depot, customerId, total }));
       const row = r.rows.find((x) => x.id === o.id)!;
       row.createdAt = new Date('2026-05-10T00:00:00.000Z');
@@ -303,7 +349,9 @@ describe('ReportService', () => {
     await mk(custX, 30000, 'Budi', OrderStatus.DELIVERED);
     await mk(custY, 20000, 'Sari', OrderStatus.COMPLETED);
     // A cancelled in-month order and a live out-of-month order must both be excluded.
-    const cancelled = await r.create(orderData({ depotId: depot, customerId: custY, total: 99999 }));
+    const cancelled = await r.create(
+      orderData({ depotId: depot, customerId: custY, total: 99999 }),
+    );
     r.rows.find((x) => x.id === cancelled.id)!.createdAt = new Date('2026-05-11T00:00:00.000Z');
     await r.applyStatus(cancelled.id, OrderStatus.CANCELLED, null, null);
     const other = await r.create(orderData({ depotId: depot, customerId: custX, total: 70000 }));
@@ -336,7 +384,14 @@ describe('ReportService', () => {
     const depot = randomUUID();
     const review = async (rating: number) => {
       const o = await r.create(orderData({ depotId: depot }));
-      await r.createReview({ orderId: o.id, customerId: o.customerId, rating, aspects: [], comment: null, tipAmount: 0 });
+      await r.createReview({
+        orderId: o.id,
+        customerId: o.customerId,
+        rating,
+        aspects: [],
+        comment: null,
+        tipAmount: 0,
+      });
     };
     await review(5);
     await review(3);

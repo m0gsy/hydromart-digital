@@ -7,18 +7,14 @@ import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 describe('PrismaService', () => {
   it('onModuleInit connects to the database', async () => {
     const service = new PrismaService();
-    const connect = jest
-      .spyOn(service, '$connect')
-      .mockResolvedValue(undefined as never);
+    const connect = jest.spyOn(service, '$connect').mockResolvedValue(undefined as never);
     await service.onModuleInit();
     expect(connect).toHaveBeenCalledTimes(1);
   });
 
   it('onModuleDestroy disconnects from the database', async () => {
     const service = new PrismaService();
-    const disconnect = jest
-      .spyOn(service, '$disconnect')
-      .mockResolvedValue(undefined as never);
+    const disconnect = jest.spyOn(service, '$disconnect').mockResolvedValue(undefined as never);
     await service.onModuleDestroy();
     expect(disconnect).toHaveBeenCalledTimes(1);
   });

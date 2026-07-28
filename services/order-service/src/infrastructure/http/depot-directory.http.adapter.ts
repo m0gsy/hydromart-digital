@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import {
-  DepotDirectoryPort,
-  DepotLocation,
-} from '../../application/ports/depot-directory.port';
+import { DepotDirectoryPort, DepotLocation } from '../../application/ports/depot-directory.port';
 
 interface DepotResponse {
   id: string;
@@ -53,7 +50,9 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
         minOrderAmount: d.minOrderAmount ?? null,
       }));
     } catch (error) {
-      this.logger.warn(`Depot routing unavailable, order left unrouted: ${(error as Error).message}`);
+      this.logger.warn(
+        `Depot routing unavailable, order left unrouted: ${(error as Error).message}`,
+      );
       return null;
     } finally {
       clearTimeout(timer);

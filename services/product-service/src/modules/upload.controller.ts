@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Controller,
   Inject,
+  Logger,
   PayloadTooLargeException,
   Post,
+  ServiceUnavailableException,
   UploadedFile,
   UseFilters,
   UseInterceptors,
@@ -32,6 +34,8 @@ const ALLOWED: Record<string, string> = {
 @UseFilters(MulterExceptionFilter)
 @Controller({ path: 'products', version: '1' })
 export class UploadController {
+  private readonly logger = new Logger(UploadController.name);
+
   constructor(@Inject(PRODUCT_TOKENS.Storage) private readonly storage: StoragePort) {}
 
   @Post('images')
@@ -49,7 +53,21 @@ export class UploadController {
     if (file.size > MAX_BYTES) {
       throw new PayloadTooLargeException('file exceeds 5MB');
     }
-    const { url } = await this.storage.put({ body: file.buffer, contentType: file.mimetype, ext });
-    return { url };
+    // Same fault class as M1-10 in auth-service: unreachable/misconfigured object
+    // storage is infrastructure, not a bad request. 503 + a logged cause, never a
+    // bare 500.
+    try {
+      const { url } = await this.storage.put({
+        body: file.buffer,
+        contentType: file.mimetype,
+        ext,
+      });
+      return { url };
+    } catch (error) {
+      this.logger.error(`Product image upload failed: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Penyimpanan gambar sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
   }
 }

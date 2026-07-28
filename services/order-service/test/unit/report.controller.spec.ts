@@ -44,7 +44,11 @@ describe('ReportController', () => {
   });
 
   it('sales: forwards explicit granularity and parses from/to into Dates', async () => {
-    await controller.sales({ granularity: 'monthly', from: '2026-01-01', to: '2026-02-01' } as never);
+    await controller.sales({
+      granularity: 'monthly',
+      from: '2026-01-01',
+      to: '2026-02-01',
+    } as never);
     const [granularity, range] = service.sales.mock.calls[0];
     expect(granularity).toBe('monthly');
     expect(range.from).toBeInstanceOf(Date);
@@ -107,7 +111,9 @@ describe('ReportController', () => {
   });
 
   it('depotCompare: splits, trims and drops blanks from the depotIds CSV', async () => {
-    await expect(controller.depotCompare({ depotIds: 'd1, d2 ,,d3' } as never)).resolves.toBe('compare');
+    await expect(controller.depotCompare({ depotIds: 'd1, d2 ,,d3' } as never)).resolves.toBe(
+      'compare',
+    );
     expect(service.reportsDepotCompare).toHaveBeenCalledWith(['d1', 'd2', 'd3'], {
       from: undefined,
       to: undefined,
@@ -115,9 +121,9 @@ describe('ReportController', () => {
   });
 
   it('depotMonthly: forwards depotId and month', async () => {
-    await expect(controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never)).resolves.toBe(
-      'monthly',
-    );
+    await expect(
+      controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never),
+    ).resolves.toBe('monthly');
     expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-02');
   });
 
@@ -134,7 +140,11 @@ describe('ReportController', () => {
 
   it('resellerRollup: splits the customerIds CSV and forwards depot + month', async () => {
     await expect(
-      controller.resellerRollup({ depotId: 'd1', month: '2026-02', customerIds: 'c1 ,c2' } as never),
+      controller.resellerRollup({
+        depotId: 'd1',
+        month: '2026-02',
+        customerIds: 'c1 ,c2',
+      } as never),
     ).resolves.toBe('rollup');
     expect(service.resellerRollup).toHaveBeenCalledWith('d1', '2026-02', ['c1', 'c2']);
   });

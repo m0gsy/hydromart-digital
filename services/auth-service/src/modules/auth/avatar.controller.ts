@@ -2,8 +2,10 @@ import {
   BadRequestException,
   Controller,
   Inject,
+  Logger,
   PayloadTooLargeException,
   Post,
+  ServiceUnavailableException,
   UploadedFile,
   UseFilters,
   UseInterceptors,
@@ -36,6 +38,8 @@ const ALLOWED: Record<string, string> = {
 @UseFilters(MulterExceptionFilter)
 @Controller({ version: '1' })
 export class AvatarController {
+  private readonly logger = new Logger(AvatarController.name);
+
   constructor(
     @Inject(AUTH_TOKENS.Storage) private readonly storage: StoragePort,
     private readonly account: AccountService,
@@ -60,7 +64,19 @@ export class AvatarController {
     if (file.size > MAX_BYTES) {
       throw new PayloadTooLargeException('file exceeds 5MB');
     }
-    const { url } = await this.storage.put({ body: file.buffer, contentType: file.mimetype, ext });
+    // M1-10: object storage being unreachable or misconfigured is an infrastructure
+    // fault, not a malformed request — it used to escape as a bare 500 with nothing
+    // logged, which is what made this unreproducible. Answer 503 (retryable) and log
+    // the real cause so ops can see WHICH bucket/endpoint failed.
+    let url: string;
+    try {
+      ({ url } = await this.storage.put({ body: file.buffer, contentType: file.mimetype, ext }));
+    } catch (error) {
+      this.logger.error(`Avatar upload failed for ${user.sub}: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
     const profile = await this.account.setAvatar(user.sub, url);
     return PublicCustomerDto.from(profile);
   }

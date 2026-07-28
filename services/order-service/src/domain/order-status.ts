@@ -32,7 +32,11 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   // (design 3c) the courier is released and the order returns to the dispatch queue for a
   // second attempt. Without it the order stayed pinned to the abandoned attempt's state and
   // could never be assigned or delivered again.
-  [OrderStatus.DRIVER_ASSIGNED]: [OrderStatus.PICKED_UP, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.DRIVER_ASSIGNED]: [
+    OrderStatus.PICKED_UP,
+    OrderStatus.PREPARING,
+    OrderStatus.CANCELLED,
+  ],
   [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED],
