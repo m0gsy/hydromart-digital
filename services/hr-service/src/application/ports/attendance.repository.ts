@@ -41,6 +41,13 @@ export interface AttendanceSummary {
   leaveDays: number;
 }
 
+/** One attended day's clocked minutes (M24-17 overtime input). */
+export interface WorkedMinutesRow {
+  workDate: Date;
+  /** Null when the day was never checked out. */
+  workingMinutes: number | null;
+}
+
 export interface ManualAttendanceInput {
   employeeId: string;
   depotId: string;
@@ -66,6 +73,12 @@ export interface AttendanceRepository {
   }): Promise<void>;
   /** Present/late day counts for [from, to] (inclusive), used by the payroll engine. */
   summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary>;
+  /**
+   * Per-day worked minutes for [from, to] (M24-17). The payroll engine needs the DATES,
+   * not just a total, because a day that fell on a weekly-off day or national holiday is
+   * paid at a different overtime rate.
+   */
+  listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]>;
   create(input: CreateAttendanceInput): Promise<Attendance>;
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance>;
   list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }>;

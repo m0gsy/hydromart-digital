@@ -2,10 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { IncidentSeverity, IncidentStatus } from '../../domain/incident';
-import {
-  IncidentRecord,
-  IncidentUpdateRecord,
-} from '../../application/ports/incident.repository';
+import { IncidentRecord, IncidentUpdateRecord } from '../../application/ports/incident.repository';
 
 /* ---------- Requests ---------- */
 

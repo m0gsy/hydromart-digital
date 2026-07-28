@@ -77,9 +77,15 @@ export class WebhookDto {
   events!: string[];
   @ApiProperty()
   active!: boolean;
-  @ApiProperty({ nullable: true, description: 'Most recent delivery outcome (null until one occurs).' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Most recent delivery outcome (null until one occurs).',
+  })
   lastDeliveryStatus!: string | null;
-  @ApiProperty({ nullable: true, description: 'Rolling success rate 0..100 (null until real deliveries).' })
+  @ApiProperty({
+    nullable: true,
+    description: 'Rolling success rate 0..100 (null until real deliveries).',
+  })
   deliveryRatePct!: number | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;

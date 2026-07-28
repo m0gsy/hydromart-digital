@@ -26,7 +26,11 @@ function fakeExcel(bufferShape: 'buffer' | 'arraybuffer') {
     },
   };
   return {
-    Module: { Workbook: function Workbook() { return wb; } },
+    Module: {
+      Workbook: function Workbook() {
+        return wb;
+      },
+    },
     inspect: () => ({ added, sheetName, row1 }),
   };
 }

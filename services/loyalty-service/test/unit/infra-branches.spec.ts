@@ -27,11 +27,16 @@ describe('CustomerDirectoryHttpAdapter timeout', () => {
     const fetchMock = jest.fn(
       (_url: string, opts: { signal: AbortSignal }) =>
         new Promise((_resolve, reject) => {
-          opts.signal.addEventListener('abort', () => reject(new Error('The operation was aborted')));
+          opts.signal.addEventListener('abort', () =>
+            reject(new Error('The operation was aborted')),
+          );
         }),
     );
     global.fetch = fetchMock as unknown as typeof fetch;
-    const config = { customerServiceUrl: 'http://customer:3002', internalServiceKey: 'k' } as unknown as LoyaltyConfigService;
+    const config = {
+      customerServiceUrl: 'http://customer:3002',
+      internalServiceKey: 'k',
+    } as unknown as LoyaltyConfigService;
 
     const promise = new CustomerDirectoryHttpAdapter(config).customerIdsForDepot('d1');
     await jest.advanceTimersByTimeAsync(5000); // fires the setTimeout(() => controller.abort())
@@ -49,7 +54,8 @@ describe('SettingsService additional branches', () => {
     return {
       upserts,
       repo: {
-        loadAll: async () => store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
+        loadAll: async () =>
+          store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
         upsert: async (row) => {
           upserts.push(row);
           store.push(row);
@@ -63,14 +69,32 @@ describe('SettingsService additional branches', () => {
     const { repo } = repoWith();
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '0', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'earnRateRupiah',
+        value: '0',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow(/below min/);
   });
 
   it('put persists a DEPOT override with the given depotId', async () => {
     const { repo, upserts } = repoWith();
     const svc = new SettingsService(repo, new SettingsCache(repo));
-    await svc.put({ scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1500', updatedBy: 'u2' });
-    expect(upserts[0]).toMatchObject({ scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1500', updatedBy: 'u2' });
+    await svc.put({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'earnRateRupiah',
+      value: '1500',
+      updatedBy: 'u2',
+    });
+    expect(upserts[0]).toMatchObject({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'earnRateRupiah',
+      value: '1500',
+      updatedBy: 'u2',
+    });
   });
 });

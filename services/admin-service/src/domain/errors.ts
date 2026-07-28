@@ -56,6 +56,15 @@ export class IncidentNotFoundError extends DomainError {
   }
 }
 
+/** M23-21: an edit that would breach a legal retention floor. */
+export class RetentionPolicyInvalidError extends DomainError {
+  readonly code = 'RETENTION_POLICY_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(reason: string) {
+    super(reason);
+  }
+}
+
 export class RetentionPolicyNotFoundError extends DomainError {
   readonly code = 'RETENTION_POLICY_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

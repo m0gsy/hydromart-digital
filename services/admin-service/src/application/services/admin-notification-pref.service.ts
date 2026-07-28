@@ -55,9 +55,7 @@ export class AdminNotificationPrefService {
   private merge(saved: NotificationChannelPref[]): NotificationChannelPref[] {
     return DEFAULTS.map((def) => {
       const row = saved.find((r) => r.id === def.id);
-      return row
-        ? { id: def.id, push: !!row.push, email: !!row.email, wa: !!row.wa }
-        : { ...def };
+      return row ? { id: def.id, push: !!row.push, email: !!row.email, wa: !!row.wa } : { ...def };
     });
   }
 }

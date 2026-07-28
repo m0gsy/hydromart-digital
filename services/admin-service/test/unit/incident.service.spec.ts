@@ -48,6 +48,8 @@ describe('IncidentService', () => {
   });
 
   it('throws IncidentNotFoundError for unknown ids', async () => {
-    await expect(service.patch('nope', { note: 'x' })).rejects.toBeInstanceOf(IncidentNotFoundError);
+    await expect(service.patch('nope', { note: 'x' })).rejects.toBeInstanceOf(
+      IncidentNotFoundError,
+    );
   });
 });

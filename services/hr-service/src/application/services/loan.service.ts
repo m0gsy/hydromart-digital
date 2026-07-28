@@ -24,12 +24,19 @@ export class LoanService {
 
   async create(
     user: AuthenticatedUser,
-    input: { employeeId: string; principal: number; installmentAmount: number; startPeriod: string; note?: string },
+    input: {
+      employeeId: string;
+      principal: number;
+      installmentAmount: number;
+      startPeriod: string;
+      note?: string;
+    },
   ): Promise<Loan> {
     await this.employees.getById(user, input.employeeId); // 404 + depot check
     if (input.principal <= 0) throw new BadRequestException('principal harus > 0');
     if (input.installmentAmount <= 0) throw new BadRequestException('installmentAmount harus > 0');
-    if (!PERIOD_RE.test(input.startPeriod)) throw new BadRequestException('startPeriod harus format YYYY-MM');
+    if (!PERIOD_RE.test(input.startPeriod))
+      throw new BadRequestException('startPeriod harus format YYYY-MM');
     return this.repo.create({
       employeeId: input.employeeId,
       principal: input.principal,
@@ -49,13 +56,25 @@ export class LoanService {
     return this.repo.update(id, { active: false });
   }
 
-  async listByEmployee(user: AuthenticatedUser, employeeId: string, asOfPeriod: string): Promise<LoanView[]> {
+  async listByEmployee(
+    user: AuthenticatedUser,
+    employeeId: string,
+    asOfPeriod: string,
+  ): Promise<LoanView[]> {
     await this.employees.getById(user, employeeId);
     const period = PERIOD_RE.test(asOfPeriod) ? asOfPeriod : new Date().toISOString().slice(0, 7);
     const loans = await this.repo.listByEmployee(employeeId);
     return loans.map((l) => {
-      const terms = { principal: Number(l.principal), installmentAmount: Number(l.installmentAmount), startPeriod: l.startPeriod };
-      return { ...l, remaining: loanRemainingAfter(terms, period), settled: loanIsSettled(terms, period) };
+      const terms = {
+        principal: Number(l.principal),
+        installmentAmount: Number(l.installmentAmount),
+        startPeriod: l.startPeriod,
+      };
+      return {
+        ...l,
+        remaining: loanRemainingAfter(terms, period),
+        settled: loanIsSettled(terms, period),
+      };
     });
   }
 }

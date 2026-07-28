@@ -3,7 +3,13 @@ import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 import { Response } from 'express';
 
 import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Roles,
+} from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
 import { toXlsx } from '../domain/xlsx';
@@ -34,7 +40,9 @@ export class ReportsController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/depot-summary')
-  @ApiOperation({ summary: 'Per-depot HR summary: late/absent today, payroll MTD (internal service auth)' })
+  @ApiOperation({
+    summary: 'Per-depot HR summary: late/absent today, payroll MTD (internal service auth)',
+  })
   depotSummary(@Query('depotId') depotId: string) {
     return this.analytics.depotSummary(depotId);
   }
@@ -42,28 +50,66 @@ export class ReportsController {
   @Get('employees')
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Employee directory export (CSV or ?format=xlsx)' })
-  async employees(@Query() q: EmployeeReportQueryDto, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
-    await this.deliver(res, 'employees', await this.analytics.employeeReport(user, q.depotId), q.format);
+  async employees(
+    @Query() q: EmployeeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      'employees',
+      await this.analytics.employeeReport(user, q.depotId),
+      q.format,
+    );
   }
 
   @Get('attendance')
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Attendance export for a date range (CSV or ?format=xlsx)' })
-  async attendance(@Query() q: AttendanceReportQueryDto, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
-    await this.deliver(res, `attendance-${q.from}_${q.to}`, await this.analytics.attendanceReport(user, q), q.format);
+  async attendance(
+    @Query() q: AttendanceReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `attendance-${q.from}_${q.to}`,
+      await this.analytics.attendanceReport(user, q),
+      q.format,
+    );
   }
 
   @Get('payroll')
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Payroll export for a period (CSV or ?format=xlsx)' })
-  async payroll(@Query() q: PayrollReportQueryDto, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
-    await this.deliver(res, `payroll-${q.periodMonth}`, await this.analytics.payrollReport(user, q), q.format);
+  async payroll(
+    @Query() q: PayrollReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `payroll-${q.periodMonth}`,
+      await this.analytics.payrollReport(user, q),
+      q.format,
+    );
   }
 
-  private async deliver(res: Response, baseName: string, report: ReportData, format?: string): Promise<void> {
-    res.setHeader('Content-Disposition', `attachment; filename="${baseName}.${format === 'xlsx' ? 'xlsx' : 'csv'}"`);
+  private async deliver(
+    res: Response,
+    baseName: string,
+    report: ReportData,
+    format?: string,
+  ): Promise<void> {
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${baseName}.${format === 'xlsx' ? 'xlsx' : 'csv'}"`,
+    );
     if (format === 'xlsx') {
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
       res.send(await toXlsx(report.headers, report.rows, baseName));
       return;
     }

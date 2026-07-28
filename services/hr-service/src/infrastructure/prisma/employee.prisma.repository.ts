@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Employee, EmploymentHistory, Prisma } from '../../../prisma/generated/client';
 
-import { EmployeeListFilter, EmployeeRepository } from '../../application/ports/employee.repository';
+import {
+  EmployeeListFilter,
+  EmployeeRepository,
+} from '../../application/ports/employee.repository';
 import { PrismaService } from './prisma.service';
 
 @Injectable()

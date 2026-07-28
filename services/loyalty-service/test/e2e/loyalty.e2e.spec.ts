@@ -65,7 +65,10 @@ describe('Loyalty HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    managerToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    managerToken = jwt.sign(
+      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { secret },
+    );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
   });
@@ -86,15 +89,26 @@ describe('Loyalty HTTP flows (e2e)', () => {
 
   it('requires auth to read the current account, then lazily creates it', async () => {
     await request(server()).get('/api/v1/loyalty/me').expect(401);
-    const res = await request(server()).get('/api/v1/loyalty/me').set(auth(customerToken)).expect(200);
+    const res = await request(server())
+      .get('/api/v1/loyalty/me')
+      .set(auth(customerToken))
+      .expect(200);
     expect(res.body).toMatchObject({ tier: 'REGULAR', pointsBalance: 0, discountRate: 0 });
   });
 
   it('requires the internal service key to earn (401 without key or with a wrong key)', async () => {
     const body = { customerId: randomUUID(), orderId: randomUUID(), subtotal: 60000 };
     await request(server()).post('/api/v1/loyalty/earn').send(body).expect(401);
-    await request(server()).post('/api/v1/loyalty/earn').set(auth(customerToken)).send(body).expect(401);
-    await request(server()).post('/api/v1/loyalty/earn').set(internal('wrong-key')).send(body).expect(401);
+    await request(server())
+      .post('/api/v1/loyalty/earn')
+      .set(auth(customerToken))
+      .send(body)
+      .expect(401);
+    await request(server())
+      .post('/api/v1/loyalty/earn')
+      .set(internal('wrong-key'))
+      .send(body)
+      .expect(401);
   });
 
   it('awards points on earn and reflects them for staff reads (BR-013)', async () => {
@@ -150,7 +164,10 @@ describe('Loyalty HTTP flows (e2e)', () => {
 
   it('runs the expiry sweep only for SUPER_ADMIN', async () => {
     await request(server()).post('/api/v1/loyalty/expire').set(auth(managerToken)).expect(403);
-    const res = await request(server()).post('/api/v1/loyalty/expire').set(auth(superToken)).expect(200);
+    const res = await request(server())
+      .post('/api/v1/loyalty/expire')
+      .set(auth(superToken))
+      .expect(200);
     expect(res.body).toMatchObject({ lotsExpired: expect.any(Number) });
   });
 });

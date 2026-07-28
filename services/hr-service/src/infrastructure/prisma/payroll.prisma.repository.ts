@@ -14,7 +14,10 @@ const withItems = { include: { items: true } } as const;
 export class PayrollPrismaRepository implements PayrollRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findByEmployeeAndPeriod(employeeId: string, periodMonth: string): Promise<PayrollWithItems | null> {
+  findByEmployeeAndPeriod(
+    employeeId: string,
+    periodMonth: string,
+  ): Promise<PayrollWithItems | null> {
     return this.prisma.payroll.findUnique({
       where: { employeeId_periodMonth: { employeeId, periodMonth } },
       ...withItems,
@@ -73,7 +76,12 @@ export class PayrollPrismaRepository implements PayrollRepository {
       ...(filter.status ? { status: filter.status } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
-      this.prisma.payroll.findMany({ where, orderBy: { createdAt: 'desc' }, skip: filter.skip, take: filter.take }),
+      this.prisma.payroll.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: filter.skip,
+        take: filter.take,
+      }),
       this.prisma.payroll.count({ where }),
     ]);
     return { rows, total };

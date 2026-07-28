@@ -58,7 +58,12 @@ describe('AdminNotificationPrefPrismaRepository', () => {
 });
 
 describe('ApiKeyPrismaRepository', () => {
-  const model = { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { apiKey: model } as unknown as PrismaService;
   const repo = new ApiKeyPrismaRepository(prisma);
   const row = () => ({
@@ -159,14 +164,21 @@ describe('ExportLogPrismaRepository', () => {
   it('list applies filters, paginates and returns a mapped page', async () => {
     model.findMany.mockResolvedValue([row()]);
     model.count.mockResolvedValue(1);
-    const page = await repo.list({ page: 2, limit: 20, dataset: 'orders', status: ExportStatus.DONE });
+    const page = await repo.list({
+      page: 2,
+      limit: 20,
+      dataset: 'orders',
+      status: ExportStatus.DONE,
+    });
     expect(model.findMany).toHaveBeenCalledWith({
       where: { dataset: 'orders', status: ExportStatus.DONE },
       orderBy: { createdAt: 'desc' },
       skip: 20,
       take: 20,
     });
-    expect(model.count).toHaveBeenCalledWith({ where: { dataset: 'orders', status: ExportStatus.DONE } });
+    expect(model.count).toHaveBeenCalledWith({
+      where: { dataset: 'orders', status: ExportStatus.DONE },
+    });
     expect(page).toEqual({
       items: [expect.objectContaining({ format: ExportFormat.CSV, status: ExportStatus.DONE })],
       total: 1,
@@ -244,7 +256,12 @@ describe('FeatureFlagPrismaRepository', () => {
 });
 
 describe('FraudFlagPrismaRepository', () => {
-  const model = { findMany: jest.fn(), create: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const model = {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
   const prisma = { fraudFlag: model } as unknown as PrismaService;
   const repo = new FraudFlagPrismaRepository(prisma);
   const row = () => ({
@@ -295,7 +312,10 @@ describe('FraudFlagPrismaRepository', () => {
     model.findUnique.mockResolvedValue(row());
     model.update.mockResolvedValue({ ...row(), status: 'CLEARED' });
     const rec = await repo.setStatus('fr-1', FraudStatus.CLEARED);
-    expect(model.update).toHaveBeenCalledWith({ where: { id: 'fr-1' }, data: { status: FraudStatus.CLEARED } });
+    expect(model.update).toHaveBeenCalledWith({
+      where: { id: 'fr-1' },
+      data: { status: FraudStatus.CLEARED },
+    });
     expect(rec?.status).toBe(FraudStatus.CLEARED);
   });
 
@@ -350,9 +370,18 @@ describe('IncidentPrismaRepository', () => {
 
   it('create maps optional note to null', async () => {
     incident.create.mockResolvedValue(row());
-    await repo.create({ title: 'DB latency', severity: IncidentSeverity.CRITICAL, affectedService: 'order-service' });
+    await repo.create({
+      title: 'DB latency',
+      severity: IncidentSeverity.CRITICAL,
+      affectedService: 'order-service',
+    });
     expect(incident.create).toHaveBeenCalledWith({
-      data: { title: 'DB latency', severity: IncidentSeverity.CRITICAL, affectedService: 'order-service', note: null },
+      data: {
+        title: 'DB latency',
+        severity: IncidentSeverity.CRITICAL,
+        affectedService: 'order-service',
+        note: null,
+      },
       include: { updates: { orderBy: { createdAt: 'desc' } } },
     });
   });
@@ -361,7 +390,9 @@ describe('IncidentPrismaRepository', () => {
     incident.findUnique.mockResolvedValueOnce(row());
     incident.findUnique.mockResolvedValueOnce({ ...row(), status: 'RESOLVED', resolvedAt: now });
     await repo.patch('inc-1', { note: 'fixed', status: IncidentStatus.RESOLVED });
-    expect(incidentUpdate.create).toHaveBeenCalledWith({ data: { incidentId: 'inc-1', note: 'fixed' } });
+    expect(incidentUpdate.create).toHaveBeenCalledWith({
+      data: { incidentId: 'inc-1', note: 'fixed' },
+    });
     const updateArg = incident.update.mock.calls[0][0];
     expect(updateArg.where).toEqual({ id: 'inc-1' });
     expect(updateArg.data.status).toBe(IncidentStatus.RESOLVED);
@@ -624,7 +655,9 @@ describe('SupportTicketPrismaRepository', () => {
     status: 'OPEN',
     assigneeId: null,
     createdAt: now,
-    messages: [{ id: 'm-1', ticketId: 't-1', authorType: 'CUSTOMER', body: 'help', createdAt: now }],
+    messages: [
+      { id: 'm-1', ticketId: 't-1', authorType: 'CUSTOMER', body: 'help', createdAt: now },
+    ],
   });
 
   beforeEach(() => jest.clearAllMocks());

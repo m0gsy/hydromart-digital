@@ -4,16 +4,16 @@ import { AuthenticatedUser } from '@hydromart/platform';
 
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
-import { LoyaltyAccountRecord, PointsTransactionRecord } from '../../src/application/ports/loyalty.repository';
+import {
+  LoyaltyAccountRecord,
+  PointsTransactionRecord,
+} from '../../src/application/ports/loyalty.repository';
 import { RewardItemRecord } from '../../src/application/ports/reward.repository';
 import { LoyaltyController } from '../../src/modules/loyalty.controller';
 import { RewardController } from '../../src/modules/reward.controller';
 import { HealthController } from '../../src/modules/health.controller';
 import { SettingsController } from '../../src/modules/settings.controller';
-import {
-  LoyaltyAccountDto,
-  PointsTransactionDto,
-} from '../../src/modules/dto/loyalty.dto';
+import { LoyaltyAccountDto, PointsTransactionDto } from '../../src/modules/dto/loyalty.dto';
 import { RewardItemDto, RedeemResultDto } from '../../src/modules/dto/reward.dto';
 
 // Thin delegate-assert controller tests: each handler forwards to its service and maps
@@ -50,8 +50,18 @@ describe('LoyaltyController (delegation)', () => {
   const loyalty = {
     getTiers: jest.fn(() => ['tier']),
     getAccount: jest.fn(async () => account()),
-    listTransactions: jest.fn(async () => ({ items: [txn], total: 1, page: 1, limit: 20, totalPages: 1 })),
-    earnForOrder: jest.fn(async () => ({ account: account(), pointsEarned: 60, alreadyEarned: false })),
+    listTransactions: jest.fn(async () => ({
+      items: [txn],
+      total: 1,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    })),
+    earnForOrder: jest.fn(async () => ({
+      account: account(),
+      pointsEarned: 60,
+      alreadyEarned: false,
+    })),
     adjust: jest.fn(async () => account()),
     reward: jest.fn(async () => account()),
     runExpiry: jest.fn(async () => ({ lotsExpired: 0, pointsExpired: 0 })),
@@ -120,20 +130,53 @@ describe('LoyaltyController (delegation)', () => {
 });
 
 describe('RewardController (delegation)', () => {
-  const item: RewardItemRecord = { id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, active: true, stock: 5 };
+  const item: RewardItemRecord = {
+    id: 'ri-1',
+    name: 'Galon',
+    unit: 'galon',
+    pointsCost: 800,
+    imageUrl: null,
+    active: true,
+    stock: 5,
+  };
   const rewards = {
     listCatalog: jest.fn(async () => [item]),
     listAll: jest.fn(async () => [item, { ...item, id: 'ri-2', active: false }]),
     createItem: jest.fn(async () => item),
     updateItem: jest.fn(async () => ({ ...item, active: false })),
-    redeem: jest.fn(async () => ({ redemption: { id: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800 }, pointsBalance: 400 })),
+    redeem: jest.fn(async () => ({
+      redemption: { id: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800, status: 'ACTIVE' },
+      pointsBalance: 400,
+    })),
+    cancel: jest.fn(async () => ({
+      redemption: { id: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800, status: 'CANCELLED' },
+      pointsBalance: 1200,
+    })),
+    markUsed: jest.fn(async () => ({
+      id: 'rd-1',
+      rewardItemId: 'ri-1',
+      pointsSpent: 800,
+      status: 'USED',
+      usedAt: new Date('2026-01-03T00:00:00.000Z'),
+      cancelledAt: null,
+    })),
   };
   const ctrl = new RewardController(rewards as never);
   beforeEach(() => jest.clearAllMocks());
 
   it('catalog() maps active items', async () => {
     const out = await ctrl.catalog();
-    expect(out).toEqual([{ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, stock: 5, active: true }]);
+    expect(out).toEqual([
+      {
+        id: 'ri-1',
+        name: 'Galon',
+        unit: 'galon',
+        pointsCost: 800,
+        imageUrl: null,
+        stock: 5,
+        active: true,
+      },
+    ]);
   });
 
   it('items() lists retired entries too', async () => {
@@ -145,14 +188,31 @@ describe('RewardController (delegation)', () => {
   it('createItem() defaults optional fields instead of passing undefined through', async () => {
     await ctrl.createItem({ name: 'Galon', unit: 'galon', pointsCost: 800 } as never);
     expect(rewards.createItem).toHaveBeenCalledWith({
-      name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: null, stock: null, active: true,
+      name: 'Galon',
+      unit: 'galon',
+      pointsCost: 800,
+      imageUrl: null,
+      stock: null,
+      active: true,
     });
   });
 
   it('createItem() keeps an explicit finite stock and inactive flag', async () => {
-    await ctrl.createItem({ name: 'Galon', unit: 'galon', pointsCost: 800, stock: 0, active: false, imageUrl: 'u' } as never);
+    await ctrl.createItem({
+      name: 'Galon',
+      unit: 'galon',
+      pointsCost: 800,
+      stock: 0,
+      active: false,
+      imageUrl: 'u',
+    } as never);
     expect(rewards.createItem).toHaveBeenCalledWith({
-      name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'u', stock: 0, active: false,
+      name: 'Galon',
+      unit: 'galon',
+      pointsCost: 800,
+      imageUrl: 'u',
+      stock: 0,
+      active: false,
     });
   });
 
@@ -164,8 +224,33 @@ describe('RewardController (delegation)', () => {
 
   it('redeem() maps the redeem result', async () => {
     const out = await ctrl.redeem(user(), { rewardItemId: 'ri-1', idempotencyKey: 'k1' } as never);
-    expect(out).toEqual({ redemptionId: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800, pointsBalance: 400 });
+    expect(out).toEqual({
+      redemptionId: 'rd-1',
+      rewardItemId: 'ri-1',
+      pointsSpent: 800,
+      pointsBalance: 400,
+      status: 'ACTIVE',
+    });
     expect(rewards.redeem).toHaveBeenCalledWith('cust-1', 'ri-1', 'k1');
+  });
+
+  it('cancelRedemption() scopes the cancel to the caller (M14-03)', async () => {
+    const out = await ctrl.cancelRedemption(user(), 'rd-1');
+    expect(rewards.cancel).toHaveBeenCalledWith('cust-1', 'rd-1');
+    expect(out).toMatchObject({ status: 'CANCELLED', pointsBalance: 1200 });
+  });
+
+  it('markRedemptionUsed() maps the hand-over stamp (M14-03)', async () => {
+    const out = await ctrl.markRedemptionUsed('rd-1');
+    expect(rewards.markUsed).toHaveBeenCalledWith('rd-1');
+    expect(out).toEqual({
+      id: 'rd-1',
+      rewardItemId: 'ri-1',
+      pointsSpent: 800,
+      status: 'USED',
+      usedAt: '2026-01-03T00:00:00.000Z',
+      cancelledAt: null,
+    });
   });
 });
 
@@ -173,7 +258,11 @@ describe('HealthController', () => {
   it('reports ok when the DB probe succeeds', async () => {
     const prisma = { $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]) };
     const out = await new HealthController(prisma as never).check();
-    expect(out).toMatchObject({ status: 'ok', service: 'loyalty-service', checks: { database: 'up' } });
+    expect(out).toMatchObject({
+      status: 'ok',
+      service: 'loyalty-service',
+      checks: { database: 'up' },
+    });
   });
 
   it('throws ServiceUnavailable when the DB probe fails', async () => {
@@ -185,7 +274,11 @@ describe('HealthController', () => {
 });
 
 describe('SettingsController (guards + delegation)', () => {
-  const settings = { schema: jest.fn(async () => ({})), put: jest.fn(async () => undefined), reset: jest.fn(async () => undefined) };
+  const settings = {
+    schema: jest.fn(async () => ({})),
+    put: jest.fn(async () => undefined),
+    reset: jest.fn(async () => undefined),
+  };
   const ctrl = new SettingsController(settings as never);
   beforeEach(() => jest.clearAllMocks());
 
@@ -198,29 +291,56 @@ describe('SettingsController (guards + delegation)', () => {
 
   it('put() rejects a GLOBAL change from a non-super-admin', async () => {
     await expect(
-      ctrl.put({ scope: 'GLOBAL', key: 'earnRateRupiah', value: '1' } as never, user({ role: 'DEPOT_MANAGER' })),
+      ctrl.put(
+        { scope: 'GLOBAL', key: 'earnRateRupiah', value: '1' } as never,
+        user({ role: 'DEPOT_MANAGER' }),
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(settings.put).not.toHaveBeenCalled();
   });
 
   it('put() lets SUPER_ADMIN set a GLOBAL override', async () => {
-    await ctrl.put({ scope: 'GLOBAL', key: 'earnRateRupiah', value: '1' } as never, user({ sub: 'u1', role: 'SUPER_ADMIN' }));
-    expect(settings.put).toHaveBeenCalledWith({ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '1', updatedBy: 'u1' });
+    await ctrl.put(
+      { scope: 'GLOBAL', key: 'earnRateRupiah', value: '1' } as never,
+      user({ sub: 'u1', role: 'SUPER_ADMIN' }),
+    );
+    expect(settings.put).toHaveBeenCalledWith({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'earnRateRupiah',
+      value: '1',
+      updatedBy: 'u1',
+    });
   });
 
   it('put() lets a depot admin set a DEPOT override (depotId forwarded)', async () => {
-    await ctrl.put({ scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1' } as never, user({ sub: 'u2', role: 'DEPOT_MANAGER' }));
-    expect(settings.put).toHaveBeenCalledWith({ scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1', updatedBy: 'u2' });
+    await ctrl.put(
+      { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1' } as never,
+      user({ sub: 'u2', role: 'DEPOT_MANAGER' }),
+    );
+    expect(settings.put).toHaveBeenCalledWith({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'earnRateRupiah',
+      value: '1',
+      updatedBy: 'u2',
+    });
   });
 
   it('reset() rejects a GLOBAL reset from a non-super-admin', async () => {
     await expect(
-      ctrl.reset({ scope: 'GLOBAL', key: 'earnRateRupiah' } as never, user({ role: 'DEPOT_MANAGER' })),
+      ctrl.reset(
+        { scope: 'GLOBAL', key: 'earnRateRupiah' } as never,
+        user({ role: 'DEPOT_MANAGER' }),
+      ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('reset() removes a DEPOT override', async () => {
-    await ctrl.reset({ scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never, user({ role: 'DEPOT_MANAGER' }));
+    await ctrl.reset(
+      { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never,
+      user({ role: 'DEPOT_MANAGER' }),
+    );
     expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'earnRateRupiah');
   });
 });
@@ -249,15 +369,46 @@ describe('response DTO mappers', () => {
   });
 
   it('RewardItemDto.from projects catalog fields', () => {
-    const item: RewardItemRecord = { id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'x', active: true, stock: null };
-    expect(RewardItemDto.from(item)).toEqual({ id: 'ri-1', name: 'Galon', unit: 'galon', pointsCost: 800, imageUrl: 'x', stock: null, active: true });
+    const item: RewardItemRecord = {
+      id: 'ri-1',
+      name: 'Galon',
+      unit: 'galon',
+      pointsCost: 800,
+      imageUrl: 'x',
+      active: true,
+      stock: null,
+    };
+    expect(RewardItemDto.from(item)).toEqual({
+      id: 'ri-1',
+      name: 'Galon',
+      unit: 'galon',
+      pointsCost: 800,
+      imageUrl: 'x',
+      stock: null,
+      active: true,
+    });
   });
 
   it('RedeemResultDto.from projects the redemption + balance', () => {
     const out = RedeemResultDto.from({
-      redemption: { id: 'rd-1', rewardItemId: 'ri-1', customerId: 'c', pointsSpent: 800, createdAt: new Date() },
+      redemption: {
+        id: 'rd-1',
+        rewardItemId: 'ri-1',
+        customerId: 'c',
+        pointsSpent: 800,
+        status: 'ACTIVE',
+        usedAt: null,
+        cancelledAt: null,
+        createdAt: new Date(),
+      },
       pointsBalance: 400,
     });
-    expect(out).toEqual({ redemptionId: 'rd-1', rewardItemId: 'ri-1', pointsSpent: 800, pointsBalance: 400 });
+    expect(out).toEqual({
+      redemptionId: 'rd-1',
+      rewardItemId: 'ri-1',
+      pointsSpent: 800,
+      pointsBalance: 400,
+      status: 'ACTIVE',
+    });
   });
 });

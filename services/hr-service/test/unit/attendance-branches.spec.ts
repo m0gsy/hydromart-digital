@@ -4,14 +4,33 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { Attendance, Employee, FaceEmbedding } from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { AttendanceService, FacePunch } from '../../src/application/services/attendance.service';
-import { AttendanceRepository, AttendanceListFilter } from '../../src/application/ports/attendance.repository';
+import {
+  AttendanceRepository,
+  AttendanceListFilter,
+} from '../../src/application/ports/attendance.repository';
 import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedding.repository';
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 
-const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: '08', depotId: 'd1' };
-const manager: AuthenticatedUser = { sub: 'mgr', role: 'DEPOT_MANAGER' as never, phone: '08', depotId: 'd1' };
-const punch: FacePunch = { image: Buffer.from('x'), photoUrl: null, live: true, lat: -6.2, lng: 106.8 };
+const user: AuthenticatedUser = {
+  sub: 'auth-1',
+  role: 'DRIVER' as never,
+  phone: '08',
+  depotId: 'd1',
+};
+const manager: AuthenticatedUser = {
+  sub: 'mgr',
+  role: 'DEPOT_MANAGER' as never,
+  phone: '08',
+  depotId: 'd1',
+};
+const punch: FacePunch = {
+  image: Buffer.from('x'),
+  photoUrl: null,
+  live: true,
+  lat: -6.2,
+  lng: 106.8,
+};
 const AT = new Date('2026-07-24T01:10:00Z');
 
 class FakeAtt implements AttendanceRepository {
@@ -30,6 +49,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
+  }
+  async listWorkedMinutes() {
+    return [];
   }
   async create(): Promise<Attendance> {
     return {} as Attendance;
@@ -56,7 +78,7 @@ function make(geofence: { lat: number | null; lng: number | null; radiusM: numbe
     verify: async () => ({ score: 0.9, matched: true, live: true }),
   };
   const employees = {
-    findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' } as Employee),
+    findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,
   } as unknown as EmployeeRepository;
   const config = {
     timeZone: 'Asia/Jakarta',
@@ -81,7 +103,12 @@ describe('AttendanceService geofence + list', () => {
 
   it('scopes the attendance list to a manager’s own depot', async () => {
     const { att, svc } = make({ lat: null, lng: null, radiusM: 0 });
-    const out = await svc.list(manager, { from: '2026-07-01', to: '2026-07-31', page: 2, pageSize: 10 });
+    const out = await svc.list(manager, {
+      from: '2026-07-01',
+      to: '2026-07-31',
+      page: 2,
+      pageSize: 10,
+    });
     expect(att.lastFilter).toMatchObject({ depotId: 'd1', skip: 10, take: 10 });
     expect(att.lastFilter?.from).toEqual(new Date('2026-07-01'));
     expect(out).toMatchObject({ total: 1, page: 2, pageSize: 10 });

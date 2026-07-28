@@ -37,7 +37,14 @@ export function parseRaiseLadder(csv: string): RaiseStep[] {
     if (yStr === undefined || yStr.trim() === '') continue; // ":7" — Number('') is 0, must not pass
     const y = Number(yStr.trim());
     const p = Number((pStr ?? '').trim());
-    if (Number.isInteger(y) && y >= 0 && Number.isFinite(p) && p >= 0 && pStr !== undefined && pStr.trim() !== '') {
+    if (
+      Number.isInteger(y) &&
+      y >= 0 &&
+      Number.isFinite(p) &&
+      p >= 0 &&
+      pStr !== undefined &&
+      pStr.trim() !== ''
+    ) {
       steps.push({ years: y, pct: p });
     }
   }

@@ -5,7 +5,12 @@ import { AuditInterceptor } from '../../src/infrastructure/http/audit.intercepto
 import { AuditService } from '../../src/application/services/audit.service';
 import { AuditWrite } from '../../src/application/ports/audit.repository';
 
-function ctx(method: string, path: string, body: unknown = null, reqBody: unknown = undefined): { context: ExecutionContext; handler: CallHandler } {
+function ctx(
+  method: string,
+  path: string,
+  body: unknown = null,
+  reqBody: unknown = undefined,
+): { context: ExecutionContext; handler: CallHandler } {
   const request = {
     method,
     path,
@@ -16,21 +21,28 @@ function ctx(method: string, path: string, body: unknown = null, reqBody: unknow
     socket: { remoteAddress: '127.0.0.1' },
     ip: '127.0.0.1',
   };
-  const context = { switchToHttp: () => ({ getRequest: () => request }) } as unknown as ExecutionContext;
+  const context = {
+    switchToHttp: () => ({ getRequest: () => request }),
+  } as unknown as ExecutionContext;
   const handler: CallHandler = { handle: () => of(body) };
   return { context, handler };
 }
 
 function build() {
   const recorded: AuditWrite[] = [];
-  const audit = { record: async (e: AuditWrite) => void recorded.push(e) } as unknown as AuditService;
+  const audit = {
+    record: async (e: AuditWrite) => void recorded.push(e),
+  } as unknown as AuditService;
   return { interceptor: new AuditInterceptor(audit), recorded };
 }
 
 describe('AuditInterceptor', () => {
   it('records a mutating request with entity + entityId from the route', async () => {
     const { interceptor, recorded } = build();
-    const { context, handler } = ctx('POST', '/api/v1/employees/22222222-2222-2222-2222-222222222222/face/enroll');
+    const { context, handler } = ctx(
+      'POST',
+      '/api/v1/employees/22222222-2222-2222-2222-222222222222/face/enroll',
+    );
     await firstValueFrom(interceptor.intercept(context, handler));
     expect(recorded).toHaveLength(1);
     expect(recorded[0]).toMatchObject({
@@ -52,9 +64,17 @@ describe('AuditInterceptor', () => {
 
   it('captures the submitted body as `after`, omitting heavy/sensitive keys', async () => {
     const { interceptor, recorded } = build();
-    const { context, handler } = ctx('PATCH', '/api/v1/attendance/a1/adjust', null, { status: 'LEAVE', reason: 'cuti', image: 'BIGBASE64' });
+    const { context, handler } = ctx('PATCH', '/api/v1/attendance/a1/adjust', null, {
+      status: 'LEAVE',
+      reason: 'cuti',
+      image: 'BIGBASE64',
+    });
     await firstValueFrom(interceptor.intercept(context, handler));
-    expect(recorded[0].after).toMatchObject({ status: 'LEAVE', reason: 'cuti', image: '[omitted]' });
+    expect(recorded[0].after).toMatchObject({
+      status: 'LEAVE',
+      reason: 'cuti',
+      image: '[omitted]',
+    });
   });
 
   it('does not record read (GET) requests', async () => {
@@ -86,7 +106,9 @@ describe('AuditInterceptor', () => {
       socket: { remoteAddress: '127.0.0.1' },
       ip: '127.0.0.1',
     };
-    const context = { switchToHttp: () => ({ getRequest: () => request }) } as unknown as ExecutionContext;
+    const context = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as unknown as ExecutionContext;
     const handler: CallHandler = { handle: () => of(null) };
     await firstValueFrom(interceptor.intercept(context, handler));
     expect(recorded[0].actorId).toBeNull();

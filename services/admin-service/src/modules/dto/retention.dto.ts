@@ -1,10 +1,21 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsEnum,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import {
   BackupStatusRecord,
   RetentionPolicyRecord,
 } from '../../application/ports/retention.repository';
+import { DataClass } from '../../domain/retention';
+import { PurgePlanEntry } from '../../application/services/retention.service';
 
 /* ---------- Requests ---------- */
 
@@ -21,6 +32,14 @@ export class UpdateRetentionDto {
   @Min(1)
   @Max(36_500)
   windowDays!: number;
+
+  @ApiPropertyOptional({
+    enum: DataClass,
+    description: 'M23-21. Omit to keep the current class. FINANCIAL enforces a 10-year floor.',
+  })
+  @IsOptional()
+  @IsEnum(DataClass)
+  dataClass?: DataClass;
 }
 
 /* ---------- Responses ---------- */
@@ -34,6 +53,15 @@ export class RetentionPolicyDto {
   windowLabel!: string;
   @ApiProperty()
   windowDays!: number;
+  @ApiProperty({
+    enum: DataClass,
+    description: 'M23-21 data class. FINANCIAL is never purged, whatever the window says.',
+  })
+  dataClass!: DataClass;
+  @ApiProperty({
+    description: 'Derived from dataClass — true means a purge must skip this dataset.',
+  })
+  purgeExempt!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
 
@@ -43,6 +71,8 @@ export class RetentionPolicyDto {
       dataset: record.dataset,
       windowLabel: record.windowLabel,
       windowDays: record.windowDays,
+      dataClass: record.dataClass,
+      purgeExempt: record.purgeExempt,
       updatedAt: record.updatedAt.toISOString(),
     };
   }
@@ -68,4 +98,30 @@ export class RetentionOverviewDto {
   policies!: RetentionPolicyDto[];
   @ApiProperty({ type: BackupStatusDto })
   backup!: BackupStatusDto;
+}
+
+/**
+ * What a purge would be allowed to delete today (M23-21). Read-only: no purge engine is
+ * wired, so this reports the PLAN, never a completed deletion.
+ */
+export class PurgePlanEntryDto {
+  @ApiProperty() dataset!: string;
+  @ApiProperty({ enum: DataClass }) dataClass!: DataClass;
+  @ApiProperty() purgeExempt!: boolean;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Records older than this may be deleted. Null = nothing is eligible.',
+  })
+  cutoff!: string | null;
+
+  static from(entry: PurgePlanEntry): PurgePlanEntryDto {
+    return {
+      dataset: entry.dataset,
+      dataClass: entry.dataClass,
+      purgeExempt: entry.purgeExempt,
+      cutoff: entry.cutoff ? entry.cutoff.toISOString() : null,
+    };
+  }
 }

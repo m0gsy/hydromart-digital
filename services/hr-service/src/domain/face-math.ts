@@ -45,7 +45,8 @@ export function meanNormalize(vectors: readonly (readonly number[])[]): number[]
  */
 export function rgbToNchw(rgb: Uint8Array | readonly number[], size: number): Float32Array {
   const plane = size * size;
-  if (rgb.length !== plane * 3) throw new Error(`rgbToNchw: expected ${plane * 3} bytes, got ${rgb.length}`);
+  if (rgb.length !== plane * 3)
+    throw new Error(`rgbToNchw: expected ${plane * 3} bytes, got ${rgb.length}`);
   const out = new Float32Array(plane * 3);
   for (let i = 0; i < plane; i++) {
     out[i] = (rgb[i * 3] - 127.5) / 128;

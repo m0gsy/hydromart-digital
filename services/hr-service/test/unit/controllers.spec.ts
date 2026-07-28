@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 import type { Response } from 'express';
 
@@ -23,7 +27,12 @@ import { SettingsController } from '../../src/modules/settings.controller';
 import { toXlsx } from '../../src/domain/xlsx';
 
 const user: AuthenticatedUser = { sub: 'u1', role: 'HR' as never, phone: null, depotId: null };
-const superAdmin: AuthenticatedUser = { sub: 'sa', role: 'SUPER_ADMIN' as never, phone: null, depotId: null };
+const superAdmin: AuthenticatedUser = {
+  sub: 'sa',
+  role: 'SUPER_ADMIN' as never,
+  phone: null,
+  depotId: null,
+};
 
 // A tiny data-URL PNG header (1x1) is not needed; any base64 with bytes works.
 const b64 = Buffer.from('abc').toString('base64');
@@ -84,7 +93,9 @@ describe('BonusController / DeductionController', () => {
   const ded = new DeductionController(adj as never);
 
   it('lists bonuses by employee + period', () => {
-    expect(bonus.list({ employeeId: 'e1', periodMonth: '2026-07' } as never, user)).toBe('listBonuses-result');
+    expect(bonus.list({ employeeId: 'e1', periodMonth: '2026-07' } as never, user)).toBe(
+      'listBonuses-result',
+    );
     expect(adj.listBonuses).toHaveBeenCalledWith(user, 'e1', '2026-07');
   });
   it('adds a bonus', () => {
@@ -93,7 +104,9 @@ describe('BonusController / DeductionController', () => {
     expect(adj.addBonus).toHaveBeenCalledWith(user, dto);
   });
   it('lists deductions by employee + period', () => {
-    expect(ded.list({ employeeId: 'e2', periodMonth: '2026-08' } as never, user)).toBe('listDeductions-result');
+    expect(ded.list({ employeeId: 'e2', periodMonth: '2026-08' } as never, user)).toBe(
+      'listDeductions-result',
+    );
     expect(adj.listDeductions).toHaveBeenCalledWith(user, 'e2', '2026-08');
   });
   it('adds a deduction', () => {
@@ -231,7 +244,15 @@ describe('FaceController / SelfFaceController', () => {
 });
 
 describe('PayrollController', () => {
-  const payroll = svcMock(['list', 'listSelf', 'getById', 'slip', 'generate', 'approve', 'markPaid']);
+  const payroll = svcMock([
+    'list',
+    'listSelf',
+    'getById',
+    'slip',
+    'generate',
+    'approve',
+    'markPaid',
+  ]);
   const c = new PayrollController(payroll as never);
 
   it('read routes delegate', () => {
@@ -250,7 +271,7 @@ describe('PayrollController', () => {
     expect(payroll.slip).toHaveBeenCalledWith(user, 'p1');
     expect(res.headers['Content-Type']).toBe('application/pdf');
     expect(res.headers['Content-Disposition']).toBe('attachment; filename="slip-p1.pdf"');
-    expect((res.send as jest.Mock)).toHaveBeenCalled();
+    expect(res.send as jest.Mock).toHaveBeenCalled();
   });
   it('generate / approve / pay delegate', () => {
     c.generate({ employeeId: 'e1', periodMonth: '2026-07' } as never, user);
@@ -309,7 +330,11 @@ describe('ReportsController', () => {
   it('attendance export honours xlsx format', async () => {
     const { analytics, c } = make();
     const res = fakeRes();
-    await c.attendance({ from: '2026-07-01', to: '2026-07-31', format: 'xlsx' } as never, user, res);
+    await c.attendance(
+      { from: '2026-07-01', to: '2026-07-31', format: 'xlsx' } as never,
+      user,
+      res,
+    );
     expect(analytics.attendanceReport).toHaveBeenCalled();
     expect(toXlsx).toHaveBeenCalled();
     expect(res.headers['Content-Type']).toBe(
@@ -396,16 +421,18 @@ describe('SettingsController', () => {
 
   it('put rejects a GLOBAL change from a non-super-admin', async () => {
     const { settings, c } = make();
-    await expect(c.put({ scope: 'GLOBAL', key: 'k', value: 'v' } as never, user)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      c.put({ scope: 'GLOBAL', key: 'k', value: 'v' } as never, user),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(settings.put).not.toHaveBeenCalled();
   });
 
   it('put allows a GLOBAL change for a super-admin (depotId defaults null)', async () => {
     const { settings, c } = make();
     await c.put({ scope: 'GLOBAL', key: 'k', value: 'v' } as never, superAdmin);
-    expect(settings.put).toHaveBeenCalledWith(expect.objectContaining({ scope: 'GLOBAL', depotId: null }));
+    expect(settings.put).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'GLOBAL', depotId: null }),
+    );
   });
 
   it('reset removes a DEPOT override', async () => {

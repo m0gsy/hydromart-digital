@@ -69,7 +69,13 @@ export class LoyaltyService {
   async depotSummary(depotId: string, now: Date = new Date()): Promise<DepotLoyaltySummary> {
     const ids = await this.customers.customerIdsForDepot(depotId);
     if (ids.length === 0) {
-      return { depotId, totalMembers: 0, pointsOutstanding: 0, redeemedThisMonth: 0, tiers: zeroTierCounts() };
+      return {
+        depotId,
+        totalMembers: 0,
+        pointsOutstanding: 0,
+        redeemedThisMonth: 0,
+        tiers: zeroTierCounts(),
+      };
     }
     const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const [tiers, pointsOutstanding, redeemedThisMonth] = await Promise.all([

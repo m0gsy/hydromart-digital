@@ -12,7 +12,11 @@ describe('SystemSettingsService', () => {
 
   it('returns platform defaults before anything is saved', async () => {
     const s = await service.get();
-    expect(s).toMatchObject({ defaultTimezone: 'Asia/Jakarta', currency: 'IDR', serviceRadiusKm: 5 });
+    expect(s).toMatchObject({
+      defaultTimezone: 'Asia/Jakarta',
+      currency: 'IDR',
+      serviceRadiusKm: 5,
+    });
   });
 
   it('saves and then reads back the saved settings', async () => {

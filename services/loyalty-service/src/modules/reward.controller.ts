@@ -8,6 +8,7 @@ import {
   CreateRewardItemDto,
   RedeemRewardDto,
   RedeemResultDto,
+  RedemptionDto,
   RewardItemDto,
   UpdateRewardItemDto,
 } from './dto/reward.dto';
@@ -77,5 +78,29 @@ export class RewardController {
   ): Promise<RedeemResultDto> {
     const result = await this.rewards.redeem(user.sub, dto.rewardItemId, dto.idempotencyKey);
     return RedeemResultDto.from(result);
+  }
+
+  @ApiBearerAuth()
+  @Roles(Role.CUSTOMER)
+  @Post('redemptions/:id/cancel')
+  @ApiOperation({
+    summary: 'Cancel your own redemption and get the points back (M14-03)',
+    description: 'Refused once staff marked the reward as handed over.',
+  })
+  async cancelRedemption(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<RedeemResultDto> {
+    return RedeemResultDto.from(await this.rewards.cancel(user.sub, id));
+  }
+
+  @ApiBearerAuth()
+  @Roles(...MANAGE_ROLES, Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER)
+  @Post('redemptions/:id/used')
+  @ApiOperation({
+    summary: 'Mark a redemption as handed over; closes the cancellation window (M14-03)',
+  })
+  async markRedemptionUsed(@Param('id', ParseUUIDPipe) id: string): Promise<RedemptionDto> {
+    return RedemptionDto.from(await this.rewards.markUsed(id));
   }
 }

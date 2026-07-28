@@ -43,7 +43,9 @@ const verifier = (vector: number[]): FaceVerifier => ({
 });
 
 const config = { faceDuplicateThreshold: 0.75, faceMatchThreshold: 0.62 } as HrConfigService;
-const employees = { getById: async () => ({ id: 'e1', depotId: 'd1' }) } as unknown as EmployeeService;
+const employees = {
+  getById: async () => ({ id: 'e1', depotId: 'd1' }),
+} as unknown as EmployeeService;
 
 function make(v: number[], repo = new FakeFaceRepo()) {
   return { repo, svc: new FaceService(verifier(v), repo, employees, config) };
@@ -62,7 +64,9 @@ describe('FaceService.enroll', () => {
     const repo = new FakeFaceRepo();
     repo.others = [{ employeeId: 'other', vector: [1, 0, 0] }];
     const { svc } = make([1, 0, 0], repo); // cosine 1.0 >= 0.75
-    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow(BadRequestException);
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow(
+      BadRequestException,
+    );
     expect(repo.created).toHaveLength(0);
   });
 

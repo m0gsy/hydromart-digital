@@ -58,6 +58,7 @@ import {
   PatchIncidentData,
 } from '../../src/application/ports/incident.repository';
 import { ApiKeyEnvironment } from '../../src/domain/api-key-environment';
+import { DataClass, isPurgeExempt } from '../../src/domain/retention';
 import { ExportFormat, ExportStatus } from '../../src/domain/export';
 import { ReportCadence } from '../../src/domain/report-cadence';
 import { TicketAuthorType, TicketPriority, TicketStatus } from '../../src/domain/ticket';
@@ -86,9 +87,7 @@ export class InMemoryFeatureFlagRepository implements FeatureFlagRepository {
   flags: FeatureFlagRecord[] = [];
 
   async list(): Promise<FeatureFlagRecord[]> {
-    return [...this.flags]
-      .sort((a, b) => a.key.localeCompare(b.key))
-      .map((f) => ({ ...f }));
+    return [...this.flags].sort((a, b) => a.key.localeCompare(b.key)).map((f) => ({ ...f }));
   }
 
   async findByKey(key: string): Promise<FeatureFlagRecord | null> {
@@ -468,7 +467,12 @@ export class InMemoryIncidentRepository implements IncidentRepository {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
     if (data.note) {
-      r.updates.unshift({ id: randomUUID(), incidentId: id, note: data.note, createdAt: nextDate() });
+      r.updates.unshift({
+        id: randomUUID(),
+        incidentId: id,
+        note: data.note,
+        createdAt: nextDate(),
+      });
     }
     if (data.status) {
       r.status = data.status;
@@ -518,14 +522,20 @@ export class InMemorySlaPolicyRepository implements SlaPolicyRepository {
   }
 }
 
-export function makeRetentionPolicy(over: Partial<RetentionPolicyRecord> = {}): RetentionPolicyRecord {
+export function makeRetentionPolicy(
+  over: Partial<RetentionPolicyRecord> = {},
+): RetentionPolicyRecord {
+  const dataClass = over.dataClass ?? DataClass.OPERATIONAL;
   return {
     id: randomUUID(),
-    dataset: 'orders_transactions',
-    windowLabel: '7 tahun (UU PDP)',
-    windowDays: 2555,
+    dataset: 'proof_of_delivery',
+    windowLabel: '1 tahun',
+    windowDays: 365,
     updatedAt: nextDate(),
     ...over,
+    dataClass,
+    // Derived, exactly as the real repository derives it.
+    purgeExempt: isPurgeExempt(dataClass),
   };
 }
 
@@ -537,11 +547,20 @@ export class InMemoryRetentionRepository implements RetentionRepository {
     return [...this.rows].sort((a, b) => a.dataset.localeCompare(b.dataset)).map((r) => ({ ...r }));
   }
 
+  async findPolicy(id: string): Promise<RetentionPolicyRecord | null> {
+    const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+
   async updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null> {
     const r = this.rows.find((x) => x.id === id);
     if (!r) return null;
     r.windowLabel = data.windowLabel;
     r.windowDays = data.windowDays;
+    if (data.dataClass) {
+      r.dataClass = data.dataClass;
+      r.purgeExempt = isPurgeExempt(data.dataClass);
+    }
     r.updatedAt = nextDate();
     return { ...r };
   }
@@ -572,7 +591,10 @@ export class InMemoryAdminNotificationPrefRepository implements AdminNotificatio
     return r ? { ...r, channels: r.channels.map((c) => ({ ...c })) } : null;
   }
 
-  async save(accountId: string, channels: NotificationChannelPref[]): Promise<AdminNotificationPrefRecord> {
+  async save(
+    accountId: string,
+    channels: NotificationChannelPref[],
+  ): Promise<AdminNotificationPrefRecord> {
     const record: AdminNotificationPrefRecord = {
       accountId,
       channels: channels.map((c) => ({ ...c })),

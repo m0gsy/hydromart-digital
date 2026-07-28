@@ -1,4 +1,9 @@
-import { evalBonusRule, metricValue, type BonusContext, type BonusRuleSpec } from '../../src/domain/bonus-rules';
+import {
+  evalBonusRule,
+  metricValue,
+  type BonusContext,
+  type BonusRuleSpec,
+} from '../../src/domain/bonus-rules';
 
 const ctx = (over: Partial<BonusContext> = {}): BonusContext => ({
   presentDays: 26,
@@ -31,7 +36,12 @@ describe('metricValue', () => {
 
 describe('evalBonusRule', () => {
   const rule = (over: Partial<BonusRuleSpec> = {}): BonusRuleSpec => ({
-    metric: 'ATTENDANCE_RATE', op: 'GTE', threshold: 100, rewardKind: 'FIXED', rewardValue: 50_000, ...over,
+    metric: 'ATTENDANCE_RATE',
+    op: 'GTE',
+    threshold: 100,
+    rewardKind: 'FIXED',
+    rewardValue: 50_000,
+    ...over,
   });
 
   it('pays a FIXED reward when the condition is met', () => {
@@ -44,7 +54,12 @@ describe('evalBonusRule', () => {
     expect(evalBonusRule(rule({ rewardKind: 'PERCENT', rewardValue: 5 }), ctx())).toBe(50_000); // 5% of 1,000,000
   });
   it('never pays on an unavailable (null) metric — no sales data → no bonus', () => {
-    expect(evalBonusRule(rule({ metric: 'SALES_TOTAL', op: 'GTE', threshold: 1 }), ctx({ salesTotal: null }))).toBe(0);
+    expect(
+      evalBonusRule(
+        rule({ metric: 'SALES_TOTAL', op: 'GTE', threshold: 1 }),
+        ctx({ salesTotal: null }),
+      ),
+    ).toBe(0);
   });
   it('depot-manager flat bonus', () => {
     const r = rule({ metric: 'IS_DEPOT_MANAGER', op: 'GTE', threshold: 1, rewardValue: 200_000 });

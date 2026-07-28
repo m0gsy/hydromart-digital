@@ -27,7 +27,11 @@ interface OrtModule {
 }
 interface SharpFactory {
   (buf: Buffer): {
-    resize(w: number, h: number, opts?: { fit?: string }): {
+    resize(
+      w: number,
+      h: number,
+      opts?: { fit?: string },
+    ): {
       removeAlpha(): { raw(): { toBuffer(): Promise<Buffer> } };
     };
   };
@@ -86,7 +90,8 @@ export class OnnxArcFaceVerifier implements FaceVerifier {
     const tensor = new ort.Tensor('float32', input, [1, 3, FACE_SIZE, FACE_SIZE]);
     const output = await session.run({ [session.inputNames[0]]: tensor });
     const vector = output[session.outputNames[0]]?.data;
-    if (!vector) throw new ServiceUnavailableException('Face engine: model tidak mengembalikan embedding');
+    if (!vector)
+      throw new ServiceUnavailableException('Face engine: model tidak mengembalikan embedding');
     return Array.from(vector);
   }
 
@@ -94,7 +99,11 @@ export class OnnxArcFaceVerifier implements FaceVerifier {
   private async preprocess(image: Buffer): Promise<Float32Array> {
     const sharp = optionalRequire<SharpFactory>('sharp');
     if (!sharp) throw this.unavailable('sharp (image decoder)');
-    const rgb = await sharp(image).resize(FACE_SIZE, FACE_SIZE, { fit: 'cover' }).removeAlpha().raw().toBuffer();
+    const rgb = await sharp(image)
+      .resize(FACE_SIZE, FACE_SIZE, { fit: 'cover' })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
     return rgbToNchw(rgb, FACE_SIZE);
   }
 
@@ -104,10 +113,12 @@ export class OnnxArcFaceVerifier implements FaceVerifier {
       const ort = optionalRequire<OrtModule>('onnxruntime-node');
       if (!ort) throw this.unavailable('onnxruntime-node');
       this.ort = ort;
-      this.session = ort.InferenceSession.create(this.config.faceModelPath).catch((err: unknown) => {
-        this.session = null; // let a later request retry once the model is in place
-        throw this.unavailable(`model ArcFace (${this.config.faceModelPath}): ${String(err)}`);
-      });
+      this.session = ort.InferenceSession.create(this.config.faceModelPath).catch(
+        (err: unknown) => {
+          this.session = null; // let a later request retry once the model is in place
+          throw this.unavailable(`model ArcFace (${this.config.faceModelPath}): ${String(err)}`);
+        },
+      );
     }
     return this.session;
   }

@@ -10,7 +10,12 @@ import { AttendanceRepository } from '../../src/application/ports/attendance.rep
 import { PayrollRepository } from '../../src/application/ports/payroll.repository';
 import { fakeIdentity } from './support/identity';
 
-const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: null, depotId: 'd1' };
+const user: AuthenticatedUser = {
+  sub: 'auth-1',
+  role: 'DRIVER' as never,
+  phone: null,
+  depotId: 'd1',
+};
 const employee = { id: 'e1', depotId: 'd1', authSubjectId: 'auth-1', status: 'ACTIVE' } as Employee;
 
 describe('self-scoped reads', () => {
@@ -21,9 +26,14 @@ describe('self-scoped reads', () => {
       summary: async () => ({ presentDays: 0, lateDays: 0, leaveDays: 0 }),
       create: async () => ({}) as never,
       patchCheckOut: async () => ({}) as never,
-      list: async (f: { employeeId?: string }) => { filter = f; return { rows: [{ id: 'a1' } as Attendance], total: 1 }; },
+      list: async (f: { employeeId?: string }) => {
+        filter = f;
+        return { rows: [{ id: 'a1' } as Attendance], total: 1 };
+      },
     } as unknown as AttendanceRepository;
-    const employees = { findByAuthSubjectId: async () => employee } as unknown as EmployeeRepository;
+    const employees = {
+      findByAuthSubjectId: async () => employee,
+    } as unknown as EmployeeRepository;
     const svc = new AttendanceService(repo, {} as never, {} as never, employees, {} as never);
     const out = await svc.listSelf(user, { page: 1, pageSize: 30 });
     expect(filter.employeeId).toBe('e1');
@@ -32,9 +42,21 @@ describe('self-scoped reads', () => {
 
   it('payroll.listSelf scopes to the caller’s employee id', async () => {
     let filter: { employeeId?: string } = {};
-    const repo = { list: async (f: { employeeId?: string }) => { filter = f; return { rows: [], total: 0 }; } } as unknown as PayrollRepository;
+    const repo = {
+      list: async (f: { employeeId?: string }) => {
+        filter = f;
+        return { rows: [], total: 0 };
+      },
+    } as unknown as PayrollRepository;
     const employees = { getSelf: async () => employee } as unknown as EmployeeService;
-    const svc = new PayrollService(repo, {} as never, {} as never, {} as never, employees, {} as never);
+    const svc = new PayrollService(
+      repo,
+      {} as never,
+      {} as never,
+      {} as never,
+      employees,
+      {} as never,
+    );
     await svc.listSelf(user, { page: 1, pageSize: 30 });
     expect(filter.employeeId).toBe('e1');
   });

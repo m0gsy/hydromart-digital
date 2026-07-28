@@ -2,7 +2,10 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Employee, EmploymentHistory, Prisma } from '../../prisma/generated/client';
-import { EmployeeRepository, EmployeeListFilter } from '../../src/application/ports/employee.repository';
+import {
+  EmployeeRepository,
+  EmployeeListFilter,
+} from '../../src/application/ports/employee.repository';
 import { EmployeeService } from '../../src/application/services/employee.service';
 import { fakeIdentity } from './support/identity';
 
@@ -10,7 +13,11 @@ const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
 
 function p2002(target: string): Prisma.PrismaClientKnownRequestError {
-  return new Prisma.PrismaClientKnownRequestError('dup', { code: 'P2002', clientVersion: 'x', meta: { target: [target] } });
+  return new Prisma.PrismaClientKnownRequestError('dup', {
+    code: 'P2002',
+    clientVersion: 'x',
+    meta: { target: [target] },
+  });
 }
 
 class FakeRepo implements EmployeeRepository {
@@ -103,14 +110,18 @@ describe('EmployeeService.create collisions', () => {
     const repo = new FakeRepo();
     repo.throwOnCreate = ['authSubjectId'];
     const svc = new EmployeeService(repo, fakeIdentity());
-    await expect(svc.create(hr, { ...baseInput, authSubjectId: 'dup' })).rejects.toThrow(/tertaut ke karyawan lain/);
+    await expect(svc.create(hr, { ...baseInput, authSubjectId: 'dup' })).rejects.toThrow(
+      /tertaut ke karyawan lain/,
+    );
   });
 
   it('rethrows an unrelated error', async () => {
     const repo = new FakeRepo();
     repo.throwOnCreate = ['someOtherField'];
     const svc = new EmployeeService(repo, fakeIdentity());
-    await expect(svc.create(hr, baseInput)).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    await expect(svc.create(hr, baseInput)).rejects.toBeInstanceOf(
+      Prisma.PrismaClientKnownRequestError,
+    );
   });
 });
 
@@ -133,6 +144,8 @@ describe('EmployeeService.update salary + depot move', () => {
     const repo = new FakeRepo();
     const svc = new EmployeeService(repo, fakeIdentity());
     const e = await svc.create(hr, baseInput);
-    await expect(svc.update(hr, e.id, { salaryType: 'MONTHLY' })).rejects.toThrow(BadRequestException);
+    await expect(svc.update(hr, e.id, { salaryType: 'MONTHLY' })).rejects.toThrow(
+      BadRequestException,
+    );
   });
 });

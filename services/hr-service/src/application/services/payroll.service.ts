@@ -12,8 +12,15 @@ import { Employee, Payroll } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
 import { parseRaiseLadder, tenureRaisePercent, tenureYears } from '../../domain/tenure';
-import { evalBonusRule, BonusContext, BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
+import {
+  evalBonusRule,
+  BonusContext,
+  BonusMetric,
+  CompareOp,
+  RewardKind,
+} from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
+import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
@@ -55,7 +62,11 @@ export class PayrollService {
    * Generate (or re-generate a DRAFT) monthly payroll for one employee. Idempotent per
    * (employee, period): an APPROVED/PAID payroll is locked and re-generation is refused.
    */
-  async generate(user: AuthenticatedUser, employeeId: string, periodMonth: string): Promise<PayrollWithItems> {
+  async generate(
+    user: AuthenticatedUser,
+    employeeId: string,
+    periodMonth: string,
+  ): Promise<PayrollWithItems> {
     if (!PERIOD_RE.test(periodMonth)) {
       throw new BadRequestException('periodMonth harus format YYYY-MM');
     }
@@ -63,11 +74,17 @@ export class PayrollService {
 
     const existing = await this.repo.findByEmployeeAndPeriod(employeeId, periodMonth);
     if (existing && existing.status !== 'DRAFT') {
-      throw new ConflictException(`Payroll ${periodMonth} sudah ${existing.status}, tidak bisa dibuat ulang`);
+      throw new ConflictException(
+        `Payroll ${periodMonth} sudah ${existing.status}, tidak bisa dibuat ulang`,
+      );
     }
 
     const { from, to } = this.monthRange(periodMonth);
-    const { presentDays, lateDays, leaveDays } = await this.attendance.summary(employeeId, from, to);
+    const { presentDays, lateDays, leaveDays } = await this.attendance.summary(
+      employeeId,
+      from,
+      to,
+    );
 
     const items: PayrollItemInput[] = [];
 
@@ -96,7 +113,12 @@ export class PayrollService {
     // BONUS lines — manual rows first, then configurable auto-rules.
     const bonusRows = await this.bonuses.listByEmployeePeriod(employeeId, periodMonth);
     for (const b of bonusRows) {
-      items.push({ kind: 'BONUS', label: b.note ?? `Bonus ${b.type}`, amount: Number(b.amount), sourceRef: b.id });
+      items.push({
+        kind: 'BONUS',
+        label: b.note ?? `Bonus ${b.type}`,
+        amount: Number(b.amount),
+        sourceRef: b.id,
+      });
     }
 
     // Auto-bonus rules (Rule-F): base pay = BASE items so far (incl. tenure raise).
@@ -105,7 +127,8 @@ export class PayrollService {
       const rules = await this.bonusRules.listActiveForDepot(employee.depotId);
       // Only pay the cross-service sales call when a SALES rule actually needs it.
       const needsSales = rules.some((r) => r.metric === 'SALES_TOTAL');
-      const salesTotal = needsSales && this.sales ? await this.sales.depotSales(employee.depotId, from, to) : null;
+      const salesTotal =
+        needsSales && this.sales ? await this.sales.depotSales(employee.depotId, from, to) : null;
       const ctx: BonusContext = {
         presentDays,
         workingDays,
@@ -129,24 +152,50 @@ export class PayrollService {
       }
     }
 
+    // Overtime (M24-17). A weekly-off day and a national holiday are the same thing to
+    // payroll — neither was an expected working day — so both are paid at the off-day
+    // multiplier and every worked minute on them counts, not just the excess.
+    const overtime = await this.overtimeBonus(employee, periodMonth, from, to);
+    if (overtime) items.push(overtime);
+
     // DEDUCTION lines: auto late (lateDays × config) + manual rows
     const lateRate = this.config.lateDeductionAmount(employee.depotId);
     if (lateDays > 0 && lateRate > 0) {
-      items.push({ kind: 'DEDUCTION', label: `Potongan terlambat (${lateDays} hari)`, amount: lateDays * lateRate });
+      items.push({
+        kind: 'DEDUCTION',
+        label: `Potongan terlambat (${lateDays} hari)`,
+        amount: lateDays * lateRate,
+      });
     }
     // Auto-absence: for MONTHLY (fixed-salary) staff, deduct for expected-but-absent working
     // days. DAILY staff already earn nothing for a missing day, so no extra deduction there.
     if (employee.salaryType === 'MONTHLY') {
-      const absentDays = await this.absentDays(periodMonth, employee.depotId, from, to, presentDays, leaveDays);
+      const absentDays = await this.absentDays(
+        periodMonth,
+        employee.depotId,
+        from,
+        to,
+        presentDays,
+        leaveDays,
+      );
       const absenceRate = this.config.absenceDeductionAmount(employee.depotId);
       if (absentDays > 0 && absenceRate > 0) {
-        items.push({ kind: 'DEDUCTION', label: `Potongan absen (${absentDays} hari)`, amount: absentDays * absenceRate });
+        items.push({
+          kind: 'DEDUCTION',
+          label: `Potongan absen (${absentDays} hari)`,
+          amount: absentDays * absenceRate,
+        });
       }
     }
 
     const deductionRows = await this.deductions.listByEmployeePeriod(employeeId, periodMonth);
     for (const d of deductionRows) {
-      items.push({ kind: 'DEDUCTION', label: d.note ?? `Potongan ${d.type}`, amount: Number(d.amount), sourceRef: d.id });
+      items.push({
+        kind: 'DEDUCTION',
+        label: d.note ?? `Potongan ${d.type}`,
+        amount: Number(d.amount),
+        sourceRef: d.id,
+      });
     }
 
     // Auto loan/kasbon installment (Rule-G): pure per-period deduction, idempotent on re-generate.
@@ -154,11 +203,20 @@ export class PayrollService {
       const activeLoans = await this.loans.listActiveByEmployee(employeeId);
       for (const loan of activeLoans) {
         const amount = loanDeductionFor(
-          { principal: Number(loan.principal), installmentAmount: Number(loan.installmentAmount), startPeriod: loan.startPeriod },
+          {
+            principal: Number(loan.principal),
+            installmentAmount: Number(loan.installmentAmount),
+            startPeriod: loan.startPeriod,
+          },
           periodMonth,
         );
         if (amount > 0) {
-          items.push({ kind: 'DEDUCTION', label: loan.note ? `Cicilan: ${loan.note}` : 'Cicilan pinjaman', amount, sourceRef: loan.id });
+          items.push({
+            kind: 'DEDUCTION',
+            label: loan.note ? `Cicilan: ${loan.note}` : 'Cicilan pinjaman',
+            amount,
+            sourceRef: loan.id,
+          });
         }
       }
     }
@@ -183,7 +241,9 @@ export class PayrollService {
   async approve(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
     const payroll = await this.load(user, id);
     if (payroll.status !== 'DRAFT') {
-      throw new ConflictException(`Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`);
+      throw new ConflictException(
+        `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
+      );
     }
     return this.repo.setStatus(id, 'APPROVED', { approvedBy: user.sub, approvedAt: new Date() });
   }
@@ -191,7 +251,9 @@ export class PayrollService {
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
     const payroll = await this.load(user, id);
     if (payroll.status !== 'APPROVED') {
-      throw new ConflictException(`Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`);
+      throw new ConflictException(
+        `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
+      );
     }
     return this.repo.setStatus(id, 'PAID', { paidAt: new Date() });
   }
@@ -218,7 +280,13 @@ export class PayrollService {
     });
   }
 
-  list(query: { periodMonth?: string; employeeId?: string; status?: Payroll['status']; page: number; pageSize: number }) {
+  list(query: {
+    periodMonth?: string;
+    employeeId?: string;
+    status?: Payroll['status'];
+    page: number;
+    pageSize: number;
+  }) {
     return this.repo.list({
       periodMonth: query.periodMonth,
       employeeId: query.employeeId,
@@ -229,7 +297,10 @@ export class PayrollService {
   }
 
   /** The caller's OWN payroll history (self-service PWA). Scoped by the linked employee. */
-  async listSelf(user: AuthenticatedUser, query: { periodMonth?: string; page: number; pageSize: number }) {
+  async listSelf(
+    user: AuthenticatedUser,
+    query: { periodMonth?: string; page: number; pageSize: number },
+  ) {
     const employee = await this.employees.getSelf(user);
     return this.repo.list({
       employeeId: employee.id,
@@ -259,8 +330,72 @@ export class PayrollService {
     return Math.max(0, workingDays - presentDays - leaveDays);
   }
 
+  /**
+   * M24-17 overtime as a single BONUS line. Returns null when nothing is owed, so a
+   * period with no overtime keeps the slip exactly as it was.
+   */
+  private async overtimeBonus(
+    employee: Employee,
+    periodMonth: string,
+    from: Date,
+    to: Date,
+  ): Promise<PayrollItemInput | null> {
+    const depotId = employee.depotId;
+    const standardWorkingMinutes = this.config.standardWorkingMinutes(depotId);
+    const days = await this.attendance.listWorkedMinutes(employee.id, from, to);
+    if (days.length === 0) return null;
+
+    // The off-day test is the union of the weekly-off weekdays and the dated national
+    // holidays — the two are deliberately indistinguishable here (M24-17).
+    const weeklyOff = parseWeeklyOffDays(this.config.weeklyOffDays(depotId));
+    const holidayDates = new Set(
+      this.holidays ? await this.holidays.listDates(depotId, from, to) : [],
+    );
+    const isOffDay = (workDate: string): boolean =>
+      holidayDates.has(workDate) ||
+      weeklyOff.has(new Date(`${workDate}T00:00:00.000Z`).getUTCDay());
+
+    const breakdown = splitOvertime(
+      days.map((d) => ({
+        workDate: d.workDate.toISOString().slice(0, 10),
+        workingMinutes: d.workingMinutes,
+      })),
+      standardWorkingMinutes,
+      isOffDay,
+    );
+    if (breakdown.totalMinutes === 0) return null;
+
+    const perMinute = minuteRate(
+      employee.salaryType === 'DAILY' ? 'DAILY' : 'MONTHLY',
+      employee.monthlyRate != null ? Number(employee.monthlyRate) : 0,
+      employee.dailyRate != null
+        ? Number(employee.dailyRate)
+        : employee.employmentStatus === 'TRAINING'
+          ? this.config.dailyRateTraining(depotId)
+          : 0,
+      await this.workingDays(periodMonth, depotId, from, to),
+      standardWorkingMinutes,
+    );
+    const amount = overtimePay(breakdown, perMinute, {
+      multiplier: this.config.overtimeMultiplierPct(depotId) / 100,
+      offDayMultiplier: this.config.overtimeOffDayMultiplierPct(depotId) / 100,
+    });
+    if (amount <= 0) return null;
+
+    const parts = [
+      breakdown.regularMinutes > 0 ? `hari kerja ${formatMinutes(breakdown.regularMinutes)}` : null,
+      breakdown.offDayMinutes > 0 ? `hari libur ${formatMinutes(breakdown.offDayMinutes)}` : null,
+    ].filter(Boolean);
+    return { kind: 'BONUS', label: `Lembur (${parts.join(', ')})`, amount };
+  }
+
   /** Expected working days in the period: calendar days − weekly-off − holidays. */
-  private async workingDays(periodMonth: string, depotId: string, from: Date, to: Date): Promise<number> {
+  private async workingDays(
+    periodMonth: string,
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
     const [year, month] = periodMonth.split('-').map(Number);
     const holidayDates = this.holidays ? await this.holidays.listDates(depotId, from, to) : [];
     return workingDaysInMonth(
@@ -273,11 +408,12 @@ export class PayrollService {
 
   private basePay(employee: Employee, presentDays: number): number {
     if (employee.salaryType === 'DAILY') {
-      const rate = employee.dailyRate != null
-        ? Number(employee.dailyRate)
-        : employee.employmentStatus === 'TRAINING'
-          ? this.config.dailyRateTraining(employee.depotId)
-          : 0;
+      const rate =
+        employee.dailyRate != null
+          ? Number(employee.dailyRate)
+          : employee.employmentStatus === 'TRAINING'
+            ? this.config.dailyRateTraining(employee.depotId)
+            : 0;
       return Math.round(rate * presentDays);
     }
     return employee.monthlyRate != null ? Math.round(Number(employee.monthlyRate)) : 0;

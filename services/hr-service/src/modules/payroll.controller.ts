@@ -38,7 +38,11 @@ export class PayrollController {
   @Get(':id/slip')
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'Download a payroll as a salary-slip PDF' })
-  async slip(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser, @Res() res: Response) {
+  async slip(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
     const pdf = await this.payroll.slip(user, id);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="slip-${id}.pdf"`);

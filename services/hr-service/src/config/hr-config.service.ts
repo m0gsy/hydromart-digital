@@ -54,7 +54,11 @@ export class HrConfigService {
 
   // --- Attendance / payroll effective business values (per depot) ---
   workStartTime(depotId: string | null = null): string {
-    return this.tunableStr('workStartTime', this.config.get<string>('HR_WORK_START_TIME', '08:00'), depotId);
+    return this.tunableStr(
+      'workStartTime',
+      this.config.get<string>('HR_WORK_START_TIME', '08:00'),
+      depotId,
+    );
   }
   lateToleranceMinutes(depotId: string | null = null): number {
     return this.tunableNum('lateToleranceMinutes', this.num('HR_LATE_TOLERANCE_MINUTES'), depotId);
@@ -69,14 +73,44 @@ export class HrConfigService {
     return this.tunableNum('absenceDeductionAmount', this.num('HR_ABSENCE_DEDUCTION_IDR'), depotId);
   }
   standardWorkingMinutes(depotId: string | null = null): number {
-    return this.tunableNum('standardWorkingMinutes', this.num('HR_STANDARD_WORKING_MINUTES'), depotId);
+    return this.tunableNum(
+      'standardWorkingMinutes',
+      this.num('HR_STANDARD_WORKING_MINUTES'),
+      depotId,
+    );
   }
   /** Weekly non-working weekdays as a CSV ("0,6"); '' = every day is a working day. */
+  /** M24-17: ×100 so the settings store stays integer-only (150 = 1.5×). */
+  overtimeMultiplierPct(depotId: string | null = null): number {
+    return this.tunableNum(
+      'overtimeMultiplierPct',
+      Number(this.config.get<string>('HR_OVERTIME_MULTIPLIER_PCT', '150')),
+      depotId,
+    );
+  }
+
+  /** Weekly-off days and national holidays share this rate (M24-17). */
+  overtimeOffDayMultiplierPct(depotId: string | null = null): number {
+    return this.tunableNum(
+      'overtimeOffDayMultiplierPct',
+      Number(this.config.get<string>('HR_OVERTIME_OFF_DAY_MULTIPLIER_PCT', '200')),
+      depotId,
+    );
+  }
+
   weeklyOffDays(depotId: string | null = null): string {
-    return this.tunableStr('weeklyOffDays', this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''), depotId);
+    return this.tunableStr(
+      'weeklyOffDays',
+      this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''),
+      depotId,
+    );
   }
   /** Attendance geofence for a depot: centre (lat/lng, '' = unset) + radius (0 = disabled). */
-  geofence(depotId: string | null = null): { lat: number | null; lng: number | null; radiusM: number } {
+  geofence(depotId: string | null = null): {
+    lat: number | null;
+    lng: number | null;
+    radiusM: number;
+  } {
     const parse = (s: string): number | null => {
       const n = Number(s);
       return s.trim() !== '' && Number.isFinite(n) ? n : null;
@@ -89,7 +123,11 @@ export class HrConfigService {
   }
   /** Depot-head tenure raise ladder as CSV ("1:5,2:10"); '' = no automatic raise (Rule-E). */
   tenureRaiseLadder(depotId: string | null = null): string {
-    return this.tunableStr('tenureRaiseLadder', this.config.get<string>('HR_TENURE_RAISE_LADDER', ''), depotId);
+    return this.tunableStr(
+      'tenureRaiseLadder',
+      this.config.get<string>('HR_TENURE_RAISE_LADDER', ''),
+      depotId,
+    );
   }
 
   // --- Face recognition (read straight from ENV; not per-depot user-facing) ---
@@ -139,7 +177,13 @@ export class HrConfigService {
   get storagePublicBaseUrl(): string {
     return this.config.get<string>('STORAGE_PUBLIC_BASE_URL', '');
   }
-  get s3(): { region: string; endpoint: string; bucket: string; accessKeyId: string; secretAccessKey: string } {
+  get s3(): {
+    region: string;
+    endpoint: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  } {
     return {
       region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
       endpoint: this.config.get<string>('STORAGE_S3_ENDPOINT', ''),

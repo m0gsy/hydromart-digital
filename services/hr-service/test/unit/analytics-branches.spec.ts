@@ -6,8 +6,18 @@ function build(over: Partial<AnalyticsRepository> = {}) {
   const repo: AnalyticsRepository = {
     headcountByStatus: async () => [{ key: 'ACTIVE', count: 7 }],
     headcountByEmploymentStatus: async () => [],
-    attendanceByStatus: async () => [{ key: 'LATE', count: 2 }, { key: 'ABSENT', count: 1 }, { key: 'PRESENT', count: 4 }],
-    payrollTotals: async () => ({ gross: 0, totalBonus: 0, totalDeduction: 0, net: 9_000_000, count: 3 }),
+    attendanceByStatus: async () => [
+      { key: 'LATE', count: 2 },
+      { key: 'ABSENT', count: 1 },
+      { key: 'PRESENT', count: 4 },
+    ],
+    payrollTotals: async () => ({
+      gross: 0,
+      totalBonus: 0,
+      totalDeduction: 0,
+      net: 9_000_000,
+      count: 3,
+    }),
     payrollByStatus: async () => [],
     employeesForReport: async () => [],
     attendanceForReport: async () => [],

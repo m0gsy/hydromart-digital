@@ -11,9 +11,7 @@ import { ADMIN_TOKENS } from '../tokens';
 
 @Injectable()
 export class WebhookService {
-  constructor(
-    @Inject(ADMIN_TOKENS.WebhookRepository) private readonly repo: WebhookRepository,
-  ) {}
+  constructor(@Inject(ADMIN_TOKENS.WebhookRepository) private readonly repo: WebhookRepository) {}
 
   /** All webhook endpoints (Design 19c), newest first. */
   list(): Promise<WebhookRecord[]> {

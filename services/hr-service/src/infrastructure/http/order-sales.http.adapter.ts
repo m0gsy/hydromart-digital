@@ -19,9 +19,12 @@ export class OrderSalesHttpAdapter implements SalesPort {
     if (!url || !internalKey) return null;
     const qs = new URLSearchParams({ depotId, from: from.toISOString(), to: to.toISOString() });
     try {
-      const res = await fetch(`${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-sales?${qs}`, {
-        headers: { 'x-internal-key': internalKey },
-      });
+      const res = await fetch(
+        `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-sales?${qs}`,
+        {
+          headers: { 'x-internal-key': internalKey },
+        },
+      );
       if (!res.ok) {
         this.logger.warn(`depot-sales ${res.status} for depot ${depotId}`);
         return null;

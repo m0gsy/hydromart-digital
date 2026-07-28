@@ -5,7 +5,12 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
-import { AdjustAttendanceDto, FacePunchDto, ListAttendanceDto, ManualAttendanceDto } from './dto/attendance.dto';
+import {
+  AdjustAttendanceDto,
+  FacePunchDto,
+  ListAttendanceDto,
+  ManualAttendanceDto,
+} from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
 
 @ApiTags('HR Attendance')
@@ -51,7 +56,11 @@ export class AttendanceController {
   @Patch(':id/adjust')
   @Roles(...CAPABILITIES.hrAdmin)
   @ApiOperation({ summary: 'Correct an attendance row (audited)' })
-  adjust(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AdjustAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
+  adjust(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AdjustAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.attendance.adjust(user, id, dto);
   }
 

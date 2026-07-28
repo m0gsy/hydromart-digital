@@ -100,14 +100,22 @@ export class NeoFaceProvider implements FaceVerifier {
   }
 
   /** A NEO call that must succeed (create/enroll): unwraps the body and throws on a non-2xx status. */
-  private async call(method: string, path: string, body: Record<string, unknown>): Promise<NeoPayload> {
+  private async call(
+    method: string,
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<NeoPayload> {
     const payload = await this.request(method, path, body);
     this.ensureOk(path, payload);
     return payload;
   }
 
   /** Raw NEO call: fetch + unwrap the `risetai` envelope. Does NOT throw on a business status. */
-  private async request(method: string, path: string, body: Record<string, unknown>): Promise<NeoPayload> {
+  private async request(
+    method: string,
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<NeoPayload> {
     const { endpoint, token } = this.config.neoFr;
     if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
     let res: Response;
@@ -121,7 +129,7 @@ export class NeoFaceProvider implements FaceVerifier {
       throw this.unavailable(`tidak bisa menghubungi NEO (${path}): ${String(err)}`);
     }
     // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok).
-    return ((await res.json().catch(() => ({})) as NeoResponse).risetai) ?? {};
+    return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
   }
 
   private ensureOk(path: string, payload: NeoPayload): void {

@@ -130,7 +130,9 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return this.toAccount(account);
   }
 
-  async recordAdjustment(m: AccountMutation & { type: PointsTxnType }): Promise<LoyaltyAccountRecord> {
+  async recordAdjustment(
+    m: AccountMutation & { type: PointsTxnType },
+  ): Promise<LoyaltyAccountRecord> {
     const [, account] = await this.prisma.$transaction([
       this.prisma.pointsTransaction.create({
         data: {

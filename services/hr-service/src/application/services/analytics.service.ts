@@ -26,7 +26,13 @@ export interface HrDashboard {
   headcount: { total: number; byStatus: GroupCount[]; byEmploymentStatus: GroupCount[] };
   attendanceToday: GroupCount[];
   payroll: {
-    totals: { gross: number; totalBonus: number; totalDeduction: number; net: number; count: number };
+    totals: {
+      gross: number;
+      totalBonus: number;
+      totalDeduction: number;
+      net: number;
+      count: number;
+    };
     byStatus: GroupCount[];
   };
 }
@@ -115,34 +121,97 @@ export class AnalyticsService {
     const depotId = depotScopeFilter(user, depotIdParam) ?? undefined;
     const rows = await this.repo.employeesForReport(depotId);
     return {
-      headers: ['employeeCode', 'fullName', 'phone', 'email', 'position', 'employmentStatus', 'salaryType', 'dailyRate', 'monthlyRate', 'status', 'joinDate'],
+      headers: [
+        'employeeCode',
+        'fullName',
+        'phone',
+        'email',
+        'position',
+        'employmentStatus',
+        'salaryType',
+        'dailyRate',
+        'monthlyRate',
+        'status',
+        'joinDate',
+      ],
       rows: rows.map((e) => [
-        e.employeeCode, e.fullName, e.phone, e.email, e.position, e.employmentStatus,
-        e.salaryType, dec(e.dailyRate), dec(e.monthlyRate), e.status, isoDate(e.joinDate),
+        e.employeeCode,
+        e.fullName,
+        e.phone,
+        e.email,
+        e.position,
+        e.employmentStatus,
+        e.salaryType,
+        dec(e.dailyRate),
+        dec(e.monthlyRate),
+        e.status,
+        isoDate(e.joinDate),
       ]),
     };
   }
 
-  async attendanceReport(user: AuthenticatedUser, query: { depotId?: string; from: string; to: string }): Promise<ReportData> {
+  async attendanceReport(
+    user: AuthenticatedUser,
+    query: { depotId?: string; from: string; to: string },
+  ): Promise<ReportData> {
     const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
-    const rows = await this.repo.attendanceForReport(new Date(query.from), new Date(query.to), depotId);
+    const rows = await this.repo.attendanceForReport(
+      new Date(query.from),
+      new Date(query.to),
+      depotId,
+    );
     return {
-      headers: ['workDate', 'employeeCode', 'fullName', 'status', 'checkInAt', 'checkOutAt', 'lateMinutes', 'workingMinutes'],
+      headers: [
+        'workDate',
+        'employeeCode',
+        'fullName',
+        'status',
+        'checkInAt',
+        'checkOutAt',
+        'lateMinutes',
+        'workingMinutes',
+      ],
       rows: rows.map((a) => [
-        isoDate(a.workDate), a.employee.employeeCode, a.employee.fullName, a.status,
-        isoTime(a.checkInAt), isoTime(a.checkOutAt), a.lateMinutes, a.workingMinutes ?? '',
+        isoDate(a.workDate),
+        a.employee.employeeCode,
+        a.employee.fullName,
+        a.status,
+        isoTime(a.checkInAt),
+        isoTime(a.checkOutAt),
+        a.lateMinutes,
+        a.workingMinutes ?? '',
       ]),
     };
   }
 
-  async payrollReport(user: AuthenticatedUser, query: { depotId?: string; periodMonth: string }): Promise<ReportData> {
+  async payrollReport(
+    user: AuthenticatedUser,
+    query: { depotId?: string; periodMonth: string },
+  ): Promise<ReportData> {
     const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
     const rows = await this.repo.payrollForReport(query.periodMonth, depotId);
     return {
-      headers: ['periodMonth', 'employeeCode', 'fullName', 'status', 'gross', 'totalBonus', 'totalDeduction', 'net', 'presentDays'],
+      headers: [
+        'periodMonth',
+        'employeeCode',
+        'fullName',
+        'status',
+        'gross',
+        'totalBonus',
+        'totalDeduction',
+        'net',
+        'presentDays',
+      ],
       rows: rows.map((p) => [
-        p.periodMonth, p.employee.employeeCode, p.employee.fullName, p.status,
-        dec(p.gross), dec(p.totalBonus), dec(p.totalDeduction), dec(p.net), p.presentDays,
+        p.periodMonth,
+        p.employee.employeeCode,
+        p.employee.fullName,
+        p.status,
+        dec(p.gross),
+        dec(p.totalBonus),
+        dec(p.totalDeduction),
+        dec(p.net),
+        p.presentDays,
       ]),
     };
   }

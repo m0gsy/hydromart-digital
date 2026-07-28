@@ -104,6 +104,12 @@ model RewardRedemption {
   customerId     String
   pointsSpent    Int
   idempotencyKey String
+  /// M14-03: ACTIVE (points spent, reward not collected yet) → USED once staff hand it
+  /// over, or CANCELLED when the customer changes their mind and the points come back.
+  /// TEXT rather than an enum so a future state needs no irreversible migration.
+  status         String     @default("ACTIVE")
+  usedAt         DateTime?
+  cancelledAt    DateTime?
   createdAt      DateTime   @default(now())
 
   @@unique([customerId, idempotencyKey])

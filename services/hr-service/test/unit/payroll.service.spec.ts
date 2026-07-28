@@ -5,9 +5,19 @@ import { Bonus, Deduction, Employee, Payroll } from '../../prisma/generated/clie
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { PayrollService } from '../../src/application/services/payroll.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
-import { PayrollRepository, PayrollWithItems, PayrollWrite } from '../../src/application/ports/payroll.repository';
-import { AttendanceRepository, AttendanceSummary } from '../../src/application/ports/attendance.repository';
-import { BonusRepository, DeductionRepository } from '../../src/application/ports/adjustment.repository';
+import {
+  PayrollRepository,
+  PayrollWithItems,
+  PayrollWrite,
+} from '../../src/application/ports/payroll.repository';
+import {
+  AttendanceRepository,
+  AttendanceSummary,
+} from '../../src/application/ports/attendance.repository';
+import {
+  BonusRepository,
+  DeductionRepository,
+} from '../../src/application/ports/adjustment.repository';
 
 const user: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 
@@ -50,6 +60,10 @@ function build(opts: {
   absenceRate?: number;
   weeklyOff?: string;
   holidayDates?: string[];
+  /** M24-17: clocked minutes per attended day. */
+  workedMinutes?: { workDate: string; workingMinutes: number | null }[];
+  overtimePct?: number;
+  overtimeOffDayPct?: number;
 }) {
   const repo = opts.repo ?? new FakePayrollRepo();
   const attendance: AttendanceRepository = {
@@ -58,6 +72,11 @@ function build(opts: {
     upsertManual: async () => ({}) as never,
     recordAdjustment: async () => undefined,
     summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
+    listWorkedMinutes: async () =>
+      (opts.workedMinutes ?? []).map((d) => ({
+        workDate: new Date(`${d.workDate}T00:00:00.000Z`),
+        workingMinutes: d.workingMinutes,
+      })),
     create: async () => ({}) as never,
     patchCheckOut: async () => ({}) as never,
     list: async () => ({ rows: [], total: 0 }),
@@ -71,16 +90,25 @@ function build(opts: {
     listByEmployeePeriod: async () => (opts.deductions ?? []) as Deduction[],
   };
   const employees = {
-    getById: async () => ({ id: 'e1', depotId: 'd1', salaryType: 'DAILY', ...opts.employee }) as Employee,
+    getById: async () =>
+      ({ id: 'e1', depotId: 'd1', salaryType: 'DAILY', ...opts.employee }) as Employee,
   } as unknown as EmployeeService;
   const config = {
     lateDeductionAmount: () => 10000,
     dailyRateTraining: () => 30000,
     absenceDeductionAmount: () => opts.absenceRate ?? 0,
     weeklyOffDays: () => opts.weeklyOff ?? '',
+    standardWorkingMinutes: () => 480,
+    overtimeMultiplierPct: () => opts.overtimePct ?? 150,
+    overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
   } as unknown as HrConfigService;
-  const holidays = { listDates: async () => opts.holidayDates ?? [] } as unknown as import('../../src/application/ports/holiday.repository').HolidayRepository;
-  return { repo, svc: new PayrollService(repo, attendance, bonuses, deductions, employees, config, holidays) };
+  const holidays = {
+    listDates: async () => opts.holidayDates ?? [],
+  } as unknown as import('../../src/application/ports/holiday.repository').HolidayRepository;
+  return {
+    repo,
+    svc: new PayrollService(repo, attendance, bonuses, deductions, employees, config, holidays),
+  };
 }
 
 describe('PayrollService.generate', () => {
@@ -98,6 +126,61 @@ describe('PayrollService.generate', () => {
     expect(w.totalDeduction).toBe(20_000 + 50_000); // late 2×10k + kasbon 50k
     expect(w.net).toBe(1_000_000 + 100_000 - 70_000);
     expect(w.items.filter((i) => i.kind === 'DEDUCTION')).toHaveLength(2);
+  });
+
+  it('pays overtime above the standard shift as a BONUS line (M24-17)', async () => {
+    // 31 July 2026 days, no weekly-off, no holiday → 31 working days.
+    // MONTHLY 4,464,000 / (31 × 480) = 300 per minute. 120 overtime minutes × 1.5 = 54,000.
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const line = repo.lastWrite!.items.find((i) => i.label.startsWith('Lembur'));
+    expect(line).toMatchObject({ kind: 'BONUS', amount: 54_000 });
+    expect(line!.label).toContain('hari kerja 2j');
+  });
+
+  it('pays every worked minute on a national holiday, at the off-day rate (M24-17)', async () => {
+    // 2026-07-17 is a holiday → all 300 worked minutes are overtime at 2×.
+    // 300 × 300/min × 2 = 180,000.
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_320_000 as never },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      holidayDates: ['2026-07-17'],
+      workedMinutes: [{ workDate: '2026-07-17', workingMinutes: 300 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const line = repo.lastWrite!.items.find((i) => i.label.startsWith('Lembur'));
+    // 30 working days after the holiday is excluded → 4,320,000/(30×480) = 300/min.
+    expect(line).toMatchObject({ kind: 'BONUS', amount: 180_000 });
+    expect(line!.label).toContain('hari libur 5j');
+  });
+
+  it('treats a weekly-off day the same as a holiday (M24-17)', async () => {
+    // 2026-07-05 is a Sunday; weeklyOff '0' makes it an off day.
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 96_000 as never },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
+      weeklyOff: '0',
+      workedMinutes: [{ workDate: '2026-07-05', workingMinutes: 240 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    // DAILY: 96,000/480 = 200/min. 240 × 200 × 2 = 96,000.
+    expect(repo.lastWrite!.items.find((i) => i.label.startsWith('Lembur'))).toMatchObject({
+      amount: 96_000,
+    });
+  });
+
+  it('adds no overtime line when nobody worked past the standard shift (M24-17)', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      summary: { presentDays: 20, lateDays: 0, leaveDays: 0 },
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 470 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Lembur'))).toBe(false);
   });
 
   it('TRAINING with no dailyRate falls back to the config training rate', async () => {
@@ -148,7 +231,10 @@ describe('PayrollService.generate', () => {
   });
 
   it('re-generates a DRAFT in place but refuses a locked (APPROVED) payroll', async () => {
-    const draft = build({ employee: { dailyRate: 1000 as never }, summary: { presentDays: 1, lateDays: 0, leaveDays: 0 } });
+    const draft = build({
+      employee: { dailyRate: 1000 as never },
+      summary: { presentDays: 1, lateDays: 0, leaveDays: 0 },
+    });
     draft.repo.existing = { id: 'p1', status: 'DRAFT' } as PayrollWithItems;
     await draft.svc.generate(user, 'e1', '2026-07');
     expect(draft.repo.regenerated).toBe(true);

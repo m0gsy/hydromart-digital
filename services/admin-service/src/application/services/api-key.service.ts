@@ -20,9 +20,7 @@ export interface ApiKeyWithSecret {
 
 @Injectable()
 export class ApiKeyService {
-  constructor(
-    @Inject(ADMIN_TOKENS.ApiKeyRepository) private readonly repo: ApiKeyRepository,
-  ) {}
+  constructor(@Inject(ADMIN_TOKENS.ApiKeyRepository) private readonly repo: ApiKeyRepository) {}
 
   /** All keys (Design 13d), newest first. Never exposes the secret or its hash. */
   list(): Promise<ApiKeyRecord[]> {

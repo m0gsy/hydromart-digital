@@ -41,5 +41,10 @@ export interface FaceVerifier {
    * Match one aligned probe frame against an employee's enrolled faces. Local drivers use
    * `enrolled` vectors; remote drivers (neo) ignore them and verify 1:1 by `identity.userId`.
    */
-  verify(image: Buffer, enrolled: number[][], live: boolean, identity?: FaceIdentity): Promise<FaceVerifyResult>;
+  verify(
+    image: Buffer,
+    enrolled: number[][],
+    live: boolean,
+    identity?: FaceIdentity,
+  ): Promise<FaceVerifyResult>;
 }

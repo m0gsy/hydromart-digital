@@ -28,7 +28,9 @@ export function payrollSlipPdf(data: SlipData): Promise<Buffer> {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     PDFDocument = require('pdfkit') as PdfModule;
   } catch {
-    return Promise.reject(new Error('Ekspor PDF butuh paket "pdfkit" (jalankan npm ci di server).'));
+    return Promise.reject(
+      new Error('Ekspor PDF butuh paket "pdfkit" (jalankan npm ci di server).'),
+    );
   }
   const doc = new PDFDocument({ size: 'A4', margin: 50 });
   const chunks: Buffer[] = [];

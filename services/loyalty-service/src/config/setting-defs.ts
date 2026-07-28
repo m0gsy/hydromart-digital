@@ -16,8 +16,24 @@ export interface SettingDef {
 // documented defaults so the UI can show "ikut default (N)" before any override.
 // envDefault must mirror this service's env.validation.ts defaults
 export const SETTING_DEFS: SettingDef[] = [
-  { key: 'earnRateRupiah', label: 'Rupiah per 1 poin', type: 'money', unit: 'Rp', min: 1, max: 1000000, envDefault: 1000 },
-  { key: 'pointExpiryMonths', label: 'Masa berlaku poin', type: 'int', unit: 'bulan', min: 1, max: 120, envDefault: 12 },
+  {
+    key: 'earnRateRupiah',
+    label: 'Rupiah per 1 poin',
+    type: 'money',
+    unit: 'Rp',
+    min: 1,
+    max: 1000000,
+    envDefault: 1000,
+  },
+  {
+    key: 'pointExpiryMonths',
+    label: 'Masa berlaku poin',
+    type: 'int',
+    unit: 'bulan',
+    min: 1,
+    max: 120,
+    envDefault: 12,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

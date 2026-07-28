@@ -9,7 +9,11 @@ import {
   RewardOutOfStockError,
 } from '../../src/domain/errors';
 import { LoyaltyService } from '../../src/application/services/loyalty.service';
-import { InMemoryCustomerDirectory, InMemoryLoyaltyRepository, buildTestConfig } from '../support/fakes';
+import {
+  InMemoryCustomerDirectory,
+  InMemoryLoyaltyRepository,
+  buildTestConfig,
+} from '../support/fakes';
 
 describe('LoyaltyService read/list helpers', () => {
   let repo: InMemoryLoyaltyRepository;
@@ -65,19 +69,40 @@ describe('LoyaltyService read/list helpers', () => {
 
 describe('pagination.buildPage', () => {
   it('computes totalPages, flooring an empty set to at least one page', () => {
-    expect(buildPage([], 0, 1, 20)).toEqual({ items: [], total: 0, page: 1, limit: 20, totalPages: 1 });
+    expect(buildPage([], 0, 1, 20)).toEqual({
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+    });
     expect(buildPage(['a'], 45, 2, 20)).toMatchObject({ totalPages: 3 });
   });
 });
 
 describe('domain errors', () => {
   it('each error carries its code and HTTP status', () => {
-    expect(new LoyaltyAccountNotFoundError()).toMatchObject({ code: 'LOYALTY_ACCOUNT_NOT_FOUND', status: 404 });
-    expect(new InvalidAdjustmentError()).toMatchObject({ code: 'LOYALTY_INVALID_ADJUSTMENT', status: 400 });
+    expect(new LoyaltyAccountNotFoundError()).toMatchObject({
+      code: 'LOYALTY_ACCOUNT_NOT_FOUND',
+      status: 404,
+    });
+    expect(new InvalidAdjustmentError()).toMatchObject({
+      code: 'LOYALTY_INVALID_ADJUSTMENT',
+      status: 400,
+    });
     expect(new InvalidAdjustmentError('custom').message).toBe('custom');
-    expect(new RewardItemNotFoundError()).toMatchObject({ code: 'LOYALTY_REWARD_NOT_FOUND', status: 404 });
-    expect(new InsufficientPointsError()).toMatchObject({ code: 'LOYALTY_INSUFFICIENT_POINTS', status: 422 });
-    expect(new RewardOutOfStockError()).toMatchObject({ code: 'LOYALTY_REWARD_OUT_OF_STOCK', status: 422 });
+    expect(new RewardItemNotFoundError()).toMatchObject({
+      code: 'LOYALTY_REWARD_NOT_FOUND',
+      status: 404,
+    });
+    expect(new InsufficientPointsError()).toMatchObject({
+      code: 'LOYALTY_INSUFFICIENT_POINTS',
+      status: 422,
+    });
+    expect(new RewardOutOfStockError()).toMatchObject({
+      code: 'LOYALTY_REWARD_OUT_OF_STOCK',
+      status: 422,
+    });
   });
 });
 

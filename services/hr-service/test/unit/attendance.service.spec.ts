@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Attendance, Employee, FaceEmbedding } from '../../prisma/generated/client';
@@ -13,8 +18,19 @@ import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedding.repository';
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 
-const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: '08', depotId: 'd1' };
-const punch: FacePunch = { image: Buffer.from('x'), photoUrl: null, live: true, lat: -6.2, lng: 106.8 };
+const user: AuthenticatedUser = {
+  sub: 'auth-1',
+  role: 'DRIVER' as never,
+  phone: '08',
+  depotId: 'd1',
+};
+const punch: FacePunch = {
+  image: Buffer.from('x'),
+  photoUrl: null,
+  live: true,
+  lat: -6.2,
+  lng: 106.8,
+};
 
 // 08:10 / 08:30 / 16:10 Asia/Jakarta (UTC+7).
 const AT_0810 = new Date('2026-07-24T01:10:00Z');
@@ -39,6 +55,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
+  }
+  async listWorkedMinutes() {
+    return [];
   }
   async create(input: CreateAttendanceInput): Promise<Attendance> {
     this.created = input;
@@ -121,7 +140,9 @@ describe('AttendanceService', () => {
   });
 
   it('rejects an unlinked or inactive employee', async () => {
-    await expect(make({ employee: null }).svc.checkIn(user, punch, AT_0810)).rejects.toThrow(NotFoundException);
+    await expect(make({ employee: null }).svc.checkIn(user, punch, AT_0810)).rejects.toThrow(
+      NotFoundException,
+    );
     await expect(
       make({ employee: { status: 'RESIGNED' } }).svc.checkIn(user, punch, AT_0810),
     ).rejects.toThrow(ForbiddenException);

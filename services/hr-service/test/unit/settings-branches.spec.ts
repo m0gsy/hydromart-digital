@@ -26,7 +26,9 @@ function make() {
 describe('SettingsService.reset', () => {
   it('rejects a DEPOT reset with no depotId', async () => {
     const { svc } = make();
-    await expect(svc.reset('DEPOT', null, 'lateDeductionAmount')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.reset('DEPOT', null, 'lateDeductionAmount')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('normalises the depot to null for a GLOBAL reset', async () => {

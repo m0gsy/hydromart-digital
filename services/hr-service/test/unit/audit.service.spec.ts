@@ -1,6 +1,10 @@
 import { AuditLog } from '../../prisma/generated/client';
 import { AuditService } from '../../src/application/services/audit.service';
-import { AuditListFilter, AuditRepository, AuditWrite } from '../../src/application/ports/audit.repository';
+import {
+  AuditListFilter,
+  AuditRepository,
+  AuditWrite,
+} from '../../src/application/ports/audit.repository';
 
 function build(writeImpl?: (e: AuditWrite) => Promise<void>) {
   let lastFilter: AuditListFilter | undefined;
@@ -15,7 +19,13 @@ function build(writeImpl?: (e: AuditWrite) => Promise<void>) {
 }
 
 const entry: AuditWrite = {
-  actorId: 'u1', action: 'POST', entity: 'employees', entityId: 'e1', before: null, after: null, ip: '1.2.3.4',
+  actorId: 'u1',
+  action: 'POST',
+  entity: 'employees',
+  entityId: 'e1',
+  before: null,
+  after: null,
+  ip: '1.2.3.4',
 };
 
 describe('AuditService', () => {

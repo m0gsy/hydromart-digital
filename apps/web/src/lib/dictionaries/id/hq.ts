@@ -471,7 +471,8 @@ export const hq = {
     rejected: 'Refund {order} ditolak',
     loadError: 'Gagal memuat antrean refund.',
     approveError: 'Gagal memproses refund.',
-    enrichNote: 'Nama depot & nomor pesanan belum ditampilkan (dimiliki layanan lain); nilai, metode, alasan & keputusan sudah nyata.',
+    enrichNote:
+      'Nama depot & nomor pesanan belum ditampilkan (dimiliki layanan lain); nilai, metode, alasan & keputusan sudah nyata.',
   },
   vouchers: {
     title: 'Tata kelola voucher',
@@ -766,7 +767,12 @@ export const hq = {
     next: 'Lanjut',
     back: 'Kembali',
     segmentLabel: 'Target segmen',
-    chips: { all: 'Semua pelanggan', loyalty: 'Anggota loyalti', atRisk: 'Berisiko churn', new: 'Pelanggan baru' },
+    chips: {
+      all: 'Semua pelanggan',
+      loyalty: 'Anggota loyalti',
+      atRisk: 'Berisiko churn',
+      new: 'Pelanggan baru',
+    },
     nameLabel: 'Nama kampanye',
     namePh: 'Promo Ramadan',
     messageLabel: 'Pesan',
@@ -886,7 +892,8 @@ export const hq = {
     activeSubs: 'Langganan aktif',
     subscribers: 'Pelanggan',
     estDeliveries: 'Est. pengantaran / bln',
-    estHint: 'Estimasi dari frekuensi — order-service tak menyimpan harga langganan (tanpa MRR rupiah).',
+    estHint:
+      'Estimasi dari frekuensi — order-service tak menyimpan harga langganan (tanpa MRR rupiah).',
     product: 'Produk',
     frequency: 'Frekuensi',
     subscriberCount: '{n} pelanggan',
@@ -922,7 +929,12 @@ export const hq = {
     title: 'Broadcast notifikasi',
     subtitle: 'Kirim pesan ke audiens jaringan',
     audience: 'Audiens',
-    audiences: { all: 'Semua pelanggan', depot: 'Per depot', loyalty: 'Anggota loyalti', staff: 'Staf' },
+    audiences: {
+      all: 'Semua pelanggan',
+      depot: 'Per depot',
+      loyalty: 'Anggota loyalti',
+      staff: 'Staf',
+    },
     pickDepot: 'Pilih depot',
     titleLabel: 'Judul',
     titlePh: 'Info penting',
@@ -943,7 +955,8 @@ export const hq = {
     scheduled: 'Broadcast dijadwalkan (contoh)',
     error: 'Gagal mengirim broadcast',
     scheduleUnsupported: 'Penjadwalan belum didukung.',
-    audienceUnsupported: 'Audiens ini belum didukung untuk kirim otomatis. Pakai "Semua pelanggan".',
+    audienceUnsupported:
+      'Audiens ini belum didukung untuk kirim otomatis. Pakai "Semua pelanggan".',
     reachUnavailable: 'Estimasi tidak tersedia',
   },
   applications: {
@@ -1069,7 +1082,8 @@ export const hq = {
     revoke: 'Cabut',
     revokedLabel: 'Dicabut',
     rotateTitle: 'Rotasi kunci?',
-    rotateMsg: 'Secret lama kunci "{name}" akan berhenti berlaku dan secret baru ditampilkan sekali.',
+    rotateMsg:
+      'Secret lama kunci "{name}" akan berhenti berlaku dan secret baru ditampilkan sekali.',
     revokeTitle: 'Cabut kunci?',
     revokeMsg: 'Kunci "{name}" tidak bisa dipakai lagi setelah dicabut.',
     tokenTitle: 'Secret kunci API',
@@ -1112,7 +1126,8 @@ export const hq = {
     healthy: 'Batas sehat',
     critical: 'Batas kritis',
     pctOnTime: '% tepat waktu',
-    deliveryNote: 'Catatan: layanan pengantaran masih menilai tepat waktu dengan ambangnya sendiri hingga terhubung ke kebijakan ini.',
+    deliveryNote:
+      'Catatan: layanan pengantaran masih menilai tepat waktu dengan ambangnya sendiri hingga terhubung ke kebijakan ini.',
     save: 'Simpan kebijakan',
     saved: 'Kebijakan SLA disimpan',
     loadError: 'Gagal memuat kebijakan SLA.',
@@ -1125,6 +1140,7 @@ export const hq = {
     window: 'Masa simpan',
     days: 'Hari',
     dayCount: '{n} hari',
+    exempt: 'Tidak dihapus',
     action: 'Aksi',
     edit: 'Ubah',
     editTitle: 'Ubah masa simpan',
@@ -1136,10 +1152,12 @@ export const hq = {
       audit_logs: 'Log audit',
       proof_of_delivery: 'Bukti pengantaran (PoD)',
       notifications_messages: 'Notifikasi & pesan',
+      hr_employee_records: 'Data karyawan (HR)',
     },
     backupTitle: 'Status backup',
     backupNone: 'Belum ada backup',
-    backupNote: 'Belum ada mesin backup yang terhubung — status ini disimpan & ditampilkan apa adanya, bukan "berhasil" palsu.',
+    backupNote:
+      'Belum ada mesin backup yang terhubung — status ini disimpan & ditampilkan apa adanya, bukan "berhasil" palsu.',
     lastBackup: 'Backup terakhir',
     loadError: 'Gagal memuat kebijakan retensi.',
     saveError: 'Gagal menyimpan perubahan.',
@@ -1299,8 +1317,15 @@ export const hq = {
       staff: 'Onboarding staf & kurir',
       payments: 'Aktifkan kanal pembayaran',
     },
-    owners: { legal: 'Legal', ops: 'Ops', hq: 'Head office', manager: 'Manajer depot', finance: 'Finance' },
-    derivedHint: 'Kesiapan diturunkan langsung dari data depot, stok, staf, dan setelan pembayaran.',
+    owners: {
+      legal: 'Legal',
+      ops: 'Ops',
+      hq: 'Head office',
+      manager: 'Manajer depot',
+      finance: 'Finance',
+    },
+    derivedHint:
+      'Kesiapan diturunkan langsung dari data depot, stok, staf, dan setelan pembayaran.',
     empty: 'Belum ada langkah.',
   },
   profile: {

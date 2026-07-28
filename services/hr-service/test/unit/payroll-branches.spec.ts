@@ -33,9 +33,19 @@ import { BonusRule, Employee, Loan, Payroll } from '../../prisma/generated/clien
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { PayrollService } from '../../src/application/services/payroll.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
-import { PayrollRepository, PayrollWithItems, PayrollWrite } from '../../src/application/ports/payroll.repository';
-import { AttendanceRepository, AttendanceSummary } from '../../src/application/ports/attendance.repository';
-import { BonusRepository, DeductionRepository } from '../../src/application/ports/adjustment.repository';
+import {
+  PayrollRepository,
+  PayrollWithItems,
+  PayrollWrite,
+} from '../../src/application/ports/payroll.repository';
+import {
+  AttendanceRepository,
+  AttendanceSummary,
+} from '../../src/application/ports/attendance.repository';
+import {
+  BonusRepository,
+  DeductionRepository,
+} from '../../src/application/ports/adjustment.repository';
 import { BonusRuleRepository } from '../../src/application/ports/bonus-rule.repository';
 import { LoanRepository } from '../../src/application/ports/loan.repository';
 import { HolidayRepository } from '../../src/application/ports/holiday.repository';
@@ -80,12 +90,22 @@ function build(opts: {
 }) {
   const repo = new FakePayrollRepo();
   const attendance = {
-    summary: async (): Promise<AttendanceSummary> => opts.summary ?? { presentDays: 20, lateDays: 0, leaveDays: 0 },
+    summary: async (): Promise<AttendanceSummary> =>
+      opts.summary ?? { presentDays: 20, lateDays: 0, leaveDays: 0 },
+    listWorkedMinutes: async () => [],
   } as unknown as AttendanceRepository;
   const bonuses = { listByEmployeePeriod: async () => [] } as unknown as BonusRepository;
   const deductions = { listByEmployeePeriod: async () => [] } as unknown as DeductionRepository;
   const employees = {
-    getById: async () => ({ id: 'e1', depotId: 'd1', salaryType: 'DAILY', employeeCode: 'HR-0001', fullName: 'Budi', ...opts.employee }) as Employee,
+    getById: async () =>
+      ({
+        id: 'e1',
+        depotId: 'd1',
+        salaryType: 'DAILY',
+        employeeCode: 'HR-0001',
+        fullName: 'Budi',
+        ...opts.employee,
+      }) as Employee,
   } as unknown as EmployeeService;
   const config = {
     lateDeductionAmount: () => 10000,
@@ -93,25 +113,47 @@ function build(opts: {
     absenceDeductionAmount: () => 0,
     weeklyOffDays: () => '',
     tenureRaiseLadder: () => opts.ladder ?? '',
+    standardWorkingMinutes: () => 480,
+    overtimeMultiplierPct: () => 150,
+    overtimeOffDayMultiplierPct: () => 200,
   } as unknown as HrConfigService;
   const holidays = { listDates: async () => [] } as unknown as HolidayRepository;
   const bonusRules = opts.rules
-    ? ({ listActiveForDepot: async () => opts.rules as BonusRule[] } as unknown as BonusRuleRepository)
+    ? ({
+        listActiveForDepot: async () => opts.rules as BonusRule[],
+      } as unknown as BonusRuleRepository)
     : undefined;
   const loans = opts.loans
     ? ({ listActiveByEmployee: async () => opts.loans as Loan[] } as unknown as LoanRepository)
     : undefined;
-  const sales = opts.sales !== undefined
-    ? ({ depotSales: async () => opts.sales } as unknown as SalesPort)
-    : undefined;
-  const svc = new PayrollService(repo, attendance, bonuses, deductions, employees, config, holidays, bonusRules, loans, sales);
+  const sales =
+    opts.sales !== undefined
+      ? ({ depotSales: async () => opts.sales } as unknown as SalesPort)
+      : undefined;
+  const svc = new PayrollService(
+    repo,
+    attendance,
+    bonuses,
+    deductions,
+    employees,
+    config,
+    holidays,
+    bonusRules,
+    loans,
+    sales,
+  );
   return { repo, svc };
 }
 
 describe('PayrollService tenure raise (Rule-E)', () => {
   it('adds a tenure uplift line for a depot manager', async () => {
     const { repo, svc } = build({
-      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never, employmentStatus: 'DEPOT_MANAGER' as never, joinDate: new Date('2023-01-01') as never },
+      employee: {
+        salaryType: 'DAILY',
+        dailyRate: 100_000 as never,
+        employmentStatus: 'DEPOT_MANAGER' as never,
+        joinDate: new Date('2023-01-01') as never,
+      },
       ladder: '1:5,2:10',
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -122,11 +164,18 @@ describe('PayrollService tenure raise (Rule-E)', () => {
 
   it('adds no uplift when the ladder yields 0%', async () => {
     const { repo, svc } = build({
-      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never, employmentStatus: 'DEPOT_MANAGER' as never, joinDate: new Date('2026-06-01') as never },
+      employee: {
+        salaryType: 'DAILY',
+        dailyRate: 100_000 as never,
+        employmentStatus: 'DEPOT_MANAGER' as never,
+        joinDate: new Date('2026-06-01') as never,
+      },
       ladder: '5:20',
     });
     await svc.generate(user, 'e1', '2026-07');
-    expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Kenaikan masa kerja'))).toBe(false);
+    expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Kenaikan masa kerja'))).toBe(
+      false,
+    );
   });
 });
 
@@ -135,20 +184,51 @@ describe('PayrollService auto-bonus rules (Rule-F)', () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
       rules: [
-        { id: 'r1', name: 'Rajin Hadir', metric: 'PRESENT_DAYS', op: 'GTE', threshold: 1 as never, rewardKind: 'FIXED', rewardValue: 50_000 as never },
-        { id: 'r2', name: 'Bonus Sales', metric: 'SALES_TOTAL', op: 'GTE', threshold: 1 as never, rewardKind: 'FIXED', rewardValue: 25_000 as never },
+        {
+          id: 'r1',
+          name: 'Rajin Hadir',
+          metric: 'PRESENT_DAYS',
+          op: 'GTE',
+          threshold: 1 as never,
+          rewardKind: 'FIXED',
+          rewardValue: 50_000 as never,
+        },
+        {
+          id: 'r2',
+          name: 'Bonus Sales',
+          metric: 'SALES_TOTAL',
+          op: 'GTE',
+          threshold: 1 as never,
+          rewardKind: 'FIXED',
+          rewardValue: 25_000 as never,
+        },
       ],
       sales: 5_000_000,
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.totalBonus).toBe(75_000);
-    expect(repo.lastWrite!.items.filter((i) => i.kind === 'BONUS').map((i) => i.label).sort()).toEqual(['Bonus Sales', 'Rajin Hadir']);
+    expect(
+      repo
+        .lastWrite!.items.filter((i) => i.kind === 'BONUS')
+        .map((i) => i.label)
+        .sort(),
+    ).toEqual(['Bonus Sales', 'Rajin Hadir']);
   });
 
   it('skips a rule that does not pay and never calls sales when no SALES rule exists', async () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
-      rules: [{ id: 'r1', name: 'Nihil', metric: 'PRESENT_DAYS', op: 'GTE', threshold: 999 as never, rewardKind: 'FIXED', rewardValue: 50_000 as never }],
+      rules: [
+        {
+          id: 'r1',
+          name: 'Nihil',
+          metric: 'PRESENT_DAYS',
+          op: 'GTE',
+          threshold: 999 as never,
+          rewardKind: 'FIXED',
+          rewardValue: 50_000 as never,
+        },
+      ],
       sales: null,
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -161,9 +241,27 @@ describe('PayrollService auto loan/kasbon (Rule-G)', () => {
     const { repo, svc } = build({
       employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
       loans: [
-        { id: 'l1', principal: 1_000_000 as never, installmentAmount: 300_000 as never, startPeriod: '2026-07', note: 'Kasbon' as never },
-        { id: 'l2', principal: 500_000 as never, installmentAmount: 100_000 as never, startPeriod: '2026-07', note: null as never },
-        { id: 'l3', principal: 500_000 as never, installmentAmount: 100_000 as never, startPeriod: '2026-12', note: null as never }, // future → 0, skipped
+        {
+          id: 'l1',
+          principal: 1_000_000 as never,
+          installmentAmount: 300_000 as never,
+          startPeriod: '2026-07',
+          note: 'Kasbon' as never,
+        },
+        {
+          id: 'l2',
+          principal: 500_000 as never,
+          installmentAmount: 100_000 as never,
+          startPeriod: '2026-07',
+          note: null as never,
+        },
+        {
+          id: 'l3',
+          principal: 500_000 as never,
+          installmentAmount: 100_000 as never,
+          startPeriod: '2026-12',
+          note: null as never,
+        }, // future → 0, skipped
       ],
     });
     await svc.generate(user, 'e1', '2026-07');
@@ -187,7 +285,11 @@ describe('PayrollService.load / slip / getById / list', () => {
   it('slip renders the payroll into a PDF buffer', async () => {
     const { repo, svc } = build({ employee: {} });
     repo.byId = {
-      id: 'p1', employeeId: 'e1', periodMonth: '2026-07', status: 'APPROVED', net: 1_000_000,
+      id: 'p1',
+      employeeId: 'e1',
+      periodMonth: '2026-07',
+      status: 'APPROVED',
+      net: 1_000_000,
       items: [
         { kind: 'BASE', label: 'Gaji pokok', amount: 1_100_000 },
         { kind: 'DEDUCTION', label: 'Potongan', amount: 100_000 },

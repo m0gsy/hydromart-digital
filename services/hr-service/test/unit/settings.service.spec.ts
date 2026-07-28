@@ -42,7 +42,13 @@ describe('SettingsService (SalaryConfiguration)', () => {
 
   it('applies a DEPOT override over the global default', async () => {
     const { svc } = make();
-    await svc.put({ scope: 'DEPOT', depotId, key: 'lateDeductionAmount', value: '15000', updatedBy: 'u1' });
+    await svc.put({
+      scope: 'DEPOT',
+      depotId,
+      key: 'lateDeductionAmount',
+      value: '15000',
+      updatedBy: 'u1',
+    });
     const { effective } = await svc.schema(depotId);
     expect(effective.lateDeductionAmount).toBe(15000);
     // A different depot still sees the default.
@@ -52,10 +58,22 @@ describe('SettingsService (SalaryConfiguration)', () => {
 
   it('coerces money to an integer and enforces min/max', async () => {
     const { svc, repo } = make();
-    await svc.put({ scope: 'GLOBAL', depotId: null, key: 'lateDeductionAmount', value: '12345.9', updatedBy: 'u1' });
+    await svc.put({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'lateDeductionAmount',
+      value: '12345.9',
+      updatedBy: 'u1',
+    });
     expect(repo.rows[0].value).toBe('12345');
     await expect(
-      svc.put({ scope: 'GLOBAL', depotId: null, key: 'lateToleranceMinutes', value: '999', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'lateToleranceMinutes',
+        value: '999',
+        updatedBy: 'u1',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -65,13 +83,25 @@ describe('SettingsService (SalaryConfiguration)', () => {
       svc.put({ scope: 'GLOBAL', depotId: null, key: 'nope', value: '1', updatedBy: 'u1' }),
     ).rejects.toThrow(/Unknown setting/);
     await expect(
-      svc.put({ scope: 'DEPOT', depotId: null, key: 'lateDeductionAmount', value: '1', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'DEPOT',
+        depotId: null,
+        key: 'lateDeductionAmount',
+        value: '1',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow(/depotId required/);
   });
 
   it('reset() removes an override, falling back to the default', async () => {
     const { svc } = make();
-    await svc.put({ scope: 'DEPOT', depotId, key: 'standardWorkingMinutes', value: '600', updatedBy: 'u1' });
+    await svc.put({
+      scope: 'DEPOT',
+      depotId,
+      key: 'standardWorkingMinutes',
+      value: '600',
+      updatedBy: 'u1',
+    });
     expect((await svc.schema(depotId)).effective.standardWorkingMinutes).toBe(600);
     await svc.reset('DEPOT', depotId, 'standardWorkingMinutes');
     expect((await svc.schema(depotId)).effective.standardWorkingMinutes).toBe(480);

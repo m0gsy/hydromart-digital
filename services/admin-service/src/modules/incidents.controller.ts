@@ -1,10 +1,25 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
-import { CreateIncidentDto, IncidentDto, IncidentQueryDto, PatchIncidentDto } from './dto/incident.dto';
+import {
+  CreateIncidentDto,
+  IncidentDto,
+  IncidentQueryDto,
+  PatchIncidentDto,
+} from './dto/incident.dto';
 
 // Design 14c — incident timeline. HEAD_OFFICE + SUPER_ADMIN. List (newest-first, filter
 // status) + create + patch (append a timeline update / resolve). Updates live in the child

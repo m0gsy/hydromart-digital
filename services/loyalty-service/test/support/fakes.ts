@@ -18,6 +18,7 @@ import {
   zeroTierCounts,
 } from '../../src/application/ports/loyalty.repository';
 import {
+  CancelRedemptionMutation,
   RedeemMutation,
   RewardItemRecord,
   RewardRedemptionRecord,
@@ -64,7 +65,9 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     // Mirrors Prisma summing RewardRedemption.pointsSpent: redemptions land as negative
     // REDEEM ledger entries (see InMemoryRewardRepository), so sum their magnitude.
     return this.txns
-      .filter((t) => t.type === PointsTxnType.REDEEM && set.has(t.customerId) && t.createdAt >= since)
+      .filter(
+        (t) => t.type === PointsTxnType.REDEEM && set.has(t.customerId) && t.createdAt >= since,
+      )
       .reduce((sum, t) => sum + Math.abs(t.points), 0);
   }
 
@@ -112,7 +115,9 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     return this.applyToAccount(m);
   }
 
-  async recordAdjustment(m: AccountMutation & { type: PointsTxnType }): Promise<LoyaltyAccountRecord> {
+  async recordAdjustment(
+    m: AccountMutation & { type: PointsTxnType },
+  ): Promise<LoyaltyAccountRecord> {
     this.txns.push({
       id: randomUUID(),
       customerId: m.customerId,
@@ -141,8 +146,11 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
 
   async findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]> {
     return this.txns
-      .filter((t) => t.type === PointsTxnType.EARN && !t.expired && t.expiresAt !== null && t.expiresAt <= now)
-      .sort((a, b) => (a.expiresAt!.getTime() - b.expiresAt!.getTime()))
+      .filter(
+        (t) =>
+          t.type === PointsTxnType.EARN && !t.expired && t.expiresAt !== null && t.expiresAt <= now,
+      )
+      .sort((a, b) => a.expiresAt!.getTime() - b.expiresAt!.getTime())
       .slice(0, limit)
       .map((t) => ({ ...t }));
   }
@@ -218,7 +226,9 @@ export class InMemoryRewardRepository implements RewardRepository {
     idempotencyKey: string,
   ): Promise<RewardRedemptionRecord | null> {
     const r = this.redemptions.find(
-      (x) => x.customerId === customerId && (x as { idempotencyKey?: string }).idempotencyKey === idempotencyKey,
+      (x) =>
+        x.customerId === customerId &&
+        (x as { idempotencyKey?: string }).idempotencyKey === idempotencyKey,
     );
     return r ? { ...r } : null;
   }
@@ -230,6 +240,9 @@ export class InMemoryRewardRepository implements RewardRepository {
       customerId: m.customerId,
       pointsSpent: m.pointsSpent,
       idempotencyKey: m.idempotencyKey,
+      status: 'ACTIVE',
+      usedAt: null,
+      cancelledAt: null,
       createdAt: nextDate(),
     };
     this.redemptions.push(redemption);
@@ -254,6 +267,44 @@ export class InMemoryRewardRepository implements RewardRepository {
       item.stock = (item.stock ?? 0) - 1;
     }
     return { ...redemption };
+  }
+
+  async findRedemption(id: string): Promise<RewardRedemptionRecord | null> {
+    const r = this.redemptions.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+
+  async markUsed(id: string): Promise<RewardRedemptionRecord> {
+    const r = this.redemptions.find((x) => x.id === id)!;
+    r.status = 'USED';
+    r.usedAt = nextDate();
+    return { ...r };
+  }
+
+  /** Mirrors the Prisma transaction: status flip + points credit + stock restore. */
+  async cancel(m: CancelRedemptionMutation): Promise<RewardRedemptionRecord> {
+    const r = this.redemptions.find((x) => x.id === m.redemptionId)!;
+    r.status = 'CANCELLED';
+    r.cancelledAt = nextDate();
+    this.loyalty.txns.push({
+      id: randomUUID(),
+      customerId: m.customerId,
+      type: PointsTxnType.REDEEM,
+      points: m.pointsRefunded,
+      orderId: null,
+      reason: m.reason,
+      expiresAt: null,
+      expired: false,
+      createdAt: nextDate(),
+    });
+    const acc = this.loyalty.accounts.find((x) => x.id === m.accountId)!;
+    acc.pointsBalance = m.newBalance;
+    acc.updatedAt = nextDate();
+    if (m.restoreStock) {
+      const item = this.items.find((x) => x.id === m.rewardItemId)!;
+      item.stock = (item.stock ?? 0) + 1;
+    }
+    return { ...r };
   }
 }
 
@@ -306,7 +357,9 @@ export class InMemorySettingsRepository implements SettingsRepository {
     else this.rows.push(row);
   }
   async remove(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    const i = this.rows.findIndex((r) => r.scope === scope && r.depotId === depotId && r.key === key);
+    const i = this.rows.findIndex(
+      (r) => r.scope === scope && r.depotId === depotId && r.key === key,
+    );
     if (i >= 0) this.rows.splice(i, 1);
   }
 }

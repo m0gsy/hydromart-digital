@@ -23,7 +23,10 @@ export class BonusPrismaRepository implements BonusRepository {
   }
 
   listByEmployeePeriod(employeeId: string, periodMonth: string): Promise<Bonus[]> {
-    return this.prisma.bonus.findMany({ where: { employeeId, periodMonth }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.bonus.findMany({
+      where: { employeeId, periodMonth },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }
 
@@ -43,6 +46,9 @@ export class DeductionPrismaRepository implements DeductionRepository {
   }
 
   listByEmployeePeriod(employeeId: string, periodMonth: string): Promise<Deduction[]> {
-    return this.prisma.deduction.findMany({ where: { employeeId, periodMonth }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.deduction.findMany({
+      where: { employeeId, periodMonth },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 }

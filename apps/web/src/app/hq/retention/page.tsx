@@ -23,13 +23,18 @@ export default function HqRetentionPage() {
   const [editing, setEditing] = useState<RetentionPolicy | null>(null);
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error) return <ErrorState message={t('hq.retention.loadError')} onRetry={query.reload} />;
+  if (query.error)
+    return <ErrorState message={t('hq.retention.loadError')} onRetry={query.reload} />;
 
   const { policies, backup } = query.data!;
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Archive} title={t('hq.retention.title')} subtitle={t('hq.retention.subtitle')} />
+      <HqPageHeader
+        icon={Archive}
+        title={t('hq.retention.title')}
+        subtitle={t('hq.retention.subtitle')}
+      />
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[560px] border-collapse text-sm">
@@ -44,9 +49,21 @@ export default function HqRetentionPage() {
           <tbody>
             {policies.map((r) => (
               <tr key={r.id} className="border-b border-app last:border-0">
-                <td className="px-4 py-2.5 font-semibold">{t(`hq.retention.datasets.${r.dataset}`)}</td>
-                <td className="px-4 py-2.5 text-muted">{r.windowLabel}</td>
-                <td className="px-4 py-2.5 tabular-nums text-muted">{t('hq.retention.dayCount', { n: r.windowDays })}</td>
+                <td className="px-4 py-2.5 font-semibold">
+                  {t(`hq.retention.datasets.${r.dataset}`)}
+                </td>
+                <td className="px-4 py-2.5 text-muted">
+                  {r.windowLabel}
+                  {/* M23-21: financial data survives every purge — say so where it is edited. */}
+                  {r.purgeExempt && (
+                    <span className="ml-2 rounded-full bg-[color:var(--surface-soft)] px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                      {t('hq.retention.exempt')}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 tabular-nums text-muted">
+                  {t('hq.retention.dayCount', { n: r.windowDays })}
+                </td>
                 <td className="px-4 py-2.5 text-right">
                   <button
                     type="button"
@@ -60,7 +77,9 @@ export default function HqRetentionPage() {
             ))}
             {policies.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted">{t('hq.retention.empty')}</td>
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted">
+                  {t('hq.retention.empty')}
+                </td>
               </tr>
             )}
           </tbody>
@@ -127,7 +146,11 @@ function EditWindowSheet({
     setBusy(true);
     setError(null);
     try {
-      await api.put(endpoints.admin.retention.update(policy.id), { windowLabel: label.trim(), windowDays: daysNum }, true);
+      await api.put(
+        endpoints.admin.retention.update(policy.id),
+        { windowLabel: label.trim(), windowDays: daysNum },
+        true,
+      );
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.retention.saveError'));
@@ -139,16 +162,39 @@ function EditWindowSheet({
   return (
     <Sheet open={policy !== null} onClose={onClose} title={t('hq.retention.editTitle')}>
       <div className="flex flex-col gap-4">
-        <Field label={t('hq.retention.window')} htmlFor="ret-label" hint={t('hq.retention.windowHint')}>
-          <Input id="ret-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="7 tahun (UU PDP)" />
+        <Field
+          label={t('hq.retention.window')}
+          htmlFor="ret-label"
+          hint={t('hq.retention.windowHint')}
+        >
+          <Input
+            id="ret-label"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="7 tahun (UU PDP)"
+          />
         </Field>
         <Field label={t('hq.retention.days')} htmlFor="ret-days">
-          <Input id="ret-days" type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} />
+          <Input
+            id="ret-days"
+            type="number"
+            min={1}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+          />
         </Field>
-        {error && <p className="text-sm text-[color:var(--danger)]" role="alert">{error}</p>}
+        {error && (
+          <p className="text-sm text-[color:var(--danger)]" role="alert">
+            {error}
+          </p>
+        )}
         <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>{t('hq.common.cancel')}</Button>
-          <Button onClick={submit} disabled={!valid} loading={busy}>{t('hq.retention.save')}</Button>
+          <Button variant="secondary" onClick={onClose} disabled={busy}>
+            {t('hq.common.cancel')}
+          </Button>
+          <Button onClick={submit} disabled={!valid} loading={busy}>
+            {t('hq.retention.save')}
+          </Button>
         </div>
       </div>
     </Sheet>
