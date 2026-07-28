@@ -75,7 +75,15 @@ export const CAPABILITIES = {
   courierReturn: ['DRIVER'],
   // crm-service — depot-scoped customer directory (CRM read: profiles, deposit
   // ledger, order history). Depot staff see their own depot's customers.
-  depotCrm: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // HR reads it too (read-only Pelanggan tab in the HR console) — the same directory,
+  // never a second copy of customer data inside hr-service.
+  depotCrm: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'HR', 'SUPER_ADMIN'],
+  // Writing that directory (bulk import) stays with depot staff — HR only reads it.
+  depotCrmWrite: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // customer-service — reseller/agen registry. Split read from write so the HR console
+  // can show the roster without gaining the power to change discounts.
+  resellerView: ['DEPOT_MANAGER', 'HEAD_OFFICE', 'HR', 'SUPER_ADMIN'],
+  resellerAdmin: ['DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
   // and follow-up. Operators log & triage, managers resolve.
   incidents: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
@@ -114,6 +122,23 @@ export const CAPABILITIES = {
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;
+
+/**
+ * Roles a bulk employee import may provision an account for. Deliberately excludes
+ * HEAD_OFFICE and SUPER_ADMIN: hr-service provisions accounts server-side on behalf
+ * of an HR user, so without this allowlist a CSV row would be a path to minting an
+ * office/superuser account — privilege escalation through a spreadsheet.
+ */
+export const STAFF_IMPORT_ROLES = [
+  'DEPOT_OPERATOR',
+  'DEPOT_MANAGER',
+  'DRIVER',
+  'FINANCE',
+  'HR',
+  'MARKETING',
+] as const satisfies readonly Role[];
+
+export type StaffImportRole = (typeof STAFF_IMPORT_ROLES)[number];
 
 /** Whether a role holds a capability. SUPER_ADMIN holds every one (superuser). */
 export function can(capability: Capability, role: string | null | undefined): boolean {

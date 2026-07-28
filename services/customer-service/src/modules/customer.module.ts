@@ -13,6 +13,7 @@ import { ProfileService } from '../application/services/profile.service';
 import { DepotCrmService } from '../application/services/depot-crm.service';
 import { FavoriteService } from '../application/services/favorite.service';
 import { ResellerService } from '../application/services/reseller.service';
+import { CustomerImportService } from '../application/services/customer-import.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
 import { FavoritePrismaRepository } from '../infrastructure/prisma/favorite.prisma.repository';
@@ -23,6 +24,7 @@ import { DepotCrmPrismaRepository } from '../infrastructure/prisma/depot-crm.pri
 import { ResellerPrismaRepository } from '../infrastructure/prisma/reseller.prisma.repository';
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
+import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
 import { OrderCrmHttpAdapter } from '../infrastructure/http/order-crm.http.adapter';
 import { AddressController } from './address.controller';
 import { PaymentMethodController } from './payment-method.controller';
@@ -43,6 +45,7 @@ const providers: Provider[] = [
   DepotCrmService,
   FavoriteService,
   ResellerService,
+  CustomerImportService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   { provide: CUSTOMER_TOKENS.NotificationPreferenceRepository, useClass: NotificationPrismaRepository },
@@ -53,6 +56,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.OrderCrmPort, useClass: OrderCrmHttpAdapter },
   { provide: CUSTOMER_TOKENS.FavoriteRepository, useClass: FavoritePrismaRepository },
   { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
+  { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

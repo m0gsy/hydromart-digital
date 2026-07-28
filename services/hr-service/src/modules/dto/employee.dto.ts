@@ -1,6 +1,10 @@
+import { OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -10,7 +14,10 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
+
+import { STAFF_IMPORT_ROLES, type StaffImportRole } from '@hydromart/access';
 
 import { EmploymentStatus, EmployeeStatus, SalaryType } from '../../../prisma/generated/client';
 
@@ -105,6 +112,21 @@ export class CreateEmployeeDto {
   @IsString()
   @MaxLength(40)
   bpjsTk?: string;
+}
+
+/** One CSV row: the create fields plus the login role to provision, minus authSubjectId
+ * (the import gets that back from auth-service, it is never supplied by the file). */
+export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, ['authSubjectId'] as const) {
+  @IsIn(STAFF_IMPORT_ROLES as readonly string[])
+  role!: StaffImportRole;
+}
+
+export class ImportEmployeesDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportEmployeeRowDto)
+  rows!: ImportEmployeeRowDto[];
 }
 
 /** Every field optional; adds the lifecycle `status` (ACTIVE/INACTIVE/RESIGNED). */

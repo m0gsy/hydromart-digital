@@ -4,7 +4,17 @@ import { useState } from 'react';
 import { ClipboardText, Lock, Package, Plus, Warning } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  LinkButton,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -647,6 +657,11 @@ function InventoryBody() {
           <h1 className="text-2xl font-bold">Inventory</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {canWriteInventory(customer?.role) && (
+            <LinkButton href="/dashboard/inventory/import" variant="secondary">
+              Import Excel
+            </LinkButton>
+          )}
           <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
             {(['stock', 'movements'] as const).map((v) => (
               <button

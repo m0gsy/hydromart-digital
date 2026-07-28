@@ -130,6 +130,16 @@ function LoginForm() {
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
 
+      <p className="text-center text-[13px] text-muted">
+        {t('auth.login.noAccount')}{' '}
+        <Link
+          href={`/register?next=${encodeURIComponent(next)}`}
+          className="font-bold text-brand-700 hover:underline"
+        >
+          {t('auth.login.registerCta')}
+        </Link>
+      </p>
+
       <p className="text-center text-[11.5px] leading-relaxed text-muted">{t('auth.register.terms')}</p>
     </form>
   );

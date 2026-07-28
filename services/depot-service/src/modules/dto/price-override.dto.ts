@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsInt,
   IsNumber,
@@ -10,6 +12,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { PricingAdjustType } from '../../domain/pricing-rule';
@@ -65,4 +68,13 @@ export class ListPriceOverridesQueryDto {
   @IsOptional()
   @IsEnum(PriceOverrideStatus)
   status?: PriceOverrideStatus;
+}
+
+export class ImportPriceOverridesDto {
+  @ApiProperty({ type: [ProposePriceOverrideDto], description: 'Max 500 proposals per file.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ProposePriceOverrideDto)
+  rows!: ProposePriceOverrideDto[];
 }

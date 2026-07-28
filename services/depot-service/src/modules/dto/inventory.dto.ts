@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   ArrayMinSize,
   IsArray,
   IsBoolean,
@@ -216,4 +217,13 @@ export class OpnameStockDto {
   @IsString()
   @MaxLength(300)
   reason?: string;
+}
+
+export class ImportInventoryDto {
+  @ApiProperty({ type: [CreateInventoryItemDto], description: 'Max 500 stock lines per file.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => CreateInventoryItemDto)
+  rows!: CreateInventoryItemDto[];
 }

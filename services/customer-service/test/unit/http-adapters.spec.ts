@@ -2,6 +2,7 @@ import { CustomerConfigService } from '../../src/config/customer-config.service'
 import { LoyaltyRewardHttpAdapter } from '../../src/infrastructure/http/loyalty-reward.http.adapter';
 import { OrderCrmHttpAdapter } from '../../src/infrastructure/http/order-crm.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
+import { IdentityHttpAdapter } from '../../src/infrastructure/http/identity.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, x-internal-key header, config
 // guards, res.ok branch) against a mocked global.fetch. Unlike the fail-open adapters
@@ -152,5 +153,57 @@ describe('ProductCatalogHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ status: 200 }));
     await adapter().exists('a/b?c');
     expect(fetchMock.mock.calls[0][0]).toBe('http://product:3003/api/v1/products/a%2Fb%3Fc');
+  });
+});
+
+describe('IdentityHttpAdapter.preRegisterCustomer', () => {
+  const config = makeConfig({ authServiceUrl: 'http://auth:3001/' });
+
+  it('posts the phone to the internal pre-register route with the shared key', async () => {
+    fetchMock.mockResolvedValue(res({ json: { customerId: 'cust-1', status: 'created' } }));
+
+    await expect(
+      new IdentityHttpAdapter(config).preRegisterCustomer('081200001111', 'Siti'),
+    ).resolves.toEqual({ customerId: 'cust-1', status: 'created' });
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://auth:3001/api/v1/auth/internal/customers/pre-register');
+    expect(options.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(options.body)).toEqual({ phone: '081200001111', fullName: 'Siti' });
+  });
+
+  it('throws without calling fetch when the url or key is unset', async () => {
+    await expect(
+      new IdentityHttpAdapter(makeConfig({ authServiceUrl: '' })).preRegisterCustomer('0812'),
+    ).rejects.toThrow(/belum diset/);
+    await expect(
+      new IdentityHttpAdapter(
+        makeConfig({ authServiceUrl: 'http://auth:3001', internalServiceKey: '' }),
+      ).preRegisterCustomer('0812'),
+    ).rejects.toThrow(/belum diset/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws on a non-2xx response, carrying the status', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 422 }));
+    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(/422/);
+  });
+
+  it('throws when the call itself fails, Error or not', async () => {
+    fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
+      /ETIMEDOUT/,
+    );
+    fetchMock.mockRejectedValue('boom');
+    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
+      /unknown/,
+    );
+  });
+
+  it('throws when the body carries no identity', async () => {
+    fetchMock.mockResolvedValue(res({ json: { status: 'created' } }));
+    await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
+      /tidak mengembalikan identitas/,
+    );
   });
 });

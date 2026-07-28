@@ -57,7 +57,7 @@ function RegisterForm() {
       {/* ponytail: "Lewati" (skip) has no dictionary key yet — id-literal chrome. */}
       <div className="flex items-center justify-between">
         <Link
-          href="/login"
+          href={`/login?next=${encodeURIComponent(next)}`}
           aria-label={t('auth.register.loginCta')}
           className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-app text-[color:var(--text)] transition-colors hover:bg-brand-50"
         >
@@ -200,6 +200,16 @@ function RegisterForm() {
           {t('auth.register.submit')}
           {!loading && <ArrowRight size={17} weight="bold" />}
         </Button>
+
+        <p className="text-center text-[13px] text-muted">
+          {t('auth.register.haveAccount')}{' '}
+          <Link
+            href={`/login?next=${encodeURIComponent(next)}`}
+            className="font-bold text-brand-700 hover:underline"
+          >
+            {t('auth.register.loginCta')}
+          </Link>
+        </p>
       </form>
     </div>
   );

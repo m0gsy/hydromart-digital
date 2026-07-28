@@ -46,10 +46,15 @@ describe('CustomerConfigService', () => {
     ]);
   });
 
-  it('loyaltyServiceUrl/orderServiceUrl are trimmed', () => {
-    const c = makeConfig({ LOYALTY_SERVICE_URL: '  http://loyalty  ', ORDER_SERVICE_URL: ' http://order ' });
+  it('loyaltyServiceUrl/orderServiceUrl/authServiceUrl are trimmed', () => {
+    const c = makeConfig({
+      LOYALTY_SERVICE_URL: '  http://loyalty  ',
+      ORDER_SERVICE_URL: ' http://order ',
+      AUTH_SERVICE_URL: ' http://auth ',
+    });
     expect(c.loyaltyServiceUrl).toBe('http://loyalty');
     expect(c.orderServiceUrl).toBe('http://order');
+    expect(c.authServiceUrl).toBe('http://auth');
   });
 
   it('birthdayRewardPoints/internalServiceKey read their keys', () => {

@@ -8,6 +8,7 @@ import { EmployeeService } from '../../src/application/services/employee.service
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 import { AttendanceRepository } from '../../src/application/ports/attendance.repository';
 import { PayrollRepository } from '../../src/application/ports/payroll.repository';
+import { fakeIdentity } from './support/identity';
 
 const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: null, depotId: 'd1' };
 const employee = { id: 'e1', depotId: 'd1', authSubjectId: 'auth-1', status: 'ACTIVE' } as Employee;
@@ -40,7 +41,7 @@ describe('self-scoped reads', () => {
 
   it('getSelf throws 404 when the account is not linked to an employee', async () => {
     const employees = { findByAuthSubjectId: async () => null } as unknown as EmployeeRepository;
-    const svc = new EmployeeService(employees);
+    const svc = new EmployeeService(employees, fakeIdentity());
     await expect(svc.getSelf(user)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -79,6 +79,18 @@ describe('HrConfigService — env-driven getters', () => {
     expect(new HrConfigService(config(), await cacheWith()).orderService).toEqual({ url: '', internalKey: '' });
   });
 
+  it('exposes the auth-service block (configured + empty defaults)', async () => {
+    const wired = new HrConfigService(
+      config({ AUTH_SERVICE_URL: 'http://auth:3001', INTERNAL_SERVICE_KEY: 'k' }),
+      await cacheWith(),
+    );
+    expect(wired.authService).toEqual({ url: 'http://auth:3001', internalKey: 'k' });
+    expect(new HrConfigService(config(), await cacheWith()).authService).toEqual({
+      url: '',
+      internalKey: '',
+    });
+  });
+
   it('exposes the NEO FR block (configured + defaults)', async () => {
     const wired = new HrConfigService(
       config({ NEO_FR_ENDPOINT: 'https://fr.test', NEO_FR_TOKEN: 't', NEO_FR_GALLERY_ID: 'g' }),

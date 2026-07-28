@@ -5,14 +5,22 @@ import Link from 'next/link';
 import { CaretRight, Lock, MagnifyingGlass, UserPlus, Users } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  CenterState,
+  ErrorState,
+  Input,
+  LinkButton,
+  Skeleton,
+} from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime, formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotCrm } from '@/lib/roles';
+import { canViewDepotCrm, canWriteDepotCrm } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotCustomer } from '@/lib/types';
 
@@ -76,6 +84,7 @@ function CustomerRow({ c }: { c: DepotCustomer }) {
 
 function CustomersBody() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { scopedId, selected, depots, ready } = useDepot();
   const [search, setSearch] = useState('');
   const [q, setQ] = useState('');
@@ -117,12 +126,12 @@ function CustomersBody() {
               aria-label={t('dashA.customers.searchAria')}
             />
           </div>
-          {/* ponytail: walk-in registration is a separate flow (out of this milestone); rendered
-              for header parity with design 6a. */}
-          <Button variant="secondary" disabled title={t('dashA.customers.walkInSoon')}>
-            <UserPlus size={16} className="mr-1" />
-            {t('dashA.customers.walkIn')}
-          </Button>
+          {canWriteDepotCrm(customer?.role) && (
+            <LinkButton href="/dashboard/customers/import" variant="secondary">
+              <UserPlus size={16} />
+              Import Excel
+            </LinkButton>
+          )}
         </div>
       </div>
 

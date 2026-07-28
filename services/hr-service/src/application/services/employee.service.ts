@@ -1,11 +1,18 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeFilter,
+  runImport,
+} from '@hydromart/platform';
 
 import { Employee, EmploymentHistory, Prisma, SalaryType } from '../../../prisma/generated/client';
 import {
   EMPLOYEE_REPOSITORY,
   EmployeeRepository,
 } from '../ports/employee.repository';
+import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
 const TRACKED: readonly (keyof Employee)[] = [
@@ -46,9 +53,18 @@ export type UpdateEmployeeInput = Partial<CreateEmployeeInput> & {
   status?: Employee['status'];
 };
 
+/** One CSV row: the employee fields plus the login role to provision for them. */
+export type ImportEmployeeInput = Omit<CreateEmployeeInput, 'authSubjectId'> & {
+  role: StaffRole;
+};
+
+
 @Injectable()
 export class EmployeeService {
-  constructor(@Inject(EMPLOYEE_REPOSITORY) private readonly repo: EmployeeRepository) {}
+  constructor(
+    @Inject(EMPLOYEE_REPOSITORY) private readonly repo: EmployeeRepository,
+    @Inject(IDENTITY_PORT) private readonly identity: IdentityPort,
+  ) {}
 
   async list(
     user: AuthenticatedUser,
@@ -144,6 +160,32 @@ export class EmployeeService {
     }
     /* istanbul ignore next — loop always returns or throws above */
     throw new BadRequestException('Gagal membuat kode karyawan, coba lagi');
+  }
+
+  /**
+   * Bulk import (CSV wizard). Each row is independent: it provisions the login account
+   * first, then writes the employee, and a failure stops only that row. There is no
+   * cross-row transaction on purpose — the write spans two services, and an admin
+   * operation that can simply be re-run doesn't warrant a saga. Re-running is safe:
+   * `authSubjectId` is unique, so a row already imported comes back as `skipped`.
+   */
+  async importMany(user: AuthenticatedUser, rows: ImportEmployeeInput[]): Promise<ImportSummary> {
+    return runImport(
+      rows,
+      async ({ role, ...input }) => {
+        const { customerId } = await this.identity.provisionStaff({
+          phone: input.phone,
+          role,
+          fullName: input.fullName,
+          depotId: input.depotId,
+        });
+        const employee = await this.create(user, { ...input, authSubjectId: customerId });
+        return { status: 'created', id: employee.id };
+      },
+      // "Already linked to another employee" is a duplicate row, not a failure — it is
+      // exactly what re-uploading a corrected file produces.
+      (err) => err instanceof BadRequestException && String(err.message).includes('tertaut'),
+    );
   }
 
   async update(user: AuthenticatedUser, id: string, input: UpdateEmployeeInput): Promise<Employee> {

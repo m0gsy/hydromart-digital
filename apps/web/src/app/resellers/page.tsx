@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from 'react';
 
-import { Badge, Button, Card, ErrorState, Field, Input, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  LinkButton,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { canViewResellers, isHq } from '@/lib/roles';
+import { canManageResellers, canViewResellers, isHq } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import {
   evaluateReseller,
@@ -300,7 +310,17 @@ export default function ResellersPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <SectionHeader title="Reseller (Agen)" subtitle={`Pencapaian ${month}`} />
+      <SectionHeader
+        title="Reseller (Agen)"
+        subtitle={`Pencapaian ${month}`}
+        action={
+          canManageResellers(customer?.role) ? (
+            <LinkButton href="/dashboard/resellers/import" variant="secondary">
+              Import Excel
+            </LinkButton>
+          ) : undefined
+        }
+      />
 
       {hq && (
         <Card className="p-4">

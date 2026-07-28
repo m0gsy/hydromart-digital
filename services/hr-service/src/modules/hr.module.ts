@@ -8,6 +8,7 @@ import { HrConfigService } from '../config/hr-config.service';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { SettingsService } from '../application/services/settings.service';
 import { EMPLOYEE_REPOSITORY } from '../application/ports/employee.repository';
+import { IDENTITY_PORT } from '../application/ports/identity.port';
 import { EmployeeService } from '../application/services/employee.service';
 import { FACE_EMBEDDING_REPOSITORY } from '../application/ports/face-embedding.repository';
 import { ATTENDANCE_REPOSITORY } from '../application/ports/attendance.repository';
@@ -36,6 +37,7 @@ import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.p
 import { LoanPrismaRepository } from '../infrastructure/prisma/loan.prisma.repository';
 import { SALES_PORT } from '../application/ports/sales.port';
 import { OrderSalesHttpAdapter } from '../infrastructure/http/order-sales.http.adapter';
+import { IdentityHttpAdapter } from '../infrastructure/http/identity.http.adapter';
 import { PERFORMANCE_REPOSITORY } from '../application/ports/performance.repository';
 import { PerformanceService } from '../application/services/performance.service';
 import { PerformancePrismaRepository } from '../infrastructure/prisma/performance.prisma.repository';
@@ -117,6 +119,7 @@ const providers: Provider[] = [
   BonusRuleService,
   LoanService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
+  { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,
   { provide: AUDIT_REPOSITORY, useClass: AuditPrismaRepository },

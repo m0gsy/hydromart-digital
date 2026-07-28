@@ -9,6 +9,7 @@ import {
   GearSix,
   Sparkle,
   Star,
+  Storefront,
   Users,
   type Icon,
 } from '@phosphor-icons/react';
@@ -28,6 +29,8 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { href: '/hr', label: 'Dashboard', icon: Gauge },
   { href: '/hr/employees', label: 'Karyawan', icon: Users },
+  { href: '/hr/customers', label: 'Pelanggan', icon: Users },
+  { href: '/hr/resellers', label: 'Reseller / Agen', icon: Storefront },
   { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },
   { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },

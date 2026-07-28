@@ -52,6 +52,9 @@ export const canManageEarningRules = (role: string | null | undefined) =>
   role === 'FINANCE' || role === 'SUPER_ADMIN';
 // Depot console additions (operator/manager surfaces).
 export const canViewDepotCrm = (role: string | null | undefined) => can('depotCrm', role);
+// Bulk-import into the depot's customer directory. Narrower than the read: HR sees the
+// directory in its own console but never writes it.
+export const canWriteDepotCrm = (role: string | null | undefined) => can('depotCrmWrite', role);
 export const canViewIncidents = (role: string | null | undefined) => can('incidents', role);
 export const canViewAudit = (role: string | null | undefined) => can('auditRead', role);
 export const canManageProcurement = (role: string | null | undefined) => can('procurement', role);
@@ -69,9 +72,11 @@ export const isDepotManager = (role: string | null | undefined) => role === 'DEP
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';
 
-/** Reseller registry gate: HQ + depot managers (mirrors the order-service report roles). */
-export const canViewResellers = (role: string | null | undefined) =>
-  isHq(role) || isDepotManager(role);
+// Reseller registry. Now a capability pair in @hydromart/access rather than a
+// hand-rolled `isHq() || isDepotManager()` — the read side widened to HR (read-only
+// roster in the HR console) and only the server's own map decides that.
+export const canViewResellers = (role: string | null | undefined) => can('resellerView', role);
+export const canManageResellers = (role: string | null | undefined) => can('resellerAdmin', role);
 
 /**
  * Which landing `/dashboard` renders for a role. One shared route serves four

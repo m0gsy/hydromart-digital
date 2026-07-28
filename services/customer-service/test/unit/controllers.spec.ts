@@ -127,8 +127,19 @@ describe('DepotCrmController', () => {
     getCrmDashboard: jest.fn(),
     getDepotDetail: jest.fn(),
   };
-  const c = new DepotCrmController(svc as never);
+  const imports = { importCustomers: jest.fn() };
+  const c = new DepotCrmController(svc as never, imports as never);
   beforeEach(() => jest.clearAllMocks());
+
+  it('import hands the rows and depot to the import service', async () => {
+    imports.importCustomers.mockResolvedValue({ created: 1, skipped: 0, failed: 0, results: [] });
+    const rows = [{ fullName: 'Siti', phone: '0812' }];
+    const user = { sub: 'op-1' } as never;
+
+    await c.import({ depotId: 'd1', rows } as never, user);
+
+    expect(imports.importCustomers).toHaveBeenCalledWith(user, 'd1', rows);
+  });
 
   it('listDepotCustomers passes depotId + q through', async () => {
     svc.listDepotCustomers.mockResolvedValue(['row']);

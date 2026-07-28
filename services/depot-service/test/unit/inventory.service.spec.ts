@@ -63,6 +63,29 @@ describe('InventoryService', () => {
     minimumStock: 20,
   });
 
+  it('imports many stock lines, skipping the ones already on the shelf', async () => {
+    await inventory.createLine(depotId, raw(), ACTOR);
+
+    const summary = await inventory.importLines(
+      depotId,
+      [
+        raw(), // duplicate of the line above
+        { ...raw(), itemType: InventoryItemType.TUTUP, label: 'Tutup galon', quantity: 500 },
+        { ...raw(), itemType: InventoryItemType.PRODUK, label: 'Salah', quantity: 1 }, // needs productId
+      ],
+      ACTOR,
+    );
+
+    expect(summary).toMatchObject({ created: 1, skipped: 1, failed: 1 });
+    expect(summary.results.map((r) => [r.row, r.status])).toEqual([
+      [1, 'skipped'],
+      [2, 'created'],
+      [3, 'failed'],
+    ]);
+    const lines = await inventory.listForDepot(depotId, {});
+    expect(lines).toHaveLength(2);
+  });
+
   it('creates a raw stock line with an opening RECEIPT movement', async () => {
     const item = await inventory.createLine(depotId, raw(), ACTOR);
     expect(item.quantity).toBe(100);

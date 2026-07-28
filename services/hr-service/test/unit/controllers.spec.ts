@@ -178,7 +178,7 @@ describe('HolidayController / ShiftController', () => {
 });
 
 describe('EmployeesController', () => {
-  const emp = svcMock(['list', 'getById', 'getHistory', 'create', 'update']);
+  const emp = svcMock(['list', 'getById', 'getHistory', 'create', 'update', 'importMany']);
   const c = new EmployeesController(emp as never);
 
   it('delegates every route', () => {
@@ -195,6 +195,10 @@ describe('EmployeesController', () => {
     const ud = { fullName: 'Budi 2' } as never;
     c.update('e1', ud, user);
     expect(emp.update).toHaveBeenCalledWith(user, 'e1', ud);
+    // The import route hands the service the rows only — the DTO wrapper stops here.
+    const rows = [{ fullName: 'Budi', role: 'DRIVER' }] as never;
+    c.import({ rows } as never, user);
+    expect(emp.importMany).toHaveBeenCalledWith(user, rows);
   });
 });
 

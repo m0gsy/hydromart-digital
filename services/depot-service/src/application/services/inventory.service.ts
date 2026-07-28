@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { ImportSummary, runImport } from '@hydromart/platform';
+
 import {
   InventoryItemType,
   StockMovementType,
@@ -126,6 +128,23 @@ export class InventoryService {
         minimum: line.minimumStock,
       },
       authorization,
+    );
+  }
+
+  /**
+   * Bulk-create stock lines from the CSV wizard. Per-row, not transactional (see
+   * runImport): a line that already exists comes back `skipped`, so re-uploading a
+   * corrected file only adds what is missing.
+   */
+  async importLines(
+    depotId: string,
+    rows: readonly CreateLineInput[],
+    actorId: string,
+  ): Promise<ImportSummary> {
+    return runImport(
+      rows,
+      async (row) => ({ status: 'created', id: (await this.createLine(depotId, row, actorId)).id }),
+      (err) => err instanceof DuplicateInventoryLineError,
     );
   }
 

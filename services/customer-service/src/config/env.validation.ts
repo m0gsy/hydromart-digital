@@ -15,6 +15,9 @@ export const envValidationSchema = Joi.object({
   LOYALTY_SERVICE_URL: Joi.string().allow('').default(''),
   // Favourite catalog check. Blank = check skipped (unknown product ids are accepted).
   PRODUCT_SERVICE_URL: Joi.string().allow('').default(''),
+  // auth-service base URL for pre-registering imported customers. Blank -> every import
+  // row fails (503) rather than writing CRM data for an identity that doesn't exist.
+  AUTH_SERVICE_URL: Joi.string().allow('').default(''),
   BIRTHDAY_REWARD_POINTS: Joi.number().integer().positive().default(250),
   // Shared service-to-service secret authenticating the birthday reward call to
   // loyalty. Blank = fail-closed (birthday sweep can't award, retries next run).

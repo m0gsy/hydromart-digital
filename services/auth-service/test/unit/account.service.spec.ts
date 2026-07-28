@@ -135,6 +135,41 @@ describe('AccountService', () => {
     expect(operator.plateNumber).toBeNull();
   });
 
+  it('pre-registers an unknown phone as a PENDING customer the buyer can claim', async () => {
+    const result = await service.preRegisterCustomer('081299887766', 'Siti');
+    expect(result.status).toBe('created');
+
+    const created = await customers.findByPhone('+6281299887766');
+    expect(created).toMatchObject({
+      role: Role.CUSTOMER,
+      status: CustomerStatus.PENDING_VERIFICATION,
+      fullName: 'Siti',
+    });
+  });
+
+  it('is idempotent for a phone already waiting on its first OTP', async () => {
+    const pending = makeCustomer({
+      phone: '+628129900001',
+      status: CustomerStatus.PENDING_VERIFICATION,
+      fullName: 'Asli',
+    });
+    customers.seed(pending);
+
+    const result = await service.preRegisterCustomer('+628129900001', 'Diimpor Ulang');
+    expect(result).toEqual({ customerId: pending.id, status: 'pending' });
+    // The import must not rewrite what the customer will verify.
+    expect((await customers.findByPhone('+628129900001'))?.fullName).toBe('Asli');
+  });
+
+  it('leaves an already-active account untouched when a depot imports its phone', async () => {
+    const active = makeCustomer({ phone: '+628129900002', fullName: 'Punya Orang' });
+    customers.seed(active);
+
+    const result = await service.preRegisterCustomer('+628129900002', 'Klaim Palsu');
+    expect(result).toEqual({ customerId: active.id, status: 'active' });
+    expect((await customers.findByPhone('+628129900002'))?.fullName).toBe('Punya Orang');
+  });
+
   it('rejects assigning the CUSTOMER role via invite', async () => {
     await expect(service.inviteStaff('+628990003333', Role.CUSTOMER)).rejects.toBeInstanceOf(
       InvalidStaffRoleError,
