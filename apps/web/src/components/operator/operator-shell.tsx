@@ -38,6 +38,7 @@ const manageTabs: Tab[] = [
   { label: 'Pelanggan', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
   { label: 'Insiden', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
   { label: 'Promo', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
+  { label: 'Hadiah', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
   { label: 'Broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
   { label: 'Shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
   { label: 'Huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },

@@ -44,6 +44,20 @@ export const profile: typeof base = {
       redeemed: '{name} redeemed!',
       redeemError: 'Could not redeem points. Try again.',
     },
+    redemptions: {
+      title: 'My redemptions',
+      empty: 'No reward redemptions yet.',
+      code: 'Code',
+      codeHint: 'Show this code to depot staff when you collect the reward.',
+      cancel: 'Cancel',
+      cancelled: 'Redemption cancelled — your points are back.',
+      cancelError: 'Could not cancel the redemption.',
+      status: {
+        ACTIVE: 'Waiting for collection',
+        USED: 'Collected',
+        CANCELLED: 'Cancelled',
+      },
+    },
     how: {
       title: 'How points work',
       earn: { title: 'Shop, earn points', body: '1 point per Rp 1,000 spent.' },

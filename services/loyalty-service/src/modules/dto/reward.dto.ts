@@ -6,6 +6,7 @@ import {
   RedemptionStatus,
   RewardItemRecord,
   RewardRedemptionRecord,
+  RewardRedemptionView,
 } from '../../application/ports/reward.repository';
 import { RedeemResult } from '../../application/services/reward.service';
 
@@ -152,6 +153,26 @@ export class RedemptionDto {
       status: record.status,
       usedAt: record.usedAt ? record.usedAt.toISOString() : null,
       cancelledAt: record.cancelledAt ? record.cancelledAt.toISOString() : null,
+    };
+  }
+}
+
+/**
+ * A redemption as it appears in a list: the reward's label joined in, plus who redeemed
+ * it. Staff match the row against the code the customer shows on their own screen —
+ * loyalty-service holds no customer names to display.
+ */
+export class RedemptionListItemDto extends RedemptionDto {
+  @ApiProperty({ example: 'Isi Ulang Galon 19L' }) rewardName!: string;
+  @ApiProperty({ format: 'uuid' }) customerId!: string;
+  @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
+
+  static fromView(view: RewardRedemptionView): RedemptionListItemDto {
+    return {
+      ...RedemptionDto.from(view),
+      rewardName: view.rewardName,
+      customerId: view.customerId,
+      createdAt: view.createdAt.toISOString(),
     };
   }
 }

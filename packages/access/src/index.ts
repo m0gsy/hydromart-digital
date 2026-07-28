@@ -119,6 +119,10 @@ export const CAPABILITIES = {
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
   hrView: ['HR', 'HEAD_OFFICE', 'FINANCE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  // loyalty-service (M14-03) — hand a redeemed reward over and close its cancellation
+  // window. The operator at the counter does the handing over, so they hold it; MARKETING
+  // owns the reward catalogue and can correct a mis-stamped row.
+  rewardHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'MARKETING', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

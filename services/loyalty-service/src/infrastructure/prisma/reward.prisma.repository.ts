@@ -4,8 +4,10 @@ import {
   CancelRedemptionMutation,
   CreateRewardItemData,
   RedeemMutation,
+  RedemptionStatus,
   RewardItemRecord,
   RewardRedemptionRecord,
+  RewardRedemptionView,
   RewardRepository,
   UpdateRewardItemData,
 } from '../../application/ports/reward.repository';
@@ -92,6 +94,25 @@ export class RewardPrismaRepository implements RewardRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async listRedemptionsByCustomer(customerId: string): Promise<RewardRedemptionView[]> {
+    const rows = await this.prisma.rewardRedemption.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      include: { reward: { select: { name: true } } },
+    });
+    return rows.map((row) => this.toView(row));
+  }
+
+  async listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]> {
+    const rows = await this.prisma.rewardRedemption.findMany({
+      where: { status },
+      // Oldest first: the customer who has been waiting longest is served first.
+      orderBy: { createdAt: 'asc' },
+      include: { reward: { select: { name: true } } },
+    });
+    return rows.map((row) => this.toView(row));
+  }
+
   async markUsed(id: string): Promise<RewardRedemptionRecord> {
     const row = await this.prisma.rewardRedemption.update({
       where: { id },
@@ -136,6 +157,14 @@ export class RewardPrismaRepository implements RewardRepository {
         : []),
     ]);
     return this.toRecord(redemption);
+  }
+
+  /** `reward` is the join handle, not part of the record — take the name and drop it. */
+  private toView(
+    row: Parameters<typeof this.toRecord>[0] & { reward: { name: string } },
+  ): RewardRedemptionView {
+    const { reward, ...rest } = row;
+    return { ...this.toRecord(rest), rewardName: reward.name };
   }
 
   private toRecord(row: {

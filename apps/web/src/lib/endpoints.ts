@@ -448,6 +448,11 @@ export const endpoints = {
   rewards: {
     catalog: '/loyalty/api/v1/rewards/catalog',
     redeem: '/loyalty/api/v1/rewards/redeem',
+    // M14-03 lifecycle: the customer's own list + cancel, and the staff hand-over queue.
+    myRedemptions: '/loyalty/api/v1/rewards/redemptions/me',
+    activeRedemptions: '/loyalty/api/v1/rewards/redemptions/active',
+    cancelRedemption: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/cancel`,
+    markRedemptionUsed: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/used`,
   },
   promotions: {
     // Public active-banner feed (active + within date window, sorted) → Promotion[].

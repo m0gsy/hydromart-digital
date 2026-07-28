@@ -160,6 +160,32 @@ describe('RewardController (delegation)', () => {
       usedAt: new Date('2026-01-03T00:00:00.000Z'),
       cancelledAt: null,
     })),
+    listMine: jest.fn(async () => [
+      {
+        id: 'rd-1',
+        rewardItemId: 'ri-1',
+        customerId: 'cust-1',
+        rewardName: 'Galon',
+        pointsSpent: 800,
+        status: 'ACTIVE',
+        usedAt: null,
+        cancelledAt: null,
+        createdAt: new Date('2026-01-02T00:00:00.000Z'),
+      },
+    ]),
+    listAwaitingHandover: jest.fn(async () => [
+      {
+        id: 'rd-2',
+        rewardItemId: 'ri-1',
+        customerId: 'cust-9',
+        rewardName: 'Galon',
+        pointsSpent: 800,
+        status: 'ACTIVE',
+        usedAt: null,
+        cancelledAt: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ]),
   };
   const ctrl = new RewardController(rewards as never);
   beforeEach(() => jest.clearAllMocks());
@@ -238,6 +264,31 @@ describe('RewardController (delegation)', () => {
     const out = await ctrl.cancelRedemption(user(), 'rd-1');
     expect(rewards.cancel).toHaveBeenCalledWith('cust-1', 'rd-1');
     expect(out).toMatchObject({ status: 'CANCELLED', pointsBalance: 1200 });
+  });
+
+  it('myRedemptions() scopes the list to the caller and joins the reward label', async () => {
+    const out = await ctrl.myRedemptions(user());
+    expect(rewards.listMine).toHaveBeenCalledWith('cust-1');
+    expect(out).toEqual([
+      {
+        id: 'rd-1',
+        rewardItemId: 'ri-1',
+        customerId: 'cust-1',
+        rewardName: 'Galon',
+        pointsSpent: 800,
+        status: 'ACTIVE',
+        usedAt: null,
+        cancelledAt: null,
+        createdAt: '2026-01-02T00:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('activeRedemptions() lists the hand-over queue', async () => {
+    const out = await ctrl.activeRedemptions();
+    expect(rewards.listAwaitingHandover).toHaveBeenCalled();
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: 'rd-2', customerId: 'cust-9', status: 'ACTIVE' });
   });
 
   it('markRedemptionUsed() maps the hand-over stamp (M14-03)', async () => {
