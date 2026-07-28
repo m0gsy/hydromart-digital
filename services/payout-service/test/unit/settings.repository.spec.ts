@@ -34,7 +34,13 @@ describe('SettingsPrismaRepository', () => {
       },
     } as never;
     const repo = new SettingsPrismaRepository(prisma);
-    await repo.upsert({ scope: 'GLOBAL', depotId: null, key: 'commissionRate', value: '0.1', updatedBy: 'u1' });
+    await repo.upsert({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'commissionRate',
+      value: '0.1',
+      updatedBy: 'u1',
+    });
 
     expect(calls.map((c) => c.op)).toEqual(['findFirst', 'create']);
     expect(calls[0].arg).toEqual({
@@ -42,7 +48,13 @@ describe('SettingsPrismaRepository', () => {
       select: { id: true },
     });
     expect(calls[1].arg).toEqual({
-      data: { scope: 'GLOBAL', depotId: null, key: 'commissionRate', value: '0.1', updatedBy: 'u1' },
+      data: {
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'commissionRate',
+        value: '0.1',
+        updatedBy: 'u1',
+      },
     });
   });
 
@@ -92,6 +104,8 @@ describe('SettingsPrismaRepository', () => {
     const repo = new SettingsPrismaRepository(prisma);
     await repo.remove('DEPOT', 'd1', 'expenseAutoApproveMaxIdr');
 
-    expect(calls).toEqual([{ where: { scope: 'DEPOT', depotId: 'd1', key: 'expenseAutoApproveMaxIdr' } }]);
+    expect(calls).toEqual([
+      { where: { scope: 'DEPOT', depotId: 'd1', key: 'expenseAutoApproveMaxIdr' } },
+    ]);
   });
 });

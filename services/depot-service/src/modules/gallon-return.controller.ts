@@ -6,7 +6,10 @@ import { CAPABILITIES } from '@hydromart/access';
 
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { DepotService } from '../application/services/depot.service';
-import { GallonReturnRecord, GallonReturnSummary } from '../application/ports/gallon-return.repository';
+import {
+  GallonReturnRecord,
+  GallonReturnSummary,
+} from '../application/ports/gallon-return.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonReturnDto, ListReturnsQueryDto } from './dto/gallon-return.dto';
 

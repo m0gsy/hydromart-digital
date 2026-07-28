@@ -9,6 +9,7 @@ import {
 } from '../../src/modules/dto/payment.dto';
 import { TaxSettingsDto, UpdateTaxSettingsDto } from '../../src/modules/dto/tax-settings.dto';
 import type { TaxSettingsRecord } from '../../src/application/ports/tax-settings.repository';
+import { TaxRounding } from '../../src/domain/tax';
 
 // Exercises the DTO transform callbacks (@Transform / @Type factories) and the
 // TaxSettingsDto.from mapper — the code jest never runs unless a transform fires.
@@ -45,10 +46,9 @@ describe('numeric @Type coercion', () => {
     const confirm = plainToInstance(ConfirmPaymentDto, { cashReceived: '50000' });
     expect(confirm.cashReceived).toBe(50000);
 
-    const tax = plainToInstance(
-      UpdateTaxSettingsDto,
-      { ppnPercent: '11' } as unknown as UpdateTaxSettingsDto,
-    );
+    const tax = plainToInstance(UpdateTaxSettingsDto, {
+      ppnPercent: '11',
+    } as unknown as UpdateTaxSettingsDto);
     expect(tax.ppnPercent).toBe(11);
   });
 });
@@ -57,6 +57,7 @@ describe('TaxSettingsDto.from', () => {
   const base: TaxSettingsRecord = {
     ppnPercent: 11,
     priceIncludesTax: true,
+    taxRounding: TaxRounding.HALF_UP,
     invoiceFormat: 'INV',
     companyName: 'HM',
     npwp: '00',

@@ -18,7 +18,10 @@ export class DisputeController {
 
   @Post()
   @ApiOperation({ summary: 'Raise an order dispute' })
-  raise(@Body() dto: CreateDisputeDto, @CurrentUser() user: AuthenticatedUser): Promise<OrderDispute> {
+  raise(
+    @Body() dto: CreateDisputeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<OrderDispute> {
     return this.disputes.raise(
       {
         depotId: dto.depotId,

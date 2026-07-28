@@ -29,7 +29,9 @@ export class PurchaseOrderController {
   }
 
   @Get()
-  @ApiOperation({ summary: "List a depot's purchase orders (newest first), optional status filter" })
+  @ApiOperation({
+    summary: "List a depot's purchase orders (newest first), optional status filter",
+  })
   list(@Query() query: PurchaseOrderQueryDto): Promise<PurchaseOrder[]> {
     return this.orders.list(query.depotId, { status: query.status });
   }
@@ -56,7 +58,9 @@ export class PurchaseOrderController {
   }
 
   @Post(':id/receive')
-  @ApiOperation({ summary: 'Receive goods (SENT → RECEIVED); posts a RECEIPT per line to inventory' })
+  @ApiOperation({
+    summary: 'Receive goods (SENT → RECEIVED); posts a RECEIPT per line to inventory',
+  })
   async receive(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,

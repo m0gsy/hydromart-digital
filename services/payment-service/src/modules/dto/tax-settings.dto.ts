@@ -1,8 +1,18 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsNumber, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import { TaxSettingsRecord } from '../../application/ports/tax-settings.repository';
+import { DEFAULT_TAX_ROUNDING, TaxRounding } from '../../domain/tax';
 
 export class UpdateTaxSettingsDto {
   @ApiProperty({ example: 11, description: 'PPN / VAT percentage (0–100).' })
@@ -12,9 +22,20 @@ export class UpdateTaxSettingsDto {
   @Max(100)
   ppnPercent!: number;
 
-  @ApiProperty({ description: 'When true, PPN is derived from the price rather than added on top.' })
+  @ApiProperty({
+    description: 'When true, PPN is derived from the price rather than added on top.',
+  })
   @IsBoolean()
   priceIncludesTax!: boolean;
+
+  @ApiPropertyOptional({
+    enum: TaxRounding,
+    default: DEFAULT_TAX_ROUNDING,
+    description: 'Fractional-rupiah rounding. HALF_UP follows PER-11/2025 and is the default.',
+  })
+  @IsOptional()
+  @IsEnum(TaxRounding)
+  taxRounding?: TaxRounding;
 
   @ApiProperty({ example: 'HM/{YYYY}/{MM}/{SEQ}', description: 'Invoice-number format template.' })
   @IsString()
@@ -31,7 +52,10 @@ export class UpdateTaxSettingsDto {
   @MaxLength(64)
   npwp!: string;
 
-  @ApiProperty({ example: 'Jl. Sudirman Kav. 21, Jakarta', description: 'Company address (may be blank).' })
+  @ApiProperty({
+    example: 'Jl. Sudirman Kav. 21, Jakarta',
+    description: 'Company address (may be blank).',
+  })
   @IsString()
   @MaxLength(255)
   address!: string;
@@ -40,6 +64,7 @@ export class UpdateTaxSettingsDto {
 export class TaxSettingsDto {
   @ApiProperty() ppnPercent!: number;
   @ApiProperty() priceIncludesTax!: boolean;
+  @ApiProperty({ enum: TaxRounding }) taxRounding!: TaxRounding;
   @ApiProperty() invoiceFormat!: string;
   @ApiProperty() companyName!: string;
   @ApiProperty() npwp!: string;
@@ -50,6 +75,7 @@ export class TaxSettingsDto {
     return {
       ppnPercent: record.ppnPercent,
       priceIncludesTax: record.priceIncludesTax,
+      taxRounding: record.taxRounding,
       invoiceFormat: record.invoiceFormat,
       companyName: record.companyName,
       npwp: record.npwp,

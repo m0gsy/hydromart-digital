@@ -48,7 +48,9 @@ export interface ListApplicationsFilter {
 export interface FranchiseApplicationRepository {
   create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
   /** Queue read: oldest-first by submittedAt (highest SLA age first). */
-  list(filter: ListApplicationsFilter): Promise<{ items: FranchiseApplicationRecord[]; total: number }>;
+  list(
+    filter: ListApplicationsFilter,
+  ): Promise<{ items: FranchiseApplicationRecord[]; total: number }>;
   findById(id: string): Promise<FranchiseApplicationRecord | null>;
   update(id: string, patch: UpdateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
 }

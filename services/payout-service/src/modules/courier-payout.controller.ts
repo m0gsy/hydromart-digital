@@ -57,7 +57,9 @@ export class CourierPayoutController {
   }
 
   @Get('earning-rule')
-  @ApiOperation({ summary: "Effective earning rule for the courier's depot — monthly target + incentive tiers" })
+  @ApiOperation({
+    summary: "Effective earning rule for the courier's depot — monthly target + incentive tiers",
+  })
   earningRule(@CurrentUser() user: AuthenticatedUser): Promise<CourierEarningRuleRecord | null> {
     return this.payout.effectiveRule(user.depotId ?? null);
   }
@@ -118,10 +120,10 @@ export class CourierPayoutController {
   @ApiSecurity('internal-key')
   @Post('ledger/internal')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Record courier earning for a completed delivery (internal service auth)' })
-  async recordEarning(
-    @Body() dto: DeliveryCompletedEventDto,
-  ): Promise<{ recorded: boolean }> {
+  @ApiOperation({
+    summary: 'Record courier earning for a completed delivery (internal service auth)',
+  })
+  async recordEarning(@Body() dto: DeliveryCompletedEventDto): Promise<{ recorded: boolean }> {
     const entry = await this.payout.recordDeliveryEarning({
       courierId: dto.courierId,
       depotId: dto.depotId ?? null,

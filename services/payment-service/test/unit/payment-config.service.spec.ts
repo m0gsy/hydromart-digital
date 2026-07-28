@@ -39,7 +39,9 @@ describe('PaymentConfigService', () => {
       expect(buildTestConfig().refundApprovalThreshold).toBe(100_000);
     });
     it('uses a valid positive override', () => {
-      expect(buildTestConfig({ REFUND_HQ_THRESHOLD: '250000' }).refundApprovalThreshold).toBe(250_000);
+      expect(buildTestConfig({ REFUND_HQ_THRESHOLD: '250000' }).refundApprovalThreshold).toBe(
+        250_000,
+      );
     });
     it('falls back to the default for a non-positive or non-numeric value', () => {
       expect(buildTestConfig({ REFUND_HQ_THRESHOLD: '0' }).refundApprovalThreshold).toBe(100_000);

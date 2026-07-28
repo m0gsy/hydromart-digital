@@ -46,7 +46,9 @@ describe('PaymentPrismaRepository aggregate range branches', () => {
   });
 
   it('aggregateRevenueByMethod: empty range omits createdAt and coerces null sums', async () => {
-    model.groupBy.mockResolvedValue([{ method: 'QRIS', _sum: { amount: null }, _count: { _all: 0 } }]);
+    model.groupBy.mockResolvedValue([
+      { method: 'QRIS', _sum: { amount: null }, _count: { _all: 0 } },
+    ]);
     const out = await repo.aggregateRevenueByMethod({});
     expect(model.groupBy).toHaveBeenCalledWith(
       expect.objectContaining({ where: { status: PaymentStatus.PAID } }),
@@ -58,12 +60,8 @@ describe('PaymentPrismaRepository aggregate range branches', () => {
 describe('PrismaService lifecycle', () => {
   it('connects on module init and disconnects on destroy', async () => {
     const service = new PrismaService();
-    const connect = jest
-      .spyOn(service, '$connect')
-      .mockResolvedValue(undefined as never);
-    const disconnect = jest
-      .spyOn(service, '$disconnect')
-      .mockResolvedValue(undefined as never);
+    const connect = jest.spyOn(service, '$connect').mockResolvedValue(undefined as never);
+    const disconnect = jest.spyOn(service, '$disconnect').mockResolvedValue(undefined as never);
 
     await service.onModuleInit();
     await service.onModuleDestroy();

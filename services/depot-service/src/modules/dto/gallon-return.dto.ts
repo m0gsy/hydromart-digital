@@ -15,7 +15,10 @@ import {
 import { GallonCondition } from '../../domain/gallon-return';
 
 export class CreateGallonReturnDto {
-  @ApiPropertyOptional({ format: 'uuid', description: 'Customer who returned the empties (omit for walk-ins).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Customer who returned the empties (omit for walk-ins).',
+  })
   @IsOptional()
   @IsUUID()
   customerId?: string;

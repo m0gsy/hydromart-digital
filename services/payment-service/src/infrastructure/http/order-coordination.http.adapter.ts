@@ -23,10 +23,10 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(
-        `${orderServiceUrl}/api/v1/orders/${orderId}/internal-total`,
-        { headers: { 'x-internal-key': internalServiceKey }, signal: controller.signal },
-      );
+      const res = await fetch(`${orderServiceUrl}/api/v1/orders/${orderId}/internal-total`, {
+        headers: { 'x-internal-key': internalServiceKey },
+        signal: controller.signal,
+      });
       if (!res.ok) {
         throw new Error(`order-service responded ${res.status}`);
       }
@@ -43,11 +43,19 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
   }
 
   async confirmPaid(orderId: string): Promise<void> {
-    await this.post(`/api/v1/orders/${orderId}/internal-confirm`, undefined, `Order confirm skipped for ${orderId}`);
+    await this.post(
+      `/api/v1/orders/${orderId}/internal-confirm`,
+      undefined,
+      `Order confirm skipped for ${orderId}`,
+    );
   }
 
   async notifyRefunded(orderId: string, amount: number): Promise<void> {
-    await this.post(`/api/v1/orders/${orderId}/internal-refund`, { amount }, `Refund notify skipped for ${orderId}`);
+    await this.post(
+      `/api/v1/orders/${orderId}/internal-refund`,
+      { amount },
+      `Refund notify skipped for ${orderId}`,
+    );
   }
 
   /** POST to order-service over the internal-key path, failing open (logged, never thrown). */

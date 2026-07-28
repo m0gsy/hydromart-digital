@@ -1,9 +1,5 @@
 export type LedgerEntryType =
-  | 'SALE_SETTLEMENT'
-  | 'COMMISSION'
-  | 'STOCK_PURCHASE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'SALE_SETTLEMENT' | 'COMMISSION' | 'STOCK_PURCHASE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 
 export type WithdrawalStatus = 'PROCESSING' | 'PAID' | 'FAILED';
 

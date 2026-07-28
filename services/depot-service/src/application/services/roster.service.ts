@@ -46,7 +46,11 @@ export class RosterService {
   }
 
   /** Set many cells of one week at once. */
-  async bulkSet(depotId: string, weekStart: string, cells: ShiftCell[]): Promise<ShiftAssignment[]> {
+  async bulkSet(
+    depotId: string,
+    weekStart: string,
+    cells: ShiftCell[],
+  ): Promise<ShiftAssignment[]> {
     await this.requireDepot(depotId);
     return this.roster.bulkUpsert(cells.map((c) => ({ depotId, weekStart, ...c })));
   }

@@ -34,7 +34,11 @@ export interface GallonIssueDepotRow {
 
 export interface GallonIssueRepository {
   create(data: CreateGallonIssueData): Promise<GallonIssueRecord>;
-  listForDepot(depotId: string, page: number, limit: number): Promise<{ items: GallonIssueRecord[]; total: number }>;
+  listForDepot(
+    depotId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: GallonIssueRecord[]; total: number }>;
   summaryForDepot(depotId: string): Promise<GallonIssueSummary>;
   /** Per-depot issue totals across the network (SUM quantity, depositHeld). */
   networkSummary(): Promise<GallonIssueDepotRow[]>;

@@ -49,7 +49,10 @@ describe('CourierPayoutController', () => {
   });
 
   it('withdraw delegates sub + amount + bankAccountRef', async () => {
-    await controller.withdraw(user, { amount: 5000, bankAccountRef: 'BCA' } as RequestWithdrawalDto);
+    await controller.withdraw(user, {
+      amount: 5000,
+      bankAccountRef: 'BCA',
+    } as RequestWithdrawalDto);
     expect(payout.requestWithdrawal).toHaveBeenCalledWith('courier-1', 5000, 'BCA');
   });
 

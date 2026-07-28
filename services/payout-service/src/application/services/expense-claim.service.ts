@@ -8,10 +8,7 @@ import {
 import { ExpenseCategory, ExpenseClaimStatus, isAutoApproved } from '../../domain/expense-claim';
 import { PayoutConfigService } from '../../config/payout-config.service';
 import { CourierLedgerRepository } from '../ports/courier-ledger.repository';
-import {
-  ExpenseClaimRecord,
-  ExpenseClaimRepository,
-} from '../ports/expense-claim.repository';
+import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-claim.repository';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
@@ -35,12 +32,18 @@ export class ExpenseClaimService {
 
   /**
    * Courier files an expense claim. Auto-approved (and immediately credited) when the
-   * amount is at or under the depot's threshold; otherwise it waits for a reviewer.
+   * amount is at or under the depot's threshold AND a receipt is attached; otherwise it
+   * waits for a reviewer (M20-15).
    */
   async submit(courierId: string, input: SubmitExpenseInput): Promise<ExpenseClaimRecord> {
     if (!(input.amount > 0)) throw new InvalidExpenseAmountError();
     const depotId = input.depotId ?? null;
-    const auto = isAutoApproved(input.amount, this.config.expenseAutoApproveMaxIdr(depotId));
+    const receiptUrl = input.receiptUrl?.trim() || null;
+    const auto = isAutoApproved(
+      input.amount,
+      this.config.expenseAutoApproveMaxIdr(depotId),
+      receiptUrl !== null,
+    );
 
     const claim = await this.claims.create({
       courierId,
@@ -48,7 +51,7 @@ export class ExpenseClaimService {
       category: input.category,
       amount: input.amount,
       description: input.description,
-      receiptUrl: input.receiptUrl ?? null,
+      receiptUrl,
       status: 'PENDING',
     });
     if (!auto) return claim;
@@ -84,7 +87,11 @@ export class ExpenseClaimService {
     });
   }
 
-  listForCourier(courierId: string, page: number, limit: number): Promise<Page<ExpenseClaimRecord>> {
+  listForCourier(
+    courierId: string,
+    page: number,
+    limit: number,
+  ): Promise<Page<ExpenseClaimRecord>> {
     return this.claims
       .listForCourier(courierId, page, limit)
       .then(({ items, total }) => buildPage(items, total, page, limit));

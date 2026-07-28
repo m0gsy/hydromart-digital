@@ -1,11 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  Approval,
-  ApprovalPayload,
-  ApprovalStatus,
-  ApprovalType,
-} from '../../domain/approval';
+import { Approval, ApprovalPayload, ApprovalStatus, ApprovalType } from '../../domain/approval';
 import {
   ApprovalRepository,
   CreateApprovalData,

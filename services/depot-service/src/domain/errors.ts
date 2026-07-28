@@ -186,6 +186,20 @@ export class PriceOverrideProposalDecidedError extends DomainError {
   }
 }
 
+/**
+ * M18-15: the proposer tried to approve their own above-threshold override. The
+ * proposal stays PENDING so HQ still decides it — nothing is lost, only self-service.
+ */
+export class PriceOverrideSelfApprovalError extends DomainError {
+  readonly code = 'PRICE_OVERRIDE_SELF_APPROVAL';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super(
+      'Usulan ini Anda sendiri yang mengajukan dan nilainya di atas batas auto-pass. Persetujuan harus dari HQ.',
+    );
+  }
+}
+
 export class DisputeNotFoundError extends DomainError {
   readonly code = 'DISPUTE_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

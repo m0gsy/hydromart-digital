@@ -23,7 +23,11 @@ import {
 } from '@hydromart/platform';
 import { CAPABILITIES } from '@hydromart/access';
 
-import { InventoryService, ItemView, WastageSummary } from '../application/services/inventory.service';
+import {
+  InventoryService,
+  ItemView,
+  WastageSummary,
+} from '../application/services/inventory.service';
 import { Page } from '../application/pagination';
 import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
 import {
@@ -109,7 +113,9 @@ export class DepotInventoryController {
   // auth — like the public product catalog. productIds is a comma-separated list.
   @Public()
   @Get('prices')
-  @ApiOperation({ summary: 'Per-depot resolved prices (override + active rule) for products (public)' })
+  @ApiOperation({
+    summary: 'Per-depot resolved prices (override + active rule) for products (public)',
+  })
   prices(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query('productIds') productIds?: string,
@@ -166,7 +172,9 @@ export class DepotInventoryController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('consume')
-  @ApiOperation({ summary: 'Deduct sold quantities from PRODUK stock on order completion (internal service auth)' })
+  @ApiOperation({
+    summary: 'Deduct sold quantities from PRODUK stock on order completion (internal service auth)',
+  })
   consume(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
@@ -190,7 +198,9 @@ export class DepotInventoryController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('release')
-  @ApiOperation({ summary: "Release an order's PRODUK stock holds on cancellation (internal service auth)" })
+  @ApiOperation({
+    summary: "Release an order's PRODUK stock holds on cancellation (internal service auth)",
+  })
   release(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: ConsumeStockDto,
@@ -264,7 +274,13 @@ export class InventoryController {
     @CurrentUser() user: AuthenticatedUser,
     @Headers('authorization') authorization: string,
   ): Promise<ItemView> {
-    return this.inventory.opname(itemId, dto.countedQuantity, dto.reason ?? null, user.sub, authorization);
+    return this.inventory.opname(
+      itemId,
+      dto.countedQuantity,
+      dto.reason ?? null,
+      user.sub,
+      authorization,
+    );
   }
 
   @Roles(...CAPABILITIES.inventoryRead)

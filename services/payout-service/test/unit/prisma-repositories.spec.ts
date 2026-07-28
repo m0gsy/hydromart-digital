@@ -26,7 +26,12 @@ describe('WithdrawalPrismaRepository', () => {
 
   it('creates a withdrawal and maps the Decimal amount to a number', async () => {
     model.create.mockResolvedValue(row);
-    const data = { franchiseOwnerId: 'own-1', amount: 150000.5, bankAccountRef: 'BCA-123', reference: 'WD-REF-1' };
+    const data = {
+      franchiseOwnerId: 'own-1',
+      amount: 150000.5,
+      bankAccountRef: 'BCA-123',
+      reference: 'WD-REF-1',
+    };
     const result = await repo.create(data as never);
     expect(model.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(150000.5);
@@ -125,7 +130,14 @@ describe('LedgerPrismaRepository', () => {
 
   it('creates a ledger entry and maps the amount', async () => {
     model.create.mockResolvedValue(row);
-    const data = { franchiseOwnerId: 'own-1', depotId: 'dep-1', type: 'COMMISSION', amount: 5000, description: 'commission', occurredAt: row.occurredAt };
+    const data = {
+      franchiseOwnerId: 'own-1',
+      depotId: 'dep-1',
+      type: 'COMMISSION',
+      amount: 5000,
+      description: 'commission',
+      occurredAt: row.occurredAt,
+    };
     const result = await repo.create(data as never);
     expect(model.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(5000);
@@ -145,7 +157,10 @@ describe('LedgerPrismaRepository', () => {
   it('returns balance sum, coercing null _sum to 0', async () => {
     model.aggregate.mockResolvedValue({ _sum: { amount: '7500' } });
     expect(await repo.balanceFor('own-1')).toBe(7500);
-    expect(model.aggregate).toHaveBeenCalledWith({ where: { franchiseOwnerId: 'own-1' }, _sum: { amount: true } });
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: { franchiseOwnerId: 'own-1' },
+      _sum: { amount: true },
+    });
 
     model.aggregate.mockResolvedValue({ _sum: { amount: null } });
     expect(await repo.balanceFor('own-2')).toBe(0);
@@ -159,7 +174,10 @@ describe('LedgerPrismaRepository', () => {
       { franchiseOwnerId: 'd', _sum: { amount: null } }, // null -> 0, filtered out
     ]);
     const owners = await repo.ownersWithBalance();
-    expect(model.groupBy).toHaveBeenCalledWith({ by: ['franchiseOwnerId'], _sum: { amount: true } });
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['franchiseOwnerId'],
+      _sum: { amount: true },
+    });
     expect(owners).toEqual([
       { franchiseOwnerId: 'b', availableBalance: 500 },
       { franchiseOwnerId: 'a', availableBalance: 100 },
@@ -215,7 +233,12 @@ describe('CourierWithdrawalPrismaRepository', () => {
 
   it('creates a courier withdrawal and maps the amount', async () => {
     model.create.mockResolvedValue(row);
-    const data = { courierId: 'cou-1', amount: 75000, bankAccountRef: 'BRI-9', reference: 'CWD-REF-1' };
+    const data = {
+      courierId: 'cou-1',
+      amount: 75000,
+      bankAccountRef: 'BRI-9',
+      reference: 'CWD-REF-1',
+    };
     const result = await repo.create(data as never);
     expect(model.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(75000);
@@ -272,7 +295,14 @@ describe('ExpenseClaimPrismaRepository', () => {
 
   it('creates a claim and maps the amount + category + status', async () => {
     model.create.mockResolvedValue(row);
-    const data = { courierId: 'cou-1', depotId: 'dep-1', category: 'FUEL', amount: 30000, description: 'petrol', receiptUrl: 'https://x/receipt.jpg' };
+    const data = {
+      courierId: 'cou-1',
+      depotId: 'dep-1',
+      category: 'FUEL',
+      amount: 30000,
+      description: 'petrol',
+      receiptUrl: 'https://x/receipt.jpg',
+    };
     const result = await repo.create(data as never);
     expect(model.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(30000);
@@ -293,7 +323,14 @@ describe('ExpenseClaimPrismaRepository', () => {
   });
 
   it('marks a claim reviewed with approval fields and stamps reviewedAt', async () => {
-    const reviewed = { ...row, status: 'APPROVED', reviewedBy: 'mgr-1', reviewNote: 'ok', ledgerEntryId: 'le-9', reviewedAt: new Date('2026-01-03') };
+    const reviewed = {
+      ...row,
+      status: 'APPROVED',
+      reviewedBy: 'mgr-1',
+      reviewNote: 'ok',
+      ledgerEntryId: 'le-9',
+      reviewedAt: new Date('2026-01-03'),
+    };
     model.update.mockResolvedValue(reviewed);
     const result = await repo.markReviewed('ec-1', {
       status: 'APPROVED' as never,
@@ -317,7 +354,11 @@ describe('ExpenseClaimPrismaRepository', () => {
 
   it('defaults ledgerEntryId to null when omitted (rejection path)', async () => {
     model.update.mockResolvedValue({ ...row, status: 'REJECTED', reviewedBy: 'mgr-1' });
-    await repo.markReviewed('ec-1', { status: 'REJECTED' as never, reviewedBy: 'mgr-1', reviewNote: 'no receipt' });
+    await repo.markReviewed('ec-1', {
+      status: 'REJECTED' as never,
+      reviewedBy: 'mgr-1',
+      reviewNote: 'no receipt',
+    });
     expect(model.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ ledgerEntryId: null }) }),
     );
@@ -343,7 +384,12 @@ describe('ExpenseClaimPrismaRepository', () => {
     model.count.mockResolvedValue(1);
     const result = await repo.searchForDepot('dep-1', 'PENDING' as never, 1, 50);
     const where = { depotId: 'dep-1', status: 'PENDING' };
-    expect(model.findMany).toHaveBeenCalledWith({ where, orderBy: { createdAt: 'desc' }, skip: 0, take: 50 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 50,
+    });
     expect(model.count).toHaveBeenCalledWith({ where });
     expect(result.total).toBe(1);
   });
@@ -352,7 +398,12 @@ describe('ExpenseClaimPrismaRepository', () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);
     const result = await repo.searchForDepot(null, null, 1, 20);
-    expect(model.findMany).toHaveBeenCalledWith({ where: {}, orderBy: { createdAt: 'desc' }, skip: 0, take: 20 });
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
     expect(model.count).toHaveBeenCalledWith({ where: {} });
     expect(result.items).toEqual([]);
     expect(result.total).toBe(0);
@@ -406,7 +457,15 @@ describe('CourierLedgerPrismaRepository', () => {
 
   it('creates a courier ledger entry and maps amount', async () => {
     ledgerModel.create.mockResolvedValue(entryRow);
-    const data = { courierId: 'cou-1', depotId: 'dep-1', type: 'EARNING', amount: 12000, description: 'delivery fare', sourceRef: 'order-1', occurredAt: entryRow.occurredAt };
+    const data = {
+      courierId: 'cou-1',
+      depotId: 'dep-1',
+      type: 'EARNING',
+      amount: 12000,
+      description: 'delivery fare',
+      sourceRef: 'order-1',
+      occurredAt: entryRow.occurredAt,
+    };
     const result = await repo.create(data as never);
     expect(ledgerModel.create).toHaveBeenCalledWith({ data });
     expect(result.amount).toBe(12000);
@@ -428,7 +487,10 @@ describe('CourierLedgerPrismaRepository', () => {
   it('returns balance, coercing null to 0', async () => {
     ledgerModel.aggregate.mockResolvedValue({ _sum: { amount: '12000' } });
     expect(await repo.balanceFor('cou-1')).toBe(12000);
-    expect(ledgerModel.aggregate).toHaveBeenCalledWith({ where: { courierId: 'cou-1' }, _sum: { amount: true } });
+    expect(ledgerModel.aggregate).toHaveBeenCalledWith({
+      where: { courierId: 'cou-1' },
+      _sum: { amount: true },
+    });
 
     ledgerModel.aggregate.mockResolvedValue({ _sum: { amount: null } });
     expect(await repo.balanceFor('cou-2')).toBe(0);
@@ -474,7 +536,11 @@ describe('CourierLedgerPrismaRepository', () => {
   it('currentRule prefers the depot-specific newest rule', async () => {
     ruleModel.findFirst.mockResolvedValueOnce(ruleRow);
     const rule = await repo.currentRule('dep-1');
-    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: 'dep-1' }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
+    expect(ruleModel.findFirst).toHaveBeenCalledWith({
+      where: { depotId: 'dep-1' },
+      orderBy: { effectiveDate: 'desc' },
+      include: TIER_INCLUDE,
+    });
     expect(ruleModel.findFirst).toHaveBeenCalledTimes(1); // no fallback needed
     expect(rule).toMatchObject({
       baseFare: 8000,
@@ -492,7 +558,11 @@ describe('CourierLedgerPrismaRepository', () => {
       .mockResolvedValueOnce(null) // depot-specific miss
       .mockResolvedValueOnce({ ...ruleRow, depotId: null }); // network default
     const rule = await repo.currentRule('dep-1');
-    expect(ruleModel.findFirst).toHaveBeenNthCalledWith(2, { where: { depotId: null }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
+    expect(ruleModel.findFirst).toHaveBeenNthCalledWith(2, {
+      where: { depotId: null },
+      orderBy: { effectiveDate: 'desc' },
+      include: TIER_INCLUDE,
+    });
     expect(rule?.baseFare).toBe(8000);
   });
 
@@ -500,7 +570,11 @@ describe('CourierLedgerPrismaRepository', () => {
     ruleModel.findFirst.mockResolvedValueOnce({ ...ruleRow, depotId: null });
     const rule = await repo.currentRule(null);
     expect(ruleModel.findFirst).toHaveBeenCalledTimes(1);
-    expect(ruleModel.findFirst).toHaveBeenCalledWith({ where: { depotId: null }, orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
+    expect(ruleModel.findFirst).toHaveBeenCalledWith({
+      where: { depotId: null },
+      orderBy: { effectiveDate: 'desc' },
+      include: TIER_INCLUDE,
+    });
     expect(rule?.peakEndHour).toBe(20);
   });
 
@@ -513,7 +587,10 @@ describe('CourierLedgerPrismaRepository', () => {
   it('lists all rules newest first', async () => {
     ruleModel.findMany.mockResolvedValue([ruleRow]);
     const rules = await repo.listRules();
-    expect(ruleModel.findMany).toHaveBeenCalledWith({ orderBy: { effectiveDate: 'desc' }, include: TIER_INCLUDE });
+    expect(ruleModel.findMany).toHaveBeenCalledWith({
+      orderBy: { effectiveDate: 'desc' },
+      include: TIER_INCLUDE,
+    });
     expect(rules[0]).toEqual({
       id: 'rule-1',
       depotId: 'dep-1',
@@ -531,7 +608,17 @@ describe('CourierLedgerPrismaRepository', () => {
 
   it('creates a rule with the explicit field mapping', async () => {
     ruleModel.create.mockResolvedValue(ruleRow);
-    const data = { depotId: 'dep-1', baseFare: 8000, peakBonus: 2000, onTimeBonus: 1000, peakStartHour: 17, peakEndHour: 20, monthlyTarget: 5000000, tiers: [{ deliveries: 25, bonus: 25000 }], effectiveDate: ruleRow.effectiveDate };
+    const data = {
+      depotId: 'dep-1',
+      baseFare: 8000,
+      peakBonus: 2000,
+      onTimeBonus: 1000,
+      peakStartHour: 17,
+      peakEndHour: 20,
+      monthlyTarget: 5000000,
+      tiers: [{ deliveries: 25, bonus: 25000 }],
+      effectiveDate: ruleRow.effectiveDate,
+    };
     const result = await repo.createRule(data as never);
     expect(ruleModel.create).toHaveBeenCalledWith({
       data: {

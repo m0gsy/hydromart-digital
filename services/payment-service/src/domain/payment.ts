@@ -38,10 +38,7 @@ export const DEFAULT_REFUND_APPROVAL_THRESHOLD = 100_000;
  * QRIS is NOT online: depots use their own static QRIS paid directly to the
  * depot and confirmed by staff, so it settles manually like TRANSFER.
  */
-const ONLINE_METHODS: readonly PaymentMethod[] = [
-  PaymentMethod.EWALLET,
-  PaymentMethod.VA,
-];
+const ONLINE_METHODS: readonly PaymentMethod[] = [PaymentMethod.EWALLET, PaymentMethod.VA];
 
 export function isOnlineMethod(method: PaymentMethod): boolean {
   return ONLINE_METHODS.includes(method);

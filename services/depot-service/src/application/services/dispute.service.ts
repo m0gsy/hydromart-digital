@@ -6,7 +6,11 @@ import {
   DisputeStatus,
   OrderDispute,
 } from '../../domain/order-dispute';
-import { DepotNotFoundError, DisputeAlreadyResolvedError, DisputeNotFoundError } from '../../domain/errors';
+import {
+  DepotNotFoundError,
+  DisputeAlreadyResolvedError,
+  DisputeNotFoundError,
+} from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
 import { DisputeRepository } from '../ports/dispute.repository';
 import { DEPOT_TOKENS } from '../tokens';

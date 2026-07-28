@@ -18,7 +18,11 @@ import {
 import { ShiftKind } from '../../domain/shift';
 
 /** ISO date of the week's Monday, e.g. "2026-07-14". */
-const WEEK_START = { format: 'date', example: '2026-07-14', description: "ISO date of the week's Monday." };
+const WEEK_START = {
+  format: 'date',
+  example: '2026-07-14',
+  description: "ISO date of the week's Monday.",
+};
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class ListRosterQueryDto {

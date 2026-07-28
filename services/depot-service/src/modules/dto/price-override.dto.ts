@@ -37,7 +37,10 @@ export class ProposePriceOverrideDto {
   @IsEnum(PricingAdjustType)
   adjustType!: PricingAdjustType;
 
-  @ApiProperty({ example: -10, description: 'PERCENT = signed percent; FIXED = signed rupiah delta.' })
+  @ApiProperty({
+    example: -10,
+    description: 'PERCENT = signed percent; FIXED = signed rupiah delta.',
+  })
   @Type(() => Number)
   @IsNumber()
   value!: number;

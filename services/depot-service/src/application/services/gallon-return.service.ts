@@ -82,7 +82,11 @@ export class GallonReturnService {
     }
   }
 
-  async record(depotId: string, input: RecordReturnInput, actorId: string): Promise<GallonReturnRecord> {
+  async record(
+    depotId: string,
+    input: RecordReturnInput,
+    actorId: string,
+  ): Promise<GallonReturnRecord> {
     await this.requireDepot(depotId);
     const depositRefunded = input.depositRefunded ?? 0;
     await this.assertWithinOutstanding(depotId, input.quantity, depositRefunded);

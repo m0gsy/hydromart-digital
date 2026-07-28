@@ -41,7 +41,11 @@ export interface GallonReturnDepotRow {
 
 export interface GallonReturnRepository {
   create(data: CreateGallonReturnData): Promise<GallonReturnRecord>;
-  listForDepot(depotId: string, page: number, limit: number): Promise<{ items: GallonReturnRecord[]; total: number }>;
+  listForDepot(
+    depotId: string,
+    page: number,
+    limit: number,
+  ): Promise<{ items: GallonReturnRecord[]; total: number }>;
   summaryForDepot(depotId: string): Promise<GallonReturnSummary>;
   /** Per-depot return totals across the network (SUM quantity, depositRefunded). */
   networkSummary(): Promise<GallonReturnDepotRow[]>;

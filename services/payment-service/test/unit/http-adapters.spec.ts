@@ -36,7 +36,12 @@ beforeEach(() => {
 });
 
 const charge = (): ChargeRequest =>
-  ({ method: 'VA_BCA', amount: 57000, orderId: 'o1', paymentId: 'pay1' }) as unknown as ChargeRequest;
+  ({
+    method: 'VA_BCA',
+    amount: 57000,
+    orderId: 'o1',
+    paymentId: 'pay1',
+  }) as unknown as ChargeRequest;
 
 describe('PaymentGatewayHttpAdapter', () => {
   it('createCharge: posts to /charges and parses reference + instruction', async () => {
@@ -64,7 +69,10 @@ describe('PaymentGatewayHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ body: { reference: 'RF-1' } }));
     const out = await new PaymentGatewayHttpAdapter(makeConfig()).refund('REF-1', 5000);
     expect(out.reference).toBe('RF-1');
-    expect(fetchMock).toHaveBeenCalledWith('http://gateway:9000/refunds', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://gateway:9000/refunds',
+      expect.objectContaining({ method: 'POST' }),
+    );
   });
 
   it('fails CLOSED (throws) when no gateway base url is configured', async () => {
@@ -75,12 +83,16 @@ describe('PaymentGatewayHttpAdapter', () => {
 
   it('fails CLOSED (throws) on non-2xx gateway response', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 502 }));
-    await expect(new PaymentGatewayHttpAdapter(makeConfig()).createCharge(charge())).rejects.toThrow(/502/);
+    await expect(
+      new PaymentGatewayHttpAdapter(makeConfig()).createCharge(charge()),
+    ).rejects.toThrow(/502/);
   });
 
   it('fails CLOSED (rethrows) when the gateway is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(new PaymentGatewayHttpAdapter(makeConfig()).refund('REF', 1)).rejects.toThrow('ECONNREFUSED');
+    await expect(new PaymentGatewayHttpAdapter(makeConfig()).refund('REF', 1)).rejects.toThrow(
+      'ECONNREFUSED',
+    );
   });
 });
 
@@ -104,12 +116,16 @@ describe('OrderCoordinationHttpAdapter', () => {
 
     it('fails CLOSED (throws) on non-2xx', async () => {
       fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-      await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderTotal('o1')).rejects.toThrow(/500/);
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderTotal('o1'),
+      ).rejects.toThrow(/500/);
     });
 
     it('fails CLOSED (throws) when the total is missing/non-numeric', async () => {
       fetchMock.mockResolvedValue(res({ body: { total: 'oops' } }));
-      await expect(new OrderCoordinationHttpAdapter(makeConfig()).getOrderTotal('o1')).rejects.toThrow(/no total/);
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).getOrderTotal('o1'),
+      ).rejects.toThrow(/no total/);
     });
   });
 
@@ -127,9 +143,13 @@ describe('OrderCoordinationHttpAdapter', () => {
 
     it('confirmPaid: fails OPEN (swallows) on non-2xx and on thrown fetch', async () => {
       fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 }));
-      await expect(new OrderCoordinationHttpAdapter(makeConfig()).confirmPaid('o1')).resolves.toBeUndefined();
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).confirmPaid('o1'),
+      ).resolves.toBeUndefined();
       fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
-      await expect(new OrderCoordinationHttpAdapter(makeConfig()).confirmPaid('o1')).resolves.toBeUndefined();
+      await expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).confirmPaid('o1'),
+      ).resolves.toBeUndefined();
     });
 
     it('notifyRefunded: posts amount body on happy path', async () => {

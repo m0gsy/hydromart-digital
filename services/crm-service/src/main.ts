@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics } from '@hydromart/platform';
+import { enableMetrics, protectDocs } from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { CrmConfigService } from './config/crm-config.service';
@@ -30,7 +30,11 @@ async function bootstrap(): Promise<void> {
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  // M12-11: production docs are Basic-auth'd, or not mounted at all when
+  // DOCS_USER/DOCS_PASSWORD are unset. Open in development, unchanged.
+  if (protectDocs(app)) {
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
+  }
 
   enableMetrics(app, 'crm-service');
   await app.listen(config.port, '0.0.0.0');

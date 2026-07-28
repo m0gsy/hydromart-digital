@@ -35,7 +35,10 @@ export class SubmitExpenseDto {
   @MaxLength(280)
   description!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Courier assigned depot (for reviewer filter).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Courier assigned depot (for reviewer filter).',
+  })
   @IsOptional()
   @IsUUID()
   depotId?: string;

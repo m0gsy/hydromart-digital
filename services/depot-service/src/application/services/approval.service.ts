@@ -7,7 +7,11 @@ import {
   ApprovalType,
   needsApproval,
 } from '../../domain/approval';
-import { ApprovalAlreadyDecidedError, ApprovalNotFoundError, DepotNotFoundError } from '../../domain/errors';
+import {
+  ApprovalAlreadyDecidedError,
+  ApprovalNotFoundError,
+  DepotNotFoundError,
+} from '../../domain/errors';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { ApprovalRepository, PendingCounts } from '../ports/approval.repository';
 import { DepotRepository } from '../ports/depot.repository';

@@ -52,6 +52,10 @@ export class PayoutConfigService {
   }
   /** Expense claims at or under this IDR amount auto-approve (0 = always needs a reviewer). */
   expenseAutoApproveMaxIdr(depotId: string | null = null): number {
-    return this.tunable('expenseAutoApproveMaxIdr', this.num('EXPENSE_AUTO_APPROVE_MAX_IDR'), depotId);
+    return this.tunable(
+      'expenseAutoApproveMaxIdr',
+      this.num('EXPENSE_AUTO_APPROVE_MAX_IDR'),
+      depotId,
+    );
   }
 }

@@ -60,7 +60,10 @@ export class LedgerPrismaRepository implements LedgerRepository {
       _sum: { amount: true },
     });
     return grouped
-      .map((g) => ({ franchiseOwnerId: g.franchiseOwnerId, availableBalance: Number(g._sum.amount ?? 0) }))
+      .map((g) => ({
+        franchiseOwnerId: g.franchiseOwnerId,
+        availableBalance: Number(g._sum.amount ?? 0),
+      }))
       .filter((o) => o.availableBalance > 0)
       .sort((a, b) => b.availableBalance - a.availableBalance);
   }

@@ -4,7 +4,9 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   PAYOUT_SERVICE_PORT: Joi.number().port().default(3016),
-  PAYOUT_DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
+  PAYOUT_DATABASE_URL: Joi.string()
+    .uri({ scheme: ['postgres', 'postgresql'] })
+    .required(),
   JWT_ACCESS_SECRET: requiredSecret(32),
   // Shared service-to-service key: guards POST /courier/ledger/internal (earning push).
   INTERNAL_SERVICE_KEY: optionalSecret(16),

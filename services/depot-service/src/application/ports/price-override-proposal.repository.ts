@@ -36,8 +36,5 @@ export interface PriceOverrideProposalRepository {
   /** Proposal count grouped by product, optionally filtered by status. */
   countByProduct(status?: PriceOverrideStatus): Promise<{ productId: string; count: number }[]>;
   findById(id: string): Promise<PriceOverrideProposalRecord | null>;
-  update(
-    id: string,
-    patch: UpdatePriceOverrideProposalData,
-  ): Promise<PriceOverrideProposalRecord>;
+  update(id: string, patch: UpdatePriceOverrideProposalData): Promise<PriceOverrideProposalRecord>;
 }

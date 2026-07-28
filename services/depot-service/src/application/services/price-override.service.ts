@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ImportSummary, runImport } from '@hydromart/platform';
 
@@ -7,12 +7,16 @@ import {
   PriceOverrideProposalRecord,
   PriceOverrideStatus,
   isTerminalStatus,
+  needsSecondApprover,
+  overrideImpactIdr,
 } from '../../domain/price-override-proposal';
 import {
   DepotNotFoundError,
   PriceOverrideProposalDecidedError,
   PriceOverrideProposalNotFoundError,
+  PriceOverrideSelfApprovalError,
 } from '../../domain/errors';
+import { DepotConfigService } from '../../config/depot-config.service';
 import { buildPage, Page } from '../pagination';
 import {
   ListProposalsFilter,
@@ -42,11 +46,14 @@ const APPROVED_OVERRIDE_PRIORITY = 100;
  */
 @Injectable()
 export class PriceOverrideService {
+  private readonly logger = new Logger(PriceOverrideService.name);
+
   constructor(
     @Inject(DEPOT_TOKENS.PriceOverrideProposalRepository)
     private readonly proposals: PriceOverrideProposalRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly pricing: PricingService,
+    private readonly config: DepotConfigService,
   ) {}
 
   /** Bulk-propose overrides from the CSV wizard; each row still enters the HQ queue. */
@@ -87,9 +94,9 @@ export class PriceOverrideService {
   }
 
   /** Per-product proposal count (7a base list); HQ defaults to the PENDING queue. */
-  countByProduct(status: PriceOverrideStatus = PriceOverrideStatus.PENDING): Promise<
-    { productId: string; count: number }[]
-  > {
+  countByProduct(
+    status: PriceOverrideStatus = PriceOverrideStatus.PENDING,
+  ): Promise<{ productId: string; count: number }[]> {
     return this.proposals.countByProduct(status);
   }
 
@@ -101,6 +108,21 @@ export class PriceOverrideService {
   async approve(id: string, decidedBy: string): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();
+
+    // M18-15 four-eyes: the proposer may not also decide their own above-threshold
+    // override. Reuses the depot's existing auto-pass limit rather than inventing a
+    // second knob. The proposal is left PENDING, so it simply stays in HQ's queue.
+    const impactIdr = overrideImpactIdr(proposal.currentPrice, proposal.adjustType, proposal.value);
+    const autoPassIdr = this.config.approvalAutoPassIdr(proposal.depotId);
+    if (needsSecondApprover(proposal.proposedBy, decidedBy, impactIdr, autoPassIdr)) {
+      // Audit marker: depot-service has no audit store of its own, so this stable,
+      // greppable line IS the trail. Keep the action string unchanged if you edit this.
+      this.logger.warn(
+        `price-override.self-approve-blocked proposal=${id} depot=${proposal.depotId} actor=${decidedBy} impactIdr=${impactIdr} autoPassIdr=${autoPassIdr}`,
+      );
+      throw new PriceOverrideSelfApprovalError();
+    }
+
     // Apply the override through the existing pricing mechanism (priority-wins).
     await this.pricing.create(proposal.depotId, {
       productId: proposal.productId,

@@ -5,12 +5,7 @@
  */
 
 export type CourierLedgerEntryType =
-  | 'EARNING'
-  | 'INCENTIVE'
-  | 'DEDUCTION'
-  | 'CASH_VARIANCE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'EARNING' | 'INCENTIVE' | 'DEDUCTION' | 'CASH_VARIANCE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 
 /** One rung of a rule's monthly delivery-count incentive ladder. */
 export interface IncentiveTier {
@@ -71,8 +66,7 @@ export function tiersReached(tiers: IncentiveTier[], deliveries: number): Incent
 export function tiersValid(tiers: IncentiveTier[]): boolean {
   const counts = tiers.map((t) => t.deliveries);
   return (
-    tiers.every(
-      (t) => Number.isInteger(t.deliveries) && t.deliveries > 0 && t.bonus >= 0,
-    ) && new Set(counts).size === counts.length
+    tiers.every((t) => Number.isInteger(t.deliveries) && t.deliveries > 0 && t.bonus >= 0) &&
+    new Set(counts).size === counts.length
   );
 }

@@ -4,6 +4,7 @@ import {
   TaxSettingsRecord,
   TaxSettingsRepository,
 } from '../../src/application/ports/tax-settings.repository';
+import { TaxRounding } from '../../src/domain/tax';
 
 class InMemoryTaxSettingsRepository implements TaxSettingsRepository {
   row: TaxSettingsRecord | null = null;
@@ -20,6 +21,7 @@ describe('TaxSettingsService', () => {
   const sample: TaxSettingsInput = {
     ppnPercent: 12,
     priceIncludesTax: false,
+    taxRounding: TaxRounding.HALF_EVEN,
     invoiceFormat: 'INV/{YYYY}/{SEQ}',
     companyName: 'PT Uji',
     npwp: '01.111.222.3-444.000',
@@ -44,5 +46,19 @@ describe('TaxSettingsService', () => {
     const reread = await service.get();
     expect(reread.companyName).toBe('PT Uji');
     expect(reread.priceIncludesTax).toBe(false);
+    expect(reread.taxRounding).toBe(TaxRounding.HALF_EVEN);
+  });
+
+  it('defaults the rounding method to PER-11/2025 half-up (M29-10)', async () => {
+    const service = new TaxSettingsService(new InMemoryTaxSettingsRepository());
+    expect((await service.get()).taxRounding).toBe(TaxRounding.HALF_UP);
+  });
+
+  it('keeps the legal default when a client omits the rounding method (M29-10)', async () => {
+    const service = new TaxSettingsService(new InMemoryTaxSettingsRepository());
+    const withoutRounding = { ...sample };
+    delete (withoutRounding as { taxRounding?: TaxRounding }).taxRounding;
+    const saved = await service.update(withoutRounding);
+    expect(saved.taxRounding).toBe(TaxRounding.HALF_UP);
   });
 });

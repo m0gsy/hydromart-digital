@@ -1,10 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import {
-  Subscription,
-  SubscriptionCadence,
-  SubscriptionStatus,
-} from '../../domain/subscription';
+import { Subscription, SubscriptionCadence, SubscriptionStatus } from '../../domain/subscription';
 import {
   CreateSubscriptionData,
   SubscriptionRepository,

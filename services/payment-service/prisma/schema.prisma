@@ -91,6 +91,9 @@ model TaxSettings {
   id               String   @id @default(uuid()) @db.Uuid
   ppnPercent       Decimal  @db.Decimal(5, 2)
   priceIncludesTax Boolean  @default(true)
+  /// How a fractional rupiah is resolved: HALF_UP (PER-11/2025 default), HALF_EVEN, DOWN.
+  /// TEXT rather than an enum so a new convention needs no irreversible migration.
+  taxRounding      String   @default("HALF_UP")
   invoiceFormat    String
   companyName      String
   npwp             String
