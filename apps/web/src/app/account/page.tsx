@@ -39,9 +39,12 @@ import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { canViewDashboard, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { formatDateTime } from '@/lib/format';
 import type {
   Address,
   Customer,
+  DataSubjectRequest,
+  DataSubjectRequestType,
   LoyaltyAccount,
   NotificationPreferences,
   SavedPaymentMethod,
@@ -341,6 +344,116 @@ function PaymentsSection() {
 }
 
 /* ---------- Preferences (notifications + language) ---------- */
+/**
+ * UU PDP tahap 1 (item 13). The two rights that shipped first: ask for a copy, ask to be
+ * deleted. Neither runs on the click — head office decides, so this is a request form
+ * plus the state of what was asked, not a self-service delete button.
+ */
+function PrivacyDataSection() {
+  const { t } = useT();
+  const { toast } = useToast();
+  const { data, error, loading, reload } = useAsync<DataSubjectRequest[]>(() =>
+    api.get(endpoints.pdp.mine, true),
+  );
+  const [pending, setPending] = useState<DataSubjectRequestType | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  async function submit(type: DataSubjectRequestType) {
+    setPending(type);
+    try {
+      await api.post(endpoints.pdp.request, { type }, true);
+      toast(t('account.privacyData.submitted'), 'success');
+      reload();
+    } catch (err) {
+      // A duplicate open request comes back with its own message; show it verbatim.
+      toast(err instanceof ApiError ? err.message : t('account.privacyData.submitError'), 'error');
+    } finally {
+      setPending(null);
+      setConfirmDelete(false);
+    }
+  }
+
+  async function download() {
+    try {
+      const payload = await api.get<unknown>(endpoints.pdp.myExport, true);
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hydromart-data.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast(t('account.privacyData.downloadError'), 'error');
+    }
+  }
+
+  const completedExport = (data ?? []).some((r) => r.type === 'EXPORT' && r.status === 'COMPLETED');
+
+  return (
+    <section className={CARD}>
+      <h2 id="privacy-data" className="mb-2 scroll-mt-24 text-[17px] font-extrabold">
+        {t('account.privacyData.title')}
+      </h2>
+      <p className="mb-3 text-sm text-muted">{t('account.privacyData.body')}</p>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          loading={pending === 'EXPORT'}
+          onClick={() => submit('EXPORT')}
+        >
+          {t('account.privacyData.requestExport')}
+        </Button>
+        <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
+          {t('account.privacyData.requestDelete')}
+        </Button>
+        {completedExport && (
+          <Button variant="secondary" onClick={download}>
+            {t('account.privacyData.download')}
+          </Button>
+        )}
+      </div>
+
+      {loading ? (
+        <Skeleton className="mt-3 h-16 w-full rounded-xl" />
+      ) : error ? (
+        <div className="mt-3">
+          <ErrorState message={error} onRetry={reload} />
+        </div>
+      ) : (data ?? []).length === 0 ? (
+        <p className="mt-3 text-sm text-muted">{t('account.privacyData.empty')}</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-[color:var(--border-soft)]">
+          {(data ?? []).map((row) => (
+            <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+              <span>
+                <span className="block font-semibold">{t(`account.privacyData.type.${row.type}`)}</span>
+                <span className="block text-xs text-muted">{formatDateTime(row.requestedAt)}</span>
+                {row.status === 'REJECTED' && row.reason && (
+                  <span className="block text-xs text-[color:var(--danger)]">{row.reason}</span>
+                )}
+              </span>
+              <Chip tone="outline">{t(`account.privacyData.status.${row.status}`)}</Chip>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={t('account.privacyData.requestDelete')}
+        message={t('account.privacyData.deleteConfirm')}
+        confirmLabel={t('account.privacyData.requestDelete')}
+        loading={pending === 'DELETE'}
+        onConfirm={() => submit('DELETE')}
+        onClose={() => setConfirmDelete(false)}
+      />
+    </section>
+  );
+}
+
 function PrefsSection() {
   const { t, locale, toggle } = useT();
   const { theme, setTheme } = useTheme();
@@ -558,6 +671,7 @@ export default function AccountPage() {
           <ProfileSection customer={customer} />
           <AddressesSection />
           <PaymentsSection />
+          <PrivacyDataSection />
           <PrefsSection />
 
           {/* mobile logout + version */}

@@ -160,7 +160,8 @@ describe('DepotCrmController', () => {
 
 describe('InternalController', () => {
   const svc = { listCustomerIdsByDepot: jest.fn(), getCrmDashboard: jest.fn() };
-  const c = new InternalController(svc as never);
+  const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
+  const c = new InternalController(svc as never, pdp as never);
   beforeEach(() => jest.clearAllMocks());
 
   it('customerIdsByDepot wraps the id array as { customerIds }', async () => {
@@ -172,6 +173,16 @@ describe('InternalController', () => {
     svc.getCrmDashboard.mockResolvedValue({ counts: {} });
     expect(await c.crmSummary('d1')).toEqual({ counts: {} });
     expect(svc.getCrmDashboard).toHaveBeenCalledWith('d1');
+  });
+  it('pdpExport hands the whole customer blob back (item 13)', async () => {
+    pdp.exportFor.mockResolvedValue({ profile: {}, addresses: [] });
+    expect(await c.pdpExport('c1')).toEqual({ profile: {}, addresses: [] });
+    expect(pdp.exportFor).toHaveBeenCalledWith('c1');
+  });
+  it('pdpAnonymise forwards the customerId from the body', async () => {
+    pdp.anonymise.mockResolvedValue(undefined);
+    await c.pdpAnonymise({ customerId: 'c1' } as never);
+    expect(pdp.anonymise).toHaveBeenCalledWith('c1');
   });
 });
 

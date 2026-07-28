@@ -454,6 +454,16 @@ export const endpoints = {
     cancelRedemption: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/cancel`,
     markRedemptionUsed: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/used`,
   },
+  // UU PDP tahap 1 (item 13): the data-subject request queue lives in auth-service.
+  pdp: {
+    request: '/auth/api/v1/account/data-requests',
+    mine: '/auth/api/v1/account/data-requests/me',
+    myExport: '/auth/api/v1/account/data-requests/me/export',
+    queue: (status?: string) =>
+      `/auth/api/v1/account/data-requests${status ? `?status=${status}` : ''}`,
+    approve: (id: string) => `/auth/api/v1/account/data-requests/${id}/approve`,
+    reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
+  },
   promotions: {
     // Public active-banner feed (active + within date window, sorted) → Promotion[].
     list: '/vouchers/api/v1/promotions',

@@ -123,6 +123,10 @@ export const CAPABILITIES = {
   // window. The operator at the counter does the handing over, so they hold it; MARKETING
   // owns the reward catalogue and can correct a mis-stamped row.
   rewardHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'MARKETING', 'SUPER_ADMIN'],
+  // auth-service (UU PDP tahap 1, item 13) — decide data-subject export/deletion
+  // requests. Head office only: a depot must never be able to erase a customer, and an
+  // approval here is irreversible.
+  pdpRequests: ['HEAD_OFFICE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;

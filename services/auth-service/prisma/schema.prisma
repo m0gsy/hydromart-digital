@@ -132,3 +132,25 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+/// UU PDP tahap 1 (item 13): a data-subject's request to export or delete their data.
+/// Status/type are TEXT rather than Postgres enums — a future right (consent withdrawal)
+/// must not need an irreversible enum migration to be added.
+model DataSubjectRequest {
+  id          String    @id @default(uuid()) @db.Uuid
+  customerId  String    @db.Uuid
+  /// EXPORT | DELETE
+  type        String
+  /// PENDING | COMPLETED | REJECTED
+  status      String    @default("PENDING")
+  /// Why the customer asked, or why HEAD OFFICE refused.
+  reason      String?
+  requestedAt DateTime  @default(now())
+  /// The staff account that decided it — never the customer themselves.
+  processedBy String?   @db.Uuid
+  processedAt DateTime?
+
+  @@index([customerId, requestedAt])
+  @@index([status, requestedAt])
+  @@map("data_subject_requests")
+}
