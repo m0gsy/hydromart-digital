@@ -41,7 +41,9 @@ async function bootstrap(): Promise<void> {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Hydromart — Auth Service')
-    .setDescription('Authentication & identity API (phone OTP, Google Sign-In, sessions).')
+    // M1-04: login is phone OTP only. Google Sign-In was decided AGAINST — there is no
+    // /auth/google endpoint and no button in the app, so the docs must not imply one.
+    .setDescription('Authentication & identity API (phone OTP, sessions).')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

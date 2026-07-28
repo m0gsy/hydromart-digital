@@ -514,7 +514,9 @@ export class OrderService {
    * Admin-triggered sweep (mirrors loyalty/expire). Two windows, because the two cases
    * are not the same risk:
    *
-   * - CREATED beyond `abandonMinutes` — a cart the customer walked away from.
+   * - CREATED beyond `abandonMinutes` — an order that was placed but never confirmed.
+   *   (M4-18: this is NOT an abandoned cart. A cart that was never checked out has no
+   *   order row at all and is swept by nothing here.)
    * - CONFIRMED / PREPARING beyond `stalledHours` — the depot accepted it and then
    *   nothing happened. These used to be swept by nothing at all, so an order that was
    *   never paid for held its reservation forever. The window is long and per-depot
