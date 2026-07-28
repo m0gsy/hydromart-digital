@@ -28,9 +28,13 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   [OrderStatus.PREPARING]: [OrderStatus.DRIVER_ASSIGNED, OrderStatus.CANCELLED],
   // CANCELLED stays reachable here so a failed delivery can close its order (and
   // release the stock hold). Customers cannot reach these — see isCancellable.
-  [OrderStatus.DRIVER_ASSIGNED]: [OrderStatus.PICKED_UP, OrderStatus.CANCELLED],
-  [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY, OrderStatus.CANCELLED],
-  [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.CANCELLED],
+  // PREPARING is reachable back from every in-flight state: when a delivery is rescheduled
+  // (design 3c) the courier is released and the order returns to the dispatch queue for a
+  // second attempt. Without it the order stayed pinned to the abandoned attempt's state and
+  // could never be assigned or delivered again.
+  [OrderStatus.DRIVER_ASSIGNED]: [OrderStatus.PICKED_UP, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY, OrderStatus.PREPARING, OrderStatus.CANCELLED],
+  [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED],
   [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELLED]: [],

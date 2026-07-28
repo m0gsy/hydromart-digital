@@ -331,6 +331,29 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
+  async reassign(
+    id: string,
+    driverId: string,
+    changedBy: string,
+    note: string | null,
+  ): Promise<DeliveryRecord> {
+    // Second attempt on the same row: back to ASSIGNED under (possibly) a new driver, with
+    // the previous attempt's progress timestamps cleared so the app shows a fresh run.
+    const row = await this.prisma.delivery.update({
+      where: { id },
+      data: {
+        driverId,
+        status: DeliveryStatus.ASSIGNED,
+        pickedUpAt: null,
+        startedAt: null,
+        estimatedArrivalAt: null,
+        history: { create: { status: DeliveryStatus.ASSIGNED, changedBy, note } },
+      },
+      include: INCLUDE,
+    });
+    return this.toRecord(row);
+  }
+
   async completeWithProof(
     id: string,
     proof: Omit<ProofRecord, 'capturedAt'>,

@@ -220,8 +220,9 @@ describe('DriverDeliveryController', () => {
   it('marks a no-show and reschedules (parsing the date)', () => {
     void controller.markNoShow(user, id, 'Bearer t');
     expect(deliveries.markNoShow).toHaveBeenCalledWith(user.sub, id, expect.any(Date), 'Bearer t');
-    void controller.reschedule(user, id, { rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Sore', note: 'n' } as never);
+    void controller.reschedule(user, id, { rescheduledFor: '2026-08-01T09:00:00.000Z', slot: 'Sore', note: 'n' } as never, 'Bearer t');
     expect(deliveries.reschedule).toHaveBeenCalledWith(user.sub, id, {
+      authorization: 'Bearer t',
       rescheduledFor: new Date('2026-08-01T09:00:00.000Z'),
       slot: 'Sore',
       note: 'n',

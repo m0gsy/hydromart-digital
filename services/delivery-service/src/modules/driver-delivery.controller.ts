@@ -151,11 +151,14 @@ export class DriverDeliveryController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RescheduleDeliveryDto,
+    // Forwarded so the order can be handed back to the dispatch queue (PREPARING).
+    @Headers('authorization') authorization: string,
   ): Promise<DeliveryRecord> {
     return this.deliveries.reschedule(user.sub, id, {
       rescheduledFor: new Date(dto.rescheduledFor),
       slot: dto.slot,
       note: dto.note,
+      authorization,
     });
   }
 }

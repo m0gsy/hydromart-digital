@@ -77,6 +77,8 @@ export interface RescheduleInput {
   rescheduledFor: Date;
   slot?: string;
   note?: string;
+  /** Forwarded so the order can be handed back to dispatch on the caller's behalf. */
+  authorization?: string;
 }
 
 @Injectable()
@@ -104,7 +106,12 @@ export class DeliveryService {
     input: AssignInput,
     authorization: string,
   ): Promise<DeliveryRecord> {
-    if (await this.deliveries.findByOrder(input.orderId)) {
+    // One delivery row per order (orderId is unique). A RESCHEDULED row is the exception:
+    // reschedule deliberately keeps the order alive for a second attempt, but the row was
+    // terminal AND this guard refused a fresh assignment, so a rescheduled order could
+    // never be delivered by anyone. Re-open that row instead of rejecting the dispatch.
+    const existing = await this.deliveries.findByOrder(input.orderId);
+    if (existing && existing.status !== DeliveryStatus.RESCHEDULED) {
       throw new DeliveryAlreadyExistsError();
     }
     // Every delivery must fall inside exactly one shift, or the end-of-shift COD
@@ -136,8 +143,17 @@ export class DeliveryService {
       codAmount: input.codAmount ?? null,
       notes: input.notes ?? null,
     };
-    const delivery = await this.deliveries.create(data);
-    this.logger.log(`Delivery ${delivery.id} assigned to driver ${input.driverId} by ${actorId}`);
+    const delivery = existing
+      ? await this.deliveries.reassign(
+          existing.id,
+          input.driverId,
+          actorId,
+          'Penugasan ulang setelah dijadwalkan ulang.',
+        )
+      : await this.deliveries.create(data);
+    this.logger.log(
+      `Delivery ${delivery.id} ${existing ? 're-assigned' : 'assigned'} to driver ${input.driverId} by ${actorId}`,
+    );
     return delivery;
   }
 
@@ -316,6 +332,10 @@ export class DeliveryService {
       driverId,
       input.note ?? null,
     );
+    // Hand the order back to the dispatch queue. reschedule frees the courier, so leaving
+    // the order on the abandoned attempt's status (ON_DELIVERY etc.) pinned it there: the
+    // re-assignment could not advance it and the order could never be delivered.
+    await this.advanceOrder(delivery.orderId, 'PREPARING', input.authorization ?? '');
     // ponytail: best-effort customer notice, logged for now. The real crm push
     // (customer notification feed) is wired in slice 6 when crm plumbing lands.
     this.logger.log(

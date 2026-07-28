@@ -270,6 +270,24 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return clone(row);
   }
+  async reassign(
+    id: string,
+    driverId: string,
+    changedBy: string,
+    note: string | null,
+  ): Promise<DeliveryRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    Object.assign(row, {
+      driverId,
+      status: DeliveryStatus.ASSIGNED,
+      pickedUpAt: null,
+      startedAt: null,
+      estimatedArrivalAt: null,
+      updatedAt: nextDate(),
+    });
+    row.history.push({ status: DeliveryStatus.ASSIGNED, changedBy, note, createdAt: row.updatedAt });
+    return clone(row);
+  }
   async completeWithProof(
     id: string,
     proof: Omit<ProofRecord, 'capturedAt'>,

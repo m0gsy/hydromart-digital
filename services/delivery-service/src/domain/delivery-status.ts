@@ -17,6 +17,7 @@ export enum DeliveryStatus {
 
 /** Order statuses the delivery-service drives on order-service (BR-012). */
 export type OrderFulfilmentStatus =
+  | 'PREPARING'
   | 'DRIVER_ASSIGNED'
   | 'PICKED_UP'
   | 'ON_DELIVERY'
@@ -42,7 +43,8 @@ const TRANSITIONS: Record<DeliveryStatus, readonly DeliveryStatus[]> = {
   ],
   [DeliveryStatus.DELIVERED]: [],
   [DeliveryStatus.FAILED]: [],
-  [DeliveryStatus.RESCHEDULED]: [],
+  // Dispatch re-assigns a rescheduled delivery for its second attempt (design 3c).
+  [DeliveryStatus.RESCHEDULED]: [DeliveryStatus.ASSIGNED],
 };
 
 /** The order status that each delivery status corresponds to, if any. */

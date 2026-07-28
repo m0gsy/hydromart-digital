@@ -196,6 +196,11 @@ export interface DeliveryRepository {
     changedBy: string | null,
     note: string | null,
   ): Promise<DeliveryRecord>;
+  /**
+   * Puts a RESCHEDULED delivery back to ASSIGNED for a second attempt, possibly with a
+   * different driver. One row per order (orderId is unique), so the retry reuses it.
+   */
+  reassign(id: string, driverId: string, changedBy: string, note: string | null): Promise<DeliveryRecord>;
   /** Record proof of delivery and mark the delivery DELIVERED atomically. */
   completeWithProof(
     id: string,

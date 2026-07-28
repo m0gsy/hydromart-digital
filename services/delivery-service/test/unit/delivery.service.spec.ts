@@ -158,6 +158,49 @@ describe('DeliveryService', () => {
     await expect(assign(randomUUID(), orderId)).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
   });
 
+  it('re-assigns a RESCHEDULED delivery for a second attempt instead of refusing it', async () => {
+    // Reschedule keeps the order alive on purpose, but the row was terminal AND the
+    // duplicate guard refused a fresh assignment, so a rescheduled order could never be
+    // delivered by anyone. The retry reuses the row (orderId is unique).
+    const orderId = randomUUID();
+    const first = await assign(driver, orderId);
+    const rescheduled = await service.reschedule(driver, first.id, {
+      rescheduledFor: new Date(Date.now() + 86_400_000),
+      authorization: AUTH,
+    });
+    expect(rescheduled.status).toBe(DeliveryStatus.RESCHEDULED);
+    // The order goes back to the dispatch queue rather than staying on the abandoned attempt.
+    expect(orders.calls.at(-1)).toMatchObject({ status: 'PREPARING' });
+
+    const other = randomUUID();
+    await shifts.checkIn(other, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
+    const retry = await service.assign(
+      staff,
+      { orderId, orderNumber: 'HM-1', driverId: other, destinationAddress: 'Jl. Merdeka 10' },
+      AUTH,
+    );
+
+    expect(retry.id).toBe(first.id);
+    expect(retry.status).toBe(DeliveryStatus.ASSIGNED);
+    expect(retry.driverId).toBe(other);
+    // The second attempt starts clean: no leftover pickup/start stamps from the first.
+    expect(retry.pickedUpAt).toBeNull();
+    expect(retry.startedAt).toBeNull();
+    // And it can actually be driven to completion now.
+    await service.pickup(other, retry.id, AUTH);
+    const started = await service.start(other, retry.id, AUTH);
+    expect(started.status).toBe(DeliveryStatus.ON_DELIVERY);
+  });
+
+  it('still refuses a second delivery when the first one is DELIVERED', async () => {
+    const orderId = randomUUID();
+    const d = await assign(driver, orderId);
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    await service.complete(driver, d.id, { photoUrl: 'u', recipientName: 'Budi', signatureUrl: null, latitude: -6.19, longitude: 106.84, note: null }, AUTH);
+    await expect(assign(randomUUID(), orderId)).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
+  });
+
   it('enforces one active delivery per driver (BR)', async () => {
     await assign(driver);
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverBusyError);
@@ -346,19 +389,22 @@ describe('DeliveryService', () => {
     expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'CANCELLED']);
   });
 
-  it('reschedules a delivery without advancing the order (3c)', async () => {
+  it('reschedules a delivery and hands the order back to dispatch (3c)', async () => {
     const d = await assign();
     const when = new Date('2026-08-01T09:00:00.000Z');
     const out = await service.reschedule(driver, d.id, {
       rescheduledFor: when,
       slot: 'Pagi (09:00–12:00)',
       note: 'Pelanggan tidak di rumah.',
+      authorization: AUTH,
     });
     expect(out.status).toBe(DeliveryStatus.RESCHEDULED);
     expect(out.rescheduledFor).toEqual(when);
     expect(out.rescheduleSlot).toBe('Pagi (09:00–12:00)');
-    // RESCHEDULED frees the driver (non-active) and never advanced the order.
-    expect(orders.calls).toHaveLength(1);
+    // RESCHEDULED frees the driver (non-active). The order is NOT advanced along the
+    // fulfilment path — it is put back to PREPARING so dispatch can re-assign it. Leaving
+    // it on the abandoned attempt's status is what made a rescheduled order undeliverable.
+    expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'PREPARING']);
     expect(await repo.countActiveByDriver(driver)).toBe(0);
   });
 

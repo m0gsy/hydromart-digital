@@ -25,8 +25,20 @@ describe('OrderStatus state machine (BR-012, BR-005, BR-006)', () => {
 
   it('rejects skipping a step or moving backward', () => {
     expect(canTransition(OrderStatus.CREATED, OrderStatus.PREPARING)).toBe(false);
-    expect(canTransition(OrderStatus.PICKED_UP, OrderStatus.PREPARING)).toBe(false);
     expect(canTransition(OrderStatus.DELIVERED, OrderStatus.CREATED)).toBe(false);
+    expect(canTransition(OrderStatus.ON_DELIVERY, OrderStatus.CONFIRMED)).toBe(false);
+  });
+
+  it('lets an in-flight order fall back to PREPARING when its delivery is rescheduled (3c)', () => {
+    // The one intentional backward move: a rescheduled delivery frees the courier and the
+    // order returns to the dispatch queue. Without it the order stayed pinned to the
+    // abandoned attempt and could never be assigned or delivered again.
+    expect(canTransition(OrderStatus.DRIVER_ASSIGNED, OrderStatus.PREPARING)).toBe(true);
+    expect(canTransition(OrderStatus.PICKED_UP, OrderStatus.PREPARING)).toBe(true);
+    expect(canTransition(OrderStatus.ON_DELIVERY, OrderStatus.PREPARING)).toBe(true);
+    // Terminal states stay terminal.
+    expect(canTransition(OrderStatus.DELIVERED, OrderStatus.PREPARING)).toBe(false);
+    expect(canTransition(OrderStatus.CANCELLED, OrderStatus.PREPARING)).toBe(false);
   });
 
   it('allows cancel only before a driver is assigned (BR-006)', () => {
