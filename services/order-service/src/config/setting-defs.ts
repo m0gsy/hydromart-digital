@@ -31,7 +31,10 @@ export const SETTING_DEFS: SettingDef[] = [
   },
   {
     key: 'abandonMinutes',
-    label: 'Batas keranjang terbengkalai',
+    // M4-18: the old label said "keranjang terbengkalai", but this threshold is measured
+    // on CREATED orders that were never confirmed, not on carts. The key keeps its name
+    // so no stored override is orphaned; only the human-facing label changes.
+    label: 'Batas order belum dikonfirmasi',
     type: 'int',
     unit: 'menit',
     min: 5,
