@@ -21,6 +21,7 @@ import { NotificationPrismaRepository } from '../infrastructure/prisma/notificat
 import { PaymentMethodPrismaRepository } from '../infrastructure/prisma/payment-method.prisma.repository';
 import { ProfilePrismaRepository } from '../infrastructure/prisma/profile.prisma.repository';
 import { DepotCrmPrismaRepository } from '../infrastructure/prisma/depot-crm.prisma.repository';
+import { PdpPrismaRepository } from '../infrastructure/prisma/pdp.prisma.repository';
 import { ResellerPrismaRepository } from '../infrastructure/prisma/reseller.prisma.repository';
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
@@ -57,6 +58,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.FavoriteRepository, useClass: FavoritePrismaRepository },
   { provide: CUSTOMER_TOKENS.ResellerRepository, useClass: ResellerPrismaRepository },
   { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },
+  { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

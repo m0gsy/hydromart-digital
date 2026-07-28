@@ -259,7 +259,12 @@ describe('LoyaltyPrismaRepository', () => {
 
 describe('RewardPrismaRepository', () => {
   const rewardItem = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
-  const rewardRedemption = { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
+  const rewardRedemption = {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+  };
   const pointsTransaction = { create: jest.fn() };
   const loyaltyAccount = { update: jest.fn() };
   const $transaction = jest.fn((ops: unknown) => Promise.resolve(ops));
@@ -307,6 +312,32 @@ describe('RewardPrismaRepository', () => {
     rewardItem.findUnique.mockResolvedValue(null);
     expect(await repo.findItem('nope')).toBeNull();
     expect(rewardItem.findUnique).toHaveBeenCalledWith({ where: { id: 'nope' } });
+  });
+
+  it("lists a customer's redemptions newest-first with the reward label joined", async () => {
+    rewardRedemption.findMany.mockResolvedValue([
+      { ...redemptionRow, reward: { name: 'Free Galon' } },
+    ]);
+    const out = await repo.listRedemptionsByCustomer('cust-1');
+    expect(out).toEqual([{ ...redemptionRow, rewardName: 'Free Galon' }]);
+    expect(rewardRedemption.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1' },
+      orderBy: { createdAt: 'desc' },
+      include: { reward: { select: { name: true } } },
+    });
+  });
+
+  it('lists the hand-over queue oldest-first so the longest wait is served first', async () => {
+    rewardRedemption.findMany.mockResolvedValue([
+      { ...redemptionRow, reward: { name: 'Free Galon' } },
+    ]);
+    const out = await repo.listRedemptionsByStatus('ACTIVE');
+    expect(out[0]).toMatchObject({ id: 'rd-1', rewardName: 'Free Galon' });
+    expect(rewardRedemption.findMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+      include: { reward: { select: { name: true } } },
+    });
   });
 
   it('finds a prior redemption by idempotency key', async () => {

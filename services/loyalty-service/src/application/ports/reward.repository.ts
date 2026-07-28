@@ -23,6 +23,15 @@ export interface RewardRedemptionRecord {
   createdAt: Date;
 }
 
+/**
+ * A redemption plus the item's label. Lists render the reward name, and the customer
+ * may have redeemed an item that was retired since — so the name is joined at read
+ * time rather than looked up per row by the caller.
+ */
+export interface RewardRedemptionView extends RewardRedemptionRecord {
+  rewardName: string;
+}
+
 /** Atomic cancellation: mark CANCELLED + credit the points back + restore stock. */
 export interface CancelRedemptionMutation {
   redemptionId: string;
@@ -75,6 +84,10 @@ export interface RewardRepository {
   ): Promise<RewardRedemptionRecord | null>;
   redeem(mutation: RedeemMutation): Promise<RewardRedemptionRecord>;
   findRedemption(id: string): Promise<RewardRedemptionRecord | null>;
+  /** The customer's own redemptions, newest first — the list their cancel button sits on. */
+  listRedemptionsByCustomer(customerId: string): Promise<RewardRedemptionView[]>;
+  /** Every redemption in one state, oldest first — the staff hand-over queue. */
+  listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]>;
   /** Staff marks the reward physically handed over — after this it cannot be cancelled. */
   markUsed(id: string): Promise<RewardRedemptionRecord>;
   cancel(mutation: CancelRedemptionMutation): Promise<RewardRedemptionRecord>;

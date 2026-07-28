@@ -14,4 +14,6 @@ export const AUTH_TOKENS = {
   ClockPort: Symbol('ClockPort'),
   CustomerNotificationPort: Symbol('CustomerNotificationPort'),
   Storage: Symbol('Storage'),
+  DataSubjectRequestRepository: Symbol('DataSubjectRequestRepository'),
+  CustomerDataPort: Symbol('CustomerDataPort'),
 } as const;

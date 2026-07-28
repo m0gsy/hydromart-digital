@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { RewardService } from '../application/services/reward.service';
@@ -9,6 +10,7 @@ import {
   RedeemRewardDto,
   RedeemResultDto,
   RedemptionDto,
+  RedemptionListItemDto,
   RewardItemDto,
   UpdateRewardItemDto,
 } from './dto/reward.dto';
@@ -82,6 +84,29 @@ export class RewardController {
 
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
+  @Get('redemptions/me')
+  @ApiOperation({
+    summary: 'Your own redemptions, newest first (M14-03)',
+    description: 'ACTIVE rows are the ones you can still cancel.',
+  })
+  async myRedemptions(@CurrentUser() user: AuthenticatedUser): Promise<RedemptionListItemDto[]> {
+    const rows = await this.rewards.listMine(user.sub);
+    return rows.map((r) => RedemptionListItemDto.fromView(r));
+  }
+
+  @ApiBearerAuth()
+  @Roles(...CAPABILITIES.rewardHandover)
+  @Get('redemptions/active')
+  @ApiOperation({
+    summary: 'Redemptions still waiting to be handed over, oldest first (M14-03)',
+  })
+  async activeRedemptions(): Promise<RedemptionListItemDto[]> {
+    const rows = await this.rewards.listAwaitingHandover();
+    return rows.map((r) => RedemptionListItemDto.fromView(r));
+  }
+
+  @ApiBearerAuth()
+  @Roles(Role.CUSTOMER)
   @Post('redemptions/:id/cancel')
   @ApiOperation({
     summary: 'Cancel your own redemption and get the points back (M14-03)',
@@ -95,7 +120,7 @@ export class RewardController {
   }
 
   @ApiBearerAuth()
-  @Roles(...MANAGE_ROLES, Role.DEPOT_OPERATOR, Role.DEPOT_MANAGER)
+  @Roles(...CAPABILITIES.rewardHandover)
   @Post('redemptions/:id/used')
   @ApiOperation({
     summary: 'Mark a redemption as handed over; closes the cancellation window (M14-03)',

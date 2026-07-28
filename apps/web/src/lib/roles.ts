@@ -75,6 +75,9 @@ export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER
 // Reseller registry. Now a capability pair in @hydromart/access rather than a
 // hand-rolled `isHq() || isDepotManager()` — the read side widened to HR (read-only
 // roster in the HR console) and only the server's own map decides that.
+// Reward hand-over queue (M14-03). Same capability the loyalty-service route guards on,
+// so the tab and the API can never disagree about who may stamp a reward collected.
+export const canHandOverRewards = (role: string | null | undefined) => can('rewardHandover', role);
 export const canViewResellers = (role: string | null | undefined) => can('resellerView', role);
 export const canManageResellers = (role: string | null | undefined) => can('resellerAdmin', role);
 

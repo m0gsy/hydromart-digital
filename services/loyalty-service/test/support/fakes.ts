@@ -20,8 +20,10 @@ import {
 import {
   CancelRedemptionMutation,
   RedeemMutation,
+  RedemptionStatus,
   RewardItemRecord,
   RewardRedemptionRecord,
+  RewardRedemptionView,
   RewardRepository,
   CreateRewardItemData,
   UpdateRewardItemData,
@@ -272,6 +274,26 @@ export class InMemoryRewardRepository implements RewardRepository {
   async findRedemption(id: string): Promise<RewardRedemptionRecord | null> {
     const r = this.redemptions.find((x) => x.id === id);
     return r ? { ...r } : null;
+  }
+
+  async listRedemptionsByCustomer(customerId: string): Promise<RewardRedemptionView[]> {
+    return this.redemptions
+      .filter((r) => r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((r) => this.toView(r));
+  }
+
+  async listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]> {
+    return this.redemptions
+      .filter((r) => r.status === status)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((r) => this.toView(r));
+  }
+
+  /** Mirrors the Prisma join: the item label travels with the row. */
+  private toView(r: RewardRedemptionRecord): RewardRedemptionView {
+    const item = this.items.find((x) => x.id === r.rewardItemId);
+    return { ...r, rewardName: item?.name ?? 'Reward' };
   }
 
   async markUsed(id: string): Promise<RewardRedemptionRecord> {

@@ -42,6 +42,20 @@ export const profile = {
       redeemed: '{name} berhasil ditukar!',
       redeemError: 'Gagal menukar poin. Coba lagi.',
     },
+    redemptions: {
+      title: 'Penukaran saya',
+      empty: 'Belum ada penukaran hadiah.',
+      code: 'Kode',
+      codeHint: 'Tunjukkan kode ini ke petugas depot saat mengambil hadiah.',
+      cancel: 'Batalkan',
+      cancelled: 'Penukaran dibatalkan, poin sudah dikembalikan.',
+      cancelError: 'Gagal membatalkan penukaran.',
+      status: {
+        ACTIVE: 'Menunggu diambil',
+        USED: 'Sudah diambil',
+        CANCELLED: 'Dibatalkan',
+      },
+    },
     how: {
       title: 'Cara kerja poin',
       earn: { title: 'Belanja, dapat poin', body: '1 poin setiap Rp 1.000 belanja.' },

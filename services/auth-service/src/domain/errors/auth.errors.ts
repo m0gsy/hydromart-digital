@@ -102,3 +102,31 @@ export class InvalidGoogleTokenError extends DomainError {
     super(message);
   }
 }
+
+/* ---------- UU PDP tahap 1 (item 13) ---------- */
+
+/** One open request per right: a second one would queue the same work twice. */
+export class DuplicateDataSubjectRequestError extends DomainError {
+  readonly code = 'PDP_REQUEST_OPEN';
+  readonly status = HTTP.CONFLICT;
+  constructor() {
+    super('Permintaan sejenis masih diproses.');
+  }
+}
+
+export class DataSubjectRequestNotFoundError extends DomainError {
+  readonly code = 'PDP_REQUEST_NOT_FOUND';
+  readonly status = HTTP.NOT_FOUND;
+  constructor() {
+    super('Permintaan tidak ditemukan.');
+  }
+}
+
+/** Deciding twice would re-run an irreversible side effect. */
+export class DataSubjectRequestAlreadyDecidedError extends DomainError {
+  readonly code = 'PDP_REQUEST_DECIDED';
+  readonly status = HTTP.CONFLICT;
+  constructor() {
+    super('Permintaan ini sudah diputuskan.');
+  }
+}

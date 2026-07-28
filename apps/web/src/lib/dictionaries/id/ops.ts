@@ -50,6 +50,7 @@ export const ops = {
     crm: 'CRM & follow-up',
     broadcast: 'Broadcast',
     loyalty: 'Loyalty & poin',
+    redemptions: 'Penukaran hadiah',
     referral: 'Referral',
     recommendations: 'Rekomendasi',
     ratings: 'Rating & ulasan',

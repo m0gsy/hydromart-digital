@@ -200,6 +200,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/webhooks', labelKey: 'webhooks', icon: Plugs, ready: true },
       { href: '/hq/sla-policy', labelKey: 'slaPolicy', icon: Timer, ready: true },
       { href: '/hq/retention', labelKey: 'retention', icon: Archive, ready: true },
+      { href: '/hq/pdp', labelKey: 'pdp', icon: ShieldCheck, ready: true },
       { href: '/hq/security', labelKey: 'security', icon: Lock, ready: true },
       { href: '/hq/system', labelKey: 'system', icon: Gear, ready: false },
     ],

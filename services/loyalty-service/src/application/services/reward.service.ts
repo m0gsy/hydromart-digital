@@ -12,6 +12,7 @@ import {
   CreateRewardItemData,
   RewardItemRecord,
   RewardRedemptionRecord,
+  RewardRedemptionView,
   RewardRepository,
   UpdateRewardItemData,
 } from '../ports/reward.repository';
@@ -91,6 +92,16 @@ export class RewardService {
       decrementStock: item.stock !== null,
     });
     return { redemption, pointsBalance: newBalance };
+  }
+
+  /** The customer's own redemption history — what their cancel button acts on. */
+  listMine(customerId: string): Promise<RewardRedemptionView[]> {
+    return this.rewards.listRedemptionsByCustomer(customerId);
+  }
+
+  /** Staff hand-over queue: everything redeemed but not yet collected or cancelled. */
+  listAwaitingHandover(): Promise<RewardRedemptionView[]> {
+    return this.rewards.listRedemptionsByStatus('ACTIVE');
   }
 
   /**

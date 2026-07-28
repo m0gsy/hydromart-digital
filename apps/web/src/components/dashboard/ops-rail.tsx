@@ -78,6 +78,7 @@ import {
   canViewDepotCrm,
   canViewDepotFinance,
   canBroadcastToCouriers,
+  canHandOverRewards,
   isDepotManager,
   isStaff,
 } from '@/lib/roles';
@@ -170,6 +171,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/crm', labelKey: 'crm', icon: ChartPieSlice, show: canViewDepotCrm },
       { href: '/dashboard/broadcast', labelKey: 'broadcast', icon: Megaphone, show: canBroadcastToCouriers },
       { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: isDepotManager },
+      { href: '/dashboard/redemptions', labelKey: 'redemptions', icon: Gift, show: canHandOverRewards },
       { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: isDepotManager },
       { href: '/dashboard/recommendations', labelKey: 'recommendations', icon: Sparkle, show: isDepotManager },
       { href: '/dashboard/ratings', labelKey: 'ratings', icon: Star, show: isDepotManager },

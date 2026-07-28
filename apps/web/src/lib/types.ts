@@ -348,6 +348,39 @@ export interface RewardRedemption {
   pointsBalance: number;
 }
 
+/** UU PDP tahap 1 (item 13). Only PENDING rows can still be decided. */
+export type DataSubjectRequestType = 'EXPORT' | 'DELETE';
+export type DataSubjectRequestStatus = 'PENDING' | 'COMPLETED' | 'REJECTED';
+
+export interface DataSubjectRequest {
+  id: string;
+  customerId: string;
+  type: DataSubjectRequestType;
+  status: DataSubjectRequestStatus;
+  reason: string | null;
+  requestedAt: string;
+  processedBy: string | null;
+  processedAt: string | null;
+}
+
+export type RedemptionStatus = 'ACTIVE' | 'USED' | 'CANCELLED';
+
+/**
+ * A redemption row (loyalty /rewards/redemptions/me and /active). ACTIVE is the only
+ * state the customer can still cancel — once staff mark it USED the reward is gone.
+ */
+export interface RedemptionListItem {
+  id: string;
+  rewardItemId: string;
+  rewardName: string;
+  customerId: string;
+  pointsSpent: number;
+  status: RedemptionStatus;
+  usedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+}
+
 export type DiscountType = 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING';
 
 /** An admin voucher record (vouchers GET /vouchers; admin list includes inactive). */

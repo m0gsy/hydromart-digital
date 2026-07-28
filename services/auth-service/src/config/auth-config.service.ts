@@ -102,6 +102,18 @@ export class AuthConfigService {
     };
   }
 
+  /**
+   * customer-service, for the PDP export/anonymise fan-out (item 13). A blank URL is a
+   * hard failure at call time, not a silent skip: an export that quietly omits the
+   * customer's addresses, or a deletion that leaves them behind, is worse than an error.
+   */
+  get customerData(): { customerUrl: string; internalKey: string } {
+    return {
+      customerUrl: this.config.get<string>('CUSTOMER_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+
   // Shared service-to-service secret guarding inbound internal endpoints
   // (e.g. cross-service audit ingest). Blank = those endpoints reject everything.
   get internalServiceKey(): string {

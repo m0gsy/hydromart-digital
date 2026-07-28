@@ -47,6 +47,7 @@ export const ops = {
     crm: 'CRM & follow-up',
     broadcast: 'Broadcast',
     loyalty: 'Loyalty & points',
+    redemptions: 'Reward hand-over',
     referral: 'Referral',
     recommendations: 'Recommendations',
     ratings: 'Ratings & reviews',

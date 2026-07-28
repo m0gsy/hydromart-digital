@@ -25,6 +25,9 @@ export const envValidationSchema = Joi.object({
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // UU PDP tahap 1 (item 13). Blank is allowed so a dev box boots without it; the
+  // adapter then fails closed at call time rather than silently half-processing.
+  CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: optionalSecret(16),
 
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),

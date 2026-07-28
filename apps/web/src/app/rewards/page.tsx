@@ -32,6 +32,8 @@ import type {
   MyVoucher,
   Page,
   PointsTransaction,
+  RedemptionListItem,
+  RedemptionStatus,
   ReferralSummary,
   RewardItem,
   RewardRedemption,
@@ -310,6 +312,102 @@ function RedeemCatalog({
   );
 }
 
+/* ============================ My redemptions (M14-03) ============================ */
+
+const REDEMPTION_TONE: Record<RedemptionStatus, string> = {
+  ACTIVE: 'bg-brand-50 text-brand-700',
+  USED: 'bg-[color:var(--surface-soft)] text-muted',
+  CANCELLED: 'bg-[color:var(--surface-soft)] text-muted',
+};
+
+function MyRedemptions({
+  reloadKey,
+  onCancelled,
+}: {
+  reloadKey: number;
+  onCancelled: (newBalance: number) => void;
+}) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const { data, error, loading, reload } = useAsync<RedemptionListItem[]>(
+    () => api.get(endpoints.rewards.myRedemptions, true),
+    [reloadKey],
+  );
+  const [pending, setPending] = useState<string | null>(null);
+
+  async function cancel(row: RedemptionListItem) {
+    setPending(row.id);
+    try {
+      const result = await api.post<RewardRedemption>(
+        endpoints.rewards.cancelRedemption(row.id),
+        {},
+        true,
+      );
+      onCancelled(result.pointsBalance);
+      toast(t('profile.rewards.redemptions.cancelled'), 'success');
+      reload();
+    } catch (err) {
+      // The server refuses a cancel once staff marked the reward handed over — show its
+      // reason rather than a generic failure, so the customer knows why.
+      toast(err instanceof ApiError ? err.message : t('profile.rewards.redemptions.cancelError'), 'error');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className="mt-[26px]">
+      <h2 className="mb-3 text-xl font-extrabold tracking-tight">{t('profile.rewards.redemptions.title')}</h2>
+      {loading ? (
+        <Skeleton className="h-24 w-full rounded-2xl" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : !data || data.length === 0 ? (
+        <div className="rounded-2xl border border-app p-6 text-center text-sm text-muted" style={{ background: 'var(--surface-muted)' }}>
+          {t('profile.rewards.redemptions.empty')}
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-2.5">
+          {data.map((row) => (
+            <li key={row.id} className="surface flex flex-wrap items-center gap-3 rounded-[18px] border border-app px-[18px] py-4">
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                <Gift size={22} weight="fill" className="text-brand-600" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-extrabold leading-tight">{row.rewardName}</div>
+                <div className="mt-0.5 text-xs text-muted">
+                  {formatDateTime(row.createdAt)} · {idr(row.pointsSpent)} {t('profile.rewards.points.unit')}
+                </div>
+                {row.status === 'ACTIVE' && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <code className="rounded-[7px] border border-dashed border-app px-[9px] py-[3px] font-mono text-xs font-bold uppercase tracking-wide">
+                      {t('profile.rewards.redemptions.code')} {row.id.slice(0, 8)}
+                    </code>
+                    <span className="text-[11.5px] text-muted">{t('profile.rewards.redemptions.codeHint')}</span>
+                  </div>
+                )}
+              </div>
+              <span className={`rounded-full px-3 py-1.5 text-xs font-extrabold ${REDEMPTION_TONE[row.status]}`}>
+                {t(`profile.rewards.redemptions.status.${row.status}`)}
+              </span>
+              {row.status === 'ACTIVE' && (
+                <Button
+                  variant="secondary"
+                  className="rounded-full px-4 py-2 text-xs"
+                  loading={pending === row.id}
+                  onClick={() => cancel(row)}
+                >
+                  {t('profile.rewards.redemptions.cancel')}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 /* ============================ How points work ============================ */
 
 function HowPointsWork() {
@@ -492,6 +590,8 @@ function RewardsInner() {
   const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers));
   const [balance, setBalance] = useState<number | null>(null);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  // Bumped after a redeem so the redemption list picks the new row up without a page reload.
+  const [redemptionsKey, setRedemptionsKey] = useState(0);
   const catalogRef = useRef<HTMLDivElement>(null);
 
   const acc = account.data;
@@ -521,9 +621,18 @@ function RewardsInner() {
       <VoucherWallet onHistory={showLedger} />
 
       <div className="mt-[26px] grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-        <RedeemCatalog balance={liveBalance} onRedeemed={setBalance} anchorRef={catalogRef} />
+        <RedeemCatalog
+          balance={liveBalance}
+          onRedeemed={(newBalance) => {
+            setBalance(newBalance);
+            setRedemptionsKey((k) => k + 1);
+          }}
+          anchorRef={catalogRef}
+        />
         <HowPointsWork />
       </div>
+
+      <MyRedemptions reloadKey={redemptionsKey} onCancelled={setBalance} />
 
       <div id="rewards-ledger" className="mt-6 grid gap-5 scroll-mt-4 md:grid-cols-2">
         <LedgerCard open={ledgerOpen} onToggle={() => setLedgerOpen((v) => !v)} />

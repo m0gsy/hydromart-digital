@@ -50,6 +50,42 @@ describe('RewardService', () => {
     expect(await service.listCatalog()).toHaveLength(2 - 1);
   });
 
+  it("lists the caller's own redemptions with the reward label, newest first", async () => {
+    await seedBalance(3000);
+    rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
+    await service.redeem(CUSTOMER, 'gal', 'key-1');
+    await service.redeem(CUSTOMER, 'gal', 'key-2');
+    // Someone else's redemption must not leak into the list.
+    const other = '22222222-2222-2222-2222-222222222222';
+    await new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory()).reward(
+      other,
+      1000,
+      'seed',
+    );
+    await service.redeem(other, 'gal', 'key-3');
+
+    const mine = await service.listMine(CUSTOMER);
+
+    expect(mine).toHaveLength(2);
+    expect(mine.every((r) => r.customerId === CUSTOMER)).toBe(true);
+    expect(mine[0]?.rewardName).toBe('Galon');
+    expect(mine[0]!.createdAt.getTime()).toBeGreaterThanOrEqual(mine[1]!.createdAt.getTime());
+  });
+
+  it('hand-over queue holds only ACTIVE rows — cancelled and collected ones drop out', async () => {
+    await seedBalance(3000);
+    rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
+    const kept = await service.redeem(CUSTOMER, 'gal', 'key-1');
+    const cancelled = await service.redeem(CUSTOMER, 'gal', 'key-2');
+    const collected = await service.redeem(CUSTOMER, 'gal', 'key-3');
+    await service.cancel(CUSTOMER, cancelled.redemption.id);
+    await service.markUsed(collected.redemption.id);
+
+    const queue = await service.listAwaitingHandover();
+
+    expect(queue.map((r) => r.id)).toEqual([kept.redemption.id]);
+  });
+
   it('redeems an item, debiting the balance without touching lifetime points', async () => {
     await seedBalance(1000);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
