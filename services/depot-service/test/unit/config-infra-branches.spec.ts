@@ -1,6 +1,9 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 
-import { InvalidPricingWindowError, InvalidPurchaseOrderTransitionError } from '../../src/domain/errors';
+import {
+  InvalidPricingWindowError,
+  InvalidPurchaseOrderTransitionError,
+} from '../../src/domain/errors';
 import { DepotConfigService } from '../../src/config/depot-config.service';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { SettingsPrismaRepository } from '../../src/infrastructure/prisma/settings.prisma.repository';
@@ -64,32 +67,49 @@ describe('PrismaService lifecycle', () => {
 });
 
 describe('SettingsPrismaRepository', () => {
-  const serviceSetting = { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn(), create: jest.fn(), deleteMany: jest.fn() };
+  const serviceSetting = {
+    findMany: jest.fn(),
+    findFirst: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+    deleteMany: jest.fn(),
+  };
   const prisma = { serviceSetting } as unknown as PrismaService;
   const repo = new SettingsPrismaRepository(prisma);
   beforeEach(() => jest.clearAllMocks());
 
   it('maps loaded rows to SettingRow', async () => {
-    serviceSetting.findMany.mockResolvedValue([{ scope: 'GLOBAL', depotId: null, key: 'k', value: '1' }]);
-    expect(await repo.loadAll()).toEqual([{ scope: 'GLOBAL', depotId: null, key: 'k', value: '1' }]);
+    serviceSetting.findMany.mockResolvedValue([
+      { scope: 'GLOBAL', depotId: null, key: 'k', value: '1' },
+    ]);
+    expect(await repo.loadAll()).toEqual([
+      { scope: 'GLOBAL', depotId: null, key: 'k', value: '1' },
+    ]);
   });
 
   it('updates an existing row on upsert', async () => {
     serviceSetting.findFirst.mockResolvedValue({ id: 'row-1' });
     await repo.upsert({ scope: 'DEPOT', depotId: 'd', key: 'k', value: '2', updatedBy: 'u' });
-    expect(serviceSetting.update).toHaveBeenCalledWith({ where: { id: 'row-1' }, data: { value: '2', updatedBy: 'u' } });
+    expect(serviceSetting.update).toHaveBeenCalledWith({
+      where: { id: 'row-1' },
+      data: { value: '2', updatedBy: 'u' },
+    });
     expect(serviceSetting.create).not.toHaveBeenCalled();
   });
 
   it('creates a new row when none exists', async () => {
     serviceSetting.findFirst.mockResolvedValue(null);
     await repo.upsert({ scope: 'GLOBAL', depotId: null, key: 'k', value: '3', updatedBy: 'u' });
-    expect(serviceSetting.create).toHaveBeenCalledWith({ data: { scope: 'GLOBAL', depotId: null, key: 'k', value: '3', updatedBy: 'u' } });
+    expect(serviceSetting.create).toHaveBeenCalledWith({
+      data: { scope: 'GLOBAL', depotId: null, key: 'k', value: '3', updatedBy: 'u' },
+    });
   });
 
   it('removes by scope/depot/key', async () => {
     await repo.remove('DEPOT', 'd', 'k');
-    expect(serviceSetting.deleteMany).toHaveBeenCalledWith({ where: { scope: 'DEPOT', depotId: 'd', key: 'k' } });
+    expect(serviceSetting.deleteMany).toHaveBeenCalledWith({
+      where: { scope: 'DEPOT', depotId: 'd', key: 'k' },
+    });
   });
 });
 
@@ -102,7 +122,9 @@ describe('HealthController', () => {
 
   it('throws ServiceUnavailable when the database probe fails', async () => {
     const prisma = { $queryRaw: jest.fn().mockRejectedValue(new Error('down')) };
-    await expect(new HealthController(prisma as never).check()).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(new HealthController(prisma as never).check()).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });
 
@@ -112,10 +134,21 @@ describe('LowStockAlertHttpAdapter timeout', () => {
   it('aborts the request when crm-service hangs past the timeout', async () => {
     jest.useFakeTimers();
     const abort = jest.fn(() => rejectFetch(new Error('The operation was aborted')));
-    const AbortSpy = jest.spyOn(global, 'AbortController').mockImplementation(() => ({ abort, signal: {} }) as never);
+    const AbortSpy = jest
+      .spyOn(global, 'AbortController')
+      .mockImplementation(() => ({ abort, signal: {} }) as never);
     let rejectFetch: (e: Error) => void = () => {};
-    global.fetch = jest.fn(() => new Promise((_resolve, reject) => { rejectFetch = reject; })) as never;
-    const config = { alertPhone: '628', crmServiceUrl: 'http://crm', internalServiceKey: 'k' } as never;
+    global.fetch = jest.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFetch = reject;
+        }),
+    ) as never;
+    const config = {
+      alertPhone: '628',
+      crmServiceUrl: 'http://crm',
+      internalServiceKey: 'k',
+    } as never;
     const promise = new LowStockAlertHttpAdapter(config).emit(
       { depotId: 'd', depotName: 'D', label: 'L', quantity: 1, minimum: 2 },
       'Bearer x',
@@ -132,8 +165,12 @@ describe('domain errors with optional messages', () => {
   it('uses the default and a custom message for windowed errors', () => {
     expect(new InvalidPricingWindowError().message).toBe('Invalid pricing rule window.');
     expect(new InvalidPricingWindowError('custom window').message).toBe('custom window');
-    expect(new InvalidPurchaseOrderTransitionError().message).toBe('This purchase order cannot make that transition.');
-    expect(new InvalidPurchaseOrderTransitionError('custom transition').message).toBe('custom transition');
+    expect(new InvalidPurchaseOrderTransitionError().message).toBe(
+      'This purchase order cannot make that transition.',
+    );
+    expect(new InvalidPurchaseOrderTransitionError('custom transition').message).toBe(
+      'custom transition',
+    );
   });
 });
 

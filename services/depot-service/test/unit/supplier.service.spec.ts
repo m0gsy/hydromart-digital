@@ -66,14 +66,19 @@ describe('SupplierService', () => {
 
   it('creates a supplier defaulting the optional fields', async () => {
     const s = await service.create({ depotId, name: 'PT Air Baku', code: 'AB01' });
-    expect(s).toMatchObject({ name: 'PT Air Baku', code: 'AB01', contactPhone: null, onTimeRate: null });
+    expect(s).toMatchObject({
+      name: 'PT Air Baku',
+      code: 'AB01',
+      contactPhone: null,
+      onTimeRate: null,
+    });
     expect(s.categories).toEqual([]);
   });
 
   it('rejects a supplier on an unknown depot', async () => {
-    await expect(service.create({ depotId: UNKNOWN, name: 'x', code: 'X1' })).rejects.toBeInstanceOf(
-      DepotNotFoundError,
-    );
+    await expect(
+      service.create({ depotId: UNKNOWN, name: 'x', code: 'X1' }),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 
   it('rejects a duplicate code within the same depot', async () => {
@@ -86,7 +91,9 @@ describe('SupplierService', () => {
   it('allows the same code in a different depot', async () => {
     const other = (await depots.create({ ...DEPOT, code: 'JKT-02' })).id;
     await service.create({ depotId, name: 'First', code: 'DUP' });
-    await expect(service.create({ depotId: other, name: 'Other', code: 'DUP' })).resolves.toMatchObject({
+    await expect(
+      service.create({ depotId: other, name: 'Other', code: 'DUP' }),
+    ).resolves.toMatchObject({
       code: 'DUP',
     });
   });

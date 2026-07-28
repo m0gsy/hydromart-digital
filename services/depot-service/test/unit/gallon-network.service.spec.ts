@@ -1,6 +1,12 @@
 import { GallonNetworkService } from '../../src/application/services/gallon-network.service';
-import { GallonIssueDepotRow, GallonIssueRepository } from '../../src/application/ports/gallon-issue.repository';
-import { GallonReturnDepotRow, GallonReturnRepository } from '../../src/application/ports/gallon-return.repository';
+import {
+  GallonIssueDepotRow,
+  GallonIssueRepository,
+} from '../../src/application/ports/gallon-issue.repository';
+import {
+  GallonReturnDepotRow,
+  GallonReturnRepository,
+} from '../../src/application/ports/gallon-return.repository';
 
 // Only networkSummary() is exercised; the rest of each repo port is irrelevant to the
 // rollup, so the fakes stub just that one method.

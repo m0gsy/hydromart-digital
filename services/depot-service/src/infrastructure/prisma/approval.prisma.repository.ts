@@ -75,6 +75,7 @@ export class ApprovalPrismaRepository implements ApprovalRepository {
       [ApprovalType.OPNAME_VARIANCE]: 0,
       [ApprovalType.DEPOSIT_REFUND]: 0,
       [ApprovalType.COD_VARIANCE]: 0,
+      [ApprovalType.GALLON_VARIANCE]: 0,
     };
     for (const g of grouped) counts[g.type as ApprovalType] = g._count._all;
     return counts;

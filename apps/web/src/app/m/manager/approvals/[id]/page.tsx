@@ -15,6 +15,7 @@ const KIND_LABEL: Record<ApprovalType, string> = {
   OPNAME_VARIANCE: 'Selisih opname',
   DEPOSIT_REFUND: 'Refund deposit galon',
   COD_VARIANCE: 'Kurang setoran (COD)',
+  GALLON_VARIANCE: 'Selisih retur galon',
 };
 
 const num = (v: unknown) => Number(v ?? 0);
@@ -110,7 +111,20 @@ export default function ApprovalDetailPage() {
                 </RowLine>
                 <RowLine label="Deposit" divider>
                   <span className="font-extrabold tabular-nums">
-                    <Money amount={num(p.deposit)} />
+                    <Money amount={num(p.deposit ?? p.depositRefunded)} />
+                  </span>
+                </RowLine>
+              </>
+            ) : a.type === 'GALLON_VARIANCE' ? (
+              <>
+                <RowLine label="Kelebihan galon">
+                  <span className="text-sm font-semibold tabular-nums">
+                    {num(p.excessGallons).toLocaleString('id-ID')}
+                  </span>
+                </RowLine>
+                <RowLine label="Nilai deposit" divider>
+                  <span className="font-extrabold tabular-nums">
+                    <Money amount={a.amountIdr} />
                   </span>
                 </RowLine>
               </>
@@ -191,7 +205,9 @@ export default function ApprovalDetailPage() {
 function TriStat({ label, value, tone }: { label: string; value: string; tone?: 'danger' }) {
   return (
     <div className="px-2 py-4 text-center">
-      <div className={`text-xl font-extrabold tabular-nums ${tone === 'danger' ? 'text-red-600' : ''}`}>
+      <div
+        className={`text-xl font-extrabold tabular-nums ${tone === 'danger' ? 'text-red-600' : ''}`}
+      >
         {value}
       </div>
       <div className="mt-0.5 text-[10.5px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
@@ -201,9 +217,19 @@ function TriStat({ label, value, tone }: { label: string; value: string; tone?: 
   );
 }
 
-function RowLine({ label, divider, children }: { label: string; divider?: boolean; children: React.ReactNode }) {
+function RowLine({
+  label,
+  divider,
+  children,
+}: {
+  label: string;
+  divider?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={`flex items-center justify-between py-3 ${divider ? 'border-t border-[color:var(--border)]' : ''}`}>
+    <div
+      className={`flex items-center justify-between py-3 ${divider ? 'border-t border-[color:var(--border)]' : ''}`}
+    >
       <span className="text-sm font-semibold">{label}</span>
       {children}
     </div>

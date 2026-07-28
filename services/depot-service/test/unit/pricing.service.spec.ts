@@ -1,6 +1,10 @@
 import { PricingAdjustType } from '../../src/domain/pricing-rule';
 import { PricingService, CreateRuleInput } from '../../src/application/services/pricing.service';
-import { PricingRuleNotFoundError, InvalidPricingWindowError, DepotNotFoundError } from '../../src/domain/errors';
+import {
+  PricingRuleNotFoundError,
+  InvalidPricingWindowError,
+  DepotNotFoundError,
+} from '../../src/domain/errors';
 import { FakePricingRuleRepository } from '../support/fakes';
 
 // Minimal inventory + depot repo fakes sufficient for pricing (findPrices / findById).
@@ -92,7 +96,9 @@ describe('PricingService CRUD', () => {
 
   it('throws when updating a missing rule', async () => {
     const { service } = make();
-    await expect(service.update('nope', { value: 1 })).rejects.toBeInstanceOf(PricingRuleNotFoundError);
+    await expect(service.update('nope', { value: 1 })).rejects.toBeInstanceOf(
+      PricingRuleNotFoundError,
+    );
   });
 });
 
@@ -102,8 +108,18 @@ describe('PricingService.resolvePrices', () => {
   it('merges sellPrice override and the winning rule per product', async () => {
     const { service, rules, inv } = make();
     inv.prices.set('p1', 15000);
-    await service.create('d1', { ...baseInput, productId: 'p1', adjustType: PricingAdjustType.PERCENT, value: -10 });
-    await service.create('d1', { ...baseInput, productId: null, adjustType: PricingAdjustType.FIXED, value: -500 });
+    await service.create('d1', {
+      ...baseInput,
+      productId: 'p1',
+      adjustType: PricingAdjustType.PERCENT,
+      value: -10,
+    });
+    await service.create('d1', {
+      ...baseInput,
+      productId: null,
+      adjustType: PricingAdjustType.FIXED,
+      value: -500,
+    });
 
     const out = await service.resolvePrices('d1', ['p1', 'p2'], at);
     const p1 = out.find((r) => r.productId === 'p1')!;

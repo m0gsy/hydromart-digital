@@ -14,6 +14,7 @@ const KIND_LABEL: Record<ApprovalType, string> = {
   OPNAME_VARIANCE: 'Selisih opname',
   DEPOSIT_REFUND: 'Refund deposit galon',
   COD_VARIANCE: 'Kurang setoran (COD)',
+  GALLON_VARIANCE: 'Selisih retur galon',
 };
 
 const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
@@ -21,7 +22,9 @@ const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
 function subtitle(a: Approval): string {
   const p = a.payload ?? {};
   if (a.type === 'OPNAME_VARIANCE') return `Sistem ${idr(p.system)} · fisik ${idr(p.physical)}`;
-  if (a.type === 'DEPOSIT_REFUND') return `Kondisi ${String(p.condition ?? '—')} · deposit ${idr(p.deposit)}`;
+  if (a.type === 'DEPOSIT_REFUND')
+    return `Kondisi ${String(p.condition ?? '—')} · deposit ${idr(p.deposit ?? p.depositRefunded)}`;
+  if (a.type === 'GALLON_VARIANCE') return `Kelebihan ${idr(p.excessGallons)} galon`;
   return `Diharapkan ${idr(p.expected)} · diterima ${idr(p.received)}`;
 }
 

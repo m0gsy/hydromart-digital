@@ -39,7 +39,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
   let rulesRepo: FakePricingRuleRepository;
 
   beforeAll(async () => {
-    process.env.DEPOT_DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+    process.env.DEPOT_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
     process.env.JWT_ACCESS_SECRET = SECRET;
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     rulesRepo = new FakePricingRuleRepository();

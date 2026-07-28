@@ -73,11 +73,15 @@ describe('LowStockAlertHttpAdapter', () => {
 
   it('fails open (resolves) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
-    await expect(new LowStockAlertHttpAdapter(makeConfig()).emit(alert(), '')).resolves.toBeUndefined();
+    await expect(
+      new LowStockAlertHttpAdapter(makeConfig()).emit(alert(), ''),
+    ).resolves.toBeUndefined();
   });
 
   it('fails open (resolves) when crm-service is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(new LowStockAlertHttpAdapter(makeConfig()).emit(alert(), '')).resolves.toBeUndefined();
+    await expect(
+      new LowStockAlertHttpAdapter(makeConfig()).emit(alert(), ''),
+    ).resolves.toBeUndefined();
   });
 });

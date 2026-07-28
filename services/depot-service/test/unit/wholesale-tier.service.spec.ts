@@ -17,7 +17,13 @@ class InMemoryWholesaleTierRepository implements WholesaleTierRepository {
 
   async create(data: CreateWholesaleTierData): Promise<WholesaleTier> {
     const now = new Date();
-    const row: WholesaleTier = { id: randomUUID(), active: true, createdAt: now, updatedAt: now, ...data };
+    const row: WholesaleTier = {
+      id: randomUUID(),
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+      ...data,
+    };
     this.rows.push(row);
     return row;
   }

@@ -116,7 +116,12 @@ describe('DisputeService', () => {
 
   it('resolves REFUND/RESEND as RESOLVED and REJECTED as REJECTED, stamping the resolver', async () => {
     const a = await raise();
-    const refunded = await service.resolve(a.id, DisputeResolution.REFUND, 'Dana dikembalikan', MANAGER);
+    const refunded = await service.resolve(
+      a.id,
+      DisputeResolution.REFUND,
+      'Dana dikembalikan',
+      MANAGER,
+    );
     expect(refunded.status).toBe(DisputeStatus.RESOLVED);
     expect(refunded.resolution).toBe(DisputeResolution.REFUND);
     expect(refunded.resolvedBy).toBe(MANAGER);

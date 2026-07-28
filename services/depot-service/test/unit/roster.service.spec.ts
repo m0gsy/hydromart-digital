@@ -66,8 +66,8 @@ describe('RosterService', () => {
   });
 
   it('rejects an unknown depot', async () => {
-    await expect(
-      service.week('00000000-0000-0000-0000-000000000000', WEEK),
-    ).rejects.toBeInstanceOf(DepotNotFoundError);
+    await expect(service.week('00000000-0000-0000-0000-000000000000', WEEK)).rejects.toBeInstanceOf(
+      DepotNotFoundError,
+    );
   });
 });

@@ -60,7 +60,14 @@ describe('OperationalReportPrismaRepository', () => {
         id: 'po-id',
         poNumber: 'PO-1',
         receivedAt: occurredAt,
-        lines: [{ itemType: InventoryItemType.PRODUK, label: 'Refill 19L', quantity: 10, unitCostIdr: 4500 }],
+        lines: [
+          {
+            itemType: InventoryItemType.PRODUK,
+            label: 'Refill 19L',
+            quantity: 10,
+            unitCostIdr: 4500,
+          },
+        ],
       },
     ]);
     cashbookEntry.findMany.mockResolvedValue([

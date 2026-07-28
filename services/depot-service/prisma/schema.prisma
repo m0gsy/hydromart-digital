@@ -453,6 +453,9 @@ enum ApprovalType {
   OPNAME_VARIANCE
   DEPOSIT_REFUND
   COD_VARIANCE
+  /// M15-11: an empty-gallon return that exceeds what the depot has outstanding.
+  /// Queued for a manager instead of rejected — the empties are physically there.
+  GALLON_VARIANCE
 }
 
 /// PENDING → APPROVED / REJECTED / HELD lifecycle for an approval item.

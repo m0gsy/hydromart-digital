@@ -52,7 +52,9 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
   }
 }
 
-const APP = (over: Partial<CreateFranchiseApplicationData> = {}): CreateFranchiseApplicationData => ({
+const APP = (
+  over: Partial<CreateFranchiseApplicationData> = {},
+): CreateFranchiseApplicationData => ({
   applicantName: 'Rudi Hartono',
   applicantPhone: '0812-1111-2222',
   proposedCode: 'DPK-01',
@@ -116,7 +118,9 @@ describe('FranchiseApplicationService', () => {
   it('refuses to re-decide or edit a terminal application', async () => {
     const created = await service.create(APP());
     await service.reject(created.id);
-    await expect(service.approve(created.id)).rejects.toBeInstanceOf(ApplicationAlreadyDecidedError);
+    await expect(service.approve(created.id)).rejects.toBeInstanceOf(
+      ApplicationAlreadyDecidedError,
+    );
     await expect(
       service.patch(created.id, { stage: FranchiseAppStage.SURVEY }),
     ).rejects.toBeInstanceOf(ApplicationAlreadyDecidedError);

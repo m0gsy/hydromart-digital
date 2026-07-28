@@ -550,7 +550,13 @@ export interface RevenueByProduct {
   grouping: 'product';
   from: string | null;
   to: string | null;
-  items: { productId: string; productName: string; orderCount: number; revenue: number; share: number }[];
+  items: {
+    productId: string;
+    productName: string;
+    orderCount: number;
+    revenue: number;
+    share: number;
+  }[];
 }
 
 // 22b — retention grid: rows = first-order-month cohorts, cells = retention ratio (0..1).
@@ -567,7 +573,13 @@ export interface CustomerSummary {
   revenue: number;
   firstOrderAt: string | null;
   lastOrderAt: string | null;
-  recentOrders: { id: string; orderNumber: string; status: string; total: number; createdAt: string }[];
+  recentOrders: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    total: number;
+    createdAt: string;
+  }[];
 }
 
 // 18c — HQ network subscription aggregate. estMonthlyDeliveries is an estimate (no
@@ -576,7 +588,11 @@ export interface SubscriptionNetworkSummary {
   activeSubscriptions: number;
   activeSubscribers: number;
   estMonthlyDeliveries: number;
-  plans: { productName: string; frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'; subscribers: number }[];
+  plans: {
+    productName: string;
+    frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+    subscribers: number;
+  }[];
 }
 
 export interface TopDepots {
@@ -608,9 +624,7 @@ export interface ExecutiveDashboard {
 }
 
 export type OperationalCogsUncoveredReason =
-  | 'NO_MATCHING_RECEIVED_PO'
-  | 'AMBIGUOUS_ITEM_LABEL'
-  | 'AMBIGUOUS_PO_COST';
+  'NO_MATCHING_RECEIVED_PO' | 'AMBIGUOUS_ITEM_LABEL' | 'AMBIGUOUS_PO_COST';
 
 export interface OperationalMonthlyPnl {
   depotId: string;
@@ -771,11 +785,7 @@ export interface Depot {
 
 // ---- Payout / komisi (payout-service, "Keuangan · usulan") ----
 export type LedgerEntryType =
-  | 'SALE_SETTLEMENT'
-  | 'COMMISSION'
-  | 'STOCK_PURCHASE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'SALE_SETTLEMENT' | 'COMMISSION' | 'STOCK_PURCHASE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 export type WithdrawalStatus = 'PROCESSING' | 'PAID' | 'FAILED';
 
 export interface LedgerEntry {
@@ -926,12 +936,7 @@ export interface DepotPayload {
 
 // Delivery (delivery-service). Live-tracking slice consumed by the ops console.
 export type DeliveryStatus =
-  | 'ASSIGNED'
-  | 'PICKED_UP'
-  | 'ON_DELIVERY'
-  | 'DELIVERED'
-  | 'FAILED'
-  | 'RESCHEDULED';
+  'ASSIGNED' | 'PICKED_UP' | 'ON_DELIVERY' | 'DELIVERED' | 'FAILED' | 'RESCHEDULED';
 
 export interface DeliveryStatusHistoryEntry {
   status: DeliveryStatus;
@@ -1047,11 +1052,7 @@ export interface CashSettlement {
 
 // Courier earnings ledger (payout-service, design 2c/6b).
 export type CourierLedgerEntryType =
-  | 'EARNING'
-  | 'DEDUCTION'
-  | 'CASH_VARIANCE'
-  | 'WITHDRAWAL'
-  | 'ADJUSTMENT';
+  'EARNING' | 'DEDUCTION' | 'CASH_VARIANCE' | 'WITHDRAWAL' | 'ADJUSTMENT';
 
 export interface CourierLedgerEntry {
   id: string;
@@ -1686,7 +1687,12 @@ export interface ShiftAssignment {
 // Depot-manager approval queue (depot-service, design 1c/2a-2c/10c/12a). A depot-scoped
 // inbox of value decisions (opname loss, deposit refund, COD shortfall). No collision with
 // the admin RefundApproval string-union above, so these keep the plain Approval* names.
-export type ApprovalType = 'OPNAME_VARIANCE' | 'DEPOSIT_REFUND' | 'COD_VARIANCE';
+export type ApprovalType =
+  | 'OPNAME_VARIANCE'
+  | 'DEPOSIT_REFUND'
+  | 'COD_VARIANCE'
+  // M15-11: empties handed back beyond what the depot has outstanding.
+  | 'GALLON_VARIANCE';
 export type ApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'HELD';
 
 export interface Approval {
@@ -1750,11 +1756,7 @@ export interface SecurityPolicy {
 
 // Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
 export type NotificationEventId =
-  | 'criticalSla'
-  | 'newFranchiseApp'
-  | 'payoutPending'
-  | 'systemIncident'
-  | 'dailyDigest';
+  'criticalSla' | 'newFranchiseApp' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
 export interface NotificationChannelPref {
   id: NotificationEventId;
   push: boolean;
@@ -1768,11 +1770,7 @@ export interface AdminNotificationPrefs {
 
 // First-run onboarding wizard state (23b).
 export type OnboardingStep =
-  | 'verify2fa'
-  | 'addDepot'
-  | 'inviteHeadOffice'
-  | 'setPricingTax'
-  | 'enablePayments';
+  'verify2fa' | 'addDepot' | 'inviteHeadOffice' | 'setPricingTax' | 'enablePayments';
 export interface OnboardingState {
   verify2fa: boolean;
   addDepot: boolean;
@@ -2067,12 +2065,7 @@ export interface WholesaleTier {
 }
 
 // Manager-managed standing orders (16b). Distinct from the customer `Subscription` above.
-export type DepotSubscriptionCadence =
-  | 'DAILY'
-  | 'EVERY_3_DAYS'
-  | 'WEEKLY'
-  | 'BIWEEKLY'
-  | 'MONTHLY';
+export type DepotSubscriptionCadence = 'DAILY' | 'EVERY_3_DAYS' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 export type DepotSubscriptionStatus = 'ACTIVE' | 'PAUSED' | 'CANCELLED';
 export interface DepotSubscription {
   id: string;

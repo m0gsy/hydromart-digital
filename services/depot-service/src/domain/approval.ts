@@ -6,6 +6,8 @@ export enum ApprovalType {
   OPNAME_VARIANCE = 'OPNAME_VARIANCE',
   DEPOSIT_REFUND = 'DEPOSIT_REFUND',
   COD_VARIANCE = 'COD_VARIANCE',
+  /** M15-11: empty-gallon return beyond the depot's outstanding balance. */
+  GALLON_VARIANCE = 'GALLON_VARIANCE',
 }
 
 export enum ApprovalStatus {

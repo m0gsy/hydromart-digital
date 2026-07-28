@@ -67,7 +67,9 @@ describe('isRuleActive', () => {
 
   it('matches the valid date range (inclusive)', () => {
     expect(isRuleActive(rule({ validFrom: new Date('2026-07-01T00:00:00Z') }), now, TZ)).toBe(true);
-    expect(isRuleActive(rule({ validUntil: new Date('2026-07-01T00:00:00Z') }), now, TZ)).toBe(false);
+    expect(isRuleActive(rule({ validUntil: new Date('2026-07-01T00:00:00Z') }), now, TZ)).toBe(
+      false,
+    );
   });
 });
 
@@ -86,9 +88,24 @@ describe('resolveRule', () => {
   });
 
   it('breaks ties by priority then newest', () => {
-    const a = rule({ id: 'a', productId: 'p1', priority: 1, createdAt: new Date('2026-01-01T00:00:00Z') });
-    const b = rule({ id: 'b', productId: 'p1', priority: 2, createdAt: new Date('2026-01-01T00:00:00Z') });
-    const c = rule({ id: 'c', productId: 'p1', priority: 2, createdAt: new Date('2026-02-01T00:00:00Z') });
+    const a = rule({
+      id: 'a',
+      productId: 'p1',
+      priority: 1,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    const b = rule({
+      id: 'b',
+      productId: 'p1',
+      priority: 2,
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+    });
+    const c = rule({
+      id: 'c',
+      productId: 'p1',
+      priority: 2,
+      createdAt: new Date('2026-02-01T00:00:00Z'),
+    });
     expect(resolveRule([a, b, c], 'p1', now, TZ)?.id).toBe('c');
   });
 

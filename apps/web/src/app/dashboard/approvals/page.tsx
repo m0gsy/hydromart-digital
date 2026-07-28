@@ -18,6 +18,7 @@ const TYPE_ICON: Record<ApprovalType, typeof Package> = {
   OPNAME_VARIANCE: Package,
   DEPOSIT_REFUND: HandCoins,
   COD_VARIANCE: Wallet,
+  GALLON_VARIANCE: Package,
 };
 
 const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
@@ -26,10 +27,21 @@ const idr = (v: unknown) => Number(v ?? 0).toLocaleString('id-ID');
 function metaLine(a: Approval, t: (key: string, vars?: TVars) => string): string {
   const p = a.payload ?? {};
   if (a.type === 'OPNAME_VARIANCE') {
-    return t('dashA.approvals.metaOpname', { system: idr(p.system), physical: idr(p.physical), variance: idr(p.variance) });
+    return t('dashA.approvals.metaOpname', {
+      system: idr(p.system),
+      physical: idr(p.physical),
+      variance: idr(p.variance),
+    });
   }
   if (a.type === 'DEPOSIT_REFUND') {
-    return t('dashA.approvals.metaDeposit', { condition: String(p.condition ?? '—'), deposit: idr(p.deposit) });
+    return t('dashA.approvals.metaDeposit', {
+      condition: String(p.condition ?? '—'),
+      deposit: idr(p.deposit ?? p.depositRefunded),
+    });
+  }
+  // M15-11: the payload carries the unexplained empties, not an expected/received pair.
+  if (a.type === 'GALLON_VARIANCE') {
+    return t('dashA.approvals.metaGallon', { excess: idr(p.excessGallons) });
   }
   return t('dashA.approvals.metaCod', { expected: idr(p.expected), received: idr(p.received) });
 }
@@ -51,8 +63,13 @@ function Row({ a }: { a: Approval }) {
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <Money amount={Math.abs(a.amountIdr)} className="text-sm font-extrabold text-[color:var(--danger)]" />
-          <p className="text-[11px] text-[color:var(--text-muted)]">{t(`dashA.approvals.type.${a.type}`)}</p>
+          <Money
+            amount={Math.abs(a.amountIdr)}
+            className="text-sm font-extrabold text-[color:var(--danger)]"
+          />
+          <p className="text-[11px] text-[color:var(--text-muted)]">
+            {t(`dashA.approvals.type.${a.type}`)}
+          </p>
         </div>
         <CaretRight size={16} className="shrink-0 text-[color:var(--text-muted)]" />
       </Card>
@@ -93,7 +110,10 @@ function Body() {
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : count === 0 ? (
-        <CenterState title={t('dashA.approvals.emptyTitle')} icon={<Gavel size={40} weight="fill" />}>
+        <CenterState
+          title={t('dashA.approvals.emptyTitle')}
+          icon={<Gavel size={40} weight="fill" />}
+        >
           {t('dashA.approvals.emptyBody')}
         </CenterState>
       ) : (
@@ -104,9 +124,7 @@ function Body() {
         </div>
       )}
 
-      <p className="text-xs text-[color:var(--text-muted)]">
-        {t('dashA.approvals.footer')}
-      </p>
+      <p className="text-xs text-[color:var(--text-muted)]">{t('dashA.approvals.footer')}</p>
     </div>
   );
 }
