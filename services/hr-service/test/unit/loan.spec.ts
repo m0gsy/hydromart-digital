@@ -1,7 +1,16 @@
-import { loanDeductionFor, loanRemainingAfter, loanIsSettled, type LoanTerms } from '../../src/domain/loan';
+import {
+  loanDeductionFor,
+  loanRemainingAfter,
+  loanIsSettled,
+  type LoanTerms,
+} from '../../src/domain/loan';
 
 // 1,000,000 principal, 300,000/month from 2026-07 → 300k,300k,300k,100k over 4 months.
-const loan: LoanTerms = { principal: 1_000_000, installmentAmount: 300_000, startPeriod: '2026-07' };
+const loan: LoanTerms = {
+  principal: 1_000_000,
+  installmentAmount: 300_000,
+  startPeriod: '2026-07',
+};
 
 describe('loanDeductionFor', () => {
   it('is 0 before the loan starts', () => {

@@ -9,14 +9,20 @@ function makeConfig(token = 'tok_test'): HrConfigService {
   return { neoFr: { endpoint: 'https://fr.example', token, galleryId: 'g1' } } as HrConfigService;
 }
 
-function mockFetch(handler: (url: string, init: RequestInit) => { ok?: boolean; status?: number; body: unknown }) {
+function mockFetch(
+  handler: (url: string, init: RequestInit) => { ok?: boolean; status?: number; body: unknown },
+) {
   const calls: { url: string; body: Record<string, unknown> }[] = [];
   global.fetch = (async (url: string, init: RequestInit) => {
     const body = JSON.parse(init.body as string);
     calls.push({ url, body });
     const r = handler(url, init);
     // NEO wraps every body under `risetai`.
-    return { ok: r.ok ?? true, status: r.status ?? 200, json: async () => ({ risetai: r.body }) } as Response;
+    return {
+      ok: r.ok ?? true,
+      status: r.status ?? 200,
+      json: async () => ({ risetai: r.body }),
+    } as Response;
   }) as unknown as typeof fetch;
   return calls;
 }
@@ -35,7 +41,12 @@ describe('NeoFaceProvider', () => {
     expect(paths.filter((p) => p.endsWith('create-facegallery'))).toHaveLength(1);
     expect(paths.filter((p) => p.endsWith('enroll-face'))).toHaveLength(2);
     const enroll = calls.find((c) => c.url.endsWith('enroll-face'))!;
-    expect(enroll.body).toMatchObject({ facegallery_id: 'g1', user_id: 'e1', user_name: 'Budi', force_register: true });
+    expect(enroll.body).toMatchObject({
+      facegallery_id: 'g1',
+      user_id: 'e1',
+      user_name: 'Budi',
+      force_register: true,
+    });
     expect(enroll.body.image).toBe(Buffer.from('img').toString('base64'));
     expect(enroll.body.trx_id).toBeTruthy();
   });
@@ -58,18 +69,24 @@ describe('NeoFaceProvider', () => {
   it('throws ServiceUnavailable on a NEO error status', async () => {
     mockFetch(() => ({ body: { status: '400', status_message: 'face not found' } }));
     const neo = new NeoFaceProvider(makeConfig());
-    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 
   it('throws when the token is not configured', async () => {
     mockFetch(() => ({ body: {} }));
     const neo = new NeoFaceProvider(makeConfig(''));
-    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 
   it('requires an identity (userId)', async () => {
     mockFetch(() => ({ body: { status: '200' } }));
     const neo = new NeoFaceProvider(makeConfig());
-    await expect(neo.verify(Buffer.from('p'), [], true, undefined)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(neo.verify(Buffer.from('p'), [], true, undefined)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 });

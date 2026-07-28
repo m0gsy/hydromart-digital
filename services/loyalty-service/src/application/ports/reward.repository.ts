@@ -9,12 +9,31 @@ export interface RewardItemRecord {
   stock: number | null;
 }
 
+/** M14-03 redemption lifecycle. Mirrors the TEXT column; no Prisma enum to migrate. */
+export type RedemptionStatus = 'ACTIVE' | 'USED' | 'CANCELLED';
+
 export interface RewardRedemptionRecord {
   id: string;
   rewardItemId: string;
   customerId: string;
   pointsSpent: number;
+  status: RedemptionStatus;
+  usedAt: Date | null;
+  cancelledAt: Date | null;
   createdAt: Date;
+}
+
+/** Atomic cancellation: mark CANCELLED + credit the points back + restore stock. */
+export interface CancelRedemptionMutation {
+  redemptionId: string;
+  accountId: string;
+  customerId: string;
+  rewardItemId: string;
+  pointsRefunded: number;
+  newBalance: number;
+  reason: string;
+  /** True when the item has finite stock and its counter must be given back. */
+  restoreStock: boolean;
 }
 
 /** Atomic redemption: ledger entry + balance debit + (optional) stock decrement. */
@@ -55,4 +74,8 @@ export interface RewardRepository {
     idempotencyKey: string,
   ): Promise<RewardRedemptionRecord | null>;
   redeem(mutation: RedeemMutation): Promise<RewardRedemptionRecord>;
+  findRedemption(id: string): Promise<RewardRedemptionRecord | null>;
+  /** Staff marks the reward physically handed over — after this it cannot be cancelled. */
+  markUsed(id: string): Promise<RewardRedemptionRecord>;
+  cancel(mutation: CancelRedemptionMutation): Promise<RewardRedemptionRecord>;
 }

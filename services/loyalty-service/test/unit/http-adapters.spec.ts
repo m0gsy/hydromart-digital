@@ -15,7 +15,12 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): LoyaltyConfigS
   } as unknown as LoyaltyConfigService;
 }
 
-function res(init: { ok?: boolean; status?: number; body?: unknown; throwJson?: boolean }): Response {
+function res(init: {
+  ok?: boolean;
+  status?: number;
+  body?: unknown;
+  throwJson?: boolean;
+}): Response {
   const status = init.status ?? (init.ok === false ? 500 : 200);
   return {
     ok: init.ok ?? status < 400,
@@ -36,13 +41,17 @@ beforeEach(() => {
 
 describe('CustomerDirectoryHttpAdapter', () => {
   it('returns [] when no key (directory not configured)', async () => {
-    const out = await new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).customerIdsForDepot('d1');
+    const out = await new CustomerDirectoryHttpAdapter(
+      makeConfig({ internalServiceKey: '' }),
+    ).customerIdsForDepot('d1');
     expect(out).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('returns [] when no customer-service url', async () => {
-    const out = await new CustomerDirectoryHttpAdapter(makeConfig({ customerServiceUrl: '' })).customerIdsForDepot('d1');
+    const out = await new CustomerDirectoryHttpAdapter(
+      makeConfig({ customerServiceUrl: '' }),
+    ).customerIdsForDepot('d1');
     expect(out).toEqual([]);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -65,21 +74,29 @@ describe('CustomerDirectoryHttpAdapter', () => {
 
   it('returns [] when customerIds is absent/not an array', async () => {
     fetchMock.mockResolvedValue(res({ body: {} }));
-    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);
+    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual(
+      [],
+    );
   });
 
   it('returns [] when the response body is not valid JSON', async () => {
     fetchMock.mockResolvedValue(res({ throwJson: true }));
-    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);
+    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual(
+      [],
+    );
   });
 
   it('returns [] (fail open) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);
+    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual(
+      [],
+    );
   });
 
   it('returns [] (fail open) when customer-service is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual([]);
+    expect(await new CustomerDirectoryHttpAdapter(makeConfig()).customerIdsForDepot('d1')).toEqual(
+      [],
+    );
   });
 });

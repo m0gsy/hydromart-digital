@@ -8,7 +8,12 @@ import { EmployeeService } from '../../src/application/services/employee.service
 
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
-const manager = (depotId: string): AuthenticatedUser => ({ sub: 'mgr-1', role: 'DEPOT_MANAGER' as never, phone: '0800', depotId });
+const manager = (depotId: string): AuthenticatedUser => ({
+  sub: 'mgr-1',
+  role: 'DEPOT_MANAGER' as never,
+  phone: '0800',
+  depotId,
+});
 
 class FakeRepo implements LoanRepository {
   rows: Loan[] = [];
@@ -27,10 +32,14 @@ class FakeRepo implements LoanRepository {
     return this.rows.find((r) => r.id === id) ?? null;
   }
   async listByEmployee(employeeId: string): Promise<Loan[]> {
-    return this.rows.filter((r) => (r as unknown as { employeeId: string }).employeeId === employeeId);
+    return this.rows.filter(
+      (r) => (r as unknown as { employeeId: string }).employeeId === employeeId,
+    );
   }
   async listActiveByEmployee(employeeId: string): Promise<Loan[]> {
-    return this.rows.filter((r) => (r as unknown as { employeeId: string }).employeeId === employeeId && r.active);
+    return this.rows.filter(
+      (r) => (r as unknown as { employeeId: string }).employeeId === employeeId && r.active,
+    );
   }
 }
 
@@ -39,7 +48,8 @@ function fakeEmployees(): EmployeeService {
   return {
     getById: async (user: AuthenticatedUser, id: string) => {
       if (id !== 'e1') throw new NotFoundException('Karyawan tidak ditemukan');
-      if (user.role === ('DEPOT_MANAGER' as never) && user.depotId !== DEPOT_A) throw new ForbiddenException('depot');
+      if (user.role === ('DEPOT_MANAGER' as never) && user.depotId !== DEPOT_A)
+        throw new ForbiddenException('depot');
       return { id: 'e1', depotId: DEPOT_A } as never;
     },
   } as unknown as EmployeeService;
@@ -50,7 +60,12 @@ function make() {
   return { repo, svc: new LoanService(repo, fakeEmployees()) };
 }
 
-const base = { employeeId: 'e1', principal: 1_000_000, installmentAmount: 300_000, startPeriod: '2026-07' };
+const base = {
+  employeeId: 'e1',
+  principal: 1_000_000,
+  installmentAmount: 300_000,
+  startPeriod: '2026-07',
+};
 
 describe('LoanService.create', () => {
   it('creates an active loan (note defaults to null)', async () => {
@@ -63,7 +78,9 @@ describe('LoanService.create', () => {
   it('validates principal, installment, and period format', async () => {
     const { svc } = make();
     await expect(svc.create(hr, { ...base, principal: 0 })).rejects.toThrow(/principal harus/);
-    await expect(svc.create(hr, { ...base, installmentAmount: 0 })).rejects.toThrow(/installmentAmount harus/);
+    await expect(svc.create(hr, { ...base, installmentAmount: 0 })).rejects.toThrow(
+      /installmentAmount harus/,
+    );
     await expect(svc.create(hr, { ...base, startPeriod: '2026-13' })).rejects.toThrow(/YYYY-MM/);
   });
 
@@ -82,7 +99,9 @@ describe('LoanService.deactivate', () => {
   it('depot-checks via the employee then flips active off', async () => {
     const { svc } = make();
     const l = await svc.create(hr, base);
-    await expect(svc.deactivate(manager('99999999-9999-9999-9999-999999999999'), l.id)).rejects.toThrow(ForbiddenException);
+    await expect(
+      svc.deactivate(manager('99999999-9999-9999-9999-999999999999'), l.id),
+    ).rejects.toThrow(ForbiddenException);
     const off = await svc.deactivate(hr, l.id);
     expect(off.active).toBe(false);
   });

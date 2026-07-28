@@ -1,4 +1,9 @@
-import { Employee, EmploymentHistory, EmployeeStatus, Prisma } from '../../../prisma/generated/client';
+import {
+  Employee,
+  EmploymentHistory,
+  EmployeeStatus,
+  Prisma,
+} from '../../../prisma/generated/client';
 
 export const EMPLOYEE_REPOSITORY = Symbol('EMPLOYEE_REPOSITORY');
 

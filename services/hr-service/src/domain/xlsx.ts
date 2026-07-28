@@ -15,7 +15,11 @@ interface ExcelModule {
 }
 
 /** Build a single-sheet .xlsx workbook from a header row + data rows. */
-export async function toXlsx(headers: string[], rows: CsvCell[][], sheetName: string): Promise<Buffer> {
+export async function toXlsx(
+  headers: string[],
+  rows: CsvCell[][],
+  sheetName: string,
+): Promise<Buffer> {
   let ExcelJS: ExcelModule;
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires

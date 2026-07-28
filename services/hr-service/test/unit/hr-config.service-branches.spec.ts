@@ -44,7 +44,9 @@ describe('HrConfigService — env-driven getters', () => {
 
   it('returns the configured time zone (and its default)', async () => {
     expect(new HrConfigService(config(), await cacheWith()).timeZone).toBe('Asia/Jakarta');
-    expect(new HrConfigService(config({ PRICING_TZ: 'UTC' }), await cacheWith()).timeZone).toBe('UTC');
+    expect(new HrConfigService(config({ PRICING_TZ: 'UTC' }), await cacheWith()).timeZone).toBe(
+      'UTC',
+    );
   });
 
   it('reads face-recognition settings straight from ENV (with defaults)', async () => {
@@ -64,7 +66,10 @@ describe('HrConfigService — env-driven getters', () => {
     expect(svc.faceModelPath).toBe('/models/x.onnx');
     expect(svc.faceServiceUrl).toBe('http://face:9000');
 
-    const defaults = new HrConfigService(config({ HR_FACE_MATCH_THRESHOLD: '0.5', HR_FACE_DUPLICATE_THRESHOLD: '0.5' }), await cacheWith());
+    const defaults = new HrConfigService(
+      config({ HR_FACE_MATCH_THRESHOLD: '0.5', HR_FACE_DUPLICATE_THRESHOLD: '0.5' }),
+      await cacheWith(),
+    );
     expect(defaults.faceVerifierDriver).toBe('onnx');
     expect(defaults.faceModelPath).toBe('./models/arcface.onnx');
     expect(defaults.faceServiceUrl).toBe('');
@@ -76,7 +81,10 @@ describe('HrConfigService — env-driven getters', () => {
       await cacheWith(),
     );
     expect(wired.orderService).toEqual({ url: 'http://order:3010', internalKey: 'k' });
-    expect(new HrConfigService(config(), await cacheWith()).orderService).toEqual({ url: '', internalKey: '' });
+    expect(new HrConfigService(config(), await cacheWith()).orderService).toEqual({
+      url: '',
+      internalKey: '',
+    });
   });
 
   it('exposes the auth-service block (configured + empty defaults)', async () => {
@@ -161,7 +169,10 @@ describe('HrConfigService — per-depot tunables', () => {
   });
 
   it('reads weeklyOffDays and tenureRaiseLadder (env default + override)', async () => {
-    const envd = new HrConfigService(config({ HR_WEEKLY_OFF_DAYS: '0,6', HR_TENURE_RAISE_LADDER: '1:5,2:10' }), await cacheWith());
+    const envd = new HrConfigService(
+      config({ HR_WEEKLY_OFF_DAYS: '0,6', HR_TENURE_RAISE_LADDER: '1:5,2:10' }),
+      await cacheWith(),
+    );
     expect(envd.weeklyOffDays()).toBe('0,6');
     expect(envd.tenureRaiseLadder()).toBe('1:5,2:10');
 
@@ -192,7 +203,9 @@ describe('HrConfigService — per-depot tunables', () => {
 
     const bad = new HrConfigService(
       config(),
-      await cacheWith([{ scope: 'GLOBAL', depotId: null, key: 'geofenceLat', value: 'not-a-number' }]),
+      await cacheWith([
+        { scope: 'GLOBAL', depotId: null, key: 'geofenceLat', value: 'not-a-number' },
+      ]),
     );
     expect(bad.geofence().lat).toBeNull();
   });

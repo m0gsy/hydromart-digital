@@ -1,4 +1,9 @@
-import { Payroll, PayrollItem, PayrollItemKind, PayrollStatus } from '../../../prisma/generated/client';
+import {
+  Payroll,
+  PayrollItem,
+  PayrollItemKind,
+  PayrollStatus,
+} from '../../../prisma/generated/client';
 
 export const PAYROLL_REPOSITORY = Symbol('PAYROLL_REPOSITORY');
 
@@ -24,7 +29,10 @@ export interface PayrollWrite {
 export type PayrollWithItems = Payroll & { items: PayrollItem[] };
 
 export interface PayrollRepository {
-  findByEmployeeAndPeriod(employeeId: string, periodMonth: string): Promise<PayrollWithItems | null>;
+  findByEmployeeAndPeriod(
+    employeeId: string,
+    periodMonth: string,
+  ): Promise<PayrollWithItems | null>;
   findById(id: string): Promise<PayrollWithItems | null>;
   /** Create a DRAFT payroll with its item lines (atomic). */
   create(data: PayrollWrite): Promise<PayrollWithItems>;
@@ -36,5 +44,11 @@ export interface PayrollRepository {
     status: PayrollStatus,
     stamp: { approvedBy?: string; approvedAt?: Date; paidAt?: Date },
   ): Promise<PayrollWithItems>;
-  list(filter: { periodMonth?: string; employeeId?: string; status?: PayrollStatus; skip: number; take: number }): Promise<{ rows: Payroll[]; total: number }>;
+  list(filter: {
+    periodMonth?: string;
+    employeeId?: string;
+    status?: PayrollStatus;
+    skip: number;
+    take: number;
+  }): Promise<{ rows: Payroll[]; total: number }>;
 }

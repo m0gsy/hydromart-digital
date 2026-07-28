@@ -2,7 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
-import { RewardItemRecord } from '../../application/ports/reward.repository';
+import {
+  RedemptionStatus,
+  RewardItemRecord,
+  RewardRedemptionRecord,
+} from '../../application/ports/reward.repository';
 import { RedeemResult } from '../../application/services/reward.service';
 
 /* ---------- Requests ---------- */
@@ -43,7 +47,11 @@ export class CreateRewardItemDto {
   @MaxLength(500)
   imageUrl?: string | null;
 
-  @ApiPropertyOptional({ example: 50, nullable: true, description: 'Finite stock; omit or null = unlimited.' })
+  @ApiPropertyOptional({
+    example: 50,
+    nullable: true,
+    description: 'Finite stock; omit or null = unlimited.',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -127,6 +135,27 @@ export class RewardItemDto {
   }
 }
 
+/** One redemption's lifecycle state (M14-03), for the staff hand-over endpoint. */
+export class RedemptionDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({ format: 'uuid' }) rewardItemId!: string;
+  @ApiProperty({ example: 800 }) pointsSpent!: number;
+  @ApiProperty({ enum: ['ACTIVE', 'USED', 'CANCELLED'] }) status!: RedemptionStatus;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true }) usedAt!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true }) cancelledAt!: string | null;
+
+  static from(record: RewardRedemptionRecord): RedemptionDto {
+    return {
+      id: record.id,
+      rewardItemId: record.rewardItemId,
+      pointsSpent: record.pointsSpent,
+      status: record.status,
+      usedAt: record.usedAt ? record.usedAt.toISOString() : null,
+      cancelledAt: record.cancelledAt ? record.cancelledAt.toISOString() : null,
+    };
+  }
+}
+
 export class RedeemResultDto {
   @ApiProperty({ format: 'uuid' })
   redemptionId!: string;
@@ -136,6 +165,11 @@ export class RedeemResultDto {
   pointsSpent!: number;
   @ApiProperty({ example: 1300, description: 'Spendable balance after the debit.' })
   pointsBalance!: number;
+  @ApiProperty({
+    enum: ['ACTIVE', 'USED', 'CANCELLED'],
+    description: 'ACTIVE until staff hand the reward over (USED) or it is cancelled (M14-03).',
+  })
+  status!: RedemptionStatus;
 
   static from(result: RedeemResult): RedeemResultDto {
     return {
@@ -143,6 +177,7 @@ export class RedeemResultDto {
       rewardItemId: result.redemption.rewardItemId,
       pointsSpent: result.redemption.pointsSpent,
       pointsBalance: result.pointsBalance,
+      status: result.redemption.status,
     };
   }
 }

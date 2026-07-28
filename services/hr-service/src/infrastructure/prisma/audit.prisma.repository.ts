@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { AuditLog, Prisma } from '../../../prisma/generated/client';
-import { AuditListFilter, AuditRepository, AuditWrite } from '../../application/ports/audit.repository';
+import {
+  AuditListFilter,
+  AuditRepository,
+  AuditWrite,
+} from '../../application/ports/audit.repository';
 import { PrismaService } from './prisma.service';
 
 @Injectable()
@@ -29,7 +33,12 @@ export class AuditPrismaRepository implements AuditRepository {
       actorId: filter.actorId,
     };
     const [rows, total] = await this.prisma.$transaction([
-      this.prisma.auditLog.findMany({ where, orderBy: { at: 'desc' }, skip: filter.skip, take: filter.take }),
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { at: 'desc' },
+        skip: filter.skip,
+        take: filter.take,
+      }),
       this.prisma.auditLog.count({ where }),
     ]);
     return { rows, total };

@@ -1,7 +1,8 @@
 export const IDENTITY_PORT = Symbol('IdentityPort');
 
 /** Roles a bulk employee import may provision — mirrors STAFF_IMPORT_ROLES in @hydromart/access. */
-export type StaffRole = 'DEPOT_OPERATOR' | 'DEPOT_MANAGER' | 'DRIVER' | 'FINANCE' | 'HR' | 'MARKETING';
+export type StaffRole =
+  'DEPOT_OPERATOR' | 'DEPOT_MANAGER' | 'DRIVER' | 'FINANCE' | 'HR' | 'MARKETING';
 
 export interface ProvisionStaffInput {
   phone: string;

@@ -14,9 +14,24 @@ describe('SupportTicketService', () => {
 
   it('lists newest-first and filters by status/priority', async () => {
     repo.rows = [
-      makeSupportTicket({ subject: 'A', createdAt: new Date(1000), status: TicketStatus.OPEN, priority: TicketPriority.HIGH }),
-      makeSupportTicket({ subject: 'B', createdAt: new Date(3000), status: TicketStatus.RESOLVED, priority: TicketPriority.LOW }),
-      makeSupportTicket({ subject: 'C', createdAt: new Date(2000), status: TicketStatus.OPEN, priority: TicketPriority.HIGH }),
+      makeSupportTicket({
+        subject: 'A',
+        createdAt: new Date(1000),
+        status: TicketStatus.OPEN,
+        priority: TicketPriority.HIGH,
+      }),
+      makeSupportTicket({
+        subject: 'B',
+        createdAt: new Date(3000),
+        status: TicketStatus.RESOLVED,
+        priority: TicketPriority.LOW,
+      }),
+      makeSupportTicket({
+        subject: 'C',
+        createdAt: new Date(2000),
+        status: TicketStatus.OPEN,
+        priority: TicketPriority.HIGH,
+      }),
     ];
     const all = await service.list({});
     expect(all.map((t) => t.subject)).toEqual(['B', 'C', 'A']); // newest first

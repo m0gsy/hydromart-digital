@@ -83,7 +83,11 @@ describe('ApiKeysController', () => {
 
   it('create honours an explicit environment', async () => {
     keys.create.mockResolvedValue({ record: makeApiKey(), token: 'hm_test_secret' });
-    await controller.create({ name: 'CI', scopes: ['read'], environment: ApiKeyEnvironment.STAGING });
+    await controller.create({
+      name: 'CI',
+      scopes: ['read'],
+      environment: ApiKeyEnvironment.STAGING,
+    });
     expect(keys.create).toHaveBeenCalledWith(
       expect.objectContaining({ environment: ApiKeyEnvironment.STAGING }),
     );
@@ -104,8 +108,18 @@ describe('ExportLogsController', () => {
 
   it('list forwards explicit paging + filters', async () => {
     exports.list.mockResolvedValue({ items: [makeExportLog()], total: 1, page: 2, limit: 5 });
-    const out = await controller.list({ page: 2, limit: 5, dataset: 'orders', status: ExportStatus.DONE });
-    expect(exports.list).toHaveBeenCalledWith({ page: 2, limit: 5, dataset: 'orders', status: ExportStatus.DONE });
+    const out = await controller.list({
+      page: 2,
+      limit: 5,
+      dataset: 'orders',
+      status: ExportStatus.DONE,
+    });
+    expect(exports.list).toHaveBeenCalledWith({
+      page: 2,
+      limit: 5,
+      dataset: 'orders',
+      status: ExportStatus.DONE,
+    });
     expect(out.items).toHaveLength(1);
   });
 
@@ -119,9 +133,17 @@ describe('ExportLogsController', () => {
 
   it('ingest applies null/PENDING defaults for the optional fields', async () => {
     exports.ingest.mockResolvedValue(makeExportLog());
-    await controller.ingest({ dataset: 'orders', requestedByEmail: 'ops@x.com', format: ExportFormat.CSV });
+    await controller.ingest({
+      dataset: 'orders',
+      requestedByEmail: 'ops@x.com',
+      format: ExportFormat.CSV,
+    });
     expect(exports.ingest).toHaveBeenCalledWith(
-      expect.objectContaining({ requestedById: null, rowCount: null, status: ExportStatus.PENDING }),
+      expect.objectContaining({
+        requestedById: null,
+        rowCount: null,
+        status: ExportStatus.PENDING,
+      }),
     );
   });
 
@@ -142,7 +164,13 @@ describe('ExportLogsController', () => {
 });
 
 describe('FraudFlagsController', () => {
-  const fraud = { list: jest.fn(), review: jest.fn(), block: jest.fn(), clear: jest.fn(), ingest: jest.fn() };
+  const fraud = {
+    list: jest.fn(),
+    review: jest.fn(),
+    block: jest.fn(),
+    clear: jest.fn(),
+    ingest: jest.fn(),
+  };
   const controller = new FraudFlagsController(fraud as unknown as FraudFlagService);
   beforeEach(() => jest.clearAllMocks());
 
@@ -171,7 +199,9 @@ describe('FraudFlagsController', () => {
       signals: ['velocity'],
       status: FraudStatus.OPEN,
     });
-    expect(fraud.ingest).toHaveBeenCalledWith(expect.objectContaining({ entityRef: 'ORD-1', score: 90 }));
+    expect(fraud.ingest).toHaveBeenCalledWith(
+      expect.objectContaining({ entityRef: 'ORD-1', score: 90 }),
+    );
   });
 });
 
@@ -198,7 +228,11 @@ describe('IncidentsController', () => {
 
   it('create defaults a missing note to null', async () => {
     incidents.create.mockResolvedValue(makeIncident());
-    await controller.create({ title: 'DB', severity: IncidentSeverity.CRITICAL, affectedService: 'order-service' });
+    await controller.create({
+      title: 'DB',
+      severity: IncidentSeverity.CRITICAL,
+      affectedService: 'order-service',
+    });
     expect(incidents.create).toHaveBeenCalledWith(expect.objectContaining({ note: null }));
   });
 
@@ -213,13 +247,18 @@ describe('IncidentsController', () => {
     });
     expect(incidents.create).toHaveBeenCalledWith(expect.objectContaining({ note: 'opening' }));
     await controller.patch('i-1', { note: 'update', status: IncidentStatus.RESOLVED });
-    expect(incidents.patch).toHaveBeenCalledWith('i-1', { note: 'update', status: IncidentStatus.RESOLVED });
+    expect(incidents.patch).toHaveBeenCalledWith('i-1', {
+      note: 'update',
+      status: IncidentStatus.RESOLVED,
+    });
   });
 });
 
 describe('NotificationPrefsController', () => {
   const prefs = { get: jest.fn(), save: jest.fn() };
-  const controller = new NotificationPrefsController(prefs as unknown as AdminNotificationPrefService);
+  const controller = new NotificationPrefsController(
+    prefs as unknown as AdminNotificationPrefService,
+  );
   const user = { sub: 'acc-1' } as AuthenticatedUser;
   const record: AdminNotificationPrefRecord = { accountId: 'acc-1', channels: [], updatedAt: now };
   beforeEach(() => jest.clearAllMocks());
@@ -264,7 +303,11 @@ describe('OnboardingController', () => {
 });
 
 describe('RetentionController', () => {
-  const retention = { listPolicies: jest.fn(), getBackupStatus: jest.fn(), updatePolicy: jest.fn() };
+  const retention = {
+    listPolicies: jest.fn(),
+    getBackupStatus: jest.fn(),
+    updatePolicy: jest.fn(),
+  };
   const controller = new RetentionController(retention as unknown as RetentionService);
   beforeEach(() => jest.clearAllMocks());
 
@@ -288,7 +331,10 @@ describe('RetentionController', () => {
   it('update delegates the window change', async () => {
     retention.updatePolicy.mockResolvedValue(makeRetentionPolicy({ windowDays: 30 }));
     await controller.update('r-1', { windowLabel: '30 days', windowDays: 30 });
-    expect(retention.updatePolicy).toHaveBeenCalledWith('r-1', { windowLabel: '30 days', windowDays: 30 });
+    expect(retention.updatePolicy).toHaveBeenCalledWith('r-1', {
+      windowLabel: '30 days',
+      windowDays: 30,
+    });
   });
 });
 
@@ -311,7 +357,11 @@ describe('ScheduledReportsController', () => {
     reports.create.mockResolvedValue(makeScheduledReport());
     reports.update.mockResolvedValue(makeScheduledReport({ enabled: false }));
     reports.remove.mockResolvedValue(undefined);
-    await controller.create({ name: 'Weekly', cadence: ReportCadence.WEEKLY, recipients: ['ops@x.com'] });
+    await controller.create({
+      name: 'Weekly',
+      cadence: ReportCadence.WEEKLY,
+      recipients: ['ops@x.com'],
+    });
     expect(reports.create).toHaveBeenCalled();
     expect((await controller.update('s-1', { enabled: false })).enabled).toBe(false);
     await controller.remove('s-1');
@@ -362,24 +412,43 @@ describe('SlaPolicyController', () => {
 });
 
 describe('SupportTicketsController', () => {
-  const tickets = { list: jest.fn(), get: jest.fn(), reply: jest.fn(), assign: jest.fn(), resolve: jest.fn() };
+  const tickets = {
+    list: jest.fn(),
+    get: jest.fn(),
+    reply: jest.fn(),
+    assign: jest.fn(),
+    resolve: jest.fn(),
+  };
   const controller = new SupportTicketsController(tickets as unknown as SupportTicketService);
   const withMessage = makeSupportTicket({
-    messages: [{ id: 'm-1', ticketId: 't-1', authorType: TicketAuthorType.STAFF, body: 'on it', createdAt: now }],
+    messages: [
+      {
+        id: 'm-1',
+        ticketId: 't-1',
+        authorType: TicketAuthorType.STAFF,
+        body: 'on it',
+        createdAt: now,
+      },
+    ],
   });
   beforeEach(() => jest.clearAllMocks());
 
   it('list forwards status/priority filters and maps the message thread', async () => {
     tickets.list.mockResolvedValue([withMessage]);
     const out = await controller.list({ status: TicketStatus.OPEN, priority: TicketPriority.HIGH });
-    expect(tickets.list).toHaveBeenCalledWith({ status: TicketStatus.OPEN, priority: TicketPriority.HIGH });
+    expect(tickets.list).toHaveBeenCalledWith({
+      status: TicketStatus.OPEN,
+      priority: TicketPriority.HIGH,
+    });
     expect(out[0].messages[0].body).toBe('on it');
   });
 
   it('get/reply/assign/resolve delegate', async () => {
     tickets.get.mockResolvedValue(withMessage);
     tickets.reply.mockResolvedValue(withMessage);
-    tickets.assign.mockResolvedValue(makeSupportTicket({ assigneeId: 'staff-1', status: TicketStatus.ASSIGNED }));
+    tickets.assign.mockResolvedValue(
+      makeSupportTicket({ assigneeId: 'staff-1', status: TicketStatus.ASSIGNED }),
+    );
     tickets.resolve.mockResolvedValue(makeSupportTicket({ status: TicketStatus.RESOLVED }));
     await controller.get('t-1');
     await controller.reply('t-1', { body: 'hi' });

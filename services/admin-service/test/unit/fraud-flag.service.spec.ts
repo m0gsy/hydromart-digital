@@ -26,9 +26,24 @@ describe('FraudFlagService', () => {
 
   it('lists highest-score first and filters by level/status', async () => {
     repo.rows = [
-      makeFraudFlag({ entityRef: 'low', score: 40, level: FraudLevel.LOW, status: FraudStatus.OPEN }),
-      makeFraudFlag({ entityRef: 'high', score: 90, level: FraudLevel.HIGH, status: FraudStatus.REVIEWED }),
-      makeFraudFlag({ entityRef: 'mid', score: 65, level: FraudLevel.MEDIUM, status: FraudStatus.OPEN }),
+      makeFraudFlag({
+        entityRef: 'low',
+        score: 40,
+        level: FraudLevel.LOW,
+        status: FraudStatus.OPEN,
+      }),
+      makeFraudFlag({
+        entityRef: 'high',
+        score: 90,
+        level: FraudLevel.HIGH,
+        status: FraudStatus.REVIEWED,
+      }),
+      makeFraudFlag({
+        entityRef: 'mid',
+        score: 65,
+        level: FraudLevel.MEDIUM,
+        status: FraudStatus.OPEN,
+      }),
     ];
     const all = await service.list({});
     expect(all.map((f) => f.entityRef)).toEqual(['high', 'mid', 'low']); // highest score first

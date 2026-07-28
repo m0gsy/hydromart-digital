@@ -71,6 +71,7 @@ export function evalBonusRule(spec: BonusRuleSpec, ctx: BonusContext): number {
   const value = metricValue(spec.metric, ctx);
   if (value === null) return 0; // unknown metric data never pays a bonus
   if (!compare(value, spec.op, spec.threshold)) return 0;
-  const amount = spec.rewardKind === 'PERCENT' ? (ctx.basePay * spec.rewardValue) / 100 : spec.rewardValue;
+  const amount =
+    spec.rewardKind === 'PERCENT' ? (ctx.basePay * spec.rewardValue) / 100 : spec.rewardValue;
   return Math.max(0, Math.round(amount));
 }

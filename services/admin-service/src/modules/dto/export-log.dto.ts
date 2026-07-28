@@ -41,7 +41,10 @@ export class IngestExportLogDto {
   @MaxLength(200)
   dataset!: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Requesting account id (null for system jobs).' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Requesting account id (null for system jobs).',
+  })
   @IsOptional()
   @IsUUID()
   requestedById?: string;

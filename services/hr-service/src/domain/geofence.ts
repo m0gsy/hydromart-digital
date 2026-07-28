@@ -27,14 +27,24 @@ export interface Geofence {
 
 /** Whether a geofence is configured (has a centre and a positive radius). */
 export function geofenceEnabled(g: Geofence): boolean {
-  return g.lat !== null && g.lng !== null && Number.isFinite(g.lat) && Number.isFinite(g.lng) && g.radiusM > 0;
+  return (
+    g.lat !== null &&
+    g.lng !== null &&
+    Number.isFinite(g.lat) &&
+    Number.isFinite(g.lng) &&
+    g.radiusM > 0
+  );
 }
 
 /**
  * True when the punch is allowed: inside the radius, OR the geofence is disabled
  * (unconfigured depot → record GPS but don't block). Distance is returned for logging.
  */
-export function withinGeofence(g: Geofence, lat: number, lng: number): { ok: boolean; distanceM: number | null } {
+export function withinGeofence(
+  g: Geofence,
+  lat: number,
+  lng: number,
+): { ok: boolean; distanceM: number | null } {
   if (!geofenceEnabled(g)) return { ok: true, distanceM: null };
   const distanceM = haversineMeters(g.lat as number, g.lng as number, lat, lng);
   return { ok: distanceM <= g.radiusM, distanceM: Math.round(distanceM) };

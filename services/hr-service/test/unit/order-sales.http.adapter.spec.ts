@@ -34,7 +34,11 @@ describe('OrderSalesHttpAdapter.depotSales', () => {
   });
 
   it('returns null without calling fetch when the internal key is missing', async () => {
-    const out = await new OrderSalesHttpAdapter(makeConfig('http://order:3010', '')).depotSales('d1', FROM, TO);
+    const out = await new OrderSalesHttpAdapter(makeConfig('http://order:3010', '')).depotSales(
+      'd1',
+      FROM,
+      TO,
+    );
     expect(out).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });

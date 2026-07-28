@@ -5,9 +5,12 @@ import { SettingsRepository } from '../../src/application/ports/settings.reposit
 function repoWith(rows: SettingRow[]): SettingsRepository {
   const store = [...rows] as (SettingRow & { updatedBy: string })[];
   return {
-    loadAll: async () => store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
+    loadAll: async () =>
+      store.map(({ scope, depotId, key, value }) => ({ scope, depotId, key, value })),
     upsert: async (row) => {
-      const i = store.findIndex((r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key);
+      const i = store.findIndex(
+        (r) => r.scope === row.scope && r.depotId === row.depotId && r.key === row.key,
+      );
       if (i >= 0) store[i] = row;
       else store.push(row);
     },
@@ -20,7 +23,9 @@ function repoWith(rows: SettingRow[]): SettingsRepository {
 
 describe('SettingsService', () => {
   it('schema returns effective values with env-default fallback', async () => {
-    const repo = repoWith([{ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '500' }]);
+    const repo = repoWith([
+      { scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '500' },
+    ]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     const out = await svc.schema(null);
     expect(out.effective.earnRateRupiah).toBe(500); // global override
@@ -30,7 +35,13 @@ describe('SettingsService', () => {
   it('put validates against the registry min/max and refreshes the cache', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
-    await svc.put({ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '2000', updatedBy: 'u1' });
+    await svc.put({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'earnRateRupiah',
+      value: '2000',
+      updatedBy: 'u1',
+    });
     expect(svc.cache.effective('earnRateRupiah', 'money', 1000)).toBe(2000);
   });
 
@@ -38,7 +49,13 @@ describe('SettingsService', () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'DEPOT', depotId: null, key: 'earnRateRupiah', value: '500', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'DEPOT',
+        depotId: null,
+        key: 'earnRateRupiah',
+        value: '500',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow();
   });
 
@@ -54,7 +71,13 @@ describe('SettingsService', () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));
     await expect(
-      svc.put({ scope: 'GLOBAL', depotId: null, key: 'pointExpiryMonths', value: '999', updatedBy: 'u1' }),
+      svc.put({
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'pointExpiryMonths',
+        value: '999',
+        updatedBy: 'u1',
+      }),
     ).rejects.toThrow();
   });
 

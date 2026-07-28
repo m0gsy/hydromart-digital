@@ -24,7 +24,9 @@ describe('LoyaltyConfigService business tunables', () => {
 
   it('applies a GLOBAL override for every depot', async () => {
     const cache = new SettingsCache({
-      loadAll: async () => [{ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '500' }],
+      loadAll: async () => [
+        { scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '500' },
+      ],
     });
     await cache.refresh();
     const svc = config(cache);

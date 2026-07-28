@@ -91,7 +91,10 @@ describe('Admin HTTP flows (e2e)', () => {
       await request(server()).get('/api/v1/feature-flags').expect(401);
       await request(server()).get('/api/v1/feature-flags').set(auth(customerToken)).expect(403);
       await request(server()).get('/api/v1/feature-flags').set(auth(headOfficeToken)).expect(200);
-      const res = await request(server()).get('/api/v1/feature-flags').set(auth(superToken)).expect(200);
+      const res = await request(server())
+        .get('/api/v1/feature-flags')
+        .set(auth(superToken))
+        .expect(200);
       expect(res.body).toEqual([expect.objectContaining({ key: 'payments.va', state: 'ROLLOUT' })]);
     });
 
@@ -129,7 +132,10 @@ describe('Admin HTTP flows (e2e)', () => {
   describe('system settings (8b)', () => {
     it('is super-admin only; head-office is forbidden (403)', async () => {
       await request(server()).get('/api/v1/system-settings').set(auth(headOfficeToken)).expect(403);
-      const res = await request(server()).get('/api/v1/system-settings').set(auth(superToken)).expect(200);
+      const res = await request(server())
+        .get('/api/v1/system-settings')
+        .set(auth(superToken))
+        .expect(200);
       expect(res.body).toMatchObject({ defaultTimezone: 'Asia/Jakarta', currency: 'IDR' });
     });
 
@@ -139,14 +145,20 @@ describe('Admin HTTP flows (e2e)', () => {
         .set(auth(superToken))
         .send({ defaultTimezone: 'Asia/Makassar', currency: 'IDR', serviceRadiusKm: 9 })
         .expect(200);
-      const res = await request(server()).get('/api/v1/system-settings').set(auth(superToken)).expect(200);
+      const res = await request(server())
+        .get('/api/v1/system-settings')
+        .set(auth(superToken))
+        .expect(200);
       expect(res.body).toMatchObject({ defaultTimezone: 'Asia/Makassar', serviceRadiusKm: 9 });
     });
   });
 
   describe('system health (13b)', () => {
     it('rolls up per-service probes for head-office/super-admin', async () => {
-      const res = await request(server()).get('/api/v1/system-health').set(auth(superToken)).expect(200);
+      const res = await request(server())
+        .get('/api/v1/system-health')
+        .set(auth(superToken))
+        .expect(200);
       // The configured registry drives `total`; every probe is a healthy fake, so all are up.
       expect(res.body.total).toBeGreaterThanOrEqual(2);
       expect(res.body.upCount).toBe(res.body.total);

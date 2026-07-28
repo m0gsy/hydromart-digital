@@ -10,18 +10,35 @@ import {
 import { Employee } from '../../prisma/generated/client';
 
 const hq: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
-const manager: AuthenticatedUser = { sub: 'mgr', role: 'DEPOT_MANAGER' as never, phone: null, depotId: 'd-locked' };
+const manager: AuthenticatedUser = {
+  sub: 'mgr',
+  role: 'DEPOT_MANAGER' as never,
+  phone: null,
+  depotId: 'd-locked',
+};
 
 function build(over: Partial<AnalyticsRepository> = {}) {
   const calls: { depotId?: string }[] = [];
   const repo: AnalyticsRepository = {
     headcountByStatus: async (depotId) => {
       calls.push({ depotId });
-      return [{ key: 'ACTIVE', count: 3 }, { key: 'RESIGNED', count: 1 }];
+      return [
+        { key: 'ACTIVE', count: 3 },
+        { key: 'RESIGNED', count: 1 },
+      ];
     },
     headcountByEmploymentStatus: async () => [{ key: 'PERMANENT', count: 2 }],
-    attendanceByStatus: async () => [{ key: 'PRESENT', count: 2 }, { key: 'LATE', count: 1 }],
-    payrollTotals: async () => ({ gross: 1000, totalBonus: 100, totalDeduction: 50, net: 1050, count: 2 }),
+    attendanceByStatus: async () => [
+      { key: 'PRESENT', count: 2 },
+      { key: 'LATE', count: 1 },
+    ],
+    payrollTotals: async () => ({
+      gross: 1000,
+      totalBonus: 100,
+      totalDeduction: 50,
+      net: 1050,
+      count: 2,
+    }),
     payrollByStatus: async () => [{ key: 'DRAFT', count: 2 }],
     employeesForReport: async () => [],
     attendanceForReport: async () => [],
@@ -59,16 +76,28 @@ describe('AnalyticsService.dashboard', () => {
 
   it('rejects a depot-locked role requesting another depot', async () => {
     const { svc } = build();
-    await expect(svc.dashboard(manager, { depotId: 'someone-else' })).rejects.toThrow(/depotnya sendiri/);
+    await expect(svc.dashboard(manager, { depotId: 'someone-else' })).rejects.toThrow(
+      /depotnya sendiri/,
+    );
   });
 });
 
 describe('AnalyticsService CSV exports', () => {
   it('emits an employee CSV with a header + one row per employee', async () => {
     const rows = [
-      { employeeCode: 'HR-0001', fullName: 'A', phone: '08', email: null, position: 'Kasir',
-        employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: { toNumber: () => 50000 },
-        monthlyRate: null, status: 'ACTIVE', joinDate: new Date('2026-01-15T00:00:00Z') },
+      {
+        employeeCode: 'HR-0001',
+        fullName: 'A',
+        phone: '08',
+        email: null,
+        position: 'Kasir',
+        employmentStatus: 'PERMANENT',
+        salaryType: 'DAILY',
+        dailyRate: { toNumber: () => 50000 },
+        monthlyRate: null,
+        status: 'ACTIVE',
+        joinDate: new Date('2026-01-15T00:00:00Z'),
+      },
     ] as unknown as Employee[];
     const { svc } = build({ employeesForReport: async () => rows });
     const csv = await svc.csv(await svc.employeeReport(hq));
@@ -79,19 +108,36 @@ describe('AnalyticsService CSV exports', () => {
 
   it('emits an attendance CSV joining the employee code + name', async () => {
     const rows = [
-      { workDate: new Date('2026-07-01T00:00:00Z'), status: 'LATE', checkInAt: null, checkOutAt: null,
-        lateMinutes: 12, workingMinutes: null, employee: { employeeCode: 'HR-0001', fullName: 'A' } },
+      {
+        workDate: new Date('2026-07-01T00:00:00Z'),
+        status: 'LATE',
+        checkInAt: null,
+        checkOutAt: null,
+        lateMinutes: 12,
+        workingMinutes: null,
+        employee: { employeeCode: 'HR-0001', fullName: 'A' },
+      },
     ] as unknown as AttendanceWithEmployee[];
     const { svc } = build({ attendanceForReport: async () => rows });
-    const csv = await svc.csv(await svc.attendanceReport(hq, { from: '2026-07-01', to: '2026-07-31' }));
+    const csv = await svc.csv(
+      await svc.attendanceReport(hq, { from: '2026-07-01', to: '2026-07-31' }),
+    );
     expect(csv.split('\r\n')[1]).toBe('2026-07-01,HR-0001,A,LATE,,,12,');
   });
 
   it('emits a payroll CSV with money as plain numbers', async () => {
     const dec = (n: number) => ({ toNumber: () => n });
     const rows = [
-      { periodMonth: '2026-07', status: 'APPROVED', gross: dec(1000), totalBonus: dec(100),
-        totalDeduction: dec(50), net: dec(1050), presentDays: 20, employee: { employeeCode: 'HR-0001', fullName: 'A' } },
+      {
+        periodMonth: '2026-07',
+        status: 'APPROVED',
+        gross: dec(1000),
+        totalBonus: dec(100),
+        totalDeduction: dec(50),
+        net: dec(1050),
+        presentDays: 20,
+        employee: { employeeCode: 'HR-0001', fullName: 'A' },
+      },
     ] as unknown as PayrollWithEmployee[];
     const { svc } = build({ payrollForReport: async () => rows });
     const csv = await svc.csv(await svc.payrollReport(hq, { periodMonth: '2026-07' }));

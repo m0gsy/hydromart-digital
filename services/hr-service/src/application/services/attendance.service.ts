@@ -43,7 +43,11 @@ export class AttendanceService {
     @Optional() @Inject(SHIFT_REPOSITORY) private readonly shifts?: ShiftRepository,
   ) {}
 
-  async checkIn(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
+  async checkIn(
+    user: AuthenticatedUser,
+    punch: FacePunch,
+    now: Date = new Date(),
+  ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
     this.assertGeofence(employee.depotId, punch);
@@ -56,11 +60,14 @@ export class AttendanceService {
 
     // Late is measured against the depot's active shift start, falling back to config.
     const shift = this.shifts ? await this.shifts.findActiveForDepot(employee.depotId) : null;
-    const startMinutes = this.parseHHMM(shift?.startTime ?? this.config.workStartTime(employee.depotId));
+    const startMinutes = this.parseHHMM(
+      shift?.startTime ?? this.config.workStartTime(employee.depotId),
+    );
     const tolerance = this.config.lateToleranceMinutes(employee.depotId);
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;
-    const photoUrl = punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+    const photoUrl =
+      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
 
     return this.repo.create({
       employeeId: employee.id,
@@ -76,7 +83,11 @@ export class AttendanceService {
     });
   }
 
-  async checkOut(user: AuthenticatedUser, punch: FacePunch, now: Date = new Date()): Promise<Attendance> {
+  async checkOut(
+    user: AuthenticatedUser,
+    punch: FacePunch,
+    now: Date = new Date(),
+  ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
     this.assertGeofence(employee.depotId, punch);
@@ -90,8 +101,12 @@ export class AttendanceService {
       throw new BadRequestException('Sudah check-out hari ini');
     }
 
-    const workingMinutes = Math.max(0, Math.round((now.getTime() - row.checkInAt.getTime()) / 60000));
-    const photoUrl = punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+    const workingMinutes = Math.max(
+      0,
+      Math.round((now.getTime() - row.checkInAt.getTime()) / 60000),
+    );
+    const photoUrl =
+      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
     return this.repo.patchCheckOut(row.id, {
       checkOutAt: now,
       checkOutPhotoUrl: photoUrl,
@@ -106,14 +121,23 @@ export class AttendanceService {
   private assertGeofence(depotId: string, punch: FacePunch): void {
     const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
     if (!ok) {
-      throw new ForbiddenException(`Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi.`);
+      throw new ForbiddenException(
+        `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi.`,
+      );
     }
   }
 
   /** Depot-scoped attendance log for the HR dashboard / manager (their own depot only). */
   async list(
     user: AuthenticatedUser,
-    query: { depotId?: string; employeeId?: string; from?: string; to?: string; page: number; pageSize: number },
+    query: {
+      depotId?: string;
+      employeeId?: string;
+      from?: string;
+      to?: string;
+      page: number;
+      pageSize: number;
+    },
   ): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {
     const depotId = depotScopeFilter(user, query.depotId);
     const { rows, total } = await this.repo.list({
@@ -147,7 +171,13 @@ export class AttendanceService {
   async adjust(
     user: AuthenticatedUser,
     id: string,
-    patch: { status?: AttendanceStatus; checkInAt?: string; checkOutAt?: string; lateMinutes?: number; reason: string },
+    patch: {
+      status?: AttendanceStatus;
+      checkInAt?: string;
+      checkOutAt?: string;
+      lateMinutes?: number;
+      reason: string;
+    },
   ): Promise<Attendance> {
     const row = await this.repo.findById(id);
     if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
@@ -165,7 +195,13 @@ export class AttendanceService {
       checkInAt: patch.checkInAt ? new Date(patch.checkInAt) : undefined,
       checkOutAt: patch.checkOutAt ? new Date(patch.checkOutAt) : undefined,
     });
-    await this.repo.recordAdjustment({ attendanceId: row.id, reason: patch.reason, before, after: snapshot(updated), approvedBy: user.sub });
+    await this.repo.recordAdjustment({
+      attendanceId: row.id,
+      reason: patch.reason,
+      before,
+      after: snapshot(updated),
+      approvedBy: user.sub,
+    });
     return updated;
   }
 

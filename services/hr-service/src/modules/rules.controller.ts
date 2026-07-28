@@ -6,7 +6,13 @@ import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
-import { CreateBonusRuleDto, CreateLoanDto, ListBonusRuleDto, ListLoanDto, UpdateBonusRuleDto } from './dto/rules.dto';
+import {
+  CreateBonusRuleDto,
+  CreateLoanDto,
+  ListBonusRuleDto,
+  ListLoanDto,
+  UpdateBonusRuleDto,
+} from './dto/rules.dto';
 
 @ApiTags('HR Bonus Rules')
 @ApiBearerAuth()
@@ -32,7 +38,11 @@ export class BonusRuleController {
   @Patch(':id')
   @Roles(...CAPABILITIES.hrAdmin)
   @ApiOperation({ summary: 'Update an auto-bonus rule' })
-  update(@Param('id') id: string, @Body() dto: UpdateBonusRuleDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBonusRuleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.rules.update(user, id, dto);
   }
 }

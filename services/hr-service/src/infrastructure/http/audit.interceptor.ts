@@ -51,7 +51,15 @@ export class AuditInterceptor implements NestInterceptor {
   /** Drop heavy/sensitive keys (face frames, vectors, secrets) and cap the payload size. */
   private sanitize(body: unknown): Record<string, unknown> | null {
     if (!body || typeof body !== 'object') return null;
-    const DROP = new Set(['image', 'images', 'vector', 'password', 'secret', 'photoUrl', 'sourcePhotoUrl']);
+    const DROP = new Set([
+      'image',
+      'images',
+      'vector',
+      'password',
+      'secret',
+      'photoUrl',
+      'sourcePhotoUrl',
+    ]);
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(body as Record<string, unknown>)) {
       if (DROP.has(k)) {
@@ -66,7 +74,10 @@ export class AuditInterceptor implements NestInterceptor {
 
   /** `/api/v1/employees/<uuid>/face/enroll` -> entity "employees", entityId the uuid (if any). */
   private parseRoute(path: string): { entity: string; entityId: string | null } {
-    const segments = path.replace(/^\/api(\/v\d+)?\//, '').split('/').filter(Boolean);
+    const segments = path
+      .replace(/^\/api(\/v\d+)?\//, '')
+      .split('/')
+      .filter(Boolean);
     const entity = segments[0] ?? 'unknown';
     const entityId = segments.find((s) => UUID.test(s)) ?? null;
     return { entity, entityId };

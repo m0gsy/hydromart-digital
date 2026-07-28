@@ -84,7 +84,10 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.SlaPolicyRepository, useClass: SlaPolicyPrismaRepository },
   { provide: ADMIN_TOKENS.RetentionRepository, useClass: RetentionPrismaRepository },
   { provide: ADMIN_TOKENS.SecurityPolicyRepository, useClass: SecurityPolicyPrismaRepository },
-  { provide: ADMIN_TOKENS.AdminNotificationPrefRepository, useClass: AdminNotificationPrefPrismaRepository },
+  {
+    provide: ADMIN_TOKENS.AdminNotificationPrefRepository,
+    useClass: AdminNotificationPrefPrismaRepository,
+  },
   { provide: ADMIN_TOKENS.OnboardingStateRepository, useClass: OnboardingStatePrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },

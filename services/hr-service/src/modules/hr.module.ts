@@ -28,7 +28,10 @@ import { BONUS_REPOSITORY, DEDUCTION_REPOSITORY } from '../application/ports/adj
 import { PayrollService } from '../application/services/payroll.service';
 import { AdjustmentService } from '../application/services/adjustment.service';
 import { PayrollPrismaRepository } from '../infrastructure/prisma/payroll.prisma.repository';
-import { BonusPrismaRepository, DeductionPrismaRepository } from '../infrastructure/prisma/adjustment.prisma.repository';
+import {
+  BonusPrismaRepository,
+  DeductionPrismaRepository,
+} from '../infrastructure/prisma/adjustment.prisma.repository';
 import { BONUS_RULE_REPOSITORY } from '../application/ports/bonus-rule.repository';
 import { LOAN_REPOSITORY } from '../application/ports/loan.repository';
 import { BonusRuleService } from '../application/services/bonus-rule.service';

@@ -8,7 +8,9 @@ describe('storage', () => {
   });
 
   it('DisabledStorageAdapter is a no-op returning an empty url → uploadFrame yields null', async () => {
-    expect(await uploadFrame(new DisabledStorageAdapter(), Buffer.from('x'), 'hr/faces')).toBeNull();
+    expect(
+      await uploadFrame(new DisabledStorageAdapter(), Buffer.from('x'), 'hr/faces'),
+    ).toBeNull();
   });
 
   it('uploadFrame returns the stored url and forwards the key prefix + jpeg metadata', async () => {
@@ -21,6 +23,10 @@ describe('storage', () => {
     };
     const url = await uploadFrame(storage, Buffer.from('frame'), 'hr/attendance');
     expect(url).toBe('https://cdn/hr/attendance/abc.jpg');
-    expect(seen).toMatchObject({ contentType: 'image/jpeg', ext: 'jpg', keyPrefix: 'hr/attendance' });
+    expect(seen).toMatchObject({
+      contentType: 'image/jpeg',
+      ext: 'jpg',
+      keyPrefix: 'hr/attendance',
+    });
   });
 });

@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 
 import { PerformanceReview } from '../../../prisma/generated/client';
-import { PerformanceRepository, PerformanceWrite } from '../../application/ports/performance.repository';
+import {
+  PerformanceRepository,
+  PerformanceWrite,
+} from '../../application/ports/performance.repository';
 import { PrismaService } from './prisma.service';
 
 @Injectable()

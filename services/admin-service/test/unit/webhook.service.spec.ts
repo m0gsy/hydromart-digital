@@ -12,20 +12,29 @@ describe('WebhookService', () => {
   });
 
   it('creates a webhook with no fabricated delivery data', async () => {
-    const w = await service.create({ url: 'https://x.example.com/hooks', events: ['order.created'] });
+    const w = await service.create({
+      url: 'https://x.example.com/hooks',
+      events: ['order.created'],
+    });
     expect(w.active).toBe(true);
     expect(w.deliveryRatePct).toBeNull();
     expect(w.lastDeliveryStatus).toBeNull();
   });
 
   it('toggles active via update', async () => {
-    const w = await service.create({ url: 'https://x.example.com/hooks', events: ['order.created'] });
+    const w = await service.create({
+      url: 'https://x.example.com/hooks',
+      events: ['order.created'],
+    });
     const off = await service.update(w.id, { active: false });
     expect(off.active).toBe(false);
   });
 
   it('deletes a webhook', async () => {
-    const w = await service.create({ url: 'https://x.example.com/hooks', events: ['order.created'] });
+    const w = await service.create({
+      url: 'https://x.example.com/hooks',
+      events: ['order.created'],
+    });
     await service.remove(w.id);
     expect(await service.list()).toHaveLength(0);
   });

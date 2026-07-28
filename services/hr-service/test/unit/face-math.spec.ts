@@ -1,4 +1,10 @@
-import { bestMatch, cosineSimilarity, l2normalize, meanNormalize, rgbToNchw } from '../../src/domain/face-math';
+import {
+  bestMatch,
+  cosineSimilarity,
+  l2normalize,
+  meanNormalize,
+  rgbToNchw,
+} from '../../src/domain/face-math';
 
 describe('rgbToNchw (ArcFace preprocessing)', () => {
   it('packs interleaved RGB into planar NCHW with (v-127.5)/128 normalization', () => {

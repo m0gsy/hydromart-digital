@@ -16,7 +16,12 @@ export class HolidayPrismaRepository implements HolidayRepository {
     const where: Prisma.HolidayWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),
       ...(filter.from || filter.to
-        ? { date: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }
+        ? {
+            date: {
+              ...(filter.from ? { gte: filter.from } : {}),
+              ...(filter.to ? { lte: filter.to } : {}),
+            },
+          }
         : {}),
     };
     return this.prisma.holiday.findMany({ where, orderBy: { date: 'asc' } });

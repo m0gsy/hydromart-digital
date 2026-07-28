@@ -3,9 +3,19 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { BonusRule, BonusType } from '../../../prisma/generated/client';
 import { BonusMetric, CompareOp, RewardKind } from '../../domain/bonus-rules';
-import { BONUS_RULE_REPOSITORY, BonusRuleRepository, BonusRuleWrite } from '../ports/bonus-rule.repository';
+import {
+  BONUS_RULE_REPOSITORY,
+  BonusRuleRepository,
+  BonusRuleWrite,
+} from '../ports/bonus-rule.repository';
 
-const METRICS: readonly BonusMetric[] = ['ATTENDANCE_RATE', 'PRESENT_DAYS', 'ZERO_LATE', 'IS_DEPOT_MANAGER', 'SALES_TOTAL'];
+const METRICS: readonly BonusMetric[] = [
+  'ATTENDANCE_RATE',
+  'PRESENT_DAYS',
+  'ZERO_LATE',
+  'IS_DEPOT_MANAGER',
+  'SALES_TOTAL',
+];
 const OPS: readonly CompareOp[] = ['GTE', 'LTE', 'EQ'];
 const REWARD_KINDS: readonly RewardKind[] = ['FIXED', 'PERCENT'];
 const BONUS_TYPES: readonly BonusType[] = ['ATTENDANCE', 'PERFORMANCE', 'SALES', 'DEPOT', 'MANUAL'];
@@ -45,7 +55,11 @@ export class BonusRuleService {
     });
   }
 
-  async update(user: AuthenticatedUser, id: string, input: Partial<BonusRuleInput>): Promise<BonusRule> {
+  async update(
+    user: AuthenticatedUser,
+    id: string,
+    input: Partial<BonusRuleInput>,
+  ): Promise<BonusRule> {
     const existing = await this.repo.findById(id);
     if (!existing) throw new NotFoundException('Rule bonus tidak ditemukan');
     if (existing.depotId) assertDepotAccess(user, existing.depotId);
@@ -67,7 +81,8 @@ export class BonusRuleService {
   }
 
   private validate(input: BonusRuleInput, partial = false): void {
-    if (!partial && (!input.name || !input.name.trim())) throw new BadRequestException('name wajib diisi');
+    if (!partial && (!input.name || !input.name.trim()))
+      throw new BadRequestException('name wajib diisi');
     if (input.bonusType !== undefined && !BONUS_TYPES.includes(input.bonusType as BonusType))
       throw new BadRequestException(`bonusType harus salah satu: ${BONUS_TYPES.join(', ')}`);
     if (input.metric !== undefined && !METRICS.includes(input.metric as BonusMetric))

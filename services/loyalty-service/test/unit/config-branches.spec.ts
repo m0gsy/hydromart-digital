@@ -53,12 +53,16 @@ describe('LoyaltyConfigService env getters', () => {
   });
 
   it('customerServiceUrl strips trailing slashes and defaults to blank', () => {
-    expect(config({ CUSTOMER_SERVICE_URL: 'http://customer:3002///' }).customerServiceUrl).toBe('http://customer:3002');
+    expect(config({ CUSTOMER_SERVICE_URL: 'http://customer:3002///' }).customerServiceUrl).toBe(
+      'http://customer:3002',
+    );
     expect(config({}).customerServiceUrl).toBe('');
   });
 
   it('internalServiceKey reads the shared secret, blank by default', () => {
-    expect(config({ INTERNAL_SERVICE_KEY: 'secret-key-abcdef' }).internalServiceKey).toBe('secret-key-abcdef');
+    expect(config({ INTERNAL_SERVICE_KEY: 'secret-key-abcdef' }).internalServiceKey).toBe(
+      'secret-key-abcdef',
+    );
     expect(config({}).internalServiceKey).toBe('');
   });
 });

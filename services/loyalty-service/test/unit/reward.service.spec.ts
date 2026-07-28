@@ -1,7 +1,10 @@
 import {
   InsufficientPointsError,
+  RewardAlreadyCancelledError,
+  RewardAlreadyUsedError,
   RewardItemNotFoundError,
   RewardOutOfStockError,
+  RewardRedemptionNotFoundError,
 } from '../../src/domain/errors';
 import { PointsTxnType } from '../../src/domain/points';
 import { LoyaltyService } from '../../src/application/services/loyalty.service';
@@ -23,13 +26,21 @@ describe('RewardService', () => {
   beforeEach(() => {
     loyaltyRepo = new InMemoryLoyaltyRepository();
     rewardRepo = new InMemoryRewardRepository(loyaltyRepo);
-    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory());
+    const loyalty = new LoyaltyService(
+      loyaltyRepo,
+      buildTestConfig(),
+      new InMemoryCustomerDirectory(),
+    );
     service = new RewardService(rewardRepo, loyalty);
   });
 
   /** Give the customer a starting balance via a system reward grant. */
   async function seedBalance(points: number): Promise<void> {
-    const loyalty = new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory());
+    const loyalty = new LoyaltyService(
+      loyaltyRepo,
+      buildTestConfig(),
+      new InMemoryCustomerDirectory(),
+    );
     await loyalty.reward(CUSTOMER, points, 'seed');
   }
 
@@ -109,7 +120,12 @@ describe('RewardService', () => {
 
     it('creates an item that then shows in the catalogue', async () => {
       const created = await service.createItem({
-        name: 'Galon gratis', unit: 'gratis 1 galon', pointsCost: 500, imageUrl: null, stock: 10, active: true,
+        name: 'Galon gratis',
+        unit: 'gratis 1 galon',
+        pointsCost: 500,
+        imageUrl: null,
+        stock: 10,
+        active: true,
       });
       expect(created.id).toBeDefined();
       expect(await service.listCatalog()).toHaveLength(1);
@@ -117,7 +133,12 @@ describe('RewardService', () => {
 
     it('retires an item with active:false so it leaves the catalogue', async () => {
       const created = await service.createItem({
-        name: 'Galon gratis', unit: 'gratis 1 galon', pointsCost: 500, imageUrl: null, stock: null, active: true,
+        name: 'Galon gratis',
+        unit: 'gratis 1 galon',
+        pointsCost: 500,
+        imageUrl: null,
+        stock: null,
+        active: true,
       });
       const updated = await service.updateItem(created.id, { active: false });
       expect(updated.active).toBe(false);
@@ -128,6 +149,107 @@ describe('RewardService', () => {
       await expect(service.updateItem('missing', { stock: 5 })).rejects.toBeInstanceOf(
         RewardItemNotFoundError,
       );
+    });
+  });
+
+  describe('cancel (M14-03)', () => {
+    async function redeemOne(stock: number | null = 3) {
+      await seedBalance(1000);
+      rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon', stock });
+      return service.redeem(CUSTOMER, 'gal', 'key-1');
+    }
+
+    it('gives the points back and puts the stock on the shelf again', async () => {
+      const { redemption } = await redeemOne();
+      expect((await rewardRepo.findItem('gal'))!.stock).toBe(2);
+
+      const out = await service.cancel(CUSTOMER, redemption.id);
+
+      expect(out.pointsBalance).toBe(1000);
+      expect(out.redemption.status).toBe('CANCELLED');
+      expect(out.redemption.cancelledAt).not.toBeNull();
+      expect((await rewardRepo.findItem('gal'))!.stock).toBe(3);
+      // The refund is a ledger entry, not a silent balance edit.
+      const credits = loyaltyRepo.txns.filter(
+        (t) => t.type === PointsTxnType.REDEEM && t.points > 0,
+      );
+      expect(credits).toHaveLength(1);
+      expect(credits[0].points).toBe(800);
+    });
+
+    it('refuses once staff marked the reward as handed over', async () => {
+      const { redemption } = await redeemOne();
+      await service.markUsed(redemption.id);
+
+      await expect(service.cancel(CUSTOMER, redemption.id)).rejects.toBeInstanceOf(
+        RewardAlreadyUsedError,
+      );
+      // No refund leaked through: stock stays consumed and no credit entry exists.
+      expect((await rewardRepo.findItem('gal'))!.stock).toBe(2);
+      expect(
+        loyaltyRepo.txns.filter((t) => t.type === PointsTxnType.REDEEM && t.points > 0),
+      ).toHaveLength(0);
+    });
+
+    it('refuses a second cancellation instead of minting points', async () => {
+      const { redemption } = await redeemOne();
+      await service.cancel(CUSTOMER, redemption.id);
+
+      await expect(service.cancel(CUSTOMER, redemption.id)).rejects.toBeInstanceOf(
+        RewardAlreadyCancelledError,
+      );
+      const account = await rewardRepo.findRedemption(redemption.id);
+      expect(account!.status).toBe('CANCELLED');
+    });
+
+    it("will not let one customer cancel another's redemption", async () => {
+      const { redemption } = await redeemOne();
+      await expect(
+        service.cancel('22222222-2222-2222-2222-222222222222', redemption.id),
+      ).rejects.toBeInstanceOf(RewardRedemptionNotFoundError);
+    });
+
+    it('reports an unknown redemption as missing', async () => {
+      await expect(service.cancel(CUSTOMER, 'nope')).rejects.toBeInstanceOf(
+        RewardRedemptionNotFoundError,
+      );
+    });
+
+    it('cancels an unlimited-stock reward without touching any counter', async () => {
+      const { redemption } = await redeemOne(null);
+      const out = await service.cancel(CUSTOMER, redemption.id);
+      expect(out.redemption.status).toBe('CANCELLED');
+      expect((await rewardRepo.findItem('gal'))!.stock).toBeNull();
+    });
+  });
+
+  describe('markUsed (M14-03)', () => {
+    async function redeemOne() {
+      await seedBalance(1000);
+      rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon', stock: 3 });
+      return service.redeem(CUSTOMER, 'gal', 'key-1');
+    }
+
+    it('closes the cancellation window and is idempotent', async () => {
+      const { redemption } = await redeemOne();
+      const first = await service.markUsed(redemption.id);
+      expect(first.status).toBe('USED');
+      expect(first.usedAt).not.toBeNull();
+
+      const again = await service.markUsed(redemption.id);
+      expect(again.usedAt).toEqual(first.usedAt); // no second stamp
+    });
+
+    it('cannot hand over a redemption that was already cancelled', async () => {
+      const { redemption } = await redeemOne();
+      await service.cancel(CUSTOMER, redemption.id);
+      await expect(service.markUsed(redemption.id)).rejects.toBeInstanceOf(
+        RewardAlreadyCancelledError,
+      );
+    });
+
+    it('reports an unknown redemption as missing', async () => {
+      await expect(service.markUsed('nope')).rejects.toBeInstanceOf(RewardRedemptionNotFoundError);
     });
   });
 });

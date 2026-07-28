@@ -25,6 +25,9 @@ export class LoanPrismaRepository implements LoanRepository {
   }
 
   listActiveByEmployee(employeeId: string): Promise<Loan[]> {
-    return this.prisma.loan.findMany({ where: { employeeId, active: true }, orderBy: { createdAt: 'asc' } });
+    return this.prisma.loan.findMany({
+      where: { employeeId, active: true },
+      orderBy: { createdAt: 'asc' },
+    });
   }
 }

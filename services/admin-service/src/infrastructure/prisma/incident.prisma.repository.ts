@@ -55,7 +55,12 @@ export class IncidentPrismaRepository implements IncidentRepository {
 
   async create(data: CreateIncidentData): Promise<IncidentRecord> {
     const row = await this.prisma.incident.create({
-      data: { title: data.title, severity: data.severity, affectedService: data.affectedService, note: data.note ?? null },
+      data: {
+        title: data.title,
+        severity: data.severity,
+        affectedService: data.affectedService,
+        note: data.note ?? null,
+      },
       include: { updates: { orderBy: { createdAt: 'desc' } } },
     });
     return this.toRecord(row);

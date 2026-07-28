@@ -83,9 +83,13 @@ describe('OnnxArcFaceVerifier', () => {
   it('enrolls + verifies through a mocked ONNX session and sharp decoder', async () => {
     const vec = new Float32Array(512).fill(0.1);
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({ output: { data: vec } }))), {
-        virtual: true,
-      });
+      jest.doMock(
+        'onnxruntime-node',
+        () => fakeOrt(async () => fakeSession(async () => ({ output: { data: vec } }))),
+        {
+          virtual: true,
+        },
+      );
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
     const svc = new Verifier(cfg());
@@ -102,20 +106,30 @@ describe('OnnxArcFaceVerifier', () => {
 
   it('503s when the model returns no embedding', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))), { virtual: true });
-      jest.doMock('sharp', () => fakeSharp(), { virtual: true });
-    });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(/embedding/);
-  });
-
-  it('503s (and lets a later retry) when the ArcFace model fails to load', async () => {
-    const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => Promise.reject(new Error('model file missing'))), {
+      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))), {
         virtual: true,
       });
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(/model ArcFace/);
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+      /embedding/,
+    );
+  });
+
+  it('503s (and lets a later retry) when the ArcFace model fails to load', async () => {
+    const Verifier = loadVerifier(() => {
+      jest.doMock(
+        'onnxruntime-node',
+        () => fakeOrt(async () => Promise.reject(new Error('model file missing'))),
+        {
+          virtual: true,
+        },
+      );
+      jest.doMock('sharp', () => fakeSharp(), { virtual: true });
+    });
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+      /model ArcFace/,
+    );
   });
 
   it('503s when onnxruntime-node is not installed', async () => {
@@ -130,14 +144,23 @@ describe('OnnxArcFaceVerifier', () => {
       );
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(/onnxruntime-node/);
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+      /onnxruntime-node/,
+    );
   });
 
   it('503s when sharp (image decoder) is not installed', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({ output: { data: new Float32Array(512) } }))), {
-        virtual: true,
-      });
+      jest.doMock(
+        'onnxruntime-node',
+        () =>
+          fakeOrt(async () =>
+            fakeSession(async () => ({ output: { data: new Float32Array(512) } })),
+          ),
+        {
+          virtual: true,
+        },
+      );
       jest.doMock(
         'sharp',
         () => {
@@ -146,12 +169,16 @@ describe('OnnxArcFaceVerifier', () => {
         { virtual: true },
       );
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(/sharp/);
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+      /sharp/,
+    );
   });
 
   it('rejects an empty enroll before any engine work', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))), { virtual: true });
+      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))), {
+        virtual: true,
+      });
     });
     await expect(new Verifier(cfg()).enroll([])).rejects.toThrow(/no frames/);
   });

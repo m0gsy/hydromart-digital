@@ -74,6 +74,11 @@ export class FaceService {
     const storedUrl = sourcePhotoUrl ?? (await uploadFrame(this.storage, images[0], 'hr/faces'));
 
     await this.repo.deactivateForEmployee(employee.id);
-    return this.repo.create({ employeeId: employee.id, vector, quality, sourcePhotoUrl: storedUrl });
+    return this.repo.create({
+      employeeId: employee.id,
+      vector,
+      quality,
+      sourcePhotoUrl: storedUrl,
+    });
   }
 }

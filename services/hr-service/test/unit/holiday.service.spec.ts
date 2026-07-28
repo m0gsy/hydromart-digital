@@ -8,7 +8,12 @@ import { HolidayService } from '../../src/application/services/holiday.service';
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const DEPOT_B = '22222222-2222-2222-2222-222222222222';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
-const manager = (depotId: string): AuthenticatedUser => ({ sub: 'mgr-1', role: 'DEPOT_MANAGER' as never, phone: '0800', depotId });
+const manager = (depotId: string): AuthenticatedUser => ({
+  sub: 'mgr-1',
+  role: 'DEPOT_MANAGER' as never,
+  phone: '0800',
+  depotId,
+});
 
 class FakeRepo implements HolidayRepository {
   rows: Holiday[] = [];
@@ -58,7 +63,9 @@ describe('HolidayService.list', () => {
     const { repo, svc } = make();
     await svc.list(manager(DEPOT_A), {});
     expect(repo.lastFilter?.depotId).toBe(DEPOT_A);
-    await expect(svc.list(manager(DEPOT_A), { depotId: DEPOT_B })).rejects.toThrow(ForbiddenException);
+    await expect(svc.list(manager(DEPOT_A), { depotId: DEPOT_B })).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 });
 
@@ -72,8 +79,12 @@ describe('HolidayService.create', () => {
 
   it('enforces depot access for a depot-scoped holiday', async () => {
     const { svc } = make();
-    await expect(svc.create(manager(DEPOT_B), { date: '2026-08-17', name: 'x', depotId: DEPOT_A })).rejects.toThrow(ForbiddenException);
-    await expect(svc.create(manager(DEPOT_A), { date: '2026-08-17', name: 'x', depotId: DEPOT_A })).resolves.toMatchObject({ depotId: DEPOT_A });
+    await expect(
+      svc.create(manager(DEPOT_B), { date: '2026-08-17', name: 'x', depotId: DEPOT_A }),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      svc.create(manager(DEPOT_A), { date: '2026-08-17', name: 'x', depotId: DEPOT_A }),
+    ).resolves.toMatchObject({ depotId: DEPOT_A });
   });
 });
 

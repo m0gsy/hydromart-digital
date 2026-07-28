@@ -93,7 +93,13 @@ const sentinel = (): object => ({ id: `s-${Math.random()}` });
 
 // ── ShiftPrismaRepository ──────────────────────────────────────────────
 describe('ShiftPrismaRepository', () => {
-  const write = { depotId: 'd1', name: 'Morning', startTime: '08:00', endTime: '16:00', active: true };
+  const write = {
+    depotId: 'd1',
+    name: 'Morning',
+    startTime: '08:00',
+    endTime: '16:00',
+    active: true,
+  };
 
   it('create → shift.create({ data })', async () => {
     const p = makePrisma();
@@ -110,7 +116,10 @@ describe('ShiftPrismaRepository', () => {
     m(p, 'shift').update.mockResolvedValue(out);
     const repo = new ShiftPrismaRepository(asService(p));
     await expect(repo.update('id1', { active: false })).resolves.toBe(out);
-    expect(m(p, 'shift').update).toHaveBeenCalledWith({ where: { id: 'id1' }, data: { active: false } });
+    expect(m(p, 'shift').update).toHaveBeenCalledWith({
+      where: { id: 'id1' },
+      data: { active: false },
+    });
   });
 
   it('delete → shift.delete({ where })', async () => {
@@ -167,7 +176,14 @@ describe('Bonus/Deduction adjustment repositories', () => {
     m(p, 'bonus').create.mockResolvedValue(out);
     m(p, 'bonus').findMany.mockResolvedValue([]);
     const repo = new BonusPrismaRepository(asService(p));
-    const data = { employeeId: 'e1', type: 'MANUAL' as const, amount: 100, periodMonth: '2026-07', note: null, createdBy: null };
+    const data = {
+      employeeId: 'e1',
+      type: 'MANUAL' as const,
+      amount: 100,
+      periodMonth: '2026-07',
+      note: null,
+      createdBy: null,
+    };
     await expect(repo.create(data)).resolves.toBe(out);
     expect(m(p, 'bonus').create).toHaveBeenCalledWith({ data });
     await repo.listByEmployeePeriod('e1', '2026-07');
@@ -183,7 +199,14 @@ describe('Bonus/Deduction adjustment repositories', () => {
     m(p, 'deduction').create.mockResolvedValue(out);
     m(p, 'deduction').findMany.mockResolvedValue([]);
     const repo = new DeductionPrismaRepository(asService(p));
-    const data = { employeeId: 'e1', type: 'MANUAL' as const, amount: 50, periodMonth: '2026-07', note: 'x', createdBy: 'hr' };
+    const data = {
+      employeeId: 'e1',
+      type: 'MANUAL' as const,
+      amount: 50,
+      periodMonth: '2026-07',
+      note: 'x',
+      createdBy: 'hr',
+    };
     await expect(repo.create(data)).resolves.toBe(out);
     expect(m(p, 'deduction').create).toHaveBeenCalledWith({ data });
     await repo.listByEmployeePeriod('e1', '2026-07');
@@ -210,9 +233,13 @@ describe('AnalyticsPrismaRepository', () => {
 
   it('headcountByEmploymentStatus maps groupBy rows (ACTIVE only)', async () => {
     const p = makePrisma();
-    m(p, 'employee').groupBy.mockResolvedValue([{ employmentStatus: 'PERMANENT', _count: { _all: 3 } }]);
+    m(p, 'employee').groupBy.mockResolvedValue([
+      { employmentStatus: 'PERMANENT', _count: { _all: 3 } },
+    ]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.headcountByEmploymentStatus()).resolves.toEqual([{ key: 'PERMANENT', count: 3 }]);
+    await expect(repo.headcountByEmploymentStatus()).resolves.toEqual([
+      { key: 'PERMANENT', count: 3 },
+    ]);
     expect(m(p, 'employee').groupBy).toHaveBeenCalledWith({
       by: ['employmentStatus'],
       where: { depotId: undefined, status: 'ACTIVE' },
@@ -225,7 +252,9 @@ describe('AnalyticsPrismaRepository', () => {
     const wd = new Date('2026-07-01');
     m(p, 'attendance').groupBy.mockResolvedValue([{ status: 'PRESENT', _count: { _all: 2 } }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.attendanceByStatus(wd, 'd1')).resolves.toEqual([{ key: 'PRESENT', count: 2 }]);
+    await expect(repo.attendanceByStatus(wd, 'd1')).resolves.toEqual([
+      { key: 'PRESENT', count: 2 },
+    ]);
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledWith({
       by: ['status'],
       where: { workDate: wd, depotId: 'd1' },
@@ -280,7 +309,9 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'payroll').groupBy.mockResolvedValue([{ status: 'PAID', _count: { _all: 7 } }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.payrollByStatus('2026-07', 'd1')).resolves.toEqual([{ key: 'PAID', count: 7 }]);
+    await expect(repo.payrollByStatus('2026-07', 'd1')).resolves.toEqual([
+      { key: 'PAID', count: 7 },
+    ]);
     expect(m(p, 'payroll').groupBy).toHaveBeenCalledWith({
       by: ['status'],
       where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
@@ -374,10 +405,26 @@ describe('AttendancePrismaRepository', () => {
     const co = new Date('2026-07-01T16:00:00Z');
     m(p, 'attendance').upsert.mockResolvedValue(sentinel());
     const repo = new AttendancePrismaRepository(asService(p));
-    await repo.upsertManual({ employeeId: 'e1', depotId: 'd1', workDate: wd, status: 'LATE', lateMinutes: 5, checkInAt: ci, checkOutAt: co });
+    await repo.upsertManual({
+      employeeId: 'e1',
+      depotId: 'd1',
+      workDate: wd,
+      status: 'LATE',
+      lateMinutes: 5,
+      checkInAt: ci,
+      checkOutAt: co,
+    });
     expect(m(p, 'attendance').upsert).toHaveBeenCalledWith({
       where: { employeeId_workDate: { employeeId: 'e1', workDate: wd } },
-      create: { employeeId: 'e1', depotId: 'd1', workDate: wd, lateMinutes: 5, status: 'LATE', checkInAt: ci, checkOutAt: co },
+      create: {
+        employeeId: 'e1',
+        depotId: 'd1',
+        workDate: wd,
+        lateMinutes: 5,
+        status: 'LATE',
+        checkInAt: ci,
+        checkOutAt: co,
+      },
       update: { status: 'LATE', lateMinutes: 5, checkInAt: ci, checkOutAt: co },
     });
   });
@@ -399,9 +446,21 @@ describe('AttendancePrismaRepository', () => {
     const p = makePrisma();
     m(p, 'attendanceAdjustment').create.mockResolvedValue({});
     const repo = new AttendancePrismaRepository(asService(p));
-    await repo.recordAdjustment({ attendanceId: 'a1', reason: 'fix', before: { x: 1 }, after: null, approvedBy: 'hr' });
+    await repo.recordAdjustment({
+      attendanceId: 'a1',
+      reason: 'fix',
+      before: { x: 1 },
+      after: null,
+      approvedBy: 'hr',
+    });
     expect(m(p, 'attendanceAdjustment').create).toHaveBeenCalledWith({
-      data: { attendanceId: 'a1', reason: 'fix', before: { x: 1 }, after: Prisma.JsonNull, approvedBy: 'hr' },
+      data: {
+        attendanceId: 'a1',
+        reason: 'fix',
+        before: { x: 1 },
+        after: Prisma.JsonNull,
+        approvedBy: 'hr',
+      },
     });
   });
 
@@ -411,9 +470,16 @@ describe('AttendancePrismaRepository', () => {
     m(p, 'attendance').create.mockResolvedValue(out);
     const repo = new AttendancePrismaRepository(asService(p));
     const input = {
-      employeeId: 'e1', depotId: 'd1', workDate: new Date('2026-07-01'),
-      checkInAt: new Date(), checkInPhotoUrl: null, checkInScore: 0.9,
-      checkInLat: 1, checkInLng: 2, lateMinutes: 0, status: 'PRESENT' as const,
+      employeeId: 'e1',
+      depotId: 'd1',
+      workDate: new Date('2026-07-01'),
+      checkInAt: new Date(),
+      checkInPhotoUrl: null,
+      checkInScore: 0.9,
+      checkInLat: 1,
+      checkInLng: 2,
+      lateMinutes: 0,
+      status: 'PRESENT' as const,
     };
     await expect(repo.create(input)).resolves.toBe(out);
     expect(m(p, 'attendance').create).toHaveBeenCalledWith({ data: input });
@@ -423,14 +489,27 @@ describe('AttendancePrismaRepository', () => {
     const p = makePrisma();
     const from = new Date('2026-07-01');
     const to = new Date('2026-07-31');
-    m(p, 'attendance').count.mockResolvedValueOnce(20).mockResolvedValueOnce(3).mockResolvedValueOnce(1);
+    m(p, 'attendance')
+      .count.mockResolvedValueOnce(20)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(1);
     const repo = new AttendancePrismaRepository(asService(p));
-    await expect(repo.summary('e1', from, to)).resolves.toEqual({ presentDays: 20, lateDays: 3, leaveDays: 1 });
+    await expect(repo.summary('e1', from, to)).resolves.toEqual({
+      presentDays: 20,
+      lateDays: 3,
+      leaveDays: 1,
+    });
     expect(tx(p)).toHaveBeenCalled();
     const wd = { gte: from, lte: to };
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(1, { where: { employeeId: 'e1', workDate: wd, status: { in: ['PRESENT', 'LATE'] } } });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(2, { where: { employeeId: 'e1', workDate: wd, status: 'LATE' } });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(3, { where: { employeeId: 'e1', workDate: wd, status: 'LEAVE' } });
+    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(1, {
+      where: { employeeId: 'e1', workDate: wd, status: { in: ['PRESENT', 'LATE'] } },
+    });
+    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(2, {
+      where: { employeeId: 'e1', workDate: wd, status: 'LATE' },
+    });
+    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(3, {
+      where: { employeeId: 'e1', workDate: wd, status: 'LEAVE' },
+    });
   });
 
   it('patchCheckOut → attendance.update', async () => {
@@ -438,7 +517,14 @@ describe('AttendancePrismaRepository', () => {
     const out = sentinel();
     m(p, 'attendance').update.mockResolvedValue(out);
     const repo = new AttendancePrismaRepository(asService(p));
-    const patch = { checkOutAt: new Date(), checkOutPhotoUrl: null, checkOutScore: 0.8, checkOutLat: 1, checkOutLng: 2, workingMinutes: 480 };
+    const patch = {
+      checkOutAt: new Date(),
+      checkOutPhotoUrl: null,
+      checkOutScore: 0.8,
+      checkOutLat: 1,
+      checkOutLng: 2,
+      workingMinutes: 480,
+    };
     await expect(repo.patchCheckOut('a1', patch)).resolves.toBe(out);
     expect(m(p, 'attendance').update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: patch });
   });
@@ -451,9 +537,16 @@ describe('AttendancePrismaRepository', () => {
     m(p, 'attendance').findMany.mockResolvedValue(rows);
     m(p, 'attendance').count.mockResolvedValue(1);
     const repo = new AttendancePrismaRepository(asService(p));
-    await expect(repo.list({ depotId: 'd1', employeeId: 'e1', from, to, skip: 10, take: 5 })).resolves.toEqual({ rows, total: 1 });
+    await expect(
+      repo.list({ depotId: 'd1', employeeId: 'e1', from, to, skip: 10, take: 5 }),
+    ).resolves.toEqual({ rows, total: 1 });
     const where = { depotId: 'd1', employeeId: 'e1', workDate: { gte: from, lte: to } };
-    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({ where, orderBy: { workDate: 'desc' }, skip: 10, take: 5 });
+    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
+      where,
+      orderBy: { workDate: 'desc' },
+      skip: 10,
+      take: 5,
+    });
     expect(m(p, 'attendance').count).toHaveBeenCalledWith({ where });
   });
 
@@ -463,7 +556,12 @@ describe('AttendancePrismaRepository', () => {
     m(p, 'attendance').count.mockResolvedValue(0);
     const repo = new AttendancePrismaRepository(asService(p));
     await repo.list({ skip: 0, take: 20 });
-    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({ where: {}, orderBy: { workDate: 'desc' }, skip: 0, take: 20 });
+    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { workDate: 'desc' },
+      skip: 0,
+      take: 20,
+    });
   });
 
   it('list with an open-ended range covers gte-only and lte-only', async () => {
@@ -474,9 +572,19 @@ describe('AttendancePrismaRepository', () => {
     m(p, 'attendance').count.mockResolvedValue(0);
     const repo = new AttendancePrismaRepository(asService(p));
     await repo.list({ from, skip: 0, take: 20 });
-    expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({ where: { workDate: { gte: from } }, orderBy: { workDate: 'desc' }, skip: 0, take: 20 });
+    expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({
+      where: { workDate: { gte: from } },
+      orderBy: { workDate: 'desc' },
+      skip: 0,
+      take: 20,
+    });
     await repo.list({ to, skip: 0, take: 20 });
-    expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({ where: { workDate: { lte: to } }, orderBy: { workDate: 'desc' }, skip: 0, take: 20 });
+    expect(m(p, 'attendance').findMany).toHaveBeenLastCalledWith({
+      where: { workDate: { lte: to } },
+      orderBy: { workDate: 'desc' },
+      skip: 0,
+      take: 20,
+    });
   });
 });
 
@@ -486,9 +594,25 @@ describe('AuditPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'auditLog').create.mockResolvedValue({});
     const repo = new AuditPrismaRepository(asService(p));
-    await repo.write({ actorId: 'u1', action: 'UPDATE', entity: 'Employee', entityId: 'e1', before: { a: 1 }, after: { a: 2 }, ip: '127.0.0.1' });
+    await repo.write({
+      actorId: 'u1',
+      action: 'UPDATE',
+      entity: 'Employee',
+      entityId: 'e1',
+      before: { a: 1 },
+      after: { a: 2 },
+      ip: '127.0.0.1',
+    });
     expect(m(p, 'auditLog').create).toHaveBeenCalledWith({
-      data: { actorId: 'u1', action: 'UPDATE', entity: 'Employee', entityId: 'e1', before: { a: 1 }, after: { a: 2 }, ip: '127.0.0.1' },
+      data: {
+        actorId: 'u1',
+        action: 'UPDATE',
+        entity: 'Employee',
+        entityId: 'e1',
+        before: { a: 1 },
+        after: { a: 2 },
+        ip: '127.0.0.1',
+      },
     });
   });
 
@@ -496,9 +620,25 @@ describe('AuditPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'auditLog').create.mockResolvedValue({});
     const repo = new AuditPrismaRepository(asService(p));
-    await repo.write({ actorId: null, action: 'DELETE', entity: 'Loan', entityId: null, before: null, after: null, ip: null });
+    await repo.write({
+      actorId: null,
+      action: 'DELETE',
+      entity: 'Loan',
+      entityId: null,
+      before: null,
+      after: null,
+      ip: null,
+    });
     expect(m(p, 'auditLog').create).toHaveBeenCalledWith({
-      data: { actorId: null, action: 'DELETE', entity: 'Loan', entityId: null, before: Prisma.JsonNull, after: Prisma.JsonNull, ip: null },
+      data: {
+        actorId: null,
+        action: 'DELETE',
+        entity: 'Loan',
+        entityId: null,
+        before: Prisma.JsonNull,
+        after: Prisma.JsonNull,
+        ip: null,
+      },
     });
   });
 
@@ -508,9 +648,16 @@ describe('AuditPrismaRepository', () => {
     m(p, 'auditLog').findMany.mockResolvedValue(rows);
     m(p, 'auditLog').count.mockResolvedValue(1);
     const repo = new AuditPrismaRepository(asService(p));
-    await expect(repo.list({ entity: 'Employee', entityId: 'e1', actorId: 'u1', skip: 0, take: 50 })).resolves.toEqual({ rows, total: 1 });
+    await expect(
+      repo.list({ entity: 'Employee', entityId: 'e1', actorId: 'u1', skip: 0, take: 50 }),
+    ).resolves.toEqual({ rows, total: 1 });
     const where = { entity: 'Employee', entityId: 'e1', actorId: 'u1' };
-    expect(m(p, 'auditLog').findMany).toHaveBeenCalledWith({ where, orderBy: { at: 'desc' }, skip: 0, take: 50 });
+    expect(m(p, 'auditLog').findMany).toHaveBeenCalledWith({
+      where,
+      orderBy: { at: 'desc' },
+      skip: 0,
+      take: 50,
+    });
     expect(m(p, 'auditLog').count).toHaveBeenCalledWith({ where });
   });
 });
@@ -518,8 +665,16 @@ describe('AuditPrismaRepository', () => {
 // ── BonusRulePrismaRepository ──────────────────────────────────────────
 describe('BonusRulePrismaRepository', () => {
   const write = {
-    depotId: 'd1', bonusType: 'ATTENDANCE' as const, name: 'Perfect', metric: 'present',
-    op: '>=', threshold: 26, rewardKind: 'FIXED', rewardValue: 100000, active: true, createdBy: 'hr',
+    depotId: 'd1',
+    bonusType: 'ATTENDANCE' as const,
+    name: 'Perfect',
+    metric: 'present',
+    op: '>=',
+    threshold: 26,
+    rewardKind: 'FIXED',
+    rewardValue: 100000,
+    active: true,
+    createdBy: 'hr',
   };
 
   it('create/update/findById passthrough', async () => {
@@ -532,7 +687,10 @@ describe('BonusRulePrismaRepository', () => {
     await expect(repo.create(write)).resolves.toBe(out);
     expect(m(p, 'bonusRule').create).toHaveBeenCalledWith({ data: write });
     await expect(repo.update('r1', { active: false })).resolves.toBe(out);
-    expect(m(p, 'bonusRule').update).toHaveBeenCalledWith({ where: { id: 'r1' }, data: { active: false } });
+    expect(m(p, 'bonusRule').update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { active: false },
+    });
     await expect(repo.findById('r1')).resolves.toBe(out);
     expect(m(p, 'bonusRule').findUnique).toHaveBeenCalledWith({ where: { id: 'r1' } });
   });
@@ -553,11 +711,20 @@ describe('BonusRulePrismaRepository', () => {
     m(p, 'bonusRule').findMany.mockResolvedValue([]);
     const repo = new BonusRulePrismaRepository(asService(p));
     await repo.list();
-    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({ where: {}, orderBy: { createdAt: 'desc' } });
+    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.list(null);
-    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({ where: { depotId: null }, orderBy: { createdAt: 'desc' } });
+    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({
+      where: { depotId: null },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.list('d1');
-    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({ where: { depotId: 'd1' }, orderBy: { createdAt: 'desc' } });
+    expect(m(p, 'bonusRule').findMany).toHaveBeenLastCalledWith({
+      where: { depotId: 'd1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 });
 
@@ -577,7 +744,9 @@ describe('EmployeePrismaRepository', () => {
     m(p, 'employee').findMany.mockResolvedValue(rows);
     m(p, 'employee').count.mockResolvedValue(1);
     const repo = new EmployeePrismaRepository(asService(p));
-    await expect(repo.list({ depotId: 'd1', status: 'ACTIVE', search: 'ali', skip: 5, take: 10 })).resolves.toEqual({ rows, total: 1 });
+    await expect(
+      repo.list({ depotId: 'd1', status: 'ACTIVE', search: 'ali', skip: 5, take: 10 }),
+    ).resolves.toEqual({ rows, total: 1 });
     const where = {
       depotId: 'd1',
       status: 'ACTIVE',
@@ -587,7 +756,12 @@ describe('EmployeePrismaRepository', () => {
         { phone: { contains: 'ali' } },
       ],
     };
-    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({ where, orderBy: { createdAt: 'desc' }, skip: 5, take: 10 });
+    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: 5,
+      take: 10,
+    });
     expect(m(p, 'employee').count).toHaveBeenCalledWith({ where });
   });
 
@@ -597,7 +771,12 @@ describe('EmployeePrismaRepository', () => {
     m(p, 'employee').count.mockResolvedValue(0);
     const repo = new EmployeePrismaRepository(asService(p));
     await repo.list({ skip: 0, take: 20 });
-    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({ where: {}, orderBy: { createdAt: 'desc' }, skip: 0, take: 20 });
+    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
   });
 
   it('findById / findByAuthSubjectId / listHistory passthrough', async () => {
@@ -608,9 +787,14 @@ describe('EmployeePrismaRepository', () => {
     await repo.findById('e1');
     expect(m(p, 'employee').findUnique).toHaveBeenCalledWith({ where: { id: 'e1' } });
     await repo.findByAuthSubjectId('auth1');
-    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({ where: { authSubjectId: 'auth1' } });
+    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({
+      where: { authSubjectId: 'auth1' },
+    });
     await repo.listHistory('e1');
-    expect(m(p, 'employmentHistory').findMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' }, orderBy: { createdAt: 'desc' } });
+    expect(m(p, 'employmentHistory').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { createdAt: 'desc' },
+    });
   });
 
   it('create nests history only when provided', async () => {
@@ -621,7 +805,9 @@ describe('EmployeePrismaRepository', () => {
     const data = { fullName: 'A' } as unknown as Prisma.EmployeeCreateInput;
     const hist = { field: 'x' } as unknown as Prisma.EmploymentHistoryCreateWithoutEmployeeInput;
     await repo.create(data, hist);
-    expect(m(p, 'employee').create).toHaveBeenCalledWith({ data: { ...data, history: { create: hist } } });
+    expect(m(p, 'employee').create).toHaveBeenCalledWith({
+      data: { ...data, history: { create: hist } },
+    });
     await repo.create(data);
     expect(m(p, 'employee').create).toHaveBeenLastCalledWith({ data });
   });
@@ -631,9 +817,14 @@ describe('EmployeePrismaRepository', () => {
     m(p, 'employee').update.mockResolvedValue(sentinel());
     const repo = new EmployeePrismaRepository(asService(p));
     const data = { fullName: 'B' } as unknown as Prisma.EmployeeUpdateInput;
-    const hist = [{ field: 'x' }] as unknown as Prisma.EmploymentHistoryCreateWithoutEmployeeInput[];
+    const hist = [
+      { field: 'x' },
+    ] as unknown as Prisma.EmploymentHistoryCreateWithoutEmployeeInput[];
     await repo.update('e1', data, hist);
-    expect(m(p, 'employee').update).toHaveBeenCalledWith({ where: { id: 'e1' }, data: { ...data, history: { create: hist } } });
+    expect(m(p, 'employee').update).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: { ...data, history: { create: hist } },
+    });
     await repo.update('e1', data, []);
     expect(m(p, 'employee').update).toHaveBeenLastCalledWith({ where: { id: 'e1' }, data });
   });
@@ -656,14 +847,18 @@ describe('FaceEmbeddingPrismaRepository', () => {
     m(p, 'faceEmbedding').findMany.mockResolvedValue([]);
     const repo = new FaceEmbeddingPrismaRepository(asService(p));
     await repo.listActiveByEmployee('e1');
-    expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({ where: { employeeId: 'e1', active: true } });
+    expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', active: true },
+    });
   });
 
   it('listActiveVectorsExcept selects + maps owned vectors', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').findMany.mockResolvedValue([{ employeeId: 'e2', vector: [1, 2] }]);
     const repo = new FaceEmbeddingPrismaRepository(asService(p));
-    await expect(repo.listActiveVectorsExcept('e1')).resolves.toEqual([{ employeeId: 'e2', vector: [1, 2] }]);
+    await expect(repo.listActiveVectorsExcept('e1')).resolves.toEqual([
+      { employeeId: 'e2', vector: [1, 2] },
+    ]);
     expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
       where: { active: true, employeeId: { not: 'e1' } },
       select: { employeeId: true, vector: true },
@@ -675,7 +870,10 @@ describe('FaceEmbeddingPrismaRepository', () => {
     m(p, 'faceEmbedding').updateMany.mockResolvedValue({ count: 2 });
     const repo = new FaceEmbeddingPrismaRepository(asService(p));
     await repo.deactivateForEmployee('e1');
-    expect(m(p, 'faceEmbedding').updateMany).toHaveBeenCalledWith({ where: { employeeId: 'e1', active: true }, data: { active: false } });
+    expect(m(p, 'faceEmbedding').updateMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', active: true },
+      data: { active: false },
+    });
   });
 });
 
@@ -698,13 +896,25 @@ describe('HolidayPrismaRepository', () => {
     m(p, 'holiday').findMany.mockResolvedValue([]);
     const repo = new HolidayPrismaRepository(asService(p));
     await repo.list({ depotId: 'd1', from, to });
-    expect(m(p, 'holiday').findMany).toHaveBeenCalledWith({ where: { depotId: 'd1', date: { gte: from, lte: to } }, orderBy: { date: 'asc' } });
+    expect(m(p, 'holiday').findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1', date: { gte: from, lte: to } },
+      orderBy: { date: 'asc' },
+    });
     await repo.list({});
-    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({ where: {}, orderBy: { date: 'asc' } });
+    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: { date: 'asc' },
+    });
     await repo.list({ from });
-    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({ where: { date: { gte: from } }, orderBy: { date: 'asc' } });
+    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({
+      where: { date: { gte: from } },
+      orderBy: { date: 'asc' },
+    });
     await repo.list({ to });
-    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({ where: { date: { lte: to } }, orderBy: { date: 'asc' } });
+    expect(m(p, 'holiday').findMany).toHaveBeenLastCalledWith({
+      where: { date: { lte: to } },
+      orderBy: { date: 'asc' },
+    });
   });
 
   it('delete / findById passthrough', async () => {
@@ -734,7 +944,15 @@ describe('HolidayPrismaRepository', () => {
 
 // ── LoanPrismaRepository ───────────────────────────────────────────────
 describe('LoanPrismaRepository', () => {
-  const write = { employeeId: 'e1', principal: 1000000, installmentAmount: 300000, startPeriod: '2026-07', note: null, active: true, createdBy: 'hr' };
+  const write = {
+    employeeId: 'e1',
+    principal: 1000000,
+    installmentAmount: 300000,
+    startPeriod: '2026-07',
+    note: null,
+    active: true,
+    createdBy: 'hr',
+  };
 
   it('create/update/findById passthrough', async () => {
     const p = makePrisma();
@@ -746,7 +964,10 @@ describe('LoanPrismaRepository', () => {
     await expect(repo.create(write)).resolves.toBe(out);
     expect(m(p, 'loan').create).toHaveBeenCalledWith({ data: write });
     await expect(repo.update('l1', { active: false })).resolves.toBe(out);
-    expect(m(p, 'loan').update).toHaveBeenCalledWith({ where: { id: 'l1' }, data: { active: false } });
+    expect(m(p, 'loan').update).toHaveBeenCalledWith({
+      where: { id: 'l1' },
+      data: { active: false },
+    });
     await expect(repo.findById('l1')).resolves.toBe(out);
     expect(m(p, 'loan').findUnique).toHaveBeenCalledWith({ where: { id: 'l1' } });
   });
@@ -756,17 +977,29 @@ describe('LoanPrismaRepository', () => {
     m(p, 'loan').findMany.mockResolvedValue([]);
     const repo = new LoanPrismaRepository(asService(p));
     await repo.listByEmployee('e1');
-    expect(m(p, 'loan').findMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' }, orderBy: { createdAt: 'desc' } });
+    expect(m(p, 'loan').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { createdAt: 'desc' },
+    });
     await repo.listActiveByEmployee('e1');
-    expect(m(p, 'loan').findMany).toHaveBeenLastCalledWith({ where: { employeeId: 'e1', active: true }, orderBy: { createdAt: 'asc' } });
+    expect(m(p, 'loan').findMany).toHaveBeenLastCalledWith({
+      where: { employeeId: 'e1', active: true },
+      orderBy: { createdAt: 'asc' },
+    });
   });
 });
 
 // ── PayrollPrismaRepository ────────────────────────────────────────────
 describe('PayrollPrismaRepository', () => {
   const write = {
-    employeeId: 'e1', periodMonth: '2026-07', gross: 5000000, totalBonus: 100000,
-    totalDeduction: 50000, net: 5050000, presentDays: 22, createdBy: 'hr',
+    employeeId: 'e1',
+    periodMonth: '2026-07',
+    gross: 5000000,
+    totalBonus: 100000,
+    totalDeduction: 50000,
+    net: 5050000,
+    presentDays: 22,
+    createdBy: 'hr',
     items: [{ kind: 'BASE' as const, label: 'Base', amount: 5000000, sourceRef: null }],
   };
 
@@ -786,7 +1019,10 @@ describe('PayrollPrismaRepository', () => {
     m(p, 'payroll').findUnique.mockResolvedValue(null);
     const repo = new PayrollPrismaRepository(asService(p));
     await repo.findById('pr1');
-    expect(m(p, 'payroll').findUnique).toHaveBeenCalledWith({ where: { id: 'pr1' }, include: { items: true } });
+    expect(m(p, 'payroll').findUnique).toHaveBeenCalledWith({
+      where: { id: 'pr1' },
+      include: { items: true },
+    });
   });
 
   it('create splits items into nested create', async () => {
@@ -831,7 +1067,9 @@ describe('PayrollPrismaRepository', () => {
     const approvedAt = new Date();
     m(p, 'payroll').update.mockResolvedValue(out);
     const repo = new PayrollPrismaRepository(asService(p));
-    await expect(repo.setStatus('pr1', 'APPROVED', { approvedBy: 'hr', approvedAt })).resolves.toBe(out);
+    await expect(repo.setStatus('pr1', 'APPROVED', { approvedBy: 'hr', approvedAt })).resolves.toBe(
+      out,
+    );
     expect(m(p, 'payroll').update).toHaveBeenCalledWith({
       where: { id: 'pr1' },
       data: { status: 'APPROVED', approvedBy: 'hr', approvedAt },
@@ -845,9 +1083,16 @@ describe('PayrollPrismaRepository', () => {
     m(p, 'payroll').findMany.mockResolvedValue(rows);
     m(p, 'payroll').count.mockResolvedValue(1);
     const repo = new PayrollPrismaRepository(asService(p));
-    await expect(repo.list({ periodMonth: '2026-07', employeeId: 'e1', status: 'PAID', skip: 0, take: 10 })).resolves.toEqual({ rows, total: 1 });
+    await expect(
+      repo.list({ periodMonth: '2026-07', employeeId: 'e1', status: 'PAID', skip: 0, take: 10 }),
+    ).resolves.toEqual({ rows, total: 1 });
     const where = { periodMonth: '2026-07', employeeId: 'e1', status: 'PAID' };
-    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({ where, orderBy: { createdAt: 'desc' }, skip: 0, take: 10 });
+    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 10,
+    });
     expect(m(p, 'payroll').count).toHaveBeenCalledWith({ where });
   });
 
@@ -857,7 +1102,12 @@ describe('PayrollPrismaRepository', () => {
     m(p, 'payroll').count.mockResolvedValue(0);
     const repo = new PayrollPrismaRepository(asService(p));
     await repo.list({ skip: 0, take: 10 });
-    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({ where: {}, orderBy: { createdAt: 'desc' }, skip: 0, take: 10 });
+    expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 10,
+    });
   });
 });
 
@@ -868,11 +1118,25 @@ describe('PerformancePrismaRepository', () => {
     const out = sentinel();
     m(p, 'performanceReview').upsert.mockResolvedValue(out);
     const repo = new PerformancePrismaRepository(asService(p));
-    const data = { employeeId: 'e1', periodMonth: '2026-07', score: 90, metrics: { punctuality: 1 }, reviewerId: 'hr', note: 'ok' };
+    const data = {
+      employeeId: 'e1',
+      periodMonth: '2026-07',
+      score: 90,
+      metrics: { punctuality: 1 },
+      reviewerId: 'hr',
+      note: 'ok',
+    };
     await expect(repo.upsert(data)).resolves.toBe(out);
     expect(m(p, 'performanceReview').upsert).toHaveBeenCalledWith({
       where: { employeeId_periodMonth: { employeeId: 'e1', periodMonth: '2026-07' } },
-      create: { employeeId: 'e1', periodMonth: '2026-07', score: 90, metrics: { punctuality: 1 }, reviewerId: 'hr', note: 'ok' },
+      create: {
+        employeeId: 'e1',
+        periodMonth: '2026-07',
+        score: 90,
+        metrics: { punctuality: 1 },
+        reviewerId: 'hr',
+        note: 'ok',
+      },
       update: { score: 90, metrics: { punctuality: 1 }, reviewerId: 'hr', note: 'ok' },
     });
   });
@@ -883,7 +1147,10 @@ describe('PerformancePrismaRepository', () => {
     m(p, 'performanceReview').findUnique.mockResolvedValue(null);
     const repo = new PerformancePrismaRepository(asService(p));
     await repo.listByEmployee('e1');
-    expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({ where: { employeeId: 'e1' }, orderBy: { periodMonth: 'desc' } });
+    expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { periodMonth: 'desc' },
+    });
     await repo.findById('pr1');
     expect(m(p, 'performanceReview').findUnique).toHaveBeenCalledWith({ where: { id: 'pr1' } });
   });
@@ -893,10 +1160,16 @@ describe('PerformancePrismaRepository', () => {
 describe('SettingsPrismaRepository', () => {
   it('loadAll selects + maps rows', async () => {
     const p = makePrisma();
-    m(p, 'serviceSetting').findMany.mockResolvedValue([{ scope: 'GLOBAL', depotId: null, key: 'k', value: 'v-a' }]);
+    m(p, 'serviceSetting').findMany.mockResolvedValue([
+      { scope: 'GLOBAL', depotId: null, key: 'k', value: 'v-a' },
+    ]);
     const repo = new SettingsPrismaRepository(asService(p));
-    await expect(repo.loadAll()).resolves.toEqual([{ scope: 'GLOBAL', depotId: null, key: 'k', value: 'v-a' }]);
-    expect(m(p, 'serviceSetting').findMany).toHaveBeenCalledWith({ select: { scope: true, depotId: true, key: true, value: true } });
+    await expect(repo.loadAll()).resolves.toEqual([
+      { scope: 'GLOBAL', depotId: null, key: 'k', value: 'v-a' },
+    ]);
+    expect(m(p, 'serviceSetting').findMany).toHaveBeenCalledWith({
+      select: { scope: true, depotId: true, key: true, value: true },
+    });
   });
 
   it('upsert updates when a matching row exists', async () => {
@@ -905,8 +1178,14 @@ describe('SettingsPrismaRepository', () => {
     m(p, 'serviceSetting').update.mockResolvedValue({});
     const repo = new SettingsPrismaRepository(asService(p));
     await repo.upsert({ scope: 'DEPOT', depotId: 'd1', key: 'k', value: 'v1', updatedBy: 'hr' });
-    expect(m(p, 'serviceSetting').findFirst).toHaveBeenCalledWith({ where: { scope: 'DEPOT', depotId: 'd1', key: 'k' }, select: { id: true } });
-    expect(m(p, 'serviceSetting').update).toHaveBeenCalledWith({ where: { id: 'row1' }, data: { value: 'v1', updatedBy: 'hr' } });
+    expect(m(p, 'serviceSetting').findFirst).toHaveBeenCalledWith({
+      where: { scope: 'DEPOT', depotId: 'd1', key: 'k' },
+      select: { id: true },
+    });
+    expect(m(p, 'serviceSetting').update).toHaveBeenCalledWith({
+      where: { id: 'row1' },
+      data: { value: 'v1', updatedBy: 'hr' },
+    });
     expect(m(p, 'serviceSetting').create).not.toHaveBeenCalled();
   });
 
@@ -927,7 +1206,9 @@ describe('SettingsPrismaRepository', () => {
     m(p, 'serviceSetting').deleteMany.mockResolvedValue({ count: 1 });
     const repo = new SettingsPrismaRepository(asService(p));
     await repo.remove('DEPOT', 'd1', 'k');
-    expect(m(p, 'serviceSetting').deleteMany).toHaveBeenCalledWith({ where: { scope: 'DEPOT', depotId: 'd1', key: 'k' } });
+    expect(m(p, 'serviceSetting').deleteMany).toHaveBeenCalledWith({
+      where: { scope: 'DEPOT', depotId: 'd1', key: 'k' },
+    });
   });
 });
 

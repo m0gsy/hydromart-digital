@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  CancelRedemptionMutation,
   CreateRewardItemData,
   RedeemMutation,
   RewardItemRecord,
@@ -23,7 +24,9 @@ export class RewardPrismaRepository implements RewardRepository {
   }
 
   async listAllItems(): Promise<RewardItemRecord[]> {
-    return this.prisma.rewardItem.findMany({ orderBy: [{ active: 'desc' }, { pointsCost: 'asc' }] });
+    return this.prisma.rewardItem.findMany({
+      orderBy: [{ active: 'desc' }, { pointsCost: 'asc' }],
+    });
   }
 
   async findItem(id: string): Promise<RewardItemRecord | null> {
@@ -42,9 +45,10 @@ export class RewardPrismaRepository implements RewardRepository {
     customerId: string,
     idempotencyKey: string,
   ): Promise<RewardRedemptionRecord | null> {
-    return this.prisma.rewardRedemption.findUnique({
+    const row = await this.prisma.rewardRedemption.findUnique({
       where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
     });
+    return row ? this.toRecord(row) : null;
   }
 
   async redeem(m: RedeemMutation): Promise<RewardRedemptionRecord> {
@@ -80,6 +84,70 @@ export class RewardPrismaRepository implements RewardRepository {
           ]
         : []),
     ]);
-    return redemption;
+    return this.toRecord(redemption);
+  }
+
+  async findRedemption(id: string): Promise<RewardRedemptionRecord | null> {
+    const row = await this.prisma.rewardRedemption.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async markUsed(id: string): Promise<RewardRedemptionRecord> {
+    const row = await this.prisma.rewardRedemption.update({
+      where: { id },
+      data: { status: 'USED', usedAt: new Date() },
+    });
+    return this.toRecord(row);
+  }
+
+  /**
+   * M14-03: one transaction, so a crash can never leave the redemption cancelled with
+   * the points still gone (or refunded twice). The status guard in the WHERE clause is
+   * the real defence against a double refund from two concurrent requests.
+   */
+  async cancel(m: CancelRedemptionMutation): Promise<RewardRedemptionRecord> {
+    const [redemption] = await this.prisma.$transaction([
+      this.prisma.rewardRedemption.update({
+        where: { id: m.redemptionId, status: 'ACTIVE' },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      }),
+      // Positive ledger entry mirroring the REDEEM debit — lifetimePoints/tier stay put,
+      // exactly as they did when the points were spent.
+      this.prisma.pointsTransaction.create({
+        data: {
+          accountId: m.accountId,
+          customerId: m.customerId,
+          type: PrismaTxnType.REDEEM,
+          points: m.pointsRefunded,
+          reason: m.reason,
+        },
+      }),
+      this.prisma.loyaltyAccount.update({
+        where: { id: m.accountId },
+        data: { pointsBalance: m.newBalance },
+      }),
+      ...(m.restoreStock
+        ? [
+            this.prisma.rewardItem.update({
+              where: { id: m.rewardItemId },
+              data: { stock: { increment: 1 } },
+            }),
+          ]
+        : []),
+    ]);
+    return this.toRecord(redemption);
+  }
+
+  private toRecord(row: {
+    id: string;
+    rewardItemId: string;
+    customerId: string;
+    pointsSpent: number;
+    status: string;
+    usedAt: Date | null;
+    cancelledAt: Date | null;
+    createdAt: Date;
+  }): RewardRedemptionRecord {
+    return { ...row, status: row.status as RewardRedemptionRecord['status'] };
   }
 }

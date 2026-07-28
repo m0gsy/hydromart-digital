@@ -6,19 +6,34 @@ import { SlaPolicyRecord } from '../../application/ports/sla-policy.repository';
 /* ---------- Requests ---------- */
 
 export class SaveSlaPolicyDto {
-  @ApiProperty({ example: 90, minimum: 10, maximum: 480, description: 'On-time threshold (minutes).' })
+  @ApiProperty({
+    example: 90,
+    minimum: 10,
+    maximum: 480,
+    description: 'On-time threshold (minutes).',
+  })
   @IsInt()
   @Min(10)
   @Max(480)
   onTimeThresholdMinutes!: number;
 
-  @ApiProperty({ example: 95, minimum: 0, maximum: 100, description: '% on-time at/above which a depot is healthy.' })
+  @ApiProperty({
+    example: 95,
+    minimum: 0,
+    maximum: 100,
+    description: '% on-time at/above which a depot is healthy.',
+  })
   @IsInt()
   @Min(0)
   @Max(100)
   healthyBandPct!: number;
 
-  @ApiProperty({ example: 85, minimum: 0, maximum: 100, description: '% on-time below which a depot is critical.' })
+  @ApiProperty({
+    example: 85,
+    minimum: 0,
+    maximum: 100,
+    description: '% on-time below which a depot is critical.',
+  })
   @IsInt()
   @Min(0)
   @Max(100)

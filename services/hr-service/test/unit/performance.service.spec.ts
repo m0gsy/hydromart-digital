@@ -3,9 +3,17 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { PerformanceReview } from '../../prisma/generated/client';
 import { PerformanceService } from '../../src/application/services/performance.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
-import { PerformanceRepository, PerformanceWrite } from '../../src/application/ports/performance.repository';
+import {
+  PerformanceRepository,
+  PerformanceWrite,
+} from '../../src/application/ports/performance.repository';
 
-const user: AuthenticatedUser = { sub: 'reviewer-1', role: 'HR' as never, phone: null, depotId: null };
+const user: AuthenticatedUser = {
+  sub: 'reviewer-1',
+  role: 'HR' as never,
+  phone: null,
+  depotId: null,
+};
 
 function build() {
   let lastWrite: PerformanceWrite | undefined;
@@ -39,7 +47,13 @@ describe('PerformanceService', () => {
 
   it('passes through metrics + note when given', async () => {
     const { svc, write } = build();
-    await svc.upsert(user, { employeeId: 'e1', periodMonth: '2026-07', score: 90, metrics: { punctuality: 9 }, note: 'solid' });
+    await svc.upsert(user, {
+      employeeId: 'e1',
+      periodMonth: '2026-07',
+      score: 90,
+      metrics: { punctuality: 9 },
+      note: 'solid',
+    });
     expect(write()?.metrics).toEqual({ punctuality: 9 });
     expect(write()?.note).toBe('solid');
   });

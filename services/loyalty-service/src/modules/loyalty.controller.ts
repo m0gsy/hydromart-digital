@@ -1,7 +1,25 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+  Roles,
+} from '@hydromart/platform';
 
 import { LoyaltyService } from '../application/services/loyalty.service';
 import { Page } from '../application/pagination';
@@ -59,9 +77,16 @@ export class LoyaltyController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('earn')
-  @ApiOperation({ summary: 'Award points for a completed order (internal service auth, BR-013, idempotent)' })
+  @ApiOperation({
+    summary: 'Award points for a completed order (internal service auth, BR-013, idempotent)',
+  })
   async earn(@Body() dto: EarnPointsDto): Promise<LoyaltyAccountDto> {
-    const result = await this.loyalty.earnForOrder(dto.customerId, dto.orderId, dto.subtotal, dto.depotId ?? null);
+    const result = await this.loyalty.earnForOrder(
+      dto.customerId,
+      dto.orderId,
+      dto.subtotal,
+      dto.depotId ?? null,
+    );
     return LoyaltyAccountDto.from(result.account);
   }
 
@@ -70,14 +95,18 @@ export class LoyaltyController {
   @Post('adjust')
   @ApiOperation({ summary: 'Apply a signed manual points correction (staff)' })
   async adjust(@Body() dto: AdjustPointsDto): Promise<LoyaltyAccountDto> {
-    return LoyaltyAccountDto.from(await this.loyalty.adjust(dto.customerId, dto.points, dto.reason));
+    return LoyaltyAccountDto.from(
+      await this.loyalty.adjust(dto.customerId, dto.points, dto.reason),
+    );
   }
 
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('reward')
-  @ApiOperation({ summary: 'Grant a flat positive reward (internal service auth, e.g. referral/birthday bonus)' })
+  @ApiOperation({
+    summary: 'Grant a flat positive reward (internal service auth, e.g. referral/birthday bonus)',
+  })
   async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(
       await this.loyalty.reward(dto.customerId, dto.points, dto.reason),
@@ -104,7 +133,9 @@ export class LoyaltyController {
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('depot-summary')
-  @ApiOperation({ summary: 'Depot-scoped loyalty rollup: members, tiers, points outstanding, redeemed this month' })
+  @ApiOperation({
+    summary: 'Depot-scoped loyalty rollup: members, tiers, points outstanding, redeemed this month',
+  })
   depotSummary(@Query() query: DepotSummaryQueryDto) {
     return this.loyalty.depotSummary(query.depotId);
   }

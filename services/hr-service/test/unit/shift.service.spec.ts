@@ -8,7 +8,12 @@ import { ShiftService } from '../../src/application/services/shift.service';
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const DEPOT_B = '22222222-2222-2222-2222-222222222222';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
-const manager = (depotId: string): AuthenticatedUser => ({ sub: 'mgr-1', role: 'DEPOT_MANAGER' as never, phone: '0800', depotId });
+const manager = (depotId: string): AuthenticatedUser => ({
+  sub: 'mgr-1',
+  role: 'DEPOT_MANAGER' as never,
+  phone: '0800',
+  depotId,
+});
 
 class FakeRepo implements ShiftRepository {
   rows: Shift[] = [];
@@ -70,9 +75,22 @@ describe('ShiftService.create', () => {
 
   it('honours active=false and enforces depot access', async () => {
     const { svc } = make();
-    const s = await svc.create(hr, { name: 'Malam', startTime: '22:00', endTime: '06:00', active: false, depotId: DEPOT_A });
+    const s = await svc.create(hr, {
+      name: 'Malam',
+      startTime: '22:00',
+      endTime: '06:00',
+      active: false,
+      depotId: DEPOT_A,
+    });
     expect(s).toMatchObject({ depotId: DEPOT_A, active: false });
-    await expect(svc.create(manager(DEPOT_B), { name: 'x', startTime: '08:00', endTime: '16:00', depotId: DEPOT_A })).rejects.toThrow(ForbiddenException);
+    await expect(
+      svc.create(manager(DEPOT_B), {
+        name: 'x',
+        startTime: '08:00',
+        endTime: '16:00',
+        depotId: DEPOT_A,
+      }),
+    ).rejects.toThrow(ForbiddenException);
   });
 });
 
@@ -84,23 +102,53 @@ describe('ShiftService.update', () => {
 
   it('patches only the provided fields', async () => {
     const { svc } = make();
-    const s = await svc.create(hr, { name: 'Pagi', startTime: '08:00', endTime: '16:00', depotId: DEPOT_A });
-    const u = await svc.update(hr, s.id, { name: 'Pagi 2', startTime: '07:30', endTime: '15:30', active: false, depotId: DEPOT_A });
-    expect(u).toMatchObject({ name: 'Pagi 2', startTime: '07:30', endTime: '15:30', active: false });
+    const s = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
+    const u = await svc.update(hr, s.id, {
+      name: 'Pagi 2',
+      startTime: '07:30',
+      endTime: '15:30',
+      active: false,
+      depotId: DEPOT_A,
+    });
+    expect(u).toMatchObject({
+      name: 'Pagi 2',
+      startTime: '07:30',
+      endTime: '15:30',
+      active: false,
+    });
   });
 
   it('patches a single field, leaving the rest untouched', async () => {
     const { svc } = make();
-    const s = await svc.create(hr, { name: 'Pagi', startTime: '08:00', endTime: '16:00', depotId: DEPOT_A });
+    const s = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
     const u = await svc.update(hr, s.id, { startTime: '09:00' });
     expect(u).toMatchObject({ name: 'Pagi', startTime: '09:00', endTime: '16:00', active: true });
   });
 
   it('depot-checks both the existing shift and a moved-to depot', async () => {
     const { svc } = make();
-    const s = await svc.create(hr, { name: 'Pagi', startTime: '08:00', endTime: '16:00', depotId: DEPOT_A });
-    await expect(svc.update(manager(DEPOT_B), s.id, { name: 'x' })).rejects.toThrow(ForbiddenException);
-    await expect(svc.update(manager(DEPOT_A), s.id, { depotId: DEPOT_B })).rejects.toThrow(ForbiddenException);
+    const s = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
+    await expect(svc.update(manager(DEPOT_B), s.id, { name: 'x' })).rejects.toThrow(
+      ForbiddenException,
+    );
+    await expect(svc.update(manager(DEPOT_A), s.id, { depotId: DEPOT_B })).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 });
 
@@ -112,7 +160,12 @@ describe('ShiftService.remove', () => {
 
   it('depot-checks then deletes', async () => {
     const { repo, svc } = make();
-    const s = await svc.create(hr, { name: 'Pagi', startTime: '08:00', endTime: '16:00', depotId: DEPOT_A });
+    const s = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
     await expect(svc.remove(manager(DEPOT_B), s.id)).rejects.toThrow(ForbiddenException);
     await svc.remove(manager(DEPOT_A), s.id);
     expect(repo.rows).toHaveLength(0);

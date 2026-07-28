@@ -6,6 +6,7 @@ import {
   AttendanceRepository,
   AttendanceSummary,
   CheckOutPatch,
+  WorkedMinutesRow,
   CreateAttendanceInput,
   ManualAttendanceInput,
 } from '../../application/ports/attendance.repository';
@@ -65,11 +66,22 @@ export class AttendancePrismaRepository implements AttendanceRepository {
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
     const workDate = { gte: from, lte: to };
     const [presentDays, lateDays, leaveDays] = await this.prisma.$transaction([
-      this.prisma.attendance.count({ where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } } }),
+      this.prisma.attendance.count({
+        where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } },
+      }),
       this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LATE' } }),
       this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LEAVE' } }),
     ]);
     return { presentDays, lateDays, leaveDays };
+  }
+
+  /** M24-17: worked minutes per attended day, so payroll can rate holidays separately. */
+  listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]> {
+    return this.prisma.attendance.findMany({
+      where: { employeeId, workDate: { gte: from, lte: to }, status: { in: ['PRESENT', 'LATE'] } },
+      select: { workDate: true, workingMinutes: true },
+      orderBy: { workDate: 'asc' },
+    });
   }
 
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance> {
@@ -81,7 +93,12 @@ export class AttendancePrismaRepository implements AttendanceRepository {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
       ...(filter.from || filter.to
-        ? { workDate: { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lte: filter.to } : {}) } }
+        ? {
+            workDate: {
+              ...(filter.from ? { gte: filter.from } : {}),
+              ...(filter.to ? { lte: filter.to } : {}),
+            },
+          }
         : {}),
     };
     const [rows, total] = await this.prisma.$transaction([

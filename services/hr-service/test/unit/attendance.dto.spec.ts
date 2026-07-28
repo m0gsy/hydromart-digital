@@ -30,9 +30,9 @@ describe('attendance reason is mandatory text', () => {
   });
 
   it('accepts real text', () => {
-    expect(
-      failedProps(AdjustAttendanceDto, { reason: 'Lupa absen, dikoreksi HR' }),
-    ).not.toContain('reason');
+    expect(failedProps(AdjustAttendanceDto, { reason: 'Lupa absen, dikoreksi HR' })).not.toContain(
+      'reason',
+    );
     expect(
       failedProps(ManualAttendanceDto, {
         employeeId: EMPLOYEE,

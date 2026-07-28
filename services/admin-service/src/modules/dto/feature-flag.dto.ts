@@ -1,12 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  Max,
-  Min,
-  ValidateIf,
-} from 'class-validator';
+import { IsEnum, IsInt, IsOptional, Max, Min, ValidateIf } from 'class-validator';
 
 import { FlagState } from '../../domain/flag-state';
 import { FeatureFlagRecord } from '../../application/ports/feature-flag.repository';

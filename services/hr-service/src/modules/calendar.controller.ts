@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
@@ -6,7 +17,13 @@ import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
-import { CreateHolidayDto, CreateShiftDto, ListHolidayDto, ListShiftDto, UpdateShiftDto } from './dto/calendar.dto';
+import {
+  CreateHolidayDto,
+  CreateShiftDto,
+  ListHolidayDto,
+  ListShiftDto,
+  UpdateShiftDto,
+} from './dto/calendar.dto';
 
 /** National/depot holidays that drive the working-day calendar. Read hrView, write hrAdmin. */
 @ApiTags('HR Holidays')
@@ -62,7 +79,11 @@ export class ShiftController {
   @Patch(':id')
   @Roles(...CAPABILITIES.hrAdmin)
   @ApiOperation({ summary: 'Update a shift' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateShiftDto, @CurrentUser() user: AuthenticatedUser) {
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateShiftDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     return this.shifts.update(user, id, dto);
   }
 

@@ -56,7 +56,9 @@ export interface LoyaltyRepository {
   findEarnByOrder(orderId: string): Promise<PointsTransactionRecord | null>;
 
   recordEarn(mutation: EarnMutation): Promise<LoyaltyAccountRecord>;
-  recordAdjustment(mutation: AccountMutation & { type: PointsTxnType }): Promise<LoyaltyAccountRecord>;
+  recordAdjustment(
+    mutation: AccountMutation & { type: PointsTxnType },
+  ): Promise<LoyaltyAccountRecord>;
 
   listTransactions(
     customerId: string,

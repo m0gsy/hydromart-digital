@@ -1729,11 +1729,17 @@ export interface SlaPolicy {
 }
 
 // Retention & backup (19e).
+export type DataClass = 'FINANCIAL' | 'OPERATIONAL' | 'HR' | 'MARKETING';
+
 export interface RetentionPolicy {
   id: string;
   dataset: string;
   windowLabel: string;
   windowDays: number;
+  /** M23-21: what kind of data this is; FINANCIAL is never purged. */
+  dataClass: DataClass;
+  /** Server-derived from dataClass — do not compute this in the UI. */
+  purgeExempt: boolean;
   updatedAt: string;
 }
 /** Read-only. status "NONE" = no backup engine is wired/has run. */

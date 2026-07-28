@@ -259,7 +259,7 @@ describe('LoyaltyPrismaRepository', () => {
 
 describe('RewardPrismaRepository', () => {
   const rewardItem = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
-  const rewardRedemption = { create: jest.fn(), findUnique: jest.fn() };
+  const rewardRedemption = { create: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
   const pointsTransaction = { create: jest.fn() };
   const loyaltyAccount = { update: jest.fn() };
   const $transaction = jest.fn((ops: unknown) => Promise.resolve(ops));
@@ -286,6 +286,9 @@ describe('RewardPrismaRepository', () => {
     rewardItemId: 'ri-1',
     customerId: 'cust-1',
     pointsSpent: 500,
+    status: 'ACTIVE',
+    usedAt: null,
+    cancelledAt: null,
     createdAt: new Date('2026-01-02'),
   };
 
@@ -373,6 +376,88 @@ describe('RewardPrismaRepository', () => {
       newBalance: 700,
       reason: 'Redeemed Free Galon',
       decrementStock: false,
+    });
+    expect(rewardItem.update).not.toHaveBeenCalled();
+  });
+
+  it('finds one redemption by id, mapping the status text (M14-03)', async () => {
+    rewardRedemption.findUnique.mockResolvedValue(redemptionRow);
+    expect(await repo.findRedemption('rd-1')).toMatchObject({ id: 'rd-1', status: 'ACTIVE' });
+    expect(rewardRedemption.findUnique).toHaveBeenCalledWith({ where: { id: 'rd-1' } });
+  });
+
+  it('returns null for an unknown redemption (M14-03)', async () => {
+    rewardRedemption.findUnique.mockResolvedValue(null);
+    expect(await repo.findRedemption('nope')).toBeNull();
+  });
+
+  it('finds a prior redemption by idempotency key', async () => {
+    rewardRedemption.findUnique.mockResolvedValue(redemptionRow);
+    expect(await repo.findRedemptionByKey('cust-1', 'idem-1')).toMatchObject({ id: 'rd-1' });
+    rewardRedemption.findUnique.mockResolvedValue(null);
+    expect(await repo.findRedemptionByKey('cust-1', 'missing')).toBeNull();
+  });
+
+  it('stamps a redemption as used (M14-03)', async () => {
+    rewardRedemption.update.mockResolvedValue({
+      ...redemptionRow,
+      status: 'USED',
+      usedAt: new Date('2026-01-03'),
+    });
+    const out = await repo.markUsed('rd-1');
+    expect(out.status).toBe('USED');
+    const [[args]] = rewardRedemption.update.mock.calls;
+    expect(args.where).toEqual({ id: 'rd-1' });
+    expect(args.data.status).toBe('USED');
+  });
+
+  it('cancels atomically: status guard, credit entry, balance, stock restore (M14-03)', async () => {
+    rewardRedemption.update.mockReturnValue({
+      ...redemptionRow,
+      status: 'CANCELLED',
+      cancelledAt: new Date('2026-01-04'),
+    } as never);
+    pointsTransaction.create.mockReturnValue('credit' as never);
+    loyaltyAccount.update.mockReturnValue('rebate' as never);
+    rewardItem.update.mockReturnValue('stock' as never);
+
+    const out = await repo.cancel({
+      redemptionId: 'rd-1',
+      accountId: 'acc-1',
+      customerId: 'cust-1',
+      rewardItemId: 'ri-1',
+      pointsRefunded: 500,
+      newBalance: 1200,
+      reason: 'Cancelled Free Galon',
+      restoreStock: true,
+    });
+
+    expect(out.status).toBe('CANCELLED');
+    // The WHERE guard is what stops two concurrent cancels from refunding twice.
+    const [[args]] = rewardRedemption.update.mock.calls;
+    expect(args.where).toEqual({ id: 'rd-1', status: 'ACTIVE' });
+    expect(pointsTransaction.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ points: 500 }) }),
+    );
+    expect(rewardItem.update).toHaveBeenCalledWith({
+      where: { id: 'ri-1' },
+      data: { stock: { increment: 1 } },
+    });
+  });
+
+  it('skips the stock restore for unlimited items (M14-03)', async () => {
+    rewardRedemption.update.mockReturnValue({ ...redemptionRow, status: 'CANCELLED' } as never);
+    pointsTransaction.create.mockReturnValue('credit' as never);
+    loyaltyAccount.update.mockReturnValue('rebate' as never);
+    await repo.cancel({
+      redemptionId: 'rd-1',
+      accountId: 'acc-1',
+      customerId: 'cust-1',
+      rewardItemId: 'ri-1',
+      pointsRefunded: 500,
+      newBalance: 1200,
+      reason: 'Cancelled Free Galon',
+      restoreStock: false,
     });
     expect(rewardItem.update).not.toHaveBeenCalled();
   });

@@ -4,7 +4,11 @@ import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
-import { StoragePort, StoragePutInput, StoragePutResult } from '../../application/ports/storage.port';
+import {
+  StoragePort,
+  StoragePutInput,
+  StoragePutResult,
+} from '../../application/ports/storage.port';
 
 /**
  * Production storage: S3-compatible object storage via @aws-sdk/client-s3 (mirrors the
@@ -28,7 +32,12 @@ export class S3StorageAdapter implements StoragePort {
   async put({ body, contentType, ext, keyPrefix }: StoragePutInput): Promise<StoragePutResult> {
     const key = `${keyPrefix}/${randomUUID()}.${ext}`;
     await this.client.send(
-      new PutObjectCommand({ Bucket: this.config.s3.bucket, Key: key, Body: body, ContentType: contentType }),
+      new PutObjectCommand({
+        Bucket: this.config.s3.bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
   }

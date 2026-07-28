@@ -34,7 +34,13 @@ describe('SettingsPrismaRepository', () => {
       },
     } as never;
     const repo = new SettingsPrismaRepository(prisma);
-    await repo.upsert({ scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '2000', updatedBy: 'u1' });
+    await repo.upsert({
+      scope: 'GLOBAL',
+      depotId: null,
+      key: 'earnRateRupiah',
+      value: '2000',
+      updatedBy: 'u1',
+    });
 
     expect(calls.map((c) => c.op)).toEqual(['findFirst', 'create']);
     expect(calls[0].arg).toEqual({
@@ -42,7 +48,13 @@ describe('SettingsPrismaRepository', () => {
       select: { id: true },
     });
     expect(calls[1].arg).toEqual({
-      data: { scope: 'GLOBAL', depotId: null, key: 'earnRateRupiah', value: '2000', updatedBy: 'u1' },
+      data: {
+        scope: 'GLOBAL',
+        depotId: null,
+        key: 'earnRateRupiah',
+        value: '2000',
+        updatedBy: 'u1',
+      },
     });
   });
 
@@ -65,7 +77,13 @@ describe('SettingsPrismaRepository', () => {
       },
     } as never;
     const repo = new SettingsPrismaRepository(prisma);
-    await repo.upsert({ scope: 'DEPOT', depotId: 'd1', key: 'pointExpiryMonths', value: '6', updatedBy: 'u2' });
+    await repo.upsert({
+      scope: 'DEPOT',
+      depotId: 'd1',
+      key: 'pointExpiryMonths',
+      value: '6',
+      updatedBy: 'u2',
+    });
 
     expect(calls.map((c) => c.op)).toEqual(['findFirst', 'update']);
     expect(calls[1].arg).toEqual({

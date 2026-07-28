@@ -12,9 +12,7 @@ import { ADMIN_TOKENS } from '../tokens';
 
 @Injectable()
 export class IncidentService {
-  constructor(
-    @Inject(ADMIN_TOKENS.IncidentRepository) private readonly repo: IncidentRepository,
-  ) {}
+  constructor(@Inject(ADMIN_TOKENS.IncidentRepository) private readonly repo: IncidentRepository) {}
 
   /** Incidents (Design 14c), newest first, optionally filtered by status. */
   list(filter: ListIncidentsFilter): Promise<IncidentRecord[]> {

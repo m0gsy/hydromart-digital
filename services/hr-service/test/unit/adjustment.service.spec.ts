@@ -2,7 +2,10 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Bonus, BonusType, Deduction, DeductionType } from '../../prisma/generated/client';
-import { BonusRepository, DeductionRepository } from '../../src/application/ports/adjustment.repository';
+import {
+  BonusRepository,
+  DeductionRepository,
+} from '../../src/application/ports/adjustment.repository';
 import { AdjustmentService } from '../../src/application/services/adjustment.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
 
@@ -25,7 +28,8 @@ class FakeBonusRepo implements BonusRepository {
   }
   async listByEmployeePeriod(employeeId: string, periodMonth: string): Promise<Bonus[]> {
     return this.rows.filter(
-      (r) => (r as unknown as { employeeId: string }).employeeId === employeeId &&
+      (r) =>
+        (r as unknown as { employeeId: string }).employeeId === employeeId &&
         (r as unknown as { periodMonth: string }).periodMonth === periodMonth,
     );
   }
@@ -47,7 +51,8 @@ class FakeDeductionRepo implements DeductionRepository {
   }
   async listByEmployeePeriod(employeeId: string, periodMonth: string): Promise<Deduction[]> {
     return this.rows.filter(
-      (r) => (r as unknown as { employeeId: string }).employeeId === employeeId &&
+      (r) =>
+        (r as unknown as { employeeId: string }).employeeId === employeeId &&
         (r as unknown as { periodMonth: string }).periodMonth === periodMonth,
     );
   }
@@ -75,27 +80,49 @@ function make() {
 describe('AdjustmentService', () => {
   it('adds a bonus (note defaults to null, createdBy = caller)', async () => {
     const { bonuses, svc } = make();
-    const b = await svc.addBonus(hr, { employeeId: 'e1', type: 'MANUAL' as BonusType, amount: 100000, periodMonth: '2026-07' });
+    const b = await svc.addBonus(hr, {
+      employeeId: 'e1',
+      type: 'MANUAL' as BonusType,
+      amount: 100000,
+      periodMonth: '2026-07',
+    });
     expect(bonuses.rows).toHaveLength(1);
     expect(b).toMatchObject({ note: null, createdBy: 'hr-1', amount: 100000 });
   });
 
   it('adds a bonus keeping an explicit note', async () => {
     const { svc } = make();
-    const b = await svc.addBonus(hr, { employeeId: 'e1', type: 'MANUAL' as BonusType, amount: 5, periodMonth: '2026-07', note: 'THR' });
+    const b = await svc.addBonus(hr, {
+      employeeId: 'e1',
+      type: 'MANUAL' as BonusType,
+      amount: 5,
+      periodMonth: '2026-07',
+      note: 'THR',
+    });
     expect(b.note).toBe('THR');
   });
 
   it('lists bonuses for an employee/period', async () => {
     const { svc } = make();
-    await svc.addBonus(hr, { employeeId: 'e1', type: 'MANUAL' as BonusType, amount: 1, periodMonth: '2026-07' });
+    await svc.addBonus(hr, {
+      employeeId: 'e1',
+      type: 'MANUAL' as BonusType,
+      amount: 1,
+      periodMonth: '2026-07',
+    });
     const rows = await svc.listBonuses(hr, 'e1', '2026-07');
     expect(rows).toHaveLength(1);
   });
 
   it('adds + lists a deduction', async () => {
     const { deductions, svc } = make();
-    await svc.addDeduction(hr, { employeeId: 'e1', type: 'CASH_ADVANCE' as DeductionType, amount: 20000, periodMonth: '2026-07', note: 'Kasbon' });
+    await svc.addDeduction(hr, {
+      employeeId: 'e1',
+      type: 'CASH_ADVANCE' as DeductionType,
+      amount: 20000,
+      periodMonth: '2026-07',
+      note: 'Kasbon',
+    });
     expect(deductions.rows[0]).toMatchObject({ note: 'Kasbon', createdBy: 'hr-1' });
     const rows = await svc.listDeductions(hr, 'e1', '2026-07');
     expect(rows).toHaveLength(1);
@@ -103,15 +130,34 @@ describe('AdjustmentService', () => {
 
   it('deduction note defaults to null', async () => {
     const { deductions, svc } = make();
-    await svc.addDeduction(hr, { employeeId: 'e1', type: 'CASH_ADVANCE' as DeductionType, amount: 1, periodMonth: '2026-07' });
+    await svc.addDeduction(hr, {
+      employeeId: 'e1',
+      type: 'CASH_ADVANCE' as DeductionType,
+      amount: 1,
+      periodMonth: '2026-07',
+    });
     expect(deductions.rows[0].note).toBeNull();
   });
 
   it('propagates the employee 404 guard on every method', async () => {
     const { svc } = make();
-    await expect(svc.addBonus(hr, { employeeId: 'x', type: 'MANUAL' as BonusType, amount: 1, periodMonth: '2026-07' })).rejects.toThrow(NotFoundException);
+    await expect(
+      svc.addBonus(hr, {
+        employeeId: 'x',
+        type: 'MANUAL' as BonusType,
+        amount: 1,
+        periodMonth: '2026-07',
+      }),
+    ).rejects.toThrow(NotFoundException);
     await expect(svc.listBonuses(hr, 'x', '2026-07')).rejects.toThrow(NotFoundException);
-    await expect(svc.addDeduction(hr, { employeeId: 'x', type: 'CASH_ADVANCE' as DeductionType, amount: 1, periodMonth: '2026-07' })).rejects.toThrow(NotFoundException);
+    await expect(
+      svc.addDeduction(hr, {
+        employeeId: 'x',
+        type: 'CASH_ADVANCE' as DeductionType,
+        amount: 1,
+        periodMonth: '2026-07',
+      }),
+    ).rejects.toThrow(NotFoundException);
     await expect(svc.listDeductions(hr, 'x', '2026-07')).rejects.toThrow(NotFoundException);
   });
 });

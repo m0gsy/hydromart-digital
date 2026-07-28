@@ -16,8 +16,16 @@ describe('SecurityPolicyService', () => {
   });
 
   it('saves and reads back the policy', async () => {
-    await service.save({ idleTimeoutMinutes: 30, require2fa: false, ipAllowlist: ['103.21.0.0/16'] });
+    await service.save({
+      idleTimeoutMinutes: 30,
+      require2fa: false,
+      ipAllowlist: ['103.21.0.0/16'],
+    });
     const p = await service.get();
-    expect(p).toMatchObject({ idleTimeoutMinutes: 30, require2fa: false, ipAllowlist: ['103.21.0.0/16'] });
+    expect(p).toMatchObject({
+      idleTimeoutMinutes: 30,
+      require2fa: false,
+      ipAllowlist: ['103.21.0.0/16'],
+    });
   });
 });

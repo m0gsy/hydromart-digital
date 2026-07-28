@@ -32,6 +32,34 @@ export class InsufficientPointsError extends DomainError {
   }
 }
 
+export class RewardRedemptionNotFoundError extends DomainError {
+  readonly code = 'LOYALTY_REDEMPTION_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Penukaran hadiah tidak ditemukan.');
+  }
+}
+
+/**
+ * M14-03: the reward was already collected, so the points bought something real and
+ * cannot come back. Deliberately NOT a 404 — the customer needs to understand why.
+ */
+export class RewardAlreadyUsedError extends DomainError {
+  readonly code = 'LOYALTY_REDEMPTION_ALREADY_USED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Hadiah ini sudah diambil, jadi penukarannya tidak bisa dibatalkan.');
+  }
+}
+
+export class RewardAlreadyCancelledError extends DomainError {
+  readonly code = 'LOYALTY_REDEMPTION_ALREADY_CANCELLED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Penukaran ini sudah dibatalkan.');
+  }
+}
+
 export class RewardOutOfStockError extends DomainError {
   readonly code = 'LOYALTY_REWARD_OUT_OF_STOCK';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

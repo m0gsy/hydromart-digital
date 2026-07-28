@@ -329,6 +329,9 @@ model RetentionPolicy {
   windowLabel String
   /// Window length in days (advisory metadata; the label is what's displayed).
   windowDays  Int
+  /// M23-21: FINANCIAL | OPERATIONAL | HR | MARKETING. FINANCIAL is exempt from purging
+  /// entirely. TEXT rather than an enum so a new class needs no irreversible migration.
+  dataClass   String   @default("OPERATIONAL")
   updatedAt   DateTime @updatedAt
 
   @@map("retention_policies")

@@ -16,5 +16,8 @@ export interface AdminNotificationPrefRepository {
   /** Prefs for one account, or null when the account has never saved any. */
   get(accountId: string): Promise<AdminNotificationPrefRecord | null>;
   /** Create-or-replace an account's prefs (PUT semantics). */
-  save(accountId: string, channels: NotificationChannelPref[]): Promise<AdminNotificationPrefRecord>;
+  save(
+    accountId: string,
+    channels: NotificationChannelPref[],
+  ): Promise<AdminNotificationPrefRecord>;
 }

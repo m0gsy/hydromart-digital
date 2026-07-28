@@ -1,11 +1,16 @@
-import { haversineMeters, geofenceEnabled, withinGeofence, type Geofence } from '../../src/domain/geofence';
+import {
+  haversineMeters,
+  geofenceEnabled,
+  withinGeofence,
+  type Geofence,
+} from '../../src/domain/geofence';
 
 describe('haversineMeters', () => {
   it('is ~0 for the same point', () => {
     expect(haversineMeters(-6.2, 106.8, -6.2, 106.8)).toBeCloseTo(0, 5);
   });
   it('matches a known short distance (~111m per 0.001° lat)', () => {
-    const d = haversineMeters(-6.200, 106.800, -6.201, 106.800);
+    const d = haversineMeters(-6.2, 106.8, -6.201, 106.8);
     expect(d).toBeGreaterThan(105);
     expect(d).toBeLessThan(116);
   });
@@ -20,7 +25,7 @@ describe('geofenceEnabled', () => {
 });
 
 describe('withinGeofence', () => {
-  const g: Geofence = { lat: -6.200, lng: 106.800, radiusM: 150 };
+  const g: Geofence = { lat: -6.2, lng: 106.8, radiusM: 150 };
 
   it('allows a punch inside the radius', () => {
     const r = withinGeofence(g, -6.2005, 106.8);
@@ -32,6 +37,9 @@ describe('withinGeofence', () => {
     expect(r.ok).toBe(false);
   });
   it('allows any punch when the geofence is disabled (unconfigured depot)', () => {
-    expect(withinGeofence({ lat: null, lng: null, radiusM: 0 }, -1, 100)).toEqual({ ok: true, distanceM: null });
+    expect(withinGeofence({ lat: null, lng: null, radiusM: 0 }, -1, 100)).toEqual({
+      ok: true,
+      distanceM: null,
+    });
   });
 });

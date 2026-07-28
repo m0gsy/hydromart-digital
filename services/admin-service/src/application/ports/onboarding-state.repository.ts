@@ -1,10 +1,6 @@
 /** The five first-run setup steps (Design 23b). */
 export type OnboardingStep =
-  | 'verify2fa'
-  | 'addDepot'
-  | 'inviteHeadOffice'
-  | 'setPricingTax'
-  | 'enablePayments';
+  'verify2fa' | 'addDepot' | 'inviteHeadOffice' | 'setPricingTax' | 'enablePayments';
 
 export interface OnboardingStateRecord {
   verify2fa: boolean;

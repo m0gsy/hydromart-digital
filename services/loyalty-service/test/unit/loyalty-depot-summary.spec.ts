@@ -4,9 +4,17 @@ import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 import { LoyaltyAccountRecord } from '../../src/application/ports/loyalty.repository';
 import { LoyaltyService } from '../../src/application/services/loyalty.service';
-import { InMemoryCustomerDirectory, InMemoryLoyaltyRepository, buildTestConfig } from '../support/fakes';
+import {
+  InMemoryCustomerDirectory,
+  InMemoryLoyaltyRepository,
+  buildTestConfig,
+} from '../support/fakes';
 
-const account = (customerId: string, tier: MembershipTier, pointsBalance: number): LoyaltyAccountRecord => ({
+const account = (
+  customerId: string,
+  tier: MembershipTier,
+  pointsBalance: number,
+): LoyaltyAccountRecord => ({
   id: randomUUID(),
   customerId,
   tier,

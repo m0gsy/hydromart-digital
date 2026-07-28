@@ -8,10 +8,7 @@ import {
 } from '@hydromart/platform';
 
 import { Employee, EmploymentHistory, Prisma, SalaryType } from '../../../prisma/generated/client';
-import {
-  EMPLOYEE_REPOSITORY,
-  EmployeeRepository,
-} from '../ports/employee.repository';
+import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
@@ -58,7 +55,6 @@ export type ImportEmployeeInput = Omit<CreateEmployeeInput, 'authSubjectId'> & {
   role: StaffRole;
 };
 
-
 @Injectable()
 export class EmployeeService {
   constructor(
@@ -68,7 +64,13 @@ export class EmployeeService {
 
   async list(
     user: AuthenticatedUser,
-    query: { depotId?: string; status?: Employee['status']; search?: string; page: number; pageSize: number },
+    query: {
+      depotId?: string;
+      status?: Employee['status'];
+      search?: string;
+      page: number;
+      pageSize: number;
+    },
   ): Promise<{ rows: Employee[]; total: number; page: number; pageSize: number }> {
     // Depot-locked roles (operator/manager) are forced to their own depot; HQ sees all.
     const depotId = depotScopeFilter(user, query.depotId);
@@ -196,7 +198,8 @@ export class EmployeeService {
     }
 
     const salaryType = input.salaryType ?? current.salaryType;
-    const dailyRate = input.dailyRate ?? (current.dailyRate ? Number(current.dailyRate) : undefined);
+    const dailyRate =
+      input.dailyRate ?? (current.dailyRate ? Number(current.dailyRate) : undefined);
     const monthlyRate =
       input.monthlyRate ?? (current.monthlyRate ? Number(current.monthlyRate) : undefined);
     if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
