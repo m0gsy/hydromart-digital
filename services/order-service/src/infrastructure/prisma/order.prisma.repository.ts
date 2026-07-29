@@ -80,6 +80,7 @@ interface OrderRow {
   longitude: number | null;
   notes: string | null;
   deliveryWindow: string | null;
+  isWalkIn: boolean;
   driverName: string | null;
   driverPhone: string | null;
   estimatedArrivalAt: Date | null;
@@ -126,6 +127,7 @@ export class OrderPrismaRepository implements OrderRepository {
       longitude: row.longitude,
       notes: row.notes,
       deliveryWindow: row.deliveryWindow,
+      isWalkIn: row.isWalkIn,
       driverName: row.driverName,
       driverPhone: row.driverPhone,
       estimatedArrivalAt: row.estimatedArrivalAt,
@@ -209,14 +211,17 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, id, ...order } = data;
+    const { items, id, status, ...order } = data;
+    // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
+    // seed history row has to match the row's real status, not a CREATED it never was.
+    const opening = status ?? OrderStatus.CREATED;
     const row = await this.prisma.order.create({
       data: {
         ...(id ? { id } : {}),
         ...order,
-        status: OrderStatus.CREATED,
+        status: opening,
         items: { create: items },
-        history: { create: { status: OrderStatus.CREATED } },
+        history: { create: { status: opening } },
       },
       include: INCLUDE,
     });

@@ -75,6 +75,10 @@ model Order {
   /// (e.g. "2026-07-20 09:00-12:00"). Not slot-checked — display/reference only.
   deliveryWindow String?
 
+  /// Cash sale recorded at the depot counter: no cart, no courier, no delivery fee.
+  /// Reporting needs it — otherwise a zero-fee order looks like a broken delivery order.
+  isWalkIn       Boolean @default(false)
+
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
 

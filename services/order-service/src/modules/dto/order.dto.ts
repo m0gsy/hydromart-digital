@@ -276,3 +276,52 @@ export class UpdateOrderStatusDto {
   @IsDateString()
   estimatedArrivalAt?: string;
 }
+
+/** One line of a counter sale. */
+export class WalkInLineDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ example: 2, minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(999)
+  quantity!: number;
+}
+
+/** Cash sale at the depot counter. The buyer's phone is optional (anonymous sale). */
+export class WalkInSaleDto {
+  @ApiProperty({ format: 'uuid', description: 'Depot making the sale.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ type: [WalkInLineDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => WalkInLineDto)
+  lines!: WalkInLineDto[];
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Resolved customer. Omit for an anonymous sale — no points, no CRM row.',
+  })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiPropertyOptional({ example: 'Budi Santoso' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customerName?: string;
+
+  @ApiPropertyOptional({ example: '081234567890' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  customerPhone?: string;
+}

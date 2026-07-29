@@ -1,6 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
+import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
   BelowMinimumOrderError,
@@ -21,6 +22,7 @@ import {
   isCancellable,
   notificationEventFor,
 } from '../../domain/order-status';
+import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { selectNearestDepot } from '../../domain/geo';
 import { applyAdjustment, galonQuantity, percentDiscount } from '../../domain/pricing';
 import { OrderConfigService } from '../../config/order-config.service';
@@ -51,6 +53,16 @@ import { PromoPort } from '../ports/promo.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
 import { CartService, CartView } from './cart.service';
+
+/** One counter sale: depot, lines, and an optional identified buyer. */
+export interface WalkInSaleInput {
+  depotId: string;
+  lines: { productId: string; quantity: number }[];
+  /** Resolved customer id when a phone was given; omitted for an anonymous sale. */
+  customerId?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
+}
 
 export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
@@ -132,47 +144,7 @@ export class OrderService {
     // rejected (OutOfServiceAreaError) rather than placed unfulfillable.
     const depot = await this.routeDepot(input.deliveryAddress);
 
-    // Per-depot resolved prices: static override + the winning active pricing rule
-    // (WARALABA depots price independently). Fails OPEN — an empty map means every
-    // line falls back to the catalog base price with no adjustment.
-    const prices = depot
-      ? await this.depotPricing.getPrices(
-          depot.id,
-          lines.map((l) => l.productId),
-          lines.map((l) => l.quantity),
-        )
-      : new Map<string, DepotPrice>();
-
-    const productById = await this.pricedAll(lines.map((l) => l.productId));
-    const items: CreateOrderItemData[] = [];
-    // Rupiah that came from a wholesale band. The bulk price is already the depot's bulk
-    // price, so the reseller percentage is not stacked on top of it (decided 2026-07-27).
-    let tierPricedTotal = 0;
-    for (const line of lines) {
-      const product = productById.get(line.productId)!;
-      const priceRow = prices.get(product.id);
-      const base = priceRow?.sellPrice ?? product.basePrice;
-      const adj = priceRow?.adjustType
-        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
-        : null;
-      // A wholesale band is an absolute unit price and outranks both the depot override
-      // and the active pricing rule (design 16b).
-      const tiered = typeof priceRow?.tierPrice === 'number';
-      const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
-      const lineTotal = money(unitPrice * line.quantity);
-      if (tiered) tierPricedTotal += lineTotal;
-      items.push({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        unit: product.unit,
-        unitPrice,
-        quantity: line.quantity,
-        lineTotal,
-      });
-    }
-
-    const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
+    const { items, subtotal, tierPricedTotal } = await this.priceLines(depot?.id ?? null, lines);
 
     if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
@@ -291,11 +263,58 @@ export class OrderService {
   }
 
   /**
+   * Depot-resolved prices turned into snapshotted order lines. The one block genuinely
+   * shared by every order path (checkout, scheduled subscription runs, counter sales):
+   * static per-depot override + the winning active pricing rule, with a matching wholesale
+   * band outranking both as an absolute unit price (design 16b). Fails OPEN — no depot or
+   * an empty price map means catalog base prices with no adjustment.
+   *
+   * `tierPricedTotal` is the rupiah that came from a wholesale band; only checkout uses it,
+   * to keep the reseller percentage off bulk-priced lines (decided 2026-07-27).
+   */
+  private async priceLines(
+    depotId: string | null,
+    lines: { productId: string; quantity: number }[],
+  ): Promise<{ items: CreateOrderItemData[]; subtotal: number; tierPricedTotal: number }> {
+    const prices = depotId
+      ? await this.depotPricing.getPrices(
+          depotId,
+          lines.map((l) => l.productId),
+          lines.map((l) => l.quantity),
+        )
+      : new Map<string, DepotPrice>();
+
+    const productById = await this.pricedAll(lines.map((l) => l.productId));
+    const items: CreateOrderItemData[] = [];
+    let tierPricedTotal = 0;
+    for (const line of lines) {
+      const product = productById.get(line.productId)!;
+      const priceRow = prices.get(product.id);
+      const base = priceRow?.sellPrice ?? product.basePrice;
+      const adj = priceRow?.adjustType
+        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
+        : null;
+      const tiered = typeof priceRow?.tierPrice === 'number';
+      const unitPrice = tiered ? money(priceRow!.tierPrice!) : money(applyAdjustment(base, adj));
+      const lineTotal = money(unitPrice * line.quantity);
+      if (tiered) tierPricedTotal += lineTotal;
+      items.push({
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        unit: product.unit,
+        unitPrice,
+        quantity: line.quantity,
+        lineTotal,
+      });
+    }
+    return { items, subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)), tierPricedTotal };
+  }
+
+  /**
    * Place an order for explicit lines (no cart), for scheduled subscription deliveries
-   * (spec 7b). ponytail: the pricing/routing/stock/create block is duplicated from
-   * checkout() rather than shared — deliberately, to keep the interactive money-path
-   * untouched. Unify into one assembler if a third caller appears. No voucher; no
-   * membership discount (a scheduled run carries no customer token → fail-open 0 rate).
+   * (spec 7b). No voucher; no membership discount (a scheduled run carries no customer
+   * token → fail-open 0 rate).
    */
   async placeScheduled(
     customerId: string,
@@ -305,40 +324,7 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
     const depot = await this.routeDepot(address);
-    const prices = depot
-      ? await this.depotPricing.getPrices(
-          depot.id,
-          lines.map((l) => l.productId),
-          lines.map((l) => l.quantity),
-        )
-      : new Map<string, DepotPrice>();
-
-    const productById = await this.pricedAll(lines.map((l) => l.productId));
-    const items: CreateOrderItemData[] = [];
-    for (const line of lines) {
-      const product = productById.get(line.productId)!;
-      const priceRow = prices.get(product.id);
-      const base = priceRow?.sellPrice ?? product.basePrice;
-      const adj = priceRow?.adjustType
-        ? { adjustType: priceRow.adjustType, value: priceRow.value ?? 0 }
-        : null;
-      // Same wholesale rule as interactive checkout: a matching band is the unit price.
-      const unitPrice =
-        typeof priceRow?.tierPrice === 'number'
-          ? money(priceRow.tierPrice)
-          : money(applyAdjustment(base, adj));
-      items.push({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-        unit: product.unit,
-        unitPrice,
-        quantity: line.quantity,
-        lineTotal: money(unitPrice * line.quantity),
-      });
-    }
-
-    const subtotal = money(items.reduce((sum, i) => sum + i.lineTotal, 0));
+    const { items, subtotal } = await this.priceLines(depot?.id ?? null, lines);
     const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
     const deliveryFee = money(perUnitFee * galonQuantity(items));
     const discount = money(Math.min(subtotal, subtotal * discountRate));
@@ -374,6 +360,68 @@ export class OrderService {
       order.customerId,
       '',
     );
+    return order;
+  }
+
+  /**
+   * Counter sale: the customer walked into the depot, paid cash and left with the goods.
+   * No cart, no courier, no delivery fee, no voucher or membership stack.
+   *
+   * The row is created already COMPLETED and the completion fan-out is run directly, rather
+   * than adding a shortcut edge to the status graph — TRANSITIONS keeps COMPLETED reachable
+   * only from DELIVERED, so an ordinary delivery order still cannot skip the courier, and
+   * TRANSITIONS[COMPLETED] being empty means the walk-in can never be advanced afterwards.
+   *
+   * `customerId` is the sentinel when the buyer gave no phone; runCompletion() then skips
+   * everything identity-bound while still consuming stock and posting revenue.
+   */
+  async walkInSale(
+    user: AuthenticatedUser,
+    input: WalkInSaleInput,
+    authorization = '',
+  ): Promise<OrderRecord> {
+    if (input.lines.length === 0) throw new EmptyCartError();
+    assertDepotAccess(user, input.depotId);
+
+    const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
+    const orderId = randomUUID();
+    // Reserve first: a shortfall must reject before any row exists. Consume then happens in
+    // the completion fan-out, exactly as for a delivered order.
+    await this.inventory.reserve(
+      input.depotId,
+      orderId,
+      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      authorization,
+    );
+
+    const order = await this.orders.create({
+      id: orderId,
+      orderNumber: OrderService.newOrderNumber(),
+      customerId: input.customerId ?? ANONYMOUS_CUSTOMER_ID,
+      depotId: input.depotId,
+      status: OrderStatus.COMPLETED,
+      isWalkIn: true,
+      subtotal,
+      deliveryFee: 0,
+      discount: 0,
+      total: subtotal,
+      // The address snapshot columns are NOT NULL and are read by the receipt, the order
+      // detail sheet and the driver app. For a counter sale they say who bought and where
+      // they took delivery — at the counter.
+      recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
+      phone: input.customerPhone?.trim() || '-',
+      addressLine: 'Ambil langsung di depot',
+      city: '-',
+      province: '-',
+      postalCode: null,
+      latitude: null,
+      longitude: null,
+      notes: null,
+      items,
+    });
+
+    // No ORDER_RECEIVED: the goods are already in the buyer's hands.
+    await this.runCompletion(order, authorization);
     return order;
   }
 
@@ -581,6 +629,74 @@ export class OrderService {
     });
   }
 
+  /**
+   * Everything a completed order sets in motion. Every step is fail-open (a downstream
+   * outage never blocks completion) and idempotent downstream, keyed by order id.
+   *
+   * A walk-in sale reaches this the same way a delivered order does, minus the four
+   * identity-bound effects: an anonymous counter sale has no customer to give points to,
+   * refer, or message. Stock, demand history and franchise revenue are NOT skipped — those
+   * happened for real regardless of who bought.
+   */
+  private async runCompletion(updated: OrderRecord, authorization: string): Promise<void> {
+    const anonymous = updated.customerId === ANONYMOUS_CUSTOMER_ID;
+
+    if (!anonymous) {
+      // BR-013: award loyalty points.
+      await this.loyalty.awardPoints(
+        updated.customerId,
+        updated.id,
+        updated.subtotal,
+        updated.depotId,
+        authorization,
+      );
+      // Notify the customer of the points they just earned (spec 5h feed). Points mirror
+      // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
+      // message copy — loyalty-service remains the source of truth for the balance.
+      // ponytail: this copy uses the global rate and may differ from a depot-overridden
+      // earn rate; the awarded balance itself (via awardPoints above) is still correct.
+      const pointsEarned = pointsForSubtotal(updated.subtotal);
+      if (pointsEarned > 0) {
+        await this.notification
+          .notify(
+            'POINTS_EARNED',
+            updated.phone,
+            {
+              name: updated.recipientName,
+              points: String(pointsEarned),
+              orderNumber: updated.orderNumber,
+            },
+            updated.customerId,
+            authorization,
+          )
+          .catch(() => {});
+      }
+      // FR-092: qualify a pending referral for this customer (rewards both parties).
+      await this.referral.qualify(updated.customerId, updated.id, authorization);
+    }
+    // FR-067..074: deduct sold quantities from the fulfilling depot's stock.
+    // Only when the order was routed to a depot; fail-open (never blocks completion).
+    if (updated.depotId) {
+      await this.inventory.consume(
+        updated.depotId,
+        updated.id,
+        updated.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        authorization,
+      );
+    }
+    // Feeds the recommendation-service read model (co-buy/reorder/trending).
+    // Belt-and-suspenders: the adapter is already fail-open, but never let a bug
+    // there escape and block completion.
+    await this.recommendation.recordCompleted(updated).catch(() => {});
+    // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
+    // guard as above — the adapter never throws, but never let a bug there block completion.
+    await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
+    // Design 6a: credit the fulfilling depot's franchise owner. Nothing wrote that
+    // ledger before, so every owner balance and the HQ release queue read an empty
+    // table. Fail-open and idempotent on the payout side (keyed by order id).
+    await this.postFranchiseRevenue(updated).catch(() => {});
+  }
+
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
   private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
     if (!order.depotId) {
@@ -620,61 +736,8 @@ export class OrderService {
         ? new Date(estimatedArrivalAt)
         : undefined,
     );
-    // Post-completion coordination (both fail-open — a downstream outage never
-    // blocks completion, and both are idempotent on the downstream side).
     if (to === OrderStatus.COMPLETED) {
-      // BR-013: award loyalty points.
-      await this.loyalty.awardPoints(
-        updated.customerId,
-        updated.id,
-        updated.subtotal,
-        updated.depotId,
-        authorization,
-      );
-      // Notify the customer of the points they just earned (spec 5h feed). Points mirror
-      // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
-      // message copy — loyalty-service remains the source of truth for the balance.
-      // ponytail: this copy uses the global rate and may differ from a depot-overridden
-      // earn rate; the awarded balance itself (via awardPoints above) is still correct.
-      const pointsEarned = pointsForSubtotal(updated.subtotal);
-      if (pointsEarned > 0) {
-        await this.notification
-          .notify(
-            'POINTS_EARNED',
-            updated.phone,
-            {
-              name: updated.recipientName,
-              points: String(pointsEarned),
-              orderNumber: updated.orderNumber,
-            },
-            updated.customerId,
-            authorization,
-          )
-          .catch(() => {});
-      }
-      // FR-092: qualify a pending referral for this customer (rewards both parties).
-      await this.referral.qualify(updated.customerId, updated.id, authorization);
-      // FR-067..074: deduct sold quantities from the fulfilling depot's stock.
-      // Only when the order was routed to a depot; fail-open (never blocks completion).
-      if (updated.depotId) {
-        await this.inventory.consume(
-          updated.depotId,
-          updated.id,
-          updated.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-          authorization,
-        );
-      }
-      // Feeds the recommendation-service read model (co-buy/reorder/trending).
-      // Belt-and-suspenders: the adapter is already fail-open, but never let a bug
-      // there escape and block completion.
-      await this.recommendation.recordCompleted(updated).catch(() => {});
-      // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
-      // guard as above — the adapter never throws, but never let a bug there block completion.
-      await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
-      // Design 6a: credit the fulfilling depot's franchise owner. Nothing wrote that
-      // ledger before, so every owner balance and the HQ release queue read an empty
-      // table. Fail-open and idempotent on the payout side (keyed by order id).
-      await this.postFranchiseRevenue(updated).catch(() => {});
+      await this.runCompletion(updated, authorization);
     }
     // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {

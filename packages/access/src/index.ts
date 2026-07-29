@@ -27,6 +27,9 @@ export const CAPABILITIES = {
   dashboard: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
   // order-service — staff order queue (cross-customer read).
   orderQueue: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // order-service — record a cash sale at the depot counter. Deliberately narrower than
+  // orderQueue: a courier and head office never stand at the till.
+  walkInSale: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
   // depot-service — inventory: READ is broader than WRITE (no HEAD_OFFICE on write).
   inventoryRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   inventoryWrite: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],

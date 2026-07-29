@@ -152,13 +152,15 @@ export class InMemoryOrderRepository implements OrderRepository {
   async create(data: CreateOrderData): Promise<OrderRecord> {
     const { items, ...rest } = data;
     const now = nextDate();
+    const opening = rest.status ?? OrderStatus.CREATED;
     const rec: OrderRecord = {
       ...rest,
       id: rest.id ?? randomUUID(),
-      status: OrderStatus.CREATED,
+      status: opening,
       items: items.map((i) => ({ ...i, id: randomUUID() })),
-      history: [{ status: OrderStatus.CREATED, changedBy: null, note: null, createdAt: now }],
+      history: [{ status: opening, changedBy: null, note: null, createdAt: now }],
       deliveryWindow: rest.deliveryWindow ?? null,
+      isWalkIn: rest.isWalkIn ?? false,
       driverName: null,
       driverPhone: null,
       estimatedArrivalAt: null,

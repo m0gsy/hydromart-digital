@@ -48,6 +48,8 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   estimatedArrivalAt: Date | null;
   /** Customer's preferred delivery time-window (free-form label), null when not given. */
   deliveryWindow: string | null;
+  /** Cash sale recorded at the depot counter (no courier, no delivery fee). */
+  isWalkIn: boolean;
   items: OrderItemRecord[];
   history: OrderStatusHistoryRecord[];
   /** Whether the customer has already rated this order (spec 7c). */
@@ -98,6 +100,10 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   total: number;
   /** Optional customer-preferred delivery time-window (free-form label). */
   deliveryWindow?: string | null;
+  /** Opening status. Defaults to CREATED; a walk-in sale opens already COMPLETED. */
+  status?: OrderStatus;
+  /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
+  isWalkIn?: boolean;
   items: CreateOrderItemData[];
 }
 
