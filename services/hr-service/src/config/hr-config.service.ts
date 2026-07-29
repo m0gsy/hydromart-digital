@@ -168,6 +168,13 @@ export class HrConfigService {
       internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
     };
   }
+  /** crm-service base URL + internal key for HR notifications (in-app feed + WhatsApp). */
+  get crmService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('CRM_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
   /** BiznetGio NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only. */
   get neoFr(): { endpoint: string; token: string; galleryId: string } {
     return {

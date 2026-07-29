@@ -60,6 +60,8 @@ import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
+import { NOTIFICATION_PORT } from '../application/ports/notification.port';
+import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
 import { HolidayController, ShiftController } from './calendar.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
@@ -122,6 +124,9 @@ const providers: Provider[] = [
   BonusRuleService,
   LoanService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
+  // Outbound HR notifications (leave decisions, announcements) via crm-service. No consumer
+  // yet — B1/C1 inject it; wired here so the binding exists the moment they land.
+  { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
   { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,

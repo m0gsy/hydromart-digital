@@ -37,6 +37,9 @@ export const envValidationSchema = Joi.object({
   // auth-service base URL for provisioning staff logins during a bulk employee import.
   // Empty → the import rejects every row (503) rather than creating staff who can't sign in.
   AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // crm-service base URL for HR notifications (leave decisions, announcements). Empty →
+  // notifications are skipped with a warning; an HR approval never fails because crm is down.
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: Joi.string().allow('').default(''),
   // NEO Face Recognition (FACE_VERIFIER_DRIVER=neo). Token is box-`.env` only, never committed.
   NEO_FR_ENDPOINT: Joi.string().uri().default('https://fr.neoapi.id'),
