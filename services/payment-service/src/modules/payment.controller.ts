@@ -62,7 +62,7 @@ export class PaymentController {
   @Roles(...CAPABILITIES.paymentSettle)
   @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
   initiateForCustomer(@Body() dto: StaffInitiatePaymentDto): Promise<PaymentRecord> {
-    return this.payments.initiate(dto.customerId, dto);
+    return this.payments.initiate(dto.customerId, { ...dto, atCounter: true });
   }
 
   @Get()

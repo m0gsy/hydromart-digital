@@ -45,9 +45,10 @@ describe('PaymentController', () => {
   });
 
   it('staff initiate bills the buyer in the body, not the cashier holding the token', async () => {
-    const dto = { orderId: 'o1', method: 'CASH', amount: 45000, customerId: 'buyer-9' } as never;
-    expect(await controller.initiateForCustomer(dto)).toBe('RESULT');
-    expect(svc.initiate).toHaveBeenCalledWith('buyer-9', dto);
+    const dto = { orderId: 'o1', method: 'CASH', amount: 45000, customerId: 'buyer-9' };
+    expect(await controller.initiateForCustomer(dto as never)).toBe('RESULT');
+    // atCounter marks it a counter sale, which changes the CASH instruction copy.
+    expect(svc.initiate).toHaveBeenCalledWith('buyer-9', { ...dto, atCounter: true });
   });
 
   it('list scopes to the current customer', async () => {

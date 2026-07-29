@@ -64,6 +64,20 @@ describe('PaymentService (branch coverage)', () => {
     expect(gateway.charges).toHaveLength(0);
   });
 
+  it('tells a counter buyer the cash is already on the till, not with a driver', async () => {
+    const counter = await service.initiate(customer, {
+      orderId: randomUUID(),
+      method: PaymentMethod.CASH,
+      amount: 45000,
+      atCounter: true,
+    });
+    expect(counter.instruction).toBe('Cash paid at the depot counter.');
+
+    // A delivery order keeps the courier wording.
+    const delivered = await initiate(PaymentMethod.CASH);
+    expect(delivered.instruction).toContain('driver');
+  });
+
   it('fails closed when the gateway refund errors, leaving the payment PAID', async () => {
     const payment = await initiate(PaymentMethod.VA, 80_000);
     await service.confirm(payment.id, 'staff');

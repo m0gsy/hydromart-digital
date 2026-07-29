@@ -41,6 +41,8 @@ export interface InitiatePaymentInput {
   orderId: string;
   method: PaymentMethod;
   amount: number;
+  /** Counter sale: the buyer is at the depot, so no courier hands anything over. */
+  atCounter?: boolean;
 }
 
 export interface ListPaymentsInput {
@@ -103,7 +105,7 @@ export class PaymentService {
       method: input.method,
       amount,
       reference: null,
-      instruction: this.offlineInstruction(input.method),
+      instruction: this.offlineInstruction(input.method, input.atCounter ?? false),
       gatewayData: null,
     };
 
@@ -353,10 +355,13 @@ export class PaymentService {
     }
   }
 
-  private offlineInstruction(method: PaymentMethod): string {
+  private offlineInstruction(method: PaymentMethod, atCounter: boolean): string {
     switch (method) {
       case PaymentMethod.CASH:
-        return 'Pay with cash to the driver on delivery.';
+        // A counter sale has no courier and no delivery — the cash is already on the till.
+        return atCounter
+          ? 'Cash paid at the depot counter.'
+          : 'Pay with cash to the driver on delivery.';
       case PaymentMethod.TRANSFER:
         return 'Transfer to the depot bank account and keep your receipt.';
       case PaymentMethod.QRIS:
