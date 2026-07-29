@@ -34,6 +34,7 @@ const ITEMS: NavItem[] = [
   { href: '/hr/customers', label: 'Pelanggan', icon: Users },
   { href: '/hr/resellers', label: 'Reseller / Agen', icon: Storefront },
   { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },
+  { href: '/hr/leave', label: 'Pengajuan Cuti', icon: CalendarCheck },
   { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },
   { href: '/hr/allowances', label: 'Tunjangan', icon: CurrencyCircleDollar },

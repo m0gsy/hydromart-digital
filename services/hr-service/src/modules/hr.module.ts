@@ -69,6 +69,13 @@ import { ALLOWANCE_REPOSITORY } from '../application/ports/allowance.repository'
 import { AllowanceService } from '../application/services/allowance.service';
 import { AllowancePrismaRepository } from '../infrastructure/prisma/allowance.prisma.repository';
 import { AllowanceController } from './allowance.controller';
+import { NOTIFICATION_PORT } from '../application/ports/notification.port';
+import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { LEAVE_REPOSITORY } from '../application/ports/leave.repository';
+import { LeaveService } from '../application/services/leave.service';
+import { LeavePrismaRepository } from '../infrastructure/prisma/leave.prisma.repository';
+import { HolidayController, ShiftController } from './calendar.controller';
+import { LeaveController, SelfLeaveController } from './leave.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -132,6 +139,9 @@ const providers: Provider[] = [
   BonusRuleService,
   LoanService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
+  // Outbound HR notifications (leave decisions, announcements) via crm-service. No consumer
+  // yet — B1/C1 inject it; wired here so the binding exists the moment they land.
+  { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
   { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,
@@ -145,6 +155,8 @@ const providers: Provider[] = [
   ShiftService,
   { provide: DEPARTMENT_REPOSITORY, useClass: DepartmentPrismaRepository },
   DepartmentService,
+  { provide: LEAVE_REPOSITORY, useClass: LeavePrismaRepository },
+  LeaveService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -172,6 +184,8 @@ const providers: Provider[] = [
     HolidayController,
     ShiftController,
     DepartmentController,
+    SelfLeaveController,
+    LeaveController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

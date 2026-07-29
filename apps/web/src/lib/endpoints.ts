@@ -1192,6 +1192,26 @@ export const endpoints = {
     createDepartment: '/departments/api/v1/departments',
     updateDepartment: (id: string) => `/departments/api/v1/departments/${id}`,
     deleteDepartment: (id: string) => `/departments/api/v1/departments/${id}`,
+    leaveMe: (q: { page?: number; pageSize?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/leave/api/v1/leave/me${qs ? `?${qs}` : ''}`;
+    },
+    leaveBalanceMe: (year?: number) =>
+      `/leave/api/v1/leave/me/balance${year ? `?year=${year}` : ''}`,
+    submitLeave: '/leave/api/v1/leave/me',
+    cancelLeave: (id: string) => `/leave/api/v1/leave/me/${id}/cancel`,
+    leaveQueue: (q: { depotId?: string; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/leave/api/v1/leave${qs ? `?${qs}` : ''}`;
+    },
+    leaveManagerDecision: (id: string) => `/leave/api/v1/leave/${id}/manager-decision`,
+    leaveHrDecision: (id: string) => `/leave/api/v1/leave/${id}/hr-decision`,
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,

@@ -63,6 +63,15 @@ export const SETTING_DEFS: SettingDef[] = [
     envDefault: 480,
   },
   {
+    key: 'annualLeaveQuotaDays',
+    label: 'Kuota cuti tahunan',
+    type: 'int',
+    unit: 'hari kerja',
+    min: 0,
+    max: 60,
+    envDefault: 12,
+  },
+  {
     key: 'weeklyOffDays',
     label: 'Hari libur mingguan',
     type: 'string',

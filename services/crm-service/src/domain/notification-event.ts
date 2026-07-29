@@ -27,6 +27,13 @@ export enum NotificationEvent {
   VOUCHER_GRANTED = 'VOUCHER_GRANTED',
   // Retention nudge: "time to refill". Token: {{name}}.
   REORDER_REMINDER = 'REORDER_REMINDER',
+  // HR (hr-service, internal key). Staff-facing, never customers. Leave events carry
+  // {{name}}, {{type}}, {{from}}, {{to}}; a rejection adds {{reason}}. HR_ANNOUNCEMENT
+  // carries {{title}} and {{body}}.
+  LEAVE_SUBMITTED = 'LEAVE_SUBMITTED',
+  LEAVE_APPROVED = 'LEAVE_APPROVED',
+  LEAVE_REJECTED = 'LEAVE_REJECTED',
+  HR_ANNOUNCEMENT = 'HR_ANNOUNCEMENT',
 }
 
 // WhatsApp message templates (Bahasa Indonesia). Tokens: {{name}}, {{orderNumber}} for
@@ -56,6 +63,13 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Ada voucher baru untukmu, {{name}}! Kode {{code}} — {{description}}. Pakai saat checkout sebelum masa berlaku habis 🎟️',
   [NotificationEvent.REORDER_REMINDER]:
     'Halo {{name}}, galonmu mungkin sudah menipis. Pesan ulang sekarang, diantar cepat dari depot terdekat 💧',
+  [NotificationEvent.LEAVE_SUBMITTED]:
+    'Pengajuan cuti {{type}} dari {{name}} ({{from}} s/d {{to}}) menunggu persetujuan Anda.',
+  [NotificationEvent.LEAVE_APPROVED]:
+    'Halo {{name}}, cuti {{type}} tanggal {{from}} s/d {{to}} sudah DISETUJUI. Selamat beristirahat!',
+  [NotificationEvent.LEAVE_REJECTED]:
+    'Halo {{name}}, cuti {{type}} tanggal {{from}} s/d {{to}} DITOLAK. Alasan: {{reason}}. Silakan hubungi HR bila perlu.',
+  [NotificationEvent.HR_ANNOUNCEMENT]: '📢 {{title}}\n{{body}}',
 };
 
 // Operational (staff-facing) events surfaced in the ops notification center (PRD 10d),
@@ -64,6 +78,12 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
 export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.STOCK_LOW,
   NotificationEvent.COURIER_INCIDENT,
+  // HR events go to staff, so they belong in the ops feed, not a customer inbox. The
+  // employee's own leave decisions included — the recipient is an employee either way.
+  NotificationEvent.LEAVE_SUBMITTED,
+  NotificationEvent.LEAVE_APPROVED,
+  NotificationEvent.LEAVE_REJECTED,
+  NotificationEvent.HR_ANNOUNCEMENT,
 ];
 
 export function templateFor(event: NotificationEvent): string {

@@ -17,15 +17,35 @@ export function workingDaysInMonth(
   weeklyOffDays: ReadonlySet<number>,
 ): number {
   const daysInMonth = new Date(Date.UTC(year, month1to12, 0)).getUTCDate();
-  let count = 0;
-  for (let day = 1; day <= daysInMonth; day++) {
-    const iso = isoDay(year, month1to12, day);
-    const weekday = new Date(`${iso}T00:00:00.000Z`).getUTCDay();
-    if (weeklyOffDays.has(weekday)) continue;
+  const last = isoDay(year, month1to12, daysInMonth);
+  return workingDaysInRange(isoDay(year, month1to12, 1), last, holidays, weeklyOffDays).length;
+}
+
+/**
+ * The working days inside [fromIso, toIso] inclusive, as ISO YYYY-MM-DD. Same rule as
+ * workingDaysInMonth — used by leave, which spans an arbitrary range and needs the DATES,
+ * not just a count, so an approval can stamp one attendance row per day.
+ * An inverted range yields nothing.
+ */
+export function workingDaysInRange(
+  fromIso: string,
+  toIso: string,
+  holidays: ReadonlySet<string>,
+  weeklyOffDays: ReadonlySet<number>,
+): string[] {
+  const days: string[] = [];
+  const end = new Date(`${toIso}T00:00:00.000Z`);
+  for (
+    const cursor = new Date(`${fromIso}T00:00:00.000Z`);
+    cursor.getTime() <= end.getTime();
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  ) {
+    const iso = cursor.toISOString().slice(0, 10);
+    if (weeklyOffDays.has(cursor.getUTCDay())) continue;
     if (holidays.has(iso)) continue;
-    count++;
+    days.push(iso);
   }
-  return count;
+  return days;
 }
 
 /** Parse a CSV of weekday indices ("0,6") into a Set, ignoring blanks/out-of-range. */

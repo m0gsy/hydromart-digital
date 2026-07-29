@@ -398,6 +398,9 @@ services:
       HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public
       # Provisions the staff login behind each imported employee row.
       AUTH_SERVICE_URL: http://auth:3001
+      # HR notifications (leave decisions, announcements) ride crm's internal endpoint.
+      # Missing here = every HR notification silently skipped, so keep it wired.
+      CRM_SERVICE_URL: http://crm:3012
       # Attendance/payroll boot defaults (per-depot override via /hr/settings).
       HR_WORK_START_TIME: ${HR_WORK_START_TIME:-08:00}
       HR_LATE_TOLERANCE_MINUTES: ${HR_LATE_TOLERANCE_MINUTES:-15}

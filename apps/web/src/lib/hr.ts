@@ -136,6 +136,51 @@ export interface AuditLog {
   at: string;
 }
 
+export type LeaveType = 'ANNUAL' | 'SICK' | 'PERMISSION' | 'EMERGENCY';
+export type LeaveStatus = 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  depotId: string;
+  type: LeaveType;
+  startDate: string;
+  endDate: string;
+  workingDays: number;
+  reason: string;
+  attachmentUrl: string | null;
+  status: LeaveStatus;
+  decisionNote: string | null;
+  createdAt: string;
+}
+
+export interface LeaveBalance {
+  id: string;
+  employeeId: string;
+  year: number;
+  quotaDays: number;
+  usedDays: number;
+}
+
+export const LEAVE_TYPES: LeaveType[] = ['ANNUAL', 'SICK', 'PERMISSION', 'EMERGENCY'];
+export const LEAVE_TYPE_LABEL: Record<LeaveType, string> = {
+  ANNUAL: 'Cuti tahunan',
+  SICK: 'Sakit',
+  PERMISSION: 'Izin',
+  EMERGENCY: 'Darurat',
+};
+export const LEAVE_STATUS_LABEL: Record<LeaveStatus, string> = {
+  PENDING_MANAGER: 'Menunggu atasan',
+  PENDING_HR: 'Menunggu HR',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+  CANCELLED: 'Dibatalkan',
+};
+/** Only ANNUAL and PERMISSION consume the yearly quota (mirrors domain/leave.ts). */
+export function leaveDeductsQuota(type: LeaveType): boolean {
+  return type === 'ANNUAL' || type === 'PERMISSION';
+}
+
 export interface Holiday {
   id: string;
   date: string;

@@ -106,6 +106,14 @@ export class HrConfigService {
     );
   }
 
+  /** Working days of ANNUAL/PERMISSION leave an employee gets per calendar year. */
+  annualLeaveQuotaDays(depotId: string | null = null): number {
+    return this.tunableNum(
+      'annualLeaveQuotaDays',
+      Number(this.config.get<string>('HR_ANNUAL_LEAVE_QUOTA_DAYS', '12')),
+      depotId,
+    );
+  }
   weeklyOffDays(depotId: string | null = null): string {
     return this.tunableStr(
       'weeklyOffDays',
@@ -165,6 +173,13 @@ export class HrConfigService {
   get authService(): { url: string; internalKey: string } {
     return {
       url: this.config.get<string>('AUTH_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+  /** crm-service base URL + internal key for HR notifications (in-app feed + WhatsApp). */
+  get crmService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('CRM_SERVICE_URL', ''),
       internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
     };
   }

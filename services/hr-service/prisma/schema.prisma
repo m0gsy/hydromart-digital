@@ -109,6 +109,25 @@ enum AssetMovementKind {
   LOST
 }
 
+/// Leave categories. ANNUAL and PERMISSION consume the yearly quota; SICK and EMERGENCY are
+/// recorded and paid but never deducted from it (see domain/leave.ts deductsQuota).
+enum LeaveType {
+  ANNUAL
+  SICK
+  PERMISSION
+  EMERGENCY
+}
+
+/// Two-stage approval: the employee's manager first, then HR. Either stage can reject, and
+/// the employee may cancel while it is still pending.
+enum LeaveStatus {
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum BonusType {
   ATTENDANCE
   PERFORMANCE
@@ -177,6 +196,8 @@ model Employee {
   payrolls         Payroll[]
   loans            Loan[]
   assets           EmployeeAsset[]
+  leaveRequests    LeaveRequest[]
+  leaveBalances    LeaveBalance[]
 
   @@index([depotId])
   @@index([status])
@@ -370,6 +391,53 @@ model Allowance {
 
   @@index([employeeId])
   @@map("allowances")
+}
+
+/// A leave application. `workingDays` is frozen at submit time from the calendar then in
+/// force (holidays + weekly-off), so a holiday added later cannot silently change a decision
+/// already taken on this row.
+model LeaveRequest {
+  id              String      @id @default(uuid()) @db.Uuid
+  employeeId      String      @db.Uuid
+  /// Copied from the employee so the approval queue can be depot-scoped without a join.
+  depotId         String      @db.Uuid
+  type            LeaveType
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  workingDays     Int
+  reason          String
+  attachmentUrl   String?
+  status          LeaveStatus @default(PENDING_MANAGER)
+  managerDecidedBy String?    @db.Uuid
+  managerDecidedAt DateTime?
+  hrDecidedBy     String?     @db.Uuid
+  hrDecidedAt     DateTime?
+  /// Why it was rejected — the employee sees this, so it is never optional on a rejection.
+  decisionNote    String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([depotId, status])
+  @@map("leave_requests")
+}
+
+/// Yearly quota per employee. `usedDays` moves only on approval of a quota-consuming type.
+model LeaveBalance {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  year       Int
+  quotaDays  Int
+  usedDays   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+  @@map("leave_balances")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.
