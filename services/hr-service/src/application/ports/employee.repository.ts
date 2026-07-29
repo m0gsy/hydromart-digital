@@ -27,6 +27,21 @@ export interface EmployeeRepository {
    * and payroll rows point at it.
    */
   countRetentionEligible(cutoff: Date): Promise<number>;
+  /**
+   * Retention enforcement. Strips the identity from departed employee records dormant
+   * since before `cutoff` and removes the non-financial rows hanging off them
+   * (biometrics, attendance, performance reviews).
+   *
+   * Payroll, bonuses, deductions and loans are KEPT and simply lose their owner: they are
+   * proof that wages were paid and must survive a tax audit (FINANCIAL, 10 years). The
+   * employee row itself survives too — deleting it would orphan those money records.
+   */
+  anonymiseRetentionEligible(cutoff: Date): Promise<number>;
+  /**
+   * Biometric purge on its own, much shorter window. A face cannot be reissued after a
+   * leak, and its only purpose — clocking someone in — ends when they leave.
+   */
+  purgeFaceEmbeddings(cutoff: Date): Promise<number>;
   list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }>;
   findById(id: string): Promise<Employee | null>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */

@@ -23,6 +23,16 @@ function p2002(target: string): Prisma.PrismaClientKnownRequestError {
 class FakeRepo implements EmployeeRepository {
   /** Retention report: departed rows dormant since before the cutoff. */
   retentionEligible = 0;
+  /** Retention enforcement: rows anonymised / embeddings purged, recorded for assertions. */
+  anonymised = 0;
+  facesPurged = 0;
+  async anonymiseRetentionEligible(): Promise<number> {
+    return this.anonymised;
+  }
+  async purgeFaceEmbeddings(): Promise<number> {
+    return this.facesPurged;
+  }
+
   async countRetentionEligible(): Promise<number> {
     return this.retentionEligible;
   }

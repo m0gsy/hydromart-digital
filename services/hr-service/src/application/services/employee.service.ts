@@ -72,6 +72,20 @@ export class EmployeeService {
     return { eligible: await this.repo.countRetentionEligible(cutoff) };
   }
 
+  /**
+   * Retention enforcement. Departed records lose their identity and their non-financial
+   * detail; payroll keeps its numbers without an owner, because it is proof that wages
+   * were paid. Same shape as the customer decision in item 13 — one pattern, not two.
+   */
+  async retentionAnonymise(cutoff: Date): Promise<{ deleted: number }> {
+    return { deleted: await this.repo.anonymiseRetentionEligible(cutoff) };
+  }
+
+  /** Biometric purge on its own short window. */
+  async purgeBiometrics(cutoff: Date): Promise<{ deleted: number }> {
+    return { deleted: await this.repo.purgeFaceEmbeddings(cutoff) };
+  }
+
   async list(
     user: AuthenticatedUser,
     query: {

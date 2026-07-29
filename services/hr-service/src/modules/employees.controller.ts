@@ -53,6 +53,30 @@ export class EmployeesController {
     return this.employees.retentionReport(new Date(dto.cutoff));
   }
 
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/retention-anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Strip identity from departed employee records past the cutoff (internal)',
+    description:
+      'Biometrics, attendance and performance reviews are deleted; payroll, bonuses, deductions and loans are kept without an owner (FINANCIAL, 10 years).',
+  })
+  retentionAnonymise(@Body() dto: RetentionReportDto): Promise<{ deleted: number }> {
+    return this.employees.retentionAnonymise(new Date(dto.cutoff));
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/retention-biometrics')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete face embeddings of departed staff past the cutoff (internal)' })
+  purgeBiometrics(@Body() dto: RetentionReportDto): Promise<{ deleted: number }> {
+    return this.employees.purgeBiometrics(new Date(dto.cutoff));
+  }
+
   @Get()
   @Roles(...CAPABILITIES.hrView)
   @ApiOperation({ summary: 'List employees (depot-scoped for depot roles)' })
