@@ -130,14 +130,6 @@ export class DeliveryConfigService {
       depotId,
     );
   }
-  /**
-   * UU PDP retention window for proof-of-delivery records, in days. No per-depot
-   * caller exists (the retention sweep runs once, service-wide) so this stays a
-   * no-arg getter; it still resolves a GLOBAL override through the settings cache.
-   */
-  get podRetentionDays(): number {
-    return this.tunable('podRetentionDays', this.num('POD_RETENTION_DAYS'));
-  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

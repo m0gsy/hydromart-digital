@@ -107,11 +107,17 @@ describe('DriverPerformanceController', () => {
 });
 
 describe('RetentionController', () => {
-  it('delegates the retention purge', () => {
-    const deliveries = { purgeExpiredProofs: jest.fn().mockResolvedValue({ purged: 3 }) };
+  it('purges with the cutoff it was given and answers in both shapes', async () => {
+    const deliveries = { purgeProofsOlderThan: jest.fn().mockResolvedValue({ purged: 3 }) };
     const controller = new RetentionController(deliveries as never);
-    void controller.purgeExpired();
-    expect(deliveries.purgeExpiredProofs).toHaveBeenCalled();
+
+    const out = await controller.purgeExpired({ cutoff: '2026-01-01T00:00:00.000Z' } as never);
+
+    expect(deliveries.purgeProofsOlderThan).toHaveBeenCalledWith(
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
+    // `deleted` is what the purge engine reads; `purged` keeps the original shape.
+    expect(out).toEqual({ purged: 3, deleted: 3 });
   });
 });
 

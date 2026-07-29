@@ -7,10 +7,18 @@
  * window, the auditor believes it, and nothing has ever been deleted. Naming the gap is
  * the whole point of this registry.
  */
+/**
+ * DELETE actually removes rows. REPORT only counts what is eligible and deletes nothing —
+ * for datasets where an automatic delete is too consequential to run unattended, so a
+ * human triggers the removal after reading the number.
+ */
+export type PurgeMode = 'DELETE' | 'REPORT';
+
 export interface PurgeExecutor {
   /** Must match `retention_policies.dataset` exactly. */
   readonly dataset: string;
-  /** Delete records strictly older than `cutoff`; returns how many went. */
+  readonly mode: PurgeMode;
+  /** DELETE: rows removed. REPORT: rows that WOULD be removed, none touched. */
   purge(cutoff: Date): Promise<number>;
 }
 

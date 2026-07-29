@@ -62,6 +62,30 @@ export class EmployeeService {
     @Inject(IDENTITY_PORT) private readonly identity: IdentityPort,
   ) {}
 
+  /**
+   * Retention report (M23-21). Counts departed records past their window and deletes
+   * nothing — the number goes to a human, who decides. Automatic deletion is not wired
+   * on purpose: attendance and payroll rows reference an employee, so removing one is a
+   * cascade decision, not a sweep.
+   */
+  async retentionReport(cutoff: Date): Promise<{ eligible: number }> {
+    return { eligible: await this.repo.countRetentionEligible(cutoff) };
+  }
+
+  /**
+   * Retention enforcement. Departed records lose their identity and their non-financial
+   * detail; payroll keeps its numbers without an owner, because it is proof that wages
+   * were paid. Same shape as the customer decision in item 13 — one pattern, not two.
+   */
+  async retentionAnonymise(cutoff: Date): Promise<{ deleted: number }> {
+    return { deleted: await this.repo.anonymiseRetentionEligible(cutoff) };
+  }
+
+  /** Biometric purge on its own short window. */
+  async purgeBiometrics(cutoff: Date): Promise<{ deleted: number }> {
+    return { deleted: await this.repo.purgeFaceEmbeddings(cutoff) };
+  }
+
   async list(
     user: AuthenticatedUser,
     query: {

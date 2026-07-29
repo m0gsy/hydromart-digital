@@ -729,6 +729,66 @@ describe('BonusRulePrismaRepository', () => {
 });
 
 // ── EmployeePrismaRepository ───────────────────────────────────────────
+describe('EmployeePrismaRepository retention (M23-21)', () => {
+  const CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+  const DEPARTED = { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: CUTOFF } };
+
+  it('counts only departed rows dormant since before the cutoff', async () => {
+    const p = makePrisma();
+    m(p, 'employee').count.mockResolvedValue(5);
+    expect(await new EmployeePrismaRepository(p as never).countRetentionEligible(CUTOFF)).toBe(5);
+    expect(m(p, 'employee').count).toHaveBeenCalledWith({ where: DEPARTED });
+  });
+
+  it('does nothing at all when no record is eligible', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([]);
+    expect(await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF)).toBe(0);
+    expect(p.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('deletes the non-financial rows and strips identity — money records untouched', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([{ id: 'e1' }, { id: 'e2' }]);
+
+    const out = await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF);
+
+    expect(out).toBe(2);
+    expect(p.$transaction).toHaveBeenCalledTimes(1);
+    const ids = { employeeId: { in: ['e1', 'e2'] } };
+    expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({ where: ids });
+    expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({ where: ids });
+    expect(m(p, 'performanceReview').deleteMany).toHaveBeenCalledWith({ where: ids });
+    // Payroll, bonuses, deductions and loans are proof that wages were paid: they must
+    // survive a tax audit, so the sweep must never touch them.
+    expect(m(p, 'payroll').deleteMany).not.toHaveBeenCalled();
+    expect(m(p, 'bonus').deleteMany).not.toHaveBeenCalled();
+    expect(m(p, 'deduction').deleteMany).not.toHaveBeenCalled();
+    expect(m(p, 'loan').deleteMany).not.toHaveBeenCalled();
+    // The employee row survives too — deleting it would orphan those money records.
+    expect(m(p, 'employee').deleteMany).not.toHaveBeenCalled();
+    expect(m(p, 'employee').updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['e1', 'e2'] } },
+      data: {
+        fullName: 'Karyawan dihapus',
+        phone: '-',
+        email: null,
+        photoUrl: null,
+        authSubjectId: null,
+      },
+    });
+  });
+
+  it('purges biometrics through the employee relation, on their own window', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').deleteMany.mockResolvedValue({ count: 4 });
+    expect(await new EmployeePrismaRepository(p as never).purgeFaceEmbeddings(CUTOFF)).toBe(4);
+    expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({
+      where: { employee: DEPARTED },
+    });
+  });
+});
+
 describe('EmployeePrismaRepository', () => {
   it('count → employee.count()', async () => {
     const p = makePrisma();

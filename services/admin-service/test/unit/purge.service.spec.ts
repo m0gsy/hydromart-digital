@@ -19,7 +19,7 @@ function plan(entries: Array<Partial<{ dataset: string; dataClass: DataClass; pu
 
 describe('PurgeService', () => {
   it('never touches a FINANCIAL dataset, even with an executor registered', async () => {
-    const executor = { dataset: 'orders_transactions', purge: jest.fn() };
+    const executor = { dataset: 'orders_transactions', mode: 'DELETE' as const, purge: jest.fn() };
     const service = new PurgeService(
       plan([{ dataset: 'orders_transactions', dataClass: DataClass.FINANCIAL, purgeExempt: true, cutoff: null }]) as never,
       [executor],
@@ -32,7 +32,7 @@ describe('PurgeService', () => {
   });
 
   it('treats a null cutoff as keep-everything, never as delete-everything', async () => {
-    const executor = { dataset: 'ds', purge: jest.fn() };
+    const executor = { dataset: 'ds', mode: 'DELETE' as const, purge: jest.fn() };
     const service = new PurgeService(plan([{ cutoff: null }]) as never, [executor]);
 
     const result = await service.run({ now: NOW });
@@ -42,7 +42,7 @@ describe('PurgeService', () => {
   });
 
   it('deletes through the executor and reports the count', async () => {
-    const executor = { dataset: 'audit_logs', purge: jest.fn(async () => 12) };
+    const executor = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn(async () => 12) };
     const service = new PurgeService(plan([{ dataset: 'audit_logs' }]) as never, [executor]);
 
     const result = await service.run({ now: NOW });
@@ -62,7 +62,7 @@ describe('PurgeService', () => {
   });
 
   it('a dry run deletes nothing but still reports the unenforced gap', async () => {
-    const executor = { dataset: 'audit_logs', purge: jest.fn() };
+    const executor = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn() };
     const service = new PurgeService(
       plan([{ dataset: 'audit_logs' }, { dataset: 'pesanan' }]) as never,
       [executor],
@@ -77,8 +77,8 @@ describe('PurgeService', () => {
   });
 
   it('one failing dataset does not abort the others', async () => {
-    const boom = { dataset: 'audit_logs', purge: jest.fn(async () => { throw new Error('owner down'); }) };
-    const ok = { dataset: 'notifications_messages', purge: jest.fn(async () => 3) };
+    const boom = { dataset: 'audit_logs', mode: 'DELETE' as const, purge: jest.fn(async () => { throw new Error('owner down'); }) };
+    const ok = { dataset: 'notifications_messages', mode: 'DELETE' as const, purge: jest.fn(async () => 3) };
     const service = new PurgeService(
       plan([{ dataset: 'audit_logs' }, { dataset: 'notifications_messages' }]) as never,
       [boom, ok],
@@ -120,6 +120,15 @@ describe('RemotePurgeExecutor', () => {
     expect(init.body).toBe(JSON.stringify({ cutoff: NOW.toISOString() }));
   });
 
+  it('reads `eligible` in REPORT mode and `deleted` in DELETE mode', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ eligible: 5, deleted: 99 }) });
+    const report = new RemotePurgeExecutor('hr', 'http://hr', '/r', 'k', 'REPORT');
+    expect(await report.purge(NOW)).toBe(5);
+
+    const del = new RemotePurgeExecutor('audit', 'http://auth', '/p', 'k');
+    expect(await del.purge(NOW)).toBe(99);
+  });
+
   it('treats a missing count as zero rather than NaN', async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
     expect(await new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).toBe(0);
@@ -135,5 +144,40 @@ describe('RemotePurgeExecutor', () => {
     await expect(new RemotePurgeExecutor('ds', 'http://x', '/p', 'k').purge(NOW)).rejects.toThrow(
       'unreachable',
     );
+  });
+});
+
+describe('PurgeService REPORT executors', () => {
+  const NOW2 = new Date('2026-07-29T00:00:00.000Z');
+  const reportPlan = {
+    purgeCutoffs: jest.fn(async () => [
+      {
+        dataset: 'hr_employee_records',
+        dataClass: DataClass.HR,
+        purgeExempt: false,
+        cutoff: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ]),
+  };
+
+  it('counts without deleting, and never inflates totalDeleted', async () => {
+    const executor = { dataset: 'hr_employee_records', mode: 'REPORT' as const, purge: jest.fn(async () => 9) };
+    const service = new PurgeService(reportPlan as never, [executor]);
+
+    const result = await service.run({ now: NOW2 });
+
+    expect(result.entries[0]).toMatchObject({ outcome: 'REPORT_ONLY', eligible: 9, deleted: 0 });
+    expect(result.totalDeleted).toBe(0);
+    expect(result.awaitingReview).toEqual(['hr_employee_records']);
+  });
+
+  it('a report of zero is not something waiting on a human', async () => {
+    const executor = { dataset: 'hr_employee_records', mode: 'REPORT' as const, purge: jest.fn(async () => 0) };
+    const service = new PurgeService(reportPlan as never, [executor]);
+
+    const result = await service.run({ now: NOW2 });
+
+    expect(result.entries[0]).toMatchObject({ outcome: 'REPORT_ONLY', eligible: 0 });
+    expect(result.awaitingReview).toEqual([]);
   });
 });

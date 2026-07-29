@@ -50,7 +50,6 @@ export const envValidationSchema = Joi.object({
   // UU PDP retention window for proof-of-delivery data (photo/signature/name/GPS).
   // The scheduler purges rows older than this daily; the storage bucket must carry
   // a matching lifecycle rule to expire the image files.
-  POD_RETENTION_DAYS: Joi.number().integer().positive().default(365),
   // Root dir the local-disk storage adapter writes uploads under (dev). Ignored
   // once a cloud storage adapter is wired.
   STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),

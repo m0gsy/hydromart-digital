@@ -430,12 +430,13 @@ describe('DeliveryService', () => {
     const done = await service.complete(driver, d.id, PROOF, AUTH);
     const capturedAt = done.proof!.capturedAt;
 
-    // Within the window (default 365d) → nothing purged.
-    expect(await service.purgeExpiredProofs(capturedAt)).toEqual({ purged: 0 });
+    // A cutoff at capture time leaves it alone — the row is not yet older than it.
+    expect(await service.purgeProofsOlderThan(capturedAt)).toEqual({ purged: 0 });
 
-    // Past the window → the proof (name/GPS/signature) is deleted.
+    // A cutoff past the window → the proof (name/GPS/signature) is deleted. The cutoff
+    // is supplied by admin-service's retention policy; this service never derives it.
     const later = new Date(capturedAt.getTime() + 366 * 86_400_000);
-    expect(await service.purgeExpiredProofs(later)).toEqual({ purged: 1 });
+    expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
     expect((await service.getAny(d.id)).proof).toBeNull();
   });
 });

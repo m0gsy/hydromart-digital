@@ -15,6 +15,58 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return this.prisma.employee.count();
   }
 
+  /** Tombstone written over a departed employee's identity. Not blank — a blank name
+   * reads as a data bug to whoever opens an old payroll slip. */
+  private static readonly REDACTED = 'Karyawan dihapus';
+
+  async anonymiseRetentionEligible(cutoff: Date): Promise<number> {
+    const doomed = await this.prisma.employee.findMany({
+      where: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+      select: { id: true },
+    });
+    if (doomed.length === 0) return 0;
+    const ids = doomed.map((e) => e.id);
+
+    // One transaction: an employee whose identity was scrubbed but whose face embedding
+    // survived would be the worst of both outcomes.
+    await this.prisma.$transaction([
+      this.prisma.faceEmbedding.deleteMany({ where: { employeeId: { in: ids } } }),
+      this.prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } }),
+      this.prisma.performanceReview.deleteMany({ where: { employeeId: { in: ids } } }),
+      this.prisma.employee.updateMany({
+        where: { id: { in: ids } },
+        data: {
+          fullName: EmployeePrismaRepository.REDACTED,
+          // employeeCode is UNIQUE and referenced by payroll history, so it stays; it
+          // identifies a row, not a person.
+          phone: '-',
+          email: null,
+          photoUrl: null,
+          authSubjectId: null,
+        },
+      }),
+    ]);
+    return ids.length;
+  }
+
+  async purgeFaceEmbeddings(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.faceEmbedding.deleteMany({
+      where: {
+        employee: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+      },
+    });
+    return count;
+  }
+
+  countRetentionEligible(cutoff: Date): Promise<number> {
+    // `updatedAt` is the only dormancy clock the schema has — there is no resignedAt —
+    // so a record touched recently is deliberately not counted as dormant. ACTIVE staff
+    // are never eligible no matter how old the row is.
+    return this.prisma.employee.count({
+      where: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+    });
+  }
+
   async list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     const where: Prisma.EmployeeWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),

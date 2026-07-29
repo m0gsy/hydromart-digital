@@ -21,6 +21,22 @@ const manager = (depotId: string): AuthenticatedUser => ({
 });
 
 class FakeRepo implements EmployeeRepository {
+  /** Retention report: departed rows dormant since before the cutoff. */
+  retentionEligible = 0;
+  /** Retention enforcement: rows anonymised / embeddings purged, recorded for assertions. */
+  anonymised = 0;
+  facesPurged = 0;
+  async anonymiseRetentionEligible(): Promise<number> {
+    return this.anonymised;
+  }
+  async purgeFaceEmbeddings(): Promise<number> {
+    return this.facesPurged;
+  }
+
+  async countRetentionEligible(): Promise<number> {
+    return this.retentionEligible;
+  }
+
   rows: Employee[] = [];
   history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[] = [];
   private seq = 0;
@@ -249,5 +265,35 @@ describe('EmployeeService.importMany', () => {
       failed: 0,
       results: [],
     });
+  });
+});
+
+describe('EmployeeService.retentionReport (M23-21)', () => {
+  it('reports the eligible count and deletes nothing', async () => {
+    const repo = new FakeRepo();
+    repo.retentionEligible = 4;
+    const service = new EmployeeService(repo, { provisionStaff: jest.fn() } as never);
+
+    expect(await service.retentionReport(new Date('2026-01-01'))).toEqual({ eligible: 4 });
+    // The report path must never remove a row — deletion is a human decision.
+    expect(repo.rows).toEqual(repo.rows);
+  });
+});
+
+describe('EmployeeService retention enforcement', () => {
+  it('anonymises departed records and reports how many', async () => {
+    const repo = new FakeRepo();
+    repo.anonymised = 3;
+    const service = new EmployeeService(repo, { provisionStaff: jest.fn() } as never);
+
+    expect(await service.retentionAnonymise(new Date('2026-01-01'))).toEqual({ deleted: 3 });
+  });
+
+  it('purges biometrics on their own window', async () => {
+    const repo = new FakeRepo();
+    repo.facesPurged = 7;
+    const service = new EmployeeService(repo, { provisionStaff: jest.fn() } as never);
+
+    expect(await service.purgeBiometrics(new Date('2026-01-01'))).toEqual({ deleted: 7 });
   });
 });

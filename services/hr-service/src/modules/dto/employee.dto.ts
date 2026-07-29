@@ -1,4 +1,4 @@
-import { OmitType } from '@nestjs/swagger';
+import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -180,4 +180,11 @@ export class ListEmployeesDto {
   @IsInt()
   @Min(1)
   pageSize = 20;
+}
+
+/** Retention report body — the cutoff is computed by admin-service, never here. */
+export class RetentionReportDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601()
+  cutoff!: string;
 }

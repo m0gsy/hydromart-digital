@@ -381,6 +381,8 @@ services:
       RECOMMENDATION_SERVICE_URL: http://recommendation:3013
       FORECAST_SERVICE_URL: http://forecast:3014
       PAYOUT_SERVICE_URL: http://payout:3016
+      # Retention: admin counts (never deletes) employee records past their window.
+      HR_SERVICE_URL: http://hr:3018
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3017/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
