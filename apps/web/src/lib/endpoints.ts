@@ -1298,6 +1298,13 @@ export const endpoints = {
       return `/performance/api/v1/performance/dashboard?${p}`;
     },
     generatePerformance: '/performance/api/v1/performance/generate',
+    shiftRotations: (depotId?: string) =>
+      `/shift-rotations/api/v1/shift-rotations${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    createShiftRotation: '/shift-rotations/api/v1/shift-rotations',
+    updateShiftRotation: (id: string) => `/shift-rotations/api/v1/shift-rotations/${id}`,
+    shiftAssignments: (employeeId: string) =>
+      `/shift-rotations/api/v1/shift-rotations/assignments?employeeId=${encodeURIComponent(employeeId)}`,
+    createShiftAssignment: '/shift-rotations/api/v1/shift-rotations/assignments',
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,

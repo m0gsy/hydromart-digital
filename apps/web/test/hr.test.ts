@@ -24,6 +24,8 @@ import {
   announcementReadRate,
   announcementTargetNeedsValue,
   fmtScore,
+  WEEKDAY_LABEL,
+  rotationShiftForDay,
   fmtFileSize,
   fmtDate,
   fmtTime,
@@ -278,6 +280,25 @@ describe('announcements (C1)', () => {
   it('labels every level and dimension the API can return', () => {
     for (const l of ANNOUNCEMENT_LEVELS) expect(ANNOUNCEMENT_LEVEL_LABEL[l]).toBeTruthy();
     for (const d of ANNOUNCEMENT_DIMENSIONS) expect(ANNOUNCEMENT_DIMENSION_LABEL[d]).toBeTruthy();
+  });
+});
+
+describe('shift rotation (C3)', () => {
+  it('reads a weekday out of the pattern, 0 = Sunday', () => {
+    const pattern = { '1': 'pagi', '2': 'malam' };
+    expect(rotationShiftForDay(pattern, 1)).toBe('pagi');
+    expect(rotationShiftForDay(pattern, 2)).toBe('malam');
+  });
+
+  it('a missing or null weekday is a day off, not a guess', () => {
+    expect(rotationShiftForDay({ '1': 'pagi' }, 3)).toBeNull();
+    expect(rotationShiftForDay({ '3': null }, 3)).toBeNull();
+  });
+
+  it('labels all seven days Sunday-first, matching the server keys', () => {
+    expect(WEEKDAY_LABEL).toHaveLength(7);
+    expect(WEEKDAY_LABEL[0]).toBe('Minggu');
+    expect(WEEKDAY_LABEL[6]).toBe('Sabtu');
   });
 });
 

@@ -229,6 +229,7 @@ model Employee {
   leaveBalances    LeaveBalance[]
   documents        EmployeeDocument[]
   announcementReads AnnouncementRead[]
+  shiftAssignments  ShiftAssignment[]
 
   @@index([depotId])
   @@index([status])
@@ -334,6 +335,46 @@ model Shift {
 
   @@index([depotId])
   @@map("shifts")
+}
+
+/// A weekly pattern: which shift is worked on each weekday. `pattern` is a JSON object keyed
+/// "0".."6" with 0 = Sunday (matching Date.getUTCDay), each value a Shift.id or null for a
+/// day off. A missing key is also a day off — an incomplete pattern must not invent a shift.
+model ShiftRotation {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  /// Null = usable by every depot.
+  depotId   String?  @db.Uuid
+  pattern   Json     @default("{}")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments ShiftAssignment[]
+
+  @@index([depotId])
+  @@map("shift_rotations")
+}
+
+/// Append-only: from `effectiveFrom` onward this employee works this shift (or rotation).
+/// Never updated — `Employee.shiftId` overwrote without a trace, and "which shift was Budi on
+/// in March" has to stay answerable when a late deduction is disputed.
+model ShiftAssignment {
+  id            String         @id @default(uuid()) @db.Uuid
+  employeeId    String         @db.Uuid
+  /// Exactly one of these is set: a fixed shift, or a weekly rotation.
+  shiftId       String?        @db.Uuid
+  rotationId    String?        @db.Uuid
+  effectiveFrom DateTime       @db.Date
+  note          String?
+  createdBy     String?        @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  rotation      ShiftRotation? @relation(fields: [rotationId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, effectiveFrom])
+  @@map("shift_assignments")
 }
 
 /// A tracked piece of company property. `status` + `holderId` are the current state; how it

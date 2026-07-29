@@ -1,8 +1,14 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { Shift } from '../../prisma/generated/client';
-import { ShiftRepository, ShiftWrite } from '../../src/application/ports/shift.repository';
+import { Shift, ShiftAssignment, ShiftRotation } from '../../prisma/generated/client';
+import {
+  AssignmentWrite,
+  RotationWrite,
+  ShiftRepository,
+  ShiftWrite,
+} from '../../src/application/ports/shift.repository';
+import { EmployeeService } from '../../src/application/services/employee.service';
 import { ShiftService } from '../../src/application/services/shift.service';
 
 const DEPOT_A = '11111111-1111-1111-1111-111111111111';
@@ -42,11 +48,50 @@ class FakeRepo implements ShiftRepository {
   async findActiveForDepot(): Promise<Shift | null> {
     return null;
   }
+
+  // ── rotations & assignments (C3) ──────────────────────────────────
+  rotations: ShiftRotation[] = [];
+  assignments: ShiftAssignment[] = [];
+  lastRotationListDepot?: string;
+
+  async createRotation(data: RotationWrite): Promise<ShiftRotation> {
+    const row = { id: `rot-${this.rotations.length + 1}`, ...data } as unknown as ShiftRotation;
+    this.rotations.push(row);
+    return row;
+  }
+  async updateRotation(id: string, data: Partial<RotationWrite>): Promise<ShiftRotation> {
+    const row = this.rotations.find((r) => r.id === id)!;
+    Object.assign(row, data);
+    return row;
+  }
+  async findRotationById(id: string): Promise<ShiftRotation | null> {
+    return this.rotations.find((r) => r.id === id) ?? null;
+  }
+  async listRotations(depotId?: string): Promise<ShiftRotation[]> {
+    this.lastRotationListDepot = depotId;
+    return this.rotations;
+  }
+  async assign(data: AssignmentWrite): Promise<ShiftAssignment> {
+    const row = { id: `as-${this.assignments.length + 1}`, ...data } as unknown as ShiftAssignment;
+    this.assignments.push(row);
+    return row;
+  }
+  async listAssignmentsUpTo(employeeId: string, onDate: Date): Promise<ShiftAssignment[]> {
+    return this.assignments.filter(
+      (a) => a.employeeId === employeeId && a.effectiveFrom.getTime() <= onDate.getTime(),
+    );
+  }
+  async listAssignments(employeeId: string): Promise<ShiftAssignment[]> {
+    return this.assignments.filter((a) => a.employeeId === employeeId);
+  }
 }
 
 function make() {
   const repo = new FakeRepo();
-  return { repo, svc: new ShiftService(repo) };
+  const employees = {
+    getById: jest.fn(async (_u: AuthenticatedUser, id: string) => ({ id, depotId: DEPOT_A })),
+  } as unknown as EmployeeService;
+  return { repo, employees, svc: new ShiftService(repo, employees) };
 }
 
 describe('ShiftService.list', () => {
@@ -149,6 +194,100 @@ describe('ShiftService.update', () => {
     await expect(svc.update(manager(DEPOT_A), s.id, { depotId: DEPOT_B })).rejects.toThrow(
       ForbiddenException,
     );
+  });
+});
+
+describe('ShiftService rotations & assignments (C3)', () => {
+  const shift = (svc: ShiftService) =>
+    svc.create(hr, { name: 'Pagi', startTime: '08:00', endTime: '16:00' });
+
+  it('keeps only weekday keys and turns a blank shift id into a day off', async () => {
+    const { svc, repo } = make();
+    await svc.createRotation(hr, {
+      name: 'Rotasi A',
+      pattern: { '0': null, '1': ' s-1 ', '6': '', '9': 's-1', abc: 's-1' },
+    });
+    expect(repo.rotations[0].pattern).toEqual({ '0': null, '1': 's-1', '6': null });
+    expect(repo.rotations[0]).toMatchObject({ depotId: null, active: true });
+  });
+
+  it('scopes rotations to a depot on read and write', async () => {
+    const { svc, repo } = make();
+    await svc.listRotations(manager(DEPOT_A));
+    expect(repo.lastRotationListDepot).toBe(DEPOT_A);
+    await expect(
+      svc.createRotation(manager(DEPOT_B), { name: 'x', pattern: {}, depotId: DEPOT_A }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('patches a rotation and 404s on a missing one', async () => {
+    const { svc } = make();
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': 's-1' } });
+    const updated = await svc.updateRotation(hr, rot.id, {
+      name: 'B',
+      active: false,
+      pattern: { '2': 's-2' },
+      depotId: DEPOT_A,
+    });
+    expect(updated).toMatchObject({ name: 'B', active: false, pattern: { '2': 's-2' } });
+    // A patch with nothing in it is a no-op, not a wipe.
+    expect(await svc.updateRotation(hr, rot.id, {})).toMatchObject({ name: 'B' });
+    await expect(svc.updateRotation(hr, 'ghost', { name: 'x' })).rejects.toThrow(NotFoundException);
+    await expect(svc.updateRotation(manager(DEPOT_B), rot.id, { name: 'x' })).rejects.toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it('assigns an employee to a shift from a date and keeps the old row', async () => {
+    const { svc, repo, employees } = make();
+    const s = await shift(svc);
+    await svc.assign(hr, { employeeId: 'e1', shiftId: s.id, effectiveFrom: '2026-08-01' });
+    await svc.assign(hr, {
+      employeeId: 'e1',
+      shiftId: s.id,
+      effectiveFrom: '2026-09-01',
+      note: 'pindah gudang',
+    });
+    expect(employees.getById).toHaveBeenCalledWith(hr, 'e1');
+    expect(repo.assignments).toHaveLength(2);
+    expect(repo.assignments[0].effectiveFrom).toEqual(new Date('2026-08-01T00:00:00.000Z'));
+    expect(repo.assignments[1]).toMatchObject({ note: 'pindah gudang', createdBy: 'hr-1' });
+    expect(await svc.listAssignments(hr, 'e1')).toHaveLength(2);
+  });
+
+  it('demands exactly one of shiftId / rotationId', async () => {
+    const { svc } = make();
+    const s = await shift(svc);
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: {} });
+    await expect(svc.assign(hr, { employeeId: 'e1', effectiveFrom: '2026-08-01' })).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(
+      svc.assign(hr, {
+        employeeId: 'e1',
+        shiftId: s.id,
+        rotationId: rot.id,
+        effectiveFrom: '2026-08-01',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('404s when the shift or rotation being assigned does not exist', async () => {
+    const { svc } = make();
+    await expect(
+      svc.assign(hr, { employeeId: 'e1', shiftId: 'ghost', effectiveFrom: '2026-08-01' }),
+    ).rejects.toThrow(NotFoundException);
+    await expect(
+      svc.assign(hr, { employeeId: 'e1', rotationId: 'ghost', effectiveFrom: '2026-08-01' }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('rejects an unparseable effectiveFrom', async () => {
+    const { svc } = make();
+    const s = await shift(svc);
+    await expect(
+      svc.assign(hr, { employeeId: 'e1', shiftId: s.id, effectiveFrom: 'besok-pagi' }),
+    ).rejects.toThrow(BadRequestException);
   });
 });
 

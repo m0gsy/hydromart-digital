@@ -18,10 +18,14 @@ import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import {
+  CreateAssignmentDto,
   CreateHolidayDto,
+  CreateRotationDto,
   CreateShiftDto,
+  ListAssignmentDto,
   ListHolidayDto,
   ListShiftDto,
+  UpdateRotationDto,
   UpdateShiftDto,
 } from './dto/calendar.dto';
 
@@ -93,5 +97,55 @@ export class ShiftController {
   @ApiOperation({ summary: 'Delete a shift' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.remove(user, id);
+  }
+}
+
+/**
+ * Weekly rotations and who works them (C3). Kept off /hr-shifts so the shift catalogue stays
+ * a catalogue — this is the roster.
+ */
+@ApiTags('HR Shifts')
+@ApiBearerAuth()
+@Controller({ path: 'shift-rotations', version: '1' })
+export class ShiftRotationController {
+  constructor(private readonly shifts: ShiftService) {}
+
+  @Get()
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'List rotations (a depot sees its own plus network-wide ones)' })
+  list(@Query() q: ListShiftDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.shifts.listRotations(user, q.depotId);
+  }
+
+  @Post()
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Create a weekly rotation (pattern keyed 0=Sunday .. 6=Saturday)' })
+  create(@Body() dto: CreateRotationDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.shifts.createRotation(user, dto);
+  }
+
+  @Patch(':id')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Update a rotation' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateRotationDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.shifts.updateRotation(user, id, dto);
+  }
+
+  @Get('assignments')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'One employee’s shift assignment history, newest first' })
+  listAssignments(@Query() q: ListAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.shifts.listAssignments(user, q.employeeId);
+  }
+
+  @Post('assignments')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Put an employee on a shift or rotation from a date (append-only)' })
+  assign(@Body() dto: CreateAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.shifts.assign(user, dto);
   }
 }

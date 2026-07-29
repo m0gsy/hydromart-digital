@@ -12,6 +12,12 @@ import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydroma
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { withinGeofence } from '../../domain/geofence';
+import {
+  assignmentInForce,
+  parseRotationPattern,
+  resolveShiftStart,
+  shiftIdForDay,
+} from '../../domain/shift-rotation';
 import { uploadFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
@@ -62,11 +68,10 @@ export class AttendanceService {
       throw new BadRequestException('Sudah check-in hari ini');
     }
 
-    // Late is measured against the depot's active shift start, falling back to config.
-    const shift = this.shifts ? await this.shifts.findActiveForDepot(employee.depotId) : null;
-    const startMinutes = this.parseHHMM(
-      shift?.startTime ?? this.config.workStartTime(employee.depotId),
-    );
+    // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
+    // depot's shift and then config — so anyone HR has not assigned is judged exactly as
+    // before this existed.
+    const startMinutes = this.parseHHMM(await this.shiftStartFor(employee, workDate));
     const tolerance = this.config.lateToleranceMinutes(employee.depotId);
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;
@@ -117,7 +122,10 @@ export class AttendanceService {
     // Floored at check-in and capped at server time by offlineAt(), so an offline check-out can
     // only ever report a shorter shift than the reconnect moment — it needs no HR approval.
     const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
-    const workingMinutes = Math.max(0, Math.round((at.getTime() - row.checkInAt.getTime()) / 60000));
+    const workingMinutes = Math.max(
+      0,
+      Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
+    );
     const photoUrl =
       punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
     return this.repo.patchCheckOut(row.id, {
@@ -340,6 +348,50 @@ export class AttendanceService {
   private parseHHMM(hhmm: string): number {
     const [h, m] = hhmm.split(':').map(Number);
     return h * 60 + m;
+  }
+
+  /**
+   * The start time a punch is judged against, most specific first (C3):
+   *
+   *   employee's shift assignment for that weekday
+   *     -> Employee.shiftId (set directly on the record)
+   *       -> the depot's active shift
+   *         -> the configured work start time
+   *
+   * The last two rungs are what the service did before rotations existed, so an employee
+   * with neither an assignment nor a shiftId sees no change in how their day is marked.
+   */
+  private async shiftStartFor(employee: Employee, workDate: Date): Promise<string> {
+    let assignedShiftStart: string | null = null;
+    if (this.shifts) {
+      const assignments = await this.shifts.listAssignmentsUpTo(employee.id, workDate);
+      const inForce = assignmentInForce(assignments, workDate);
+      const rotation = inForce?.rotationId
+        ? await this.shifts.findRotationById(inForce.rotationId)
+        : null;
+      const shiftId = shiftIdForDay(
+        inForce,
+        rotation ? parseRotationPattern(rotation.pattern) : null,
+        workDate,
+      );
+      if (shiftId) assignedShiftStart = (await this.shifts.findById(shiftId))?.startTime ?? null;
+    }
+
+    const employeeShiftStart =
+      !assignedShiftStart && this.shifts && employee.shiftId
+        ? ((await this.shifts.findById(employee.shiftId))?.startTime ?? null)
+        : null;
+    const depotShiftStart =
+      !assignedShiftStart && !employeeShiftStart && this.shifts
+        ? ((await this.shifts.findActiveForDepot(employee.depotId))?.startTime ?? null)
+        : null;
+
+    return resolveShiftStart({
+      assignedShiftStart,
+      employeeShiftStart,
+      depotShiftStart,
+      configStartTime: this.config.workStartTime(employee.depotId),
+    }).startTime;
   }
 }
 

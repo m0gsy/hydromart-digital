@@ -60,6 +60,8 @@ const MODELS = [
   'assetMovement',
   'announcement',
   'announcementRead',
+  'shiftRotation',
+  'shiftAssignment',
   'bonus',
   'deduction',
   'employee',
@@ -718,6 +720,80 @@ describe('Bonus/Deduction adjustment repositories', () => {
     expect(m(p, 'deduction').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', periodMonth: '2026-07' },
       orderBy: { createdAt: 'desc' },
+    });
+  });
+});
+
+// ── ShiftPrismaRepository: rotations & assignments (C3) ────────────────
+describe('ShiftPrismaRepository rotations & assignments', () => {
+  const rotation = { name: 'A', depotId: null, pattern: { '1': 's1' }, active: true };
+
+  it('rotation create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'shiftRotation').create.mockResolvedValue(out);
+    m(p, 'shiftRotation').update.mockResolvedValue(out);
+    m(p, 'shiftRotation').findUnique.mockResolvedValue(out);
+    const repo = new ShiftPrismaRepository(asService(p));
+
+    await expect(repo.createRotation(rotation)).resolves.toBe(out);
+    expect(m(p, 'shiftRotation').create).toHaveBeenCalledWith({ data: rotation });
+    await expect(repo.updateRotation('r1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'shiftRotation').update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { active: false },
+    });
+    await expect(repo.findRotationById('r1')).resolves.toBe(out);
+  });
+
+  it('listRotations gives a depot its own PLUS the network-wide ones', async () => {
+    const p = makePrisma();
+    m(p, 'shiftRotation').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+    await repo.listRotations('d1');
+    expect(m(p, 'shiftRotation').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
+    });
+    await repo.listRotations();
+    expect(m(p, 'shiftRotation').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
+    });
+  });
+
+  it('assign appends; there is no update path for an assignment at all', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'shiftAssignment').create.mockResolvedValue(out);
+    const data = {
+      employeeId: 'e1',
+      shiftId: 's1',
+      rotationId: null,
+      effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+      note: null,
+      createdBy: 'hr-1',
+    };
+    await expect(new ShiftPrismaRepository(asService(p)).assign(data)).resolves.toBe(out);
+    expect(m(p, 'shiftAssignment').create).toHaveBeenCalledWith({ data });
+    expect(m(p, 'shiftAssignment').update).not.toHaveBeenCalled();
+  });
+
+  it('listAssignmentsUpTo takes only what had already started, oldest first', async () => {
+    const p = makePrisma();
+    const onDate = new Date('2026-08-03T00:00:00.000Z');
+    m(p, 'shiftAssignment').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+
+    await repo.listAssignmentsUpTo('e1', onDate);
+    expect(m(p, 'shiftAssignment').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', effectiveFrom: { lte: onDate } },
+      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+    });
+    await repo.listAssignments('e1');
+    expect(m(p, 'shiftAssignment').findMany).toHaveBeenLastCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { effectiveFrom: 'desc' },
     });
   });
 });

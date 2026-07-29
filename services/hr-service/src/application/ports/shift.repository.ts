@@ -1,4 +1,4 @@
-import { Shift } from '../../../prisma/generated/client';
+import { Prisma, Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
 
 export const SHIFT_REPOSITORY = Symbol('SHIFT_REPOSITORY');
 
@@ -10,6 +10,22 @@ export interface ShiftWrite {
   active: boolean;
 }
 
+export interface RotationWrite {
+  name: string;
+  depotId: string | null;
+  pattern: Prisma.InputJsonValue;
+  active: boolean;
+}
+
+export interface AssignmentWrite {
+  employeeId: string;
+  shiftId: string | null;
+  rotationId: string | null;
+  effectiveFrom: Date;
+  note: string | null;
+  createdBy: string | null;
+}
+
 export interface ShiftRepository {
   create(data: ShiftWrite): Promise<Shift>;
   update(id: string, data: Partial<ShiftWrite>): Promise<Shift>;
@@ -18,4 +34,18 @@ export interface ShiftRepository {
   list(depotId?: string): Promise<Shift[]>;
   /** The active shift for a depot (its own, else a null-depot default), for late calc. */
   findActiveForDepot(depotId: string): Promise<Shift | null>;
+
+  // ── rotations & assignments (C3) ──────────────────────────────────
+  createRotation(data: RotationWrite): Promise<ShiftRotation>;
+  updateRotation(id: string, data: Partial<RotationWrite>): Promise<ShiftRotation>;
+  findRotationById(id: string): Promise<ShiftRotation | null>;
+  listRotations(depotId?: string): Promise<ShiftRotation[]>;
+  /** Append only — an assignment is never edited, a newer one supersedes it. */
+  assign(data: AssignmentWrite): Promise<ShiftAssignment>;
+  /**
+   * Every assignment for an employee that had already started on `onDate`, oldest first.
+   * The caller picks the one in force (domain/shift-rotation.ts) so the rule stays pure.
+   */
+  listAssignmentsUpTo(employeeId: string, onDate: Date): Promise<ShiftAssignment[]>;
+  listAssignments(employeeId: string): Promise<ShiftAssignment[]>;
 }

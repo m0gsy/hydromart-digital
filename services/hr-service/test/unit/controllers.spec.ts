@@ -14,7 +14,11 @@ jest.mock('../../src/domain/xlsx', () => ({
 import { BonusController, DeductionController } from '../../src/modules/adjustment.controller';
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
-import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import {
+  HolidayController,
+  ShiftController,
+  ShiftRotationController,
+} from '../../src/modules/calendar.controller';
 import { DepartmentController } from '../../src/modules/department.controller';
 import { AllowanceController } from '../../src/modules/allowance.controller';
 import { LeaveController, SelfLeaveController } from '../../src/modules/leave.controller';
@@ -293,6 +297,29 @@ describe('HolidayController / ShiftController', () => {
     const mv = { kind: 'ASSIGN', toEmployeeId: 'e1' } as never;
     ac.move('as1', mv, user);
     expect(assets.move).toHaveBeenCalledWith(user, 'as1', mv);
+  });
+  it('shift rotations and assignments delegate', () => {
+    const svc = svcMock([
+      'listRotations',
+      'createRotation',
+      'updateRotation',
+      'listAssignments',
+      'assign',
+    ]);
+    const rc = new ShiftRotationController(svc as never);
+    rc.list({ depotId: 'd2' } as never, user);
+    expect(svc.listRotations).toHaveBeenCalledWith(user, 'd2');
+    const dto = { name: 'Rotasi A', pattern: { '1': 's1' } } as never;
+    rc.create(dto, user);
+    expect(svc.createRotation).toHaveBeenCalledWith(user, dto);
+    const ud = { active: false } as never;
+    rc.update('rot1', ud, user);
+    expect(svc.updateRotation).toHaveBeenCalledWith(user, 'rot1', ud);
+    rc.listAssignments({ employeeId: 'e1' } as never, user);
+    expect(svc.listAssignments).toHaveBeenCalledWith(user, 'e1');
+    const ad = { employeeId: 'e1', shiftId: 's1', effectiveFrom: '2026-08-01' } as never;
+    rc.assign(ad, user);
+    expect(svc.assign).toHaveBeenCalledWith(user, ad);
   });
   it('announcements delegate, self and HR sides apart', () => {
     const svc = svcMock(['list', 'getById', 'create', 'publishDue', 'listForSelf', 'markRead']);

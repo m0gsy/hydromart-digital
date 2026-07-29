@@ -341,6 +341,41 @@ export interface AssetDetail extends EmployeeAsset {
   movements: AssetMovement[];
 }
 
+/** Weekly rotation: which shift is worked on each weekday, 0 = Sunday. */
+export interface ShiftRotation {
+  id: string;
+  name: string;
+  depotId: string | null;
+  pattern: Record<string, string | null>;
+  active: boolean;
+}
+
+/** Append-only roster row: from this date the employee works this shift/rotation. */
+export interface ShiftAssignment {
+  id: string;
+  employeeId: string;
+  shiftId: string | null;
+  rotationId: string | null;
+  effectiveFrom: string;
+  note: string | null;
+  createdAt: string;
+}
+
+/** Sunday-first, matching Date.getUTCDay and the server's pattern keys. */
+export const WEEKDAY_LABEL = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+/**
+ * Which shift a rotation puts someone on for a weekday. Mirrors shiftIdForDay in
+ * `services/hr-service/src/domain/shift-rotation.ts`: a missing key is a day off, never a
+ * guess at the nearest shift.
+ */
+export function rotationShiftForDay(
+  pattern: Record<string, string | null>,
+  weekday: number,
+): string | null {
+  return pattern[String(weekday)] ?? null;
+}
+
 /** A component is null when the period held nothing to measure it against (C2). */
 export interface PerformanceScore {
   attendance: number | null;
