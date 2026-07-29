@@ -24,6 +24,8 @@ export const envValidationSchema = Joi.object({
   // Tenure raise ladder for depot heads (Rule-E): "years:pct" CSV, e.g. "1:5,2:10,3:15".
   // Empty = no automatic raise.
   HR_TENURE_RAISE_LADDER: Joi.string().allow('').default(''),
+  // Working days of quota-consuming leave (ANNUAL/PERMISSION) per calendar year.
+  HR_ANNUAL_LEAVE_QUOTA_DAYS: Joi.number().min(0).max(60).default(12),
   // Face recognition. neo = BiznetGio NEO cloud gallery (prod); onnx = in-process ArcFace;
   // stub = dev/test deterministic.
   FACE_VERIFIER_DRIVER: Joi.string().valid('neo', 'onnx', 'http', 'stub').default('onnx'),

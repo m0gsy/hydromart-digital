@@ -15,6 +15,7 @@ import { BonusController, DeductionController } from '../../src/modules/adjustme
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
 import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import { LeaveController, SelfLeaveController } from '../../src/modules/leave.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -194,6 +195,29 @@ describe('HolidayController / ShiftController', () => {
     expect(holidays.create).toHaveBeenCalledWith(user, dto);
     hc.remove('h1', user);
     expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
+  });
+  it('leave controllers delegate, self and approval sides apart', () => {
+    const leave = svcMock(['listSelf', 'myBalance', 'submit', 'cancel', 'listForApproval', 'decideManager', 'decideHr']);
+    const self = new SelfLeaveController(leave as never);
+    const queue = new LeaveController(leave as never);
+
+    self.list({ page: 2, pageSize: 5 } as never, user);
+    expect(leave.listSelf).toHaveBeenCalledWith(user, 2, 5);
+    self.balance({ year: 2026 } as never, user);
+    expect(leave.myBalance).toHaveBeenCalledWith(user, 2026);
+    const dto = { type: 'ANNUAL' } as never;
+    self.submit(dto, user);
+    expect(leave.submit).toHaveBeenCalledWith(user, dto);
+    self.cancel('lv1', user);
+    expect(leave.cancel).toHaveBeenCalledWith(user, 'lv1');
+
+    const q = { status: 'PENDING_HR' } as never;
+    queue.list(q, user);
+    expect(leave.listForApproval).toHaveBeenCalledWith(user, q);
+    queue.manager('lv1', { approve: true } as never, user);
+    expect(leave.decideManager).toHaveBeenCalledWith(user, 'lv1', true, undefined);
+    queue.hr('lv1', { approve: false, note: 'kurang bukti' } as never, user);
+    expect(leave.decideHr).toHaveBeenCalledWith(user, 'lv1', false, 'kurang bukti');
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

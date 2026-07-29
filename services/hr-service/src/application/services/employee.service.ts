@@ -118,6 +118,15 @@ export class EmployeeService {
     return employee;
   }
 
+  /**
+   * Plain read with no depot check, for service-to-service lookups inside this service —
+   * e.g. resolving a supervisor to notify. Never expose it on a controller: the depot gate
+   * lives in getById.
+   */
+  findByIdInternal(id: string): Promise<Employee | null> {
+    return this.repo.findById(id);
+  }
+
   /** Resolve the caller's OWN employee record via the linked auth account (self-service). */
   async getSelf(user: AuthenticatedUser): Promise<Employee> {
     const employee = await this.repo.findByAuthSubjectId(user.sub);

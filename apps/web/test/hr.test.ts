@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPTY_EMPLOYEE_FORM,
+  LEAVE_STATUS_LABEL,
+  LEAVE_TYPES,
+  LEAVE_TYPE_LABEL,
   employeeToForm,
+  leaveDeductsQuota,
   fmtDate,
   fmtTime,
   toEmployeePayload,
@@ -135,5 +139,21 @@ describe('toEmployeePayload', () => {
     expect(r.value.bankAccount).toBe('123');
     expect(r.value.emergencyName).toBe('Siti');
     expect(r.value.emergencyPhone).toBe('0899');
+  });
+});
+
+describe('leave (B1)', () => {
+  it('mirrors the server rule on which types cost quota', () => {
+    expect(leaveDeductsQuota('ANNUAL')).toBe(true);
+    expect(leaveDeductsQuota('PERMISSION')).toBe(true);
+    expect(leaveDeductsQuota('SICK')).toBe(false);
+    expect(leaveDeductsQuota('EMERGENCY')).toBe(false);
+  });
+
+  it('labels every status and type the API can return', () => {
+    for (const t of LEAVE_TYPES) expect(LEAVE_TYPE_LABEL[t]).toBeTruthy();
+    for (const s of Object.keys(LEAVE_STATUS_LABEL)) {
+      expect(LEAVE_STATUS_LABEL[s as keyof typeof LEAVE_STATUS_LABEL]).toBeTruthy();
+    }
   });
 });

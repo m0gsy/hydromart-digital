@@ -119,6 +119,10 @@ export const CAPABILITIES = {
   hrAdmin: ['HR', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
   hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
+  // hr-service — stage 1 of a leave application. The depot manager decides for their own
+  // depot (DepotScopeGuard enforces that); HR holds it too so a depot without a manager is
+  // not stuck, and stage 2 stays hrAdmin either way.
+  leaveApprove: ['DEPOT_MANAGER', 'HR', 'SUPER_ADMIN'],
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
   hrView: ['HR', 'HEAD_OFFICE', 'FINANCE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],

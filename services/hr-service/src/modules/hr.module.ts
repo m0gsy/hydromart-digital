@@ -62,7 +62,11 @@ import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
 import { NOTIFICATION_PORT } from '../application/ports/notification.port';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { LEAVE_REPOSITORY } from '../application/ports/leave.repository';
+import { LeaveService } from '../application/services/leave.service';
+import { LeavePrismaRepository } from '../infrastructure/prisma/leave.prisma.repository';
 import { HolidayController, ShiftController } from './calendar.controller';
+import { LeaveController, SelfLeaveController } from './leave.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -138,6 +142,8 @@ const providers: Provider[] = [
   { provide: SHIFT_REPOSITORY, useClass: ShiftPrismaRepository },
   HolidayService,
   ShiftService,
+  { provide: LEAVE_REPOSITORY, useClass: LeavePrismaRepository },
+  LeaveService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -163,6 +169,8 @@ const providers: Provider[] = [
     ReportsController,
     HolidayController,
     ShiftController,
+    SelfLeaveController,
+    LeaveController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

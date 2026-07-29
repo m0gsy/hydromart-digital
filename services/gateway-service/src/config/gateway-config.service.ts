@@ -47,6 +47,7 @@ const SEGMENT_ENV: Record<string, string> = {
   'hr-reports': 'HR_SERVICE_URL',
   'hr-audit': 'HR_SERVICE_URL',
   holidays: 'HR_SERVICE_URL',
+  leave: 'HR_SERVICE_URL',
   'hr-shifts': 'HR_SERVICE_URL',
 };
 

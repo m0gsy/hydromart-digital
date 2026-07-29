@@ -106,6 +106,14 @@ export class HrConfigService {
     );
   }
 
+  /** Working days of ANNUAL/PERMISSION leave an employee gets per calendar year. */
+  annualLeaveQuotaDays(depotId: string | null = null): number {
+    return this.tunableNum(
+      'annualLeaveQuotaDays',
+      Number(this.config.get<string>('HR_ANNUAL_LEAVE_QUOTA_DAYS', '12')),
+      depotId,
+    );
+  }
   weeklyOffDays(depotId: string | null = null): string {
     return this.tunableStr(
       'weeklyOffDays',
