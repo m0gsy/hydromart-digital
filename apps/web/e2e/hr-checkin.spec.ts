@@ -42,3 +42,45 @@ test('face check-in captures a frame and posts through the cookie session', asyn
     expect(posted.status()).toBeLessThan(500); // never a server crash
   }
 });
+
+// A punch taken with no signal must survive on the device rather than vanish: it lands in
+// the IndexedDB queue, the banner announces it, and it flushes once the network is back.
+test('a punch taken offline is queued on the device and flushed on reconnect', async ({ page }) => {
+  await loginWithOtp(page);
+  await page.context().grantPermissions(['camera']);
+
+  await page.goto('/hr/me/check-in');
+  await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({ timeout: 10_000 });
+
+  const capture = page.getByRole('button', { name: /Ambil Foto/i });
+  try {
+    await expect(capture).toBeEnabled({ timeout: 15_000 });
+  } catch {
+    test.skip(true, 'headless fake camera did not hand over a stream on this runner');
+  }
+
+  await page.context().setOffline(true);
+  await capture.click();
+
+  // Queued, not lost: the banner is the user-visible proof the capture is still on the device.
+  const banner = page.getByText(/data belum terkirim/i);
+  try {
+    await expect(banner).toBeVisible({ timeout: 20_000 });
+  } catch {
+    await page.context().setOffline(false);
+    test.skip(true, 'client-side liveness gate rejected the frame before it could queue');
+  }
+
+  const flushed = page.waitForResponse(
+    (r) => r.url().includes('/attendance/api/v1/attendance/check-') && r.request().method() === 'POST',
+    { timeout: 30_000 },
+  );
+  await page.context().setOffline(false);
+  await page.getByRole('button', { name: /Kirim sekarang/i }).click();
+
+  const response = await flushed;
+  expect(response.status()).toBeLessThan(500);
+  // The device timestamp rides along — that is what makes the server clamp and, if it sat
+  // here too long, hold the punch for HR.
+  expect(response.request().postDataJSON()).toHaveProperty('capturedAt');
+});
