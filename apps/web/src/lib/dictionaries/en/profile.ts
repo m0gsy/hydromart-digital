@@ -42,6 +42,8 @@ export const profile: typeof base = {
       short: 'Short',
       soldOut: 'Sold out',
       redeemed: '{name} redeemed!',
+      pickDepotTitle: 'Where will you collect it?',
+      pickDepotBody: 'Pick the depot you will collect the reward from. Its staff are the ones who will see your redemption in their queue.',
       redeemError: 'Could not redeem points. Try again.',
     },
     redemptions: {

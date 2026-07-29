@@ -374,6 +374,8 @@ export interface RedemptionListItem {
   rewardItemId: string;
   rewardName: string;
   customerId: string;
+  /** Chosen collection depot; null on rows made before the question was asked. */
+  depotId: string | null;
   pointsSpent: number;
   status: RedemptionStatus;
   usedAt: string | null;

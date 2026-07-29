@@ -61,6 +61,7 @@ export class RewardPrismaRepository implements RewardRepository {
           customerId: m.customerId,
           pointsSpent: m.pointsSpent,
           idempotencyKey: m.idempotencyKey,
+          depotId: m.depotId,
         },
       }),
       // Negative ledger entry — lifetimePoints/tier untouched (spend never promotes).
@@ -103,9 +104,14 @@ export class RewardPrismaRepository implements RewardRepository {
     return rows.map((row) => this.toView(row));
   }
 
-  async listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]> {
+  async listRedemptionsByStatus(
+    status: RedemptionStatus,
+    depotId?: string,
+  ): Promise<RewardRedemptionView[]> {
     const rows = await this.prisma.rewardRedemption.findMany({
-      where: { status },
+      // Legacy rows carry no depot; they belong to whoever the customer walks up to, so
+      // they stay in every depot's queue rather than in none of them.
+      where: depotId ? { status, OR: [{ depotId }, { depotId: null }] } : { status },
       // Oldest first: the customer who has been waiting longest is served first.
       orderBy: { createdAt: 'asc' },
       include: { reward: { select: { name: true } } },
@@ -173,6 +179,7 @@ export class RewardPrismaRepository implements RewardRepository {
     customerId: string;
     pointsSpent: number;
     status: string;
+    depotId: string | null;
     usedAt: Date | null;
     cancelledAt: Date | null;
     createdAt: Date;

@@ -165,6 +165,7 @@ describe('RewardController (delegation)', () => {
         id: 'rd-1',
         rewardItemId: 'ri-1',
         customerId: 'cust-1',
+        depotId: 'depot-1',
         rewardName: 'Galon',
         pointsSpent: 800,
         status: 'ACTIVE',
@@ -178,6 +179,7 @@ describe('RewardController (delegation)', () => {
         id: 'rd-2',
         rewardItemId: 'ri-1',
         customerId: 'cust-9',
+        depotId: 'depot-1',
         rewardName: 'Galon',
         pointsSpent: 800,
         status: 'ACTIVE',
@@ -249,7 +251,11 @@ describe('RewardController (delegation)', () => {
   });
 
   it('redeem() maps the redeem result', async () => {
-    const out = await ctrl.redeem(user(), { rewardItemId: 'ri-1', idempotencyKey: 'k1' } as never);
+    const out = await ctrl.redeem(user(), {
+      rewardItemId: 'ri-1',
+      idempotencyKey: 'k1',
+      depotId: 'depot-1',
+    } as never);
     expect(out).toEqual({
       redemptionId: 'rd-1',
       rewardItemId: 'ri-1',
@@ -257,7 +263,7 @@ describe('RewardController (delegation)', () => {
       pointsBalance: 400,
       status: 'ACTIVE',
     });
-    expect(rewards.redeem).toHaveBeenCalledWith('cust-1', 'ri-1', 'k1');
+    expect(rewards.redeem).toHaveBeenCalledWith('cust-1', 'ri-1', 'k1', 'depot-1');
   });
 
   it('cancelRedemption() scopes the cancel to the caller (M14-03)', async () => {
@@ -274,6 +280,7 @@ describe('RewardController (delegation)', () => {
         id: 'rd-1',
         rewardItemId: 'ri-1',
         customerId: 'cust-1',
+        depotId: 'depot-1',
         rewardName: 'Galon',
         pointsSpent: 800,
         status: 'ACTIVE',
@@ -284,9 +291,14 @@ describe('RewardController (delegation)', () => {
     ]);
   });
 
-  it('activeRedemptions() lists the hand-over queue', async () => {
+  it('activeRedemptions() scopes to a depot when given, and network-wide when not', async () => {
+    await ctrl.activeRedemptions('depot-1');
+    expect(rewards.listAwaitingHandover).toHaveBeenCalledWith('depot-1');
+    // An empty query string must mean "no filter", not "a depot named empty string".
+    await ctrl.activeRedemptions('');
+    expect(rewards.listAwaitingHandover).toHaveBeenLastCalledWith(undefined);
     const out = await ctrl.activeRedemptions();
-    expect(rewards.listAwaitingHandover).toHaveBeenCalled();
+    expect(rewards.listAwaitingHandover).toHaveBeenLastCalledWith(undefined);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ id: 'rd-2', customerId: 'cust-9', status: 'ACTIVE' });
   });
@@ -446,6 +458,7 @@ describe('response DTO mappers', () => {
         id: 'rd-1',
         rewardItemId: 'ri-1',
         customerId: 'c',
+        depotId: 'depot-1',
         pointsSpent: 800,
         status: 'ACTIVE',
         usedAt: null,

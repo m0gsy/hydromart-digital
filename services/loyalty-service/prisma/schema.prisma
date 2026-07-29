@@ -108,12 +108,18 @@ model RewardRedemption {
   /// over, or CANCELLED when the customer changes their mind and the points come back.
   /// TEXT rather than an enum so a future state needs no irreversible migration.
   status         String     @default("ACTIVE")
+  /// Depot the customer chose to collect from. Null only for rows created before the
+  /// question was asked — those stay visible to every depot, because guessing which one
+  /// should serve them would hide a real customer from the staff standing in front of
+  /// them. No FK: depots live in depot-service.
+  depotId        String?
   usedAt         DateTime?
   cancelledAt    DateTime?
   createdAt      DateTime   @default(now())
 
   @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
+  @@index([depotId, status, createdAt])
   @@map("reward_redemptions")
 }
 

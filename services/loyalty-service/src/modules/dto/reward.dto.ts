@@ -23,6 +23,14 @@ export class RedeemRewardDto {
   })
   @IsUUID()
   idempotencyKey!: string;
+
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Depot the customer will collect from. Required: without it the reward lands in a network-wide queue and no depot owns handing it over.',
+  })
+  @IsUUID()
+  depotId!: string;
 }
 
 export class CreateRewardItemDto {
@@ -165,6 +173,12 @@ export class RedemptionDto {
 export class RedemptionListItemDto extends RedemptionDto {
   @ApiProperty({ example: 'Isi Ulang Galon 19L' }) rewardName!: string;
   @ApiProperty({ format: 'uuid' }) customerId!: string;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Chosen collection depot; null on rows created before the question existed.',
+  })
+  depotId!: string | null;
   @ApiProperty({ type: String, format: 'date-time' }) createdAt!: string;
 
   static fromView(view: RewardRedemptionView): RedemptionListItemDto {
@@ -172,6 +186,7 @@ export class RedemptionListItemDto extends RedemptionDto {
       ...RedemptionDto.from(view),
       rewardName: view.rewardName,
       customerId: view.customerId,
+      depotId: view.depotId,
       createdAt: view.createdAt.toISOString(),
     };
   }

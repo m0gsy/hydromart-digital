@@ -61,6 +61,7 @@ export class RewardService {
     customerId: string,
     rewardItemId: string,
     idempotencyKey: string,
+    depotId: string,
   ): Promise<RedeemResult> {
     const account = await this.loyalty.getAccount(customerId);
 
@@ -86,6 +87,7 @@ export class RewardService {
       customerId,
       rewardItemId: item.id,
       idempotencyKey,
+      depotId,
       pointsSpent: item.pointsCost,
       newBalance,
       reason: `Redeemed ${item.name}`,
@@ -99,9 +101,13 @@ export class RewardService {
     return this.rewards.listRedemptionsByCustomer(customerId);
   }
 
-  /** Staff hand-over queue: everything redeemed but not yet collected or cancelled. */
-  listAwaitingHandover(): Promise<RewardRedemptionView[]> {
-    return this.rewards.listRedemptionsByStatus('ACTIVE');
+  /**
+   * Staff hand-over queue: everything redeemed but not yet collected or cancelled.
+   * Scoped to one depot when given — plus the legacy rows that never recorded one, which
+   * any depot may serve because nobody knows where their owner will turn up.
+   */
+  listAwaitingHandover(depotId?: string): Promise<RewardRedemptionView[]> {
+    return this.rewards.listRedemptionsByStatus('ACTIVE', depotId);
   }
 
   /**

@@ -40,6 +40,8 @@ export const profile = {
       short: 'Kurang',
       soldOut: 'Habis',
       redeemed: '{name} berhasil ditukar!',
+      pickDepotTitle: 'Ambil hadiah di mana?',
+      pickDepotBody: 'Pilih depot tempat kamu akan mengambil hadiah. Petugas depot itu yang akan melihat penukaranmu di antrean mereka.',
       redeemError: 'Gagal menukar poin. Coba lagi.',
     },
     redemptions: {

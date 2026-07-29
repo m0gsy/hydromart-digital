@@ -18,6 +18,11 @@ export interface RewardRedemptionRecord {
   customerId: string;
   pointsSpent: number;
   status: RedemptionStatus;
+  /**
+   * Depot the customer chose to collect from. Null only on rows created before the
+   * question existed — never a guess. See listRedemptionsByStatus for how they surface.
+   */
+  depotId: string | null;
   usedAt: Date | null;
   cancelledAt: Date | null;
   createdAt: Date;
@@ -51,6 +56,8 @@ export interface RedeemMutation {
   customerId: string;
   rewardItemId: string;
   idempotencyKey: string;
+  /** Where the customer said they will collect it. */
+  depotId: string;
   pointsSpent: number;
   newBalance: number;
   reason: string;
@@ -86,8 +93,17 @@ export interface RewardRepository {
   findRedemption(id: string): Promise<RewardRedemptionRecord | null>;
   /** The customer's own redemptions, newest first — the list their cancel button sits on. */
   listRedemptionsByCustomer(customerId: string): Promise<RewardRedemptionView[]>;
-  /** Every redemption in one state, oldest first — the staff hand-over queue. */
-  listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]>;
+  /**
+   * The staff hand-over queue in one state, oldest first.
+   *
+   * With a `depotId` the queue is that depot's, PLUS every legacy row that has no depot
+   * recorded: those predate the question, and hiding them would strand a customer whose
+   * reward no depot can see. Without one (head office) it is the whole network.
+   */
+  listRedemptionsByStatus(
+    status: RedemptionStatus,
+    depotId?: string,
+  ): Promise<RewardRedemptionView[]>;
   /** Staff marks the reward physically handed over — after this it cannot be cancelled. */
   markUsed(id: string): Promise<RewardRedemptionRecord>;
   cancel(mutation: CancelRedemptionMutation): Promise<RewardRedemptionRecord>;

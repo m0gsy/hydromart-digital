@@ -4,25 +4,32 @@ import { useState } from 'react';
 import { Gift, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, Chip, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canHandOverRewards } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { RedemptionListItem } from '@/lib/types';
 
-// M14-03 hand-over queue. The redemption itself carries no depot — points are a
-// network-wide balance — so this lists every reward still awaiting collection rather
-// than pretending to scope it to the selected depot.
+/**
+ * M14-03 hand-over queue, scoped to the depot the customer chose at redemption.
+ *
+ * Rows with no depot are legacy: they were redeemed before the question was asked, and
+ * they appear in EVERY depot's queue. That is deliberate — their owner may walk up to any
+ * counter, and hiding them would turn a real customer away because the data is old.
+ */
 function RedemptionQueue() {
   const { t } = useT();
   const { toast } = useToast();
-  const { data, error, loading, reload } = useAsync<RedemptionListItem[]>(() =>
-    api.get(endpoints.rewards.activeRedemptions, true),
+  const { scopedId } = useDepot();
+  const { data, error, loading, reload } = useAsync<RedemptionListItem[]>(
+    () => api.get(endpoints.rewards.activeRedemptions(scopedId ?? undefined), true),
+    [scopedId],
   );
   const [pending, setPending] = useState<string | null>(null);
 
@@ -76,6 +83,9 @@ function RedemptionQueue() {
                 <code className="rounded-lg border border-dashed border-app px-2.5 py-1 font-mono text-xs font-bold uppercase tracking-wide">
                   {t('dashB.redemptions.code')} {row.id.slice(0, 8)}
                 </code>
+                {row.depotId === null && (
+                  <Chip tone="outline">{t('dashB.redemptions.anyDepot')}</Chip>
+                )}
                 <Button loading={pending === row.id} onClick={() => markUsed(row)}>
                   {t('dashB.redemptions.markUsed')}
                 </Button>

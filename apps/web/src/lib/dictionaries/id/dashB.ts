@@ -59,6 +59,7 @@ export const dashB = {
     gateBody: 'Loyalty & poin hanya untuk Manajer depot.',
   },
   redemptions: {
+    anyDepot: 'Depot mana pun',
     title: 'Penukaran hadiah',
     subtitle: 'Hadiah yang sudah ditukar poin dan menunggu diambil pelanggan.',
     empty: 'Tidak ada hadiah yang menunggu diambil.',
