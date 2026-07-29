@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPTY_EMPLOYEE_FORM,
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABEL,
   employeeToForm,
+  fmtFileSize,
   fmtDate,
   fmtTime,
   toEmployeePayload,
@@ -135,5 +138,17 @@ describe('toEmployeePayload', () => {
     expect(r.value.bankAccount).toBe('123');
     expect(r.value.emergencyName).toBe('Siti');
     expect(r.value.emergencyPhone).toBe('0899');
+  });
+});
+
+describe('employee documents (B2)', () => {
+  it('formats bytes the way an HR admin reads them', () => {
+    expect(fmtFileSize(512)).toBe('512 B');
+    expect(fmtFileSize(2048)).toBe('2 KB');
+    expect(fmtFileSize(3 * 1024 * 1024)).toBe('3.0 MB');
+  });
+
+  it('labels every document type the API can return', () => {
+    for (const t of DOCUMENT_TYPES) expect(DOCUMENT_TYPE_LABEL[t]).toBeTruthy();
   });
 });

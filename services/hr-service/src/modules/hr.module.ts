@@ -60,7 +60,11 @@ import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
+import { DOCUMENT_REPOSITORY } from '../application/ports/document.repository';
+import { DocumentService } from '../application/services/document.service';
+import { DocumentPrismaRepository } from '../infrastructure/prisma/document.prisma.repository';
 import { HolidayController, ShiftController } from './calendar.controller';
+import { DocumentController } from './document.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -112,6 +116,8 @@ const providers: Provider[] = [
   },
   FaceService,
   AttendanceService,
+  { provide: DOCUMENT_REPOSITORY, useClass: DocumentPrismaRepository },
+  DocumentService,
   { provide: PAYROLL_REPOSITORY, useClass: PayrollPrismaRepository },
   { provide: BONUS_REPOSITORY, useClass: BonusPrismaRepository },
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
@@ -158,6 +164,7 @@ const providers: Provider[] = [
     ReportsController,
     HolidayController,
     ShiftController,
+    DocumentController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

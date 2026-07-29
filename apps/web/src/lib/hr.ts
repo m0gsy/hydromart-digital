@@ -134,6 +134,46 @@ export interface AuditLog {
   at: string;
 }
 
+export type EmployeeDocumentType = 'KTP' | 'KK' | 'CONTRACT' | 'NPWP' | 'CERTIFICATE' | 'OTHER';
+
+export interface EmployeeDocument {
+  id: string;
+  employeeId: string;
+  type: EmployeeDocumentType;
+  fileUrl: string;
+  mimeType: string;
+  sizeBytes: number;
+  version: number;
+  /** Non-null = a newer version replaced this one; the row is kept as history. */
+  supersededById: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export const DOCUMENT_TYPES: EmployeeDocumentType[] = [
+  'KTP',
+  'KK',
+  'CONTRACT',
+  'NPWP',
+  'CERTIFICATE',
+  'OTHER',
+];
+export const DOCUMENT_TYPE_LABEL: Record<EmployeeDocumentType, string> = {
+  KTP: 'KTP',
+  KK: 'Kartu Keluarga',
+  CONTRACT: 'Kontrak Kerja',
+  NPWP: 'NPWP',
+  CERTIFICATE: 'Sertifikat',
+  OTHER: 'Lainnya',
+};
+
+/** "1,2 MB" — bytes are not something an HR admin should have to read. */
+export function fmtFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export interface Holiday {
   id: string;
   date: string;

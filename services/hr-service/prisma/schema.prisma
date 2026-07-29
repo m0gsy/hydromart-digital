@@ -64,6 +64,17 @@ enum PayrollItemKind {
   ADJUSTMENT
 }
 
+/// Personal documents an employee file holds. KTP and KK are exactly the identity data
+/// UU 27/2022 (PDP) regulates, which is why documents carry a retention purge path.
+enum EmployeeDocumentType {
+  KTP
+  KK
+  CONTRACT
+  NPWP
+  CERTIFICATE
+  OTHER
+}
+
 enum BonusType {
   ATTENDANCE
   PERFORMANCE
@@ -128,6 +139,7 @@ model Employee {
   reviews          PerformanceReview[]
   payrolls         Payroll[]
   loans            Loan[]
+  documents        EmployeeDocument[]
 
   @@index([depotId])
   @@index([status])
@@ -232,6 +244,34 @@ model Shift {
 
   @@index([depotId])
   @@map("shifts")
+}
+
+/// One uploaded file in an employee's personal file. Replacing a document does NOT overwrite
+/// it: a new row is inserted and the old one is stamped supersededById, so the history of what
+/// HR held and when is never lost. `fileKey` is what the retention purge deletes from storage —
+/// dropping only the row would leave the KTP scan sitting in the bucket.
+model EmployeeDocument {
+  id             String               @id @default(uuid()) @db.Uuid
+  employeeId     String               @db.Uuid
+  type           EmployeeDocumentType
+  fileUrl        String
+  fileKey        String
+  mimeType       String
+  sizeBytes      Int
+  /// 1 for the first upload of a type, then 2, 3… Each version is its own row.
+  version        Int                  @default(1)
+  /// Set on the OLD row when a replacement arrives, pointing at the newer document.
+  supersededById String?              @db.Uuid
+  uploadedBy     String?              @db.Uuid
+  /// e.g. a contract end date or an ID expiry — null when the document does not expire.
+  expiresAt      DateTime?            @db.Date
+  createdAt      DateTime             @default(now())
+
+  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([employeeId, type])
+  @@map("employee_documents")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.

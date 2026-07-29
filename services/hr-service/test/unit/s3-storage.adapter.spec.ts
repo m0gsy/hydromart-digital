@@ -4,6 +4,7 @@
 const sendMock = jest.fn();
 const clientCtorArgs: unknown[] = [];
 const putCmdArgs: unknown[] = [];
+const deleteCmdArgs: unknown[] = [];
 
 jest.mock(
   '@aws-sdk/client-s3',
@@ -17,6 +18,11 @@ jest.mock(
     PutObjectCommand: class {
       constructor(public input: unknown) {
         putCmdArgs.push(input);
+      }
+    },
+    DeleteObjectCommand: class {
+      constructor(public input: unknown) {
+        deleteCmdArgs.push(input);
       }
     },
   }),
@@ -44,6 +50,7 @@ beforeEach(() => {
   sendMock.mockReset();
   clientCtorArgs.length = 0;
   putCmdArgs.length = 0;
+  deleteCmdArgs.length = 0;
 });
 
 describe('S3StorageAdapter', () => {
@@ -77,5 +84,14 @@ describe('S3StorageAdapter', () => {
     expect(cmd.Key).toBe(result.key);
     expect(cmd.ContentType).toBe('image/jpeg');
     expect(cmd.Body).toEqual(Buffer.from('frame-bytes'));
+  });
+
+  // Retention erasure has to reach the object, not just the row pointing at it.
+  it('remove() sends a DeleteObjectCommand for that exact key', async () => {
+    sendMock.mockResolvedValue({});
+    const adapter = new S3StorageAdapter(makeConfig());
+    await adapter.remove('hr/documents/abc.pdf');
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(deleteCmdArgs[0]).toEqual({ Bucket: 'hr-bucket', Key: 'hr/documents/abc.pdf' });
   });
 });

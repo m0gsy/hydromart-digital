@@ -15,6 +15,7 @@ import { BonusController, DeductionController } from '../../src/modules/adjustme
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
 import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import { DocumentController } from '../../src/modules/document.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -194,6 +195,22 @@ describe('HolidayController / ShiftController', () => {
     expect(holidays.create).toHaveBeenCalledWith(user, dto);
     hc.remove('h1', user);
     expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
+  });
+  it('documents delegate, including the internal retention purge', () => {
+    const documents = svcMock(['list', 'get', 'upload', 'purgeRetentionEligible']);
+    const dc = new DocumentController(documents as never);
+    dc.list({ employeeId: 'e1' } as never, user);
+    expect(documents.list).toHaveBeenCalledWith(user, 'e1');
+    dc.get('doc1', user);
+    expect(documents.get).toHaveBeenCalledWith(user, 'doc1');
+    const dto = { employeeId: 'e1', type: 'KTP' } as never;
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/jpeg', size: 1 };
+    dc.upload(dto, user, file);
+    expect(documents.upload).toHaveBeenCalledWith(user, dto, file);
+    dc.purge({ cutoff: '2026-01-01T00:00:00.000Z' } as never);
+    expect(documents.purgeRetentionEligible).toHaveBeenCalledWith(
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

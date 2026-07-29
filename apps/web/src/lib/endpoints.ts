@@ -1182,6 +1182,9 @@ export const endpoints = {
     deleteHoliday: (id: string) => `/holidays/api/v1/holidays/${id}`,
     shifts: (depotId?: string) =>
       `/hr-shifts/api/v1/hr-shifts${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    employeeDocuments: (employeeId: string) =>
+      `/employee-documents/api/v1/employee-documents?employeeId=${encodeURIComponent(employeeId)}`,
+    uploadEmployeeDocument: '/employee-documents/api/v1/employee-documents',
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
