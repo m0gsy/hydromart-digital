@@ -37,6 +37,8 @@ export interface ImportResultRow {
   row: number;
   status: RowStatus;
   message?: string;
+  /** Id of the record the row created or matched (customer import uses it). */
+  id?: string;
 }
 
 export interface ImportResponse {

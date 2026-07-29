@@ -13,7 +13,7 @@ function esc(s: string): string {
  * own print-to-PDF. ponytail: no PDF library; a bespoke template + window.print covers
  * the ask with zero dependency. Falls back to no-op if the popup is blocked.
  */
-export function printReceipt(order: Order): void {
+export function printReceipt(order: Order, cash?: { cashReceived: number; change: number }): void {
   const rows = order.items
     .map(
       (it) =>
@@ -23,6 +23,11 @@ export function printReceipt(order: Order): void {
     .join('');
 
   const discount = order.discount > 0 ? `<tr><td>Diskon</td><td class="r">−${formatIDR(order.discount)}</td></tr>` : '';
+  // Counter sale: the buyer expects to see what they handed over and what came back.
+  const cashRows = cash
+    ? `<tr><td>Tunai</td><td class="r">${formatIDR(cash.cashReceived)}</td></tr>` +
+      `<tr><td>Kembali</td><td class="r">${formatIDR(cash.change)}</td></tr>`
+    : '';
 
   const html = `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <title>Struk ${esc(order.orderNumber)}</title>
@@ -49,6 +54,7 @@ export function printReceipt(order: Order): void {
     <tr><td>Ongkir</td><td class="r">${formatIDR(order.deliveryFee)}</td></tr>
     ${discount}
     <tr><td class="total">Total</td><td class="r total">${formatIDR(order.total)}</td></tr>
+    ${cashRows}
   </tfoot>
 </table>
 <p class="muted" style="text-align:center;margin-top:20px">Terima kasih telah memesan di Hydromart.</p>

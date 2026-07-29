@@ -190,7 +190,11 @@ export function OrderDetail({ order, onClose, onChanged }: { order: Order; onClo
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-muted">{formatDateTime(order.createdAt)}</div>
-          <Badge tone={TONE_BADGE[tone(order.status)]}>{statusLabel(order.status)}</Badge>
+          <div className="flex items-center gap-2">
+            {/* A zero-fee, already-COMPLETED order is a counter sale, not a broken delivery. */}
+            {order.isWalkIn && <Badge tone="neutral">Walk-in</Badge>}
+            <Badge tone={TONE_BADGE[tone(order.status)]}>{statusLabel(order.status)}</Badge>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-app p-3 text-sm">

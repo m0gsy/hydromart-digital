@@ -129,6 +129,7 @@ export const endpoints = {
     clear: '/orders/api/v1/cart',
   },
   orders: {
+    walkIn: '/orders/api/v1/orders/walk-in',
     checkout: '/orders/api/v1/orders/checkout',
     list: '/orders/api/v1/orders',
     get: (id: string) => `/orders/api/v1/orders/${id}`,
@@ -231,6 +232,7 @@ export const endpoints = {
     },
   },
   payments: {
+    initiateStaff: '/payments/api/v1/payments/staff',
     initiate: '/payments/api/v1/payments',
     forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
     // Staff: an order's payments (for settlement) — not customer-scoped.

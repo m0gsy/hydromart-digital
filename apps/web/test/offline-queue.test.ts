@@ -45,10 +45,10 @@ describe('offline queue', () => {
     const sent = await runOrQueue<{ id: string }>(punch);
 
     expect(sent).toEqual({ outcome: 'sent', result: { id: 'a1', status: 'PRESENT' } });
-    expect(post.mock.calls[0][1]).toMatchObject({ image: 'data:x', lat: -6.2 });
-    expect(typeof post.mock.calls[0][1].capturedAt).toBe('string');
+    expect(post.mock.calls[0]![1]).toMatchObject({ image: 'data:x', lat: -6.2 });
+    expect(typeof post.mock.calls[0]![1].capturedAt).toBe('string');
     // The wire payload carries no `mode` — that only chooses the endpoint.
-    expect(post.mock.calls[0][1]).not.toHaveProperty('mode');
+    expect(post.mock.calls[0]![1]).not.toHaveProperty('mode');
     expect(pending()).toHaveLength(0);
   });
 
@@ -58,7 +58,7 @@ describe('offline queue', () => {
 
     await expect(runOrQueue(punch)).resolves.toEqual({ outcome: 'queued' });
     expect(pending()).toHaveLength(1);
-    expect(pending()[0].kind).toBe('hrPunch');
+    expect(pending()[0]!.kind).toBe('hrPunch');
   });
 
   it('queues on 401 too, since the cookie may have lapsed while offline', async () => {
@@ -81,12 +81,12 @@ describe('offline queue', () => {
     const { runOrQueue, flush, pending } = await freshQueue();
     post.mockRejectedValueOnce(new ApiError(0, 'offline'));
     await runOrQueue(punch);
-    const queuedAt = pending()[0].capturedAt;
+    const queuedAt = pending()[0]!.capturedAt;
 
     post.mockResolvedValue({ id: 'a1' });
     await flush();
 
-    expect(post.mock.calls.at(-1)?.[1].capturedAt).toBe(queuedAt);
+    expect(post.mock.calls.at(-1)?.[1]?.capturedAt).toBe(queuedAt);
     expect(pending()).toHaveLength(0);
   });
 
@@ -98,7 +98,7 @@ describe('offline queue', () => {
     await flush();
 
     expect(pending()).toHaveLength(1);
-    expect(pending()[0].error).toBeUndefined();
+    expect(pending()[0]!.error).toBeUndefined();
   });
 
   it('marks a rejected job with the server message and never retries it', async () => {
@@ -108,7 +108,7 @@ describe('offline queue', () => {
 
     post.mockRejectedValue(new ApiError(400, 'Absen offline sudah terlalu lama.'));
     await flush();
-    expect(pending()[0].error).toBe('Absen offline sudah terlalu lama.');
+    expect(pending()[0]!.error).toBe('Absen offline sudah terlalu lama.');
 
     const callsAfterReject = post.mock.calls.length;
     await flush();
@@ -120,7 +120,7 @@ describe('offline queue', () => {
     post.mockRejectedValue(new ApiError(0, 'offline'));
     await runOrQueue(punch);
 
-    await discard(pending()[0].id);
+    await discard(pending()[0]!.id);
 
     expect(pending()).toHaveLength(0);
   });
@@ -143,7 +143,7 @@ describe('offline queue', () => {
     });
 
     expect(upload).toHaveBeenCalledTimes(1); // no signature drawn
-    expect(post.mock.calls[0][1]).toMatchObject({
+    expect(post.mock.calls[0]![1]).toMatchObject({
       photoUrl: 'https://cdn/p.jpg',
       signatureUrl: undefined,
       recipientName: 'Budi',
@@ -161,6 +161,6 @@ describe('offline queue', () => {
     const restored = await reloaded.hydrate();
 
     expect(restored).toHaveLength(1);
-    expect(restored[0].kind).toBe('hrPunch');
+    expect(restored[0]!.kind).toBe('hrPunch');
   });
 });

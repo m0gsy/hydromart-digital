@@ -17,6 +17,7 @@ export const ops = {
     operations: 'Operations',
     search: 'Search',
     orders: 'Order queue',
+    walkIn: 'Counter sale',
     tracking: 'Live tracking',
     inventory: 'Inventory',
     returns: 'Gallon returns',

@@ -15,6 +15,7 @@ const customer = { sub: 'cust-1', role: 'CUSTOMER' } as never;
 function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
+    walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -67,6 +68,42 @@ describe('OrderController', () => {
     });
     expect(payload.voucherCode).toBeNull();
     expect(payload.deliveryWindow).toBeNull();
+  });
+
+  it('walk-in: forwards the lines and nulls the optional buyer fields', async () => {
+    const staff = { sub: 'op-1', role: 'DEPOT_OPERATOR', depotId: 'd1' } as never;
+    const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 2 }] } as never;
+    await expect(controller.walkIn(staff, dto, 'Bearer t')).resolves.toEqual({
+      id: 'w1',
+      isWalkIn: true,
+    });
+    const [user, payload, authorization] = service.walkInSale.mock.calls[0];
+    expect(user).toBe(staff);
+    expect(authorization).toBe('Bearer t');
+    expect(payload).toEqual({
+      depotId: 'd1',
+      lines: [{ productId: 'p1', quantity: 2 }],
+      customerId: null,
+      customerName: null,
+      customerPhone: null,
+    });
+  });
+
+  it('walk-in: passes an identified buyer through', async () => {
+    const staff = { sub: 'op-1', role: 'DEPOT_OPERATOR', depotId: 'd1' } as never;
+    const dto = {
+      depotId: 'd1',
+      lines: [{ productId: 'p1', quantity: 1 }],
+      customerId: 'c9',
+      customerName: 'Budi',
+      customerPhone: '0812',
+    } as never;
+    await controller.walkIn(staff, dto, undefined);
+    expect(service.walkInSale.mock.calls.at(-1)?.[1]).toMatchObject({
+      customerId: 'c9',
+      customerName: 'Budi',
+      customerPhone: '0812',
+    });
   });
 
   it('checkout: preserves supplied voucher, window and optional address fields', async () => {

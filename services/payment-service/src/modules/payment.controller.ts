@@ -28,6 +28,7 @@ import {
   ListPaymentsQueryDto,
   PaymentWebhookDto,
   RefundPaymentDto,
+  StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
 
@@ -52,6 +53,16 @@ export class PaymentController {
     @Body() dto: InitiatePaymentDto,
   ): Promise<PaymentRecord> {
     return this.payments.initiate(user.sub, dto);
+  }
+
+  // Counter sale: the cashier records the payment for the buyer, so customerId comes from
+  // the body rather than the token. A sibling route, not a branch inside the customer one —
+  // the amount is still validated against the authoritative order total in the service.
+  @Post('staff')
+  @Roles(...CAPABILITIES.paymentSettle)
+  @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
+  initiateForCustomer(@Body() dto: StaffInitiatePaymentDto): Promise<PaymentRecord> {
+    return this.payments.initiate(dto.customerId, dto);
   }
 
   @Get()

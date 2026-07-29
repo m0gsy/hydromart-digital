@@ -44,6 +44,12 @@ describe('PaymentController', () => {
     expect(svc.initiate).toHaveBeenCalledWith('user-1', dto);
   });
 
+  it('staff initiate bills the buyer in the body, not the cashier holding the token', async () => {
+    const dto = { orderId: 'o1', method: 'CASH', amount: 45000, customerId: 'buyer-9' } as never;
+    expect(await controller.initiateForCustomer(dto)).toBe('RESULT');
+    expect(svc.initiate).toHaveBeenCalledWith('buyer-9', dto);
+  });
+
   it('list scopes to the current customer', async () => {
     const query = { page: 1 } as never;
     expect(await controller.list(user, query)).toBe('RESULT');

@@ -119,8 +119,6 @@ export const dashA = {
     title: 'Customers',
     searchPlaceholder: 'Search name or phone',
     searchAria: 'Search customers',
-    walkIn: 'Walk-in',
-    walkInSoon: 'Coming soon',
     scopePrefix: 'Customers for',
     scopeSuffix: '(from the switcher).',
     noDepotTitle: 'No depots yet',
