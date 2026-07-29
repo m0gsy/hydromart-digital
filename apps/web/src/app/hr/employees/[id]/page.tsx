@@ -5,6 +5,7 @@ import { use, useState } from 'react';
 
 import { FaceCapture } from '@/components/hr/face-capture';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
+import { EmployeeDocuments } from '@/components/hr/employee-documents';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, LinkButton, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -91,6 +92,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       </Card>
 
       <EmployeeAllowances employeeId={id} isAdmin={isAdmin} />
+      <EmployeeDocuments employeeId={id} isAdmin={isAdmin} />
 
       <EmployeeLoans employeeId={id} isAdmin={isAdmin} />
 

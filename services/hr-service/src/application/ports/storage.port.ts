@@ -20,4 +20,10 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /**
+   * Remove an object by key. Needed by the document retention purge: deleting the row alone
+   * would leave a KTP scan sitting in the bucket, which is not erasure in any sense UU 27/2022
+   * would accept. Must be idempotent — a key that is already gone is a success, not an error.
+   */
+  remove(key: string): Promise<void>;
 }

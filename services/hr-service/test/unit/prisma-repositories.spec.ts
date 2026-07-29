@@ -6,6 +6,7 @@ import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.pri
 import { DepartmentPrismaRepository } from '../../src/infrastructure/prisma/department.prisma.repository';
 import { AllowancePrismaRepository } from '../../src/infrastructure/prisma/allowance.prisma.repository';
 import { LeavePrismaRepository } from '../../src/infrastructure/prisma/leave.prisma.repository';
+import { DocumentPrismaRepository } from '../../src/infrastructure/prisma/document.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -52,6 +53,7 @@ const MODELS = [
   'allowance',
   'leaveRequest',
   'leaveBalance',
+  'employeeDocument',
   'bonus',
   'deduction',
   'employee',
@@ -295,6 +297,86 @@ describe('LeavePrismaRepository', () => {
     expect(m(p, 'leaveBalance').update).toHaveBeenCalledWith({
       where: key,
       data: { usedDays: { increment: 5 } },
+    });
+  });
+});
+
+// ── DocumentPrismaRepository ───────────────────────────────────────────
+describe('DocumentPrismaRepository', () => {
+  const write = {
+    employeeId: 'e1',
+    type: 'KTP' as const,
+    fileUrl: 'https://cdn/hr/documents/a.jpg',
+    fileKey: 'hr/documents/a.jpg',
+    mimeType: 'image/jpeg',
+    sizeBytes: 1234,
+    version: 1,
+    uploadedBy: 'hr-1',
+    expiresAt: null,
+  };
+
+  it('create / findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'employeeDocument').create.mockResolvedValue(out);
+    m(p, 'employeeDocument').findUnique.mockResolvedValue(out);
+    const repo = new DocumentPrismaRepository(asService(p));
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'employeeDocument').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.findById('doc1')).resolves.toBe(out);
+  });
+
+  it('lists an employee’s documents grouped by type, newest version first', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').findMany.mockResolvedValue([]);
+    await new DocumentPrismaRepository(asService(p)).listByEmployee('e1');
+    expect(m(p, 'employeeDocument').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: [{ type: 'asc' }, { version: 'desc' }],
+    });
+  });
+
+  it('findCurrent takes the newest row that has not been superseded', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').findFirst.mockResolvedValue(null);
+    await new DocumentPrismaRepository(asService(p)).findCurrent('e1', 'KTP');
+    expect(m(p, 'employeeDocument').findFirst).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', type: 'KTP', supersededById: null },
+      orderBy: { version: 'desc' },
+    });
+  });
+
+  it('markSuperseded points the old row at its replacement', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').update.mockResolvedValue({});
+    await new DocumentPrismaRepository(asService(p)).markSuperseded('old', 'new');
+    expect(m(p, 'employeeDocument').update).toHaveBeenCalledWith({
+      where: { id: 'old' },
+      data: { supersededById: 'new' },
+    });
+  });
+
+  it('listPurgeable selects only departed, dormant staff — and returns the storage keys', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-01-01');
+    m(p, 'employeeDocument').findMany.mockResolvedValue([]);
+    await new DocumentPrismaRepository(asService(p)).listPurgeable(cutoff);
+    expect(m(p, 'employeeDocument').findMany).toHaveBeenCalledWith({
+      where: {
+        employee: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+      },
+      select: { id: true, fileKey: true },
+    });
+  });
+
+  it('deleteMany reports how many rows went', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').deleteMany.mockResolvedValue({ count: 2 });
+    await expect(
+      new DocumentPrismaRepository(asService(p)).deleteMany(['a', 'b']),
+    ).resolves.toBe(2);
+    expect(m(p, 'employeeDocument').deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a', 'b'] } },
     });
   });
 });

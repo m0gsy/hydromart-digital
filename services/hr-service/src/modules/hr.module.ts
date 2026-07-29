@@ -76,6 +76,10 @@ import { LeaveService } from '../application/services/leave.service';
 import { LeavePrismaRepository } from '../infrastructure/prisma/leave.prisma.repository';
 import { HolidayController, ShiftController } from './calendar.controller';
 import { LeaveController, SelfLeaveController } from './leave.controller';
+import { DOCUMENT_REPOSITORY } from '../application/ports/document.repository';
+import { DocumentService } from '../application/services/document.service';
+import { DocumentPrismaRepository } from '../infrastructure/prisma/document.prisma.repository';
+import { DocumentController } from './document.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -127,6 +131,8 @@ const providers: Provider[] = [
   },
   FaceService,
   AttendanceService,
+  { provide: DOCUMENT_REPOSITORY, useClass: DocumentPrismaRepository },
+  DocumentService,
   { provide: PAYROLL_REPOSITORY, useClass: PayrollPrismaRepository },
   { provide: BONUS_REPOSITORY, useClass: BonusPrismaRepository },
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
@@ -186,6 +192,7 @@ const providers: Provider[] = [
     DepartmentController,
     SelfLeaveController,
     LeaveController,
+    DocumentController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

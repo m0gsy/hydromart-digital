@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Injectable } from '@nestjs/common';
 
 import { HrConfigService } from '../../config/hr-config.service';
@@ -40,5 +40,12 @@ export class S3StorageAdapter implements StoragePort {
       }),
     );
     return { url: `${this.config.storagePublicBaseUrl}/${key}`, key };
+  }
+
+  /** S3 DELETE is already idempotent — deleting a missing key returns 204. */
+  async remove(key: string): Promise<void> {
+    await this.client.send(
+      new DeleteObjectCommand({ Bucket: this.config.s3.bucket, Key: key }),
+    );
   }
 }

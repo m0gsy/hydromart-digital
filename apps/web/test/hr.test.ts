@@ -9,6 +9,9 @@ import {
   LEAVE_TYPE_LABEL,
   employeeToForm,
   leaveDeductsQuota,
+  DOCUMENT_TYPES,
+  DOCUMENT_TYPE_LABEL,
+  fmtFileSize,
   fmtDate,
   fmtTime,
   toEmployeePayload,
@@ -196,5 +199,17 @@ describe('leave (B1)', () => {
     for (const s of Object.keys(LEAVE_STATUS_LABEL)) {
       expect(LEAVE_STATUS_LABEL[s as keyof typeof LEAVE_STATUS_LABEL]).toBeTruthy();
     }
+  });
+});
+
+describe('employee documents (B2)', () => {
+  it('formats bytes the way an HR admin reads them', () => {
+    expect(fmtFileSize(512)).toBe('512 B');
+    expect(fmtFileSize(2048)).toBe('2 KB');
+    expect(fmtFileSize(3 * 1024 * 1024)).toBe('3.0 MB');
+  });
+
+  it('labels every document type the API can return', () => {
+    for (const t of DOCUMENT_TYPES) expect(DOCUMENT_TYPE_LABEL[t]).toBeTruthy();
   });
 });

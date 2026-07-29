@@ -51,6 +51,7 @@ const SEGMENT_ENV: Record<string, string> = {
   leave: 'HR_SERVICE_URL',
   'hr-shifts': 'HR_SERVICE_URL',
   departments: 'HR_SERVICE_URL',
+  'employee-documents': 'HR_SERVICE_URL',
 };
 
 @Injectable()

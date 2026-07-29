@@ -1212,6 +1212,9 @@ export const endpoints = {
     },
     leaveManagerDecision: (id: string) => `/leave/api/v1/leave/${id}/manager-decision`,
     leaveHrDecision: (id: string) => `/leave/api/v1/leave/${id}/hr-decision`,
+    employeeDocuments: (employeeId: string) =>
+      `/employee-documents/api/v1/employee-documents?employeeId=${encodeURIComponent(employeeId)}`,
+    uploadEmployeeDocument: '/employee-documents/api/v1/employee-documents',
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
