@@ -1292,6 +1292,12 @@ export const endpoints = {
     createAnnouncement: '/announcements/api/v1/announcements',
     announcementsMe: '/announcements/api/v1/announcements/me',
     readAnnouncement: (id: string) => `/announcements/api/v1/announcements/me/${id}/read`,
+    performanceDashboard: (periodMonth: string, depotId?: string) => {
+      const p = new URLSearchParams({ periodMonth });
+      if (depotId) p.set('depotId', depotId);
+      return `/performance/api/v1/performance/dashboard?${p}`;
+    },
+    generatePerformance: '/performance/api/v1/performance/generate',
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,

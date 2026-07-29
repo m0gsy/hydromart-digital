@@ -121,8 +121,13 @@ export interface PerformanceReview {
   employeeId: string;
   periodMonth: string;
   score: string;
+  /** Null = the component had nothing to measure that period, NOT a zero (C2). */
+  attendanceScore: string | null;
+  disciplineScore: string | null;
+  salesScore: string | null;
   metrics: Record<string, unknown>;
   note: string | null;
+  managerNote: string | null;
   createdAt: string;
 }
 
@@ -334,6 +339,36 @@ export interface AssetMovement {
 
 export interface AssetDetail extends EmployeeAsset {
   movements: AssetMovement[];
+}
+
+/** A component is null when the period held nothing to measure it against (C2). */
+export interface PerformanceScore {
+  attendance: number | null;
+  discipline: number | null;
+  sales: number | null;
+  final: number | null;
+  effectiveWeights: { attendance: number; discipline: number; sales: number };
+}
+
+export interface ScoredEmployee {
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  depotId: string;
+  position: string;
+  score: PerformanceScore;
+  inputs: {
+    presentDays: number;
+    lateDays: number;
+    workingDays: number;
+    salesTotal: number | null;
+    salesTarget: number;
+  };
+}
+
+/** "82,5" or "—". A null score is not a zero: nothing was measurable that period. */
+export function fmtScore(score: number | null): string {
+  return score === null ? '—' : score.toFixed(1).replace('.', ',');
 }
 
 export type AnnouncementLevel = 'INFO' | 'WARNING' | 'URGENT';

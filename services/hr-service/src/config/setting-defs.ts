@@ -149,6 +149,44 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 168,
     envDefault: 24,
   },
+  // Performance scoring (C2). The three weights need not add to 100 — the score renormalises
+  // them, and it renormalises again whenever a component cannot be measured at all.
+  {
+    key: 'perfWeightAttendance',
+    label: 'Bobot kehadiran',
+    type: 'int',
+    unit: 'bobot',
+    min: 0,
+    max: 100,
+    envDefault: 40,
+  },
+  {
+    key: 'perfWeightDiscipline',
+    label: 'Bobot kedisiplinan',
+    type: 'int',
+    unit: 'bobot',
+    min: 0,
+    max: 100,
+    envDefault: 30,
+  },
+  {
+    key: 'perfWeightSales',
+    label: 'Bobot penjualan',
+    type: 'int',
+    unit: 'bobot',
+    min: 0,
+    max: 100,
+    envDefault: 30,
+  },
+  {
+    key: 'perfSalesTargetMonthly',
+    label: 'Target penjualan depot per bulan',
+    type: 'money',
+    unit: 'Rp (0 = tanpa target)',
+    min: 0,
+    max: 100000000000,
+    envDefault: 0,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

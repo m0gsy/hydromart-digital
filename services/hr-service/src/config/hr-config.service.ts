@@ -121,6 +121,22 @@ export class HrConfigService {
       depotId,
     );
   }
+  /** Component weights for the performance score. They need not add to 100 (C2). */
+  performanceWeights(depotId: string | null = null): {
+    attendance: number;
+    discipline: number;
+    sales: number;
+  } {
+    return {
+      attendance: this.tunableNum('perfWeightAttendance', 40, depotId),
+      discipline: this.tunableNum('perfWeightDiscipline', 30, depotId),
+      sales: this.tunableNum('perfWeightSales', 30, depotId),
+    };
+  }
+  /** Monthly depot sales target the sales component scores against; 0 = no target set. */
+  performanceSalesTarget(depotId: string | null = null): number {
+    return this.tunableNum('perfSalesTargetMonthly', 0, depotId);
+  }
   /** Attendance geofence for a depot: centre (lat/lng, '' = unset) + radius (0 = disabled). */
   geofence(depotId: string | null = null): {
     lat: number | null;

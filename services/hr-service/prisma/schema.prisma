@@ -645,15 +645,26 @@ model Deduction {
 }
 
 model PerformanceReview {
-  id          String   @id @default(uuid()) @db.Uuid
-  employeeId  String   @db.Uuid
-  periodMonth String
-  score       Decimal  @db.Decimal(5, 2)
-  metrics     Json     @default("{}")
-  reviewerId  String?  @db.Uuid
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  employeeId       String   @db.Uuid
+  periodMonth      String
+  /// Final weighted score, 0–100.
+  score            Decimal  @db.Decimal(5, 2)
+  /// The three components behind it. NULL means "not measurable this period" (no scheduled
+  /// working days, nobody attended, no sales target) — deliberately not 0, which would read
+  /// as a failure the employee never had a chance to avoid. See domain/performance-score.ts.
+  attendanceScore  Decimal? @db.Decimal(5, 2)
+  disciplineScore  Decimal? @db.Decimal(5, 2)
+  salesScore       Decimal? @db.Decimal(5, 2)
+  /// The raw inputs and the effective weights, kept so an old review stays explainable
+  /// after the weights are retuned.
+  metrics          Json     @default("{}")
+  reviewerId       String?  @db.Uuid
+  note             String?
+  /// The manager's own words, kept apart from `note` so a recomputation never overwrites it.
+  managerNote      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 

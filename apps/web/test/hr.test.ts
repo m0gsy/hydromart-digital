@@ -23,6 +23,7 @@ import {
   ANNOUNCEMENT_LEVEL_LABEL,
   announcementReadRate,
   announcementTargetNeedsValue,
+  fmtScore,
   fmtFileSize,
   fmtDate,
   fmtTime,
@@ -277,5 +278,14 @@ describe('announcements (C1)', () => {
   it('labels every level and dimension the API can return', () => {
     for (const l of ANNOUNCEMENT_LEVELS) expect(ANNOUNCEMENT_LEVEL_LABEL[l]).toBeTruthy();
     for (const d of ANNOUNCEMENT_DIMENSIONS) expect(ANNOUNCEMENT_DIMENSION_LABEL[d]).toBeTruthy();
+  });
+});
+
+describe('performance score (C2)', () => {
+  it('shows an unmeasurable component as "—", never as zero', () => {
+    expect(fmtScore(null)).toBe('—');
+    expect(fmtScore(0)).toBe('0,0');
+    expect(fmtScore(82.456)).toBe('82,5');
+    expect(fmtScore(100)).toBe('100,0');
   });
 });
