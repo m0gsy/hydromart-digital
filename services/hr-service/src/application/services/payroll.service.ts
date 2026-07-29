@@ -33,6 +33,7 @@ import {
   DEDUCTION_REPOSITORY,
   DeductionRepository,
 } from '../ports/adjustment.repository';
+import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
 import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
@@ -56,6 +57,7 @@ export class PayrollService {
     @Optional() @Inject(BONUS_RULE_REPOSITORY) private readonly bonusRules?: BonusRuleRepository,
     @Optional() @Inject(LOAN_REPOSITORY) private readonly loans?: LoanRepository,
     @Optional() @Inject(SALES_PORT) private readonly sales?: SalesPort,
+    @Optional() @Inject(ALLOWANCE_REPOSITORY) private readonly allowances?: AllowanceRepository,
   ) {}
 
   /**
@@ -106,6 +108,21 @@ export class PayrollService {
           kind: 'BASE',
           label: `Kenaikan masa kerja (${years} th, +${pct}%)`,
           amount: Math.round((base * pct) / 100),
+        });
+      }
+    }
+
+    // ALLOWANCE lines — fixed recurring pay (transport, meal…), separate from BONUS on the
+    // payslip. Added before bonuses so a reader sees fixed pay first, but deliberately NOT
+    // part of `BonusContext.basePay` below: a percent-of-salary rule pays on basic pay only.
+    if (this.allowances) {
+      const rows = await this.allowances.listActiveForPeriod(employeeId, from, to);
+      for (const a of rows) {
+        items.push({
+          kind: 'ALLOWANCE',
+          label: a.note ?? `Tunjangan ${a.type}`,
+          amount: Number(a.amount),
+          sourceRef: a.id,
         });
       }
     }
@@ -221,7 +238,9 @@ export class PayrollService {
       }
     }
 
-    const gross = sum(items, 'BASE');
+    // Allowances are fixed pay, so they belong in gross next to BASE rather than in the
+    // variable bonus total. The payslip still separates them: every item carries its kind.
+    const gross = sum(items, 'BASE') + sum(items, 'ALLOWANCE');
     const totalBonus = sum(items, 'BONUS');
     const totalDeduction = sum(items, 'DEDUCTION');
     const write = {

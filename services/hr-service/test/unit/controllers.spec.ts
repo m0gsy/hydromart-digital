@@ -15,6 +15,7 @@ import { BonusController, DeductionController } from '../../src/modules/adjustme
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
 import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import { AllowanceController } from '../../src/modules/allowance.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -194,6 +195,17 @@ describe('HolidayController / ShiftController', () => {
     expect(holidays.create).toHaveBeenCalledWith(user, dto);
     hc.remove('h1', user);
     expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
+  });
+  it('allowances delegate', () => {
+    const allowances = svcMock(['list', 'add', 'deactivate']);
+    const ac = new AllowanceController(allowances as never);
+    ac.list({ employeeId: 'e1' } as never, user);
+    expect(allowances.list).toHaveBeenCalledWith(user, 'e1');
+    const dto = { employeeId: 'e1', type: 'TRANSPORT', amount: 1 } as never;
+    ac.create(dto, user);
+    expect(allowances.add).toHaveBeenCalledWith(user, dto);
+    ac.deactivate('a1', user);
+    expect(allowances.deactivate).toHaveBeenCalledWith(user, 'a1');
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

@@ -8,7 +8,8 @@ export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'LEAVE' | 'HOLIDA
 export type PayrollStatus = 'DRAFT' | 'APPROVED' | 'PAID';
 export type BonusType = 'ATTENDANCE' | 'PERFORMANCE' | 'SALES' | 'DEPOT' | 'MANUAL';
 export type DeductionType = 'LATE' | 'ABSENCE' | 'MANUAL' | 'CASH_ADVANCE' | 'OTHER';
-export type PayrollItemKind = 'BASE' | 'BONUS' | 'DEDUCTION' | 'ADJUSTMENT';
+export type PayrollItemKind = 'BASE' | 'BONUS' | 'DEDUCTION' | 'ADJUSTMENT' | 'ALLOWANCE';
+export type AllowanceType = 'TRANSPORT' | 'MEAL' | 'POSITION' | 'HOUSING' | 'OTHER';
 
 export interface HrPage<T> {
   rows: T[];
@@ -179,6 +180,19 @@ export interface Loan {
   createdAt: string;
 }
 
+/** Fixed recurring pay. Repeats every period until it lapses — unlike a one-period Bonus. */
+export interface Allowance {
+  id: string;
+  employeeId: string;
+  type: AllowanceType;
+  amount: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  active: boolean;
+  note: string | null;
+  createdAt: string;
+}
+
 /** Loan + computed outstanding balance (server-derived, as of a period). */
 export interface LoanView extends Loan {
   remaining: number;
@@ -249,6 +263,14 @@ export const PAYROLL_STATUS_LABEL: Record<PayrollStatus, string> = {
   DRAFT: 'Draft',
   APPROVED: 'Disetujui',
   PAID: 'Dibayar',
+};
+export const ALLOWANCE_TYPES: AllowanceType[] = ['TRANSPORT', 'MEAL', 'POSITION', 'HOUSING', 'OTHER'];
+export const ALLOWANCE_TYPE_LABEL: Record<AllowanceType, string> = {
+  TRANSPORT: 'Transport',
+  MEAL: 'Makan',
+  POSITION: 'Jabatan',
+  HOUSING: 'Perumahan',
+  OTHER: 'Lainnya',
 };
 export const BONUS_TYPES: BonusType[] = ['ATTENDANCE', 'PERFORMANCE', 'SALES', 'DEPOT', 'MANUAL'];
 export const DEDUCTION_TYPES: DeductionType[] = ['LATE', 'ABSENCE', 'MANUAL', 'CASH_ADVANCE', 'OTHER'];

@@ -1068,6 +1068,10 @@ export const endpoints = {
     updateBonusRule: (id: string) => `/bonus-rules/api/v1/bonus-rules/${id}`,
     loans: (employeeId: string, asOfPeriod?: string) =>
       `/loans/api/v1/loans?employeeId=${employeeId}${asOfPeriod ? `&asOfPeriod=${asOfPeriod}` : ''}`,
+    allowances: (employeeId: string) =>
+      `/allowances/api/v1/allowances?employeeId=${encodeURIComponent(employeeId)}`,
+    createAllowance: '/allowances/api/v1/allowances',
+    deactivateAllowance: (id: string) => `/allowances/api/v1/allowances/${id}/deactivate`,
     createLoan: '/loans/api/v1/loans',
     deactivateLoan: (id: string) => `/loans/api/v1/loans/${id}/deactivate`,
     enrollFace: (id: string) => `/employees/api/v1/employees/${id}/face/enroll`,

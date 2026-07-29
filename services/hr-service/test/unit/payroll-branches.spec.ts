@@ -29,7 +29,8 @@ jest.mock(
   { virtual: true },
 );
 
-import { BonusRule, Employee, Loan, Payroll } from '../../prisma/generated/client';
+import { Allowance, BonusRule, Employee, Loan, Payroll } from '../../prisma/generated/client';
+import { AllowanceRepository } from '../../src/application/ports/allowance.repository';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { PayrollService } from '../../src/application/services/payroll.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
@@ -87,12 +88,18 @@ function build(opts: {
   loans?: Partial<Loan>[];
   ladder?: string;
   sales?: number | null;
+  allowances?: Partial<Allowance>[];
+  workedMinutes?: { workDate: string; workingMinutes: number | null }[];
 }) {
   const repo = new FakePayrollRepo();
   const attendance = {
     summary: async (): Promise<AttendanceSummary> =>
       opts.summary ?? { presentDays: 20, lateDays: 0, leaveDays: 0 },
-    listWorkedMinutes: async () => [],
+    listWorkedMinutes: async () =>
+      (opts.workedMinutes ?? []).map((d) => ({
+        workDate: new Date(`${d.workDate}T00:00:00.000Z`),
+        workingMinutes: d.workingMinutes,
+      })),
   } as unknown as AttendanceRepository;
   const bonuses = { listByEmployeePeriod: async () => [] } as unknown as BonusRepository;
   const deductions = { listByEmployeePeriod: async () => [] } as unknown as DeductionRepository;
@@ -130,6 +137,11 @@ function build(opts: {
     opts.sales !== undefined
       ? ({ depotSales: async () => opts.sales } as unknown as SalesPort)
       : undefined;
+  const allowances = opts.allowances
+    ? ({
+        listActiveForPeriod: async () => opts.allowances as Allowance[],
+      } as unknown as AllowanceRepository)
+    : undefined;
   const svc = new PayrollService(
     repo,
     attendance,
@@ -141,6 +153,7 @@ function build(opts: {
     bonusRules,
     loans,
     sales,
+    allowances,
   );
   return { repo, svc };
 }
@@ -304,5 +317,98 @@ describe('PayrollService.load / slip / getById / list', () => {
     const { repo, svc } = build({ employee: {} });
     await svc.list({ periodMonth: '2026-07', page: 3, pageSize: 25 });
     expect(repo.lastListFilter).toMatchObject({ periodMonth: '2026-07', skip: 50, take: 25 });
+  });
+});
+
+describe('PayrollService allowances (A3)', () => {
+  const TRANSPORT = {
+    id: 'al-1',
+    type: 'TRANSPORT',
+    amount: 300_000 as never,
+    note: null,
+  } as Partial<Allowance>;
+
+  it('pays an allowance as its own line and counts it into gross, not into bonus', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      allowances: [TRANSPORT],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    const w = repo.lastWrite!;
+    const line = w.items.find((i) => i.kind === 'ALLOWANCE');
+    expect(line).toMatchObject({ label: 'Tunjangan TRANSPORT', amount: 300_000, sourceRef: 'al-1' });
+    expect(w.gross).toBe(4_300_000);
+    expect(w.totalBonus).toBe(0);
+    expect(w.net).toBe(4_300_000);
+  });
+
+  it('labels the line with the note when there is one', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      allowances: [{ ...TRANSPORT, note: 'Tunjangan rute jauh' }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.items.find((i) => i.kind === 'ALLOWANCE')!.label).toBe(
+      'Tunjangan rute jauh',
+    );
+  });
+
+  it('leaves a percent-of-salary bonus rule on basic pay only', async () => {
+    // Rule: 10% of base pay when present days ≥ 1. With a 300k allowance in play the bonus
+    // must stay 400k (10% of 4,000,000), not 430k.
+    const rule = {
+      id: 'r1',
+      name: 'Bonus kehadiran',
+      metric: 'PRESENT_DAYS',
+      op: 'GTE',
+      threshold: 1 as never,
+      rewardKind: 'PERCENT',
+      rewardValue: 10 as never,
+    };
+    const withAllowance = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      rules: [rule],
+      allowances: [TRANSPORT],
+    });
+    await withAllowance.svc.generate(user, 'e1', '2026-07');
+    const bonusWith = withAllowance.repo.lastWrite!.totalBonus;
+
+    const without = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+      rules: [rule],
+    });
+    await without.svc.generate(user, 'e1', '2026-07');
+
+    expect(bonusWith).toBe(400_000);
+    expect(bonusWith).toBe(without.repo.lastWrite!.totalBonus);
+  });
+
+  it('pays identical overtime to two people on the same basic pay, allowance or not', async () => {
+    const worked = [{ workDate: '2026-07-06', workingMinutes: 600 }];
+    const paid = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      workedMinutes: worked,
+      allowances: [TRANSPORT],
+    });
+    await paid.svc.generate(user, 'e1', '2026-07');
+    const plain = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_464_000 as never },
+      workedMinutes: worked,
+    });
+    await plain.svc.generate(user, 'e1', '2026-07');
+
+    const overtime = (w: typeof paid.repo.lastWrite) =>
+      w!.items.find((i) => i.label.startsWith('Lembur'))!.amount;
+    expect(overtime(paid.repo.lastWrite)).toBe(54_000);
+    expect(overtime(paid.repo.lastWrite)).toBe(overtime(plain.repo.lastWrite));
+  });
+
+  it('adds nothing when the employee has no allowance repository wired', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'MONTHLY', monthlyRate: 4_000_000 as never },
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.items.some((i) => i.kind === 'ALLOWANCE')).toBe(false);
+    expect(repo.lastWrite!.gross).toBe(4_000_000);
   });
 });

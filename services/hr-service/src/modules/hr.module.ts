@@ -60,7 +60,11 @@ import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
+import { ALLOWANCE_REPOSITORY } from '../application/ports/allowance.repository';
+import { AllowanceService } from '../application/services/allowance.service';
+import { AllowancePrismaRepository } from '../infrastructure/prisma/allowance.prisma.repository';
 import { HolidayController, ShiftController } from './calendar.controller';
+import { AllowanceController } from './allowance.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -115,8 +119,10 @@ const providers: Provider[] = [
   { provide: PAYROLL_REPOSITORY, useClass: PayrollPrismaRepository },
   { provide: BONUS_REPOSITORY, useClass: BonusPrismaRepository },
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
+  { provide: ALLOWANCE_REPOSITORY, useClass: AllowancePrismaRepository },
   PayrollService,
   AdjustmentService,
+  AllowanceService,
   { provide: BONUS_RULE_REPOSITORY, useClass: BonusRulePrismaRepository },
   { provide: LOAN_REPOSITORY, useClass: LoanPrismaRepository },
   BonusRuleService,
@@ -151,6 +157,7 @@ const providers: Provider[] = [
     PayrollController,
     BonusController,
     DeductionController,
+    AllowanceController,
     BonusRuleController,
     LoanController,
     PerformanceController,
