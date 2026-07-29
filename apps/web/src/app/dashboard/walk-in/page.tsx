@@ -210,6 +210,9 @@ function WalkIn({ depotId }: { depotId: string }) {
 export default function WalkInPage() {
   const { customer } = useAuth();
   const { scopedId, ready } = useDepot();
+  // A depot-locked operator sells for their OWN depot — the switcher falls back to the first
+  // depot in the network, and the server would rightly reject a sale booked against it.
+  const depotId = customer?.assignedDepotId ?? scopedId;
 
   return (
     <RequireAuth>
@@ -219,12 +222,12 @@ export default function WalkInPage() {
         </CenterState>
       ) : !ready ? (
         <Skeleton className="h-64" />
-      ) : !scopedId ? (
+      ) : !depotId ? (
         <CenterState icon={<MoneyIcon size={32} />} title="Belum ada depot">
           Pilih depot dulu dari pemilih depot.
         </CenterState>
       ) : (
-        <WalkIn depotId={scopedId} />
+        <WalkIn depotId={depotId} />
       )}
     </RequireAuth>
   );

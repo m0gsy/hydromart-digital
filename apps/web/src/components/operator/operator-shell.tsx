@@ -28,6 +28,9 @@ type Tab = { label: string; href: string; match: (p: string) => boolean };
 const primaryTabs: Tab[] = [
   { label: 'Ringkasan', href: '/dashboard', match: (p) => p === '/dashboard' },
   { label: 'Antrean', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders') },
+  // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
+  // manager's left rail (which this role never sees).
+  { label: 'Penjualan', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
   { label: 'Kurir', href: '/dashboard/tracking', match: (p) => p.startsWith('/dashboard/tracking') },
   { label: 'Inventory', href: '/dashboard/inventory', match: (p) => p.startsWith('/dashboard/inventory') },
   { label: 'Retur', href: '/dashboard/returns', match: (p) => p.startsWith('/dashboard/returns') },
