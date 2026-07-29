@@ -43,6 +43,7 @@ const SEGMENT_ENV: Record<string, string> = {
   payroll: 'HR_SERVICE_URL',
   bonuses: 'HR_SERVICE_URL',
   deductions: 'HR_SERVICE_URL',
+  allowances: 'HR_SERVICE_URL',
   performance: 'HR_SERVICE_URL',
   'hr-reports': 'HR_SERVICE_URL',
   'hr-audit': 'HR_SERVICE_URL',

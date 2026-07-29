@@ -36,6 +36,7 @@ const ITEMS: NavItem[] = [
   { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },
   { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },
+  { href: '/hr/allowances', label: 'Tunjangan', icon: CurrencyCircleDollar },
   { href: '/hr/rules', label: 'Rule Bonus', icon: Sparkle, adminOnly: true },
   { href: '/hr/performance', label: 'Kinerja', icon: Star },
   { href: '/hr/calendar', label: 'Kalender Kerja', icon: CalendarCheck },

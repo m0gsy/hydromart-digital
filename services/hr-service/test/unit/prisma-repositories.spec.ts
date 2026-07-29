@@ -4,6 +4,7 @@ import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DepartmentPrismaRepository } from '../../src/infrastructure/prisma/department.prisma.repository';
+import { AllowancePrismaRepository } from '../../src/infrastructure/prisma/allowance.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -47,6 +48,7 @@ function model(): ModelMock {
 const MODELS = [
   'shift',
   'department',
+  'allowance',
   'bonus',
   'deduction',
   'employee',
@@ -131,6 +133,65 @@ describe('DepartmentPrismaRepository', () => {
     expect(m(p, 'department').findMany).toHaveBeenLastCalledWith({
       where: {},
       orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
+    });
+  });
+});
+
+// ── AllowancePrismaRepository ──────────────────────────────────────────
+describe('AllowancePrismaRepository', () => {
+  const write = {
+    employeeId: 'e1',
+    type: 'TRANSPORT' as const,
+    amount: 300_000,
+    effectiveFrom: new Date('2026-08-01'),
+    effectiveTo: null,
+    active: true,
+    note: null,
+    createdBy: 'hr-1',
+  };
+
+  it('create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'allowance').create.mockResolvedValue(out);
+    m(p, 'allowance').update.mockResolvedValue(out);
+    m(p, 'allowance').findUnique.mockResolvedValue(out);
+    const repo = new AllowancePrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'allowance').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('a1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'allowance').update).toHaveBeenCalledWith({
+      where: { id: 'a1' },
+      data: { active: false },
+    });
+    await expect(repo.findById('a1')).resolves.toBe(out);
+  });
+
+  it('listByEmployee puts the active rows first', async () => {
+    const p = makePrisma();
+    m(p, 'allowance').findMany.mockResolvedValue([]);
+    await new AllowancePrismaRepository(asService(p)).listByEmployee('e1');
+    expect(m(p, 'allowance').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: [{ active: 'desc' }, { effectiveFrom: 'desc' }],
+    });
+  });
+
+  it('listActiveForPeriod takes rows that overlap the period and are still open', async () => {
+    const p = makePrisma();
+    const from = new Date('2026-07-01');
+    const to = new Date('2026-07-31');
+    m(p, 'allowance').findMany.mockResolvedValue([]);
+    await new AllowancePrismaRepository(asService(p)).listActiveForPeriod('e1', from, to);
+    expect(m(p, 'allowance').findMany).toHaveBeenCalledWith({
+      where: {
+        employeeId: 'e1',
+        active: true,
+        effectiveFrom: { lte: to },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+      },
+      orderBy: { effectiveFrom: 'asc' },
     });
   });
 });

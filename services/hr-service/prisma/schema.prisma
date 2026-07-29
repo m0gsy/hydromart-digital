@@ -56,12 +56,26 @@ enum PayrollStatus {
   PAID
 }
 
-/// A signed line on a payslip. BASE/BONUS/ADJUSTMENT add; DEDUCTION subtracts.
+/// A signed line on a payslip. BASE/ALLOWANCE/BONUS/ADJUSTMENT add; DEDUCTION subtracts.
+/// ALLOWANCE counts into `gross` with BASE (it is fixed recurring pay), while BONUS is
+/// variable and totalled separately.
 enum PayrollItemKind {
   BASE
   BONUS
   DEDUCTION
   ADJUSTMENT
+  ALLOWANCE
+}
+
+/// A recurring fixed addition to pay (transport, meal, position). Unlike a Bonus — one row
+/// for one period — an allowance repeats every month until effectiveTo passes or it is
+/// deactivated.
+enum AllowanceType {
+  TRANSPORT
+  MEAL
+  POSITION
+  HOUSING
+  OTHER
 }
 
 /// Company property handed to staff. Not consumables — anything tracked here is expected back.
@@ -157,6 +171,7 @@ model Employee {
   faceEmbeddings   FaceEmbedding[]
   attendance       Attendance[]
   bonuses          Bonus[]
+  allowances       Allowance[]
   deductions       Deduction[]
   reviews          PerformanceReview[]
   payrolls         Payroll[]
@@ -332,6 +347,29 @@ model Department {
 
   @@index([depotId])
   @@map("departments")
+}
+
+/// A recurring pay component. Deliberately NOT part of the overtime base — `domain/overtime.ts`
+/// divides basic pay only, so two people on the same basic pay earn identical overtime whether
+/// or not one of them draws an allowance.
+model Allowance {
+  id            String        @id @default(uuid()) @db.Uuid
+  employeeId    String        @db.Uuid
+  type          AllowanceType
+  amount        Decimal       @db.Decimal(12, 2)
+  effectiveFrom DateTime      @db.Date
+  /// Null = open-ended (until deactivated).
+  effectiveTo   DateTime?     @db.Date
+  active        Boolean       @default(true)
+  note          String?
+  createdBy     String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("allowances")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.

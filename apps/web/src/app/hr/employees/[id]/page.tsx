@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { use, useState } from 'react';
 
 import { FaceCapture } from '@/components/hr/face-capture';
+import { EmployeeAllowances } from '@/components/hr/employee-allowances';
 import { EmployeeLoans } from '@/components/hr/employee-loans';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, LinkButton, Money, SectionHeader, Skeleton } from '@/components/ui';
@@ -88,6 +89,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         <Row label="BPJS Kesehatan" value={e.bpjsKes ?? '—'} />
         <Row label="BPJS Ketenagakerjaan" value={e.bpjsTk ?? '—'} />
       </Card>
+
+      <EmployeeAllowances employeeId={id} isAdmin={isAdmin} />
 
       <EmployeeLoans employeeId={id} isAdmin={isAdmin} />
 
