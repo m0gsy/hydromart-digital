@@ -123,7 +123,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml restart
 The `scheduler` sidecar comes up with the stack and drives the internal sweeps
 that nothing else calls: hourly it places due subscription orders
 (`subscriptions/process-due`), daily at 08:00 it sends refill reminders
-(`orders/reminders/reorder`). Times are UTC — set `SCHEDULER_TZ=Asia/Jakarta`
+(`orders/reminders/reorder`), daily at 03:30 it enforces retention
+(`retention/internal/purge`), and every 15 minutes it releases HR announcements
+whose schedule has come due (`announcements/publish-due`). Without the sidecar a
+scheduled announcement simply never sends — there is no timer inside hr-service.
+Times are UTC — set `SCHEDULER_TZ=Asia/Jakarta`
 in `.env` to shift. Watch it with `docker compose logs -f scheduler`; disable
 with `... up -d --scale scheduler=0`.
 
