@@ -9,6 +9,8 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYMENT_STATUS_LABEL,
+  departmentsForDepot,
+  type Department,
   type Employee,
   type EmployeeForm as Form,
   type EmploymentStatus,
@@ -44,6 +46,15 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 100 }),
     [form.depotId],
   );
+
+  const departments = useAsync<Department[]>(
+    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    [],
+  );
+  // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
+  const deptOptions = form.depotId
+    ? departmentsForDepot(departments.data ?? [], form.depotId)
+    : [];
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -112,6 +123,12 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           <select value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)} disabled={!form.depotId} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50">
             <option value="">{form.depotId ? 'Tanpa atasan' : 'Pilih depot dulu…'}</option>
             {supervisors.data?.rows.filter((s) => s.id !== id).map((s) => <option key={s.id} value={s.id}>{s.fullName} — {s.position}</option>)}
+          </select>
+        </Field>
+        <Field label="Departemen (opsional)">
+          <select value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)} disabled={!form.depotId} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50">
+            <option value="">{form.depotId ? 'Belum diatur' : 'Pilih depot dulu…'}</option>
+            {deptOptions.map((d) => <option key={d.id} value={d.id}>{d.code} — {d.name}</option>)}
           </select>
         </Field>
         <Field label="NPWP (opsional)"><Input value={form.npwp} onChange={(e) => set('npwp', e.target.value)} /></Field>

@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import {
   AuthenticatedUser,
   ImportSummary,
@@ -8,6 +14,7 @@ import {
 } from '@hydromart/platform';
 
 import { Employee, EmploymentHistory, Prisma, SalaryType } from '../../../prisma/generated/client';
+import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 
@@ -41,6 +48,7 @@ export interface CreateEmployeeInput {
   photoUrl?: string;
   supervisorId?: string;
   shiftId?: string;
+  departmentId?: string;
   npwp?: string;
   bpjsKes?: string;
   bpjsTk?: string;
@@ -60,6 +68,9 @@ export class EmployeeService {
   constructor(
     @Inject(EMPLOYEE_REPOSITORY) private readonly repo: EmployeeRepository,
     @Inject(IDENTITY_PORT) private readonly identity: IdentityPort,
+    @Optional()
+    @Inject(DEPARTMENT_REPOSITORY)
+    private readonly departments?: DepartmentRepository,
   ) {}
 
   /**
@@ -91,6 +102,7 @@ export class EmployeeService {
     query: {
       depotId?: string;
       status?: Employee['status'];
+      departmentId?: string;
       search?: string;
       page: number;
       pageSize: number;
@@ -101,6 +113,7 @@ export class EmployeeService {
     const { rows, total } = await this.repo.list({
       depotId,
       status: query.status,
+      departmentId: query.departmentId,
       search: query.search,
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
@@ -136,6 +149,7 @@ export class EmployeeService {
     // A depot-locked creator may only add staff to their own depot.
     assertDepotAccess(user, input.depotId);
     this.assertSalaryShape(input.salaryType, input.dailyRate, input.monthlyRate);
+    await this.assertDepartmentFits(input.departmentId, input.depotId);
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
       fullName: input.fullName,
@@ -156,6 +170,7 @@ export class EmployeeService {
       photoUrl: input.photoUrl ?? null,
       supervisorId: input.supervisorId ?? null,
       shiftId: input.shiftId ?? null,
+      departmentId: input.departmentId ?? null,
       npwp: input.npwp ?? null,
       bpjsKes: input.bpjsKes ?? null,
       bpjsTk: input.bpjsTk ?? null,
@@ -229,6 +244,12 @@ export class EmployeeService {
     if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
       this.assertSalaryShape(salaryType, dailyRate, monthlyRate);
     }
+    // Re-check on a depot move too: the employee's current department may belong to the depot
+    // they are leaving.
+    await this.assertDepartmentFits(
+      input.departmentId ?? (input.depotId ? (current.departmentId ?? undefined) : undefined),
+      input.depotId ?? current.depotId,
+    );
 
     const data: Prisma.EmployeeUpdateInput = { updatedBy: user.sub };
     for (const key of [
@@ -246,6 +267,7 @@ export class EmployeeService {
       'photoUrl',
       'supervisorId',
       'shiftId',
+      'departmentId',
       'npwp',
       'bpjsKes',
       'bpjsTk',
@@ -262,6 +284,20 @@ export class EmployeeService {
 
     const history = this.diffHistory(current, data, user.sub);
     return this.repo.update(id, data, history);
+  }
+
+  /**
+   * An employee always has a depot; a department may be depot-owned or network-wide. So a
+   * depot-owned department only accepts staff of that same depot — otherwise a JKT clerk could
+   * land in "Gudang SBY" and every depot-scoped report would count them twice.
+   */
+  private async assertDepartmentFits(departmentId: string | undefined, depotId: string) {
+    if (!departmentId || !this.departments) return;
+    const department = await this.departments.findById(departmentId);
+    if (!department) throw new BadRequestException('Departemen tidak ditemukan');
+    if (department.depotId && department.depotId !== depotId) {
+      throw new BadRequestException(`Departemen ${department.code} milik depot lain`);
+    }
   }
 
   /** DAILY needs a dailyRate (no monthlyRate); MONTHLY the reverse. */

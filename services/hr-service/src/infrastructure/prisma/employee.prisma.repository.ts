@@ -71,6 +71,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     const where: Prisma.EmployeeWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
       ...(filter.search
         ? {
             OR: [

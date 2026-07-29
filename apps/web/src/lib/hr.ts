@@ -38,6 +38,7 @@ export interface Employee {
   emergencyPhone: string | null;
   supervisorId: string | null;
   shiftId: string | null;
+  departmentId: string | null;
   npwp: string | null;
   bpjsKes: string | null;
   bpjsTk: string | null;
@@ -148,6 +149,26 @@ export interface Shift {
   startTime: string;
   endTime: string;
   active: boolean;
+}
+
+/** Org unit. depotId null = network-wide (Keuangan, HR); otherwise it belongs to one depot. */
+export interface Department {
+  id: string;
+  code: string;
+  name: string;
+  depotId: string | null;
+  active: boolean;
+}
+
+/** A depot's staff may sit in its own department or in a network-wide one — never another depot's. */
+export function departmentsForDepot(list: Department[], depotId: string): Department[] {
+  return list.filter((d) => d.active && (d.depotId === null || d.depotId === depotId));
+}
+
+export function departmentLabel(list: Department[], id: string | null | undefined): string {
+  if (!id) return 'Belum diatur';
+  const found = list.find((d) => d.id === id);
+  return found ? `${found.code} · ${found.name}` : 'Belum diatur';
 }
 
 export type BonusMetric = 'ATTENDANCE_RATE' | 'PRESENT_DAYS' | 'ZERO_LATE' | 'IS_DEPOT_MANAGER' | 'SALES_TOTAL';
@@ -303,6 +324,7 @@ export interface EmployeeForm {
   emergencyName: string;
   emergencyPhone: string;
   supervisorId: string;
+  departmentId: string;
   npwp: string;
   bpjsKes: string;
   bpjsTk: string;
@@ -312,7 +334,7 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   fullName: '', phone: '', email: '', depotId: '', position: '',
   employmentStatus: 'TRAINING', joinDate: '', salaryType: 'DAILY',
   dailyRate: '', monthlyRate: '', bankName: '', bankAccount: '', emergencyName: '', emergencyPhone: '',
-  supervisorId: '', npwp: '', bpjsKes: '', bpjsTk: '',
+  supervisorId: '', departmentId: '', npwp: '', bpjsKes: '', bpjsTk: '',
 };
 
 export function employeeToForm(e: Employee): EmployeeForm {
@@ -322,7 +344,8 @@ export function employeeToForm(e: Employee): EmployeeForm {
     dailyRate: e.dailyRate ?? '', monthlyRate: e.monthlyRate ?? '',
     bankName: e.bankName ?? '', bankAccount: e.bankAccount ?? '',
     emergencyName: e.emergencyName ?? '', emergencyPhone: e.emergencyPhone ?? '',
-    supervisorId: e.supervisorId ?? '', npwp: e.npwp ?? '', bpjsKes: e.bpjsKes ?? '', bpjsTk: e.bpjsTk ?? '',
+    supervisorId: e.supervisorId ?? '', departmentId: e.departmentId ?? '',
+    npwp: e.npwp ?? '', bpjsKes: e.bpjsKes ?? '', bpjsTk: e.bpjsTk ?? '',
   };
 }
 
@@ -348,6 +371,7 @@ export function toEmployeePayload(f: EmployeeForm): { ok: true; value: Record<st
   if (f.emergencyName.trim()) value.emergencyName = f.emergencyName.trim();
   if (f.emergencyPhone.trim()) value.emergencyPhone = f.emergencyPhone.trim();
   if (f.supervisorId.trim()) value.supervisorId = f.supervisorId.trim();
+  if (f.departmentId.trim()) value.departmentId = f.departmentId.trim();
   if (f.npwp.trim()) value.npwp = f.npwp.trim();
   if (f.bpjsKes.trim()) value.bpjsKes = f.bpjsKes.trim();
   if (f.bpjsTk.trim()) value.bpjsTk = f.bpjsTk.trim();
