@@ -19,6 +19,7 @@ import {
 } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { Sheet } from '@/components/overlay';
 import { Button, Card, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -32,6 +33,7 @@ import type {
   MyVoucher,
   Page,
   PointsTransaction,
+  Depot,
   RedemptionListItem,
   RedemptionStatus,
   ReferralSummary,
@@ -230,13 +232,17 @@ function RedeemCatalog({
   const { toast } = useToast();
   const { data, error, loading, reload } = useAsync<RewardItem[]>(() => api.get(endpoints.rewards.catalog));
   const [pending, setPending] = useState<string | null>(null);
+  // Which depot the customer will collect from is asked here rather than guessed later:
+  // the staff queue is only scopable if the customer actually said where they will turn up.
+  const [choosing, setChoosing] = useState<RewardItem | null>(null);
+  const depots = useAsync<Page<Depot>>(() => api.get(endpoints.depots.browse({ limit: 50 })));
 
-  async function redeem(item: RewardItem) {
+  async function redeem(item: RewardItem, depotId: string) {
     setPending(item.id);
     try {
       const result = await api.post<RewardRedemption>(
         endpoints.rewards.redeem,
-        { rewardItemId: item.id, idempotencyKey: crypto.randomUUID() },
+        { rewardItemId: item.id, idempotencyKey: crypto.randomUUID(), depotId },
         true,
       );
       onRedeemed(result.pointsBalance);
@@ -245,6 +251,7 @@ function RedeemCatalog({
       toast(err instanceof ApiError ? err.message : t('profile.rewards.catalog.redeemError'), 'error');
     } finally {
       setPending(null);
+      setChoosing(null);
     }
   }
 
@@ -293,7 +300,7 @@ function RedeemCatalog({
                         {t('profile.rewards.catalog.soldOut')}
                       </span>
                     ) : affordable ? (
-                      <Button className="rounded-full px-4 py-2 text-xs" loading={pending === item.id} onClick={() => redeem(item)}>
+                      <Button className="rounded-full px-4 py-2 text-xs" loading={pending === item.id} onClick={() => setChoosing(item)}>
                         {t('profile.rewards.catalog.redeem')}
                       </Button>
                     ) : (
@@ -308,6 +315,35 @@ function RedeemCatalog({
           })}
         </div>
       )}
+
+      <Sheet
+        open={choosing !== null}
+        onClose={() => setChoosing(null)}
+        title={t('profile.rewards.catalog.pickDepotTitle')}
+      >
+        <p className="mb-3 text-sm text-muted">{t('profile.rewards.catalog.pickDepotBody')}</p>
+        {depots.loading ? (
+          <Skeleton className="h-24 w-full rounded-xl" />
+        ) : depots.error ? (
+          <ErrorState message={depots.error} onRetry={depots.reload} />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {(depots.data?.items ?? []).map((depot) => (
+              <li key={depot.id}>
+                <button
+                  type="button"
+                  disabled={pending !== null}
+                  onClick={() => choosing && redeem(choosing, depot.id)}
+                  className="w-full rounded-[14px] border border-app px-4 py-3 text-left transition-colors hover:border-brand-600 disabled:opacity-60"
+                >
+                  <span className="block text-sm font-bold">{depot.name}</span>
+                  <span className="block text-xs text-muted">{depot.city}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Sheet>
     </section>
   );
 }

@@ -292,6 +292,7 @@ describe('RewardPrismaRepository', () => {
     customerId: 'cust-1',
     pointsSpent: 500,
     status: 'ACTIVE',
+    depotId: 'depot-1',
     usedAt: null,
     cancelledAt: null,
     createdAt: new Date('2026-01-02'),
@@ -359,6 +360,7 @@ describe('RewardPrismaRepository', () => {
       customerId: 'cust-1',
       rewardItemId: 'ri-1',
       idempotencyKey: 'idem-1',
+      depotId: 'depot-1',
       pointsSpent: 500,
       newBalance: 700,
       reason: 'Redeemed Free Galon',
@@ -372,6 +374,7 @@ describe('RewardPrismaRepository', () => {
         customerId: 'cust-1',
         pointsSpent: 500,
         idempotencyKey: 'idem-1',
+      depotId: 'depot-1',
       },
     });
     // Negative ledger entry, lifetime/tier untouched (spend never promotes).
@@ -403,6 +406,7 @@ describe('RewardPrismaRepository', () => {
       customerId: 'cust-1',
       rewardItemId: 'ri-1',
       idempotencyKey: 'idem-2',
+      depotId: 'depot-1',
       pointsSpent: 500,
       newBalance: 700,
       reason: 'Redeemed Free Galon',

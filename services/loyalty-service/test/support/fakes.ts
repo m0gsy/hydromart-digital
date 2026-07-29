@@ -242,6 +242,7 @@ export class InMemoryRewardRepository implements RewardRepository {
       customerId: m.customerId,
       pointsSpent: m.pointsSpent,
       idempotencyKey: m.idempotencyKey,
+      depotId: m.depotId,
       status: 'ACTIVE',
       usedAt: null,
       cancelledAt: null,
@@ -283,9 +284,13 @@ export class InMemoryRewardRepository implements RewardRepository {
       .map((r) => this.toView(r));
   }
 
-  async listRedemptionsByStatus(status: RedemptionStatus): Promise<RewardRedemptionView[]> {
+  async listRedemptionsByStatus(
+    status: RedemptionStatus,
+    depotId?: string,
+  ): Promise<RewardRedemptionView[]> {
     return this.redemptions
-      .filter((r) => r.status === status)
+      // Mirrors the Prisma filter: a depot's own rows plus the legacy depot-less ones.
+      .filter((r) => r.status === status && (!depotId || r.depotId === depotId || r.depotId === null))
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .map((r) => this.toView(r));
   }

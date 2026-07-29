@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
@@ -78,7 +78,12 @@ export class RewardController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: RedeemRewardDto,
   ): Promise<RedeemResultDto> {
-    const result = await this.rewards.redeem(user.sub, dto.rewardItemId, dto.idempotencyKey);
+    const result = await this.rewards.redeem(
+      user.sub,
+      dto.rewardItemId,
+      dto.idempotencyKey,
+      dto.depotId,
+    );
     return RedeemResultDto.from(result);
   }
 
@@ -99,9 +104,11 @@ export class RewardController {
   @Get('redemptions/active')
   @ApiOperation({
     summary: 'Redemptions still waiting to be handed over, oldest first (M14-03)',
+    description:
+      'With ?depotId= the queue is that depot plus legacy rows that recorded no depot; without it, the whole network (head office).',
   })
-  async activeRedemptions(): Promise<RedemptionListItemDto[]> {
-    const rows = await this.rewards.listAwaitingHandover();
+  async activeRedemptions(@Query('depotId') depotId?: string): Promise<RedemptionListItemDto[]> {
+    const rows = await this.rewards.listAwaitingHandover(depotId || undefined);
     return rows.map((r) => RedemptionListItemDto.fromView(r));
   }
 

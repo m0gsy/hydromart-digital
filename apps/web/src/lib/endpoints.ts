@@ -450,7 +450,9 @@ export const endpoints = {
     redeem: '/loyalty/api/v1/rewards/redeem',
     // M14-03 lifecycle: the customer's own list + cancel, and the staff hand-over queue.
     myRedemptions: '/loyalty/api/v1/rewards/redemptions/me',
-    activeRedemptions: '/loyalty/api/v1/rewards/redemptions/active',
+    // Depot-scoped hand-over queue; omit the id (head office) for the whole network.
+    activeRedemptions: (depotId?: string) =>
+      `/loyalty/api/v1/rewards/redemptions/active${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     cancelRedemption: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/cancel`,
     markRedemptionUsed: (id: string) => `/loyalty/api/v1/rewards/redemptions/${id}/used`,
   },

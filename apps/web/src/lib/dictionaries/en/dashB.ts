@@ -57,6 +57,7 @@ export const dashB = {
     gateBody: 'Loyalty & points is for depot managers only.',
   },
   redemptions: {
+    anyDepot: 'Any depot',
     title: 'Reward hand-over',
     subtitle: 'Rewards already paid for with points, waiting to be collected.',
     empty: 'No rewards waiting to be collected.',

@@ -17,6 +17,8 @@ import {
 } from '../support/fakes';
 
 const CUSTOMER = '11111111-1111-1111-1111-111111111111';
+const DEPOT = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
+const OTHER_DEPOT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
 
 describe('RewardService', () => {
   let loyaltyRepo: InMemoryLoyaltyRepository;
@@ -53,8 +55,8 @@ describe('RewardService', () => {
   it("lists the caller's own redemptions with the reward label, newest first", async () => {
     await seedBalance(3000);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
-    await service.redeem(CUSTOMER, 'gal', 'key-1');
-    await service.redeem(CUSTOMER, 'gal', 'key-2');
+    await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    await service.redeem(CUSTOMER, 'gal', 'key-2', DEPOT);
     // Someone else's redemption must not leak into the list.
     const other = '22222222-2222-2222-2222-222222222222';
     await new LoyaltyService(loyaltyRepo, buildTestConfig(), new InMemoryCustomerDirectory()).reward(
@@ -62,7 +64,7 @@ describe('RewardService', () => {
       1000,
       'seed',
     );
-    await service.redeem(other, 'gal', 'key-3');
+    await service.redeem(other, 'gal', 'key-3', DEPOT);
 
     const mine = await service.listMine(CUSTOMER);
 
@@ -72,12 +74,39 @@ describe('RewardService', () => {
     expect(mine[0]!.createdAt.getTime()).toBeGreaterThanOrEqual(mine[1]!.createdAt.getTime());
   });
 
+  it('scopes the queue to one depot, and legacy depot-less rows stay visible to all', async () => {
+    await seedBalance(4000);
+    rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
+    const mine = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    const theirs = await service.redeem(CUSTOMER, 'gal', 'key-2', OTHER_DEPOT);
+    // A row from before the question existed: no depot recorded, and none can be inferred.
+    const legacy = await service.redeem(CUSTOMER, 'gal', 'key-3', DEPOT);
+    const legacyRow = rewardRepo.redemptions.find((r) => r.id === legacy.redemption.id)!;
+    legacyRow.depotId = null;
+
+    const queue = await service.listAwaitingHandover(DEPOT);
+
+    expect(queue.map((r) => r.id).sort()).toEqual(
+      [mine.redemption.id, legacy.redemption.id].sort(),
+    );
+    expect(queue.map((r) => r.id)).not.toContain(theirs.redemption.id);
+    // Head office asks for everything and gets all three.
+    expect(await service.listAwaitingHandover()).toHaveLength(3);
+  });
+
+  it('records the depot the customer chose', async () => {
+    await seedBalance(1000);
+    rewardRepo.seedItem({ id: 'gal', pointsCost: 800 });
+    const result = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    expect(result.redemption.depotId).toBe(DEPOT);
+  });
+
   it('hand-over queue holds only ACTIVE rows — cancelled and collected ones drop out', async () => {
     await seedBalance(3000);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
-    const kept = await service.redeem(CUSTOMER, 'gal', 'key-1');
-    const cancelled = await service.redeem(CUSTOMER, 'gal', 'key-2');
-    const collected = await service.redeem(CUSTOMER, 'gal', 'key-3');
+    const kept = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    const cancelled = await service.redeem(CUSTOMER, 'gal', 'key-2', DEPOT);
+    const collected = await service.redeem(CUSTOMER, 'gal', 'key-3', DEPOT);
     await service.cancel(CUSTOMER, cancelled.redemption.id);
     await service.markUsed(collected.redemption.id);
 
@@ -90,7 +119,7 @@ describe('RewardService', () => {
     await seedBalance(1000);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon' });
 
-    const result = await service.redeem(CUSTOMER, 'gal', 'key-1');
+    const result = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
 
     expect(result.pointsBalance).toBe(200);
     const acc = await loyaltyRepo.findAccount(CUSTOMER);
@@ -104,8 +133,8 @@ describe('RewardService', () => {
     await seedBalance(1000);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800 });
 
-    const first = await service.redeem(CUSTOMER, 'gal', 'key-1');
-    const second = await service.redeem(CUSTOMER, 'gal', 'key-1');
+    const first = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
+    const second = await service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
 
     expect(second.redemption.id).toBe(first.redemption.id);
     expect((await loyaltyRepo.findAccount(CUSTOMER))?.pointsBalance).toBe(200);
@@ -115,7 +144,7 @@ describe('RewardService', () => {
   it('rejects a redemption when the balance is too low', async () => {
     await seedBalance(100);
     rewardRepo.seedItem({ id: 'gal', pointsCost: 800 });
-    await expect(service.redeem(CUSTOMER, 'gal', 'key-1')).rejects.toBeInstanceOf(
+    await expect(service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT)).rejects.toBeInstanceOf(
       InsufficientPointsError,
     );
   });
@@ -123,7 +152,7 @@ describe('RewardService', () => {
   it('rejects a redemption for an out-of-stock item', async () => {
     await seedBalance(5000);
     rewardRepo.seedItem({ id: 'disp', pointsCost: 100, stock: 0 });
-    await expect(service.redeem(CUSTOMER, 'disp', 'key-1')).rejects.toBeInstanceOf(
+    await expect(service.redeem(CUSTOMER, 'disp', 'key-1', DEPOT)).rejects.toBeInstanceOf(
       RewardOutOfStockError,
     );
   });
@@ -131,10 +160,10 @@ describe('RewardService', () => {
   it('rejects an unknown or inactive item', async () => {
     await seedBalance(5000);
     rewardRepo.seedItem({ id: 'off', pointsCost: 100, active: false });
-    await expect(service.redeem(CUSTOMER, 'off', 'key-1')).rejects.toBeInstanceOf(
+    await expect(service.redeem(CUSTOMER, 'off', 'key-1', DEPOT)).rejects.toBeInstanceOf(
       RewardItemNotFoundError,
     );
-    await expect(service.redeem(CUSTOMER, 'missing', 'key-2')).rejects.toBeInstanceOf(
+    await expect(service.redeem(CUSTOMER, 'missing', 'key-2', DEPOT)).rejects.toBeInstanceOf(
       RewardItemNotFoundError,
     );
   });
@@ -142,7 +171,7 @@ describe('RewardService', () => {
   it('decrements finite stock on redeem', async () => {
     await seedBalance(1000);
     rewardRepo.seedItem({ id: 'seg', pointsCost: 100, stock: 3 });
-    await service.redeem(CUSTOMER, 'seg', 'key-1');
+    await service.redeem(CUSTOMER, 'seg', 'key-1', DEPOT);
     expect((await rewardRepo.findItem('seg'))?.stock).toBe(2);
   });
 
@@ -192,7 +221,7 @@ describe('RewardService', () => {
     async function redeemOne(stock: number | null = 3) {
       await seedBalance(1000);
       rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon', stock });
-      return service.redeem(CUSTOMER, 'gal', 'key-1');
+      return service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
     }
 
     it('gives the points back and puts the stock on the shelf again', async () => {
@@ -263,7 +292,7 @@ describe('RewardService', () => {
     async function redeemOne() {
       await seedBalance(1000);
       rewardRepo.seedItem({ id: 'gal', pointsCost: 800, name: 'Galon', stock: 3 });
-      return service.redeem(CUSTOMER, 'gal', 'key-1');
+      return service.redeem(CUSTOMER, 'gal', 'key-1', DEPOT);
     }
 
     it('closes the cancellation window and is idempotent', async () => {
