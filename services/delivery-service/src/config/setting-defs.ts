@@ -26,7 +26,6 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: 'courierRatePerDeliveryIdr', label: 'Komisi per pengiriman', type: 'money', unit: 'Rp', min: 0, max: 1000000, envDefault: 12000 },
   { key: 'noShowMinContactAttempts', label: 'Min. percobaan kontak sebelum no-show', type: 'int', min: 1, max: 10, envDefault: 2 },
   { key: 'noShowMinWaitSeconds', label: 'Min. tunggu sebelum no-show', type: 'int', unit: 'detik', min: 0, max: 3600, envDefault: 300 },
-  { key: 'podRetentionDays', label: 'Retensi bukti pengiriman', type: 'int', unit: 'hari', min: 30, max: 3650, envDefault: 365 },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

@@ -1,14 +1,33 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Roles,
+} from '@hydromart/platform';
 
 import { EmployeeService } from '../application/services/employee.service';
 import {
   CreateEmployeeDto,
   ImportEmployeesDto,
   ListEmployeesDto,
+  RetentionReportDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
 
@@ -18,6 +37,21 @@ import {
 @Controller({ path: 'employees', version: '1' })
 export class EmployeesController {
   constructor(private readonly employees: EmployeeService) {}
+
+  /**
+   * Retention report for admin-service's purge engine. Internal key, not a JWT route:
+   * @Public() bypasses the global JWT guard and InternalAuthGuard is the sole auth.
+   * Counts only — see EmployeeService.retentionReport for why nothing is deleted here.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/retention-report')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Count departed employee records past the cutoff (internal, no deletion)' })
+  retentionReport(@Body() dto: RetentionReportDto): Promise<{ eligible: number }> {
+    return this.employees.retentionReport(new Date(dto.cutoff));
+  }
 
   @Get()
   @Roles(...CAPABILITIES.hrView)

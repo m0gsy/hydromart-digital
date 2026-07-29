@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-import { PurgeExecutor } from '../../application/ports/purge-executor.port';
+import { PurgeExecutor, PurgeMode } from '../../application/ports/purge-executor.port';
 
 /**
  * A dataset that lives in another service. admin-service holds the policy; the service
@@ -19,6 +19,7 @@ export class RemotePurgeExecutor implements PurgeExecutor {
     private readonly baseUrl: string,
     private readonly path: string,
     private readonly internalKey: string,
+    readonly mode: PurgeMode = 'DELETE',
   ) {}
 
   /** False when this environment cannot reach the owner — registry drops it, and the
@@ -47,9 +48,16 @@ export class RemotePurgeExecutor implements PurgeExecutor {
     if (!response.ok) {
       throw new Error(`${this.dataset}: owner responded ${response.status}`);
     }
-    const body = (await response.json()) as { deleted?: number };
-    const deleted = typeof body.deleted === 'number' ? body.deleted : 0;
-    this.logger.log(`Purged ${deleted} rows from ${this.dataset}`);
-    return deleted;
+    // DELETE endpoints answer with `deleted`, REPORT endpoints with `eligible`. Reading
+    // the wrong one would silently report 0 and look like "nothing was due".
+    const body = (await response.json()) as { deleted?: number; eligible?: number };
+    const key = this.mode === 'REPORT' ? body.eligible : body.deleted;
+    const affected = typeof key === 'number' ? key : 0;
+    this.logger.log(
+      this.mode === 'REPORT'
+        ? `${affected} rows in ${this.dataset} are past their window (report only)`
+        : `Purged ${affected} rows from ${this.dataset}`,
+    );
+    return affected;
   }
 }

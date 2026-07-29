@@ -62,6 +62,16 @@ export class EmployeeService {
     @Inject(IDENTITY_PORT) private readonly identity: IdentityPort,
   ) {}
 
+  /**
+   * Retention report (M23-21). Counts departed records past their window and deletes
+   * nothing — the number goes to a human, who decides. Automatic deletion is not wired
+   * on purpose: attendance and payroll rows reference an employee, so removing one is a
+   * cascade decision, not a sweep.
+   */
+  async retentionReport(cutoff: Date): Promise<{ eligible: number }> {
+    return { eligible: await this.repo.countRetentionEligible(cutoff) };
+  }
+
   async list(
     user: AuthenticatedUser,
     query: {

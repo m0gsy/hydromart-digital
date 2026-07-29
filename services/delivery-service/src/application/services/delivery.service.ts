@@ -395,8 +395,14 @@ export class DeliveryService {
    * configured window (default 12 months). Invoked by the internal scheduler.
    * Image files are expired separately by an object-storage bucket lifecycle rule.
    */
-  async purgeExpiredProofs(now: Date = new Date()): Promise<{ purged: number }> {
-    const cutoff = new Date(now.getTime() - this.config.podRetentionDays * 86_400_000);
+  /**
+   * Delete proof-of-delivery records older than `cutoff`.
+   *
+   * The window is NOT computed here any more. admin-service owns the retention policy
+   * for every dataset and sends the cutoff; deriving it a second time from a depot
+   * setting gave the same legal rule two owners that could silently disagree.
+   */
+  async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {
     const purged = await this.deliveries.purgeProofsBefore(cutoff);
     if (purged > 0) {
       this.logger.log(`Purged ${purged} proof-of-delivery record(s) older than ${cutoff.toISOString()}`);

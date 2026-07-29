@@ -21,6 +21,12 @@ function p2002(target: string): Prisma.PrismaClientKnownRequestError {
 }
 
 class FakeRepo implements EmployeeRepository {
+  /** Retention report: departed rows dormant since before the cutoff. */
+  retentionEligible = 0;
+  async countRetentionEligible(): Promise<number> {
+    return this.retentionEligible;
+  }
+
   rows: Employee[] = [];
   history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[] = [];
   /** targets to throw on successive create() calls; undefined = succeed. */

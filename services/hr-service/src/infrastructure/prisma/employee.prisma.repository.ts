@@ -15,6 +15,15 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return this.prisma.employee.count();
   }
 
+  countRetentionEligible(cutoff: Date): Promise<number> {
+    // `updatedAt` is the only dormancy clock the schema has — there is no resignedAt —
+    // so a record touched recently is deliberately not counted as dormant. ACTIVE staff
+    // are never eligible no matter how old the row is.
+    return this.prisma.employee.count({
+      where: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+    });
+  }
+
   async list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     const where: Prisma.EmployeeWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),

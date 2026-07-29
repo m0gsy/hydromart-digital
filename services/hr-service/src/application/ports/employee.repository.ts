@@ -20,6 +20,13 @@ export interface EmployeeListFilter {
 export interface EmployeeRepository {
   /** Row count, used to mint the next sequential employeeCode. */
   count(): Promise<number>;
+  /**
+   * Retention (M23-21): how many departed employee records have sat untouched since
+   * before `cutoff`. Counting only — ACTIVE staff are never eligible, and nothing here
+   * deletes: an employment record can be evidence in a labour dispute, and attendance
+   * and payroll rows point at it.
+   */
+  countRetentionEligible(cutoff: Date): Promise<number>;
   list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }>;
   findById(id: string): Promise<Employee | null>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */

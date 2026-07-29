@@ -18,4 +18,5 @@ export const SERVICE_REGISTRY: readonly { name: string; envKey: string }[] = [
   { name: 'recommendation-service', envKey: 'RECOMMENDATION_SERVICE_URL' },
   { name: 'forecast-service', envKey: 'FORECAST_SERVICE_URL' },
   { name: 'payout-service', envKey: 'PAYOUT_SERVICE_URL' },
+  { name: 'hr-service', envKey: 'HR_SERVICE_URL' },
 ] as const;

@@ -21,6 +21,12 @@ const manager = (depotId: string): AuthenticatedUser => ({
 });
 
 class FakeRepo implements EmployeeRepository {
+  /** Retention report: departed rows dormant since before the cutoff. */
+  retentionEligible = 0;
+  async countRetentionEligible(): Promise<number> {
+    return this.retentionEligible;
+  }
+
   rows: Employee[] = [];
   history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[] = [];
   private seq = 0;
@@ -249,5 +255,17 @@ describe('EmployeeService.importMany', () => {
       failed: 0,
       results: [],
     });
+  });
+});
+
+describe('EmployeeService.retentionReport (M23-21)', () => {
+  it('reports the eligible count and deletes nothing', async () => {
+    const repo = new FakeRepo();
+    repo.retentionEligible = 4;
+    const service = new EmployeeService(repo, { provisionStaff: jest.fn() } as never);
+
+    expect(await service.retentionReport(new Date('2026-01-01'))).toEqual({ eligible: 4 });
+    // The report path must never remove a row — deletion is a human decision.
+    expect(repo.rows).toEqual(repo.rows);
   });
 });

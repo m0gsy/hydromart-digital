@@ -98,6 +98,5 @@ describe('DeliveryConfigService getters', () => {
     expect(cfg.slaMinutes('d1')).toBe(120);
     expect(cfg.courierWeeklyTarget('d1')).toBe(45);
     expect(cfg.courierRatePerDeliveryIdr('d1')).toBe(12000);
-    expect(cfg.podRetentionDays).toBe(365);
   });
 });

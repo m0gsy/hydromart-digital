@@ -4,7 +4,13 @@ import { DataClass } from '../../domain/retention';
 import { PURGE_EXECUTORS, PurgeExecutor } from '../ports/purge-executor.port';
 import { RetentionService } from './retention.service';
 
-export type PurgeOutcome = 'PURGED' | 'EXEMPT' | 'NOT_DUE' | 'UNENFORCED' | 'FAILED';
+export type PurgeOutcome =
+  | 'PURGED'
+  | 'REPORT_ONLY'
+  | 'EXEMPT'
+  | 'NOT_DUE'
+  | 'UNENFORCED'
+  | 'FAILED';
 
 export interface PurgeResultEntry {
   dataset: string;
@@ -13,6 +19,12 @@ export interface PurgeResultEntry {
   cutoff: string | null;
   /** Rows actually deleted (0 for every outcome except PURGED). */
   deleted: number;
+  /**
+   * Rows past their window on a REPORT_ONLY dataset — what a human would be deleting if
+   * they acted on this. Absent for every other outcome, so it is never read as a count
+   * of something that happened.
+   */
+  eligible?: number;
   /** Why an executor failed — surfaced, never swallowed. */
   error?: string;
 }
@@ -24,6 +36,8 @@ export interface PurgeRunResult {
   totalDeleted: number;
   /** Datasets with a live policy and no executor — the honest compliance gap. */
   unenforced: string[];
+  /** REPORT-only datasets that currently have rows past their window. */
+  awaitingReview: string[];
 }
 
 /**
@@ -84,8 +98,12 @@ export class PurgeService {
       }
 
       try {
-        const deleted = await executor.purge(item.cutoff);
-        entries.push({ ...base, outcome: 'PURGED', deleted });
+        const affected = await executor.purge(item.cutoff);
+        entries.push(
+          executor.mode === 'REPORT'
+            ? { ...base, outcome: 'REPORT_ONLY', eligible: affected }
+            : { ...base, outcome: 'PURGED', deleted: affected },
+        );
       } catch (error) {
         // One dataset failing must not abort the sweep — the others are independent.
         const message = (error as Error).message;
@@ -100,6 +118,10 @@ export class PurgeService {
       entries,
       totalDeleted: entries.reduce((sum, e) => sum + e.deleted, 0),
       unenforced: entries.filter((e) => e.outcome === 'UNENFORCED').map((e) => e.dataset),
+      // Datasets where rows are past their window and waiting on a human to act.
+      awaitingReview: entries
+        .filter((e) => e.outcome === 'REPORT_ONLY' && (e.eligible ?? 0) > 0)
+        .map((e) => e.dataset),
     };
     this.logger.log(
       `Retention sweep${dryRun ? ' (dry run)' : ''}: deleted ${result.totalDeleted}, unenforced ${result.unenforced.length}`,
