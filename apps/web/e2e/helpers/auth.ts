@@ -17,8 +17,22 @@ export async function loginWithOtp(page: Page, phone = E2E_PHONE) {
   await page.getByPlaceholder('81234567890').fill(phone);
   // The submit label is locale-driven ("Kirim kode" / "Send code"), so target the
   // form's only submit button by type rather than an accessible-name regex.
-  await page.locator('button[type=submit]').click();
-  await expect(page).toHaveURL(/\/verify\?/, { timeout: 15_000 });
+  //
+  // Every spec logs in as the same seeded account, and auth-service enforces a resend
+  // cooldown per (customer, purpose) — issue() throws OtpResendCooldownError while a
+  // challenge is still active. Two specs starting within a second of each other leave the
+  // second one sitting on /login with "Please wait Ns before requesting another code", so
+  // retry rather than fail: the cooldown is seconds, not minutes.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await page.locator('button[type=submit]').click();
+    try {
+      await expect(page).toHaveURL(/\/verify\?/, { timeout: 5_000 });
+      break;
+    } catch {
+      await page.waitForTimeout(2_000);
+    }
+  }
+  await expect(page).toHaveURL(/\/verify\?/, { timeout: 10_000 });
 
   const code = await readLatestOtp(phone, 'LOGIN');
   await page.getByLabel('Digit 1').click();
