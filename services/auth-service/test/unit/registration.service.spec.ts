@@ -7,6 +7,7 @@ import {
   PhoneAlreadyRegisteredError,
 } from '../../src/domain/errors/auth.errors';
 import { OtpService } from '../../src/application/services/otp.service';
+import { ConsentService } from '../../src/application/services/consent.service';
 import { RegistrationService } from '../../src/application/services/registration.service';
 import { AuditService } from '../../src/application/services/audit.service';
 import { AuditAction } from '../../src/application/services/audit.service';
@@ -15,6 +16,7 @@ import {
   FakeCrypto,
   FakeOtpDelivery,
   InMemoryAuditLogRepository,
+  InMemoryConsentRepository,
   InMemoryCustomerRepository,
   InMemoryOtpTokenRepository,
   buildTestConfig,
@@ -28,6 +30,7 @@ describe('RegistrationService', () => {
   let delivery: FakeOtpDelivery;
   let service: RegistrationService;
   let clock: FakeClock;
+  let consents: InMemoryConsentRepository;
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
 
@@ -38,7 +41,8 @@ describe('RegistrationService', () => {
     audit = new InMemoryAuditLogRepository();
     delivery = new FakeOtpDelivery();
     const otp = new OtpService(otpTokens, delivery, new FakeCrypto(), clock, buildTestConfig());
-    service = new RegistrationService(customers, otp, new AuditService(audit));
+    consents = new InMemoryConsentRepository();
+    service = new RegistrationService(customers, otp, new AuditService(audit), new ConsentService(consents));
   });
 
   it('creates a pending account and sends a registration OTP', async () => {
@@ -83,5 +87,70 @@ describe('RegistrationService', () => {
     await expect(service.register({ phone: '12345', context: ctx })).rejects.toBeInstanceOf(
       InvalidPhoneNumberError,
     );
+  });
+});
+
+describe('RegistrationService consent ledger (UU PDP tahap 2)', () => {
+  it('records TERMS + PRIVACY at signup, and MARKETING only when actually ticked', async () => {
+    const customers = new InMemoryCustomerRepository();
+    const clock = new FakeClock();
+    const otp = new OtpService(
+      new InMemoryOtpTokenRepository(() => clock.now()),
+      new FakeOtpDelivery(),
+      new FakeCrypto(),
+      clock,
+      buildTestConfig(),
+    );
+    const consents = new InMemoryConsentRepository();
+    const service = new RegistrationService(
+      customers,
+      otp,
+      new AuditService(new InMemoryAuditLogRepository()),
+      new ConsentService(consents),
+    );
+
+    await service.register({
+      phone: '081234567890',
+      context: { ipAddress: null, userAgent: null },
+    });
+
+    expect(consents.rows.map((r) => r.purpose).sort()).toEqual(['PRIVACY', 'TERMS']);
+    expect(consents.rows.every((r) => r.granted && r.source === 'registration')).toBe(true);
+
+    // Re-registering the same pending phone re-issues the OTP; it must not stack rows.
+    // Past the resend cooldown, or the second call fails for an unrelated reason.
+    clock.advance(120);
+    await service.register({
+      phone: '081234567890',
+      context: { ipAddress: null, userAgent: null },
+    });
+    expect(consents.rows).toHaveLength(2);
+  });
+
+  it('records MARKETING when the opt-in was ticked', async () => {
+    const customers = new InMemoryCustomerRepository();
+    const clock = new FakeClock();
+    const otp = new OtpService(
+      new InMemoryOtpTokenRepository(() => clock.now()),
+      new FakeOtpDelivery(),
+      new FakeCrypto(),
+      clock,
+      buildTestConfig(),
+    );
+    const consents = new InMemoryConsentRepository();
+    const service = new RegistrationService(
+      customers,
+      otp,
+      new AuditService(new InMemoryAuditLogRepository()),
+      new ConsentService(consents),
+    );
+
+    await service.register({
+      phone: '081234567891',
+      marketingConsent: true,
+      context: { ipAddress: null, userAgent: null },
+    });
+
+    expect(consents.rows.map((r) => r.purpose).sort()).toEqual(['MARKETING', 'PRIVACY', 'TERMS']);
   });
 });

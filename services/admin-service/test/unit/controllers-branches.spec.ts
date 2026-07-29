@@ -308,8 +308,22 @@ describe('RetentionController', () => {
     getBackupStatus: jest.fn(),
     updatePolicy: jest.fn(),
   };
-  const controller = new RetentionController(retention as unknown as RetentionService);
+  const purge = { run: jest.fn() };
+  const controller = new RetentionController(
+    retention as unknown as RetentionService,
+    purge as never,
+  );
   beforeEach(() => jest.clearAllMocks());
+
+  it('runPurge only dry-runs when the query says exactly "true"', async () => {
+    purge.run.mockResolvedValue({ ranAt: 'now', dryRun: false, entries: [], totalDeleted: 0, unenforced: [] });
+    await controller.runPurge('true');
+    expect(purge.run).toHaveBeenCalledWith({ dryRun: true });
+    await controller.runPurge('yes');
+    expect(purge.run).toHaveBeenLastCalledWith({ dryRun: false });
+    await controller.runPurge();
+    expect(purge.run).toHaveBeenLastCalledWith({ dryRun: false });
+  });
 
   it('get maps policies + backup status with a real lastBackupAt', async () => {
     retention.listPolicies.mockResolvedValue([makeRetentionPolicy()]);

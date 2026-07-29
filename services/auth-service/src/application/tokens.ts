@@ -16,4 +16,5 @@ export const AUTH_TOKENS = {
   Storage: Symbol('Storage'),
   DataSubjectRequestRepository: Symbol('DataSubjectRequestRepository'),
   CustomerDataPort: Symbol('CustomerDataPort'),
+  ConsentRepository: Symbol('ConsentRepository'),
 } as const;

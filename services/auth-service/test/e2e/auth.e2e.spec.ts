@@ -15,6 +15,7 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import {
   FakeOtpDelivery,
   InMemoryAuditLogRepository,
+  InMemoryConsentRepository,
   InMemoryCustomerRepository,
   InMemoryOtpTokenRepository,
   InMemoryRefreshTokenRepository,
@@ -73,6 +74,10 @@ describe('Auth HTTP flows (e2e)', () => {
       .useValue(new InMemoryRefreshTokenRepository())
       .overrideProvider(AUTH_TOKENS.AuditLogRepository)
       .useValue(new InMemoryAuditLogRepository())
+      // Registration now writes a consent ledger row (UU PDP tahap 2); the stubbed
+      // Prisma has no tables, so the in-memory ledger stands in for it here.
+      .overrideProvider(AUTH_TOKENS.ConsentRepository)
+      .useValue(new InMemoryConsentRepository())
       .overrideProvider(AUTH_TOKENS.OtpDeliveryPort)
       .useValue(delivery)
       .compile();

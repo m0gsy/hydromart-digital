@@ -7,3 +7,7 @@
 0 8 * * * sh /scripts/sweep.sh orders/reminders/reorder
 # UU PDP retention: purge proof-of-delivery records past the window — daily at 03:15.
 15 3 * * * sh /scripts/sweep.sh proofs/purge-expired delivery:3006
+# Retention enforcement (M23-21): run the policy for every dataset that has an executor,
+# and log the ones that still have none. Daily at 03:30, after the PoD sweep and after
+# the 03:00 database backup, so a bad delete is always recoverable from that night's dump.
+30 3 * * * sh /scripts/sweep.sh retention/internal/purge admin:3017

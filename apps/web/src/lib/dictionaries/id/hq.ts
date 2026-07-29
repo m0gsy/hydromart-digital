@@ -1156,6 +1156,10 @@ export const hq = {
     deleteWarning: 'Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun).',
   },
   retention: {
+    runSweep: 'Jalankan sapuan retensi',
+    sweepHint: 'Menghapus data yang lewat masa simpan untuk dataset yang punya eksekutor. Data keuangan tidak pernah disentuh.',
+    sweepDone: 'Sapuan selesai: {n} baris dihapus, {gaps} dataset belum ditegakkan.',
+    sweepError: 'Sapuan retensi gagal.',
     title: 'Retensi & backup',
     subtitle: 'Masa simpan per dataset & status backup terakhir',
     dataset: 'Dataset',

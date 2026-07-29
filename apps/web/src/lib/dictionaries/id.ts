@@ -37,6 +37,20 @@ export const id = {
     ops: 'Operasi',
   },
   account: {
+    consents: {
+      title: 'Persetujuan data',
+      body: 'Rekaman apa yang kamu setujui dan kapan. Persetujuan wajib tidak bisa dicabut selama akun aktif — untuk berhenti sepenuhnya, ajukan hapus akun di atas.',
+      mandatory: 'Wajib',
+      never: 'Belum pernah ditanyakan',
+      since: 'Sejak {date}',
+      saved: 'Persetujuan diperbarui.',
+      saveError: 'Gagal memperbarui persetujuan.',
+      purpose: {
+        TERMS: 'Syarat & ketentuan layanan',
+        PRIVACY: 'Kebijakan privasi & pemrosesan data',
+        MARKETING: 'Promo dan penawaran',
+      },
+    },
     privacyData: {
       title: 'Data pribadi saya',
       body: 'Kamu berhak meminta salinan data yang kami simpan, atau meminta akun dihapus. Setiap permintaan ditinjau kantor pusat dulu.',

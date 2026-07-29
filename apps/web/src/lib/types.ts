@@ -363,6 +363,18 @@ export interface DataSubjectRequest {
   processedAt: string | null;
 }
 
+/** UU PDP tahap 2. `decidedAt: null` = never asked, which is not the same as refused. */
+export type ConsentPurpose = 'TERMS' | 'PRIVACY' | 'MARKETING';
+
+export interface ConsentState {
+  purpose: ConsentPurpose;
+  granted: boolean;
+  mandatory: boolean;
+  withdrawable: boolean;
+  decidedAt: string | null;
+  documentVersion: string | null;
+}
+
 export type RedemptionStatus = 'ACTIVE' | 'USED' | 'CANCELLED';
 
 /**

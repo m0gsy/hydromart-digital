@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsObject, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import {
+  IsEnum,
+  IsISO8601,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 
 import { NotificationEvent } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
@@ -86,4 +95,11 @@ export class OpsReadResultDto {
 export class OpsReadAllResultDto {
   @ApiProperty({ description: 'How many feed rows were newly marked read (0 when already all read).' })
   marked!: number;
+}
+
+/** Retention sweep body — the cutoff is computed by admin-service, never here. */
+export class PurgeNotificationsDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601()
+  cutoff!: string;
 }

@@ -10,9 +10,16 @@ describe('InternalAccountController', () => {
     inviteStaff: jest.fn(),
     preRegisterCustomer: jest.fn(),
   };
-  const controller = new InternalAccountController(account as never);
+  const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
+  const controller = new InternalAccountController(account as never, audit as never);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('forwards the retention cutoff as a Date and returns the count', async () => {
+    const out = await controller.purgeAuditLogs({ cutoff: '2026-01-01T00:00:00.000Z' } as never);
+    expect(audit.purgeOlderThan).toHaveBeenCalledWith(new Date('2026-01-01T00:00:00.000Z'));
+    expect(out).toEqual({ deleted: 4 });
+  });
 
   it('provisions a staff account and returns the public shape', async () => {
     account.inviteStaff.mockResolvedValue({

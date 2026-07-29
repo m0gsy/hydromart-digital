@@ -26,6 +26,7 @@ export const auth: typeof base = {
     consentPre: 'I agree to the ',
     consentPrivacy: 'Privacy Policy',
     consentPost: ' and Hydromart’s Terms of Service.',
+    marketingOptIn: 'I agree to receive promotions and offers (optional).',
     consentError: 'You must agree to the Privacy Policy to register.',
     error: 'Could not start registration.',
     haveAccount: 'Already have an account?',

@@ -26,6 +26,14 @@ export interface OpsNotificationRecord extends NotificationRecord {
 }
 
 export interface NotificationRepository {
+  /**
+   * Retention sweep (M23-21 enforcement): delete notification history created strictly
+   * before `cutoff`. Notification bodies carry a phone number and a message written for
+   * one person, so this is the shortest-lived PII the platform holds — and the first
+   * dataset worth actually enforcing rather than merely documenting.
+   */
+  deleteOlderThan(cutoff: Date): Promise<number>;
+
   /** Append a notification audit row. */
   record(data: RecordNotificationData): Promise<NotificationRecord>;
 

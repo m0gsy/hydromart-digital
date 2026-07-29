@@ -8,7 +8,9 @@ import {
   DataSubjectRequestStatus,
   DataSubjectRequestType,
 } from '../../src/domain/data-subject/data-subject-request';
+import { ConsentService } from '../../src/application/services/consent.service';
 import { DataSubjectService } from '../../src/application/services/data-subject.service';
+import { InMemoryConsentRepository } from '../support/fakes';
 
 const CUSTOMER = '11111111-1111-1111-1111-111111111111';
 const STAFF = '22222222-2222-2222-2222-222222222222';
@@ -95,6 +97,7 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       customers as never,
       customerData as never,
       audit as never,
+      new ConsentService(new InMemoryConsentRepository()),
     );
   });
 

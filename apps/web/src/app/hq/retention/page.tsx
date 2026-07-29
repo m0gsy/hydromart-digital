@@ -21,6 +21,34 @@ export default function HqRetentionPage() {
   const { toast } = useToast();
   const query = useAsync<RetentionOverview>(() => api.get(endpoints.admin.retention.list, true));
   const [editing, setEditing] = useState<RetentionPolicy | null>(null);
+  const [sweeping, setSweeping] = useState(false);
+
+  /**
+   * Runs the policy now. The result names every dataset with no executor, so a sweep that
+   * deleted nothing is distinguishable from a policy nobody enforces — the exact confusion
+   * this page used to create by showing windows that never applied.
+   */
+  async function runSweep() {
+    setSweeping(true);
+    try {
+      const result = await api.post<{ totalDeleted: number; unenforced: string[] }>(
+        endpoints.admin.retention.purge(),
+        {},
+        true,
+      );
+      toast(
+        t('hq.retention.sweepDone', {
+          n: String(result.totalDeleted),
+          gaps: String(result.unenforced.length),
+        }),
+        'success',
+      );
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.retention.sweepError'), 'error');
+    } finally {
+      setSweeping(false);
+    }
+  }
 
   if (query.loading) return <Skeleton className="h-96 w-full" />;
   if (query.error)
@@ -35,6 +63,13 @@ export default function HqRetentionPage() {
         title={t('hq.retention.title')}
         subtitle={t('hq.retention.subtitle')}
       />
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button loading={sweeping} onClick={runSweep}>
+          {t('hq.retention.runSweep')}
+        </Button>
+        <span className="text-xs text-muted">{t('hq.retention.sweepHint')}</span>
+      </div>
 
       <Card className="overflow-x-auto p-0">
         <table className="w-full min-w-[560px] border-collapse text-sm">

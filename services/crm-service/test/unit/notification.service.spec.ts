@@ -140,3 +140,24 @@ describe('NotificationService ops read state (per staff member)', () => {
     expect(await service.markAllOpsRead('staff-1')).toBe(1);
   });
 });
+
+describe('NotificationService.purgeOlderThan (retention enforcement)', () => {
+  it('drops only history older than the cutoff', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const service = new NotificationService(repo, { send: jest.fn() } as never);
+    await repo.record({
+      event: 'X',
+      phone: '+628',
+      message: 'm',
+      customerId: null,
+      status: 'SENT',
+      error: null,
+    } as never);
+
+    // Every seeded row predates a far-future cutoff, so all of them go.
+    const far = new Date('2099-01-01T00:00:00.000Z');
+    expect(await service.purgeOlderThan(far)).toEqual({ deleted: 1 });
+    // Nothing is left, so a second sweep deletes nothing rather than failing.
+    expect(await service.purgeOlderThan(far)).toEqual({ deleted: 0 });
+  });
+});

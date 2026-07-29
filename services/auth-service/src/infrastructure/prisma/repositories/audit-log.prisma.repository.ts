@@ -14,6 +14,13 @@ import { PrismaService } from '../prisma.service';
 export class AuditLogPrismaRepository implements AuditLogRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    const { count } = await this.prisma.auditLog.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return count;
+  }
+
   async record(entry: AuditLogEntry): Promise<void> {
     await this.prisma.auditLog.create({
       data: {

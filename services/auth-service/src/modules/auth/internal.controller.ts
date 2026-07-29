@@ -2,10 +2,16 @@ import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs
 import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AccountService } from '../../application/services/account.service';
+import { AuditService } from '../../application/services/audit.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { PublicCustomerDto } from './dto/responses.dto';
-import { PreRegisterCustomerDto, PreRegisterResultDto, ProvisionStaffDto } from './dto/internal.dto';
+import {
+  PreRegisterCustomerDto,
+  PreRegisterResultDto,
+  ProvisionStaffDto,
+  PurgeBeforeDto,
+} from './dto/internal.dto';
 
 /**
  * Service-to-service account provisioning for bulk imports. hr-service creates the
@@ -24,7 +30,10 @@ import { PreRegisterCustomerDto, PreRegisterResultDto, ProvisionStaffDto } from 
 @ApiSecurity('internal-key')
 @Controller({ path: 'auth/internal', version: '1' })
 export class InternalAccountController {
-  constructor(private readonly account: AccountService) {}
+  constructor(
+    private readonly account: AccountService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Post('staff')
   @HttpCode(HttpStatus.CREATED)
@@ -39,5 +48,17 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Pre-register an imported customer as PENDING (internal service auth)' })
   preRegisterCustomer(@Body() dto: PreRegisterCustomerDto): Promise<PreRegisterResultDto> {
     return this.account.preRegisterCustomer(dto.phone, dto.fullName);
+  }
+
+  /**
+   * Retention enforcement: admin-service owns the policy, auth-service owns the rows.
+   * The cutoff is passed in rather than recomputed here — one service decides what may
+   * be deleted, and it is the one holding the compliance rule.
+   */
+  @Post('audit-logs/purge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete audit rows older than the cutoff (internal service auth)' })
+  purgeAuditLogs(@Body() dto: PurgeBeforeDto): Promise<{ deleted: number }> {
+    return this.audit.purgeOlderThan(new Date(dto.cutoff));
   }
 }

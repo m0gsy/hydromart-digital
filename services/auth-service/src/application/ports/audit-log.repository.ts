@@ -42,6 +42,12 @@ export interface AuditLogListItem {
 
 /** Append-only security audit trail. */
 export interface AuditLogRepository {
+  /**
+   * Retention sweep (M23-21 enforcement): delete rows created strictly before `cutoff`,
+   * returning how many went. The trail is append-only in normal operation; this is the
+   * one sanctioned deletion path, and admin-service's policy is what drives it.
+   */
+  deleteOlderThan(cutoff: Date): Promise<number>;
   record(entry: AuditLogEntry): Promise<void>;
   /** HQ list: recent entries, newest first, with actor identity resolved. */
   list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }>;

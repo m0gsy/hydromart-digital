@@ -12,12 +12,15 @@ import { CustomerRepository } from '../ports/customer.repository';
 import { AUTH_TOKENS } from '../tokens';
 import { OtpChallengeResult, RequestContext } from '../results';
 import { AuditAction, AuditService } from './audit.service';
+import { ConsentService } from './consent.service';
 import { OtpService } from './otp.service';
 
 export interface RegisterCommand {
   phone: string;
   fullName?: string;
   email?: string;
+  /** Optional marketing opt-in ticked at signup. Absent = never asked, not refused. */
+  marketingConsent?: boolean;
   context: RequestContext;
 }
 
@@ -32,6 +35,7 @@ export class RegistrationService {
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     private readonly otp: OtpService,
     private readonly audit: AuditService,
+    private readonly consents: ConsentService,
   ) {}
 
   async register(command: RegisterCommand): Promise<OtpChallengeResult> {
@@ -58,6 +62,12 @@ export class RegistrationService {
         fullName: command.fullName?.trim() || null,
         role: Role.CUSTOMER,
       }));
+
+    // UU PDP tahap 2: the signup checkbox becomes a ledger row. Only for a NEW account —
+    // re-issuing an OTP to a pending signup must not stack duplicate consent rows.
+    if (!existing) {
+      await this.consents.recordRegistrationConsent(customer.id, command.marketingConsent === true);
+    }
 
     const challenge = await this.otp.issue(customer, OtpPurpose.REGISTRATION);
 

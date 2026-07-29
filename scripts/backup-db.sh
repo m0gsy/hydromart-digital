@@ -14,8 +14,19 @@ set -euo pipefail
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
-BACKUP_DIR="${BACKUP_DIR:-/var/backups/hydromart}"
 KEEP="${BACKUP_KEEP:-14}"
+
+# /var/backups needs root, and this runs as the deploy user — the old default made the
+# script fail exactly when it mattered (before a migration). Try the system location,
+# fall back to the user's home rather than aborting. An explicit BACKUP_DIR always wins.
+default_backup_dir() {
+  if mkdir -p /var/backups/hydromart 2>/dev/null && [ -w /var/backups/hydromart ]; then
+    echo /var/backups/hydromart
+  else
+    echo "$HOME/backups"
+  fi
+}
+BACKUP_DIR="${BACKUP_DIR:-$(default_backup_dir)}"
 
 mkdir -p "$BACKUP_DIR"
 STAMP="$(date +%Y%m%d-%H%M%S)"

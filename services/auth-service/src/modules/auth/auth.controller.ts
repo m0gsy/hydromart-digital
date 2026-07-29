@@ -35,6 +35,7 @@ export class AuthController {
       phone: dto.phone,
       fullName: dto.fullName,
       email: dto.email,
+      marketingConsent: dto.marketingConsent,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

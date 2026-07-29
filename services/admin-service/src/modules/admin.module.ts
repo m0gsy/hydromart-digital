@@ -5,6 +5,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
 
 import { AdminConfigService } from '../config/admin-config.service';
+import { PurgeService } from '../application/services/purge.service';
+import { purgeExecutorProvider } from '../infrastructure/http/purge-executor.registry';
 import { ADMIN_TOKENS } from '../application/tokens';
 import { FeatureFlagService } from '../application/services/feature-flag.service';
 import { SystemSettingsService } from '../application/services/system-settings.service';
@@ -83,6 +85,8 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: ADMIN_TOKENS.SlaPolicyRepository, useClass: SlaPolicyPrismaRepository },
   { provide: ADMIN_TOKENS.RetentionRepository, useClass: RetentionPrismaRepository },
+  purgeExecutorProvider,
+  PurgeService,
   { provide: ADMIN_TOKENS.SecurityPolicyRepository, useClass: SecurityPolicyPrismaRepository },
   {
     provide: ADMIN_TOKENS.AdminNotificationPrefRepository,

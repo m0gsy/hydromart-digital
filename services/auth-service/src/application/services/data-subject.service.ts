@@ -12,6 +12,7 @@ import {
   anonymisedIdentity,
   isDecidable,
 } from '../../domain/data-subject/data-subject-request';
+import { ConsentService } from './consent.service';
 import { CustomerDataPort } from '../ports/customer-data.port';
 import { CustomerRepository } from '../ports/customer.repository';
 import { DataSubjectRequestRepository } from '../ports/data-subject-request.repository';
@@ -29,6 +30,8 @@ export const PDP_AUDIT = {
 export interface DataExport {
   exportedAt: string;
   account: Record<string, unknown>;
+  /** Every consent decision, so the export proves what was agreed and when. */
+  consents: unknown[];
   /** What customer-service holds: profile, addresses, payment-method labels. */
   customer: Record<string, unknown>;
   /**
@@ -55,6 +58,7 @@ export class DataSubjectService {
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     @Inject(AUTH_TOKENS.CustomerDataPort) private readonly customerData: CustomerDataPort,
     private readonly audit: AuditService,
+    private readonly consents: ConsentService,
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -162,6 +166,7 @@ export class DataSubjectService {
 
   private async buildExport(customerId: string): Promise<DataExport> {
     const account = await this.customers.findById(customerId);
+    const consents = await this.consents.history(customerId);
     let customer: Record<string, unknown> = {};
     try {
       customer = await this.customerData.export(customerId);
@@ -185,6 +190,7 @@ export class DataSubjectService {
           }
         : {},
       customer,
+      consents,
       notIncluded: [
         'Riwayat pesanan dan pembayaran (kelas retensi FINANCIAL, disimpan 10 tahun)',
         'Catatan poin loyalty',
