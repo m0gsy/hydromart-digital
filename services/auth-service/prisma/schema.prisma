@@ -154,3 +154,23 @@ model DataSubjectRequest {
   @@index([status, requestedAt])
   @@map("data_subject_requests")
 }
+
+/// UU PDP tahap 2: append-only consent ledger. One row per decision per purpose — the
+/// newest row for a purpose is the current answer, and the history is the proof of when
+/// it changed. purpose/granted are plain columns (no enum) so a new purpose is a seed,
+/// not an irreversible migration.
+model ConsentRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  customerId      String   @db.Uuid
+  /// TERMS | PRIVACY | MARKETING
+  purpose         String
+  granted         Boolean
+  /// Which version of the text was agreed to.
+  documentVersion String   @default("1.0")
+  /// Where the decision was made: registration, account-settings, …
+  source          String
+  recordedAt      DateTime @default(now())
+
+  @@index([customerId, purpose, recordedAt])
+  @@map("consent_records")
+}

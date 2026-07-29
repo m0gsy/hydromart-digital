@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsEmail, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class RegisterDto {
   @ApiProperty({
@@ -22,4 +22,12 @@ export class RegisterDto {
   @IsEmail()
   @MaxLength(160)
   email?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional marketing opt-in (UU PDP tahap 2). Omit when the form never asked — absent is recorded as "never asked", not as a refusal.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  marketingConsent?: boolean;
 }

@@ -43,6 +43,7 @@ import { formatDateTime } from '@/lib/format';
 import type {
   Address,
   Customer,
+  ConsentState,
   DataSubjectRequest,
   DataSubjectRequestType,
   LoyaltyAccount,
@@ -454,6 +455,76 @@ function PrivacyDataSection() {
   );
 }
 
+/**
+ * UU PDP tahap 2 — the consent ledger. Mandatory purposes are shown but not switchable:
+ * hiding them would leave the customer unable to see what they are held to, and offering
+ * a switch the server refuses would be a lie in the UI.
+ */
+function ConsentSection() {
+  const { t } = useT();
+  const { toast } = useToast();
+  const { data, error, loading, reload } = useAsync<ConsentState[]>(() =>
+    api.get(endpoints.pdp.consents, true),
+  );
+  const [pending, setPending] = useState<string | null>(null);
+
+  async function toggle(row: ConsentState, granted: boolean) {
+    setPending(row.purpose);
+    try {
+      await api.put(endpoints.pdp.consents, { purpose: row.purpose, granted }, true);
+      toast(t('account.consents.saved'), 'success');
+      reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('account.consents.saveError'), 'error');
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <section className={CARD}>
+      <h2 id="consents" className="mb-2 scroll-mt-24 text-[17px] font-extrabold">
+        {t('account.consents.title')}
+      </h2>
+      <p className="mb-3 text-sm text-muted">{t('account.consents.body')}</p>
+      {loading ? (
+        <Skeleton className="h-24 w-full rounded-xl" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={reload} />
+      ) : (
+        <ul className="divide-y divide-[color:var(--border-soft)]">
+          {(data ?? []).map((row) => (
+            <li key={row.purpose} className="flex items-center gap-3.5 py-3.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-[13.5px] font-bold">
+                  {t(`account.consents.purpose.${row.purpose}`)}
+                </div>
+                <div className="mt-0.5 text-xs text-muted">
+                  {row.decidedAt
+                    ? t('account.consents.since', {
+                        date: formatDateTime(row.decidedAt).split(',')[0] ?? '',
+                      })
+                    : t('account.consents.never')}
+                </div>
+              </div>
+              {row.withdrawable ? (
+                <Toggle
+                  on={row.granted}
+                  onChange={(v) => toggle(row, v)}
+                  label={t(`account.consents.purpose.${row.purpose}`)}
+                />
+              ) : (
+                <Chip tone="tint">{t('account.consents.mandatory')}</Chip>
+              )}
+              {pending === row.purpose && <span className="text-xs text-muted">…</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 function PrefsSection() {
   const { t, locale, toggle } = useT();
   const { theme, setTheme } = useTheme();
@@ -672,6 +743,7 @@ export default function AccountPage() {
           <AddressesSection />
           <PaymentsSection />
           <PrivacyDataSection />
+          <ConsentSection />
           <PrefsSection />
 
           {/* mobile logout + version */}

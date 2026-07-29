@@ -23,14 +23,16 @@ function RegisterForm() {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [marketing, setMarketing] = useState(false);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    // UU PDP: explicit, recorded consent. Gate submit on it; the account's
-    // existence (createdAt) is the consent timestamp.
+    // UU PDP: explicit, recorded consent. Gate submit on it. Since tahap 2 the tick is
+    // written to the consent ledger, so it is evidence rather than an inference from
+    // createdAt.
     if (!agreed) {
       setError(t('auth.register.consentError'));
       return;
@@ -42,6 +44,9 @@ function RegisterForm() {
         phone: form.phone,
         fullName: form.fullName || undefined,
         email: form.email || undefined,
+        // Only sent when ticked — an unticked box means "never agreed", and sending
+        // false would record a refusal the customer never actually expressed.
+        marketingConsent: marketing || undefined,
       });
       const params = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       if (referral.trim()) params.set('ref', referral.trim());
@@ -183,6 +188,18 @@ function RegisterForm() {
             </Link>
             {t('auth.register.consentPost')}
           </span>
+        </label>
+
+        {/* Optional marketing opt-in (UU PDP tahap 2). Never pre-ticked: a pre-ticked box
+            is not consent, and the ledger would record it as though it were. */}
+        <label className="flex items-start gap-2.5 text-[12.5px] leading-relaxed text-muted">
+          <input
+            type="checkbox"
+            checked={marketing}
+            onChange={(e) => setMarketing(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
+          />
+          <span>{t('auth.register.marketingOptIn')}</span>
         </label>
 
         {error && (

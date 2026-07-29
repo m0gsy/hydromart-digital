@@ -462,6 +462,9 @@ export const endpoints = {
     queue: (status?: string) =>
       `/auth/api/v1/account/data-requests${status ? `?status=${status}` : ''}`,
     approve: (id: string) => `/auth/api/v1/account/data-requests/${id}/approve`,
+    // UU PDP tahap 2 — the consent ledger.
+    consents: '/auth/api/v1/account/consents',
+    consentHistory: '/auth/api/v1/account/consents/history',
     reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
   },
   promotions: {
@@ -568,6 +571,9 @@ export const endpoints = {
     retention: {
       list: '/admin/api/v1/retention',
       update: (id: string) => `/admin/api/v1/retention/${encodeURIComponent(id)}`,
+      // Retention enforcement: runs the policy for datasets that have an executor and
+      // names the ones that still have none.
+      purge: (dryRun = false) => `/admin/api/v1/retention/purge${dryRun ? '?dryRun=true' : ''}`,
     },
     // Security policy (19b) — SUPER_ADMIN. GET current, PUT to replace. (Sessions live in auth-service.)
     security: '/admin/api/v1/security-policy',

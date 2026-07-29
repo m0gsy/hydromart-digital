@@ -15,6 +15,12 @@ x-shared: &shared
   INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?set INTERNAL_SERVICE_KEY}
   # Optional error alerting: Slack/Discord/webhook URL. Blank = disabled (no 5xx pings).
   ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+  # M12-11: Swagger in production needs HTTP Basic. Both blank = /docs is not mounted at
+  # all (fail closed — forgetting a password must not publish every route and role gate).
+  # `:-` not `:?` on purpose: docs-off is a legitimate state, so an unset value must not
+  # take the whole stack down. Set both in .env to open /docs.
+  DOCS_USER: ${DOCS_USER:-}
+  DOCS_PASSWORD: ${DOCS_PASSWORD:-}
 
 x-svc: &svc
   restart: unless-stopped

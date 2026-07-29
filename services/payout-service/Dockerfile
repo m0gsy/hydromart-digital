@@ -12,7 +12,11 @@ COPY tsconfig.base.json ./
 COPY packages/platform ./packages/platform
 COPY packages/access ./packages/access
 COPY services/payout-service/prisma ./services/payout-service/prisma
-RUN npm ci --include-workspace-root
+# BuildKit cache mount: every image bakes the whole monorepo, so a cold rebuild used to
+# be N x a full `npm ci` download from Indonesia. The mount keeps the npm cache on the
+# builder between images and between runs; it never lands in a layer, so images stay the
+# same size. `npm ci` still deletes node_modules first, so builds remain reproducible.
+RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root
 COPY services/payout-service ./services/payout-service
 RUN npm run build -w @hydromart/platform \
   && npm run build -w @hydromart/access \

@@ -28,6 +28,7 @@ import {
   OpsNotificationDto,
   OpsReadAllResultDto,
   OpsReadResultDto,
+  PurgeNotificationsDto,
   SendNotificationDto,
 } from './dto/notification.dto';
 
@@ -112,6 +113,18 @@ export class NotificationController {
   @ApiOperation({ summary: 'Send a system-triggered notification (internal service auth)' })
   async sendInternal(@Body() dto: SendNotificationDto): Promise<NotificationDto> {
     return this.dispatch(dto);
+  }
+
+  // Retention sweep driven by admin-service (M23-21 enforcement). Same internal-key
+  // auth as the send path — never reachable with an end-user token.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/purge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete notification history older than the cutoff (internal)' })
+  purge(@Body() dto: PurgeNotificationsDto): Promise<{ deleted: number }> {
+    return this.notifications.purgeOlderThan(new Date(dto.cutoff));
   }
 
   private async dispatch(dto: SendNotificationDto): Promise<NotificationDto> {

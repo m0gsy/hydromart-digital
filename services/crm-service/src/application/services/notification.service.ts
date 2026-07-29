@@ -25,6 +25,16 @@ export class NotificationService {
     private readonly push: PushService,
   ) {}
 
+  /**
+   * Retention enforcement: drop notification history past its window. admin-service owns
+   * the policy and passes the cutoff; this service owns the rows and does the deleting.
+   */
+  async purgeOlderThan(cutoff: Date): Promise<{ deleted: number }> {
+    const deleted = await this.repo.deleteOlderThan(cutoff);
+    this.logger.log(`Purged ${deleted} notifications older than ${cutoff.toISOString()}`);
+    return { deleted };
+  }
+
   async notify(
     event: NotificationEvent,
     phone: string,

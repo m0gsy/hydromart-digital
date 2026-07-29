@@ -48,4 +48,9 @@ export class AdminConfigService {
     }
     return out;
   }
+
+  /** Base URL of one peer, or '' when this environment does not reach it. */
+  serviceUrl(envKey: string): string {
+    return (this.config.get<string>(envKey) ?? '').replace(/\/+$/, '');
+  }
 }

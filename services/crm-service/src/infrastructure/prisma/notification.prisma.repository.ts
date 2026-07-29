@@ -31,6 +31,14 @@ export class NotificationPrismaRepository implements NotificationRepository {
     return { ...row, status: row.status as NotificationStatus };
   }
 
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    // Read receipts are `onDelete: Cascade` on the notification, so they go with it.
+    const { count } = await this.prisma.notification.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    return count;
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const row = await this.prisma.notification.create({
       data: {

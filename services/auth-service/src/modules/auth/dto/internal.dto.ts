@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 import { STAFF_IMPORT_ROLES, type StaffImportRole } from '@hydromart/access';
 
@@ -53,4 +53,14 @@ export class PreRegisterResultDto {
       'created = new PENDING identity; pending = one already awaiting its first OTP; active = the phone already belongs to a verified account and was left untouched.',
   })
   status!: 'created' | 'pending' | 'active';
+}
+
+/**
+ * Retention sweep body. The cutoff comes from admin-service, which owns the policy —
+ * this service never derives it, so the legal rule has exactly one home.
+ */
+export class PurgeBeforeDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601()
+  cutoff!: string;
 }

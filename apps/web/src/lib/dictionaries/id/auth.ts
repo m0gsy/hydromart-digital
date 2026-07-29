@@ -24,6 +24,7 @@ export const auth = {
     consentPre: 'Saya menyetujui ',
     consentPrivacy: 'Kebijakan Privasi',
     consentPost: ' dan Ketentuan Layanan Hydromart.',
+    marketingOptIn: 'Saya bersedia menerima info promo dan penawaran (opsional).',
     consentError: 'Kamu harus menyetujui Kebijakan Privasi untuk mendaftar.',
     error: 'Tidak bisa memulai pendaftaran.',
     haveAccount: 'Sudah punya akun?',

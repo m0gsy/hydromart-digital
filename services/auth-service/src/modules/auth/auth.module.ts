@@ -6,6 +6,7 @@ import { AuthConfigService } from '../../config/auth-config.service';
 import { AUTH_TOKENS } from '../../application/tokens';
 import { AccountService } from '../../application/services/account.service';
 import { AuditService } from '../../application/services/audit.service';
+import { ConsentService } from '../../application/services/consent.service';
 import { DataSubjectService } from '../../application/services/data-subject.service';
 import { LoginService } from '../../application/services/login.service';
 import { OtpService } from '../../application/services/otp.service';
@@ -16,9 +17,11 @@ import { TokenService } from '../../application/services/token.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
+import { ConsentController } from './consent.controller';
 import { DataSubjectController } from './data-subject.controller';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { AuditLogPrismaRepository } from '../../infrastructure/prisma/repositories/audit-log.prisma.repository';
+import { ConsentPrismaRepository } from '../../infrastructure/prisma/repositories/consent.prisma.repository';
 import { DataSubjectRequestPrismaRepository } from '../../infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../infrastructure/http/customer-data.http.adapter';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
@@ -55,6 +58,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.AuditLogRepository, useClass: AuditLogPrismaRepository },
   { provide: AUTH_TOKENS.DataSubjectRequestRepository, useClass: DataSubjectRequestPrismaRepository },
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
+  { provide: AUTH_TOKENS.ConsentRepository, useClass: ConsentPrismaRepository },
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
@@ -104,6 +108,7 @@ const applicationServices: Provider[] = [
   AccountService,
   AuditService,
   DataSubjectService,
+  ConsentService,
 ];
 
 const globalGuards: Provider[] = [
@@ -120,6 +125,7 @@ const globalGuards: Provider[] = [
     AuditController,
     InternalAccountController,
     DataSubjectController,
+    ConsentController,
   ],
   providers: [...adapterProviders, ...applicationServices, ...globalGuards],
   exports: [PrismaService, AuthConfigService],

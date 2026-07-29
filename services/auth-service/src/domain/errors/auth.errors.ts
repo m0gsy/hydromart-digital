@@ -130,3 +130,18 @@ export class DataSubjectRequestAlreadyDecidedError extends DomainError {
     super('Permintaan ini sudah diputuskan.');
   }
 }
+
+/**
+ * Withdrawing TERMS/PRIVACY would leave a live account with no lawful basis for the
+ * processing it keeps asking for. That request is account deletion, and saying so is
+ * more honest than accepting a withdrawal nothing downstream can honour.
+ */
+export class ConsentNotWithdrawableError extends DomainError {
+  readonly code = 'PDP_CONSENT_MANDATORY';
+  readonly status = HTTP.UNPROCESSABLE;
+  constructor(purpose: string) {
+    super(
+      `Persetujuan ${purpose} tidak dapat dicabut selama akun aktif. Ajukan penghapusan akun bila ingin berhenti sepenuhnya.`,
+    );
+  }
+}

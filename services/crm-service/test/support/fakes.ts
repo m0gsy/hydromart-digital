@@ -171,6 +171,14 @@ export class InMemoryBroadcastRepository implements BroadcastRepository {
 export class InMemoryNotificationRepository implements NotificationRepository {
   records: NotificationRecord[] = [];
 
+  /** Mirrors the Prisma delete: rows strictly older than the cutoff go, and the read
+   * receipts hanging off them go with them (cascade in the real schema). */
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    const before = this.records.length;
+    this.records = this.records.filter((r) => r.createdAt.getTime() >= cutoff.getTime());
+    return before - this.records.length;
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
     this.records.push(rec);

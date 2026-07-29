@@ -36,6 +36,20 @@ export const en: Dictionary = {
     ops: 'Operations',
   },
   account: {
+    consents: {
+      title: 'Data consent',
+      body: 'A record of what you agreed to, and when. Mandatory consent cannot be withdrawn while the account is active — to stop entirely, request account deletion above.',
+      mandatory: 'Required',
+      never: 'Never asked',
+      since: 'Since {date}',
+      saved: 'Consent updated.',
+      saveError: 'Could not update the consent.',
+      purpose: {
+        TERMS: 'Terms of service',
+        PRIVACY: 'Privacy policy & data processing',
+        MARKETING: 'Promotions and offers',
+      },
+    },
     privacyData: {
       title: 'My personal data',
       body: 'You may ask for a copy of the data we hold, or ask for your account to be deleted. Head office reviews every request first.',

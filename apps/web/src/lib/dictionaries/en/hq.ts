@@ -1152,6 +1152,10 @@ export const hq = {
     deleteWarning: 'Approving a deletion is permanent: the identity is destroyed, financial records stay without an owner (10-year retention).',
   },
   retention: {
+    runSweep: 'Run retention sweep',
+    sweepHint: 'Deletes data past its window for datasets that have an executor. Financial data is never touched.',
+    sweepDone: 'Sweep done: {n} rows deleted, {gaps} dataset(s) not enforced.',
+    sweepError: 'The retention sweep failed.',
     title: 'Retention & backup',
     subtitle: 'Retention window per dataset & last backup status',
     dataset: 'Dataset',

@@ -89,3 +89,15 @@ describe('AuditService', () => {
     expect(harga.items[0].action).toBe('pricing.update');
   });
 });
+
+describe('AuditService.purgeOlderThan (retention enforcement)', () => {
+  it('passes the cutoff straight to the repository and reports the count', async () => {
+    const repo = new InMemoryAuditLogRepository();
+    await repo.record({ customerId: null, action: 'a', success: true, ipAddress: null, userAgent: null });
+    const service = new AuditService(repo);
+
+    const cutoff = new Date('2026-01-01T00:00:00.000Z');
+    expect(await service.purgeOlderThan(cutoff)).toEqual({ deleted: 1 });
+    expect(repo.purgedBefore).toEqual(cutoff);
+  });
+});

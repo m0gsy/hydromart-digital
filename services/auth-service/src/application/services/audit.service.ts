@@ -84,6 +84,17 @@ export class AuditService {
   }
 
   /**
+   * Retention enforcement: delete audit rows older than the cutoff admin-service
+   * computed from the policy. Failures propagate — a sweep that swallows its error
+   * would report "0 deleted" and be indistinguishable from "nothing was due".
+   */
+  async purgeOlderThan(cutoff: Date): Promise<{ deleted: number }> {
+    const deleted = await this.auditLog.deleteOlderThan(cutoff);
+    this.logger.log(`Purged ${deleted} audit rows older than ${cutoff.toISOString()}`);
+    return { deleted };
+  }
+
+  /**
    * Cross-service ingest: another service records a privileged action it performed
    * (e.g. depot suspend, franchise approve). The optional `target` is folded into
    * metadata so the model stays as-is. Recorded through the append-only trail.

@@ -28,6 +28,11 @@ import {
   RefreshTokenRecord,
   RefreshTokenRepository,
 } from '../../src/application/ports/refresh-token.repository';
+import { ConsentRecord } from '../../src/domain/data-subject/consent';
+import {
+  ConsentRepository,
+  RecordConsentData,
+} from '../../src/application/ports/consent.repository';
 import {
   AuditLogEntry,
   AuditLogListItem,
@@ -304,6 +309,12 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
 export class InMemoryAuditLogRepository implements AuditLogRepository {
   public readonly entries: AuditLogEntry[] = [];
   public shouldFail = false;
+  /** Rows the fake has been asked to delete, so a purge test can assert the cutoff. */
+  public purgedBefore: Date | null = null;
+  async deleteOlderThan(cutoff: Date): Promise<number> {
+    this.purgedBefore = cutoff;
+    return this.entries.length;
+  }
   async record(entry: AuditLogEntry): Promise<void> {
     if (this.shouldFail) {
       throw new Error('audit failure');
@@ -406,4 +417,31 @@ export function makeCustomer(overrides: Partial<ReturnType<Customer['toProps']>>
     updatedAt: now,
     ...overrides,
   });
+}
+
+/** In-memory consent ledger: append-only, exactly like the Prisma repository. */
+export class InMemoryConsentRepository implements ConsentRepository {
+  public readonly rows: ConsentRecord[] = [];
+  private seq = 0;
+
+  async record(data: RecordConsentData): Promise<ConsentRecord> {
+    const row: ConsentRecord = {
+      id: `consent-${++this.seq}`,
+      ...data,
+      // Monotonic stamps so "newest wins" is deterministic in tests.
+      recordedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, this.seq)),
+    };
+    this.rows.push(row);
+    return { ...row };
+  }
+
+  async recordMany(entries: RecordConsentData[]): Promise<ConsentRecord[]> {
+    const out: ConsentRecord[] = [];
+    for (const entry of entries) out.push(await this.record(entry));
+    return out;
+  }
+
+  async listForCustomer(customerId: string): Promise<ConsentRecord[]> {
+    return this.rows.filter((r) => r.customerId === customerId).map((r) => ({ ...r }));
+  }
 }

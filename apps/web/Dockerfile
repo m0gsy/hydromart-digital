@@ -23,7 +23,11 @@ COPY apps/web/package.json ./apps/web/
 # Access source must land BEFORE `npm ci` — @hydromart/access has a `prepare`
 # (tsc) that npm runs during install, and it needs its tsconfig + source present.
 COPY packages/access ./packages/access
-RUN npm ci --include-workspace-root
+# BuildKit cache mount: every image bakes the whole monorepo, so a cold rebuild used to
+# be N x a full `npm ci` download from Indonesia. The mount keeps the npm cache on the
+# builder between images and between runs; it never lands in a layer, so images stay the
+# same size. `npm ci` still deletes node_modules first, so builds remain reproducible.
+RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root
 RUN npm run build -w @hydromart/access
 COPY apps/web ./apps/web
 RUN npm run build -w @hydromart/web

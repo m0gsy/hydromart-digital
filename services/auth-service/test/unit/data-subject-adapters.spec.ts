@@ -2,6 +2,8 @@ import { DataSubjectController } from '../../src/modules/auth/data-subject.contr
 import { DataSubjectRequestPrismaRepository } from '../../src/infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../src/infrastructure/http/customer-data.http.adapter';
 import { anonymisedIdentity, isDecidable } from '../../src/domain/data-subject/data-subject-request';
+import { isConsentPurpose } from '../../src/domain/data-subject/consent';
+import { ConsentPrismaRepository } from '../../src/infrastructure/prisma/repositories/consent.prisma.repository';
 
 const USER = { sub: 'cust-1' } as never;
 
@@ -256,5 +258,69 @@ describe('CustomerDataHttpAdapter', () => {
     await expect(new CustomerDataHttpAdapter(configured).anonymise('cust-1')).rejects.toThrow(
       'ECONNREFUSED',
     );
+  });
+});
+
+describe('ConsentPrismaRepository', () => {
+  const consentRecord = { create: jest.fn(), findMany: jest.fn() };
+  const $transaction = jest.fn(async (ops: unknown) => ops);
+  const repo = new ConsentPrismaRepository({ consentRecord, $transaction } as never);
+  const row = {
+    id: 'c-1',
+    customerId: 'cust-1',
+    purpose: 'MARKETING',
+    granted: true,
+    documentVersion: '1.0',
+    source: 'account-settings',
+    recordedAt: new Date('2026-07-29T00:00:00.000Z'),
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('appends one decision and narrows the TEXT purpose back to the union', async () => {
+    consentRecord.create.mockResolvedValue(row);
+    const out = await repo.record({
+      customerId: 'cust-1',
+      purpose: 'MARKETING',
+      granted: true,
+      documentVersion: '1.0',
+      source: 'account-settings',
+    });
+    expect(out.purpose).toBe('MARKETING');
+    expect(consentRecord.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes a registration batch in ONE transaction so evidence is never half-written', async () => {
+    consentRecord.create.mockReturnValue(row as never);
+    $transaction.mockResolvedValue([row, row] as never);
+    const out = await repo.recordMany([
+      { customerId: 'cust-1', purpose: 'TERMS', granted: true, documentVersion: '1.0', source: 'registration' },
+      { customerId: 'cust-1', purpose: 'PRIVACY', granted: true, documentVersion: '1.0', source: 'registration' },
+    ]);
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(out).toHaveLength(2);
+  });
+
+  it('an empty batch touches the database at all', async () => {
+    expect(await repo.recordMany([])).toEqual([]);
+    expect($transaction).not.toHaveBeenCalled();
+  });
+
+  it('lists a customer history oldest-first', async () => {
+    consentRecord.findMany.mockResolvedValue([row]);
+    await repo.listForCustomer('cust-1');
+    expect(consentRecord.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1' },
+      orderBy: { recordedAt: 'asc' },
+    });
+  });
+});
+
+describe('isConsentPurpose', () => {
+  it('accepts only the three known purposes', () => {
+    expect(isConsentPurpose('TERMS')).toBe(true);
+    expect(isConsentPurpose('MARKETING')).toBe(true);
+    expect(isConsentPurpose('ANALYTICS')).toBe(false);
+    expect(isConsentPurpose(null)).toBe(false);
   });
 });
