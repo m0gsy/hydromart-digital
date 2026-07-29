@@ -3,10 +3,14 @@ import { Injectable } from '@nestjs/common';
 import { Employee, Prisma } from '../../../prisma/generated/client';
 import {
   AnalyticsRepository,
+  AnnouncementWithStats,
+  AssetWithHolder,
   AttendanceWithEmployee,
   GroupCount,
+  LeaveWithEmployee,
   PayrollTotals,
   PayrollWithEmployee,
+  ReviewWithEmployee,
 } from '../../application/ports/analytics.repository';
 import { PrismaService } from './prisma.service';
 
@@ -86,6 +90,50 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: { employee: { employeeCode: 'asc' } },
+    });
+  }
+
+  // ── C4 reports ──────────────────────────────────────────────────────
+
+  lateForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]> {
+    return this.prisma.attendance.findMany({
+      // status LATE only: an ABSENT day has no arrival time to be late by.
+      where: { workDate: { gte: from, lte: to }, depotId, status: 'LATE' },
+      include: { employee: EMPLOYEE_SUMMARY },
+      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
+    });
+  }
+
+  leaveForReport(from: Date, to: Date, depotId?: string): Promise<LeaveWithEmployee[]> {
+    return this.prisma.leaveRequest.findMany({
+      // Overlap, not containment: leave running across the window edge still belongs in it.
+      where: { startDate: { lte: to }, endDate: { gte: from }, depotId },
+      include: { employee: EMPLOYEE_SUMMARY },
+      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
+    });
+  }
+
+  performanceForReport(periodMonth: string, depotId?: string): Promise<ReviewWithEmployee[]> {
+    return this.prisma.performanceReview.findMany({
+      where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
+      include: { employee: EMPLOYEE_SUMMARY },
+      orderBy: { score: 'desc' },
+    });
+  }
+
+  assetsForReport(depotId?: string): Promise<AssetWithHolder[]> {
+    return this.prisma.employeeAsset.findMany({
+      where: { depotId },
+      include: { holder: EMPLOYEE_SUMMARY },
+      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+    });
+  }
+
+  announcementsForReport(from: Date, to: Date): Promise<AnnouncementWithStats[]> {
+    return this.prisma.announcement.findMany({
+      where: { publishedAt: { gte: from, lte: to } },
+      include: { targets: true, _count: { select: { reads: true } } },
+      orderBy: { publishedAt: 'desc' },
     });
   }
 }

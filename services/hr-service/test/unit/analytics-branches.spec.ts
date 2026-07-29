@@ -22,6 +22,11 @@ function build(over: Partial<AnalyticsRepository> = {}) {
     employeesForReport: async () => [],
     attendanceForReport: async () => [],
     payrollForReport: async () => [],
+    lateForReport: async () => [],
+    leaveForReport: async () => [],
+    performanceForReport: async () => [],
+    assetsForReport: async () => [],
+    announcementsForReport: async () => [],
     ...over,
   };
   const config = { timeZone: 'Asia/Jakarta' } as HrConfigService;

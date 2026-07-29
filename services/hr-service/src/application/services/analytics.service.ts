@@ -216,6 +216,144 @@ export class AnalyticsService {
     };
   }
 
+  // ── C4 reports ──────────────────────────────────────────────────────
+
+  /** Only days somebody arrived late, worst first. An absence is not a lateness. */
+  async lateReport(
+    user: AuthenticatedUser,
+    query: { depotId?: string; from: string; to: string },
+  ): Promise<ReportData> {
+    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
+    const rows = await this.repo.lateForReport(new Date(query.from), new Date(query.to), depotId);
+    return {
+      headers: ['workDate', 'employeeCode', 'fullName', 'checkInAt', 'lateMinutes'],
+      rows: rows.map((a) => [
+        isoDate(a.workDate),
+        a.employee.employeeCode,
+        a.employee.fullName,
+        isoTime(a.checkInAt),
+        a.lateMinutes,
+      ]),
+    };
+  }
+
+  async leaveReport(
+    user: AuthenticatedUser,
+    query: { depotId?: string; from: string; to: string },
+  ): Promise<ReportData> {
+    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
+    const rows = await this.repo.leaveForReport(new Date(query.from), new Date(query.to), depotId);
+    return {
+      headers: [
+        'employeeCode',
+        'fullName',
+        'type',
+        'startDate',
+        'endDate',
+        'workingDays',
+        'status',
+        'reason',
+        'decisionNote',
+      ],
+      rows: rows.map((l) => [
+        l.employee.employeeCode,
+        l.employee.fullName,
+        l.type,
+        isoDate(l.startDate),
+        isoDate(l.endDate),
+        l.workingDays,
+        l.status,
+        l.reason,
+        l.decisionNote ?? '',
+      ]),
+    };
+  }
+
+  async performanceReport(
+    user: AuthenticatedUser,
+    query: { depotId?: string; periodMonth: string },
+  ): Promise<ReportData> {
+    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
+    const rows = await this.repo.performanceForReport(query.periodMonth, depotId);
+    return {
+      headers: [
+        'periodMonth',
+        'employeeCode',
+        'fullName',
+        'score',
+        'attendanceScore',
+        'disciplineScore',
+        'salesScore',
+        'managerNote',
+      ],
+      rows: rows.map((r) => [
+        r.periodMonth,
+        r.employee.employeeCode,
+        r.employee.fullName,
+        dec(r.score),
+        // Blank, not 0: the component had nothing to measure that period (C2).
+        r.attendanceScore === null ? '' : r.attendanceScore.toNumber(),
+        r.disciplineScore === null ? '' : r.disciplineScore.toNumber(),
+        r.salesScore === null ? '' : r.salesScore.toNumber(),
+        r.managerNote ?? '',
+      ]),
+    };
+  }
+
+  async assetReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
+    const depotId = depotScopeFilter(user, depotIdParam) ?? undefined;
+    const rows = await this.repo.assetsForReport(depotId);
+    return {
+      headers: [
+        'code',
+        'type',
+        'name',
+        'brand',
+        'serialNo',
+        'value',
+        'status',
+        'holderCode',
+        'holderName',
+      ],
+      rows: rows.map((a) => [
+        a.code,
+        a.type,
+        a.name,
+        a.brand ?? '',
+        a.serialNo ?? '',
+        dec(a.value),
+        a.status,
+        a.holder?.employeeCode ?? '',
+        a.holder?.fullName ?? '',
+      ]),
+    };
+  }
+
+  async announcementReport(query: { from: string; to: string }): Promise<ReportData> {
+    const rows = await this.repo.announcementsForReport(new Date(query.from), new Date(query.to));
+    return {
+      headers: [
+        'publishedAt',
+        'title',
+        'level',
+        'targets',
+        'audienceSize',
+        'readCount',
+        'readRate',
+      ],
+      rows: rows.map((a) => [
+        isoTime(a.publishedAt),
+        a.title,
+        a.level,
+        a.targets.map((t) => `${t.dimension}${t.value ? `:${t.value}` : ''}`).join(' | '),
+        a.audienceSize,
+        a._count.reads,
+        // Blank rather than 0% when it reached nobody — there is no rate to state.
+        a.audienceSize > 0 ? `${Math.round((a._count.reads / a.audienceSize) * 100)}%` : '',
+      ]),
+    };
+  }
+
   csv(report: ReportData): string {
     return toCsv(report.headers, report.rows);
   }

@@ -62,6 +62,7 @@ const MODELS = [
   'announcementRead',
   'shiftRotation',
   'shiftAssignment',
+  'announcementTarget',
   'bonus',
   'deduction',
   'employee',
@@ -953,6 +954,71 @@ describe('AnalyticsPrismaRepository', () => {
       where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: { employee: { employeeCode: 'asc' } },
+    });
+  });
+
+  // ── C4 report fetchers ──────────────────────────────────────────────
+  const summary = { employee: { select: { employeeCode: true, fullName: true } } };
+  const from = new Date('2026-07-01');
+  const to = new Date('2026-07-31');
+
+  it('lateForReport takes LATE rows only — an absence has no arrival to be late by', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).lateForReport(from, to, 'd1');
+    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
+      where: { workDate: { gte: from, lte: to }, depotId: 'd1', status: 'LATE' },
+      include: summary,
+      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
+    });
+  });
+
+  it('leaveForReport matches by OVERLAP, so leave crossing the edge is included', async () => {
+    const p = makePrisma();
+    m(p, 'leaveRequest').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).leaveForReport(from, to, 'd1');
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
+      where: { startDate: { lte: to }, endDate: { gte: from }, depotId: 'd1' },
+      include: summary,
+      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
+    });
+  });
+
+  it('performanceForReport ranks by score and scopes through the employee', async () => {
+    const p = makePrisma();
+    m(p, 'performanceReview').findMany.mockResolvedValue([]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await repo.performanceForReport('2026-07', 'd1');
+    expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
+      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      include: summary,
+      orderBy: { score: 'desc' },
+    });
+    await repo.performanceForReport('2026-07');
+    expect(m(p, 'performanceReview').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { periodMonth: '2026-07' } }),
+    );
+  });
+
+  it('assetsForReport includes the holder', async () => {
+    const p = makePrisma();
+    m(p, 'employeeAsset').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).assetsForReport('d1');
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1' },
+      include: { holder: { select: { employeeCode: true, fullName: true } } },
+      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+    });
+  });
+
+  it('announcementsForReport aggregates the read count in the query', async () => {
+    const p = makePrisma();
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).announcementsForReport(from, to);
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: { publishedAt: { gte: from, lte: to } },
+      include: { targets: true, _count: { select: { reads: true } } },
+      orderBy: { publishedAt: 'desc' },
     });
   });
 });

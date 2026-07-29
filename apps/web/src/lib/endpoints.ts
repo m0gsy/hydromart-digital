@@ -1305,6 +1305,26 @@ export const endpoints = {
     shiftAssignments: (employeeId: string) =>
       `/shift-rotations/api/v1/shift-rotations/assignments?employeeId=${encodeURIComponent(employeeId)}`,
     createShiftAssignment: '/shift-rotations/api/v1/shift-rotations/assignments',
+    /** C4 reports. `kind` picks the route; all of them take csv | xlsx | pdf. */
+    hrReport: (
+      kind: 'late' | 'leave' | 'performance' | 'assets' | 'announcements',
+      q: {
+        from?: string;
+        to?: string;
+        periodMonth?: string;
+        depotId?: string;
+        format?: string;
+      } = {},
+    ) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      if (q.periodMonth) p.set('periodMonth', q.periodMonth);
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.format) p.set('format', q.format);
+      const qs = p.toString();
+      return `/hr-reports/api/v1/hr-reports/${kind}${qs ? `?${qs}` : ''}`;
+    },
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
