@@ -91,6 +91,15 @@ export class NotAtDepotError extends DomainError {
   }
 }
 
+/** A queued offline capture surfaced so late that its device timestamp is no longer usable. */
+export class StaleCaptureError extends DomainError {
+  readonly code = 'OFFLINE_CAPTURE_STALE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(maxAgeHours: number) {
+    super(`Data offline sudah lebih dari ${maxAgeHours} jam. Hubungi admin depot.`);
+  }
+}
+
 export class InvalidShiftTransitionError extends DomainError {
   readonly code = 'SHIFT_INVALID_TRANSITION';
   readonly status = HTTP_STATUS.CONFLICT;

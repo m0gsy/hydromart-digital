@@ -20,6 +20,14 @@ export class CheckInDto {
   @Type(() => Number)
   @IsLongitude()
   lng!: number;
+
+  @ApiPropertyOptional({
+    example: '2026-07-29T01:10:00.000Z',
+    description: 'Device time for a check-in queued offline. Clamped server-side; omit when live.',
+  })
+  @IsOptional()
+  @IsDateString()
+  capturedAt?: string;
 }
 
 export class CheckOutDto {

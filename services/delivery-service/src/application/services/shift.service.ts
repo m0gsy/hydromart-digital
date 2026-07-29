@@ -9,6 +9,7 @@ import {
   ShiftNotFoundError,
 } from '../../domain/errors';
 import { haversineMeters } from '../../domain/geo';
+import { clampCapturedAt } from '../../domain/offline';
 import {
   ShiftStatus,
   acceptsAssignments,
@@ -44,7 +45,13 @@ export class ShiftService {
    * The GPS gate fails closed — an unverified check-in would open the settlement
    * window for a courier who may not be at the depot at all.
    */
-  async checkIn(driverId: string, depotId: string, lat: number, lng: number): Promise<ShiftView> {
+  async checkIn(
+    driverId: string,
+    depotId: string,
+    lat: number,
+    lng: number,
+    capturedAt?: Date | null,
+  ): Promise<ShiftView> {
     if (await this.shifts.findOpenByDriver(driverId)) {
       throw new ShiftAlreadyOpenError();
     }
@@ -56,7 +63,9 @@ export class ShiftService {
       throw new NotAtDepotError(distance, radius);
     }
 
-    const now = new Date();
+    // A check-in queued offline keeps the moment the courier actually stood at the depot —
+    // the GPS gate above ran against those same capture-time coordinates.
+    const now = clampCapturedAt(capturedAt, new Date(), this.config.offlineMaxAgeHours(depotId));
     const shift = await this.shifts.open({
       driverId,
       depotId,

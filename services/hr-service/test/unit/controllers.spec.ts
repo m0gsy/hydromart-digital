@@ -117,7 +117,15 @@ describe('BonusController / DeductionController', () => {
 });
 
 describe('AttendanceController', () => {
-  const att = svcMock(['checkIn', 'checkOut', 'listSelf', 'list', 'createManual', 'adjust']);
+  const att = svcMock([
+    'checkIn',
+    'checkOut',
+    'listSelf',
+    'list',
+    'createManual',
+    'adjust',
+    'decide',
+  ]);
   const c = new AttendanceController(att as never);
 
   it('check-in decodes the frame and forwards a punch', () => {
@@ -146,6 +154,17 @@ describe('AttendanceController', () => {
     const ad = { reason: 'fix' } as never;
     expect(c.adjust('id1', ad, user)).toBe('adjust-result');
     expect(att.adjust).toHaveBeenCalledWith(user, 'id1', ad);
+  });
+  it('check-in forwards a device capture time when the punch came from the offline queue', () => {
+    const dto = { image: b64, lat: 1, lng: 2, capturedAt: '2026-07-24T01:10:00.000Z' } as never;
+    c.checkIn(dto, user);
+    const punch = att.checkIn.mock.calls.at(-1)?.[1];
+    expect(punch.capturedAt).toEqual(new Date('2026-07-24T01:10:00.000Z'));
+  });
+  it('decide delegates the HR verdict', () => {
+    const dto = { decision: 'APPROVE', note: 'ok' } as never;
+    expect(c.decide('id1', dto, user)).toBe('decide-result');
+    expect(att.decide).toHaveBeenCalledWith(user, 'id1', 'APPROVE', 'ok');
   });
 });
 

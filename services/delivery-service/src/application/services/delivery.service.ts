@@ -37,6 +37,7 @@ import { OrderAdvanceMeta, OrderCoordinationPort } from '../ports/order-coordina
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DepotLocationPort } from '../ports/depot-location.port';
 import { haversineMeters } from '../../domain/geo';
+import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 
@@ -56,7 +57,10 @@ export interface AssignInput {
   notes?: string;
 }
 
-export type ProofInput = Omit<ProofRecord, 'capturedAt'>;
+export type ProofInput = Omit<ProofRecord, 'capturedAt'> & {
+  /** Device time when the proof was captured offline; absent for a live handover. */
+  capturedAt?: Date | null;
+};
 
 export interface ListDeliveriesInput {
   status?: DeliveryStatus;
@@ -186,6 +190,14 @@ export class DeliveryService {
   ): Promise<DeliveryRecord> {
     const delivery = await this.ownedByDriver(driverId, id);
     this.assertTransition(delivery.status, DeliveryStatus.DELIVERED);
+    // Proof queued offline keeps the handover time, floored at assignment so a wrong device
+    // clock cannot fake an impossibly fast delivery and inflate the courier's on-time rate.
+    const capturedAt = clampCapturedAt(
+      proof.capturedAt,
+      new Date(),
+      this.config.offlineMaxAgeHours(delivery.depotId),
+      delivery.assignedAt,
+    );
     await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
     // staff- or customer-driven. Without this step the order sits at DELIVERED forever and
@@ -199,7 +211,7 @@ export class DeliveryService {
     } catch {
       this.logger.error(`Order ${delivery.orderId} delivered but could not be completed`);
     }
-    const completed = await this.deliveries.completeWithProof(id, proof, driverId);
+    const completed = await this.deliveries.completeWithProof(id, proof, driverId, capturedAt);
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
     // delivery must never roll back because its earning push did.

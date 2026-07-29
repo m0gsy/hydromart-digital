@@ -44,6 +44,9 @@ enum AttendanceStatus {
   ABSENT
   LEAVE
   HOLIDAY
+  /// Punch taken offline and synced too late to trust the device clock. Counts as nothing —
+  /// payroll and reports whitelist PRESENT/LATE — until HR decides it.
+  PENDING
 }
 
 /// Monthly payroll lifecycle. Only DRAFT is re-generatable; APPROVED/PAID are locked.

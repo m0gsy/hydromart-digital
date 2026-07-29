@@ -59,6 +59,9 @@ class FakeAtt implements AttendanceRepository {
   async patchCheckOut(): Promise<Attendance> {
     return {} as Attendance;
   }
+  async patchStatus(): Promise<Attendance> {
+    return {} as Attendance;
+  }
   async list(filter: AttendanceListFilter) {
     this.lastFilter = filter;
     return { rows: [{ id: 'a1' } as Attendance], total: 1 };

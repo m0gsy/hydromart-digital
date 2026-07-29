@@ -358,13 +358,14 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     id: string,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
+    capturedAt: Date,
   ): Promise<DeliveryRecord> {
     const row = await this.prisma.delivery.update({
       where: { id },
       data: {
         status: DeliveryStatus.DELIVERED,
-        deliveredAt: new Date(),
-        proof: { create: proof },
+        deliveredAt: capturedAt,
+        proof: { create: { ...proof, capturedAt } },
         history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
       },
       include: INCLUDE,

@@ -74,7 +74,8 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
 
   attendanceForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]> {
     return this.prisma.attendance.findMany({
-      where: { workDate: { gte: from, lte: to }, depotId },
+      // PENDING = offline punch still awaiting HR; it is not attendance yet.
+      where: { workDate: { gte: from, lte: to }, depotId, status: { not: 'PENDING' } },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
     });

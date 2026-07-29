@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { Attendance, Employee, FaceEmbedding } from '../../prisma/generated/client';
+import {
+  Attendance,
+  AttendanceStatus,
+  Employee,
+  FaceEmbedding,
+} from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { AttendanceService, FacePunch } from '../../src/application/services/attendance.service';
 import {
@@ -68,6 +73,10 @@ class FakeAtt implements AttendanceRepository {
     this.patched = patch;
     return { ...(this.row as Attendance), ...patch };
   }
+  async patchStatus(_id: string, status: AttendanceStatus): Promise<Attendance> {
+    this.row = { ...(this.row as Attendance), status };
+    return this.row;
+  }
   async list() {
     return { rows: [], total: 0 };
   }
@@ -78,6 +87,8 @@ const config = {
   workStartTime: () => '08:00',
   lateToleranceMinutes: () => 15,
   geofence: () => ({ lat: null, lng: null, radiusM: 0 }),
+  offlineAutoAcceptMinutes: () => 10,
+  offlineMaxAgeHours: () => 24,
   faceMatchThreshold: 0.62,
 } as unknown as HrConfigService;
 

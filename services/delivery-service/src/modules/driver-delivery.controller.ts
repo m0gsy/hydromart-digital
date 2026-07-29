@@ -93,6 +93,7 @@ export class DriverDeliveryController {
         latitude: dto.latitude,
         longitude: dto.longitude,
         note: dto.note ?? null,
+        capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,
       },
       authorization,
     );

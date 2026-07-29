@@ -1,7 +1,13 @@
 import 'reflect-metadata';
 import { validateSync } from 'class-validator';
 
-import { AdjustAttendanceDto, ManualAttendanceDto } from '../../src/modules/dto/attendance.dto';
+import {
+  AdjustAttendanceDto,
+  DecideAttendanceDto,
+  FacePunchDto,
+  ListAttendanceDto,
+  ManualAttendanceDto,
+} from '../../src/modules/dto/attendance.dto';
 
 const EMPLOYEE = '00000000-0000-4000-8000-000000000001';
 
@@ -41,5 +47,48 @@ describe('attendance reason is mandatory text', () => {
         reason: 'Lupa absen, dicatat manual',
       }),
     ).toEqual([]);
+  });
+});
+
+// PENDING is produced by the offline path only; HR must not be able to set it by hand.
+describe('offline punch DTOs', () => {
+  const punch = { image: 'x', lat: -6.2, lng: 106.8 };
+
+  it('accepts an ISO capturedAt and rejects garbage', () => {
+    expect(failedProps(FacePunchDto, { ...punch, capturedAt: '2026-07-24T01:10:00.000Z' })).toEqual(
+      [],
+    );
+    expect(failedProps(FacePunchDto, { ...punch, capturedAt: 'kemarin' })).toContain('capturedAt');
+  });
+
+  it('treats capturedAt as optional so live punches are unchanged', () => {
+    expect(failedProps(FacePunchDto, punch)).toEqual([]);
+  });
+
+  it('rejects PENDING on manual entry and adjustment', () => {
+    expect(
+      failedProps(ManualAttendanceDto, {
+        employeeId: EMPLOYEE,
+        workDate: '2026-07-27',
+        status: 'PENDING' as never,
+        reason: 'coba',
+      }),
+    ).toContain('status');
+    expect(
+      failedProps(AdjustAttendanceDto, { status: 'PENDING' as never, reason: 'coba' }),
+    ).toContain('status');
+  });
+
+  it('allows PENDING as a list filter', () => {
+    expect(failedProps(ListAttendanceDto, { status: 'PENDING' })).toEqual([]);
+    expect(failedProps(ListAttendanceDto, { status: 'ENTAH' })).toContain('status');
+  });
+
+  it('constrains the HR decision', () => {
+    expect(failedProps(DecideAttendanceDto, { decision: 'APPROVE' })).toEqual([]);
+    expect(failedProps(DecideAttendanceDto, { decision: 'MAYBE' as never })).toContain('decision');
+    expect(failedProps(DecideAttendanceDto, { decision: 'REJECT', note: 'x'.repeat(201) })).toContain(
+      'note',
+    );
   });
 });

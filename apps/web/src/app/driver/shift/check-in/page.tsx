@@ -18,6 +18,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
+import { runOrQueue } from '@/lib/offline-queue';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
@@ -62,11 +63,11 @@ function CheckIn() {
     setError(null);
     try {
       const pos = await currentPosition();
-      await api.post(
-        endpoints.deliveries.shifts.checkIn,
-        { depotId, lat: pos.coords.latitude, lng: pos.coords.longitude },
-        true,
-      );
+      // Depot wifi is not a given at 6am: queue the check-in rather than lose the shift start.
+      await runOrQueue({
+        kind: 'shiftCheckIn',
+        payload: { depotId, lat: pos.coords.latitude, lng: pos.coords.longitude },
+      });
       router.replace('/driver');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.checkIn.error'));

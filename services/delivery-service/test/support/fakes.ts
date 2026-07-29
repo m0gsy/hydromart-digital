@@ -292,13 +292,14 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     id: string,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
+    capturedAt: Date,
   ): Promise<DeliveryRecord> {
     const row = this.rows.find((r) => r.id === id)!;
     const now = nextDate();
     row.status = DeliveryStatus.DELIVERED;
-    row.deliveredAt = now;
+    row.deliveredAt = capturedAt;
     row.updatedAt = now;
-    row.proof = { ...proof, capturedAt: now };
+    row.proof = { ...proof, capturedAt };
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return clone(row);
   }

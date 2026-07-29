@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Attendance, Prisma } from '../../../prisma/generated/client';
+import { Attendance, AttendanceStatus, Prisma } from '../../../prisma/generated/client';
 
 import {
   AttendanceListFilter,
@@ -88,10 +88,15 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     return this.prisma.attendance.update({ where: { id }, data: patch });
   }
 
+  patchStatus(id: string, status: AttendanceStatus): Promise<Attendance> {
+    return this.prisma.attendance.update({ where: { id }, data: { status } });
+  }
+
   async list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }> {
     const where: Prisma.AttendanceWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
+      ...(filter.status ? { status: filter.status } : {}),
       ...(filter.from || filter.to
         ? {
             workDate: {

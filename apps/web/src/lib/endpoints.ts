@@ -1074,6 +1074,7 @@ export const endpoints = {
     checkOut: '/attendance/api/v1/attendance/check-out',
     attendanceManual: '/attendance/api/v1/attendance/manual',
     attendanceAdjust: (id: string) => `/attendance/api/v1/attendance/${id}/adjust`,
+    attendanceDecide: (id: string) => `/attendance/api/v1/attendance/${id}/decide`,
     attendanceMe: (q: { from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.from) p.set('from', q.from);
@@ -1091,10 +1092,11 @@ export const endpoints = {
       const qs = p.toString();
       return `/payroll/api/v1/payroll/me${qs ? `?${qs}` : ''}`;
     },
-    attendance: (q: { depotId?: string; employeeId?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
+    attendance: (q: { depotId?: string; employeeId?: string; status?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);
       if (q.employeeId) p.set('employeeId', q.employeeId);
+      if (q.status) p.set('status', q.status);
       if (q.from) p.set('from', q.from);
       if (q.to) p.set('to', q.to);
       if (q.page) p.set('page', String(q.page));

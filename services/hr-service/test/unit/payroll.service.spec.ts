@@ -70,6 +70,7 @@ function build(opts: {
     findByEmployeeAndDate: async () => null,
     findById: async () => null,
     upsertManual: async () => ({}) as never,
+    patchStatus: async () => ({}) as never,
     recordAdjustment: async () => undefined,
     summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
     listWorkedMinutes: async () =>

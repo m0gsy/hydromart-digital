@@ -12,6 +12,7 @@ import {
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
+  StaleCaptureError,
 } from '../../src/domain/errors';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { haversineMeters } from '../../src/domain/geo';
@@ -316,6 +317,33 @@ describe('DeliveryService', () => {
 
     expect(done.status).toBe(DeliveryStatus.DELIVERED);
     expect(orders.calls.map((c) => c.status)).toContain('DELIVERED');
+  });
+
+  // The capture time itself is carried through by the repository (see prisma-repositories.spec)
+  // and clamped by clampCapturedAt (see offline.spec); here we only pin the two service-level
+  // rules — the assignment floor and the staleness refusal.
+  it('floors offline proof at assignment so an early device clock cannot fake the SLA', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const beforeAssignment = new Date(d.assignedAt.getTime() - 30 * 60_000);
+    const done = await service.complete(
+      driver,
+      d.id,
+      { ...PROOF, capturedAt: beforeAssignment },
+      AUTH,
+    );
+    expect(done.deliveredAt).toEqual(d.assignedAt);
+  });
+
+  it('refuses proof older than the offline window', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const ancient = new Date(Date.now() - 20 * 3_600_000);
+    await expect(
+      service.complete(driver, d.id, { ...PROOF, capturedAt: ancient }, AUTH),
+    ).rejects.toBeInstanceOf(StaleCaptureError);
   });
 
   it('frees the driver for a new delivery once the first is delivered', async () => {

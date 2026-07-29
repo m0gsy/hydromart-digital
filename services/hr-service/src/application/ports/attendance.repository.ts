@@ -27,6 +27,7 @@ export interface CheckOutPatch {
 export interface AttendanceListFilter {
   depotId?: string;
   employeeId?: string;
+  status?: AttendanceStatus;
   from?: Date;
   to?: Date;
   skip: number;
@@ -81,5 +82,7 @@ export interface AttendanceRepository {
   listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]>;
   create(input: CreateAttendanceInput): Promise<Attendance>;
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance>;
+  /** Settle a PENDING offline punch (HR approve/reject). */
+  patchStatus(id: string, status: AttendanceStatus): Promise<Attendance>;
   list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }>;
 }

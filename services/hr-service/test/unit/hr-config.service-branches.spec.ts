@@ -187,6 +187,22 @@ describe('HrConfigService — per-depot tunables', () => {
     expect(over.weeklyOffDays()).toBe('0');
   });
 
+  it('serves the offline-punch tunables from defaults and per-depot overrides', async () => {
+    const svc = new HrConfigService(config(), await cacheWith());
+    expect(svc.offlineAutoAcceptMinutes()).toBe(10);
+    expect(svc.offlineMaxAgeHours()).toBe(24);
+
+    const overridden = new HrConfigService(
+      config(),
+      await cacheWith([
+        { scope: 'DEPOT', depotId, key: 'offlineAutoAcceptMinutes', value: '0' },
+        { scope: 'DEPOT', depotId, key: 'offlineMaxAgeHours', value: '4' },
+      ]),
+    );
+    expect(overridden.offlineAutoAcceptMinutes(depotId)).toBe(0);
+    expect(overridden.offlineMaxAgeHours(depotId)).toBe(4);
+  });
+
   it('parses a fully-set geofence', async () => {
     const cache = await cacheWith([
       { scope: 'DEPOT', depotId, key: 'geofenceLat', value: '-6.2001' },

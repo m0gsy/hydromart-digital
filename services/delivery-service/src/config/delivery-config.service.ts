@@ -74,6 +74,10 @@ export class DeliveryConfigService {
   shiftCheckInRadiusMeters(depotId: string | null = null): number {
     return this.tunable('shiftCheckInRadiusMeters', this.num('SHIFT_CHECKIN_RADIUS_M'), depotId);
   }
+  /** Oldest device timestamp still accepted from the offline queue. */
+  offlineMaxAgeHours(depotId: string | null = null): number {
+    return this.tunable('offlineMaxAgeHours', 12, depotId);
+  }
   shiftLengthHours(depotId: string | null = null): number {
     return this.tunable('shiftLengthHours', this.num('SHIFT_LENGTH_HOURS'), depotId);
   }

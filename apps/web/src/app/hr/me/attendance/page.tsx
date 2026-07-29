@@ -7,7 +7,7 @@ import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type Attend
 import { useAsync } from '@/lib/use-async';
 
 const TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
-  PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral',
+  PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral', PENDING: 'warning',
 };
 
 export default function MyAttendancePage() {

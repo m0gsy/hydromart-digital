@@ -4,7 +4,7 @@
 export type EmploymentStatus = 'TRAINING' | 'PROBATION' | 'PERMANENT' | 'DEPOT_MANAGER';
 export type SalaryType = 'DAILY' | 'MONTHLY';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'RESIGNED';
-export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'LEAVE' | 'HOLIDAY';
+export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'LEAVE' | 'HOLIDAY' | 'PENDING';
 export type PayrollStatus = 'DRAFT' | 'APPROVED' | 'PAID';
 export type BonusType = 'ATTENDANCE' | 'PERFORMANCE' | 'SALES' | 'DEPOT' | 'MANUAL';
 export type DeductionType = 'LATE' | 'ABSENCE' | 'MANUAL' | 'CASH_ADVANCE' | 'OTHER';
@@ -242,6 +242,8 @@ export const ATTENDANCE_STATUS_LABEL: Record<AttendanceStatus, string> = {
   ABSENT: 'Absen',
   LEAVE: 'Cuti',
   HOLIDAY: 'Libur',
+  // Offline punch that synced too late to trust its device clock; counts as nothing until HR decides.
+  PENDING: 'Menunggu persetujuan',
 };
 export const PAYROLL_STATUS_LABEL: Record<PayrollStatus, string> = {
   DRAFT: 'Draft',
