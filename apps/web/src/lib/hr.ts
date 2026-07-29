@@ -336,6 +336,35 @@ export interface AssetDetail extends EmployeeAsset {
   movements: AssetMovement[];
 }
 
+export type AnnouncementLevel = 'INFO' | 'WARNING' | 'URGENT';
+/**
+ * The spec calls the fourth dimension "ROLE". hr-service holds no auth role — those live in
+ * auth-service — so what HR can target is the jabatan, `Employee.position`.
+ */
+export type AnnouncementDimension = 'COMPANY' | 'DEPOT' | 'DEPARTMENT' | 'POSITION' | 'EMPLOYEE';
+
+export interface AnnouncementTarget {
+  id: string;
+  dimension: AnnouncementDimension;
+  value: string | null;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  body: string;
+  level: AnnouncementLevel;
+  scheduledAt: string | null;
+  publishedAt: string | null;
+  audienceSize: number;
+  createdAt: string;
+  targets: AnnouncementTarget[];
+}
+
+export interface AnnouncementDetail extends Announcement {
+  readCount: number;
+}
+
 /** Loan + computed outstanding balance (server-derived, as of a period). */
 export interface LoanView extends Loan {
   remaining: number;
@@ -485,6 +514,38 @@ export function assetMovesFrom(status: AssetStatus): AssetMovementKind[] {
 /** Only these hand the item to a person, so only these need a recipient field. */
 export function assetMoveNeedsRecipient(kind: AssetMovementKind): boolean {
   return kind === 'ASSIGN' || kind === 'TRANSFER';
+}
+
+export const ANNOUNCEMENT_LEVELS: AnnouncementLevel[] = ['INFO', 'WARNING', 'URGENT'];
+export const ANNOUNCEMENT_LEVEL_LABEL: Record<AnnouncementLevel, string> = {
+  INFO: 'Informasi',
+  WARNING: 'Perhatian',
+  URGENT: 'Mendesak',
+};
+export const ANNOUNCEMENT_DIMENSIONS: AnnouncementDimension[] = [
+  'COMPANY',
+  'DEPOT',
+  'DEPARTMENT',
+  'POSITION',
+  'EMPLOYEE',
+];
+export const ANNOUNCEMENT_DIMENSION_LABEL: Record<AnnouncementDimension, string> = {
+  COMPANY: 'Seluruh perusahaan',
+  DEPOT: 'Depot',
+  DEPARTMENT: 'Departemen',
+  POSITION: 'Jabatan',
+  EMPLOYEE: 'Karyawan tertentu',
+};
+
+/** Everything except COMPANY names a specific thing, so it needs a value. */
+export function announcementTargetNeedsValue(dimension: AnnouncementDimension): boolean {
+  return dimension !== 'COMPANY';
+}
+
+/** "12 dari 40 dibaca (30%)". Zero audience reads as "—", not a division by zero. */
+export function announcementReadRate(readCount: number, audienceSize: number): string {
+  if (audienceSize <= 0) return '—';
+  return `${readCount} dari ${audienceSize} dibaca (${Math.round((readCount / audienceSize) * 100)}%)`;
 }
 
 export const BONUS_TYPES: BonusType[] = ['ATTENDANCE', 'PERFORMANCE', 'SALES', 'DEPOT', 'MANUAL'];

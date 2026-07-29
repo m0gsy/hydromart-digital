@@ -1281,6 +1281,17 @@ export const endpoints = {
     asset: (id: string) => `/employee-assets/api/v1/employee-assets/${id}`,
     createAsset: '/employee-assets/api/v1/employee-assets',
     moveAsset: (id: string) => `/employee-assets/api/v1/employee-assets/${id}/movements`,
+    announcements: (q: { page?: number; pageSize?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/announcements/api/v1/announcements${qs ? `?${qs}` : ''}`;
+    },
+    announcement: (id: string) => `/announcements/api/v1/announcements/${id}`,
+    createAnnouncement: '/announcements/api/v1/announcements',
+    announcementsMe: '/announcements/api/v1/announcements/me',
+    readAnnouncement: (id: string) => `/announcements/api/v1/announcements/me/${id}/read`,
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,

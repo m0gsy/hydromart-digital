@@ -8,6 +8,7 @@ import { AllowancePrismaRepository } from '../../src/infrastructure/prisma/allow
 import { LeavePrismaRepository } from '../../src/infrastructure/prisma/leave.prisma.repository';
 import { DocumentPrismaRepository } from '../../src/infrastructure/prisma/document.prisma.repository';
 import { AssetPrismaRepository } from '../../src/infrastructure/prisma/asset.prisma.repository';
+import { AnnouncementPrismaRepository } from '../../src/infrastructure/prisma/announcement.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -57,6 +58,8 @@ const MODELS = [
   'employeeDocument',
   'employeeAsset',
   'assetMovement',
+  'announcement',
+  'announcementRead',
   'bonus',
   'deduction',
   'employee',
@@ -304,6 +307,115 @@ describe('LeavePrismaRepository', () => {
   });
 });
 
+// ── AnnouncementPrismaRepository ───────────────────────────────────────
+describe('AnnouncementPrismaRepository', () => {
+  const write = {
+    title: 'Libur',
+    body: 'Depot tutup',
+    level: 'INFO' as const,
+    scheduledAt: null,
+    createdBy: 'hr-1',
+  };
+
+  it('creates the announcement and its targets in one nested write', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'announcement').create.mockResolvedValue(out);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+    const targets = [{ dimension: 'DEPOT' as const, value: 'd1' }];
+
+    await expect(repo.create(write, targets)).resolves.toBe(out);
+    expect(m(p, 'announcement').create).toHaveBeenCalledWith({
+      data: { ...write, targets: { create: targets } },
+      include: { targets: true },
+    });
+  });
+
+  it('always reads targets alongside the row', async () => {
+    const p = makePrisma();
+    m(p, 'announcement').findUnique.mockResolvedValue(null);
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    m(p, 'announcement').count.mockResolvedValue(0);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await repo.findById('an1');
+    expect(m(p, 'announcement').findUnique).toHaveBeenCalledWith({
+      where: { id: 'an1' },
+      include: { targets: true },
+    });
+    await expect(repo.list({ skip: 0, take: 10 })).resolves.toEqual({ rows: [], total: 0 });
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: {},
+      include: { targets: true },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 10,
+    });
+    await repo.list({ publishedOnly: true, skip: 0, take: 10 });
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { publishedAt: { not: null } } }),
+    );
+    expect(tx(p)).toHaveBeenCalled();
+  });
+
+  it('listDue takes only unpublished rows whose schedule has passed', async () => {
+    const p = makePrisma();
+    const now = new Date('2026-08-01T09:00:00.000Z');
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await repo.listPublished(5);
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: { publishedAt: { not: null } },
+      include: { targets: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 5,
+    });
+    await repo.listDue(now);
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith({
+      where: { publishedAt: null, scheduledAt: { not: null, lte: now } },
+      include: { targets: true },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  });
+
+  it('freezes the audience size when it stamps a row published', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    const at = new Date('2026-08-01T10:00:00.000Z');
+    m(p, 'announcement').update.mockResolvedValue(out);
+    await expect(
+      new AnnouncementPrismaRepository(asService(p)).markPublished('an1', at, 12),
+    ).resolves.toBe(out);
+    expect(m(p, 'announcement').update).toHaveBeenCalledWith({
+      where: { id: 'an1' },
+      data: { publishedAt: at, audienceSize: 12 },
+    });
+  });
+
+  it('marks read with an empty update so the FIRST readAt survives', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'announcementRead').upsert.mockResolvedValue(out);
+    m(p, 'announcementRead').count.mockResolvedValue(3);
+    m(p, 'announcementRead').findMany.mockResolvedValue([{ announcementId: 'an1' }]);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await expect(repo.markRead('an1', 'e1')).resolves.toBe(out);
+    expect(m(p, 'announcementRead').upsert).toHaveBeenCalledWith({
+      where: { announcementId_employeeId: { announcementId: 'an1', employeeId: 'e1' } },
+      create: { announcementId: 'an1', employeeId: 'e1' },
+      update: {},
+    });
+    await expect(repo.countReads('an1')).resolves.toBe(3);
+    await expect(repo.listReadIdsFor('e1', ['an1', 'an2'])).resolves.toEqual(['an1']);
+    expect(m(p, 'announcementRead').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', announcementId: { in: ['an1', 'an2'] } },
+      select: { announcementId: true },
+    });
+  });
+});
+
 // ── AssetPrismaRepository ──────────────────────────────────────────────
 describe('AssetPrismaRepository', () => {
   const write = {
@@ -342,7 +454,14 @@ describe('AssetPrismaRepository', () => {
     const repo = new AssetPrismaRepository(asService(p));
 
     await expect(
-      repo.list({ depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1', skip: 5, take: 10 }),
+      repo.list({
+        depotId: 'd1',
+        status: 'ASSIGNED',
+        type: 'LAPTOP',
+        holderId: 'e1',
+        skip: 5,
+        take: 10,
+      }),
     ).resolves.toEqual({ rows: ['a'], total: 1 });
     expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
       where: { depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1' },
@@ -468,9 +587,9 @@ describe('DocumentPrismaRepository', () => {
   it('deleteMany reports how many rows went', async () => {
     const p = makePrisma();
     m(p, 'employeeDocument').deleteMany.mockResolvedValue({ count: 2 });
-    await expect(
-      new DocumentPrismaRepository(asService(p)).deleteMany(['a', 'b']),
-    ).resolves.toBe(2);
+    await expect(new DocumentPrismaRepository(asService(p)).deleteMany(['a', 'b'])).resolves.toBe(
+      2,
+    );
     expect(m(p, 'employeeDocument').deleteMany).toHaveBeenCalledWith({
       where: { id: { in: ['a', 'b'] } },
     });
@@ -1155,7 +1274,9 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
   it('does nothing at all when no record is eligible', async () => {
     const p = makePrisma();
     m(p, 'employee').findMany.mockResolvedValue([]);
-    expect(await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF)).toBe(0);
+    expect(await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF)).toBe(
+      0,
+    );
     expect(p.$transaction).not.toHaveBeenCalled();
   });
 

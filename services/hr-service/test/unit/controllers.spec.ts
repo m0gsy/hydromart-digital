@@ -20,6 +20,10 @@ import { AllowanceController } from '../../src/modules/allowance.controller';
 import { LeaveController, SelfLeaveController } from '../../src/modules/leave.controller';
 import { DocumentController } from '../../src/modules/document.controller';
 import { AssetController } from '../../src/modules/asset.controller';
+import {
+  AnnouncementController,
+  SelfAnnouncementController,
+} from '../../src/modules/announcement.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -226,7 +230,15 @@ describe('HolidayController / ShiftController', () => {
     expect(allowances.deactivate).toHaveBeenCalledWith(user, 'a1');
   });
   it('leave controllers delegate, self and approval sides apart', () => {
-    const leave = svcMock(['listSelf', 'myBalance', 'submit', 'cancel', 'listForApproval', 'decideManager', 'decideHr']);
+    const leave = svcMock([
+      'listSelf',
+      'myBalance',
+      'submit',
+      'cancel',
+      'listForApproval',
+      'decideManager',
+      'decideHr',
+    ]);
     const self = new SelfLeaveController(leave as never);
     const queue = new LeaveController(leave as never);
 
@@ -281,6 +293,27 @@ describe('HolidayController / ShiftController', () => {
     const mv = { kind: 'ASSIGN', toEmployeeId: 'e1' } as never;
     ac.move('as1', mv, user);
     expect(assets.move).toHaveBeenCalledWith(user, 'as1', mv);
+  });
+  it('announcements delegate, self and HR sides apart', () => {
+    const svc = svcMock(['list', 'getById', 'create', 'publishDue', 'listForSelf', 'markRead']);
+    const hrSide = new AnnouncementController(svc as never);
+    hrSide.list({ page: 2, pageSize: 5 } as never);
+    expect(svc.list).toHaveBeenCalledWith(2, 5);
+    hrSide.list({} as never);
+    expect(svc.list).toHaveBeenLastCalledWith(undefined, undefined);
+    hrSide.getById('an1');
+    expect(svc.getById).toHaveBeenCalledWith('an1');
+    const dto = { title: 't', body: 'b', targets: [{ dimension: 'COMPANY' }] } as never;
+    hrSide.create(dto, user);
+    expect(svc.create).toHaveBeenCalledWith(user, dto);
+    hrSide.publishDue();
+    expect(svc.publishDue).toHaveBeenCalled();
+
+    const selfSide = new SelfAnnouncementController(svc as never);
+    selfSide.list(user);
+    expect(svc.listForSelf).toHaveBeenCalledWith(user);
+    selfSide.markRead('an1', user);
+    expect(svc.markRead).toHaveBeenCalledWith(user, 'an1');
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

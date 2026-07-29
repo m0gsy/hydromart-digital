@@ -139,6 +139,24 @@ enum EmployeeDocumentType {
   OTHER
 }
 
+/// How loudly an announcement reads in the console. Purely presentational.
+enum AnnouncementLevel {
+  INFO
+  WARNING
+  URGENT
+}
+
+/// Audience dimensions. The spec calls the fourth one "ROLE"; hr-service stores no auth role —
+/// login roles live in auth-service — so the thing HR can actually target is the employee's
+/// jabatan, `Employee.position`. Naming it POSITION keeps the column and the dimension honest.
+enum AnnouncementDimension {
+  COMPANY
+  DEPOT
+  DEPARTMENT
+  POSITION
+  EMPLOYEE
+}
+
 enum BonusType {
   ATTENDANCE
   PERFORMANCE
@@ -210,6 +228,7 @@ model Employee {
   leaveRequests    LeaveRequest[]
   leaveBalances    LeaveBalance[]
   documents        EmployeeDocument[]
+  announcementReads AnnouncementRead[]
 
   @@index([depotId])
   @@index([status])
@@ -478,6 +497,62 @@ model EmployeeDocument {
   @@index([employeeId])
   @@index([employeeId, type])
   @@map("employee_documents")
+}
+
+/// One message to a resolved set of staff. `publishedAt` is what makes it visible AND what
+/// makes it sent — a draft with a future `scheduledAt` sits here untouched until the
+/// publish-due sweep runs, exactly like order-service's expireAbandoned. No cron inside.
+model Announcement {
+  id           String            @id @default(uuid()) @db.Uuid
+  title        String
+  body         String
+  level        AnnouncementLevel @default(INFO)
+  /// Null = publish immediately on create. A future value waits for the sweep.
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  /// Recipients frozen at publish time. Read rate must not drift when someone is hired
+  /// or resigns a month later — the denominator is who it actually went to.
+  audienceSize Int               @default(0)
+  createdBy    String?           @db.Uuid
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  targets      AnnouncementTarget[]
+  reads        AnnouncementRead[]
+
+  @@index([publishedAt])
+  @@index([scheduledAt])
+  @@map("announcements")
+}
+
+/// One audience rule. Several rows OR together, and overlapping rows must not double-send —
+/// that dedup is the whole point of resolving the audience in domain/announcement.ts.
+model AnnouncementTarget {
+  id             String                @id @default(uuid()) @db.Uuid
+  announcementId String                @db.Uuid
+  dimension      AnnouncementDimension
+  /// Depot id, department id, position text, or employee id. Null for COMPANY (everyone).
+  value          String?
+
+  announcement   Announcement          @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@map("announcement_targets")
+}
+
+/// Read receipt. Unique per (announcement, employee): marking twice is not two reads.
+model AnnouncementRead {
+  id             String       @id @default(uuid()) @db.Uuid
+  announcementId String       @db.Uuid
+  employeeId     String       @db.Uuid
+  readAt         DateTime     @default(now())
+
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([employeeId])
+  @@map("announcement_reads")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.

@@ -37,6 +37,12 @@ export default function MePage() {
           <p className="mt-1 text-sm text-muted">Ajukan cuti & lihat sisa kuota</p>
         </Card>
       </Link>
+      <Link href="/hr/me/announcements">
+        <Card className="p-5 text-center transition-colors hover:bg-brand-50">
+          <p className="font-semibold">Pengumuman</p>
+          <p className="mt-1 text-sm text-muted">Kabar dari HR untuk Anda</p>
+        </Card>
+      </Link>
       <Link href="/hr/me/enroll">
         <Card className="p-4 text-center transition-colors hover:bg-brand-50">
           <p className="text-sm font-semibold text-brand-700">Daftar / Perbarui Wajah</p>

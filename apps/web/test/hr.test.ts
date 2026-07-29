@@ -17,6 +17,12 @@ import {
   ASSET_TYPE_LABEL,
   assetMoveNeedsRecipient,
   assetMovesFrom,
+  ANNOUNCEMENT_DIMENSIONS,
+  ANNOUNCEMENT_DIMENSION_LABEL,
+  ANNOUNCEMENT_LEVELS,
+  ANNOUNCEMENT_LEVEL_LABEL,
+  announcementReadRate,
+  announcementTargetNeedsValue,
   fmtFileSize,
   fmtDate,
   fmtTime,
@@ -116,7 +122,9 @@ describe('toEmployeePayload', () => {
   });
 
   it('rejects MONTHLY salary without a positive monthlyRate', () => {
-    const r = toEmployeePayload(validForm({ salaryType: 'MONTHLY', dailyRate: '', monthlyRate: '0' }));
+    const r = toEmployeePayload(
+      validForm({ salaryType: 'MONTHLY', dailyRate: '', monthlyRate: '0' }),
+    );
     expect(r.ok).toBe(false);
   });
 
@@ -249,5 +257,25 @@ describe('assets (B3)', () => {
     for (const k of Object.keys(ASSET_MOVEMENT_LABEL)) {
       expect(ASSET_MOVEMENT_LABEL[k as keyof typeof ASSET_MOVEMENT_LABEL]).toBeTruthy();
     }
+  });
+});
+
+describe('announcements (C1)', () => {
+  it('asks for a value on every target except "everyone"', () => {
+    expect(announcementTargetNeedsValue('COMPANY')).toBe(false);
+    for (const d of ANNOUNCEMENT_DIMENSIONS.filter((x) => x !== 'COMPANY')) {
+      expect(announcementTargetNeedsValue(d)).toBe(true);
+    }
+  });
+
+  it('states the read rate, and says "—" rather than dividing by zero', () => {
+    expect(announcementReadRate(12, 40)).toBe('12 dari 40 dibaca (30%)');
+    expect(announcementReadRate(0, 0)).toBe('—');
+    expect(announcementReadRate(3, 3)).toBe('3 dari 3 dibaca (100%)');
+  });
+
+  it('labels every level and dimension the API can return', () => {
+    for (const l of ANNOUNCEMENT_LEVELS) expect(ANNOUNCEMENT_LEVEL_LABEL[l]).toBeTruthy();
+    for (const d of ANNOUNCEMENT_DIMENSIONS) expect(ANNOUNCEMENT_DIMENSION_LABEL[d]).toBeTruthy();
   });
 });

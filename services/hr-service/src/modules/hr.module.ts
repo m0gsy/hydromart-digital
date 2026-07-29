@@ -83,6 +83,10 @@ import { ASSET_REPOSITORY } from '../application/ports/asset.repository';
 import { AssetService } from '../application/services/asset.service';
 import { AssetPrismaRepository } from '../infrastructure/prisma/asset.prisma.repository';
 import { AssetController } from './asset.controller';
+import { ANNOUNCEMENT_REPOSITORY } from '../application/ports/announcement.repository';
+import { AnnouncementService } from '../application/services/announcement.service';
+import { AnnouncementPrismaRepository } from '../infrastructure/prisma/announcement.prisma.repository';
+import { AnnouncementController, SelfAnnouncementController } from './announcement.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -167,6 +171,8 @@ const providers: Provider[] = [
   LeaveService,
   { provide: ASSET_REPOSITORY, useClass: AssetPrismaRepository },
   AssetService,
+  { provide: ANNOUNCEMENT_REPOSITORY, useClass: AnnouncementPrismaRepository },
+  AnnouncementService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -198,6 +204,8 @@ const providers: Provider[] = [
     LeaveController,
     DocumentController,
     AssetController,
+    SelfAnnouncementController,
+    AnnouncementController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],
