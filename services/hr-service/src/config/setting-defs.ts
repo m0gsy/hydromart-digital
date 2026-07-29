@@ -119,6 +119,27 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 5000,
     envDefault: 0,
   },
+  // Offline punches carry a device timestamp. Anything that reaches us quickly is
+  // indistinguishable from a live punch (geofence and face are re-checked server-side either
+  // way), so only the ones that sat on the device long enough for the clock to matter go to HR.
+  {
+    key: 'offlineAutoAcceptMinutes',
+    label: 'Absen offline lolos otomatis',
+    type: 'int',
+    unit: 'menit (0 = selalu minta persetujuan)',
+    min: 0,
+    max: 240,
+    envDefault: 10,
+  },
+  {
+    key: 'offlineMaxAgeHours',
+    label: 'Batas usia absen offline',
+    type: 'int',
+    unit: 'jam',
+    min: 1,
+    max: 168,
+    envDefault: 24,
+  },
 ];
 
 // Null-prototype so keys like `constructor`/`toString` don't resolve to inherited

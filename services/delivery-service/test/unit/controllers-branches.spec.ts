@@ -186,7 +186,7 @@ describe('DriverDeliveryController', () => {
     expect(deliveries.complete).toHaveBeenCalledWith(
       user.sub,
       id,
-      { photoUrl: 'p', signatureUrl: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: null },
+      { photoUrl: 'p', signatureUrl: null, recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: null, capturedAt: null },
       auth,
     );
   });
@@ -201,9 +201,20 @@ describe('DriverDeliveryController', () => {
     expect(deliveries.complete).toHaveBeenCalledWith(
       user.sub,
       id,
-      { photoUrl: 'p', signatureUrl: 's', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok' },
+      { photoUrl: 'p', signatureUrl: 's', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, note: 'ok', capturedAt: null },
       auth,
     );
+  });
+
+  it('parses a queued offline capture time on both driver surfaces', () => {
+    const capturedAt = '2026-07-29T08:15:00.000Z';
+    void controller.complete(
+      user,
+      id,
+      { photoUrl: 'p', recipientName: 'Budi', latitude: -6.9, longitude: 107.6, capturedAt } as never,
+      auth,
+    );
+    expect(deliveries.complete.mock.calls.at(-1)?.[2].capturedAt).toEqual(new Date(capturedAt));
   });
 
   it('reports a location and fails a delivery', () => {
@@ -270,7 +281,20 @@ describe('DriverShiftController', () => {
     void controller.history(user);
     expect(shifts.history).toHaveBeenCalledWith(user.sub);
     void controller.checkIn(user, { depotId, lat: -6.9, lng: 107.6 } as never);
-    expect(shifts.checkIn).toHaveBeenCalledWith(user.sub, depotId, -6.9, 107.6);
+    expect(shifts.checkIn).toHaveBeenCalledWith(user.sub, depotId, -6.9, 107.6, null);
+    void controller.checkIn(user, {
+      depotId,
+      lat: -6.9,
+      lng: 107.6,
+      capturedAt: '2026-07-29T01:10:00.000Z',
+    } as never);
+    expect(shifts.checkIn).toHaveBeenLastCalledWith(
+      user.sub,
+      depotId,
+      -6.9,
+      107.6,
+      new Date('2026-07-29T01:10:00.000Z'),
+    );
     void controller.checkOut(user, id, { lat: -6.9, lng: 107.6 } as never);
     expect(shifts.checkOut).toHaveBeenCalledWith(user.sub, id, -6.9, 107.6);
     void controller.setStatus(user, id, { status: ShiftStatus.BREAK } as never);

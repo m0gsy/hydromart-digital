@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { ShiftAlreadyOpenError } from '../../domain/errors';
 import { ShiftStatus } from '../../domain/shift';
 import {
   OpenShiftData,
@@ -38,8 +39,15 @@ export class ShiftPrismaRepository implements ShiftRepository {
   }
 
   async open(data: OpenShiftData): Promise<ShiftRecord> {
-    const row = await this.prisma.shift.create({ data });
-    return this.toRecord(row);
+    try {
+      const row = await this.prisma.shift.create({ data });
+      return this.toRecord(row);
+    } catch (e) {
+      // The partial unique index (one non-ENDED shift per driver) is what actually holds when
+      // two check-ins race — the service's findOpenByDriver check cannot see a concurrent one.
+      if ((e as { code?: string }).code === 'P2002') throw new ShiftAlreadyOpenError();
+      throw e;
+    }
   }
 
   async findById(id: string): Promise<ShiftRecord | null> {

@@ -19,6 +19,7 @@ export const ops = {
     operations: 'Operasi',
     search: 'Pencarian',
     orders: 'Antrean pesanan',
+    walkIn: 'Penjualan depot',
     tracking: 'Live tracking',
     inventory: 'Inventori',
     returns: 'Retur galon',

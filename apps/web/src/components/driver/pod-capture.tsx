@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, Eraser, PencilLine, SealCheck } from '@phosphor-icons/react';
 
 import { Button, Card, Field, Input } from '@/components/ui';
-import { ApiError, api, uploadFile } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { ApiError } from '@/lib/api';
 import { currentPosition } from '@/lib/geo';
 import { compressImage } from '@/lib/image';
+import { runOrQueue } from '@/lib/offline-queue';
 
 /** Signature pad: freehand pointer drawing on a canvas, exportable as a PNG blob. */
 function SignaturePad({ canvasRef }: { canvasRef: React.RefObject<HTMLCanvasElement | null> }) {
@@ -80,6 +80,16 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }
 
+/** Blob → data URL, so a queued proof survives a page reload (a Blob would not). */
+function toDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error('Gagal membaca gambar'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 function isCanvasBlank(canvas: HTMLCanvasElement): boolean {
   const ctx = canvas.getContext('2d');
   if (!ctx) return true;
@@ -132,44 +142,36 @@ export function PodCapture({ deliveryId, orderNumber, onDone }: Props) {
     try {
       const position = await currentPosition();
 
-      // Photo (downscaled) is mandatory. Signature is optional: upload it only if the
-      // recipient actually drew one, otherwise complete without it.
+      // Photo (downscaled) is mandatory. Signature is optional: carried only if the
+      // recipient actually drew one. Both travel as data URLs so the queue can survive a
+      // reload — the uploads themselves happen inside the queue, online or on flush.
       const photoBlob = await compressImage(photo);
-      const { url: photoUrl } = await uploadFile(
-        endpoints.deliveries.driver.upload,
-        new File([photoBlob], 'photo.jpg', { type: photoBlob.type || 'image/jpeg' }),
-      );
+      const signatureBlob =
+        canvas && !isCanvasBlank(canvas) ? await canvasToBlob(canvas) : null;
 
-      let signatureUrl: string | undefined;
-      if (canvas && !isCanvasBlank(canvas)) {
-        const signatureBlob = await canvasToBlob(canvas);
-        if (signatureBlob) {
-          ({ url: signatureUrl } = await uploadFile(
-            endpoints.deliveries.driver.upload,
-            new File([signatureBlob], 'signature.png', { type: 'image/png' }),
-          ));
-        }
-      }
-
-      await api.post(
-        endpoints.deliveries.driver.complete(deliveryId),
-        {
-          photoUrl,
-          signatureUrl,
+      // Queued counts as done for the courier: the handover happened, and holding them on
+      // this screen until signal returns would strand them at the customer's gate. The
+      // driver shell shows the pending item until it reaches the server.
+      await runOrQueue({
+        kind: 'pod',
+        payload: {
+          deliveryId,
+          orderNumber,
+          photo: await toDataUrl(photoBlob),
+          signature: signatureBlob ? await toDataUrl(signatureBlob) : undefined,
           recipientName: recipientName.trim(),
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           note: note.trim() || undefined,
         },
-        true,
-      );
+      });
       onDone();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Gagal menyelesaikan pengantaran.');
     } finally {
       setSubmitting(false);
     }
-  }, [photo, sealOk, recipientName, note, deliveryId, onDone]);
+  }, [photo, sealOk, recipientName, note, deliveryId, orderNumber, onDone]);
 
   return (
     <Card className="space-y-4 p-5">

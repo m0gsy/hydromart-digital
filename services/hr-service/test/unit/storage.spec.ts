@@ -13,6 +13,26 @@ describe('storage', () => {
     ).toBeNull();
   });
 
+  // The punch is already proven by the face match and the geofence; a broken bucket must
+  // cost the depot a photo, not the whole day's attendance.
+  it('uploadFrame swallows a storage failure and yields null instead of throwing', async () => {
+    const storage: StoragePort = {
+      put: async () => {
+        throw new Error('No value provided for input HTTP label: Bucket');
+      },
+    };
+    await expect(uploadFrame(storage, Buffer.from('x'), 'hr/attendance')).resolves.toBeNull();
+  });
+
+  it('survives a non-Error rejection too (some SDK paths throw strings)', async () => {
+    const storage: StoragePort = {
+      put: async () => {
+        throw 'socket hang up';
+      },
+    };
+    await expect(uploadFrame(storage, Buffer.from('x'), 'hr/faces')).resolves.toBeNull();
+  });
+
   it('uploadFrame returns the stored url and forwards the key prefix + jpeg metadata', async () => {
     let seen: StoragePutInput | undefined;
     const storage: StoragePort = {

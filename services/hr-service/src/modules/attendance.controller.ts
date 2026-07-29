@@ -7,6 +7,7 @@ import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
 import {
   AdjustAttendanceDto,
+  DecideAttendanceDto,
   FacePunchDto,
   ListAttendanceDto,
   ManualAttendanceDto,
@@ -64,6 +65,17 @@ export class AttendanceController {
     return this.attendance.adjust(user, id, dto);
   }
 
+  @Patch(':id/decide')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Approve or reject an offline punch waiting for HR (audited)' })
+  decide(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DecideAttendanceDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.attendance.decide(user, id, dto.decision, dto.note);
+  }
+
   private toPunch(dto: FacePunchDto): FacePunch {
     return {
       image: decodeBase64Image(dto.image),
@@ -71,6 +83,7 @@ export class AttendanceController {
       live: dto.live ?? false,
       lat: dto.lat,
       lng: dto.lng,
+      capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,
     };
   }
 }

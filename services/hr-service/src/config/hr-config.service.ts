@@ -63,6 +63,14 @@ export class HrConfigService {
   lateToleranceMinutes(depotId: string | null = null): number {
     return this.tunableNum('lateToleranceMinutes', this.num('HR_LATE_TOLERANCE_MINUTES'), depotId);
   }
+  /** Sync delay a device-timestamped punch may have before HR has to approve it (0 = never auto-accept). */
+  offlineAutoAcceptMinutes(depotId: string | null = null): number {
+    return this.tunableNum('offlineAutoAcceptMinutes', 10, depotId);
+  }
+  /** Oldest device timestamp still accepted; past this the punch needs a manual HR entry. */
+  offlineMaxAgeHours(depotId: string | null = null): number {
+    return this.tunableNum('offlineMaxAgeHours', 24, depotId);
+  }
   lateDeductionAmount(depotId: string | null = null): number {
     return this.tunableNum('lateDeductionAmount', this.num('HR_LATE_DEDUCTION_IDR'), depotId);
   }

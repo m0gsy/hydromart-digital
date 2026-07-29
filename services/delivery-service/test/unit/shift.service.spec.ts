@@ -7,6 +7,7 @@ import {
   NotAtDepotError,
   ShiftAlreadyOpenError,
   ShiftNotFoundError,
+  StaleCaptureError,
 } from '../../src/domain/errors';
 import { ShiftStatus } from '../../src/domain/shift';
 import { FakeDepotLocation, InMemoryShiftRepository, buildTestConfig } from '../support/fakes';
@@ -73,6 +74,21 @@ describe('ShiftService', () => {
     it('fails closed when the depot has no coordinates', async () => {
       depots.depot = null;
       await expect(checkIn()).rejects.toBeInstanceOf(DepotLookupError);
+    });
+
+    it('keeps the device capture time of a check-in queued offline', async () => {
+      const captured = new Date(Date.now() - 90 * 60_000); // 1.5 h ago, inside the 12 h window
+      const shift = await service.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng, captured);
+      expect(shift.checkInAt).toEqual(captured);
+      // The shift still ends 8 h after the courier actually started, not 8 h after the sync.
+      expect(shift.expectedEndAt.getTime() - captured.getTime()).toBe(8 * 3_600_000);
+    });
+
+    it('refuses an offline check-in older than the offline window', async () => {
+      const ancient = new Date(Date.now() - 20 * 3_600_000); // window is 12 h
+      await expect(
+        service.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng, ancient),
+      ).rejects.toBeInstanceOf(StaleCaptureError);
     });
   });
 

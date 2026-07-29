@@ -29,6 +29,8 @@ export interface FacePunch {
   live: boolean;
   lat: number;
   lng: number;
+  /** Device time for a punch queued offline; null for a live punch. */
+  capturedAt?: Date | null;
 }
 
 @Injectable()
@@ -52,7 +54,9 @@ export class AttendanceService {
     const score = await this.assertFace(employee, punch);
     this.assertGeofence(employee.depotId, punch);
 
-    const { workDate, minutesOfDay } = this.localParts(now, this.config.timeZone);
+    const offlineAt = this.offlineAt(punch, now, employee.depotId);
+    const at = offlineAt ?? now;
+    const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
     if (existing?.checkInAt) {
       throw new BadRequestException('Sudah check-in hari ini');
@@ -69,17 +73,25 @@ export class AttendanceService {
     const photoUrl =
       punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
 
+    // A punch that reached us within the auto-accept window is indistinguishable from a live
+    // one — face and geofence were re-checked here either way, and the clock gap is trivial.
+    // Only a punch that sat on the device long enough for its clock to matter goes to HR.
+    const stale =
+      offlineAt !== null &&
+      now.getTime() - offlineAt.getTime() >
+        this.config.offlineAutoAcceptMinutes(employee.depotId) * 60_000;
+
     return this.repo.create({
       employeeId: employee.id,
       depotId: employee.depotId,
       workDate,
-      checkInAt: now,
+      checkInAt: at,
       checkInPhotoUrl: photoUrl,
       checkInScore: score,
       checkInLat: punch.lat,
       checkInLng: punch.lng,
       lateMinutes,
-      status: late ? 'LATE' : 'PRESENT',
+      status: stale ? 'PENDING' : late ? 'LATE' : 'PRESENT',
     });
   }
 
@@ -92,7 +104,8 @@ export class AttendanceService {
     const score = await this.assertFace(employee, punch);
     this.assertGeofence(employee.depotId, punch);
 
-    const { workDate } = this.localParts(now, this.config.timeZone);
+    const offlineAt = this.offlineAt(punch, now, employee.depotId);
+    const { workDate } = this.localParts(offlineAt ?? now, this.config.timeZone);
     const row = await this.repo.findByEmployeeAndDate(employee.id, workDate);
     if (!row?.checkInAt) {
       throw new BadRequestException('Belum check-in hari ini');
@@ -101,20 +114,61 @@ export class AttendanceService {
       throw new BadRequestException('Sudah check-out hari ini');
     }
 
-    const workingMinutes = Math.max(
-      0,
-      Math.round((now.getTime() - row.checkInAt.getTime()) / 60000),
-    );
+    // Floored at check-in and capped at server time by offlineAt(), so an offline check-out can
+    // only ever report a shorter shift than the reconnect moment — it needs no HR approval.
+    const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
+    const workingMinutes = Math.max(0, Math.round((at.getTime() - row.checkInAt.getTime()) / 60000));
     const photoUrl =
       punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
     return this.repo.patchCheckOut(row.id, {
-      checkOutAt: now,
+      checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
       checkOutScore: score,
       checkOutLat: punch.lat,
       checkOutLng: punch.lng,
       workingMinutes,
     });
+  }
+
+  /**
+   * Device capture time for an offline punch, clamped so a wrong or hostile clock cannot
+   * backdate further than the offline window really was. Null for a live punch.
+   */
+  private offlineAt(punch: FacePunch, now: Date, depotId: string): Date | null {
+    if (!punch.capturedAt) return null;
+    const maxAgeMs = this.config.offlineMaxAgeHours(depotId) * 3_600_000;
+    if (punch.capturedAt.getTime() < now.getTime() - maxAgeMs) {
+      throw new BadRequestException('Absen offline sudah terlalu lama. Minta entri manual ke HR.');
+    }
+    return new Date(Math.min(punch.capturedAt.getTime(), now.getTime()));
+  }
+
+  /** HR decides a punch left PENDING by a late offline sync. Approval keeps the recorded lateness. */
+  async decide(
+    user: AuthenticatedUser,
+    id: string,
+    decision: 'APPROVE' | 'REJECT',
+    note?: string,
+  ): Promise<Attendance> {
+    const row = await this.repo.findById(id);
+    if (!row) throw new NotFoundException('Data absensi tidak ditemukan');
+    assertDepotAccess(user, row.depotId);
+    if (row.status !== 'PENDING') {
+      throw new BadRequestException('Absen ini sudah diputuskan');
+    }
+    // Rejected rows become ABSENT rather than disappearing: the unique key stays taken so the
+    // same punch cannot be quietly re-queued, and the absence deduction applies as it should.
+    const status: AttendanceStatus =
+      decision === 'APPROVE' ? (row.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'ABSENT';
+    const updated = await this.repo.patchStatus(row.id, status);
+    await this.repo.recordAdjustment({
+      attendanceId: row.id,
+      reason: note?.trim() || `Absen offline: ${decision}`,
+      before: snapshot(row),
+      after: snapshot(updated),
+      approvedBy: user.sub,
+    });
+    return updated;
   }
 
   /** Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured). */
@@ -133,6 +187,7 @@ export class AttendanceService {
     query: {
       depotId?: string;
       employeeId?: string;
+      status?: string;
       from?: string;
       to?: string;
       page: number;
@@ -143,6 +198,7 @@ export class AttendanceService {
     const { rows, total } = await this.repo.list({
       depotId,
       employeeId: query.employeeId,
+      status: query.status as AttendanceStatus | undefined,
       from: query.from ? new Date(query.from) : undefined,
       to: query.to ? new Date(query.to) : undefined,
       skip: (query.page - 1) * query.pageSize,

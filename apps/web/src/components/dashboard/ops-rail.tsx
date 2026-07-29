@@ -55,6 +55,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import {
   canManageDepots,
+  canRecordWalkInSale,
   canManagePricing,
   canManageStaff,
   canViewCampaigns,
@@ -113,6 +114,7 @@ const GROUPS: RailGroup[] = [
     headKey: 'daily',
     items: [
       { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: isStaff },
+      { href: '/dashboard/walk-in', labelKey: 'walkIn', icon: Storefront, show: canRecordWalkInSale },
       { href: '/dashboard/tracking', labelKey: 'tracking', icon: MapPin, show: canViewTracking },
       { href: '/dashboard/inventory', labelKey: 'inventory', icon: Package, show: canViewInventory },
       { href: '/dashboard/returns', labelKey: 'returns', icon: Recycle, show: canViewReturns },

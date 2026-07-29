@@ -35,6 +35,16 @@ export class InitiatePaymentDto {
   amount!: number;
 }
 
+/**
+ * Counter sale: staff take the cash on the buyer's behalf, so the payer cannot be inferred
+ * from the token the way it is for a customer-initiated payment.
+ */
+export class StaffInitiatePaymentDto extends InitiatePaymentDto {
+  @ApiProperty({ format: 'uuid', description: 'Customer the payment belongs to.' })
+  @IsUUID()
+  customerId!: string;
+}
+
 export class ListPaymentsQueryDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

@@ -47,6 +47,7 @@ import {
   OrderValueDto,
   RatingBatchDto,
   UpdateOrderStatusDto,
+  WalkInSaleDto,
 } from './dto/order.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
@@ -88,6 +89,28 @@ export class OrderController {
         },
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
+      },
+      authorization,
+    );
+  }
+
+  // Declared before any ':id' route so 'walk-in' is never read as an order id.
+  @Roles(...CAPABILITIES.walkInSale)
+  @Post('walk-in')
+  @ApiOperation({ summary: 'Record a cash sale at the depot counter (completed immediately)' })
+  walkIn(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: WalkInSaleDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<OrderRecord> {
+    return this.orders.walkInSale(
+      user,
+      {
+        depotId: dto.depotId,
+        lines: dto.lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+        customerId: dto.customerId ?? null,
+        customerName: dto.customerName ?? null,
+        customerPhone: dto.customerPhone ?? null,
       },
       authorization,
     );

@@ -3,11 +3,12 @@
 import { useState } from 'react';
 
 import { FaceCapture } from '@/components/hr/face-capture';
+import { OfflineQueueBanner } from '@/components/offline-queue-banner';
 import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { ApiError } from '@/lib/api';
 import { fmtTime, type Attendance } from '@/lib/hr';
+import { runOrQueue } from '@/lib/offline-queue';
 
 type Mode = 'in' | 'out';
 
@@ -40,9 +41,18 @@ export default function MeCheckInPage() {
     setBusy(true);
     try {
       const { lat, lng } = await getPosition();
-      const path = mode === 'in' ? endpoints.hr.checkIn : endpoints.hr.checkOut;
-      const row = await api.post<Attendance>(path, { image: dataUrl, live, lat, lng }, true);
-      setResult(row);
+      // Offline keeps the punch on the device with its capture time. A quick sync still
+      // counts normally; one that sits here too long is held for HR to approve.
+      const sent = await runOrQueue<Attendance>({
+        kind: 'hrPunch',
+        payload: { mode, image: dataUrl, live, lat, lng },
+      });
+      if (sent.outcome === 'queued') {
+        setResult(null);
+        toast('Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti.');
+        return;
+      }
+      setResult(sent.result);
       toast(mode === 'in' ? 'Check-in berhasil' : 'Check-out berhasil');
     } catch (e) {
       toast(e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Gagal absen', 'error');
@@ -54,6 +64,8 @@ export default function MeCheckInPage() {
   return (
     <div className="mx-auto max-w-md space-y-5 px-4 py-6">
       <SectionHeader title="Absensi Wajah" />
+
+      <OfflineQueueBanner />
 
       <div className="flex gap-2">
         <Button variant={mode === 'in' ? 'primary' : 'secondary'} className="flex-1" onClick={() => setMode('in')}>Check-in</Button>

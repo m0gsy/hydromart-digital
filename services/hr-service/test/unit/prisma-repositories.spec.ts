@@ -349,7 +349,7 @@ describe('AnalyticsPrismaRepository', () => {
     });
   });
 
-  it('attendanceForReport → attendance.findMany with range + include', async () => {
+  it('attendanceForReport → attendance.findMany with range + include, excluding PENDING', async () => {
     const p = makePrisma();
     const from = new Date('2026-07-01');
     const to = new Date('2026-07-31');
@@ -357,7 +357,7 @@ describe('AnalyticsPrismaRepository', () => {
     const repo = new AnalyticsPrismaRepository(asService(p));
     await repo.attendanceForReport(from, to, 'd1');
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
-      where: { workDate: { gte: from, lte: to }, depotId: 'd1' },
+      where: { workDate: { gte: from, lte: to }, depotId: 'd1', status: { not: 'PENDING' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
     });
@@ -527,6 +527,32 @@ describe('AttendancePrismaRepository', () => {
     };
     await expect(repo.patchCheckOut('a1', patch)).resolves.toBe(out);
     expect(m(p, 'attendance').update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: patch });
+  });
+
+  it('patchStatus → attendance.update with the settled status', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'attendance').update.mockResolvedValue(out);
+    const repo = new AttendancePrismaRepository(asService(p));
+    await expect(repo.patchStatus('a1', 'ABSENT')).resolves.toBe(out);
+    expect(m(p, 'attendance').update).toHaveBeenCalledWith({
+      where: { id: 'a1' },
+      data: { status: 'ABSENT' },
+    });
+  });
+
+  it('list filters by status for the PENDING approval queue', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').findMany.mockResolvedValue([]);
+    m(p, 'attendance').count.mockResolvedValue(0);
+    const repo = new AttendancePrismaRepository(asService(p));
+    await repo.list({ status: 'PENDING', skip: 0, take: 1 });
+    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
+      where: { status: 'PENDING' },
+      orderBy: { workDate: 'desc' },
+      skip: 0,
+      take: 1,
+    });
   });
 
   it('list builds full where from filter and paginates in a transaction', async () => {

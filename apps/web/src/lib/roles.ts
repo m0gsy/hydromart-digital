@@ -25,6 +25,7 @@ export function isHq(role: string | null | undefined): boolean {
 }
 
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);
+export const canRecordWalkInSale = (role: string | null | undefined) => can('walkInSale', role);
 export const canViewInventory = (role: string | null | undefined) => can('inventoryRead', role);
 export const canWriteInventory = (role: string | null | undefined) => can('inventoryWrite', role);
 export const canViewReturns = (role: string | null | undefined) => can('returnsRead', role);

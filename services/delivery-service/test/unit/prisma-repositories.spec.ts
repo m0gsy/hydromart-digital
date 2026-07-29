@@ -4,6 +4,7 @@ import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incide
 import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/settlement.prisma.repository';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
+import { ShiftAlreadyOpenError } from '../../src/domain/errors';
 import { ContactMethod } from '../../src/domain/no-show';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
 import { SettlementStatus } from '../../src/domain/settlement';
@@ -329,13 +330,15 @@ describe('DeliveryPrismaRepository', () => {
       longitude: 106.8,
       note: 'left at gate',
     };
-    const rec = await repo.completeWithProof('del-1', proof, 'drv-1');
+    const capturedAt = new Date('2026-07-29T08:15:00.000Z');
+    const rec = await repo.completeWithProof('del-1', proof, 'drv-1', capturedAt);
     expect(rec.status).toBe(DeliveryStatus.DELIVERED);
     const call = delivery.update.mock.calls[0][0];
     expect(call.where).toEqual({ id: 'del-1' });
     expect(call.data.status).toBe(DeliveryStatus.DELIVERED);
-    expect(call.data.deliveredAt).toBeInstanceOf(Date);
-    expect(call.data.proof).toEqual({ create: proof });
+    // Handover time, not write time: an offline proof keeps the moment it was captured.
+    expect(call.data.deliveredAt).toBe(capturedAt);
+    expect(call.data.proof).toEqual({ create: { ...proof, capturedAt } });
     expect(call.data.history).toEqual({
       create: { status: DeliveryStatus.DELIVERED, changedBy: 'drv-1' },
     });
@@ -661,6 +664,16 @@ describe('ShiftPrismaRepository', () => {
     const rec = await repo.open(data as never);
     expect(shift.create).toHaveBeenCalledWith({ data });
     expect(rec.status).toBe(ShiftStatus.ONLINE);
+  });
+
+  it('turns the one-open-shift unique violation into ShiftAlreadyOpenError', async () => {
+    shift.create.mockRejectedValueOnce(Object.assign(new Error('unique'), { code: 'P2002' }));
+    await expect(repo.open({} as never)).rejects.toBeInstanceOf(ShiftAlreadyOpenError);
+  });
+
+  it('rethrows any other database failure from open', async () => {
+    shift.create.mockRejectedValueOnce(new Error('connection lost'));
+    await expect(repo.open({} as never)).rejects.toThrow('connection lost');
   });
 
   it('findById maps a row and returns null when absent', async () => {

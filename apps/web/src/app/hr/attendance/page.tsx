@@ -13,9 +13,61 @@ import { canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 
 const TONE: Record<AttendanceStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
-  PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral',
+  PRESENT: 'success', LATE: 'warning', ABSENT: 'danger', LEAVE: 'neutral', HOLIDAY: 'neutral', PENDING: 'warning',
 };
-const STATUSES = Object.keys(ATTENDANCE_STATUS_LABEL) as AttendanceStatus[];
+// PENDING is produced by the offline queue, never chosen by hand — it stays out of the pickers.
+const STATUSES = (Object.keys(ATTENDANCE_STATUS_LABEL) as AttendanceStatus[]).filter((s) => s !== 'PENDING');
+
+/**
+ * Offline punches that synced too late to trust the device clock. They count as nothing —
+ * payroll and the attendance report skip them — until HR approves or rejects here.
+ */
+function PendingQueue({ onDecided }: { onDecided: () => void }) {
+  const { toast } = useToast();
+  const { data, error, loading, reload } = useAsync<HrPage<Attendance>>(
+    () => api.get<HrPage<Attendance>>(endpoints.hr.attendance({ status: 'PENDING', pageSize: 100 }), true),
+    [],
+  );
+
+  async function decide(a: Attendance, decision: 'APPROVE' | 'REJECT') {
+    const note = window.prompt(
+      decision === 'APPROVE' ? 'Catatan persetujuan (opsional)' : 'Alasan penolakan (opsional)',
+    );
+    if (note === null) return;
+    try {
+      await api.patch(endpoints.hr.attendanceDecide(a.id), { decision, note: note || undefined }, true);
+      toast(decision === 'APPROVE' ? 'Absen disetujui' : 'Absen ditolak');
+      reload();
+      onDecided();
+    } catch (e) { toast(e instanceof ApiError ? e.message : 'Gagal', 'error'); }
+  }
+
+  if (loading) return <Skeleton className="h-24" />;
+  if (error) return <ErrorState message={error} onRetry={reload} />;
+  if (!data || data.rows.length === 0) return null;
+
+  return (
+    <Card className="divide-y divide-[color:var(--border)] border-amber-300">
+      <div className="p-3 text-sm font-bold">
+        Absen offline menunggu persetujuan ({data.total})
+        <p className="font-normal text-muted">
+          Terkirim jauh setelah waktu absen, jadi jamnya berasal dari perangkat. Belum dihitung hadir.
+        </p>
+      </div>
+      {data.rows.map((a) => (
+        <div key={a.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+          <span className="font-medium">{fmtDate(a.workDate)}</span>
+          <span className="text-muted">{fmtTime(a.checkInAt)} – {fmtTime(a.checkOutAt)}</span>
+          <span className="tabular-nums text-muted">{a.lateMinutes > 0 ? `+${a.lateMinutes}m` : 'tepat waktu'}</span>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => decide(a, 'REJECT')}>Tolak</Button>
+            <Button onClick={() => decide(a, 'APPROVE')}>Setujui</Button>
+          </div>
+        </div>
+      ))}
+    </Card>
+  );
+}
 
 function AttendanceInner() {
   const { customer } = useAuth();
@@ -63,6 +115,8 @@ function AttendanceInner() {
         <label className="text-sm">Dari<Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
         <label className="text-sm">Sampai<Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
       </div>
+
+      {isAdmin && <PendingQueue onDecided={reload} />}
 
       {isAdmin && (
         <Card className="flex flex-wrap items-end gap-2 p-4">

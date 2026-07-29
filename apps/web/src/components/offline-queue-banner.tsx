@@ -1,0 +1,70 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { ArrowsClockwise, CloudSlash, Trash } from '@phosphor-icons/react';
+
+import { Button } from '@/components/ui';
+import { discard, flush, hydrate, pending, subscribe, type QueuedJob } from '@/lib/offline-queue';
+
+const LABELS: Record<QueuedJob['kind'], string> = {
+  hrPunch: 'Absen wajah',
+  shiftCheckIn: 'Mulai shift',
+  pod: 'Bukti pengantaran',
+};
+
+/**
+ * Shows what is still sitting on the device. Renders nothing when the queue is empty, so it
+ * can be mounted unconditionally in the HR and driver layouts.
+ */
+export function OfflineQueueBanner() {
+  const [jobs, setJobs] = useState<QueuedJob[]>(pending());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const off = subscribe(setJobs);
+    void hydrate().then(() => void flush());
+    return off;
+  }, []);
+
+  if (jobs.length === 0) return null;
+
+  const sendNow = async () => {
+    setBusy(true);
+    try {
+      await flush();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+      <div className="flex items-center gap-2 font-semibold">
+        <CloudSlash size={16} weight="fill" />
+        {jobs.length} data belum terkirim
+      </div>
+      <ul className="space-y-1">
+        {jobs.map((job) => (
+          <li key={job.id} className="flex items-start justify-between gap-2">
+            <span>
+              {LABELS[job.kind]} · {new Date(job.capturedAt).toLocaleString('id-ID')}
+              {job.error && <span className="block text-xs text-red-700">{job.error}</span>}
+            </span>
+            <button
+              type="button"
+              aria-label="Hapus data offline"
+              onClick={() => void discard(job.id)}
+              className="shrink-0 text-amber-900/70 hover:text-red-700"
+            >
+              <Trash size={16} />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <Button variant="secondary" onClick={() => void sendNow()} disabled={busy}>
+        <ArrowsClockwise size={16} className="mr-1" />
+        Kirim sekarang
+      </Button>
+    </div>
+  );
+}

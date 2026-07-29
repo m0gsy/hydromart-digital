@@ -237,6 +237,8 @@ export interface Order extends DeliveryAddress {
   items: OrderItem[];
   history: OrderStatusEvent[];
   reviewed: boolean;
+  /** Cash sale recorded at the depot counter — no courier, no delivery fee. */
+  isWalkIn: boolean;
   driverName: string | null;
   /** Assigned courier's phone (null until DRIVER_ASSIGNED) — lets the customer call the driver. */
   driverPhone: string | null;

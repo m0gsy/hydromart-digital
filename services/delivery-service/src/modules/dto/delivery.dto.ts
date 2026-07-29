@@ -167,6 +167,14 @@ export class ProofOfDeliveryDto {
   @IsString()
   @MaxLength(255)
   note?: string;
+
+  @ApiPropertyOptional({
+    example: '2026-07-29T08:15:00.000Z',
+    description: 'Device time for proof queued offline. Clamped to [assignedAt, now]; omit when live.',
+  })
+  @IsOptional()
+  @IsDateString()
+  capturedAt?: string;
 }
 
 export class FailDeliveryDto {

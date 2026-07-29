@@ -29,7 +29,13 @@ export class DriverShiftController {
   @Post('check-in')
   @ApiOperation({ summary: 'Start a shift (verified against the depot location)' })
   checkIn(@CurrentUser() user: AuthenticatedUser, @Body() dto: CheckInDto): Promise<ShiftView> {
-    return this.shifts.checkIn(user.sub, dto.depotId, dto.lat, dto.lng);
+    return this.shifts.checkIn(
+      user.sub,
+      dto.depotId,
+      dto.lat,
+      dto.lng,
+      dto.capturedAt ? new Date(dto.capturedAt) : null,
+    );
   }
 
   @Post(':id/check-out')

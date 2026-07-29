@@ -206,6 +206,8 @@ export interface DeliveryRepository {
     id: string,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
+    /** Handover time — server time for a live proof, clamped device time for an offline one. */
+    capturedAt: Date,
   ): Promise<DeliveryRecord>;
   /**
    * UU PDP retention: delete proof-of-delivery rows (photo/signature URL,

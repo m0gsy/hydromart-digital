@@ -120,8 +120,6 @@ export const dashA = {
     title: 'Pelanggan',
     searchPlaceholder: 'Cari nama atau telepon',
     searchAria: 'Cari pelanggan',
-    walkIn: 'Walk-in',
-    walkInSoon: 'Segera hadir',
     scopePrefix: 'Pelanggan untuk',
     scopeSuffix: '(dari switcher).',
     noDepotTitle: 'Belum ada depot',
