@@ -79,6 +79,10 @@ import { DOCUMENT_REPOSITORY } from '../application/ports/document.repository';
 import { DocumentService } from '../application/services/document.service';
 import { DocumentPrismaRepository } from '../infrastructure/prisma/document.prisma.repository';
 import { DocumentController } from './document.controller';
+import { ASSET_REPOSITORY } from '../application/ports/asset.repository';
+import { AssetService } from '../application/services/asset.service';
+import { AssetPrismaRepository } from '../infrastructure/prisma/asset.prisma.repository';
+import { AssetController } from './asset.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -144,8 +148,7 @@ const providers: Provider[] = [
   BonusRuleService,
   LoanService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
-  // Outbound HR notifications (leave decisions, announcements) via crm-service. No consumer
-  // yet — B1/C1 inject it; wired here so the binding exists the moment they land.
+  // Outbound HR notifications (leave decisions, announcements) via crm-service.
   { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
   { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
@@ -162,6 +165,8 @@ const providers: Provider[] = [
   DepartmentService,
   { provide: LEAVE_REPOSITORY, useClass: LeavePrismaRepository },
   LeaveService,
+  { provide: ASSET_REPOSITORY, useClass: AssetPrismaRepository },
+  AssetService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -192,6 +197,7 @@ const providers: Provider[] = [
     SelfLeaveController,
     LeaveController,
     DocumentController,
+    AssetController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

@@ -257,7 +257,8 @@ export function departmentLabel(list: Department[], id: string | null | undefine
   return found ? `${found.code} · ${found.name}` : 'Belum diatur';
 }
 
-export type BonusMetric = 'ATTENDANCE_RATE' | 'PRESENT_DAYS' | 'ZERO_LATE' | 'IS_DEPOT_MANAGER' | 'SALES_TOTAL';
+export type BonusMetric =
+  'ATTENDANCE_RATE' | 'PRESENT_DAYS' | 'ZERO_LATE' | 'IS_DEPOT_MANAGER' | 'SALES_TOTAL';
 export type CompareOp = 'GTE' | 'LTE' | 'EQ';
 export type RewardKind = 'FIXED' | 'PERCENT';
 
@@ -299,6 +300,42 @@ export interface Allowance {
   createdAt: string;
 }
 
+export type AssetType =
+  'MOTORCYCLE' | 'SMARTPHONE' | 'UNIFORM' | 'LAPTOP' | 'PRINTER' | 'SCANNER' | 'OTHER';
+export type AssetStatus = 'AVAILABLE' | 'ASSIGNED' | 'RETURNED' | 'MAINTENANCE' | 'LOST';
+export type AssetMovementKind = 'ASSIGN' | 'TRANSFER' | 'RETURN' | 'MAINTENANCE' | 'LOST';
+
+/** Company property. `status`/`holderId` are the current state; the history is `movements`. */
+export interface EmployeeAsset {
+  id: string;
+  code: string;
+  type: AssetType;
+  name: string;
+  brand: string | null;
+  serialNo: string | null;
+  value: string | null;
+  depotId: string;
+  status: AssetStatus;
+  holderId: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface AssetMovement {
+  id: string;
+  assetId: string;
+  kind: AssetMovementKind;
+  fromEmployeeId: string | null;
+  toEmployeeId: string | null;
+  condition: string | null;
+  note: string | null;
+  movedAt: string;
+}
+
+export interface AssetDetail extends EmployeeAsset {
+  movements: AssetMovement[];
+}
+
 /** Loan + computed outstanding balance (server-derived, as of a period). */
 export interface LoanView extends Loan {
   remaining: number;
@@ -313,7 +350,10 @@ export const BONUS_METRIC_LABEL: Record<BonusMetric, string> = {
   SALES_TOTAL: 'Total penjualan depot (Rp)',
 };
 export const COMPARE_OP_LABEL: Record<CompareOp, string> = { GTE: '≥', LTE: '≤', EQ: '=' };
-export const REWARD_KIND_LABEL: Record<RewardKind, string> = { FIXED: 'Nominal (Rp)', PERCENT: '% dari gaji pokok' };
+export const REWARD_KIND_LABEL: Record<RewardKind, string> = {
+  FIXED: 'Nominal (Rp)',
+  PERCENT: '% dari gaji pokok',
+};
 
 export interface GroupCount {
   key: string;
@@ -327,7 +367,13 @@ export interface HrDashboard {
   headcount: { total: number; byStatus: GroupCount[]; byEmploymentStatus: GroupCount[] };
   attendanceToday: GroupCount[];
   payroll: {
-    totals: { gross: number; totalBonus: number; totalDeduction: number; net: number; count: number };
+    totals: {
+      gross: number;
+      totalBonus: number;
+      totalDeduction: number;
+      net: number;
+      count: number;
+    };
     byStatus: GroupCount[];
   };
 }
@@ -370,7 +416,13 @@ export const PAYROLL_STATUS_LABEL: Record<PayrollStatus, string> = {
   APPROVED: 'Disetujui',
   PAID: 'Dibayar',
 };
-export const ALLOWANCE_TYPES: AllowanceType[] = ['TRANSPORT', 'MEAL', 'POSITION', 'HOUSING', 'OTHER'];
+export const ALLOWANCE_TYPES: AllowanceType[] = [
+  'TRANSPORT',
+  'MEAL',
+  'POSITION',
+  'HOUSING',
+  'OTHER',
+];
 export const ALLOWANCE_TYPE_LABEL: Record<AllowanceType, string> = {
   TRANSPORT: 'Transport',
   MEAL: 'Makan',
@@ -378,21 +430,88 @@ export const ALLOWANCE_TYPE_LABEL: Record<AllowanceType, string> = {
   HOUSING: 'Perumahan',
   OTHER: 'Lainnya',
 };
+export const ASSET_TYPES: AssetType[] = [
+  'MOTORCYCLE',
+  'SMARTPHONE',
+  'UNIFORM',
+  'LAPTOP',
+  'PRINTER',
+  'SCANNER',
+  'OTHER',
+];
+export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
+  MOTORCYCLE: 'Motor',
+  SMARTPHONE: 'Ponsel',
+  UNIFORM: 'Seragam',
+  LAPTOP: 'Laptop',
+  PRINTER: 'Printer',
+  SCANNER: 'Scanner',
+  OTHER: 'Lainnya',
+};
+export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
+  AVAILABLE: 'Tersedia',
+  ASSIGNED: 'Dipegang',
+  RETURNED: 'Dikembalikan',
+  MAINTENANCE: 'Perbaikan',
+  LOST: 'Hilang',
+};
+export const ASSET_MOVEMENT_LABEL: Record<AssetMovementKind, string> = {
+  ASSIGN: 'Serah terima',
+  TRANSFER: 'Pindah tangan',
+  RETURN: 'Pengembalian',
+  MAINTENANCE: 'Masuk perbaikan',
+  LOST: 'Dinyatakan hilang',
+};
+
+/**
+ * Which movements the console offers for an asset in this state. Mirrors ASSET_TRANSITIONS in
+ * `services/hr-service/src/domain/asset.ts` — the server still decides; this only stops the UI
+ * from offering a button that is guaranteed to 409.
+ */
+export function assetMovesFrom(status: AssetStatus): AssetMovementKind[] {
+  switch (status) {
+    case 'AVAILABLE':
+    case 'RETURNED':
+      return ['ASSIGN', 'MAINTENANCE', 'LOST'];
+    case 'ASSIGNED':
+      return ['TRANSFER', 'RETURN', 'MAINTENANCE', 'LOST'];
+    case 'MAINTENANCE':
+      return ['RETURN', 'LOST'];
+    case 'LOST':
+      return [];
+  }
+}
+
+/** Only these hand the item to a person, so only these need a recipient field. */
+export function assetMoveNeedsRecipient(kind: AssetMovementKind): boolean {
+  return kind === 'ASSIGN' || kind === 'TRANSFER';
+}
+
 export const BONUS_TYPES: BonusType[] = ['ATTENDANCE', 'PERFORMANCE', 'SALES', 'DEPOT', 'MANUAL'];
-export const DEDUCTION_TYPES: DeductionType[] = ['LATE', 'ABSENCE', 'MANUAL', 'CASH_ADVANCE', 'OTHER'];
+export const DEDUCTION_TYPES: DeductionType[] = [
+  'LATE',
+  'ABSENCE',
+  'MANUAL',
+  'CASH_ADVANCE',
+  'OTHER',
+];
 
 /** "2026-07-01" or ISO → "01 Jul 2026". Empty-safe. */
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 /** ISO datetime → "13.05". Empty-safe. */
 export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  return Number.isNaN(d.getTime())
+    ? '—'
+    : d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
 /** Current period as YYYY-MM. */
@@ -438,32 +557,70 @@ export interface EmployeeForm {
 }
 
 export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
-  fullName: '', phone: '', email: '', depotId: '', position: '',
-  employmentStatus: 'TRAINING', joinDate: '', salaryType: 'DAILY',
-  dailyRate: '', monthlyRate: '', bankName: '', bankAccount: '', emergencyName: '', emergencyPhone: '',
-  supervisorId: '', departmentId: '', npwp: '', bpjsKes: '', bpjsTk: '',
+  fullName: '',
+  phone: '',
+  email: '',
+  depotId: '',
+  position: '',
+  employmentStatus: 'TRAINING',
+  joinDate: '',
+  salaryType: 'DAILY',
+  dailyRate: '',
+  monthlyRate: '',
+  bankName: '',
+  bankAccount: '',
+  emergencyName: '',
+  emergencyPhone: '',
+  supervisorId: '',
+  departmentId: '',
+  npwp: '',
+  bpjsKes: '',
+  bpjsTk: '',
 };
 
 export function employeeToForm(e: Employee): EmployeeForm {
   return {
-    fullName: e.fullName, phone: e.phone, email: e.email ?? '', depotId: e.depotId, position: e.position,
-    employmentStatus: e.employmentStatus, joinDate: e.joinDate.slice(0, 10), salaryType: e.salaryType,
-    dailyRate: e.dailyRate ?? '', monthlyRate: e.monthlyRate ?? '',
-    bankName: e.bankName ?? '', bankAccount: e.bankAccount ?? '',
-    emergencyName: e.emergencyName ?? '', emergencyPhone: e.emergencyPhone ?? '',
-    supervisorId: e.supervisorId ?? '', departmentId: e.departmentId ?? '',
-    npwp: e.npwp ?? '', bpjsKes: e.bpjsKes ?? '', bpjsTk: e.bpjsTk ?? '',
+    fullName: e.fullName,
+    phone: e.phone,
+    email: e.email ?? '',
+    depotId: e.depotId,
+    position: e.position,
+    employmentStatus: e.employmentStatus,
+    joinDate: e.joinDate.slice(0, 10),
+    salaryType: e.salaryType,
+    dailyRate: e.dailyRate ?? '',
+    monthlyRate: e.monthlyRate ?? '',
+    bankName: e.bankName ?? '',
+    bankAccount: e.bankAccount ?? '',
+    emergencyName: e.emergencyName ?? '',
+    emergencyPhone: e.emergencyPhone ?? '',
+    supervisorId: e.supervisorId ?? '',
+    departmentId: e.departmentId ?? '',
+    npwp: e.npwp ?? '',
+    bpjsKes: e.bpjsKes ?? '',
+    bpjsTk: e.bpjsTk ?? '',
   };
 }
 
 /** Validate + coerce the string form into an API payload, mirroring CreateEmployeeDto. */
-export function toEmployeePayload(f: EmployeeForm): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
-  const req = { fullName: f.fullName.trim(), phone: f.phone.trim(), depotId: f.depotId.trim(), position: f.position.trim(), joinDate: f.joinDate.trim() };
-  for (const [k, v] of Object.entries(req)) if (!v) return { ok: false, error: `${k} wajib diisi.` };
+export function toEmployeePayload(
+  f: EmployeeForm,
+): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  const req = {
+    fullName: f.fullName.trim(),
+    phone: f.phone.trim(),
+    depotId: f.depotId.trim(),
+    position: f.position.trim(),
+    joinDate: f.joinDate.trim(),
+  };
+  for (const [k, v] of Object.entries(req))
+    if (!v) return { ok: false, error: `${k} wajib diisi.` };
   const daily = Number(f.dailyRate);
   const monthly = Number(f.monthlyRate);
-  if (f.salaryType === 'DAILY' && (!(daily > 0))) return { ok: false, error: 'Gaji harian (dailyRate) wajib > 0.' };
-  if (f.salaryType === 'MONTHLY' && (!(monthly > 0))) return { ok: false, error: 'Gaji bulanan (monthlyRate) wajib > 0.' };
+  if (f.salaryType === 'DAILY' && !(daily > 0))
+    return { ok: false, error: 'Gaji harian (dailyRate) wajib > 0.' };
+  if (f.salaryType === 'MONTHLY' && !(monthly > 0))
+    return { ok: false, error: 'Gaji bulanan (monthlyRate) wajib > 0.' };
   const value: Record<string, unknown> = {
     ...req,
     employmentStatus: f.employmentStatus,

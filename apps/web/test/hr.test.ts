@@ -11,6 +11,12 @@ import {
   leaveDeductsQuota,
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABEL,
+  ASSET_MOVEMENT_LABEL,
+  ASSET_STATUS_LABEL,
+  ASSET_TYPES,
+  ASSET_TYPE_LABEL,
+  assetMoveNeedsRecipient,
+  assetMovesFrom,
   fmtFileSize,
   fmtDate,
   fmtTime,
@@ -211,5 +217,37 @@ describe('employee documents (B2)', () => {
 
   it('labels every document type the API can return', () => {
     for (const t of DOCUMENT_TYPES) expect(DOCUMENT_TYPE_LABEL[t]).toBeTruthy();
+  });
+});
+
+describe('assets (B3)', () => {
+  it('offers only the moves the server would accept', () => {
+    // Mirrors ASSET_TRANSITIONS in hr-service/src/domain/asset.ts.
+    expect(assetMovesFrom('AVAILABLE')).toEqual(['ASSIGN', 'MAINTENANCE', 'LOST']);
+    expect(assetMovesFrom('RETURNED')).toEqual(['ASSIGN', 'MAINTENANCE', 'LOST']);
+    expect(assetMovesFrom('ASSIGNED')).toEqual(['TRANSFER', 'RETURN', 'MAINTENANCE', 'LOST']);
+    expect(assetMovesFrom('MAINTENANCE')).toEqual(['RETURN', 'LOST']);
+    // Written off: nothing to offer. Finding it back is a new asset row.
+    expect(assetMovesFrom('LOST')).toEqual([]);
+    // An asset in hand is never offered a second ASSIGN — TRANSFER is the only way across.
+    expect(assetMovesFrom('ASSIGNED')).not.toContain('ASSIGN');
+  });
+
+  it('asks for a recipient exactly when the item ends up with a person', () => {
+    expect(assetMoveNeedsRecipient('ASSIGN')).toBe(true);
+    expect(assetMoveNeedsRecipient('TRANSFER')).toBe(true);
+    expect(assetMoveNeedsRecipient('RETURN')).toBe(false);
+    expect(assetMoveNeedsRecipient('MAINTENANCE')).toBe(false);
+    expect(assetMoveNeedsRecipient('LOST')).toBe(false);
+  });
+
+  it('labels every asset type, status and movement the API can return', () => {
+    for (const t of ASSET_TYPES) expect(ASSET_TYPE_LABEL[t]).toBeTruthy();
+    for (const s of Object.keys(ASSET_STATUS_LABEL)) {
+      expect(ASSET_STATUS_LABEL[s as keyof typeof ASSET_STATUS_LABEL]).toBeTruthy();
+    }
+    for (const k of Object.keys(ASSET_MOVEMENT_LABEL)) {
+      expect(ASSET_MOVEMENT_LABEL[k as keyof typeof ASSET_MOVEMENT_LABEL]).toBeTruthy();
+    }
   });
 });

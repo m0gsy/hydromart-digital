@@ -7,6 +7,7 @@ import { DepartmentPrismaRepository } from '../../src/infrastructure/prisma/depa
 import { AllowancePrismaRepository } from '../../src/infrastructure/prisma/allowance.prisma.repository';
 import { LeavePrismaRepository } from '../../src/infrastructure/prisma/leave.prisma.repository';
 import { DocumentPrismaRepository } from '../../src/infrastructure/prisma/document.prisma.repository';
+import { AssetPrismaRepository } from '../../src/infrastructure/prisma/asset.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -54,6 +55,8 @@ const MODELS = [
   'leaveRequest',
   'leaveBalance',
   'employeeDocument',
+  'employeeAsset',
+  'assetMovement',
   'bonus',
   'deduction',
   'employee',
@@ -297,6 +300,99 @@ describe('LeavePrismaRepository', () => {
     expect(m(p, 'leaveBalance').update).toHaveBeenCalledWith({
       where: key,
       data: { usedDays: { increment: 5 } },
+    });
+  });
+});
+
+// ── AssetPrismaRepository ──────────────────────────────────────────────
+describe('AssetPrismaRepository', () => {
+  const write = {
+    code: 'MTR-0001',
+    type: 'MOTORCYCLE' as const,
+    name: 'Honda Beat',
+    brand: null,
+    serialNo: null,
+    value: null,
+    depotId: 'd1',
+    note: null,
+  };
+
+  it('create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'employeeAsset').create.mockResolvedValue(out);
+    m(p, 'employeeAsset').update.mockResolvedValue(out);
+    m(p, 'employeeAsset').findUnique.mockResolvedValue(out);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'employeeAsset').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('as1', { name: 'Beat 2024' })).resolves.toBe(out);
+    expect(m(p, 'employeeAsset').update).toHaveBeenCalledWith({
+      where: { id: 'as1' },
+      data: { name: 'Beat 2024' },
+    });
+    await expect(repo.findById('as1')).resolves.toBe(out);
+  });
+
+  it('list applies only the filters it was given, and pages', async () => {
+    const p = makePrisma();
+    m(p, 'employeeAsset').findMany.mockResolvedValue(['a']);
+    m(p, 'employeeAsset').count.mockResolvedValue(1);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    await expect(
+      repo.list({ depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1', skip: 5, take: 10 }),
+    ).resolves.toEqual({ rows: ['a'], total: 1 });
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1' },
+      orderBy: { code: 'asc' },
+      skip: 5,
+      take: 10,
+    });
+
+    await repo.list({ skip: 0, take: 20 });
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: { code: 'asc' },
+      skip: 0,
+      take: 20,
+    });
+    expect(tx(p)).toHaveBeenCalled();
+  });
+
+  it('a move appends the log and updates the asset in ONE transaction', async () => {
+    const p = makePrisma();
+    const moved = sentinel();
+    m(p, 'assetMovement').create.mockResolvedValue({});
+    m(p, 'employeeAsset').update.mockResolvedValue(moved);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    const movement = {
+      assetId: 'as1',
+      kind: 'ASSIGN' as const,
+      fromEmployeeId: null,
+      toEmployeeId: 'e1',
+      condition: null,
+      note: null,
+      createdBy: 'hr-1',
+    };
+    await expect(repo.move(movement, { status: 'ASSIGNED', holderId: 'e1' })).resolves.toBe(moved);
+    expect(m(p, 'assetMovement').create).toHaveBeenCalledWith({ data: movement });
+    expect(m(p, 'employeeAsset').update).toHaveBeenCalledWith({
+      where: { id: 'as1' },
+      data: { status: 'ASSIGNED', holderId: 'e1' },
+    });
+    expect(tx(p)).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists movements newest first', async () => {
+    const p = makePrisma();
+    m(p, 'assetMovement').findMany.mockResolvedValue([]);
+    await new AssetPrismaRepository(asService(p)).listMovements('as1');
+    expect(m(p, 'assetMovement').findMany).toHaveBeenCalledWith({
+      where: { assetId: 'as1' },
+      orderBy: { movedAt: 'desc' },
     });
   });
 });

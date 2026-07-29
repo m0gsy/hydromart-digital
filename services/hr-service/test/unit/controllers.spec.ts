@@ -19,6 +19,7 @@ import { DepartmentController } from '../../src/modules/department.controller';
 import { AllowanceController } from '../../src/modules/allowance.controller';
 import { LeaveController, SelfLeaveController } from '../../src/modules/leave.controller';
 import { DocumentController } from '../../src/modules/document.controller';
+import { AssetController } from '../../src/modules/asset.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -262,6 +263,24 @@ describe('HolidayController / ShiftController', () => {
     expect(documents.purgeRetentionEligible).toHaveBeenCalledWith(
       new Date('2026-01-01T00:00:00.000Z'),
     );
+  });
+  it('assets delegate, movements included', () => {
+    const assets = svcMock(['list', 'getById', 'create', 'update', 'move']);
+    const ac = new AssetController(assets as never);
+    const q = { depotId: 'd1', status: 'ASSIGNED' } as never;
+    expect(ac.list(q, user)).toBe('list-result');
+    expect(assets.list).toHaveBeenCalledWith(user, q);
+    ac.getById('as1', user);
+    expect(assets.getById).toHaveBeenCalledWith(user, 'as1');
+    const dto = { code: 'MTR-1', type: 'MOTORCYCLE' } as never;
+    ac.create(dto, user);
+    expect(assets.create).toHaveBeenCalledWith(user, dto);
+    const ud = { name: 'Beat' } as never;
+    ac.update('as1', ud, user);
+    expect(assets.update).toHaveBeenCalledWith(user, 'as1', ud);
+    const mv = { kind: 'ASSIGN', toEmployeeId: 'e1' } as never;
+    ac.move('as1', mv, user);
+    expect(assets.move).toHaveBeenCalledWith(user, 'as1', mv);
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

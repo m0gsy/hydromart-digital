@@ -175,7 +175,8 @@ export const endpoints = {
       fail: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/fail`,
       // No-show gate (5a): POST records a contact attempt → { attempts, eligibleAt,
       // canMarkNoShow }; PATCH no-show fails the delivery once the gate is met.
-      contactAttempts: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/contact-attempts`,
+      contactAttempts: (id: string) =>
+        `/deliveries/api/v1/driver/deliveries/${id}/contact-attempts`,
       noShow: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/no-show`,
       // Reschedule (3c): PATCH { rescheduledFor, slot?, note? } → RESCHEDULED.
       reschedule: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/reschedule`,
@@ -774,8 +775,7 @@ export const endpoints = {
     resume: (id: string) => `/depots/api/v1/subscriptions/${id}/resume`,
   },
   huddle: {
-    list: (depotId: string) =>
-      `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(depotId)}`,
+    list: (depotId: string) => `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(depotId)}`,
     get: (q: { depotId: string; weekStart: string }) =>
       `/depots/api/v1/huddle-notes?depotId=${encodeURIComponent(q.depotId)}&weekStart=${encodeURIComponent(q.weekStart)}`,
     upsert: '/depots/api/v1/huddle-notes', // PUT
@@ -791,8 +791,7 @@ export const endpoints = {
     rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
     create: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
     // PATCH to update, DELETE to remove.
-    detail: (depotId: string, id: string) =>
-      `/depots/api/v1/depots/${depotId}/pricing/rules/${id}`,
+    detail: (depotId: string, id: string) => `/depots/api/v1/depots/${depotId}/pricing/rules/${id}`,
   },
   crm: {
     // Broadcast campaigns (marketing/head-office). List is paginated → { items, ... }.
@@ -824,7 +823,12 @@ export const endpoints = {
   },
   forecast: {
     // Single-product demand forecast (omit depotId for a global forecast).
-    demand: (q: { productId: string; depotId?: string; historyDays?: number; horizonDays?: number }) => {
+    demand: (q: {
+      productId: string;
+      depotId?: string;
+      historyDays?: number;
+      horizonDays?: number;
+    }) => {
       const p = new URLSearchParams();
       p.set('productId', q.productId);
       if (q.depotId) p.set('depotId', q.depotId);
@@ -833,7 +837,10 @@ export const endpoints = {
       return `/forecast/api/v1/forecast/demand?${p.toString()}`;
     },
     // Per-depot planning rollup: every product with demand, ranked by predicted total.
-    depot: (depotId: string, q: { historyDays?: number; horizonDays?: number; limit?: number } = {}) => {
+    depot: (
+      depotId: string,
+      q: { historyDays?: number; horizonDays?: number; limit?: number } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.historyDays) p.set('historyDays', String(q.historyDays));
       if (q.horizonDays) p.set('horizonDays', String(q.horizonDays));
@@ -1048,7 +1055,16 @@ export const endpoints = {
   // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
   // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.
   hr: {
-    employees: (q: { depotId?: string; status?: string; departmentId?: string; search?: string; page?: number; pageSize?: number } = {}) => {
+    employees: (
+      q: {
+        depotId?: string;
+        status?: string;
+        departmentId?: string;
+        search?: string;
+        page?: number;
+        pageSize?: number;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);
       if (q.status) p.set('status', q.status);
@@ -1064,7 +1080,8 @@ export const endpoints = {
     createEmployee: '/employees/api/v1/employees',
     importEmployees: '/employees/api/v1/employees/import',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
-    bonusRules: (depotId?: string) => `/bonus-rules/api/v1/bonus-rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    bonusRules: (depotId?: string) =>
+      `/bonus-rules/api/v1/bonus-rules${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     createBonusRule: '/bonus-rules/api/v1/bonus-rules',
     updateBonusRule: (id: string) => `/bonus-rules/api/v1/bonus-rules/${id}`,
     loans: (employeeId: string, asOfPeriod?: string) =>
@@ -1099,7 +1116,17 @@ export const endpoints = {
       const qs = p.toString();
       return `/payroll/api/v1/payroll/me${qs ? `?${qs}` : ''}`;
     },
-    attendance: (q: { depotId?: string; employeeId?: string; status?: string; from?: string; to?: string; page?: number; pageSize?: number } = {}) => {
+    attendance: (
+      q: {
+        depotId?: string;
+        employeeId?: string;
+        status?: string;
+        from?: string;
+        to?: string;
+        page?: number;
+        pageSize?: number;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);
       if (q.employeeId) p.set('employeeId', q.employeeId);
@@ -1111,7 +1138,15 @@ export const endpoints = {
       const qs = p.toString();
       return `/attendance/api/v1/attendance${qs ? `?${qs}` : ''}`;
     },
-    payroll: (q: { periodMonth?: string; employeeId?: string; status?: string; page?: number; pageSize?: number } = {}) => {
+    payroll: (
+      q: {
+        periodMonth?: string;
+        employeeId?: string;
+        status?: string;
+        page?: number;
+        pageSize?: number;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.periodMonth) p.set('periodMonth', q.periodMonth);
       if (q.employeeId) p.set('employeeId', q.employeeId);
@@ -1161,7 +1196,15 @@ export const endpoints = {
       return `/hr-reports/api/v1/hr-reports/payroll?${p}`;
     },
     payrollSlip: (id: string) => `/payroll/api/v1/payroll/${id}/slip`,
-    audit: (q: { entity?: string; entityId?: string; actorId?: string; page?: number; pageSize?: number } = {}) => {
+    audit: (
+      q: {
+        entity?: string;
+        entityId?: string;
+        actorId?: string;
+        page?: number;
+        pageSize?: number;
+      } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.entity) p.set('entity', q.entity);
       if (q.entityId) p.set('entityId', q.entityId);
@@ -1215,6 +1258,29 @@ export const endpoints = {
     employeeDocuments: (employeeId: string) =>
       `/employee-documents/api/v1/employee-documents?employeeId=${encodeURIComponent(employeeId)}`,
     uploadEmployeeDocument: '/employee-documents/api/v1/employee-documents',
+    assets: (
+      q: {
+        depotId?: string;
+        status?: string;
+        type?: string;
+        holderId?: string;
+        page?: number;
+        pageSize?: number;
+      } = {},
+    ) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.status) p.set('status', q.status);
+      if (q.type) p.set('type', q.type);
+      if (q.holderId) p.set('holderId', q.holderId);
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/employee-assets/api/v1/employee-assets${qs ? `?${qs}` : ''}`;
+    },
+    asset: (id: string) => `/employee-assets/api/v1/employee-assets/${id}`,
+    createAsset: '/employee-assets/api/v1/employee-assets',
+    moveAsset: (id: string) => `/employee-assets/api/v1/employee-assets/${id}/movements`,
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
