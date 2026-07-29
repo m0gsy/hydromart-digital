@@ -17,6 +17,8 @@ export interface CreateCustomerData {
  */
 export interface CustomerRepository {
   findById(id: string): Promise<Customer | null>;
+  /** Resolve many ids at once (reseller-name display). Missing ids are simply absent. */
+  findByIds(ids: string[]): Promise<Customer[]>;
   findByPhone(phone: string): Promise<Customer | null>;
   findByEmail(email: string): Promise<Customer | null>;
   findByGoogleSub(googleSub: string): Promise<Customer | null>;

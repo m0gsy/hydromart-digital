@@ -129,6 +129,12 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     const props = this.rows.get(id);
     return props ? Customer.fromPersistence({ ...props }) : null;
   }
+  async findByIds(ids: string[]): Promise<Customer[]> {
+    return ids
+      .map((id) => this.rows.get(id))
+      .filter((props): props is NonNullable<typeof props> => props != null)
+      .map((props) => Customer.fromPersistence({ ...props }));
+  }
   async findByPhone(phone: string): Promise<Customer | null> {
     for (const props of this.rows.values()) {
       if (props.phone === phone) {

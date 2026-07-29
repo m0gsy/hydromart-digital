@@ -16,6 +16,9 @@ export const endpoints = {
     // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
     customerLookup: (phone: string) =>
       `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
+    // Staff: resolve customer ids → public profiles (reseller row-name labels). Array of Customer.
+    customersByIds: (ids: string[]) =>
+      `/auth/api/v1/auth/customers/by-ids?ids=${encodeURIComponent(ids.join(','))}`,
     logout: '/auth/api/v1/auth/logout',
     // Current user's active device sessions (19b) + revoke one by id.
     sessions: '/auth/api/v1/sessions',

@@ -110,6 +110,19 @@ describe('AccountService', () => {
     expect(staff).toMatchObject({ role: Role.DEPOT_OPERATOR, status: 'ACTIVE', fullName: 'Sari' });
   });
 
+  it('resolves a batch of ids to public profiles, deduping and dropping unknowns', async () => {
+    const a = makeCustomer({ phone: '+628990002001', fullName: 'Agus' });
+    const b = makeCustomer({ phone: '+628990002002', fullName: 'Bima' });
+    customers.seed(a);
+    customers.seed(b);
+
+    const result = await service.lookupByIds([a.id, b.id, a.id, 'missing-id', '']);
+    expect(result.map((c) => c.fullName).sort()).toEqual(['Agus', 'Bima']);
+    expect(result).toHaveLength(2);
+
+    expect(await service.lookupByIds([])).toEqual([]);
+  });
+
   it('promotes an existing customer to a staff role', async () => {
     const customer = makeCustomer({ phone: '+628990002222', role: Role.CUSTOMER });
     customers.seed(customer);

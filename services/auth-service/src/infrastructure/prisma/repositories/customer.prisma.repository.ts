@@ -21,6 +21,12 @@ export class CustomerPrismaRepository implements CustomerRepository {
     return row ? toCustomerEntity(row) : null;
   }
 
+  async findByIds(ids: string[]): Promise<Customer[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.prisma.customer.findMany({ where: { id: { in: ids } } });
+    return rows.map(toCustomerEntity);
+  }
+
   async findByPhone(phone: string): Promise<Customer | null> {
     const row = await this.prisma.customer.findUnique({ where: { phone } });
     return row ? toCustomerEntity(row) : null;

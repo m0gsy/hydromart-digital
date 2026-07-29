@@ -130,10 +130,12 @@ function RegisterResellerForm({ depotId, onDone }: { depotId: string; onDone: ()
 function ResellerRow({
   reseller: r,
   roll,
+  name,
   onChanged,
 }: {
   reseller: Reseller;
   roll: ResellerRollupRow | undefined;
+  name: string | undefined;
   onChanged: () => void;
 }) {
   const { toast: notify } = useToast();
@@ -226,7 +228,7 @@ function ResellerRow({
   return (
     <div className={`flex items-center justify-between gap-4 p-4 text-sm ${r.active ? '' : 'opacity-60'}`}>
       <div>
-        <div className="font-semibold">{r.customerId}</div>
+        <div className="font-semibold">{name ?? r.customerId}</div>
         <div className="text-muted">
           {roll?.volumeQty ?? 0} / {r.monthlyTargetQty} galon
           {m.attainmentPct != null && <> · {m.attainmentPct}%</>}
@@ -296,6 +298,12 @@ export default function ResellersPage() {
     [depotId, month, ids.join(',')],
   );
 
+  // Resolve reseller ids → names for the row labels (auth-service owns the customer name).
+  const names = useAsync<Customer[]>(
+    () => (ids.length ? api.get<Customer[]>(endpoints.auth.customersByIds(ids), true) : Promise.resolve([])),
+    [ids.join(',')],
+  );
+
   if (!canView) {
     return (
       <div className="mx-auto max-w-4xl">
@@ -304,9 +312,10 @@ export default function ResellersPage() {
     );
   }
 
-  // MVP shows customerId as the row label — a name lookup is deferred (no id→name
-  // endpoint exists yet; customerLookup is phone→customer, not id→name).
   const byId = new Map((rollup.data?.rows ?? []).map((r) => [r.customerId, r]));
+  const nameById = new Map(
+    (names.data ?? []).map((c) => [c.id, c.fullName?.trim() || c.phone] as const),
+  );
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -359,7 +368,13 @@ export default function ResellersPage() {
       {registry.data && registry.data.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)] p-0">
           {registry.data.map((r) => (
-            <ResellerRow key={r.customerId} reseller={r} roll={byId.get(r.customerId)} onChanged={registry.reload} />
+            <ResellerRow
+              key={r.customerId}
+              reseller={r}
+              roll={byId.get(r.customerId)}
+              name={nameById.get(r.customerId)}
+              onChanged={registry.reload}
+            />
           ))}
         </Card>
       )}
