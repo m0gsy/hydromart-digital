@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
+import { DepartmentPrismaRepository } from '../../src/infrastructure/prisma/department.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -45,6 +46,7 @@ function model(): ModelMock {
 
 const MODELS = [
   'shift',
+  'department',
   'bonus',
   'deduction',
   'employee',
@@ -90,6 +92,48 @@ function tx(p: FakePrisma): jest.Mock {
 
 // A sentinel that Prisma "returns"; identity is asserted with toBe.
 const sentinel = (): object => ({ id: `s-${Math.random()}` });
+
+// ── DepartmentPrismaRepository ─────────────────────────────────────────
+describe('DepartmentPrismaRepository', () => {
+  const write = { code: 'FIN', name: 'Keuangan', depotId: null, active: true };
+
+  it('create/update/delete/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'department').create.mockResolvedValue(out);
+    m(p, 'department').update.mockResolvedValue(out);
+    m(p, 'department').delete.mockResolvedValue({});
+    m(p, 'department').findUnique.mockResolvedValue(out);
+    const repo = new DepartmentPrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'department').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('id1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'department').update).toHaveBeenCalledWith({
+      where: { id: 'id1' },
+      data: { active: false },
+    });
+    await expect(repo.delete('id1')).resolves.toBeUndefined();
+    expect(m(p, 'department').delete).toHaveBeenCalledWith({ where: { id: 'id1' } });
+    await expect(repo.findById('id1')).resolves.toBe(out);
+  });
+
+  it('list(depotId) includes the network-wide ones; list() takes every row', async () => {
+    const p = makePrisma();
+    m(p, 'department').findMany.mockResolvedValue([]);
+    const repo = new DepartmentPrismaRepository(asService(p));
+    await repo.list('d1');
+    expect(m(p, 'department').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
+    });
+    await repo.list();
+    expect(m(p, 'department').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
+    });
+  });
+});
 
 // ── ShiftPrismaRepository ──────────────────────────────────────────────
 describe('ShiftPrismaRepository', () => {
@@ -831,11 +875,19 @@ describe('EmployeePrismaRepository', () => {
     m(p, 'employee').count.mockResolvedValue(1);
     const repo = new EmployeePrismaRepository(asService(p));
     await expect(
-      repo.list({ depotId: 'd1', status: 'ACTIVE', search: 'ali', skip: 5, take: 10 }),
+      repo.list({
+        depotId: 'd1',
+        status: 'ACTIVE',
+        departmentId: 'dep1',
+        search: 'ali',
+        skip: 5,
+        take: 10,
+      }),
     ).resolves.toEqual({ rows, total: 1 });
     const where = {
       depotId: 'd1',
       status: 'ACTIVE',
+      departmentId: 'dep1',
       OR: [
         { fullName: { contains: 'ali', mode: 'insensitive' } },
         { employeeCode: { contains: 'ali', mode: 'insensitive' } },

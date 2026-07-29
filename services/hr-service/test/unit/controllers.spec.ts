@@ -15,6 +15,7 @@ import { BonusController, DeductionController } from '../../src/modules/adjustme
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
 import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import { DepartmentController } from '../../src/modules/department.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -194,6 +195,20 @@ describe('HolidayController / ShiftController', () => {
     expect(holidays.create).toHaveBeenCalledWith(user, dto);
     hc.remove('h1', user);
     expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
+  });
+  it('departments delegate (list passes depotId)', () => {
+    const departments = svcMock(['list', 'create', 'update', 'remove']);
+    const dc = new DepartmentController(departments as never);
+    dc.list({ depotId: 'd2' } as never, user);
+    expect(departments.list).toHaveBeenCalledWith(user, 'd2');
+    const dto = { code: 'FIN', name: 'Keuangan' } as never;
+    dc.create(dto, user);
+    expect(departments.create).toHaveBeenCalledWith(user, dto);
+    const ud = { name: 'Finance' } as never;
+    dc.update('dep1', ud, user);
+    expect(departments.update).toHaveBeenCalledWith(user, 'dep1', ud);
+    dc.remove('dep1', user);
+    expect(departments.remove).toHaveBeenCalledWith(user, 'dep1');
   });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);

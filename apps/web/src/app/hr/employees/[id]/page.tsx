@@ -13,8 +13,10 @@ import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
+  departmentLabel,
   fmtDate,
   tenureLabel,
+  type Department,
   type Employee,
   type EmploymentHistory,
 } from '@/lib/hr';
@@ -38,6 +40,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   const emp = useAsync<Employee>(() => api.get<Employee>(endpoints.hr.employee(id), true), [id]);
   const history = useAsync<EmploymentHistory[]>(() => api.get<EmploymentHistory[]>(endpoints.hr.employeeHistory(id), true), [id]);
+  const departments = useAsync<Department[]>(() => api.get<Department[]>(endpoints.hr.departments(), true), []);
 
   const [frames, setFrames] = useState<string[]>([]);
   const [enrolling, setEnrolling] = useState(false);
@@ -74,6 +77,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       <Card className="divide-y divide-[color:var(--border)] p-5">
         <Row label="No. HP" value={e.phone} />
         <Row label="Email" value={e.email ?? '—'} />
+        <Row label="Departemen" value={departmentLabel(departments.data ?? [], e.departmentId)} />
         <Row label="Tanggal masuk" value={fmtDate(e.joinDate)} />
         <Row label="Masa kerja" value={tenureLabel(e.joinDate)} />
         <Row label="Tipe gaji" value={e.salaryType === 'DAILY' ? 'Harian' : 'Bulanan'} />

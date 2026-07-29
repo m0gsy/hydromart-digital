@@ -1048,10 +1048,11 @@ export const endpoints = {
   // HRIS Lite (hr-service). Each public segment maps to HR_SERVICE_URL at the gateway,
   // then hits the service's own /api/v1/... controller. Read = hrView; writes vary.
   hr: {
-    employees: (q: { depotId?: string; status?: string; search?: string; page?: number; pageSize?: number } = {}) => {
+    employees: (q: { depotId?: string; status?: string; departmentId?: string; search?: string; page?: number; pageSize?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);
       if (q.status) p.set('status', q.status);
+      if (q.departmentId) p.set('departmentId', q.departmentId);
       if (q.search) p.set('search', q.search);
       if (q.page) p.set('page', String(q.page));
       if (q.pageSize) p.set('pageSize', String(q.pageSize));
@@ -1182,6 +1183,11 @@ export const endpoints = {
     deleteHoliday: (id: string) => `/holidays/api/v1/holidays/${id}`,
     shifts: (depotId?: string) =>
       `/hr-shifts/api/v1/hr-shifts${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    departments: (depotId?: string) =>
+      `/departments/api/v1/departments${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    createDepartment: '/departments/api/v1/departments',
+    updateDepartment: (id: string) => `/departments/api/v1/departments/${id}`,
+    deleteDepartment: (id: string) => `/departments/api/v1/departments/${id}`,
     createShift: '/hr-shifts/api/v1/hr-shifts',
     updateShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,
     deleteShift: (id: string) => `/hr-shifts/api/v1/hr-shifts/${id}`,

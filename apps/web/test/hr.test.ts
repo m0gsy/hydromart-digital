@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EMPTY_EMPLOYEE_FORM,
+  departmentLabel,
+  departmentsForDepot,
   employeeToForm,
   fmtDate,
   fmtTime,
   toEmployeePayload,
+  type Department,
   type Employee,
   type EmployeeForm,
 } from '@/lib/hr';
@@ -31,6 +34,7 @@ const employee = (over: Partial<Employee> = {}): Employee => ({
   emergencyPhone: null,
   supervisorId: null,
   shiftId: null,
+  departmentId: null,
   npwp: null,
   bpjsKes: null,
   bpjsTk: null,
@@ -135,5 +139,42 @@ describe('toEmployeePayload', () => {
     expect(r.value.bankAccount).toBe('123');
     expect(r.value.emergencyName).toBe('Siti');
     expect(r.value.emergencyPhone).toBe('0899');
+  });
+});
+
+describe('departments (A1)', () => {
+  const dept = (over: Partial<Department>): Department => ({
+    id: 'x',
+    code: 'X',
+    name: 'X',
+    depotId: null,
+    active: true,
+    ...over,
+  });
+  const rows = [
+    dept({ id: 'g', code: 'FIN', name: 'Keuangan' }),
+    dept({ id: 'a', code: 'GDG-A', name: 'Gudang A', depotId: 'd1' }),
+    dept({ id: 'b', code: 'GDG-B', name: 'Gudang B', depotId: 'd2' }),
+    dept({ id: 'off', code: 'OLD', name: 'Lama', active: false }),
+  ];
+
+  it('offers a depot its own units plus the network-wide ones, minus the inactive', () => {
+    expect(departmentsForDepot(rows, 'd1').map((d) => d.id)).toEqual(['g', 'a']);
+    expect(departmentsForDepot(rows, 'd2').map((d) => d.id)).toEqual(['g', 'b']);
+  });
+
+  it('labels an unassigned or unknown department as "Belum diatur"', () => {
+    expect(departmentLabel(rows, null)).toBe('Belum diatur');
+    expect(departmentLabel(rows, 'ghost')).toBe('Belum diatur');
+    expect(departmentLabel(rows, 'a')).toBe('GDG-A · Gudang A');
+  });
+
+  it('carries departmentId through the form round-trip', () => {
+    expect(employeeToForm(employee({ departmentId: 'a' })).departmentId).toBe('a');
+    expect(employeeToForm(employee()).departmentId).toBe('');
+    const payload = toEmployeePayload({ ...validForm(), departmentId: ' a ' });
+    expect(payload.ok && payload.value.departmentId).toBe('a');
+    const none = toEmployeePayload(validForm());
+    expect(none.ok && 'departmentId' in none.value).toBe(false);
   });
 });

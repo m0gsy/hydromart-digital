@@ -98,6 +98,11 @@ export class CreateEmployeeDto {
   @IsUUID()
   shiftId?: string;
 
+  /** Org unit. Must be network-wide or belong to the same depot as this employee. */
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(40)
@@ -149,6 +154,7 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MaxLength(500) photoUrl?: string;
   @IsOptional() @IsUUID() supervisorId?: string;
   @IsOptional() @IsUUID() shiftId?: string;
+  @IsOptional() @IsUUID() departmentId?: string;
   @IsOptional() @IsString() @MaxLength(40) npwp?: string;
   @IsOptional() @IsString() @MaxLength(40) bpjsKes?: string;
   @IsOptional() @IsString() @MaxLength(40) bpjsTk?: string;
@@ -163,6 +169,10 @@ export class ListEmployeesDto {
   @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;
+
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 
   @IsOptional()
   @IsString()

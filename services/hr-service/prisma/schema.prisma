@@ -133,6 +133,8 @@ model Employee {
   supervisorId     String?          @db.Uuid
   /// Assigned shift (Shift.id). Null = use depot/global default start-time.
   shiftId          String?          @db.Uuid
+  /// Org unit (Department.id). Null = "Belum diatur" — existing rows are never guessed.
+  departmentId     String?          @db.Uuid
   /// Tax + social-security ids (optional per PRD).
   npwp             String?
   bpjsKes          String?
@@ -163,6 +165,7 @@ model Employee {
 
   @@index([depotId])
   @@index([status])
+  @@index([departmentId])
   @@map("employees")
 }
 
@@ -313,6 +316,22 @@ model AssetMovement {
 
   @@index([assetId])
   @@map("asset_movements")
+}
+
+/// Org unit an employee belongs to. depotId null = network-wide (Finance, HR); a depotId
+/// scopes it to that depot (Gudang JKT-01), and only that depot's staff may be assigned to it.
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Human-facing code used by the bulk-import sheet, unique network-wide (e.g. "FIN").
+  code      String   @unique
+  name      String
+  depotId   String?  @db.Uuid
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([depotId])
+  @@map("departments")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.

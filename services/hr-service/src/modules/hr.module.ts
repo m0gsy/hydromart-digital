@@ -60,7 +60,11 @@ import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
+import { DEPARTMENT_REPOSITORY } from '../application/ports/department.repository';
+import { DepartmentService } from '../application/services/department.service';
+import { DepartmentPrismaRepository } from '../infrastructure/prisma/department.prisma.repository';
 import { HolidayController, ShiftController } from './calendar.controller';
+import { DepartmentController } from './department.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -133,6 +137,8 @@ const providers: Provider[] = [
   { provide: SHIFT_REPOSITORY, useClass: ShiftPrismaRepository },
   HolidayService,
   ShiftService,
+  { provide: DEPARTMENT_REPOSITORY, useClass: DepartmentPrismaRepository },
+  DepartmentService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -158,6 +164,7 @@ const providers: Provider[] = [
     ReportsController,
     HolidayController,
     ShiftController,
+    DepartmentController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

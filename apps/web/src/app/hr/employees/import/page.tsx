@@ -3,8 +3,11 @@
 import { useMemo } from 'react';
 
 import { CsvImport, intCell, phoneCell, type ImportColumn } from '@/components/csv-import';
+import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useDepot } from '@/lib/depot-context';
+import { type Department } from '@/lib/hr';
+import { useAsync } from '@/lib/use-async';
 
 const STAFF_ROLES = [
   'DEPOT_OPERATOR',
@@ -17,6 +20,11 @@ const STAFF_ROLES = [
 
 export default function ImportEmployeesPage() {
   const { depots } = useDepot();
+  const departments = useAsync<Department[]>(
+    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    [],
+  );
+  const deptRows = useMemo(() => departments.data ?? [], [departments.data]);
 
   // `depotCode` in, `depotId` out: nobody should be typing a UUID into a spreadsheet.
   // The console already holds the depot list, so the lookup costs no round-trip — and
@@ -39,6 +47,20 @@ export default function ImportEmployeesPage() {
         },
       },
       { key: 'position', required: true, example: 'Kurir' },
+      // Optional, same code-not-UUID trick as depotCode. Blank = "Belum diatur"; the server
+      // still rejects a unit that belongs to another depot.
+      {
+        key: 'departmentCode',
+        field: 'departmentId',
+        example: deptRows[0]?.code ?? '',
+        text: true,
+        options: deptRows.map((d) => d.code),
+        parse: (raw) => {
+          const match = deptRows.find((d) => d.code.toUpperCase() === raw.toUpperCase());
+          if (!match) throw new Error(`kode departemen "${raw}" tidak dikenal`);
+          return match.id;
+        },
+      },
       // The login role provisioned for this person. auth-service rejects anything
       // outside STAFF_IMPORT_ROLES, so a spreadsheet can never mint an office account.
       { key: 'role', required: true, example: 'DRIVER', options: STAFF_ROLES },
@@ -56,7 +78,7 @@ export default function ImportEmployeesPage() {
       { key: 'bankName', example: '' },
       { key: 'bankAccount', example: '' },
     ],
-    [depots],
+    [depots, deptRows],
   );
 
   return (

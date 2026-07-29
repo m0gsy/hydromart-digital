@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Buildings,
   CalendarCheck,
   ChartBar,
   ClipboardText,
@@ -29,6 +30,7 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { href: '/hr', label: 'Dashboard', icon: Gauge },
   { href: '/hr/employees', label: 'Karyawan', icon: Users },
+  { href: '/hr/departments', label: 'Departemen', icon: Buildings },
   { href: '/hr/customers', label: 'Pelanggan', icon: Users },
   { href: '/hr/resellers', label: 'Reseller / Agen', icon: Storefront },
   { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },

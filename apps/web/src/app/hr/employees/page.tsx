@@ -9,6 +9,8 @@ import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
+  departmentLabel,
+  type Department,
   type Employee,
   type EmployeeStatus,
   type HrPage,
@@ -27,11 +29,14 @@ export default function EmployeesPage() {
   const { customer } = useAuth();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | ''>('');
+  const [departmentId, setDepartmentId] = useState('');
 
   const { data, error, loading, reload } = useAsync<HrPage<Employee>>(
-    () => api.get<HrPage<Employee>>(endpoints.hr.employees({ search: search || undefined, status: status || undefined, pageSize: 100 }), true),
-    [search, status],
+    () => api.get<HrPage<Employee>>(endpoints.hr.employees({ search: search || undefined, status: status || undefined, departmentId: departmentId || undefined, pageSize: 100 }), true),
+    [search, status, departmentId],
   );
+  const departments = useAsync<Department[]>(() => api.get<Department[]>(endpoints.hr.departments(), true), []);
+  const deptRows = departments.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -62,6 +67,16 @@ export default function EmployeesPage() {
             <option key={s} value={s}>{EMPLOYEE_STATUS_LABEL[s]}</option>
           ))}
         </select>
+        <select
+          value={departmentId}
+          onChange={(e) => setDepartmentId(e.target.value)}
+          className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
+        >
+          <option value="">Semua departemen</option>
+          {deptRows.map((d) => (
+            <option key={d.id} value={d.id}>{d.code} · {d.name}</option>
+          ))}
+        </select>
       </div>
 
       {loading && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>}
@@ -73,7 +88,7 @@ export default function EmployeesPage() {
             <Link key={e.id} href={`/hr/employees/${e.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
               <div className="min-w-0">
                 <p className="truncate font-semibold">{e.fullName}</p>
-                <p className="truncate text-xs text-muted">{e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]}</p>
+                <p className="truncate text-xs text-muted">{e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} · {departmentLabel(deptRows, e.departmentId)}</p>
               </div>
               <Badge tone={STATUS_TONE[e.status]}>{EMPLOYEE_STATUS_LABEL[e.status]}</Badge>
             </Link>
