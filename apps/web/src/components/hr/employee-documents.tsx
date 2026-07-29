@@ -21,7 +21,13 @@ import { useAsync } from '@/lib/use-async';
  * file — it files a new version and marks the previous one superseded, so the history of what
  * HR held stays readable.
  */
-export function EmployeeDocuments({ employeeId, isAdmin }: { employeeId: string; isAdmin: boolean }) {
+export function EmployeeDocuments({
+  employeeId,
+  isAdmin,
+}: {
+  employeeId: string;
+  isAdmin: boolean;
+}) {
   const { toast } = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [type, setType] = useState<EmployeeDocumentType>('KTP');
@@ -99,7 +105,10 @@ export function EmployeeDocuments({ employeeId, isAdmin }: { employeeId: string;
       )}
 
       {isAdmin && (
-        <form onSubmit={upload} className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2">
+        <form
+          onSubmit={upload}
+          className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2"
+        >
           <Field label="Jenis dokumen">
             <select
               value={type}

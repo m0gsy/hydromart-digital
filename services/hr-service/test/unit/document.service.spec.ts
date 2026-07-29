@@ -73,7 +73,10 @@ function fakeStorage(over: Partial<StoragePort> = {}) {
   const storage: StoragePort = {
     put: async (input) => {
       puts.push(input);
-      return { url: `https://cdn/${input.keyPrefix}/x.${input.ext}`, key: `${input.keyPrefix}/x.${input.ext}` };
+      return {
+        url: `https://cdn/${input.keyPrefix}/x.${input.ext}`,
+        key: `${input.keyPrefix}/x.${input.ext}`,
+      };
     },
     remove: async (key) => {
       removed.push(key);
@@ -122,7 +125,11 @@ describe('DocumentService.upload', () => {
 
   it('keeps the expiry date when one is given', async () => {
     const { svc } = make();
-    const doc = await svc.upload(hr, { ...INPUT, type: 'CONTRACT', expiresAt: '2027-01-31' }, file());
+    const doc = await svc.upload(
+      hr,
+      { ...INPUT, type: 'CONTRACT', expiresAt: '2027-01-31' },
+      file(),
+    );
     expect(doc.expiresAt).toEqual(new Date('2027-01-31'));
   });
 
@@ -148,17 +155,17 @@ describe('DocumentService.upload', () => {
     expect((await svc.upload(hr, INPUT, file({ mimetype: 'application/pdf' }))).mimeType).toBe(
       'application/pdf',
     );
-    await expect(
-      svc.upload(hr, INPUT, file({ mimetype: 'application/zip' })),
-    ).rejects.toThrow(BadRequestException);
+    await expect(svc.upload(hr, INPUT, file({ mimetype: 'application/zip' }))).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('rejects a missing file and one over 5MB', async () => {
     const { svc } = make();
     await expect(svc.upload(hr, INPUT, undefined)).rejects.toThrow(BadRequestException);
-    await expect(
-      svc.upload(hr, INPUT, file({ size: MAX_DOCUMENT_BYTES + 1 })),
-    ).rejects.toThrow(PayloadTooLargeException);
+    await expect(svc.upload(hr, INPUT, file({ size: MAX_DOCUMENT_BYTES + 1 }))).rejects.toThrow(
+      PayloadTooLargeException,
+    );
   });
 
   it('answers 503 when storage throws, and records nothing', async () => {

@@ -44,8 +44,6 @@ export class S3StorageAdapter implements StoragePort {
 
   /** S3 DELETE is already idempotent — deleting a missing key returns 204. */
   async remove(key: string): Promise<void> {
-    await this.client.send(
-      new DeleteObjectCommand({ Bucket: this.config.s3.bucket, Key: key }),
-    );
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.config.s3.bucket, Key: key }));
   }
 }

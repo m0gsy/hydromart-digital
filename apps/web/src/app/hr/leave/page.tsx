@@ -39,10 +39,7 @@ export default function LeaveQueuePage() {
 
   const queue = useAsync<HrPage<LeaveRequest>>(
     () =>
-      api.get<HrPage<LeaveRequest>>(
-        endpoints.hr.leaveQueue({ status: status || undefined }),
-        true,
-      ),
+      api.get<HrPage<LeaveRequest>>(endpoints.hr.leaveQueue({ status: status || undefined }), true),
     [status],
   );
 
@@ -118,9 +115,7 @@ export default function LeaveQueuePage() {
                     </Button>
                   </div>
                 )}
-                {waitingHr && !isHr && (
-                  <p className="text-xs text-muted">Menunggu keputusan HR.</p>
-                )}
+                {waitingHr && !isHr && <p className="text-xs text-muted">Menunggu keputusan HR.</p>}
               </div>
             );
           })}

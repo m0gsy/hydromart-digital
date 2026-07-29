@@ -336,7 +336,11 @@ describe('PayrollService allowances (A3)', () => {
     await svc.generate(user, 'e1', '2026-07');
     const w = repo.lastWrite!;
     const line = w.items.find((i) => i.kind === 'ALLOWANCE');
-    expect(line).toMatchObject({ label: 'Tunjangan TRANSPORT', amount: 300_000, sourceRef: 'al-1' });
+    expect(line).toMatchObject({
+      label: 'Tunjangan TRANSPORT',
+      amount: 300_000,
+      sourceRef: 'al-1',
+    });
     expect(w.gross).toBe(4_300_000);
     expect(w.totalBonus).toBe(0);
     expect(w.net).toBe(4_300_000);

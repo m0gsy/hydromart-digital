@@ -42,7 +42,10 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   const supervisors = useAsync<HrPage<Employee>>(
     () =>
       form.depotId
-        ? api.get<HrPage<Employee>>(endpoints.hr.employees({ depotId: form.depotId, status: 'ACTIVE', pageSize: 100 }), true)
+        ? api.get<HrPage<Employee>>(
+            endpoints.hr.employees({ depotId: form.depotId, status: 'ACTIVE', pageSize: 100 }),
+            true,
+          )
         : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 100 }),
     [form.depotId],
   );
@@ -52,9 +55,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     [],
   );
   // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
-  const deptOptions = form.depotId
-    ? departmentsForDepot(departments.data ?? [], form.depotId)
-    : [];
+  const deptOptions = form.depotId ? departmentsForDepot(departments.data ?? [], form.depotId) : [];
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -83,63 +84,157 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   return (
     <form onSubmit={submit} className="space-y-4">
       <Card className="grid gap-4 p-5 sm:grid-cols-2">
-        <Field label="Nama lengkap"><Input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} /></Field>
-        <Field label="Posisi"><Input value={form.position} onChange={(e) => set('position', e.target.value)} /></Field>
-        <Field label="No. HP"><Input value={form.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
-        <Field label="Email (opsional)"><Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} /></Field>
+        <Field label="Nama lengkap">
+          <Input value={form.fullName} onChange={(e) => set('fullName', e.target.value)} />
+        </Field>
+        <Field label="Posisi">
+          <Input value={form.position} onChange={(e) => set('position', e.target.value)} />
+        </Field>
+        <Field label="No. HP">
+          <Input value={form.phone} onChange={(e) => set('phone', e.target.value)} />
+        </Field>
+        <Field label="Email (opsional)">
+          <Input type="email" value={form.email} onChange={(e) => set('email', e.target.value)} />
+        </Field>
 
         <Field label="Depot">
-          <select value={form.depotId} onChange={(e) => set('depotId', e.target.value)} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm">
+          <select
+            value={form.depotId}
+            onChange={(e) => set('depotId', e.target.value)}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
             <option value="">Pilih depot…</option>
-            {depots.data?.items.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            {depots.data?.items.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
           </select>
         </Field>
-        <Field label="Tanggal masuk"><Input type="date" value={form.joinDate} onChange={(e) => set('joinDate', e.target.value)} /></Field>
+        <Field label="Tanggal masuk">
+          <Input
+            type="date"
+            value={form.joinDate}
+            onChange={(e) => set('joinDate', e.target.value)}
+          />
+        </Field>
 
         <Field label="Status kepegawaian">
-          <select value={form.employmentStatus} onChange={(e) => set('employmentStatus', e.target.value as EmploymentStatus)} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm">
-            {(Object.keys(EMPLOYMENT_STATUS_LABEL) as EmploymentStatus[]).map((s) => <option key={s} value={s}>{EMPLOYMENT_STATUS_LABEL[s]}</option>)}
+          <select
+            value={form.employmentStatus}
+            onChange={(e) => set('employmentStatus', e.target.value as EmploymentStatus)}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
+            {(Object.keys(EMPLOYMENT_STATUS_LABEL) as EmploymentStatus[]).map((s) => (
+              <option key={s} value={s}>
+                {EMPLOYMENT_STATUS_LABEL[s]}
+              </option>
+            ))}
           </select>
         </Field>
         <Field label="Tipe gaji">
-          <select value={form.salaryType} onChange={(e) => set('salaryType', e.target.value as SalaryType)} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm">
+          <select
+            value={form.salaryType}
+            onChange={(e) => set('salaryType', e.target.value as SalaryType)}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
             <option value="DAILY">Harian</option>
             <option value="MONTHLY">Bulanan</option>
           </select>
         </Field>
 
         {form.salaryType === 'DAILY' ? (
-          <Field label="Gaji harian (Rp)"><Input type="number" value={form.dailyRate} onChange={(e) => set('dailyRate', e.target.value)} /></Field>
+          <Field label="Gaji harian (Rp)">
+            <Input
+              type="number"
+              value={form.dailyRate}
+              onChange={(e) => set('dailyRate', e.target.value)}
+            />
+          </Field>
         ) : (
-          <Field label="Gaji bulanan (Rp)"><Input type="number" value={form.monthlyRate} onChange={(e) => set('monthlyRate', e.target.value)} /></Field>
+          <Field label="Gaji bulanan (Rp)">
+            <Input
+              type="number"
+              value={form.monthlyRate}
+              onChange={(e) => set('monthlyRate', e.target.value)}
+            />
+          </Field>
         )}
 
-        <Field label="Nama bank (opsional)"><Input value={form.bankName} onChange={(e) => set('bankName', e.target.value)} /></Field>
-        <Field label="No. rekening (opsional)"><Input value={form.bankAccount} onChange={(e) => set('bankAccount', e.target.value)} /></Field>
-        <Field label="Kontak darurat (opsional)"><Input value={form.emergencyName} onChange={(e) => set('emergencyName', e.target.value)} /></Field>
-        <Field label="No. kontak darurat (opsional)"><Input value={form.emergencyPhone} onChange={(e) => set('emergencyPhone', e.target.value)} /></Field>
+        <Field label="Nama bank (opsional)">
+          <Input value={form.bankName} onChange={(e) => set('bankName', e.target.value)} />
+        </Field>
+        <Field label="No. rekening (opsional)">
+          <Input value={form.bankAccount} onChange={(e) => set('bankAccount', e.target.value)} />
+        </Field>
+        <Field label="Kontak darurat (opsional)">
+          <Input
+            value={form.emergencyName}
+            onChange={(e) => set('emergencyName', e.target.value)}
+          />
+        </Field>
+        <Field label="No. kontak darurat (opsional)">
+          <Input
+            value={form.emergencyPhone}
+            onChange={(e) => set('emergencyPhone', e.target.value)}
+          />
+        </Field>
 
         <Field label="Atasan (opsional)">
-          <select value={form.supervisorId} onChange={(e) => set('supervisorId', e.target.value)} disabled={!form.depotId} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50">
+          <select
+            value={form.supervisorId}
+            onChange={(e) => set('supervisorId', e.target.value)}
+            disabled={!form.depotId}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
+          >
             <option value="">{form.depotId ? 'Tanpa atasan' : 'Pilih depot dulu…'}</option>
-            {supervisors.data?.rows.filter((s) => s.id !== id).map((s) => <option key={s.id} value={s.id}>{s.fullName} — {s.position}</option>)}
+            {supervisors.data?.rows
+              .filter((s) => s.id !== id)
+              .map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.fullName} — {s.position}
+                </option>
+              ))}
           </select>
         </Field>
         <Field label="Departemen (opsional)">
-          <select value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)} disabled={!form.depotId} className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50">
+          <select
+            value={form.departmentId}
+            onChange={(e) => set('departmentId', e.target.value)}
+            disabled={!form.depotId}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
+          >
             <option value="">{form.depotId ? 'Belum diatur' : 'Pilih depot dulu…'}</option>
-            {deptOptions.map((d) => <option key={d.id} value={d.id}>{d.code} — {d.name}</option>)}
+            {deptOptions.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.code} — {d.name}
+              </option>
+            ))}
           </select>
         </Field>
-        <Field label="NPWP (opsional)"><Input value={form.npwp} onChange={(e) => set('npwp', e.target.value)} /></Field>
-        <Field label="BPJS Kesehatan (opsional)"><Input value={form.bpjsKes} onChange={(e) => set('bpjsKes', e.target.value)} /></Field>
-        <Field label="BPJS Ketenagakerjaan (opsional)"><Input value={form.bpjsTk} onChange={(e) => set('bpjsTk', e.target.value)} /></Field>
+        <Field label="NPWP (opsional)">
+          <Input value={form.npwp} onChange={(e) => set('npwp', e.target.value)} />
+        </Field>
+        <Field label="BPJS Kesehatan (opsional)">
+          <Input value={form.bpjsKes} onChange={(e) => set('bpjsKes', e.target.value)} />
+        </Field>
+        <Field label="BPJS Ketenagakerjaan (opsional)">
+          <Input value={form.bpjsTk} onChange={(e) => set('bpjsTk', e.target.value)} />
+        </Field>
       </Card>
 
-      {err && <p className="text-sm font-medium text-red-600" role="alert">{err}</p>}
+      {err && (
+        <p className="text-sm font-medium text-red-600" role="alert">
+          {err}
+        </p>
+      )}
       <div className="flex gap-3">
-        <Button type="submit" loading={saving}>{id ? 'Simpan Perubahan' : 'Tambah Karyawan'}</Button>
-        <Button type="button" variant="secondary" onClick={() => router.back()}>Batal</Button>
+        <Button type="submit" loading={saving}>
+          {id ? 'Simpan Perubahan' : 'Tambah Karyawan'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={() => router.back()}>
+          Batal
+        </Button>
       </div>
     </form>
   );

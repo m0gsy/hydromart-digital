@@ -127,7 +127,11 @@ export default function DepartmentsPage() {
             </label>
             <label className="text-sm">
               Nama
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Keuangan" />
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Keuangan"
+              />
             </label>
             <label className="text-sm">
               Depot

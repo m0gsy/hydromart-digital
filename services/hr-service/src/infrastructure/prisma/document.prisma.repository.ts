@@ -27,10 +27,7 @@ export class DocumentPrismaRepository implements DocumentRepository {
     });
   }
 
-  findCurrent(
-    employeeId: string,
-    type: EmployeeDocumentType,
-  ): Promise<EmployeeDocument | null> {
+  findCurrent(employeeId: string, type: EmployeeDocumentType): Promise<EmployeeDocument | null> {
     return this.prisma.employeeDocument.findFirst({
       where: { employeeId, type, supersededById: null },
       orderBy: { version: 'desc' },

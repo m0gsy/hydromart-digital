@@ -12,7 +12,10 @@ export default function MePage() {
   const { customer } = useAuth();
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title={`Halo, ${customer?.fullName ?? 'Karyawan'}`} subtitle="Layanan mandiri karyawan" />
+      <SectionHeader
+        title={`Halo, ${customer?.fullName ?? 'Karyawan'}`}
+        subtitle="Layanan mandiri karyawan"
+      />
       <Link href="/hr/me/check-in">
         <Card className="p-6 text-center transition-colors hover:bg-brand-50">
           <p className="text-lg font-bold text-brand-700">Absen Sekarang</p>

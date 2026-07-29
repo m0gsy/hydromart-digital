@@ -13,7 +13,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  Roles,
+} from '@hydromart/platform';
 import { UseGuards } from '@nestjs/common';
 
 import {

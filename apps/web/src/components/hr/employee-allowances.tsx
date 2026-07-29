@@ -6,7 +6,13 @@ import { useToast } from '@/components/toast';
 import { Badge, Button, Card, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { ALLOWANCE_TYPES, ALLOWANCE_TYPE_LABEL, fmtDate, type Allowance, type AllowanceType } from '@/lib/hr';
+import {
+  ALLOWANCE_TYPES,
+  ALLOWANCE_TYPE_LABEL,
+  fmtDate,
+  type Allowance,
+  type AllowanceType,
+} from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
 
 /**
@@ -14,7 +20,13 @@ import { useAsync } from '@/lib/use-async';
  * payroll run until it lapses, so it is stopped rather than deleted — a past payslip has to
  * stay explainable.
  */
-export function EmployeeAllowances({ employeeId, isAdmin }: { employeeId: string; isAdmin: boolean }) {
+export function EmployeeAllowances({
+  employeeId,
+  isAdmin,
+}: {
+  employeeId: string;
+  isAdmin: boolean;
+}) {
   const { toast: notify } = useToast();
   const [type, setType] = useState<AllowanceType>('TRANSPORT');
   const [amount, setAmount] = useState('');
@@ -111,7 +123,10 @@ export function EmployeeAllowances({ employeeId, isAdmin }: { employeeId: string
       )}
 
       {isAdmin && (
-        <form onSubmit={add} className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2">
+        <form
+          onSubmit={add}
+          className="grid gap-3 border-t border-[color:var(--border)] pt-4 sm:grid-cols-2"
+        >
           <Field label="Jenis">
             <select
               value={type}

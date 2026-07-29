@@ -16,11 +16,7 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { DepartmentService } from '../application/services/department.service';
-import {
-  CreateDepartmentDto,
-  ListDepartmentDto,
-  UpdateDepartmentDto,
-} from './dto/department.dto';
+import { CreateDepartmentDto, ListDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
 
 /** Org units an employee can belong to. Read hrView, write hrAdmin. */
 @ApiTags('HR Departments')

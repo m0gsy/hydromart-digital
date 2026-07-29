@@ -63,11 +63,7 @@ import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.rep
 import { DEPARTMENT_REPOSITORY } from '../application/ports/department.repository';
 import { DepartmentService } from '../application/services/department.service';
 import { DepartmentPrismaRepository } from '../infrastructure/prisma/department.prisma.repository';
-import {
-  HolidayController,
-  ShiftController,
-  ShiftRotationController,
-} from './calendar.controller';
+import { HolidayController, ShiftController, ShiftRotationController } from './calendar.controller';
 import { DepartmentController } from './department.controller';
 import { ALLOWANCE_REPOSITORY } from '../application/ports/allowance.repository';
 import { AllowanceService } from '../application/services/allowance.service';

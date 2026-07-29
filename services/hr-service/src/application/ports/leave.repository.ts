@@ -1,4 +1,9 @@
-import { LeaveBalance, LeaveRequest, LeaveStatus, LeaveType } from '../../../prisma/generated/client';
+import {
+  LeaveBalance,
+  LeaveRequest,
+  LeaveStatus,
+  LeaveType,
+} from '../../../prisma/generated/client';
 
 export const LEAVE_REPOSITORY = Symbol('LEAVE_REPOSITORY');
 

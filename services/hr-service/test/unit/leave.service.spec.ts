@@ -6,12 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import {
-  Employee,
-  LeaveBalance,
-  LeaveRequest,
-  LeaveStatus,
-} from '../../prisma/generated/client';
+import { Employee, LeaveBalance, LeaveRequest, LeaveStatus } from '../../prisma/generated/client';
 import {
   LeaveDecision,
   LeaveListFilter,
@@ -348,7 +343,11 @@ describe('LeaveService reads', () => {
 
   it('creates the year balance on first read with the configured quota', async () => {
     const { svc } = make({ quota: 15 });
-    expect(await svc.myBalance(staff, 2026)).toMatchObject({ year: 2026, quotaDays: 15, usedDays: 0 });
+    expect(await svc.myBalance(staff, 2026)).toMatchObject({
+      year: 2026,
+      quotaDays: 15,
+      usedDays: 0,
+    });
   });
 
   it('forces a depot manager to their own depot in the approval queue', async () => {

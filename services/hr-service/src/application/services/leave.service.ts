@@ -9,7 +9,13 @@ import {
 } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
 
-import { Employee, LeaveBalance, LeaveRequest, LeaveStatus, LeaveType } from '../../../prisma/generated/client';
+import {
+  Employee,
+  LeaveBalance,
+  LeaveRequest,
+  LeaveStatus,
+  LeaveType,
+} from '../../../prisma/generated/client';
 import { parseWeeklyOffDays } from '../../domain/calendar';
 import {
   BLOCKING_STATUSES,

@@ -3,7 +3,16 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Field, Input, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Field,
+  Input,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
@@ -119,7 +128,11 @@ export default function MyLeavePage() {
             <Input type="date" value={endDate} onChange={(e) => setEnd(e.target.value)} />
           </Field>
           <Field label="Alasan">
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Acara keluarga" />
+            <Input
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Acara keluarga"
+            />
           </Field>
           {err && (
             <p className="text-sm font-medium text-red-600" role="alert">

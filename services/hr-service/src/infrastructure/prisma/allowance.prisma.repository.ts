@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { Allowance } from '../../../prisma/generated/client';
-import {
-  AllowanceRepository,
-  AllowanceWrite,
-} from '../../application/ports/allowance.repository';
+import { AllowanceRepository, AllowanceWrite } from '../../application/ports/allowance.repository';
 import { PrismaService } from './prisma.service';
 
 @Injectable()

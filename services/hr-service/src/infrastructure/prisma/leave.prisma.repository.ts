@@ -50,7 +50,9 @@ export class LeavePrismaRepository implements LeaveRepository {
   }
 
   findBalance(employeeId: string, year: number): Promise<LeaveBalance | null> {
-    return this.prisma.leaveBalance.findUnique({ where: { employeeId_year: { employeeId, year } } });
+    return this.prisma.leaveBalance.findUnique({
+      where: { employeeId_year: { employeeId, year } },
+    });
   }
 
   ensureBalance(employeeId: string, year: number, quotaDays: number): Promise<LeaveBalance> {

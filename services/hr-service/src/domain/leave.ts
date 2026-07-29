@@ -4,12 +4,7 @@
 import { workingDaysInRange } from './calendar';
 
 export type LeaveType = 'ANNUAL' | 'SICK' | 'PERMISSION' | 'EMERGENCY';
-export type LeaveStatus =
-  | 'PENDING_MANAGER'
-  | 'PENDING_HR'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'CANCELLED';
+export type LeaveStatus = 'PENDING_MANAGER' | 'PENDING_HR' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 /**
  * Which types eat the yearly quota. SICK and EMERGENCY are recorded and paid but never
@@ -35,12 +30,7 @@ export function leaveWorkingDays(
 }
 
 /** Two inclusive date ranges touch at all. */
-export function rangesOverlap(
-  aStart: string,
-  aEnd: string,
-  bStart: string,
-  bEnd: string,
-): boolean {
+export function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string): boolean {
   return aStart <= bEnd && bStart <= aEnd;
 }
 
@@ -56,7 +46,8 @@ export const BLOCKING_STATUSES: readonly LeaveStatus[] = [
  * it is pending. APPROVED / REJECTED / CANCELLED are terminal — a decision on someone's time
  * off is not quietly re-opened, it is re-applied for.
  */
-export type LeaveAction = 'MANAGER_APPROVE' | 'MANAGER_REJECT' | 'HR_APPROVE' | 'HR_REJECT' | 'CANCEL';
+export type LeaveAction =
+  'MANAGER_APPROVE' | 'MANAGER_REJECT' | 'HR_APPROVE' | 'HR_REJECT' | 'CANCEL';
 
 const TRANSITIONS: Record<LeaveAction, { from: LeaveStatus; to: LeaveStatus }[]> = {
   MANAGER_APPROVE: [{ from: 'PENDING_MANAGER', to: 'PENDING_HR' }],
