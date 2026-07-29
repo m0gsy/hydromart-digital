@@ -84,7 +84,14 @@ class FakeAtt implements AttendanceRepository {
   }
 }
 
-function make(opts: { att?: FakeAtt; autoAcceptMinutes?: number; maxAgeHours?: number } = {}) {
+function make(
+  opts: {
+    att?: FakeAtt;
+    autoAcceptMinutes?: number;
+    maxAgeHours?: number;
+    storage?: { put: () => Promise<{ url: string; key: string }> };
+  } = {},
+) {
   const att = opts.att ?? new FakeAtt();
   const config = {
     timeZone: 'Asia/Jakarta',
@@ -108,7 +115,10 @@ function make(opts: { att?: FakeAtt; autoAcceptMinutes?: number; maxAgeHours?: n
     findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,
     findById: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,
   } as unknown as EmployeeRepository;
-  return { att, svc: new AttendanceService(att, verifier, faces, employees, config) };
+  return {
+    att,
+    svc: new AttendanceService(att, verifier, faces, employees, config, opts.storage as never),
+  };
 }
 
 describe('AttendanceService offline punch', () => {
@@ -176,6 +186,33 @@ describe('AttendanceService offline punch', () => {
     expect(att.statusPatch).toBeUndefined();
     expect(att.patched?.checkOutAt).toEqual(AT_1610);
     expect(att.patched?.workingMinutes).toBe(480);
+  });
+});
+
+describe('AttendanceService photo storage', () => {
+  it('records the punch even when the photo bucket is broken', async () => {
+    const { att, svc } = make({
+      storage: {
+        put: async () => {
+          throw new Error('No value provided for input HTTP label: Bucket');
+        },
+      },
+    });
+
+    await svc.checkIn(user, punchAt(), AT_0810);
+
+    // The day is still marked present; only the evidence photo is missing.
+    expect(att.created).toMatchObject({ status: 'PRESENT', checkInPhotoUrl: null });
+  });
+
+  it('stores the returned url when the bucket is healthy', async () => {
+    const { att, svc } = make({
+      storage: { put: async () => ({ url: 'https://cdn/hr/attendance/a.jpg', key: 'a.jpg' }) },
+    });
+
+    await svc.checkIn(user, punchAt(), AT_0810);
+
+    expect(att.created?.checkInPhotoUrl).toBe('https://cdn/hr/attendance/a.jpg');
   });
 });
 
