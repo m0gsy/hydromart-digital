@@ -64,6 +64,37 @@ enum PayrollItemKind {
   ADJUSTMENT
 }
 
+/// Company property handed to staff. Not consumables — anything tracked here is expected back.
+enum AssetType {
+  MOTORCYCLE
+  SMARTPHONE
+  UNIFORM
+  LAPTOP
+  PRINTER
+  SCANNER
+  OTHER
+}
+
+/// Where an asset is right now. AVAILABLE and RETURNED both mean "in the depot's hands", kept
+/// apart so a brand-new item is distinguishable from one that came back.
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  RETURNED
+  MAINTENANCE
+  LOST
+}
+
+/// What happened to an asset. Every one of these appends a row — the movement log is the
+/// history, the asset row only ever holds the latest state.
+enum AssetMovementKind {
+  ASSIGN
+  TRANSFER
+  RETURN
+  MAINTENANCE
+  LOST
+}
+
 enum BonusType {
   ATTENDANCE
   PERFORMANCE
@@ -128,6 +159,7 @@ model Employee {
   reviews          PerformanceReview[]
   payrolls         Payroll[]
   loans            Loan[]
+  assets           EmployeeAsset[]
 
   @@index([depotId])
   @@index([status])
@@ -232,6 +264,55 @@ model Shift {
 
   @@index([depotId])
   @@map("shifts")
+}
+
+/// A tracked piece of company property. `status` + `holderId` are the current state; how it
+/// got there lives in AssetMovement, which is append-only.
+model EmployeeAsset {
+  id         String          @id @default(uuid()) @db.Uuid
+  /// Human-facing asset tag, unique network-wide (e.g. "MTR-0001").
+  code       String          @unique
+  type       AssetType
+  name       String
+  brand      String?
+  serialNo   String?
+  /// Acquisition value in IDR — what a loss actually costs.
+  value      Decimal?        @db.Decimal(12, 2)
+  /// Owning depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
+  depotId    String          @db.Uuid
+  status     AssetStatus     @default(AVAILABLE)
+  /// Employee holding it right now; null unless status is ASSIGNED.
+  holderId   String?         @db.Uuid
+  note       String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  holder     Employee?       @relation(fields: [holderId], references: [id], onDelete: SetNull)
+  movements  AssetMovement[]
+
+  @@index([depotId, status])
+  @@index([holderId])
+  @@map("employee_assets")
+}
+
+/// Append-only hand-over log. Rows are never updated or deleted: "who had the motorcycle in
+/// March, and what condition did it come back in" must stay answerable after the fact.
+model AssetMovement {
+  id             String            @id @default(uuid()) @db.Uuid
+  assetId        String            @db.Uuid
+  kind           AssetMovementKind
+  fromEmployeeId String?           @db.Uuid
+  toEmployeeId   String?           @db.Uuid
+  /// Free text at hand-over: "lecet di spakbor", "layar retak".
+  condition      String?
+  note           String?
+  movedAt        DateTime          @default(now())
+  createdBy      String?           @db.Uuid
+
+  asset          EmployeeAsset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("asset_movements")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.
