@@ -64,7 +64,9 @@ export class CampaignService {
     return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped });
   }
 
-  private clampPage(page = 1, limit = 20): { p: number; l: number } {
+  // No defaults here on purpose: the only caller already defaults, so a second set
+  // would be two places to change and a branch nothing can reach.
+  private clampPage(page: number, limit: number): { p: number; l: number } {
     return { p: Math.max(1, page), l: Math.min(CampaignService.MAX_LIMIT, Math.max(1, limit)) };
   }
 
