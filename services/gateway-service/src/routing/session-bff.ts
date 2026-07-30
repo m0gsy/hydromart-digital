@@ -62,14 +62,15 @@ function clearSessionCookies(res: Response, secure: boolean): void {
 async function callAuth(
   authBase: string,
   path: string,
-  opts: { token?: string; body?: unknown } = {},
+  // Every call site sends a body; `token` is what varies (logout carries one, verify does not).
+  opts: { token?: string; body: unknown },
 ): Promise<{ status: number; data: unknown }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
   const res = await fetch(`${authBase}${path}`, {
     method: 'POST',
     headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    body: JSON.stringify(opts.body),
   });
   const text = await res.text();
   return { status: res.status, data: text ? JSON.parse(text) : undefined };
