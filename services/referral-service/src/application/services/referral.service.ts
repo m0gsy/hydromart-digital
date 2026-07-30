@@ -106,14 +106,14 @@ export class ReferralService {
     throw new Error('Could not generate a unique referral code.');
   }
 
-  private clampPage(page = 1, limit = 20): { p: number; l: number } {
+  private clampPage(page: number, limit: number): { p: number; l: number } {
     return {
       p: Math.max(1, page),
       l: Math.min(ReferralService.MAX_LIMIT, Math.max(1, limit)),
     };
   }
 
-  private async summaryFor(customerId: string, page = 1, limit = 20): Promise<ReferralSummary> {
+  private async summaryFor(customerId: string, page: number, limit: number): Promise<ReferralSummary> {
     const { p, l } = this.clampPage(page, limit);
     const code = await this.getOrCreateMyCode(customerId);
     const { items, total } = await this.repo.listReferralsByReferrer(customerId, p, l);

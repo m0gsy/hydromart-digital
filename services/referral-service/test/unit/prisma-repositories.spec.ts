@@ -179,6 +179,13 @@ describe('ReferralPrismaRepository', () => {
     });
   });
 
+
+  it('returns null when the row vanished between the update and the read', async () => {
+    referral.updateMany.mockResolvedValue({ count: 1 });
+    referral.findUnique.mockResolvedValue(null);
+    await expect(repo.qualifyReferral('ref-1', 'ord-9', 100, 50)).resolves.toBeNull();
+  });
+
   it('returns null when the referral was not PENDING (lost race)', async () => {
     referral.updateMany.mockResolvedValue({ count: 0 });
     const out = await repo.qualifyReferral('ref-1', 'ord-9', 100, 50);

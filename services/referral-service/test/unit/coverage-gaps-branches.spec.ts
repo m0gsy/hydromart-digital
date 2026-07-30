@@ -75,6 +75,19 @@ describe('ReferralService branch gaps', () => {
     });
   });
 
+
+  // Both summary reads are also callable with no paging at all (the console's first load).
+  it('defaults paging when the caller passes none', async () => {
+    const customerId = randomUUID();
+
+    const mine = await service.getMySummary(customerId);
+    const staffView = await service.getCustomerSummary(customerId);
+
+    expect(mine.referrals).toMatchObject({ page: 1, limit: 20 });
+    expect(staffView.referrals).toMatchObject({ page: 1, limit: 20 });
+    expect(staffView.code).toEqual(mine.code);
+  });
+
   describe('depotSummary', () => {
     it('returns 0% conversion when the depot has customers but no referrals', async () => {
       const dir = new FakeCustomerDirectory({ d1: ['cust-1', 'cust-2'] });
