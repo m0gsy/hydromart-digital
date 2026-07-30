@@ -22,6 +22,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
+import { fetchThrottled } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -50,7 +51,7 @@ function adminToken() {
 const TOKEN = adminToken();
 
 async function api(method, path, body) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -122,13 +123,21 @@ function depotBody(i) {
 
 // ---------------------------------------------------------------- run
 
+// The manage list caps `limit` at 100 and this box already holds more depots than that once the
+// 25 fixture ones land, so walk the pages instead of asking for everything at once.
+async function listDepots() {
+  const all = [];
+  for (let page = 1; ; page += 1) {
+    const batch = rows(
+      ok(await api('GET', `/depots/api/v1/depots/manage?limit=100&page=${page}`), 'list depots'),
+    );
+    all.push(...batch);
+    if (batch.length < 100) return all;
+  }
+}
+
 async function ensureDepots() {
-  const existing = new Map(
-    rows(ok(await api('GET', '/depots/api/v1/depots/manage?limit=200'), 'list depots')).map((d) => [
-      d.code,
-      d.id,
-    ]),
-  );
+  const existing = new Map((await listDepots()).map((d) => [d.code, d.id]));
   const ids = {};
   let created = 0;
   for (let i = 1; i <= DEPOT_COUNT; i += 1) {

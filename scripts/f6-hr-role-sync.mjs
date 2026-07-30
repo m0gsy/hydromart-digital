@@ -20,6 +20,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
+import { fetchThrottled, listAllPages } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -38,7 +39,7 @@ function tokenFor(role, depotId = null) {
 const ADMIN = tokenFor('SUPER_ADMIN');
 
 async function api(method, path, body, token = ADMIN) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -65,7 +66,9 @@ function check(label, ok, detail = '') {
   }
 }
 
-const rows = (b) => (Array.isArray(b) ? b : (b?.items ?? []));
+// hr-service answers { rows, total }; every other service answers { items, total }. Reading only
+// `items` here made the depot-roster check pass against an empty array, which proves nothing.
+const rows = (b) => (Array.isArray(b) ? b : (b?.items ?? b?.rows ?? []));
 const stamp = Date.now().toString().slice(-7);
 
 async function main() {
@@ -116,9 +119,11 @@ async function main() {
   check('promotion accepted', promoted.status === 200, `got ${promoted.status}`);
   check('employee record shows the new jabatan', promoted.body?.role === 'SUPERVISOR', `role=${promoted.body?.role}`);
 
-  const account = rows((await api('GET', `/auth/api/v1/auth/staff?limit=200`)).body).find(
-    (s) => s.id === authSubjectId,
-  );
+  const account = (
+    await listAllPages(async (page, size) =>
+      rows((await api('GET', `/auth/api/v1/auth/staff?limit=${size}&page=${page}`)).body),
+    )
+  ).find((s) => s.id === authSubjectId);
   check(
     'THE LOGIN followed the promotion (the F4 trap)',
     account?.role === 'SUPERVISOR',
@@ -146,8 +151,9 @@ async function main() {
   check('their depot is null, not a sentinel', networkWide.body?.depotId === null, `depotId=${networkWide.body?.depotId}`);
 
   // ...and must not then appear in every depot's roster.
-  const depotRoster = rows(
-    (await api('GET', `/hr/api/v1/employees?depotId=${depotId}&limit=200`)).body,
+  // hr paginates on pageSize, not limit — asking for `limit` silently returns the first 20.
+  const depotRoster = await listAllPages(async (page, size) =>
+    rows((await api('GET', `/hr/api/v1/employees?depotId=${depotId}&pageSize=${size}&page=${page}`)).body),
   );
   check(
     'the depot-less employee is absent from a depot roster',

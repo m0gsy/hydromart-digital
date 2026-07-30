@@ -19,6 +19,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
+import { fetchThrottled, listAllPages } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -40,7 +41,7 @@ function tokenFor(role, sub, depotId = null) {
 }
 
 async function call(path, token) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
   const text = await res.text();
@@ -70,8 +71,13 @@ const rows = (b) => (Array.isArray(b) ? b : (b?.items ?? []));
 
 const ADMIN = tokenFor('SUPER_ADMIN', crypto.randomUUID());
 
+const listAll = (path, token) =>
+  listAllPages(async (page, size) =>
+    rows((await call(`${path}${path.includes('?') ? '&' : '?'}limit=${size}&page=${page}`, token)).body),
+  );
+
 async function loadFixture() {
-  const depots = rows((await call('/depots/api/v1/depots/manage?limit=200', ADMIN)).body).filter((d) =>
+  const depots = (await listAll('/depots/api/v1/depots/manage', ADMIN)).filter((d) =>
     d.code?.startsWith('HIER-'),
   );
   if (depots.length < 25) {
@@ -81,7 +87,7 @@ async function loadFixture() {
     process.exit(1);
   }
   const byCode = new Map(depots.map((d) => [d.code, d]));
-  const staff = rows((await call('/auth/api/v1/auth/staff?limit=200', ADMIN)).body);
+  const staff = await listAll('/auth/api/v1/auth/staff', ADMIN);
   const byPhone = new Map(staff.map((s) => [s.phone, s]));
   const account = (phone) => {
     const found = byPhone.get(phone);
@@ -119,12 +125,13 @@ async function scopeVectors(name, role, account, expectedCodes, fixture) {
   // Probes chosen for capabilities these roles ACTUALLY hold: `depotAdmin` is
   // MANAGER-only, so /depots/manage would 403 an assistant for the wrong reason.
   // orderQueue and inventoryRead both reach down to ASSISTANT_SUPERVISOR.
-  const list = await call('/orders/api/v1/orders/manage?limit=200', token);
+  const list = await call('/orders/api/v1/orders/manage?limit=100', token);
   if (list.status !== 200) {
     check(`${name}: unfiltered order queue returns 200`, false, `got ${list.status}`);
   } else {
-    // ENUMERATION: no depotId asked for at all. Anything outside the set is a leak.
-    const leaked = rows(list.body)
+    // ENUMERATION: no depotId asked for at all. Anything outside the set is a leak — and it has to
+    // be EVERY page, since a leak sitting on page 2 is still a leak.
+    const leaked = (await listAll('/orders/api/v1/orders/manage', token))
       .map((o) => o.depotId)
       .filter((d) => d && !allowedIds.has(d));
     check(

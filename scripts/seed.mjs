@@ -10,6 +10,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret (mints the admin token)
 import crypto from 'node:crypto';
+import { fetchThrottled } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -33,7 +34,7 @@ function adminToken() {
 const TOKEN = adminToken();
 
 async function api(method, path, body) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -173,10 +174,17 @@ async function seedStock(depotByCode, productBySku) {
   }
 }
 
-async function seedStaff() {
+// STAFF_DEPOT and KEPALA_DEPOT are depot-locked (DEPOT_LOCKED_ROLES): auth-service refuses the
+// invite outright without a depot, because such an account can see nothing at all. Everyone else
+// is either network-wide or resolves their depots from the hierarchy, so no depot is sent.
+const DEPOT_LOCKED = new Set(['STAFF_DEPOT', 'KEPALA_DEPOT']);
+
+async function seedStaff(depotByCode) {
+  const depotId = [...depotByCode.values()][0];
   // inviteStaff is idempotent server-side (promotes an existing phone), so just POST each.
   for (const s of STAFF) {
-    ok(await api('POST', '/auth/api/v1/auth/staff/invite', s), `invite ${s.role} ${s.phone}`);
+    const payload = DEPOT_LOCKED.has(s.role) ? { ...s, depotId } : s;
+    ok(await api('POST', '/auth/api/v1/auth/staff/invite', payload), `invite ${s.role} ${s.phone}`);
     console.log(`+ staff ${s.role} ${s.phone}`);
   }
 }
@@ -200,7 +208,7 @@ async function main() {
   const productBySku = await seedProducts(catBySlug);
   const depotByCode = await seedDepots();
   await seedStock(depotByCode, productBySku);
-  await seedStaff();
+  await seedStaff(depotByCode);
   await seedEmployees(depotByCode);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);

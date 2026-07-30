@@ -21,6 +21,7 @@
 //   MATRIX_TTL_SECONDS  default 30 — the refresher's poll interval
 //   COMPOSE             docker compose invocation, default reads COMPOSE_FILES below
 import crypto from 'node:crypto';
+import { fetchThrottled } from './lib/http.mjs';
 import { execSync } from 'node:child_process';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
@@ -39,7 +40,7 @@ function tokenFor(role, sub = crypto.randomUUID(), depotId = null) {
 }
 
 async function call(path, token, init = {}) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     ...init,
     headers: {
       'content-type': 'application/json',
@@ -118,8 +119,12 @@ async function authDown() {
   docker(`stop ${container}`);
   try {
     await sleep(TTL + 5); // let at least one refresh fail
-    // depot-service must still answer using the matrix it already holds.
-    const res = await call('/depots/api/v1/depots/manage?limit=1', tokenFor('HEAD_OFFICE'));
+    // Another service must still answer using the matrix it already holds. The probe has to be a
+    // capability HEAD_OFFICE actually holds in the compiled defaults — `depotAdmin` is
+    // MANAGER + SUPER_ADMIN only, so /depots/manage 403s head office whether auth is up or not,
+    // which would read as a fail-closed that never happened. orderQueue includes HEAD_OFFICE, and
+    // a network-wide role needs no depot resolution either.
+    const res = await call('/orders/api/v1/orders/manage?limit=1', tokenFor('HEAD_OFFICE'));
     check('another service still serves its last known matrix', res.status === 200, `got ${res.status}`);
   } finally {
     docker(`start ${container}`);

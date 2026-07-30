@@ -18,6 +18,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
+import { fetchThrottled } from './lib/http.mjs';
 
 import { CAPABILITIES } from '@hydromart/access';
 
@@ -41,7 +42,7 @@ const LOCKED = new Set(['STAFF_DEPOT', 'KEPALA_DEPOT']);
 const NIL = '00000000-0000-4000-8000-000000000001';
 
 async function probe(method, path, role) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: {
       'content-type': 'application/json',
@@ -82,15 +83,15 @@ const DECISIONS = [
   { label: 'depot approval queue (opname/deposit/COD/gallon)', cap: 'approvals', method: 'PATCH', path: `/depots/api/v1/approvals/${NIL}/decide` },
   { label: 'price override approve', cap: 'priceOverrideDecide', method: 'POST', path: `/depots/api/v1/price-overrides/${NIL}/approve` },
   { label: 'price override reject', cap: 'priceOverrideDecide', method: 'POST', path: `/depots/api/v1/price-overrides/${NIL}/reject` },
-  { label: 'voucher request approve', cap: 'voucherRequestDecide', method: 'POST', path: `/promos/api/v1/voucher-requests/${NIL}/approve` },
-  { label: 'voucher request reject', cap: 'voucherRequestDecide', method: 'POST', path: `/promos/api/v1/voucher-requests/${NIL}/reject` },
+  { label: 'voucher request approve', cap: 'voucherRequestDecide', method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/approve` },
+  { label: 'voucher request reject', cap: 'voucherRequestDecide', method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/reject` },
   { label: 'franchise application approve', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/approve` },
   { label: 'franchise application reject', cap: 'franchiseApplications', method: 'POST', path: `/depots/api/v1/franchise-applications/${NIL}/reject` },
   { label: 'refund queue (decide)', cap: 'refundQueue', method: 'GET', path: '/payments/api/v1/payments/refunds/queue' },
   { label: 'leave stage 1 (manager)', cap: 'leaveApprove', method: 'PATCH', path: `/hr/api/v1/leave/${NIL}/manager-decision` },
   { label: 'leave stage 2 (HR)', cap: 'hrAdmin', method: 'PATCH', path: `/hr/api/v1/leave/${NIL}/hr-decision` },
-  { label: 'courier expense approve', cap: 'expenseApprove', method: 'POST', path: `/payouts/api/v1/expenses/${NIL}/approve` },
-  { label: 'courier expense reject', cap: 'expenseApprove', method: 'POST', path: `/payouts/api/v1/expenses/${NIL}/reject` },
+  { label: 'courier expense approve', cap: 'expenseApprove', method: 'POST', path: `/payout/api/v1/expenses/${NIL}/approve` },
+  { label: 'courier expense reject', cap: 'expenseApprove', method: 'POST', path: `/payout/api/v1/expenses/${NIL}/reject` },
   { label: 'fraud flag block', cap: 'fraudReview', method: 'POST', path: `/admin/api/v1/fraud-flags/${NIL}/block` },
   { label: 'fraud flag clear', cap: 'fraudReview', method: 'POST', path: `/admin/api/v1/fraud-flags/${NIL}/clear` },
 ];
@@ -110,8 +111,8 @@ const SEPARATION = [
   },
   {
     label: 'voucher: the depot that requests must not decide',
-    raise: { method: 'POST', path: `/promos/api/v1/depots/${NIL}/voucher-requests`, cap: 'voucherWrite' },
-    decide: { method: 'POST', path: `/promos/api/v1/voucher-requests/${NIL}/approve`, cap: 'voucherRequestDecide' },
+    raise: { method: 'POST', path: `/vouchers/api/v1/depots/${NIL}/voucher-requests`, cap: 'voucherWrite' },
+    decide: { method: 'POST', path: `/vouchers/api/v1/voucher-requests/${NIL}/approve`, cap: 'voucherRequestDecide' },
     role: 'MANAGER',
   },
 ];
