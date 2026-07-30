@@ -37,6 +37,25 @@ enum EmployeeStatus {
   RESIGNED
 }
 
+/// Sex as printed on the KTP — two values because that is what the document carries.
+enum Gender {
+  MALE
+  FEMALE
+}
+
+/// PPh 21 tax class: TK = single, K = married, the digit = dependants. Stored only; no
+/// payroll rule reads it yet, income tax is still filed outside the app.
+enum PtkpStatus {
+  TK0
+  TK1
+  TK2
+  TK3
+  K0
+  K1
+  K2
+  K3
+}
+
 /// Daily attendance outcome derived from check-in time + holiday/leave calendar.
 enum AttendanceStatus {
   PRESENT
@@ -56,12 +75,105 @@ enum PayrollStatus {
   PAID
 }
 
-/// A signed line on a payslip. BASE/BONUS/ADJUSTMENT add; DEDUCTION subtracts.
+/// A signed line on a payslip. BASE/ALLOWANCE/BONUS/ADJUSTMENT add; DEDUCTION subtracts.
+/// ALLOWANCE counts into `gross` with BASE (it is fixed recurring pay), while BONUS is
+/// variable and totalled separately.
 enum PayrollItemKind {
   BASE
   BONUS
   DEDUCTION
   ADJUSTMENT
+  ALLOWANCE
+}
+
+/// A recurring fixed addition to pay (transport, meal, position). Unlike a Bonus — one row
+/// for one period — an allowance repeats every month until effectiveTo passes or it is
+/// deactivated.
+enum AllowanceType {
+  TRANSPORT
+  MEAL
+  POSITION
+  HOUSING
+  OTHER
+}
+
+/// Company property handed to staff. Not consumables — anything tracked here is expected back.
+enum AssetType {
+  MOTORCYCLE
+  SMARTPHONE
+  UNIFORM
+  LAPTOP
+  PRINTER
+  SCANNER
+  OTHER
+}
+
+/// Where an asset is right now. AVAILABLE and RETURNED both mean "in the depot's hands", kept
+/// apart so a brand-new item is distinguishable from one that came back.
+enum AssetStatus {
+  AVAILABLE
+  ASSIGNED
+  RETURNED
+  MAINTENANCE
+  LOST
+}
+
+/// What happened to an asset. Every one of these appends a row — the movement log is the
+/// history, the asset row only ever holds the latest state.
+enum AssetMovementKind {
+  ASSIGN
+  TRANSFER
+  RETURN
+  MAINTENANCE
+  LOST
+}
+
+/// Leave categories. ANNUAL and PERMISSION consume the yearly quota; SICK and EMERGENCY are
+/// recorded and paid but never deducted from it (see domain/leave.ts deductsQuota).
+enum LeaveType {
+  ANNUAL
+  SICK
+  PERMISSION
+  EMERGENCY
+}
+
+/// Two-stage approval: the employee's manager first, then HR. Either stage can reject, and
+/// the employee may cancel while it is still pending.
+enum LeaveStatus {
+  PENDING_MANAGER
+  PENDING_HR
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Personal documents an employee file holds. KTP and KK are exactly the identity data
+/// UU 27/2022 (PDP) regulates, which is why documents carry a retention purge path.
+enum EmployeeDocumentType {
+  KTP
+  KK
+  CONTRACT
+  NPWP
+  CERTIFICATE
+  OTHER
+}
+
+/// How loudly an announcement reads in the console. Purely presentational.
+enum AnnouncementLevel {
+  INFO
+  WARNING
+  URGENT
+}
+
+/// Audience dimensions. The spec calls the fourth one "ROLE"; hr-service stores no auth role —
+/// login roles live in auth-service — so the thing HR can actually target is the employee's
+/// jabatan, `Employee.position`. Naming it POSITION keeps the column and the dimension honest.
+enum AnnouncementDimension {
+  COMPANY
+  DEPOT
+  DEPARTMENT
+  POSITION
+  EMPLOYEE
 }
 
 enum BonusType {
@@ -93,6 +205,18 @@ model Employee {
   photoUrl         String?
   phone            String
   email            String?
+  /// KTP number. Unique when present — two files with the same NIK is a data-entry mistake,
+  /// not two people. Personal data under UU 27/2022, so it follows the retention purge.
+  nik              String?          @unique
+  birthDate        DateTime?        @db.Date
+  gender           Gender?
+  /// Home address, free text (KTP address). One line, not split — nothing computes on it.
+  address          String?
+  /// PPh 21 class. Stored for reporting; the payroll engine does not read it yet.
+  ptkpStatus       PtkpStatus?
+  /// End of a fixed-term contract. Null = open-ended. Never auto-expires anyone: a lapsed
+  /// date is a reminder for HR, not a status change.
+  contractEndDate  DateTime?        @db.Date
   /// Home depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
   depotId          String           @db.Uuid
   position         String
@@ -102,6 +226,8 @@ model Employee {
   supervisorId     String?          @db.Uuid
   /// Assigned shift (Shift.id). Null = use depot/global default start-time.
   shiftId          String?          @db.Uuid
+  /// Org unit (Department.id). Null = "Belum diatur" — existing rows are never guessed.
+  departmentId     String?          @db.Uuid
   /// Tax + social-security ids (optional per PRD).
   npwp             String?
   bpjsKes          String?
@@ -124,13 +250,21 @@ model Employee {
   faceEmbeddings   FaceEmbedding[]
   attendance       Attendance[]
   bonuses          Bonus[]
+  allowances       Allowance[]
   deductions       Deduction[]
   reviews          PerformanceReview[]
   payrolls         Payroll[]
   loans            Loan[]
+  assets           EmployeeAsset[]
+  leaveRequests    LeaveRequest[]
+  leaveBalances    LeaveBalance[]
+  documents        EmployeeDocument[]
+  announcementReads AnnouncementRead[]
+  shiftAssignments  ShiftAssignment[]
 
   @@index([depotId])
   @@index([status])
+  @@index([departmentId])
   @@map("employees")
 }
 
@@ -234,6 +368,265 @@ model Shift {
   @@map("shifts")
 }
 
+/// A weekly pattern: which shift is worked on each weekday. `pattern` is a JSON object keyed
+/// "0".."6" with 0 = Sunday (matching Date.getUTCDay), each value a Shift.id or null for a
+/// day off. A missing key is also a day off — an incomplete pattern must not invent a shift.
+model ShiftRotation {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  /// Null = usable by every depot.
+  depotId   String?  @db.Uuid
+  pattern   Json     @default("{}")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments ShiftAssignment[]
+
+  @@index([depotId])
+  @@map("shift_rotations")
+}
+
+/// Append-only: from `effectiveFrom` onward this employee works this shift (or rotation).
+/// Never updated — `Employee.shiftId` overwrote without a trace, and "which shift was Budi on
+/// in March" has to stay answerable when a late deduction is disputed.
+model ShiftAssignment {
+  id            String         @id @default(uuid()) @db.Uuid
+  employeeId    String         @db.Uuid
+  /// Exactly one of these is set: a fixed shift, or a weekly rotation.
+  shiftId       String?        @db.Uuid
+  rotationId    String?        @db.Uuid
+  effectiveFrom DateTime       @db.Date
+  note          String?
+  createdBy     String?        @db.Uuid
+  createdAt     DateTime       @default(now())
+
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  rotation      ShiftRotation? @relation(fields: [rotationId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, effectiveFrom])
+  @@map("shift_assignments")
+}
+
+/// A tracked piece of company property. `status` + `holderId` are the current state; how it
+/// got there lives in AssetMovement, which is append-only.
+model EmployeeAsset {
+  id         String          @id @default(uuid()) @db.Uuid
+  /// Human-facing asset tag, unique network-wide (e.g. "MTR-0001").
+  code       String          @unique
+  type       AssetType
+  name       String
+  brand      String?
+  serialNo   String?
+  /// Acquisition value in IDR — what a loss actually costs.
+  value      Decimal?        @db.Decimal(12, 2)
+  /// Owning depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
+  depotId    String          @db.Uuid
+  status     AssetStatus     @default(AVAILABLE)
+  /// Employee holding it right now; null unless status is ASSIGNED.
+  holderId   String?         @db.Uuid
+  note       String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  holder     Employee?       @relation(fields: [holderId], references: [id], onDelete: SetNull)
+  movements  AssetMovement[]
+
+  @@index([depotId, status])
+  @@index([holderId])
+  @@map("employee_assets")
+}
+
+/// Append-only hand-over log. Rows are never updated or deleted: "who had the motorcycle in
+/// March, and what condition did it come back in" must stay answerable after the fact.
+model AssetMovement {
+  id             String            @id @default(uuid()) @db.Uuid
+  assetId        String            @db.Uuid
+  kind           AssetMovementKind
+  fromEmployeeId String?           @db.Uuid
+  toEmployeeId   String?           @db.Uuid
+  /// Free text at hand-over: "lecet di spakbor", "layar retak".
+  condition      String?
+  note           String?
+  movedAt        DateTime          @default(now())
+  createdBy      String?           @db.Uuid
+
+  asset          EmployeeAsset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([assetId])
+  @@map("asset_movements")
+}
+
+/// Org unit an employee belongs to. depotId null = network-wide (Finance, HR); a depotId
+/// scopes it to that depot (Gudang JKT-01), and only that depot's staff may be assigned to it.
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Human-facing code used by the bulk-import sheet, unique network-wide (e.g. "FIN").
+  code      String   @unique
+  name      String
+  depotId   String?  @db.Uuid
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([depotId])
+  @@map("departments")
+}
+
+/// A recurring pay component. Deliberately NOT part of the overtime base — `domain/overtime.ts`
+/// divides basic pay only, so two people on the same basic pay earn identical overtime whether
+/// or not one of them draws an allowance.
+model Allowance {
+  id            String        @id @default(uuid()) @db.Uuid
+  employeeId    String        @db.Uuid
+  type          AllowanceType
+  amount        Decimal       @db.Decimal(12, 2)
+  effectiveFrom DateTime      @db.Date
+  /// Null = open-ended (until deactivated).
+  effectiveTo   DateTime?     @db.Date
+  active        Boolean       @default(true)
+  note          String?
+  createdBy     String?       @db.Uuid
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  employee      Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("allowances")
+}
+
+/// A leave application. `workingDays` is frozen at submit time from the calendar then in
+/// force (holidays + weekly-off), so a holiday added later cannot silently change a decision
+/// already taken on this row.
+model LeaveRequest {
+  id              String      @id @default(uuid()) @db.Uuid
+  employeeId      String      @db.Uuid
+  /// Copied from the employee so the approval queue can be depot-scoped without a join.
+  depotId         String      @db.Uuid
+  type            LeaveType
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  workingDays     Int
+  reason          String
+  attachmentUrl   String?
+  status          LeaveStatus @default(PENDING_MANAGER)
+  managerDecidedBy String?    @db.Uuid
+  managerDecidedAt DateTime?
+  hrDecidedBy     String?     @db.Uuid
+  hrDecidedAt     DateTime?
+  /// Why it was rejected — the employee sees this, so it is never optional on a rejection.
+  decisionNote    String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([depotId, status])
+  @@map("leave_requests")
+}
+
+/// Yearly quota per employee. `usedDays` moves only on approval of a quota-consuming type.
+model LeaveBalance {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  year       Int
+  quotaDays  Int
+  usedDays   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year])
+  @@map("leave_balances")
+}
+
+/// One uploaded file in an employee's personal file. Replacing a document does NOT overwrite
+/// it: a new row is inserted and the old one is stamped supersededById, so the history of what
+/// HR held and when is never lost. `fileKey` is what the retention purge deletes from storage —
+/// dropping only the row would leave the KTP scan sitting in the bucket.
+model EmployeeDocument {
+  id             String               @id @default(uuid()) @db.Uuid
+  employeeId     String               @db.Uuid
+  type           EmployeeDocumentType
+  fileUrl        String
+  fileKey        String
+  mimeType       String
+  sizeBytes      Int
+  /// 1 for the first upload of a type, then 2, 3… Each version is its own row.
+  version        Int                  @default(1)
+  /// Set on the OLD row when a replacement arrives, pointing at the newer document.
+  supersededById String?              @db.Uuid
+  uploadedBy     String?              @db.Uuid
+  /// e.g. a contract end date or an ID expiry — null when the document does not expire.
+  expiresAt      DateTime?            @db.Date
+  createdAt      DateTime             @default(now())
+
+  employee       Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([employeeId, type])
+  @@map("employee_documents")
+}
+
+/// One message to a resolved set of staff. `publishedAt` is what makes it visible AND what
+/// makes it sent — a draft with a future `scheduledAt` sits here untouched until the
+/// publish-due sweep runs, exactly like order-service's expireAbandoned. No cron inside.
+model Announcement {
+  id           String            @id @default(uuid()) @db.Uuid
+  title        String
+  body         String
+  level        AnnouncementLevel @default(INFO)
+  /// Null = publish immediately on create. A future value waits for the sweep.
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  /// Recipients frozen at publish time. Read rate must not drift when someone is hired
+  /// or resigns a month later — the denominator is who it actually went to.
+  audienceSize Int               @default(0)
+  createdBy    String?           @db.Uuid
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  targets      AnnouncementTarget[]
+  reads        AnnouncementRead[]
+
+  @@index([publishedAt])
+  @@index([scheduledAt])
+  @@map("announcements")
+}
+
+/// One audience rule. Several rows OR together, and overlapping rows must not double-send —
+/// that dedup is the whole point of resolving the audience in domain/announcement.ts.
+model AnnouncementTarget {
+  id             String                @id @default(uuid()) @db.Uuid
+  announcementId String                @db.Uuid
+  dimension      AnnouncementDimension
+  /// Depot id, department id, position text, or employee id. Null for COMPANY (everyone).
+  value          String?
+
+  announcement   Announcement          @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+  @@map("announcement_targets")
+}
+
+/// Read receipt. Unique per (announcement, employee): marking twice is not two reads.
+model AnnouncementRead {
+  id             String       @id @default(uuid()) @db.Uuid
+  announcementId String       @db.Uuid
+  employeeId     String       @db.Uuid
+  readAt         DateTime     @default(now())
+
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([employeeId])
+  @@map("announcement_reads")
+}
+
 /// Non-working day. depotId null = network-wide (national) holiday.
 model Holiday {
   id        String   @id @default(uuid()) @db.Uuid
@@ -324,15 +717,26 @@ model Deduction {
 }
 
 model PerformanceReview {
-  id          String   @id @default(uuid()) @db.Uuid
-  employeeId  String   @db.Uuid
-  periodMonth String
-  score       Decimal  @db.Decimal(5, 2)
-  metrics     Json     @default("{}")
-  reviewerId  String?  @db.Uuid
-  note        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  employeeId       String   @db.Uuid
+  periodMonth      String
+  /// Final weighted score, 0–100.
+  score            Decimal  @db.Decimal(5, 2)
+  /// The three components behind it. NULL means "not measurable this period" (no scheduled
+  /// working days, nobody attended, no sales target) — deliberately not 0, which would read
+  /// as a failure the employee never had a chance to avoid. See domain/performance-score.ts.
+  attendanceScore  Decimal? @db.Decimal(5, 2)
+  disciplineScore  Decimal? @db.Decimal(5, 2)
+  salesScore       Decimal? @db.Decimal(5, 2)
+  /// The raw inputs and the effective weights, kept so an old review stays explainable
+  /// after the weights are retuned.
+  metrics          Json     @default("{}")
+  reviewerId       String?  @db.Uuid
+  note             String?
+  /// The manager's own words, kept apart from `note` so a recomputation never overwrites it.
+  managerNote      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 

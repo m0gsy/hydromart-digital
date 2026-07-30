@@ -6,9 +6,18 @@ export interface PerformanceWrite {
   employeeId: string;
   periodMonth: string;
   score: number;
+  /** Null = not measurable this period. See domain/performance-score.ts. */
+  attendanceScore?: number | null;
+  disciplineScore?: number | null;
+  salesScore?: number | null;
   metrics: Prisma.InputJsonValue;
   reviewerId: string | null;
   note: string | null;
+  /**
+   * Omitted (not null) leaves whatever the manager last wrote alone — a recomputation must
+   * not wipe a human's words.
+   */
+  managerNote?: string;
 }
 
 export interface PerformanceRepository {

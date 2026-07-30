@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
-import { Shift } from '../../../prisma/generated/client';
-import { ShiftRepository, ShiftWrite } from '../../application/ports/shift.repository';
+import { Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
+import {
+  AssignmentWrite,
+  RotationWrite,
+  ShiftRepository,
+  ShiftWrite,
+} from '../../application/ports/shift.repository';
 import { PrismaService } from './prisma.service';
 
 @Injectable()
@@ -36,6 +41,44 @@ export class ShiftPrismaRepository implements ShiftRepository {
     return this.prisma.shift.findFirst({
       where: { active: true, OR: [{ depotId }, { depotId: null }] },
       orderBy: { depotId: 'desc' }, // non-null depotId sorts before null → depot's own wins
+    });
+  }
+
+  createRotation(data: RotationWrite): Promise<ShiftRotation> {
+    return this.prisma.shiftRotation.create({ data });
+  }
+
+  updateRotation(id: string, data: Partial<RotationWrite>): Promise<ShiftRotation> {
+    return this.prisma.shiftRotation.update({ where: { id }, data });
+  }
+
+  findRotationById(id: string): Promise<ShiftRotation | null> {
+    return this.prisma.shiftRotation.findUnique({ where: { id } });
+  }
+
+  listRotations(depotId?: string): Promise<ShiftRotation[]> {
+    // Like departments, a depot sees its own PLUS the network-wide ones.
+    return this.prisma.shiftRotation.findMany({
+      where: depotId ? { OR: [{ depotId }, { depotId: null }] } : {},
+      orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
+    });
+  }
+
+  assign(data: AssignmentWrite): Promise<ShiftAssignment> {
+    return this.prisma.shiftAssignment.create({ data });
+  }
+
+  listAssignmentsUpTo(employeeId: string, onDate: Date): Promise<ShiftAssignment[]> {
+    return this.prisma.shiftAssignment.findMany({
+      where: { employeeId, effectiveFrom: { lte: onDate } },
+      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  listAssignments(employeeId: string): Promise<ShiftAssignment[]> {
+    return this.prisma.shiftAssignment.findMany({
+      where: { employeeId },
+      orderBy: { effectiveFrom: 'desc' },
     });
   }
 }

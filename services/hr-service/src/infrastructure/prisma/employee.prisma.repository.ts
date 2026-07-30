@@ -71,6 +71,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     const where: Prisma.EmployeeWhereInput = {
       ...(filter.depotId ? { depotId: filter.depotId } : {}),
       ...(filter.status ? { status: filter.status } : {}),
+      ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
       ...(filter.search
         ? {
             OR: [
@@ -95,6 +96,18 @@ export class EmployeePrismaRepository implements EmployeeRepository {
 
   findById(id: string): Promise<Employee | null> {
     return this.prisma.employee.findUnique({ where: { id } });
+  }
+
+  findByEmployeeCode(employeeCode: string): Promise<Employee | null> {
+    return this.prisma.employee.findUnique({ where: { employeeCode } });
+  }
+
+  findByPhone(phone: string): Promise<Employee | null> {
+    return this.prisma.employee.findFirst({ where: { phone }, orderBy: { createdAt: 'asc' } });
+  }
+
+  findByNik(nik: string): Promise<Employee | null> {
+    return this.prisma.employee.findUnique({ where: { nik } });
   }
 
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {

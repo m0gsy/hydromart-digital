@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -40,4 +41,32 @@ export class UpdateShiftDto {
 
 export class ListShiftDto {
   @IsOptional() @IsUUID() depotId?: string;
+}
+
+export class CreateRotationDto {
+  @IsString() @MaxLength(60) name!: string;
+  @IsOptional() @IsUUID() depotId?: string;
+  /** Keys "0".."6" (0 = Sunday) to a Shift.id; null or a missing key is a day off. */
+  @IsObject() pattern!: Record<string, string | null>;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+export class UpdateRotationDto {
+  @IsOptional() @IsString() @MaxLength(60) name?: string;
+  @IsOptional() @IsUUID() depotId?: string;
+  @IsOptional() @IsObject() pattern?: Record<string, string | null>;
+  @IsOptional() @IsBoolean() active?: boolean;
+}
+
+export class CreateAssignmentDto {
+  @IsUUID() employeeId!: string;
+  /** Exactly one of these; the service rejects both or neither. */
+  @IsOptional() @IsUUID() shiftId?: string;
+  @IsOptional() @IsUUID() rotationId?: string;
+  @IsISO8601() effectiveFrom!: string;
+  @IsOptional() @IsString() @MaxLength(255) note?: string;
+}
+
+export class ListAssignmentDto {
+  @IsUUID() employeeId!: string;
 }

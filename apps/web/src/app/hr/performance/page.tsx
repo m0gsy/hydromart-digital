@@ -4,12 +4,20 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Button, Card, Input, SectionHeader, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { currentPeriod, fmtDate, type PerformanceReview } from '@/lib/hr';
+import {
+  currentPeriod,
+  fmtDate,
+  fmtScore,
+  type PerformanceReview,
+  type ScoredEmployee,
+} from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
+import { useAsync } from '@/lib/use-async';
 
 function PerformanceInner() {
   const { customer } = useAuth();
@@ -25,7 +33,10 @@ function PerformanceInner() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    if (!employeeId) { toast('Isi employeeId', 'error'); return; }
+    if (!employeeId) {
+      toast('Isi employeeId', 'error');
+      return;
+    }
     try {
       setRows(await api.get<PerformanceReview[]>(endpoints.hr.performance(employeeId), true));
       setLoaded(true);
@@ -36,12 +47,20 @@ function PerformanceInner() {
 
   async function save() {
     const s = Number(score);
-    if (!(s >= 0 && s <= 100)) { toast('Skor 0–100', 'error'); return; }
+    if (!(s >= 0 && s <= 100)) {
+      toast('Skor 0–100', 'error');
+      return;
+    }
     setBusy(true);
     try {
-      await api.post(endpoints.hr.createPerformance, { employeeId, periodMonth: period, score: s, note: note || undefined }, true);
+      await api.post(
+        endpoints.hr.createPerformance,
+        { employeeId, periodMonth: period, score: s, note: note || undefined },
+        true,
+      );
       toast('Penilaian disimpan');
-      setScore(''); setNote('');
+      setScore('');
+      setNote('');
       load();
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Gagal menyimpan', 'error');
@@ -52,32 +71,69 @@ function PerformanceInner() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title="Kinerja" subtitle="Penilaian bulanan (skor 0–100)" />
+      <SectionHeader
+        title="Kinerja"
+        subtitle="Skor bulanan dari kehadiran, kedisiplinan & penjualan"
+      />
+
+      <ScoreDashboard period={period} onPeriod={setPeriod} isAdmin={isAdmin} />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">Employee ID<Input value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="UUID karyawan" className="w-64" /></label>
-        <Button variant="secondary" onClick={load}>Muat</Button>
+        <label className="text-sm">
+          Employee ID
+          <Input
+            value={employeeId}
+            onChange={(e) => setEmployeeId(e.target.value)}
+            placeholder="UUID karyawan"
+            className="w-64"
+          />
+        </label>
+        <Button variant="secondary" onClick={load}>
+          Muat riwayat
+        </Button>
       </Card>
 
       {loaded && (
         <>
           <Card className="divide-y divide-[color:var(--border)]">
-            {rows.length === 0 ? <p className="p-4 text-sm text-muted">Belum ada penilaian.</p> : rows.map((r) => (
-              <div key={r.id} className="flex items-center justify-between p-3 text-sm">
-                <span className="font-medium tabular-nums">{r.periodMonth}</span>
-                <span className="text-lg font-extrabold tabular-nums">{r.score}</span>
-                <span className="text-muted">{r.note ?? '—'}</span>
-                <span className="text-xs text-muted">{fmtDate(r.createdAt)}</span>
-              </div>
-            ))}
+            {rows.length === 0 ? (
+              <p className="p-4 text-sm text-muted">Belum ada penilaian.</p>
+            ) : (
+              rows.map((r) => (
+                <div key={r.id} className="flex items-center justify-between p-3 text-sm">
+                  <span className="font-medium tabular-nums">{r.periodMonth}</span>
+                  <span className="text-lg font-extrabold tabular-nums">{r.score}</span>
+                  <span className="text-muted">{r.note ?? r.managerNote ?? '—'}</span>
+                  <span className="text-xs text-muted">{fmtDate(r.createdAt)}</span>
+                </div>
+              ))
+            )}
           </Card>
 
           {isAdmin && (
             <Card className="flex flex-wrap items-end gap-3 p-4">
-              <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
-              <label className="text-sm">Skor<Input type="number" min={0} max={100} value={score} onChange={(e) => setScore(e.target.value)} className="w-24" /></label>
-              <label className="text-sm">Catatan<Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" /></label>
-              <Button onClick={save} loading={busy}>Simpan</Button>
+              <label className="text-sm">
+                Periode
+                <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+              </label>
+              <label className="text-sm">
+                Skor
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={score}
+                  onChange={(e) => setScore(e.target.value)}
+                  className="w-24"
+                />
+              </label>
+              <label className="text-sm">
+                Catatan
+                <Input value={note} onChange={(e) => setNote(e.target.value)} className="w-48" />
+              </label>
+              <Button onClick={save} loading={busy}>
+                Simpan manual
+              </Button>
             </Card>
           )}
         </>
@@ -86,6 +142,141 @@ function PerformanceInner() {
   );
 }
 
+/**
+ * Everyone in scope, scored for the period. A "—" in a column means that component had
+ * nothing to measure against, not a zero — see domain/performance-score.ts.
+ */
+function ScoreDashboard({
+  period,
+  onPeriod,
+  isAdmin,
+}: {
+  period: string;
+  onPeriod: (p: string) => void;
+  isAdmin: boolean;
+}) {
+  const { depots } = useDepot();
+  const { toast } = useToast();
+  const [depotId, setDepotId] = useState('');
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const board = useAsync<ScoredEmployee[]>(
+    () =>
+      api.get<ScoredEmployee[]>(
+        endpoints.hr.performanceDashboard(period, depotId || undefined),
+        true,
+      ),
+    [period, depotId],
+  );
+
+  async function persist(row: ScoredEmployee) {
+    setSaving(row.employeeId);
+    try {
+      await api.post(
+        endpoints.hr.generatePerformance,
+        { employeeId: row.employeeId, periodMonth: period },
+        true,
+      );
+      toast(`Penilaian ${row.fullName} tersimpan`);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Gagal menyimpan', 'error');
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <Card className="space-y-4 p-5">
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-sm">
+          Periode
+          <Input type="month" value={period} onChange={(e) => onPeriod(e.target.value)} />
+        </label>
+        <label className="text-sm">
+          Depot
+          <select
+            value={depotId}
+            onChange={(e) => setDepotId(e.target.value)}
+            className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm"
+          >
+            <option value="">Semua depot</option>
+            {depots.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.code}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {board.loading && <Skeleton className="h-40" />}
+      {board.error && <ErrorState message={board.error} onRetry={board.reload} />}
+      {board.data && (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[42rem] text-sm">
+            <thead className="text-left text-xs uppercase tracking-wide text-muted">
+              <tr>
+                <th className="py-2">Karyawan</th>
+                <th className="py-2 text-right">Kehadiran</th>
+                <th className="py-2 text-right">Disiplin</th>
+                <th className="py-2 text-right">Penjualan</th>
+                <th className="py-2 text-right">Skor</th>
+                {isAdmin && <th className="py-2" />}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[color:var(--border)]">
+              {board.data.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 6 : 5} className="py-3 text-muted">
+                    Tidak ada karyawan aktif pada lingkup ini.
+                  </td>
+                </tr>
+              )}
+              {board.data.map((r) => (
+                <tr key={r.employeeId}>
+                  <td className="py-2">
+                    <span className="font-medium">{r.fullName}</span>
+                    <span className="block text-xs text-muted">
+                      {r.employeeCode} · {r.position} · {r.inputs.presentDays}/
+                      {r.inputs.workingDays} hari, {r.inputs.lateDays}× terlambat
+                    </span>
+                  </td>
+                  <td className="py-2 text-right tabular-nums">{fmtScore(r.score.attendance)}</td>
+                  <td className="py-2 text-right tabular-nums">{fmtScore(r.score.discipline)}</td>
+                  <td className="py-2 text-right tabular-nums">{fmtScore(r.score.sales)}</td>
+                  <td className="py-2 text-right text-base font-extrabold tabular-nums">
+                    {fmtScore(r.score.final)}
+                  </td>
+                  {isAdmin && (
+                    <td className="py-2 text-right">
+                      <Button
+                        variant="ghost"
+                        loading={saving === r.employeeId}
+                        onClick={() => persist(r)}
+                      >
+                        Simpan
+                      </Button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-xs text-muted">
+        “—” berarti komponen itu tidak bisa diukur pada periode ini (tidak ada hari kerja terjadwal,
+        tidak ada kehadiran, atau target penjualan belum diatur) — bukan nilai nol. Bobot komponen
+        diatur di Konfigurasi Gaji.
+      </p>
+    </Card>
+  );
+}
+
 export default function PerformancePage() {
-  return <Suspense fallback={<Skeleton className="mx-auto h-96 max-w-3xl" />}><PerformanceInner /></Suspense>;
+  return (
+    <Suspense fallback={<Skeleton className="mx-auto h-96 max-w-3xl" />}>
+      <PerformanceInner />
+    </Suspense>
+  );
 }

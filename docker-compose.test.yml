@@ -298,6 +298,7 @@ services:
       <<: *shared
       HR_SERVICE_PORT: 3018
       HR_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_hr?schema=public
+      CRM_SERVICE_URL: http://crm:3012
       # No ArcFace model / object storage in CI — the stub verifier runs the whole
       # attendance flow deterministically and photos are dropped.
       FACE_VERIFIER_DRIVER: stub

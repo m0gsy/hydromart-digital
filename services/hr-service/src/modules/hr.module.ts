@@ -60,7 +60,33 @@ import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
 import { HolidayPrismaRepository } from '../infrastructure/prisma/holiday.prisma.repository';
 import { ShiftPrismaRepository } from '../infrastructure/prisma/shift.prisma.repository';
-import { HolidayController, ShiftController } from './calendar.controller';
+import { DEPARTMENT_REPOSITORY } from '../application/ports/department.repository';
+import { DepartmentService } from '../application/services/department.service';
+import { DepartmentPrismaRepository } from '../infrastructure/prisma/department.prisma.repository';
+import { HolidayController, ShiftController, ShiftRotationController } from './calendar.controller';
+import { DepartmentController } from './department.controller';
+import { ALLOWANCE_REPOSITORY } from '../application/ports/allowance.repository';
+import { AllowanceService } from '../application/services/allowance.service';
+import { AllowancePrismaRepository } from '../infrastructure/prisma/allowance.prisma.repository';
+import { AllowanceController } from './allowance.controller';
+import { NOTIFICATION_PORT } from '../application/ports/notification.port';
+import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { LEAVE_REPOSITORY } from '../application/ports/leave.repository';
+import { LeaveService } from '../application/services/leave.service';
+import { LeavePrismaRepository } from '../infrastructure/prisma/leave.prisma.repository';
+import { LeaveController, SelfLeaveController } from './leave.controller';
+import { DOCUMENT_REPOSITORY } from '../application/ports/document.repository';
+import { DocumentService } from '../application/services/document.service';
+import { DocumentPrismaRepository } from '../infrastructure/prisma/document.prisma.repository';
+import { DocumentController } from './document.controller';
+import { ASSET_REPOSITORY } from '../application/ports/asset.repository';
+import { AssetService } from '../application/services/asset.service';
+import { AssetPrismaRepository } from '../infrastructure/prisma/asset.prisma.repository';
+import { AssetController } from './asset.controller';
+import { ANNOUNCEMENT_REPOSITORY } from '../application/ports/announcement.repository';
+import { AnnouncementService } from '../application/services/announcement.service';
+import { AnnouncementPrismaRepository } from '../infrastructure/prisma/announcement.prisma.repository';
+import { AnnouncementController, SelfAnnouncementController } from './announcement.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -112,16 +138,22 @@ const providers: Provider[] = [
   },
   FaceService,
   AttendanceService,
+  { provide: DOCUMENT_REPOSITORY, useClass: DocumentPrismaRepository },
+  DocumentService,
   { provide: PAYROLL_REPOSITORY, useClass: PayrollPrismaRepository },
   { provide: BONUS_REPOSITORY, useClass: BonusPrismaRepository },
   { provide: DEDUCTION_REPOSITORY, useClass: DeductionPrismaRepository },
+  { provide: ALLOWANCE_REPOSITORY, useClass: AllowancePrismaRepository },
   PayrollService,
   AdjustmentService,
+  AllowanceService,
   { provide: BONUS_RULE_REPOSITORY, useClass: BonusRulePrismaRepository },
   { provide: LOAN_REPOSITORY, useClass: LoanPrismaRepository },
   BonusRuleService,
   LoanService,
   { provide: SALES_PORT, useClass: OrderSalesHttpAdapter },
+  // Outbound HR notifications (leave decisions, announcements) via crm-service.
+  { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
   { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,
@@ -133,6 +165,14 @@ const providers: Provider[] = [
   { provide: SHIFT_REPOSITORY, useClass: ShiftPrismaRepository },
   HolidayService,
   ShiftService,
+  { provide: DEPARTMENT_REPOSITORY, useClass: DepartmentPrismaRepository },
+  DepartmentService,
+  { provide: LEAVE_REPOSITORY, useClass: LeavePrismaRepository },
+  LeaveService,
+  { provide: ASSET_REPOSITORY, useClass: AssetPrismaRepository },
+  AssetService,
+  { provide: ANNOUNCEMENT_REPOSITORY, useClass: AnnouncementPrismaRepository },
+  AnnouncementService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -151,6 +191,7 @@ const providers: Provider[] = [
     PayrollController,
     BonusController,
     DeductionController,
+    AllowanceController,
     BonusRuleController,
     LoanController,
     PerformanceController,
@@ -158,6 +199,14 @@ const providers: Provider[] = [
     ReportsController,
     HolidayController,
     ShiftController,
+    ShiftRotationController,
+    DepartmentController,
+    SelfLeaveController,
+    LeaveController,
+    DocumentController,
+    AssetController,
+    SelfAnnouncementController,
+    AnnouncementController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

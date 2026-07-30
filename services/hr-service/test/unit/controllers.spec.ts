@@ -14,7 +14,20 @@ jest.mock('../../src/domain/xlsx', () => ({
 import { BonusController, DeductionController } from '../../src/modules/adjustment.controller';
 import { AttendanceController } from '../../src/modules/attendance.controller';
 import { AuditController } from '../../src/modules/audit.controller';
-import { HolidayController, ShiftController } from '../../src/modules/calendar.controller';
+import {
+  HolidayController,
+  ShiftController,
+  ShiftRotationController,
+} from '../../src/modules/calendar.controller';
+import { DepartmentController } from '../../src/modules/department.controller';
+import { AllowanceController } from '../../src/modules/allowance.controller';
+import { LeaveController, SelfLeaveController } from '../../src/modules/leave.controller';
+import { DocumentController } from '../../src/modules/document.controller';
+import { AssetController } from '../../src/modules/asset.controller';
+import {
+  AnnouncementController,
+  SelfAnnouncementController,
+} from '../../src/modules/announcement.controller';
 import { decodeBase64Image } from '../../src/modules/decode-image';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { FaceController, SelfFaceController } from '../../src/modules/face.controller';
@@ -88,7 +101,13 @@ describe('HealthController', () => {
 });
 
 describe('BonusController / DeductionController', () => {
-  const adj = svcMock(['listBonuses', 'addBonus', 'listDeductions', 'addDeduction']);
+  const adj = svcMock([
+    'listBonuses',
+    'addBonus',
+    'listDeductions',
+    'addDeduction',
+    'importDeductions',
+  ]);
   const bonus = new BonusController(adj as never);
   const ded = new DeductionController(adj as never);
 
@@ -113,6 +132,11 @@ describe('BonusController / DeductionController', () => {
     const dto = { employeeId: 'e2' } as never;
     expect(ded.create(dto, user)).toBe('addDeduction-result');
     expect(adj.addDeduction).toHaveBeenCalledWith(user, dto);
+  });
+  it('bulk-imports deductions by staff code', () => {
+    const rows = [{ employeeCode: 'HR-0001', type: 'MANUAL', amount: 1 }] as never;
+    expect(ded.import({ rows } as never, user)).toBe('importDeductions-result');
+    expect(adj.importDeductions).toHaveBeenCalledWith(user, rows);
   });
 });
 
@@ -195,6 +219,151 @@ describe('HolidayController / ShiftController', () => {
     hc.remove('h1', user);
     expect(holidays.remove).toHaveBeenCalledWith(user, 'h1');
   });
+  it('departments delegate (list passes depotId)', () => {
+    const departments = svcMock(['list', 'create', 'update', 'remove']);
+    const dc = new DepartmentController(departments as never);
+    dc.list({ depotId: 'd2' } as never, user);
+    expect(departments.list).toHaveBeenCalledWith(user, 'd2');
+    const dto = { code: 'FIN', name: 'Keuangan' } as never;
+    dc.create(dto, user);
+    expect(departments.create).toHaveBeenCalledWith(user, dto);
+    const ud = { name: 'Finance' } as never;
+    dc.update('dep1', ud, user);
+    expect(departments.update).toHaveBeenCalledWith(user, 'dep1', ud);
+    dc.remove('dep1', user);
+    expect(departments.remove).toHaveBeenCalledWith(user, 'dep1');
+  });
+  it('allowances delegate', () => {
+    const allowances = svcMock(['list', 'add', 'deactivate', 'importMany']);
+    const ac = new AllowanceController(allowances as never);
+    ac.list({ employeeId: 'e1' } as never, user);
+    expect(allowances.list).toHaveBeenCalledWith(user, 'e1');
+    const dto = { employeeId: 'e1', type: 'TRANSPORT', amount: 1 } as never;
+    ac.create(dto, user);
+    expect(allowances.add).toHaveBeenCalledWith(user, dto);
+    ac.deactivate('a1', user);
+    expect(allowances.deactivate).toHaveBeenCalledWith(user, 'a1');
+    const rows = [{ employeeCode: 'HR-0001', type: 'TRANSPORT', amount: 1 }] as never;
+    ac.import({ rows } as never, user);
+    expect(allowances.importMany).toHaveBeenCalledWith(user, rows);
+  });
+  it('leave controllers delegate, self and approval sides apart', () => {
+    const leave = svcMock([
+      'listSelf',
+      'myBalance',
+      'submit',
+      'cancel',
+      'listForApproval',
+      'decideManager',
+      'decideHr',
+      'importBalances',
+    ]);
+    const self = new SelfLeaveController(leave as never);
+    const queue = new LeaveController(leave as never);
+
+    self.list({ page: 2, pageSize: 5 } as never, user);
+    expect(leave.listSelf).toHaveBeenCalledWith(user, 2, 5);
+    self.balance({ year: 2026 } as never, user);
+    expect(leave.myBalance).toHaveBeenCalledWith(user, 2026);
+    const dto = { type: 'ANNUAL' } as never;
+    self.submit(dto, user);
+    expect(leave.submit).toHaveBeenCalledWith(user, dto);
+    self.cancel('lv1', user);
+    expect(leave.cancel).toHaveBeenCalledWith(user, 'lv1');
+
+    const q = { status: 'PENDING_HR' } as never;
+    queue.list(q, user);
+    expect(leave.listForApproval).toHaveBeenCalledWith(user, q);
+    queue.manager('lv1', { approve: true } as never, user);
+    expect(leave.decideManager).toHaveBeenCalledWith(user, 'lv1', true, undefined);
+    queue.hr('lv1', { approve: false, note: 'kurang bukti' } as never, user);
+    expect(leave.decideHr).toHaveBeenCalledWith(user, 'lv1', false, 'kurang bukti');
+
+    const rows = [{ employeeCode: 'HR-0001', year: 2026, quotaDays: 12 }] as never;
+    queue.importBalances({ rows } as never, user);
+    expect(leave.importBalances).toHaveBeenCalledWith(user, rows);
+  });
+  it('documents delegate, including the internal retention purge', () => {
+    const documents = svcMock(['list', 'get', 'upload', 'purgeRetentionEligible']);
+    const dc = new DocumentController(documents as never);
+    dc.list({ employeeId: 'e1' } as never, user);
+    expect(documents.list).toHaveBeenCalledWith(user, 'e1');
+    dc.get('doc1', user);
+    expect(documents.get).toHaveBeenCalledWith(user, 'doc1');
+    const dto = { employeeId: 'e1', type: 'KTP' } as never;
+    const file = { buffer: Buffer.from('x'), mimetype: 'image/jpeg', size: 1 };
+    dc.upload(dto, user, file);
+    expect(documents.upload).toHaveBeenCalledWith(user, dto, file);
+    dc.purge({ cutoff: '2026-01-01T00:00:00.000Z' } as never);
+    expect(documents.purgeRetentionEligible).toHaveBeenCalledWith(
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
+  });
+  it('assets delegate, movements included', () => {
+    const assets = svcMock(['list', 'getById', 'create', 'update', 'move', 'importMany']);
+    const ac = new AssetController(assets as never);
+    const q = { depotId: 'd1', status: 'ASSIGNED' } as never;
+    expect(ac.list(q, user)).toBe('list-result');
+    expect(assets.list).toHaveBeenCalledWith(user, q);
+    ac.getById('as1', user);
+    expect(assets.getById).toHaveBeenCalledWith(user, 'as1');
+    const dto = { code: 'MTR-1', type: 'MOTORCYCLE' } as never;
+    ac.create(dto, user);
+    expect(assets.create).toHaveBeenCalledWith(user, dto);
+    const ud = { name: 'Beat' } as never;
+    ac.update('as1', ud, user);
+    expect(assets.update).toHaveBeenCalledWith(user, 'as1', ud);
+    const mv = { kind: 'ASSIGN', toEmployeeId: 'e1' } as never;
+    ac.move('as1', mv, user);
+    expect(assets.move).toHaveBeenCalledWith(user, 'as1', mv);
+    const rows = [{ code: 'MTR-2', type: 'MOTORCYCLE', name: 'Beat', depotId: 'd1' }] as never;
+    ac.import({ rows } as never, user);
+    expect(assets.importMany).toHaveBeenCalledWith(user, rows);
+  });
+  it('shift rotations and assignments delegate', () => {
+    const svc = svcMock([
+      'listRotations',
+      'createRotation',
+      'updateRotation',
+      'listAssignments',
+      'assign',
+    ]);
+    const rc = new ShiftRotationController(svc as never);
+    rc.list({ depotId: 'd2' } as never, user);
+    expect(svc.listRotations).toHaveBeenCalledWith(user, 'd2');
+    const dto = { name: 'Rotasi A', pattern: { '1': 's1' } } as never;
+    rc.create(dto, user);
+    expect(svc.createRotation).toHaveBeenCalledWith(user, dto);
+    const ud = { active: false } as never;
+    rc.update('rot1', ud, user);
+    expect(svc.updateRotation).toHaveBeenCalledWith(user, 'rot1', ud);
+    rc.listAssignments({ employeeId: 'e1' } as never, user);
+    expect(svc.listAssignments).toHaveBeenCalledWith(user, 'e1');
+    const ad = { employeeId: 'e1', shiftId: 's1', effectiveFrom: '2026-08-01' } as never;
+    rc.assign(ad, user);
+    expect(svc.assign).toHaveBeenCalledWith(user, ad);
+  });
+  it('announcements delegate, self and HR sides apart', () => {
+    const svc = svcMock(['list', 'getById', 'create', 'publishDue', 'listForSelf', 'markRead']);
+    const hrSide = new AnnouncementController(svc as never);
+    hrSide.list({ page: 2, pageSize: 5 } as never);
+    expect(svc.list).toHaveBeenCalledWith(2, 5);
+    hrSide.list({} as never);
+    expect(svc.list).toHaveBeenLastCalledWith(undefined, undefined);
+    hrSide.getById('an1');
+    expect(svc.getById).toHaveBeenCalledWith('an1');
+    const dto = { title: 't', body: 'b', targets: [{ dimension: 'COMPANY' }] } as never;
+    hrSide.create(dto, user);
+    expect(svc.create).toHaveBeenCalledWith(user, dto);
+    hrSide.publishDue();
+    expect(svc.publishDue).toHaveBeenCalled();
+
+    const selfSide = new SelfAnnouncementController(svc as never);
+    selfSide.list(user);
+    expect(svc.listForSelf).toHaveBeenCalledWith(user);
+    selfSide.markRead('an1', user);
+    expect(svc.markRead).toHaveBeenCalledWith(user, 'an1');
+  });
   it('shifts delegate (list passes depotId)', () => {
     sc.list({ depotId: 'd2' } as never, user);
     expect(shifts.list).toHaveBeenCalledWith(user, 'd2');
@@ -230,7 +399,15 @@ describe('EmployeesController', () => {
     // The import route hands the service the rows only — the DTO wrapper stops here.
     const rows = [{ fullName: 'Budi', role: 'DRIVER' }] as never;
     c.import({ rows } as never, user);
-    expect(emp.importMany).toHaveBeenCalledWith(user, rows);
+    expect(emp.importMany).toHaveBeenCalledWith(user, rows, 'CREATE');
+  });
+
+  it('defaults the import to CREATE and passes UPSERT through when asked', () => {
+    const rows = [{ fullName: 'Budi', role: 'DRIVER' }] as never;
+    c.import({ rows, mode: 'UPSERT' } as never, user);
+    expect(emp.importMany).toHaveBeenLastCalledWith(user, rows, 'UPSERT');
+    c.import({ rows, mode: undefined } as never, user);
+    expect(emp.importMany).toHaveBeenLastCalledWith(user, rows, 'CREATE');
   });
 });
 
@@ -376,7 +553,7 @@ describe('ReportsController', () => {
 
 describe('BonusRuleController / LoanController', () => {
   const rules = svcMock(['list', 'create', 'update']);
-  const loans = svcMock(['listByEmployee', 'create', 'deactivate']);
+  const loans = svcMock(['listByEmployee', 'create', 'deactivate', 'importMany']);
   const rc = new BonusRuleController(rules as never);
   const lc = new LoanController(loans as never);
 
@@ -405,6 +582,9 @@ describe('BonusRuleController / LoanController', () => {
     expect(loans.create).toHaveBeenCalledWith(user, dto);
     lc.deactivate('l1', user);
     expect(loans.deactivate).toHaveBeenCalledWith(user, 'l1');
+    const rows = [{ employeeCode: 'HR-0001', principal: 100 }] as never;
+    lc.import({ rows } as never, user);
+    expect(loans.importMany).toHaveBeenCalledWith(user, rows);
   });
 });
 

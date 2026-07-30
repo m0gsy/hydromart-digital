@@ -20,6 +20,7 @@ describe('storage', () => {
       put: async () => {
         throw new Error('No value provided for input HTTP label: Bucket');
       },
+      remove: async () => undefined,
     };
     await expect(uploadFrame(storage, Buffer.from('x'), 'hr/attendance')).resolves.toBeNull();
   });
@@ -29,6 +30,7 @@ describe('storage', () => {
       put: async () => {
         throw 'socket hang up';
       },
+      remove: async () => undefined,
     };
     await expect(uploadFrame(storage, Buffer.from('x'), 'hr/faces')).resolves.toBeNull();
   });
@@ -40,6 +42,7 @@ describe('storage', () => {
         seen = input;
         return { url: 'https://cdn/hr/attendance/abc.jpg', key: 'hr/attendance/abc.jpg' };
       },
+      remove: async () => undefined,
     };
     const url = await uploadFrame(storage, Buffer.from('frame'), 'hr/attendance');
     expect(url).toBe('https://cdn/hr/attendance/abc.jpg');

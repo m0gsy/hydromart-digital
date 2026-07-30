@@ -106,12 +106,36 @@ export class HrConfigService {
     );
   }
 
+  /** Working days of ANNUAL/PERMISSION leave an employee gets per calendar year. */
+  annualLeaveQuotaDays(depotId: string | null = null): number {
+    return this.tunableNum(
+      'annualLeaveQuotaDays',
+      Number(this.config.get<string>('HR_ANNUAL_LEAVE_QUOTA_DAYS', '12')),
+      depotId,
+    );
+  }
   weeklyOffDays(depotId: string | null = null): string {
     return this.tunableStr(
       'weeklyOffDays',
       this.config.get<string>('HR_WEEKLY_OFF_DAYS', ''),
       depotId,
     );
+  }
+  /** Component weights for the performance score. They need not add to 100 (C2). */
+  performanceWeights(depotId: string | null = null): {
+    attendance: number;
+    discipline: number;
+    sales: number;
+  } {
+    return {
+      attendance: this.tunableNum('perfWeightAttendance', 40, depotId),
+      discipline: this.tunableNum('perfWeightDiscipline', 30, depotId),
+      sales: this.tunableNum('perfWeightSales', 30, depotId),
+    };
+  }
+  /** Monthly depot sales target the sales component scores against; 0 = no target set. */
+  performanceSalesTarget(depotId: string | null = null): number {
+    return this.tunableNum('perfSalesTargetMonthly', 0, depotId);
   }
   /** Attendance geofence for a depot: centre (lat/lng, '' = unset) + radius (0 = disabled). */
   geofence(depotId: string | null = null): {
@@ -165,6 +189,13 @@ export class HrConfigService {
   get authService(): { url: string; internalKey: string } {
     return {
       url: this.config.get<string>('AUTH_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+  /** crm-service base URL + internal key for HR notifications (in-app feed + WhatsApp). */
+  get crmService(): { url: string; internalKey: string } {
+    return {
+      url: this.config.get<string>('CRM_SERVICE_URL', ''),
       internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
     };
   }

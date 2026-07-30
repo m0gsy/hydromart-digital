@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Button, Card, Input, Money, SectionHeader } from '@/components/ui';
+import { Button, Card, Input, LinkButton, Money, SectionHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -79,7 +79,17 @@ export default function AdjustmentsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title="Bonus & Potongan" subtitle="Per karyawan per periode" />
+      <SectionHeader
+        title="Bonus & Potongan"
+        subtitle="Per karyawan per periode"
+        action={
+          isAdmin ? (
+            <LinkButton href="/hr/adjustments/import" variant="secondary">
+              Import Potongan
+            </LinkButton>
+          ) : undefined
+        }
+      />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
         <label className="text-sm">Employee ID<Input value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="UUID karyawan" className="w-64" /></label>

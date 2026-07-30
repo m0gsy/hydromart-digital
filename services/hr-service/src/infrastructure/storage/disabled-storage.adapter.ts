@@ -9,4 +9,8 @@ export class DisabledStorageAdapter implements StoragePort {
   async put(): Promise<StoragePutResult> {
     return { url: '', key: '' };
   }
+
+  async remove(): Promise<void> {
+    // Nothing was ever stored, so nothing can be removed.
+  }
 }

@@ -11,3 +11,7 @@
 # such. Daily at 03:30, after the 03:00 database backup, so a bad delete is always
 # recoverable from that night's dump.
 30 3 * * * sh /scripts/sweep.sh retention/internal/purge admin:3017
+# Release HR announcements whose scheduledAt has come due (C1). Every 15 minutes: the
+# console lets HR pick a time to the minute, and an hourly sweep would make "kirim jam 9"
+# arrive at 10. Nothing is sent twice — publishedAt is the latch.
+*/15 * * * * sh /scripts/sweep.sh announcements/publish-due hr:3018

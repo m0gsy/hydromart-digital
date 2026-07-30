@@ -43,11 +43,22 @@ const SEGMENT_ENV: Record<string, string> = {
   payroll: 'HR_SERVICE_URL',
   bonuses: 'HR_SERVICE_URL',
   deductions: 'HR_SERVICE_URL',
+  allowances: 'HR_SERVICE_URL',
+  // Kasbon + the bonus-rule engine. Both were reachable only inside the cluster until now —
+  // the console has been calling them through the gateway all along.
+  loans: 'HR_SERVICE_URL',
+  'bonus-rules': 'HR_SERVICE_URL',
   performance: 'HR_SERVICE_URL',
   'hr-reports': 'HR_SERVICE_URL',
   'hr-audit': 'HR_SERVICE_URL',
   holidays: 'HR_SERVICE_URL',
+  leave: 'HR_SERVICE_URL',
   'hr-shifts': 'HR_SERVICE_URL',
+  departments: 'HR_SERVICE_URL',
+  'employee-documents': 'HR_SERVICE_URL',
+  'employee-assets': 'HR_SERVICE_URL',
+  announcements: 'HR_SERVICE_URL',
+  'shift-rotations': 'HR_SERVICE_URL',
 };
 
 @Injectable()

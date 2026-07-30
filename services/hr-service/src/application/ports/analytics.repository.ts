@@ -1,4 +1,13 @@
-import { Attendance, Employee, Payroll } from '../../../prisma/generated/client';
+import {
+  Announcement,
+  AnnouncementTarget,
+  Attendance,
+  Employee,
+  EmployeeAsset,
+  LeaveRequest,
+  Payroll,
+  PerformanceReview,
+} from '../../../prisma/generated/client';
 
 export const ANALYTICS_REPOSITORY = Symbol('ANALYTICS_REPOSITORY');
 
@@ -22,6 +31,19 @@ export type AttendanceWithEmployee = Attendance & {
 export type PayrollWithEmployee = Payroll & {
   employee: Pick<Employee, 'employeeCode' | 'fullName'>;
 };
+export type LeaveWithEmployee = LeaveRequest & {
+  employee: Pick<Employee, 'employeeCode' | 'fullName'>;
+};
+export type ReviewWithEmployee = PerformanceReview & {
+  employee: Pick<Employee, 'employeeCode' | 'fullName'>;
+};
+export type AssetWithHolder = EmployeeAsset & {
+  holder: Pick<Employee, 'employeeCode' | 'fullName'> | null;
+};
+export type AnnouncementWithStats = Announcement & {
+  targets: AnnouncementTarget[];
+  _count: { reads: number };
+};
 
 export interface AnalyticsRepository {
   /** Headcount grouped by employee `status` (ACTIVE/INACTIVE/RESIGNED), optional depot scope. */
@@ -39,4 +61,14 @@ export interface AnalyticsRepository {
   employeesForReport(depotId?: string): Promise<Employee[]>;
   attendanceForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]>;
   payrollForReport(periodMonth: string, depotId?: string): Promise<PayrollWithEmployee[]>;
+
+  // --- C4 reports ---
+  /** Only the days somebody actually arrived late; an absence is not a lateness. */
+  lateForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]>;
+  /** Applications whose range OVERLAPS [from, to], not only those starting inside it. */
+  leaveForReport(from: Date, to: Date, depotId?: string): Promise<LeaveWithEmployee[]>;
+  performanceForReport(periodMonth: string, depotId?: string): Promise<ReviewWithEmployee[]>;
+  assetsForReport(depotId?: string): Promise<AssetWithHolder[]>;
+  /** Published announcements in the window, with the read count already aggregated. */
+  announcementsForReport(from: Date, to: Date): Promise<AnnouncementWithStats[]>;
 }

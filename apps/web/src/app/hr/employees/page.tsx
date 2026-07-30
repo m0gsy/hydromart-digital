@@ -3,12 +3,22 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { Badge, Card, ErrorState, Input, LinkButton, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  ErrorState,
+  Input,
+  LinkButton,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
+  departmentLabel,
+  type Department,
   type Employee,
   type EmployeeStatus,
   type HrPage,
@@ -27,11 +37,26 @@ export default function EmployeesPage() {
   const { customer } = useAuth();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<EmployeeStatus | ''>('');
+  const [departmentId, setDepartmentId] = useState('');
 
   const { data, error, loading, reload } = useAsync<HrPage<Employee>>(
-    () => api.get<HrPage<Employee>>(endpoints.hr.employees({ search: search || undefined, status: status || undefined, pageSize: 100 }), true),
-    [search, status],
+    () =>
+      api.get<HrPage<Employee>>(
+        endpoints.hr.employees({
+          search: search || undefined,
+          status: status || undefined,
+          departmentId: departmentId || undefined,
+          pageSize: 100,
+        }),
+        true,
+      ),
+    [search, status, departmentId],
   );
+  const departments = useAsync<Department[]>(
+    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    [],
+  );
+  const deptRows = departments.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -51,7 +76,12 @@ export default function EmployeesPage() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Input placeholder="Cari nama / kode / posisi…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
+        <Input
+          placeholder="Cari nama / kode / posisi…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as EmployeeStatus | '')}
@@ -59,21 +89,50 @@ export default function EmployeesPage() {
         >
           <option value="">Semua status</option>
           {(Object.keys(EMPLOYEE_STATUS_LABEL) as EmployeeStatus[]).map((s) => (
-            <option key={s} value={s}>{EMPLOYEE_STATUS_LABEL[s]}</option>
+            <option key={s} value={s}>
+              {EMPLOYEE_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={departmentId}
+          onChange={(e) => setDepartmentId(e.target.value)}
+          className="surface-elevated rounded-lg border border-app px-3 py-2.5 text-sm"
+        >
+          <option value="">Semua departemen</option>
+          {deptRows.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.code} · {d.name}
+            </option>
           ))}
         </select>
       </div>
 
-      {loading && <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14" />)}</div>}
+      {loading && (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-14" />
+          ))}
+        </div>
+      )}
       {error && <ErrorState message={error} onRetry={reload} />}
-      {data && data.rows.length === 0 && <Card className="p-8 text-center text-sm text-muted">Tidak ada karyawan.</Card>}
+      {data && data.rows.length === 0 && (
+        <Card className="p-8 text-center text-sm text-muted">Tidak ada karyawan.</Card>
+      )}
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((e) => (
-            <Link key={e.id} href={`/hr/employees/${e.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
+            <Link
+              key={e.id}
+              href={`/hr/employees/${e.id}`}
+              className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50"
+            >
               <div className="min-w-0">
                 <p className="truncate font-semibold">{e.fullName}</p>
-                <p className="truncate text-xs text-muted">{e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]}</p>
+                <p className="truncate text-xs text-muted">
+                  {e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} ·{' '}
+                  {departmentLabel(deptRows, e.departmentId)}
+                </p>
               </div>
               <Badge tone={STATUS_TONE[e.status]}>{EMPLOYEE_STATUS_LABEL[e.status]}</Badge>
             </Link>

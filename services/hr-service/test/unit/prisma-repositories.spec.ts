@@ -3,6 +3,12 @@ import { Logger } from '@nestjs/common';
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
+import { DepartmentPrismaRepository } from '../../src/infrastructure/prisma/department.prisma.repository';
+import { AllowancePrismaRepository } from '../../src/infrastructure/prisma/allowance.prisma.repository';
+import { LeavePrismaRepository } from '../../src/infrastructure/prisma/leave.prisma.repository';
+import { DocumentPrismaRepository } from '../../src/infrastructure/prisma/document.prisma.repository';
+import { AssetPrismaRepository } from '../../src/infrastructure/prisma/asset.prisma.repository';
+import { AnnouncementPrismaRepository } from '../../src/infrastructure/prisma/announcement.prisma.repository';
 import {
   BonusPrismaRepository,
   DeductionPrismaRepository,
@@ -45,6 +51,18 @@ function model(): ModelMock {
 
 const MODELS = [
   'shift',
+  'department',
+  'allowance',
+  'leaveRequest',
+  'leaveBalance',
+  'employeeDocument',
+  'employeeAsset',
+  'assetMovement',
+  'announcement',
+  'announcementRead',
+  'shiftRotation',
+  'shiftAssignment',
+  'announcementTarget',
   'bonus',
   'deduction',
   'employee',
@@ -90,6 +108,522 @@ function tx(p: FakePrisma): jest.Mock {
 
 // A sentinel that Prisma "returns"; identity is asserted with toBe.
 const sentinel = (): object => ({ id: `s-${Math.random()}` });
+
+// ── DepartmentPrismaRepository ─────────────────────────────────────────
+describe('DepartmentPrismaRepository', () => {
+  const write = { code: 'FIN', name: 'Keuangan', depotId: null, active: true };
+
+  it('create/update/delete/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'department').create.mockResolvedValue(out);
+    m(p, 'department').update.mockResolvedValue(out);
+    m(p, 'department').delete.mockResolvedValue({});
+    m(p, 'department').findUnique.mockResolvedValue(out);
+    const repo = new DepartmentPrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'department').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('id1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'department').update).toHaveBeenCalledWith({
+      where: { id: 'id1' },
+      data: { active: false },
+    });
+    await expect(repo.delete('id1')).resolves.toBeUndefined();
+    expect(m(p, 'department').delete).toHaveBeenCalledWith({ where: { id: 'id1' } });
+    await expect(repo.findById('id1')).resolves.toBe(out);
+  });
+
+  it('list(depotId) includes the network-wide ones; list() takes every row', async () => {
+    const p = makePrisma();
+    m(p, 'department').findMany.mockResolvedValue([]);
+    const repo = new DepartmentPrismaRepository(asService(p));
+    await repo.list('d1');
+    expect(m(p, 'department').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
+    });
+    await repo.list();
+    expect(m(p, 'department').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
+    });
+  });
+});
+
+// ── AllowancePrismaRepository ──────────────────────────────────────────
+describe('AllowancePrismaRepository', () => {
+  const write = {
+    employeeId: 'e1',
+    type: 'TRANSPORT' as const,
+    amount: 300_000,
+    effectiveFrom: new Date('2026-08-01'),
+    effectiveTo: null,
+    active: true,
+    note: null,
+    createdBy: 'hr-1',
+  };
+
+  it('create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'allowance').create.mockResolvedValue(out);
+    m(p, 'allowance').update.mockResolvedValue(out);
+    m(p, 'allowance').findUnique.mockResolvedValue(out);
+    const repo = new AllowancePrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'allowance').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('a1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'allowance').update).toHaveBeenCalledWith({
+      where: { id: 'a1' },
+      data: { active: false },
+    });
+    await expect(repo.findById('a1')).resolves.toBe(out);
+  });
+
+  it('listByEmployee puts the active rows first', async () => {
+    const p = makePrisma();
+    m(p, 'allowance').findMany.mockResolvedValue([]);
+    await new AllowancePrismaRepository(asService(p)).listByEmployee('e1');
+    expect(m(p, 'allowance').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: [{ active: 'desc' }, { effectiveFrom: 'desc' }],
+    });
+  });
+
+  it('listActiveForPeriod takes rows that overlap the period and are still open', async () => {
+    const p = makePrisma();
+    const from = new Date('2026-07-01');
+    const to = new Date('2026-07-31');
+    m(p, 'allowance').findMany.mockResolvedValue([]);
+    await new AllowancePrismaRepository(asService(p)).listActiveForPeriod('e1', from, to);
+    expect(m(p, 'allowance').findMany).toHaveBeenCalledWith({
+      where: {
+        employeeId: 'e1',
+        active: true,
+        effectiveFrom: { lte: to },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+      },
+      orderBy: { effectiveFrom: 'asc' },
+    });
+  });
+});
+
+// ── LeavePrismaRepository ──────────────────────────────────────────────
+describe('LeavePrismaRepository', () => {
+  const write = {
+    employeeId: 'e1',
+    depotId: 'd1',
+    type: 'ANNUAL' as const,
+    startDate: new Date('2026-07-06'),
+    endDate: new Date('2026-07-10'),
+    workingDays: 5,
+    reason: 'Acara keluarga',
+    attachmentUrl: null,
+  };
+
+  it('create / findById / decide are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'leaveRequest').create.mockResolvedValue(out);
+    m(p, 'leaveRequest').findUnique.mockResolvedValue(out);
+    m(p, 'leaveRequest').update.mockResolvedValue(out);
+    const repo = new LeavePrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'leaveRequest').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.findById('lv1')).resolves.toBe(out);
+    const decision = { status: 'APPROVED' as const, hrDecidedBy: 'hr-1' };
+    await expect(repo.decide('lv1', decision)).resolves.toBe(out);
+    expect(m(p, 'leaveRequest').update).toHaveBeenCalledWith({
+      where: { id: 'lv1' },
+      data: decision,
+    });
+  });
+
+  it('list builds the where from the filter and paginates in one transaction', async () => {
+    const p = makePrisma();
+    const rows = [sentinel()];
+    m(p, 'leaveRequest').findMany.mockResolvedValue(rows);
+    m(p, 'leaveRequest').count.mockResolvedValue(1);
+    const repo = new LeavePrismaRepository(asService(p));
+    await expect(
+      repo.list({ employeeId: 'e1', depotId: 'd1', status: 'PENDING_HR', skip: 0, take: 20 }),
+    ).resolves.toEqual({ rows, total: 1 });
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', depotId: 'd1', status: 'PENDING_HR' },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
+    expect(tx(p)).toHaveBeenCalled();
+  });
+
+  it('list with no filter yields an empty where', async () => {
+    const p = makePrisma();
+    m(p, 'leaveRequest').findMany.mockResolvedValue([]);
+    m(p, 'leaveRequest').count.mockResolvedValue(0);
+    await new LeavePrismaRepository(asService(p)).list({ skip: 0, take: 20 });
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
+      where: {},
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 20,
+    });
+  });
+
+  it('listBlocking filters by employee and the given statuses', async () => {
+    const p = makePrisma();
+    m(p, 'leaveRequest').findMany.mockResolvedValue([]);
+    await new LeavePrismaRepository(asService(p)).listBlocking('e1', ['PENDING_HR', 'APPROVED']);
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', status: { in: ['PENDING_HR', 'APPROVED'] } },
+    });
+  });
+
+  it('balance reads, creates on first use, and increments used days', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'leaveBalance').findUnique.mockResolvedValue(out);
+    m(p, 'leaveBalance').upsert.mockResolvedValue(out);
+    m(p, 'leaveBalance').update.mockResolvedValue(out);
+    const repo = new LeavePrismaRepository(asService(p));
+    const key = { employeeId_year: { employeeId: 'e1', year: 2026 } };
+
+    await expect(repo.findBalance('e1', 2026)).resolves.toBe(out);
+    expect(m(p, 'leaveBalance').findUnique).toHaveBeenCalledWith({ where: key });
+
+    await repo.ensureBalance('e1', 2026, 12);
+    expect(m(p, 'leaveBalance').upsert).toHaveBeenCalledWith({
+      where: key,
+      create: { employeeId: 'e1', year: 2026, quotaDays: 12 },
+      // Empty update: a concurrent first request must not reset usedDays.
+      update: {},
+    });
+
+    await repo.addUsedDays('e1', 2026, 5);
+    expect(m(p, 'leaveBalance').update).toHaveBeenCalledWith({
+      where: key,
+      data: { usedDays: { increment: 5 } },
+    });
+  });
+
+  it('setBalance overwrites quota AND usedDays, and reports whether the year existed', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'leaveBalance').upsert.mockResolvedValue(out);
+    const repo = new LeavePrismaRepository(asService(p));
+    const key = { employeeId_year: { employeeId: 'e1', year: 2026 } };
+
+    m(p, 'leaveBalance').findUnique.mockResolvedValue(null);
+    await expect(repo.setBalance('e1', 2026, 12, 3)).resolves.toEqual({
+      balance: out,
+      existed: false,
+    });
+    expect(m(p, 'leaveBalance').upsert).toHaveBeenCalledWith({
+      where: key,
+      create: { employeeId: 'e1', year: 2026, quotaDays: 12, usedDays: 3 },
+      // Unlike ensureBalance, the opening-balance import IS allowed to set usedDays.
+      update: { quotaDays: 12, usedDays: 3 },
+    });
+
+    m(p, 'leaveBalance').findUnique.mockResolvedValue(out);
+    await expect(repo.setBalance('e1', 2026, 15, 0)).resolves.toEqual({
+      balance: out,
+      existed: true,
+    });
+  });
+});
+
+// ── AnnouncementPrismaRepository ───────────────────────────────────────
+describe('AnnouncementPrismaRepository', () => {
+  const write = {
+    title: 'Libur',
+    body: 'Depot tutup',
+    level: 'INFO' as const,
+    scheduledAt: null,
+    createdBy: 'hr-1',
+  };
+
+  it('creates the announcement and its targets in one nested write', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'announcement').create.mockResolvedValue(out);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+    const targets = [{ dimension: 'DEPOT' as const, value: 'd1' }];
+
+    await expect(repo.create(write, targets)).resolves.toBe(out);
+    expect(m(p, 'announcement').create).toHaveBeenCalledWith({
+      data: { ...write, targets: { create: targets } },
+      include: { targets: true },
+    });
+  });
+
+  it('always reads targets alongside the row', async () => {
+    const p = makePrisma();
+    m(p, 'announcement').findUnique.mockResolvedValue(null);
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    m(p, 'announcement').count.mockResolvedValue(0);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await repo.findById('an1');
+    expect(m(p, 'announcement').findUnique).toHaveBeenCalledWith({
+      where: { id: 'an1' },
+      include: { targets: true },
+    });
+    await expect(repo.list({ skip: 0, take: 10 })).resolves.toEqual({ rows: [], total: 0 });
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: {},
+      include: { targets: true },
+      orderBy: { createdAt: 'desc' },
+      skip: 0,
+      take: 10,
+    });
+    await repo.list({ publishedOnly: true, skip: 0, take: 10 });
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { publishedAt: { not: null } } }),
+    );
+    expect(tx(p)).toHaveBeenCalled();
+  });
+
+  it('listDue takes only unpublished rows whose schedule has passed', async () => {
+    const p = makePrisma();
+    const now = new Date('2026-08-01T09:00:00.000Z');
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await repo.listPublished(5);
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: { publishedAt: { not: null } },
+      include: { targets: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 5,
+    });
+    await repo.listDue(now);
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith({
+      where: { publishedAt: null, scheduledAt: { not: null, lte: now } },
+      include: { targets: true },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  });
+
+  it('freezes the audience size when it stamps a row published', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    const at = new Date('2026-08-01T10:00:00.000Z');
+    m(p, 'announcement').update.mockResolvedValue(out);
+    await expect(
+      new AnnouncementPrismaRepository(asService(p)).markPublished('an1', at, 12),
+    ).resolves.toBe(out);
+    expect(m(p, 'announcement').update).toHaveBeenCalledWith({
+      where: { id: 'an1' },
+      data: { publishedAt: at, audienceSize: 12 },
+    });
+  });
+
+  it('marks read with an empty update so the FIRST readAt survives', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'announcementRead').upsert.mockResolvedValue(out);
+    m(p, 'announcementRead').count.mockResolvedValue(3);
+    m(p, 'announcementRead').findMany.mockResolvedValue([{ announcementId: 'an1' }]);
+    const repo = new AnnouncementPrismaRepository(asService(p));
+
+    await expect(repo.markRead('an1', 'e1')).resolves.toBe(out);
+    expect(m(p, 'announcementRead').upsert).toHaveBeenCalledWith({
+      where: { announcementId_employeeId: { announcementId: 'an1', employeeId: 'e1' } },
+      create: { announcementId: 'an1', employeeId: 'e1' },
+      update: {},
+    });
+    await expect(repo.countReads('an1')).resolves.toBe(3);
+    await expect(repo.listReadIdsFor('e1', ['an1', 'an2'])).resolves.toEqual(['an1']);
+    expect(m(p, 'announcementRead').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', announcementId: { in: ['an1', 'an2'] } },
+      select: { announcementId: true },
+    });
+  });
+});
+
+// ── AssetPrismaRepository ──────────────────────────────────────────────
+describe('AssetPrismaRepository', () => {
+  const write = {
+    code: 'MTR-0001',
+    type: 'MOTORCYCLE' as const,
+    name: 'Honda Beat',
+    brand: null,
+    serialNo: null,
+    value: null,
+    depotId: 'd1',
+    note: null,
+  };
+
+  it('create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'employeeAsset').create.mockResolvedValue(out);
+    m(p, 'employeeAsset').update.mockResolvedValue(out);
+    m(p, 'employeeAsset').findUnique.mockResolvedValue(out);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'employeeAsset').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.update('as1', { name: 'Beat 2024' })).resolves.toBe(out);
+    expect(m(p, 'employeeAsset').update).toHaveBeenCalledWith({
+      where: { id: 'as1' },
+      data: { name: 'Beat 2024' },
+    });
+    await expect(repo.findById('as1')).resolves.toBe(out);
+  });
+
+  it('list applies only the filters it was given, and pages', async () => {
+    const p = makePrisma();
+    m(p, 'employeeAsset').findMany.mockResolvedValue(['a']);
+    m(p, 'employeeAsset').count.mockResolvedValue(1);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    await expect(
+      repo.list({
+        depotId: 'd1',
+        status: 'ASSIGNED',
+        type: 'LAPTOP',
+        holderId: 'e1',
+        skip: 5,
+        take: 10,
+      }),
+    ).resolves.toEqual({ rows: ['a'], total: 1 });
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1' },
+      orderBy: { code: 'asc' },
+      skip: 5,
+      take: 10,
+    });
+
+    await repo.list({ skip: 0, take: 20 });
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: { code: 'asc' },
+      skip: 0,
+      take: 20,
+    });
+    expect(tx(p)).toHaveBeenCalled();
+  });
+
+  it('a move appends the log and updates the asset in ONE transaction', async () => {
+    const p = makePrisma();
+    const moved = sentinel();
+    m(p, 'assetMovement').create.mockResolvedValue({});
+    m(p, 'employeeAsset').update.mockResolvedValue(moved);
+    const repo = new AssetPrismaRepository(asService(p));
+
+    const movement = {
+      assetId: 'as1',
+      kind: 'ASSIGN' as const,
+      fromEmployeeId: null,
+      toEmployeeId: 'e1',
+      condition: null,
+      note: null,
+      createdBy: 'hr-1',
+    };
+    await expect(repo.move(movement, { status: 'ASSIGNED', holderId: 'e1' })).resolves.toBe(moved);
+    expect(m(p, 'assetMovement').create).toHaveBeenCalledWith({ data: movement });
+    expect(m(p, 'employeeAsset').update).toHaveBeenCalledWith({
+      where: { id: 'as1' },
+      data: { status: 'ASSIGNED', holderId: 'e1' },
+    });
+    expect(tx(p)).toHaveBeenCalledTimes(1);
+  });
+
+  it('lists movements newest first', async () => {
+    const p = makePrisma();
+    m(p, 'assetMovement').findMany.mockResolvedValue([]);
+    await new AssetPrismaRepository(asService(p)).listMovements('as1');
+    expect(m(p, 'assetMovement').findMany).toHaveBeenCalledWith({
+      where: { assetId: 'as1' },
+      orderBy: { movedAt: 'desc' },
+    });
+  });
+});
+
+// ── DocumentPrismaRepository ───────────────────────────────────────────
+describe('DocumentPrismaRepository', () => {
+  const write = {
+    employeeId: 'e1',
+    type: 'KTP' as const,
+    fileUrl: 'https://cdn/hr/documents/a.jpg',
+    fileKey: 'hr/documents/a.jpg',
+    mimeType: 'image/jpeg',
+    sizeBytes: 1234,
+    version: 1,
+    uploadedBy: 'hr-1',
+    expiresAt: null,
+  };
+
+  it('create / findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'employeeDocument').create.mockResolvedValue(out);
+    m(p, 'employeeDocument').findUnique.mockResolvedValue(out);
+    const repo = new DocumentPrismaRepository(asService(p));
+    await expect(repo.create(write)).resolves.toBe(out);
+    expect(m(p, 'employeeDocument').create).toHaveBeenCalledWith({ data: write });
+    await expect(repo.findById('doc1')).resolves.toBe(out);
+  });
+
+  it('lists an employee’s documents grouped by type, newest version first', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').findMany.mockResolvedValue([]);
+    await new DocumentPrismaRepository(asService(p)).listByEmployee('e1');
+    expect(m(p, 'employeeDocument').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: [{ type: 'asc' }, { version: 'desc' }],
+    });
+  });
+
+  it('findCurrent takes the newest row that has not been superseded', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').findFirst.mockResolvedValue(null);
+    await new DocumentPrismaRepository(asService(p)).findCurrent('e1', 'KTP');
+    expect(m(p, 'employeeDocument').findFirst).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', type: 'KTP', supersededById: null },
+      orderBy: { version: 'desc' },
+    });
+  });
+
+  it('markSuperseded points the old row at its replacement', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').update.mockResolvedValue({});
+    await new DocumentPrismaRepository(asService(p)).markSuperseded('old', 'new');
+    expect(m(p, 'employeeDocument').update).toHaveBeenCalledWith({
+      where: { id: 'old' },
+      data: { supersededById: 'new' },
+    });
+  });
+
+  it('listPurgeable selects only departed, dormant staff — and returns the storage keys', async () => {
+    const p = makePrisma();
+    const cutoff = new Date('2026-01-01');
+    m(p, 'employeeDocument').findMany.mockResolvedValue([]);
+    await new DocumentPrismaRepository(asService(p)).listPurgeable(cutoff);
+    expect(m(p, 'employeeDocument').findMany).toHaveBeenCalledWith({
+      where: {
+        employee: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
+      },
+      select: { id: true, fileKey: true },
+    });
+  });
+
+  it('deleteMany reports how many rows went', async () => {
+    const p = makePrisma();
+    m(p, 'employeeDocument').deleteMany.mockResolvedValue({ count: 2 });
+    await expect(new DocumentPrismaRepository(asService(p)).deleteMany(['a', 'b'])).resolves.toBe(
+      2,
+    );
+    expect(m(p, 'employeeDocument').deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ['a', 'b'] } },
+    });
+  });
+});
 
 // ── ShiftPrismaRepository ──────────────────────────────────────────────
 describe('ShiftPrismaRepository', () => {
@@ -213,6 +747,80 @@ describe('Bonus/Deduction adjustment repositories', () => {
     expect(m(p, 'deduction').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', periodMonth: '2026-07' },
       orderBy: { createdAt: 'desc' },
+    });
+  });
+});
+
+// ── ShiftPrismaRepository: rotations & assignments (C3) ────────────────
+describe('ShiftPrismaRepository rotations & assignments', () => {
+  const rotation = { name: 'A', depotId: null, pattern: { '1': 's1' }, active: true };
+
+  it('rotation create/update/findById are straight passthroughs', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'shiftRotation').create.mockResolvedValue(out);
+    m(p, 'shiftRotation').update.mockResolvedValue(out);
+    m(p, 'shiftRotation').findUnique.mockResolvedValue(out);
+    const repo = new ShiftPrismaRepository(asService(p));
+
+    await expect(repo.createRotation(rotation)).resolves.toBe(out);
+    expect(m(p, 'shiftRotation').create).toHaveBeenCalledWith({ data: rotation });
+    await expect(repo.updateRotation('r1', { active: false })).resolves.toBe(out);
+    expect(m(p, 'shiftRotation').update).toHaveBeenCalledWith({
+      where: { id: 'r1' },
+      data: { active: false },
+    });
+    await expect(repo.findRotationById('r1')).resolves.toBe(out);
+  });
+
+  it('listRotations gives a depot its own PLUS the network-wide ones', async () => {
+    const p = makePrisma();
+    m(p, 'shiftRotation').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+    await repo.listRotations('d1');
+    expect(m(p, 'shiftRotation').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
+    });
+    await repo.listRotations();
+    expect(m(p, 'shiftRotation').findMany).toHaveBeenLastCalledWith({
+      where: {},
+      orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
+    });
+  });
+
+  it('assign appends; there is no update path for an assignment at all', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'shiftAssignment').create.mockResolvedValue(out);
+    const data = {
+      employeeId: 'e1',
+      shiftId: 's1',
+      rotationId: null,
+      effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+      note: null,
+      createdBy: 'hr-1',
+    };
+    await expect(new ShiftPrismaRepository(asService(p)).assign(data)).resolves.toBe(out);
+    expect(m(p, 'shiftAssignment').create).toHaveBeenCalledWith({ data });
+    expect(m(p, 'shiftAssignment').update).not.toHaveBeenCalled();
+  });
+
+  it('listAssignmentsUpTo takes only what had already started, oldest first', async () => {
+    const p = makePrisma();
+    const onDate = new Date('2026-08-03T00:00:00.000Z');
+    m(p, 'shiftAssignment').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+
+    await repo.listAssignmentsUpTo('e1', onDate);
+    expect(m(p, 'shiftAssignment').findMany).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', effectiveFrom: { lte: onDate } },
+      orderBy: [{ effectiveFrom: 'asc' }, { createdAt: 'asc' }],
+    });
+    await repo.listAssignments('e1');
+    expect(m(p, 'shiftAssignment').findMany).toHaveBeenLastCalledWith({
+      where: { employeeId: 'e1' },
+      orderBy: { effectiveFrom: 'desc' },
     });
   });
 });
@@ -372,6 +980,71 @@ describe('AnalyticsPrismaRepository', () => {
       where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: { employee: { employeeCode: 'asc' } },
+    });
+  });
+
+  // ── C4 report fetchers ──────────────────────────────────────────────
+  const summary = { employee: { select: { employeeCode: true, fullName: true } } };
+  const from = new Date('2026-07-01');
+  const to = new Date('2026-07-31');
+
+  it('lateForReport takes LATE rows only — an absence has no arrival to be late by', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).lateForReport(from, to, 'd1');
+    expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
+      where: { workDate: { gte: from, lte: to }, depotId: 'd1', status: 'LATE' },
+      include: summary,
+      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
+    });
+  });
+
+  it('leaveForReport matches by OVERLAP, so leave crossing the edge is included', async () => {
+    const p = makePrisma();
+    m(p, 'leaveRequest').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).leaveForReport(from, to, 'd1');
+    expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
+      where: { startDate: { lte: to }, endDate: { gte: from }, depotId: 'd1' },
+      include: summary,
+      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
+    });
+  });
+
+  it('performanceForReport ranks by score and scopes through the employee', async () => {
+    const p = makePrisma();
+    m(p, 'performanceReview').findMany.mockResolvedValue([]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    await repo.performanceForReport('2026-07', 'd1');
+    expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
+      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      include: summary,
+      orderBy: { score: 'desc' },
+    });
+    await repo.performanceForReport('2026-07');
+    expect(m(p, 'performanceReview').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { periodMonth: '2026-07' } }),
+    );
+  });
+
+  it('assetsForReport includes the holder', async () => {
+    const p = makePrisma();
+    m(p, 'employeeAsset').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).assetsForReport('d1');
+    expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
+      where: { depotId: 'd1' },
+      include: { holder: { select: { employeeCode: true, fullName: true } } },
+      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+    });
+  });
+
+  it('announcementsForReport aggregates the read count in the query', async () => {
+    const p = makePrisma();
+    m(p, 'announcement').findMany.mockResolvedValue([]);
+    await new AnalyticsPrismaRepository(asService(p)).announcementsForReport(from, to);
+    expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
+      where: { publishedAt: { gte: from, lte: to } },
+      include: { targets: true, _count: { select: { reads: true } } },
+      orderBy: { publishedAt: 'desc' },
     });
   });
 });
@@ -769,7 +1442,9 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
   it('does nothing at all when no record is eligible', async () => {
     const p = makePrisma();
     m(p, 'employee').findMany.mockResolvedValue([]);
-    expect(await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF)).toBe(0);
+    expect(await new EmployeePrismaRepository(p as never).anonymiseRetentionEligible(CUTOFF)).toBe(
+      0,
+    );
     expect(p.$transaction).not.toHaveBeenCalled();
   });
 
@@ -831,11 +1506,19 @@ describe('EmployeePrismaRepository', () => {
     m(p, 'employee').count.mockResolvedValue(1);
     const repo = new EmployeePrismaRepository(asService(p));
     await expect(
-      repo.list({ depotId: 'd1', status: 'ACTIVE', search: 'ali', skip: 5, take: 10 }),
+      repo.list({
+        depotId: 'd1',
+        status: 'ACTIVE',
+        departmentId: 'dep1',
+        search: 'ali',
+        skip: 5,
+        take: 10,
+      }),
     ).resolves.toEqual({ rows, total: 1 });
     const where = {
       depotId: 'd1',
       status: 'ACTIVE',
+      departmentId: 'dep1',
       OR: [
         { fullName: { contains: 'ali', mode: 'insensitive' } },
         { employeeCode: { contains: 'ali', mode: 'insensitive' } },
@@ -880,6 +1563,30 @@ describe('EmployeePrismaRepository', () => {
     expect(m(p, 'employmentHistory').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1' },
       orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('resolves the import keys: staff code, NIK, and phone (oldest match)', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findUnique.mockResolvedValue(null);
+    m(p, 'employee').findFirst.mockResolvedValue(null);
+    const repo = new EmployeePrismaRepository(asService(p));
+
+    await repo.findByEmployeeCode('HR-0001');
+    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({
+      where: { employeeCode: 'HR-0001' },
+    });
+
+    await repo.findByNik('3201010101010001');
+    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({
+      where: { nik: '3201010101010001' },
+    });
+
+    // Phone is not unique, so the oldest row wins — the same one on every re-upload.
+    await repo.findByPhone('+628123');
+    expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+      where: { phone: '+628123' },
+      orderBy: { createdAt: 'asc' },
     });
   });
 

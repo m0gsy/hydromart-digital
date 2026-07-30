@@ -1,12 +1,16 @@
 'use client';
 
 import {
+  Buildings,
   CalendarCheck,
   ChartBar,
   ClipboardText,
+  Clock,
   CurrencyCircleDollar,
   Gauge,
   GearSix,
+  Megaphone,
+  Package,
   Sparkle,
   Star,
   Storefront,
@@ -29,13 +33,19 @@ interface NavItem {
 const ITEMS: NavItem[] = [
   { href: '/hr', label: 'Dashboard', icon: Gauge },
   { href: '/hr/employees', label: 'Karyawan', icon: Users },
+  { href: '/hr/departments', label: 'Departemen', icon: Buildings },
   { href: '/hr/customers', label: 'Pelanggan', icon: Users },
   { href: '/hr/resellers', label: 'Reseller / Agen', icon: Storefront },
   { href: '/hr/attendance', label: 'Absensi', icon: CalendarCheck },
+  { href: '/hr/leave', label: 'Pengajuan Cuti', icon: CalendarCheck },
   { href: '/hr/payroll', label: 'Payroll', icon: CurrencyCircleDollar },
   { href: '/hr/adjustments', label: 'Bonus & Potongan', icon: ClipboardText },
+  { href: '/hr/allowances', label: 'Tunjangan', icon: CurrencyCircleDollar },
+  { href: '/hr/assets', label: 'Aset', icon: Package },
+  { href: '/hr/announcements', label: 'Pengumuman', icon: Megaphone },
   { href: '/hr/rules', label: 'Rule Bonus', icon: Sparkle, adminOnly: true },
   { href: '/hr/performance', label: 'Kinerja', icon: Star },
+  { href: '/hr/shift', label: 'Shift & Rotasi', icon: Clock },
   { href: '/hr/calendar', label: 'Kalender Kerja', icon: CalendarCheck },
   { href: '/hr/reports', label: 'Laporan', icon: ChartBar },
   { href: '/hr/settings', label: 'Konfigurasi Gaji', icon: GearSix, adminOnly: true },
@@ -62,7 +72,9 @@ export function HrRail() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active ? 'bg-brand-50 text-brand-800' : 'text-muted hover:bg-brand-50 hover:text-brand-700'
+              active
+                ? 'bg-brand-50 text-brand-800'
+                : 'text-muted hover:bg-brand-50 hover:text-brand-700'
             }`}
           >
             <Icon size={20} weight={active ? 'fill' : 'regular'} />

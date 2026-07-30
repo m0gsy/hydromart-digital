@@ -5,7 +5,12 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { AdjustmentService } from '../application/services/adjustment.service';
-import { AdjustmentQueryDto, CreateBonusDto, CreateDeductionDto } from './dto/payroll.dto';
+import {
+  AdjustmentQueryDto,
+  CreateBonusDto,
+  CreateDeductionDto,
+  ImportDeductionsDto,
+} from './dto/payroll.dto';
 
 @ApiTags('HR Bonuses')
 @ApiBearerAuth()
@@ -46,5 +51,12 @@ export class DeductionController {
   @ApiOperation({ summary: 'Add a deduction' })
   create(@Body() dto: CreateDeductionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.addDeduction(user, dto);
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({ summary: 'Bulk-import deductions from the CSV wizard' })
+  import(@Body() dto: ImportDeductionsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.adjustments.importDeductions(user, dto.rows);
   }
 }

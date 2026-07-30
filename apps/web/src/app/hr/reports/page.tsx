@@ -9,7 +9,15 @@ import { currentPeriod } from '@/lib/hr';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
-/** Fetch a CSV export (cookie-authenticated) and trigger a browser download. */
+type Format = 'csv' | 'xlsx' | 'pdf';
+
+const FORMATS: { key: Format; label: string }[] = [
+  { key: 'csv', label: 'CSV' },
+  { key: 'xlsx', label: 'Excel' },
+  { key: 'pdf', label: 'PDF' },
+];
+
+/** Fetch an export (cookie-authenticated) and trigger a browser download. */
 async function download(path: string, filename: string): Promise<void> {
   const res = await fetch(`${BASE_URL}${path}`, { credentials: 'include' });
   if (!res.ok) throw new Error(`Gagal mengunduh (${res.status})`);
@@ -40,50 +48,181 @@ export default function ReportsPage() {
     }
   }
 
+  /** Reports scoped by a date range. */
+  function rangeReport(prefix: string, path: (f: Format) => string, base: string) {
+    return (format: Format) => {
+      if (!from || !to) {
+        toast('Isi rentang tanggal', 'error');
+        return;
+      }
+      run(`${prefix}-${format}`, path(format), `${base}-${from}_${to}.${format}`);
+    };
+  }
+
+  const rangeCards = [
+    {
+      key: 'att',
+      label: 'Absensi',
+      hint: 'Seluruh kehadiran pada rentang tanggal.',
+      base: 'attendance',
+      path: (f: Format) => endpoints.hr.reportAttendance(from, to, undefined, f),
+    },
+    {
+      key: 'late',
+      label: 'Keterlambatan',
+      hint: 'Hanya hari yang benar-benar terlambat, terbesar dulu.',
+      base: 'late',
+      path: (f: Format) => endpoints.hr.hrReport('late', { from, to, format: f }),
+    },
+    {
+      key: 'leave',
+      label: 'Cuti',
+      hint: 'Termasuk cuti yang melewati batas rentang.',
+      base: 'leave',
+      path: (f: Format) => endpoints.hr.hrReport('leave', { from, to, format: f }),
+    },
+    {
+      key: 'ann',
+      label: 'Pengumuman',
+      hint: 'Jangkauan dan tingkat baca tiap pengumuman.',
+      base: 'announcements',
+      path: (f: Format) => endpoints.hr.hrReport('announcements', { from, to, format: f }),
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title="Laporan" subtitle="Ekspor CSV (buka di Excel)" />
+      <SectionHeader title="Laporan" subtitle="Ekspor CSV, Excel, atau PDF" />
 
-      <Card className="flex items-center justify-between gap-3 p-4">
-        <div><p className="font-semibold">Direktori Karyawan</p><p className="text-xs text-muted">Semua karyawan (sesuai cakupan depot).</p></div>
-        <div className="flex gap-2">
-          <Button variant="secondary" loading={busy === 'emp'} onClick={() => run('emp', endpoints.hr.reportEmployees(), 'employees.csv')}>CSV</Button>
-          <Button variant="secondary" loading={busy === 'empx'} onClick={() => run('empx', endpoints.hr.reportEmployees(undefined, 'xlsx'), 'employees.xlsx')}>Excel</Button>
+      <Card className="space-y-2 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            Dari
+            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </label>
+          <label className="text-sm">
+            Sampai
+            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <label className="text-sm">
+            Periode
+            <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+          </label>
         </div>
+        <p className="text-xs text-muted">
+          Rentang tanggal dipakai absensi, keterlambatan, cuti, dan pengumuman. Periode dipakai
+          payroll dan kinerja. PDF memotong laporan panjang dan menyebutkannya di halaman.
+        </p>
       </Card>
 
       <Card className="space-y-3 p-4">
-        <p className="font-semibold">Absensi</p>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">Dari<Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label className="text-sm">Sampai<Input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-          <Button
-            variant="secondary"
-            loading={busy === 'att'}
-            onClick={() => {
-              if (!from || !to) { toast('Isi rentang tanggal', 'error'); return; }
-              run('att', endpoints.hr.reportAttendance(from, to), `attendance-${from}_${to}.csv`);
-            }}
-          >CSV</Button>
-          <Button
-            variant="secondary"
-            loading={busy === 'attx'}
-            onClick={() => {
-              if (!from || !to) { toast('Isi rentang tanggal', 'error'); return; }
-              run('attx', endpoints.hr.reportAttendance(from, to, undefined, 'xlsx'), `attendance-${from}_${to}.xlsx`);
-            }}
-          >Excel</Button>
+        <div>
+          <p className="font-semibold">Direktori Karyawan</p>
+          <p className="text-xs text-muted">Semua karyawan (sesuai cakupan depot).</p>
         </div>
+        <Formats
+          busy={busy}
+          prefix="emp"
+          onPick={(f) =>
+            run(`emp-${f}`, endpoints.hr.reportEmployees(undefined, f), `employees.${f}`)
+          }
+        />
+      </Card>
+
+      {rangeCards.map((c) => (
+        <Card key={c.key} className="space-y-3 p-4">
+          <div>
+            <p className="font-semibold">{c.label}</p>
+            <p className="text-xs text-muted">{c.hint}</p>
+          </div>
+          <Formats
+            busy={busy}
+            prefix={c.key}
+            disabled={!from || !to}
+            onPick={rangeReport(c.key, c.path, c.base)}
+          />
+        </Card>
+      ))}
+
+      <Card className="space-y-3 p-4">
+        <div>
+          <p className="font-semibold">Payroll</p>
+          <p className="text-xs text-muted">Gaji per periode beserta bonus dan potongan.</p>
+        </div>
+        <Formats
+          busy={busy}
+          prefix="pay"
+          onPick={(f) =>
+            run(
+              `pay-${f}`,
+              endpoints.hr.reportPayroll(period, undefined, f),
+              `payroll-${period}.${f}`,
+            )
+          }
+        />
       </Card>
 
       <Card className="space-y-3 p-4">
-        <p className="font-semibold">Payroll</p>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
-          <Button variant="secondary" loading={busy === 'pay'} onClick={() => run('pay', endpoints.hr.reportPayroll(period), `payroll-${period}.csv`)}>CSV</Button>
-          <Button variant="secondary" loading={busy === 'payx'} onClick={() => run('payx', endpoints.hr.reportPayroll(period, undefined, 'xlsx'), `payroll-${period}.xlsx`)}>Excel</Button>
+        <div>
+          <p className="font-semibold">Kinerja</p>
+          <p className="text-xs text-muted">
+            Skor per periode. Komponen yang tidak terukur tampil kosong, bukan nol.
+          </p>
         </div>
+        <Formats
+          busy={busy}
+          prefix="perf"
+          onPick={(f) =>
+            run(
+              `perf-${f}`,
+              endpoints.hr.hrReport('performance', { periodMonth: period, format: f }),
+              `performance-${period}.${f}`,
+            )
+          }
+        />
       </Card>
+
+      <Card className="space-y-3 p-4">
+        <div>
+          <p className="font-semibold">Aset</p>
+          <p className="text-xs text-muted">Daftar aset beserta pemegangnya saat ini.</p>
+        </div>
+        <Formats
+          busy={busy}
+          prefix="asset"
+          onPick={(f) =>
+            run(`asset-${f}`, endpoints.hr.hrReport('assets', { format: f }), `assets.${f}`)
+          }
+        />
+      </Card>
+    </div>
+  );
+}
+
+function Formats({
+  busy,
+  prefix,
+  disabled,
+  onPick,
+}: {
+  busy: string;
+  prefix: string;
+  disabled?: boolean;
+  onPick: (format: Format) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {FORMATS.map((f) => (
+        <Button
+          key={f.key}
+          variant="secondary"
+          disabled={disabled}
+          loading={busy === `${prefix}-${f.key}`}
+          onClick={() => onPick(f.key)}
+        >
+          {f.label}
+        </Button>
+      ))}
     </div>
   );
 }

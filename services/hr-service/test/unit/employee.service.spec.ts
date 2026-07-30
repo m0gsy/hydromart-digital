@@ -56,6 +56,15 @@ class FakeRepo implements EmployeeRepository {
   async findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.rows.find((r) => r.authSubjectId === authSubjectId) ?? null;
   }
+  async findByEmployeeCode(employeeCode: string): Promise<Employee | null> {
+    return this.rows.find((r) => r.employeeCode === employeeCode) ?? null;
+  }
+  async findByPhone(phone: string): Promise<Employee | null> {
+    return this.rows.find((r) => r.phone === phone) ?? null;
+  }
+  async findByNik(nik: string): Promise<Employee | null> {
+    return this.rows.find((r) => r.nik === nik) ?? null;
+  }
   async listHistory(employeeId: string): Promise<EmploymentHistory[]> {
     return this.history
       .filter((h) => (h as { employeeId?: string }).employeeId === employeeId)
@@ -70,6 +79,14 @@ class FakeRepo implements EmployeeRepository {
         code: 'P2002',
         clientVersion: 'x',
         meta: { target: ['employeeCode'] },
+      });
+    }
+    // Employee.nik is @unique too — the import's second upsert key.
+    if (data.nik && this.rows.some((r) => r.nik === data.nik)) {
+      throw new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'x',
+        meta: { target: ['nik'] },
       });
     }
     // Employee.authSubjectId is @unique in the schema — the fake honours it so the
@@ -261,10 +278,163 @@ describe('EmployeeService.importMany', () => {
     const { svc } = make();
     await expect(svc.importMany(hr, [])).resolves.toEqual({
       created: 0,
+      updated: 0,
       skipped: 0,
       failed: 0,
       results: [],
     });
+  });
+});
+
+describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
+  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+
+  it('keeps the code the file supplies instead of minting one', async () => {
+    const { repo, svc } = make();
+
+    await svc.importMany(hr, [{ ...row, employeeCode: 'staff-7' }]);
+
+    expect(repo.rows[0]?.employeeCode).toBe('STAFF-7');
+  });
+
+  it('skips — never renames — a row whose supplied code is already taken', async () => {
+    const { repo, svc } = make();
+    await svc.importMany(hr, [{ ...row, employeeCode: 'STAFF-7' }]);
+
+    const second = await svc.importMany(hr, [
+      { ...row, employeeCode: 'STAFF-7', fullName: 'Orang Lain', phone: '0899' },
+    ]);
+
+    expect(second).toMatchObject({ created: 0, skipped: 1 });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('resolves a supervisor who only appears further down the same file', async () => {
+    const { repo, svc } = make();
+
+    const summary = await svc.importMany(hr, [
+      { ...row, fullName: 'Anak Buah', supervisorCode: 'HR-0002' },
+      { ...row, fullName: 'Bos', phone: '0812' },
+    ]);
+
+    expect(summary).toMatchObject({ created: 2, failed: 0 });
+    expect(repo.rows[0]?.supervisorId).toBe(repo.rows[1]?.id);
+  });
+
+  it('keeps the row but says so when the supervisor code does not exist', async () => {
+    const { repo, svc } = make();
+
+    const summary = await svc.importMany(hr, [{ ...row, supervisorCode: 'HR-9999' }]);
+
+    expect(summary).toMatchObject({ created: 1, failed: 0 });
+    expect(summary.results[0]?.message).toContain('HR-9999');
+    expect(repo.rows[0]?.supervisorId).toBeNull();
+  });
+
+  it('CREATE mode leaves an existing person alone', async () => {
+    const { repo, svc } = make();
+    await svc.importMany(hr, [{ ...row, employeeCode: 'STAFF-7' }]);
+
+    const second = await svc.importMany(hr, [
+      { ...row, employeeCode: 'STAFF-7', position: 'Supervisor' },
+    ]);
+
+    expect(second).toMatchObject({ created: 0, skipped: 1, updated: 0 });
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.position).toBe('Kurir');
+  });
+
+  it('UPSERT matches on the staff code the file carries', async () => {
+    const { repo, svc } = make();
+    await svc.importMany(hr, [{ ...row, employeeCode: 'STAFF-7' }]);
+
+    const second = await svc.importMany(
+      hr,
+      [{ ...row, employeeCode: 'STAFF-7', position: 'Supervisor' }],
+      'UPSERT',
+    );
+
+    expect(second).toMatchObject({ updated: 1 });
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.position).toBe('Supervisor');
+  });
+
+  it('UPSERT overwrites the matched employee without touching their login', async () => {
+    const { repo, identity, svc } = make();
+    await svc.importMany(hr, [row]);
+    identity.calls.length = 0;
+
+    const second = await svc.importMany(hr, [{ ...row, position: 'Supervisor' }], 'UPSERT');
+
+    expect(second).toMatchObject({ created: 0, updated: 1, failed: 0 });
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.position).toBe('Supervisor');
+    // Re-provisioning would rewrite the person's role in every service that reads the JWT.
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('UPSERT matches on NIK when the file carries no staff code', async () => {
+    const { repo, svc } = make();
+    await svc.importMany(hr, [{ ...row, nik: '3201010101010001' }]);
+
+    const second = await svc.importMany(
+      hr,
+      // Different phone — only the NIK ties the two rows together.
+      [{ ...row, nik: '3201010101010001', phone: '0899', fullName: 'Budi Santoso' }],
+      'UPSERT',
+    );
+
+    expect(second).toMatchObject({ updated: 1 });
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.phone).toBe('0899');
+  });
+
+  it('UPSERT creates the row when nothing matches', async () => {
+    const { repo, svc } = make();
+
+    const summary = await svc.importMany(hr, [row], 'UPSERT');
+
+    expect(summary).toMatchObject({ created: 1, updated: 0 });
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('rejects a contract that ends before it starts', async () => {
+    const { svc } = make();
+
+    await expect(
+      svc.create(hr, { ...baseInput, contractEndDate: '2025-12-01' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('stores the personal fields the import carries', async () => {
+    const { repo, svc } = make();
+
+    await svc.create(hr, {
+      ...baseInput,
+      nik: '3201010101010002',
+      birthDate: '1995-04-02',
+      gender: 'FEMALE',
+      address: 'Jl. Melati 3',
+      ptkpStatus: 'K1',
+      contractEndDate: '2027-01-01',
+    });
+
+    expect(repo.rows[0]).toMatchObject({
+      nik: '3201010101010002',
+      gender: 'FEMALE',
+      address: 'Jl. Melati 3',
+      ptkpStatus: 'K1',
+    });
+    expect(repo.rows[0]?.birthDate).toEqual(new Date('1995-04-02'));
+  });
+
+  it('reports a duplicate NIK as a taken row, not a crash', async () => {
+    const { svc } = make();
+    await svc.create(hr, { ...baseInput, nik: '3201010101010003' });
+
+    await expect(
+      svc.create(hr, { ...baseInput, phone: '0899', nik: '3201010101010003' }),
+    ).rejects.toThrow('NIK sudah dipakai');
   });
 });
 

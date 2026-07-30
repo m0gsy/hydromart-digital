@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  dateCell,
   enumCell,
   intCell,
   numberCell,
+  periodCell,
   phoneCell,
   prepareRows,
   type ImportColumn,
@@ -133,6 +135,30 @@ describe('phoneCell', () => {
   it('rejects a landline or a number that is too short', () => {
     expect(() => phoneCell('02112345678')).toThrow(/bukan nomor HP/);
     expect(() => phoneCell('0812345')).toThrow(/bukan nomor HP/);
+  });
+});
+
+describe('dateCell', () => {
+  it('turns the YYYY-MM-DD Excel hands back into an ISO instant', () => {
+    expect(dateCell('2026-01-31')).toBe('2026-01-31T00:00:00.000Z');
+    expect(dateCell(' 2026-01-31 ')).toBe('2026-01-31T00:00:00.000Z');
+  });
+
+  it('refuses an ambiguous local format instead of guessing the day', () => {
+    expect(() => dateCell('31/01/2026')).toThrow(/YYYY-MM-DD/);
+    expect(() => dateCell('Jan 31 2026')).toThrow(/YYYY-MM-DD/);
+  });
+
+  it('refuses a well-shaped date that does not exist', () => {
+    expect(() => dateCell('2026-13-40')).toThrow(/bukan tanggal/);
+  });
+});
+
+describe('periodCell', () => {
+  it('accepts a payroll period and rejects a 13th month', () => {
+    expect(periodCell('2026-07')).toBe('2026-07');
+    expect(() => periodCell('2026-13')).toThrow(/YYYY-MM/);
+    expect(() => periodCell('Juli 2026')).toThrow(/YYYY-MM/);
   });
 });
 

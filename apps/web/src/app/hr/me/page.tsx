@@ -12,7 +12,10 @@ export default function MePage() {
   const { customer } = useAuth();
   return (
     <div className="mx-auto max-w-md space-y-4 px-4 py-6">
-      <SectionHeader title={`Halo, ${customer?.fullName ?? 'Karyawan'}`} subtitle="Layanan mandiri karyawan" />
+      <SectionHeader
+        title={`Halo, ${customer?.fullName ?? 'Karyawan'}`}
+        subtitle="Layanan mandiri karyawan"
+      />
       <Link href="/hr/me/check-in">
         <Card className="p-6 text-center transition-colors hover:bg-brand-50">
           <p className="text-lg font-bold text-brand-700">Absen Sekarang</p>
@@ -31,6 +34,18 @@ export default function MePage() {
           </Card>
         </Link>
       </div>
+      <Link href="/hr/me/leave">
+        <Card className="p-5 text-center transition-colors hover:bg-brand-50">
+          <p className="font-semibold">Cuti Saya</p>
+          <p className="mt-1 text-sm text-muted">Ajukan cuti & lihat sisa kuota</p>
+        </Card>
+      </Link>
+      <Link href="/hr/me/announcements">
+        <Card className="p-5 text-center transition-colors hover:bg-brand-50">
+          <p className="font-semibold">Pengumuman</p>
+          <p className="mt-1 text-sm text-muted">Kabar dari HR untuk Anda</p>
+        </Card>
+      </Link>
       <Link href="/hr/me/enroll">
         <Card className="p-4 text-center transition-colors hover:bg-brand-50">
           <p className="text-sm font-semibold text-brand-700">Daftar / Perbarui Wajah</p>

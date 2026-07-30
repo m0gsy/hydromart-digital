@@ -12,12 +12,14 @@ import {
 } from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
+import { tableReportPdf } from '../domain/payroll-pdf';
 import { toXlsx } from '../domain/xlsx';
 import {
   AttendanceReportQueryDto,
   DashboardQueryDto,
   EmployeeReportQueryDto,
   PayrollReportQueryDto,
+  RangeReportQueryDto,
 } from './dto/reports.dto';
 
 /** HR dashboard aggregations + CSV/XLSX exports (?format=xlsx). Read = hrView, depot-scoped. */
@@ -95,22 +97,119 @@ export class ReportsController {
     );
   }
 
+  @Get('late')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Lateness export for a date range (CSV, xlsx or pdf)' })
+  async late(
+    @Query() q: AttendanceReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `late-${q.from}_${q.to}`,
+      await this.analytics.lateReport(user, q),
+      q.format,
+      'Laporan Keterlambatan',
+      `${q.from} s/d ${q.to}`,
+    );
+  }
+
+  @Get('leave')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Leave export — anything overlapping the range (CSV, xlsx or pdf)' })
+  async leave(
+    @Query() q: AttendanceReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `leave-${q.from}_${q.to}`,
+      await this.analytics.leaveReport(user, q),
+      q.format,
+      'Laporan Cuti',
+      `${q.from} s/d ${q.to}`,
+    );
+  }
+
+  @Get('performance')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Performance export for a period (CSV, xlsx or pdf)' })
+  async performance(
+    @Query() q: PayrollReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `performance-${q.periodMonth}`,
+      await this.analytics.performanceReport(user, q),
+      q.format,
+      'Laporan Kinerja',
+      `Periode ${q.periodMonth}`,
+    );
+  }
+
+  @Get('assets')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Asset register export (CSV, xlsx or pdf)' })
+  async assets(
+    @Query() q: EmployeeReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      'assets',
+      await this.analytics.assetReport(user, q.depotId),
+      q.format,
+      'Laporan Aset',
+    );
+  }
+
+  @Get('announcements')
+  @Roles(...CAPABILITIES.hrView)
+  @ApiOperation({ summary: 'Announcement reach & read-rate export (CSV, xlsx or pdf)' })
+  async announcements(@Query() q: RangeReportQueryDto, @Res() res: Response) {
+    await this.deliver(
+      res,
+      `announcements-${q.from}_${q.to}`,
+      await this.analytics.announcementReport(q),
+      q.format,
+      'Laporan Pengumuman',
+      `${q.from} s/d ${q.to}`,
+    );
+  }
+
   private async deliver(
     res: Response,
     baseName: string,
     report: ReportData,
     format?: string,
+    pdfTitle?: string,
+    pdfSubtitle?: string,
   ): Promise<void> {
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${baseName}.${format === 'xlsx' ? 'xlsx' : 'csv'}"`,
-    );
+    const ext = format === 'xlsx' || format === 'pdf' ? format : 'csv';
+    res.setHeader('Content-Disposition', `attachment; filename="${baseName}.${ext}"`);
     if (format === 'xlsx') {
       res.setHeader(
         'Content-Type',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       );
       res.send(await toXlsx(report.headers, report.rows, baseName));
+      return;
+    }
+    if (format === 'pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.send(
+        await tableReportPdf({
+          title: pdfTitle ?? baseName,
+          subtitle: pdfSubtitle,
+          headers: report.headers,
+          rows: report.rows,
+        }),
+      );
       return;
     }
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
