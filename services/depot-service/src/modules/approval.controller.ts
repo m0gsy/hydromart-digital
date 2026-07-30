@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { ApprovalService } from '../application/services/approval.service';
 import { Approval } from '../domain/approval';
@@ -16,7 +15,7 @@ import {
 /** Depot-manager approval queue (design 1c/2a-2c/10c/12a). */
 @ApiTags('Approvals')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.approvals)
+@Can('approvals')
 @Controller({ path: 'approvals', version: '1' })
 export class ApprovalController {
   constructor(private readonly approvals: ApprovalService) {}

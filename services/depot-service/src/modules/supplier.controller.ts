@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { SupplierService } from '../application/services/supplier.service';
 import { Supplier } from '../domain/supplier';
@@ -11,7 +10,7 @@ import { CreateSupplierDto, SupplierQueryDto } from './dto/procurement.dto';
 /** Depot supplier directory (design 11b). */
 @ApiTags('Procurement')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.procurement)
+@Can('procurement')
 @Controller({ path: 'suppliers', version: '1' })
 export class SupplierController {
   constructor(private readonly suppliers: SupplierService) {}

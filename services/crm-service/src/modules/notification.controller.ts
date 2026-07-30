@@ -12,15 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { NotificationService } from '../application/services/notification.service';
 import {
@@ -61,7 +53,7 @@ export class NotificationController {
 
   // Staff operational feed (PRD 10d): recent operational alerts (low stock, …), each
   // carrying the caller's own read receipt — reads are per staff member, not shared.
-  @Roles(...CAPABILITIES.opsNotif)
+  @Can('opsNotif')
   @Get('ops')
   @ApiOperation({ summary: 'List recent operational notifications (staff ops center)' })
   @ApiOkResponse({ type: OpsNotificationDto, isArray: true })
@@ -70,7 +62,7 @@ export class NotificationController {
     return records.map((record) => OpsNotificationDto.fromOps(record));
   }
 
-  @Roles(...CAPABILITIES.opsNotif)
+  @Can('opsNotif')
   @Post('ops/:id/read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark one operational notification read (idempotent)' })
@@ -84,7 +76,7 @@ export class NotificationController {
     return { readAt };
   }
 
-  @Roles(...CAPABILITIES.opsNotif)
+  @Can('opsNotif')
   @Post('ops/read-all')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark the whole operational feed read (idempotent)' })

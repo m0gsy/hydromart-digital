@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
 
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
@@ -11,7 +10,7 @@ import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
 
 @ApiTags('Deliveries (staff)')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.tracking)
+@Can('tracking')
 @Controller({ path: 'deliveries', version: '1' })
 export class DeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}

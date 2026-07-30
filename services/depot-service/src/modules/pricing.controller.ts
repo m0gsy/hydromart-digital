@@ -1,8 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { PricingService } from '../application/services/pricing.service';
 import { PricingRuleRecord } from '../domain/pricing-rule';
@@ -19,7 +18,7 @@ function toDate(v?: string): Date | null {
 export class PricingController {
   constructor(private readonly pricing: PricingService) {}
 
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Post('rules')
   @ApiOperation({ summary: 'Create a dynamic pricing rule for a depot (staff)' })
   create(
@@ -40,14 +39,14 @@ export class PricingController {
     });
   }
 
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Get('rules')
   @ApiOperation({ summary: "List a depot's pricing rules (staff)" })
   list(@Param('depotId', ParseUUIDPipe) depotId: string): Promise<PricingRuleRecord[]> {
     return this.pricing.list(depotId);
   }
 
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Patch('rules/:ruleId')
   @ApiOperation({ summary: 'Update a pricing rule (staff)' })
   async update(
@@ -70,7 +69,7 @@ export class PricingController {
     return this.pricing.update(ruleId, patch);
   }
 
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Delete('rules/:ruleId')
   @ApiOperation({ summary: 'Delete a pricing rule (staff)' })
   async remove(

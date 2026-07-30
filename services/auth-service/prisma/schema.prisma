@@ -31,6 +31,25 @@ enum Role {
   SUPER_ADMIN
 }
 
+/// A SUPER_ADMIN edit to the compiled RBAC matrix in @hydromart/access.
+///
+/// ONE row per CHANGED capability, holding the full replacement role list. A capability
+/// with no row keeps the default shipped in the code, so an empty table is exactly
+/// today's behaviour and there is nothing to seed or keep in sync. Resetting a
+/// capability is a DELETE, and a capability added in a later release works with no
+/// migration at all.
+model CapabilityOverride {
+  /// Capability name, validated against the compiled map before it is written.
+  capability String   @id
+  /// Full replacement role list. An empty list means "SUPER_ADMIN only" — the
+  /// superuser short-circuit sits above this lookup and cannot be edited away.
+  roles      Role[]
+  updatedBy  String?  @db.Uuid
+  updatedAt  DateTime @updatedAt
+
+  @@map("capability_overrides")
+}
+
 /// Lifecycle of an account.
 enum CustomerStatus {
   PENDING_VERIFICATION

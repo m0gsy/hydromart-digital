@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can, Role, Roles } from '@hydromart/platform';
 
 import { FeatureFlagService } from '../application/services/feature-flag.service';
 import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
@@ -14,7 +14,7 @@ import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
 export class FeatureFlagsController {
   constructor(private readonly flags: FeatureFlagService) {}
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('hqConsole')
   @Get()
   @ApiOperation({ summary: 'List all feature flags (8b)' })
   async list(): Promise<FeatureFlagDto[]> {

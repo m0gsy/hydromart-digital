@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { AttendanceService, FacePunch } from '../application/services/attendance.service';
 import {
@@ -41,21 +40,21 @@ export class AttendanceController {
   }
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Attendance log (depot-scoped for depot roles)' })
   list(@Query() query: ListAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
     return this.attendance.list(user, query);
   }
 
   @Post('manual')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Manual attendance entry (LEAVE/HOLIDAY/ABSENT) for a day' })
   createManual(@Body() dto: ManualAttendanceDto, @CurrentUser() user: AuthenticatedUser) {
     return this.attendance.createManual(user, dto);
   }
 
   @Patch(':id/adjust')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Correct an attendance row (audited)' })
   adjust(
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,7 +65,7 @@ export class AttendanceController {
   }
 
   @Patch(':id/decide')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Approve or reject an offline punch waiting for HR (audited)' })
   decide(
     @Param('id', ParseUUIDPipe) id: string,

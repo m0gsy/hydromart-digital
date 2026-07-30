@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { MaintenanceService } from '../application/services/maintenance.service';
 import { MaintenanceItem } from '../domain/maintenance';
@@ -11,7 +10,7 @@ import { CreateMaintenanceDto, ListMaintenanceQueryDto } from './dto/maintenance
 /** Depot equipment/vehicle maintenance schedule (depot admin). */
 @ApiTags('Maintenance')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotMaintenance)
+@Can('depotMaintenance')
 @Controller({ path: 'maintenance-items', version: '1' })
 export class MaintenanceController {
   constructor(private readonly maintenance: MaintenanceService) {}

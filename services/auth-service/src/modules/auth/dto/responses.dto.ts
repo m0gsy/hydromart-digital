@@ -1,5 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+import { capabilitiesFor } from '@hydromart/access';
+
 import { CustomerStatus } from '../../../domain/customer/customer-status.enum';
 import { Role } from '../../../domain/customer/role.enum';
 import { OtpChallengeResult, PublicCustomer, SessionResult } from '../../../application/results';
@@ -51,8 +53,23 @@ export class PublicCustomerDto {
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
+  @ApiProperty({
+    type: [String],
+    required: false,
+    description:
+      'Capabilities this account holds under the CURRENT matrix (defaults + super-admin ' +
+      'overrides). Sent on the session and /auth/me only, so the console gates on the same ' +
+      'answer the guards give instead of recomputing it from a stale compiled map.',
+  })
+  capabilities?: string[];
+
   static from(customer: PublicCustomer): PublicCustomerDto {
     return { ...customer };
+  }
+
+  /** As `from`, plus the live capability list. Use on session + profile responses. */
+  static withCapabilities(customer: PublicCustomer): PublicCustomerDto {
+    return { ...customer, capabilities: capabilitiesFor(customer.role) };
   }
 }
 
@@ -78,7 +95,7 @@ export class SessionResponseDto {
       accessToken: result.accessToken,
       expiresIn: result.expiresIn,
       refreshToken: result.refreshToken,
-      customer: PublicCustomerDto.from(result.customer),
+      customer: PublicCustomerDto.withCapabilities(result.customer),
     };
   }
 }

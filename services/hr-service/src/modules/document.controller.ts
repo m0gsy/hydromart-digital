@@ -12,14 +12,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 import { UseGuards } from '@nestjs/common';
 
 import {
@@ -41,21 +34,21 @@ export class DocumentController {
   constructor(private readonly documents: DocumentService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s documents (newest version of each type first)' })
   list(@Query() q: ListDocumentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.documents.list(user, q.employeeId);
   }
 
   @Get(':id')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'One document, including a superseded version' })
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.documents.get(user, id);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload a document; an existing one of the same type is superseded' })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES } }))

@@ -20,15 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import {
-  CurrentUser,
-  AuthenticatedUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
@@ -109,7 +101,7 @@ export class DepotController {
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Get('manage')
   @ApiOperation({ summary: 'List all depots incl. inactive (admin)' })
   manage(@Query() query: BrowseDepotsQueryDto): Promise<Page<DepotRecord>> {
@@ -129,7 +121,7 @@ export class DepotController {
   // Full record for staff/owner tooling (edit forms, HQ onboarding, payment setup).
   // Declared before ':id' so the static `manage` segment wins the route match.
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin, Role.HEAD_OFFICE, Role.FRANCHISE_OWNER)
+  @Can('depotDirectory')
   @Get('manage/:id')
   @ApiOperation({ summary: 'Get one depot in full, incl. payment + ownership (staff)' })
   async manageOne(
@@ -161,7 +153,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Post()
   @ApiOperation({ summary: 'Create a depot (admin)' })
   create(@Body() dto: CreateDepotDto): Promise<DepotRecord> {
@@ -188,7 +180,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a depot: hours, delivery zone/fee, holidays (admin)' })
   update(
@@ -199,7 +191,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Post(':id/qris')
   @ApiOperation({
     summary: 'Upload the depot static QRIS image (admin); returns the updated depot',
@@ -227,7 +219,7 @@ export class DepotController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Deactivate a depot (soft delete, admin)' })

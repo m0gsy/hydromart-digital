@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can } from '@hydromart/platform';
 
 import { RosterService } from '../application/services/roster.service';
 import { ShiftAssignment } from '../domain/shift';
@@ -11,7 +10,7 @@ import { BulkRosterDto, ListRosterQueryDto, SetShiftDto } from './dto/roster.dto
 /** Courier shift roster (design: operator cell 6d "Jadwal shift kurir" + manager cell 7b). */
 @ApiTags('Shift roster')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.driverRoster)
+@Can('driverRoster')
 @Controller({ path: 'shifts', version: '1' })
 export class RosterController {
   constructor(private readonly roster: RosterService) {}

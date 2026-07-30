@@ -234,6 +234,56 @@ export const CAPABILITIES = {
   // requests. Head office only: a depot must never be able to erase a customer, and an
   // approval here is irreversible. NOT granted to DIREKTUR for the same reason.
   pdpRequests: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+
+  // --- Decisions that used to carry a hand-written role array on the controller. ---
+  // They were invisible to this map, so the console showed one thing and the server
+  // enforced another, and a super admin could not retune them at all. Same powers,
+  // now declared here like everything else.
+
+  // depot-service — HQ decides a depot's proposed price change.
+  priceOverrideDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // depot-service — review/approve/reject a franchise application + its documents.
+  franchiseApplications: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // promo-service — HQ decides a depot's voucher request (approving mints the voucher).
+  voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // admin-service — review, block or clear a fraud flag.
+  fraudReview: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // payment-service — START a refund. Wider than deciding one: a depot manager may
+  // raise it, only finance signs it off.
+  refundIssue: ['FINANCE', 'MANAGER', 'SUPER_ADMIN'],
+  // payment-service — decide a refund parked above the auto-refund threshold. Kept
+  // apart from refundIssue on purpose: whoever asks must not be whoever approves.
+  refundQueue: ['FINANCE', 'SUPER_ADMIN'],
+  // payment-service — read the settlement/reconciliation ledger.
+  settlementRead: ['FINANCE', 'SUPER_ADMIN'],
+  // payout-service — release a franchise owner's balance to their bank.
+  hqPayout: ['FINANCE', 'SUPER_ADMIN'],
+  // payout-service — courier earning rules. Was gated in the web console only; the
+  // server had no matching guard at all, so this closes a real hole.
+  earningRules: ['FINANCE', 'SUPER_ADMIN'],
+  // Every service — write a GLOBAL-scope setting (a per-depot override needs only
+  // depotAdmin). Replaces the `user.role !== 'SUPER_ADMIN'` string compare that was
+  // copy-pasted into 14 settings endpoints.
+  settingsGlobal: ['SUPER_ADMIN'],
+  // auth-service — edit this very matrix. Guarded so that a super admin cannot be
+  // removed from it (see the write service), otherwise the lock could be locked away.
+  accessMatrixWrite: ['SUPER_ADMIN'],
+  // auth-service — READ the staff directory. Wider than staffAdmin, which is the power
+  // to change who holds which role: a manager needs the roster, not the switch.
+  staffDirectory: ['HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'SUPER_ADMIN'],
+  // depot-service — read one depot in full (edit forms, HQ onboarding, payment setup).
+  // Wider than depotAdmin because an owner reads their own depot's record.
+  depotDirectory: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'FRANCHISE_OWNER', 'SUPER_ADMIN'],
+  // admin-service + a few HQ-only routes elsewhere — back-office tooling that is not a
+  // depot power: feature flags, SLA policies, support tickets, scheduled reports,
+  // export logs, incident register, system health, network subscriptions, audit trail.
+  // One knob rather than fifteen identical hand-written role pairs.
+  hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // payout-service — READ franchise payout batches. Wider than hqPayout: head office
+  // watches the queue, only finance releases money out of it.
+  hqPayoutRead: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
+  // payout-service — run/close courier commission periods.
+  commissionRuns: ['FINANCE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
 export type Capability = keyof typeof CAPABILITIES;
@@ -249,10 +299,77 @@ export const STAFF_IMPORT_ROLES = ['STAFF_DEPOT', 'KEPALA_DEPOT'] as const satis
 
 export type StaffImportRole = (typeof STAFF_IMPORT_ROLES)[number];
 
-/** Whether a role holds a capability. SUPER_ADMIN holds every one (superuser). */
+/**
+ * SUPER_ADMIN edits to the map above, as a sparse patch: one entry per CHANGED
+ * capability, holding the full replacement role list. An absent entry means "use the
+ * compiled default", so an empty patch is byte-for-byte the behaviour of this file.
+ *
+ * That is what makes the whole feature fail safe: if the source of overrides is
+ * unreachable there are simply no entries, and every guard falls back to the defaults
+ * shipped in the binary rather than locking the platform out.
+ */
+export type CapabilityOverrides = Readonly<Record<string, readonly Role[]>>;
+
+let overrides: CapabilityOverrides = {};
+
+/**
+ * Replace the override snapshot. Called by the platform refresher on a timer, and
+ * directly by tests — this is the only way the map becomes non-default, so a test that
+ * never calls it sees the compiled matrix.
+ */
+export function loadOverrides(next: CapabilityOverrides): void {
+  overrides = next;
+}
+
+/** The current patch (for the matrix editor + the /auth/me snapshot). */
+export function currentOverrides(): CapabilityOverrides {
+  return overrides;
+}
+
+/**
+ * Roles holding `capability` right now: the override if one exists, else the compiled
+ * default. An unknown capability name resolves to nobody — a typo denies rather than
+ * grants (`Capability` makes that a compile error at every call site we control).
+ *
+ * hasOwnProperty, not `overrides[capability] ?? …`: the patch is parsed from JSON off
+ * the wire, so a key like `constructor` must not resolve through the prototype.
+ */
+export function rolesFor(capability: string): readonly Role[] {
+  if (Object.prototype.hasOwnProperty.call(overrides, capability)) {
+    return overrides[capability];
+  }
+  // hasOwnProperty on BOTH maps. A plain `CAPABILITIES[name] ?? []` would answer
+  // `rolesFor('constructor')` with Object itself, and the `.includes()` below would
+  // then throw on a function instead of denying.
+  if (Object.prototype.hasOwnProperty.call(CAPABILITIES, capability)) {
+    return (CAPABILITIES as Record<string, readonly Role[]>)[capability];
+  }
+  return [];
+}
+
+/** Every capability with the roles that hold it right now (defaults + overrides). */
+export function effectiveMatrix(): Record<Capability, readonly Role[]> {
+  const out = {} as Record<Capability, readonly Role[]>;
+  for (const capability of Object.keys(CAPABILITIES) as Capability[]) {
+    out[capability] = rolesFor(capability);
+  }
+  return out;
+}
+
+/** Every capability a role holds right now. SUPER_ADMIN holds all of them. */
+export function capabilitiesFor(role: string | null | undefined): Capability[] {
+  return (Object.keys(CAPABILITIES) as Capability[]).filter((c) => can(c, role));
+}
+
+/**
+ * Whether a role holds a capability. SUPER_ADMIN holds every one (superuser).
+ *
+ * The short-circuit stays ABOVE the override lookup deliberately: even a corrupt or
+ * hostile override row cannot lock the superuser out of the console that fixes it.
+ */
 export function can(capability: Capability, role: string | null | undefined): boolean {
   if (role === 'SUPER_ADMIN') {
     return true;
   }
-  return role != null && (CAPABILITIES[capability] as readonly string[]).includes(role);
+  return role != null && (rolesFor(capability) as readonly string[]).includes(role);
 }

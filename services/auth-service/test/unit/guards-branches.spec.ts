@@ -1,11 +1,10 @@
-import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
 import { InternalAuthGuard, INTERNAL_KEY_HEADER } from '../../src/common/guards/internal-auth.guard';
 import { JwtAuthGuard } from '../../src/common/guards/jwt-auth.guard';
-import { RolesGuard } from '../../src/common/guards/roles.guard';
 import { Role } from '../../src/domain/customer/role.enum';
 import { buildTestConfig } from '../support/fakes';
 
@@ -67,41 +66,6 @@ describe('JwtAuthGuard', () => {
     await expect(
       guard.canActivate(contextFor({ headers: { authorization: 'Bearer expired' } })),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-  });
-});
-
-describe('RolesGuard', () => {
-  function guardWith(required: Role[] | undefined): RolesGuard {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue(required) } as unknown as Reflector;
-    return new RolesGuard(reflector);
-  }
-
-  it('allows a route with no @Roles restriction', () => {
-    expect(guardWith(undefined).canActivate(contextFor({}))).toBe(true);
-  });
-
-  it('allows a route with an empty @Roles list', () => {
-    expect(guardWith([]).canActivate(contextFor({}))).toBe(true);
-  });
-
-  it('rejects an unauthenticated request against a restricted route', () => {
-    const ctx = contextFor({ user: undefined } as Partial<Request>);
-    expect(() => guardWith([Role.HEAD_OFFICE]).canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  it('rejects a user without the required role', () => {
-    const ctx = contextFor({ user: { sub: 'c1', role: Role.CUSTOMER, phone: '+62' } } as Partial<Request>);
-    expect(() => guardWith([Role.HEAD_OFFICE]).canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  it('allows a user holding the required role', () => {
-    const ctx = contextFor({ user: { sub: 'c1', role: Role.HEAD_OFFICE, phone: '+62' } } as Partial<Request>);
-    expect(guardWith([Role.HEAD_OFFICE]).canActivate(ctx)).toBe(true);
-  });
-
-  it('lets SUPER_ADMIN bypass every restriction', () => {
-    const ctx = contextFor({ user: { sub: 'c1', role: Role.SUPER_ADMIN, phone: '+62' } } as Partial<Request>);
-    expect(guardWith([Role.HEAD_OFFICE]).canActivate(ctx)).toBe(true);
   });
 });
 

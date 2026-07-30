@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 
 import { DepotTargetService } from '../application/services/depot-target.service';
 import { DepotTarget } from '../domain/depot-target';
@@ -11,7 +10,7 @@ import { GetDepotTargetQueryDto, UpsertDepotTargetDto } from './dto/depot-target
 /** Per-depot monthly performance targets (manager dashboard). */
 @ApiTags('Depot Targets')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotTargets)
+@Can('depotTargets')
 @Controller({ path: 'depot-targets', version: '1' })
 export class DepotTargetController {
   constructor(private readonly targets: DepotTargetService) {}

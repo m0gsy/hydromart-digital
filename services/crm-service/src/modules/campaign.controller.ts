@@ -12,8 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { CampaignService } from '../application/services/campaign.service';
 import {
@@ -29,7 +28,7 @@ import {
 export class CampaignController {
   constructor(private readonly campaigns: CampaignService) {}
 
-  @Roles(...CAPABILITIES.campaignWrite)
+  @Can('campaignWrite')
   @Post()
   @ApiOperation({ summary: 'Create a draft broadcast campaign — explicit list or segment (FR-087/088/094)' })
   async create(
@@ -48,21 +47,21 @@ export class CampaignController {
     return CampaignDto.from(campaign);
   }
 
-  @Roles(...CAPABILITIES.campaignRead)
+  @Can('campaignRead')
   @Get()
   @ApiOperation({ summary: 'List broadcast campaigns (paginated)' })
   async list(@Query() query: CampaignPageQueryDto): Promise<CampaignListDto> {
     return CampaignListDto.from(await this.campaigns.list(query.page, query.limit));
   }
 
-  @Roles(...CAPABILITIES.campaignRead)
+  @Can('campaignRead')
   @Get(':id')
   @ApiOperation({ summary: 'Get a campaign with its recipients' })
   async get(@Param('id', ParseUUIDPipe) id: string): Promise<CampaignDto> {
     return CampaignDto.from(await this.campaigns.get(id));
   }
 
-  @Roles(...CAPABILITIES.campaignWrite)
+  @Can('campaignWrite')
   @Post(':id/send')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dispatch a draft campaign to all recipients (FR-094)' })

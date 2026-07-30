@@ -35,6 +35,7 @@
     "testEnvironment": "node"
   },
   "dependencies": {
+    "@hydromart/access": "*",
     "joi": "^17.13.3",
     "prom-client": "^15.1.3"
   },

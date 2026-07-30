@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotOwnership } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotOwnership } from '@hydromart/platform';
 
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { DepotService } from '../application/services/depot.service';
@@ -23,7 +22,7 @@ export class GallonReturnController {
     private readonly depots: DepotService,
   ) {}
 
-  @Roles(...CAPABILITIES.returnsWrite)
+  @Can('returnsWrite')
   @Post()
   @ApiOperation({ summary: 'Record an empty-gallon return (staff)' })
   record(
@@ -45,7 +44,7 @@ export class GallonReturnController {
   }
 
   // Static `summary` segment declared before the paginated list so the route is unambiguous.
-  @Roles(...CAPABILITIES.returnsRead)
+  @Can('returnsRead')
   @Get('summary')
   @ApiOperation({ summary: "A depot's return totals (count, gallons, deposit refunded)" })
   async summary(
@@ -56,7 +55,7 @@ export class GallonReturnController {
     return this.returns.summary(depotId);
   }
 
-  @Roles(...CAPABILITIES.returnsRead)
+  @Can('returnsRead')
   @Get()
   @ApiOperation({ summary: "List a depot's gallon returns (paginated, newest first)" })
   async list(

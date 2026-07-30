@@ -11,15 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  ImportSummary,
-  Role,
-  Roles,
-  assertDepotAccess,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary, assertDepotAccess } from '@hydromart/platform';
 
 import { PriceOverrideService } from '../application/services/price-override.service';
 import {
@@ -44,7 +36,7 @@ export class DepotPriceOverrideController {
   constructor(private readonly overrides: PriceOverrideService) {}
 
   @Post()
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @ApiOperation({ summary: 'Propose a per-product price override for a depot (depot manager)' })
   propose(
     @CurrentUser() user: AuthenticatedUser,
@@ -62,7 +54,7 @@ export class DepotPriceOverrideController {
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.depotAdmin)
+  @Can('depotAdmin')
   @ApiOperation({ summary: 'Bulk-propose per-product price overrides from the CSV wizard' })
   import(
     @CurrentUser() user: AuthenticatedUser,
@@ -90,7 +82,7 @@ export class DepotPriceOverrideController {
  */
 @ApiTags('Price overrides')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('priceOverrideDecide')
 @Controller({ path: 'price-overrides', version: '1' })
 export class PriceOverrideController {
   constructor(private readonly overrides: PriceOverrideService) {}

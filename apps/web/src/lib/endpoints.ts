@@ -20,6 +20,10 @@ export const endpoints = {
     customersByIds: (ids: string[]) =>
       `/auth/api/v1/auth/customers/by-ids?ids=${encodeURIComponent(ids.join(','))}`,
     logout: '/auth/api/v1/auth/logout',
+    // RBAC matrix (F2): read the effective map, retune or reset one capability. Writes
+    // are accessMatrixWrite (super-admin by default) and reach the guards within a TTL.
+    matrix: '/auth/api/v1/access/matrix',
+    capability: (name: string) => `/auth/api/v1/access/matrix/${encodeURIComponent(name)}`,
     // Current user's active device sessions (19b) + revoke one by id.
     sessions: '/auth/api/v1/sessions',
     revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,

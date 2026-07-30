@@ -11,8 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
 import { VoucherRequestService } from '../application/services/voucher-request.service';
@@ -31,7 +30,7 @@ export class DepotVoucherRequestController {
   constructor(private readonly requests: VoucherRequestService) {}
 
   @Post()
-  @Roles(...CAPABILITIES.voucherWrite)
+  @Can('voucherWrite')
   @ApiOperation({ summary: 'Propose a voucher for a depot (depot manager)' })
   propose(
     @CurrentUser() user: AuthenticatedUser,
@@ -59,7 +58,7 @@ export class DepotVoucherRequestController {
  */
 @ApiTags('Voucher requests')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('voucherRequestDecide')
 @Controller({ path: 'voucher-requests', version: '1' })
 export class VoucherRequestController {
   constructor(private readonly requests: VoucherRequestService) {}

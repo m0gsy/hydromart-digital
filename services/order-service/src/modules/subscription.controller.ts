@@ -11,14 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-} from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
@@ -37,7 +30,7 @@ export class SubscriptionController {
     return this.subscriptions.list(user.sub);
   }
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('hqConsole')
   @Get('admin/summary')
   @ApiOperation({ summary: 'HQ network subscription aggregate (18c)' })
   adminSummary() {

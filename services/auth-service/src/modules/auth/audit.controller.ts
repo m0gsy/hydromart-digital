@@ -1,13 +1,11 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
+import { Can } from '@hydromart/platform';
 
 import { AuditService } from '../../application/services/audit.service';
 import { Public } from '../../common/decorators/public.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
-import { Role } from '../../domain/customer/role.enum';
 import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from './dto/audit.dto';
 
 @ApiTags('Audit')
@@ -18,7 +16,7 @@ export class AuditController {
 
   // HQ audit trail (feature 8a): recent privileged actions across services, newest
   // first. Read is head-office / super-admin only.
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('hqConsole')
   @Get('auth/audit')
   @ApiOperation({ summary: 'List recent audit entries (HQ, paginated, newest first)' })
   async list(@Query() query: AuditQueryDto): Promise<{
@@ -39,7 +37,7 @@ export class AuditController {
   // Depot-scoped audit trail (design 8b): a depot operator/manager sees their own
   // depot's privileged actions. auditRead spans depot roles + HQ. depotId is required
   // by the DTO, so this route can never fan out to the whole network.
-  @Roles(...CAPABILITIES.auditRead)
+  @Can('auditRead')
   @Get('auth/audit/depot')
   @ApiOperation({ summary: 'List a depot-scoped audit trail (newest first, category chips)' })
   async listForDepot(@Query() query: DepotAuditQueryDto): Promise<{

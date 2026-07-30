@@ -12,8 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
+import { Can, CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
 
 import {
   ChurnItem,
@@ -37,7 +36,7 @@ import {
 // rebuild overrides with SUPER_ADMIN below (RolesGuard uses getAllAndOverride: handler wins).
 @ApiTags('forecast')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.forecast)
+@Can('forecast')
 @Controller({ path: 'forecast', version: '1' })
 export class ForecastController {
   constructor(
@@ -114,7 +113,7 @@ export class ForecastController {
   // Churn is CRM-facing (re-engagement) — overrides the class PLANNING_ROLES with CHURN_ROLES
   // via getAllAndOverride (handler wins). A planning role not in this set (e.g. KEPALA_DEPOT)
   // is rejected.
-  @Roles(...CAPABILITIES.churn)
+  @Can('churn')
   @Get('churn')
   @ApiOperation({ summary: 'At-risk customers ranked by recency-driven churn risk' })
   async churn(@Query() query: ChurnQueryDto): Promise<{ customers: ChurnItem[] }> {

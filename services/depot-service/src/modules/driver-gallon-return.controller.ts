@@ -1,8 +1,7 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonReturnRecord } from '../application/ports/gallon-return.repository';
@@ -19,7 +18,7 @@ import { CreateCourierReturnDto } from './dto/gallon-return.dto';
 export class DriverGallonReturnController {
   constructor(private readonly returns: GallonReturnService) {}
 
-  @Roles(...CAPABILITIES.courierReturn)
+  @Can('courierReturn')
   @Post()
   @ApiOperation({ summary: 'Record an empty-gallon return at delivery handover (courier)' })
   record(

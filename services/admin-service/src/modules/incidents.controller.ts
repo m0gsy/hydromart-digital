@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
 import {
@@ -26,7 +26,7 @@ import {
 // incident_updates rows.
 @ApiTags('Incidents')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('hqConsole')
 @Controller({ path: 'incidents', version: '1' })
 export class IncidentsController {
   constructor(private readonly incidents: IncidentService) {}

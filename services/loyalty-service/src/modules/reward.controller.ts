@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { RewardService } from '../application/services/reward.service';
 import {
@@ -100,7 +99,7 @@ export class RewardController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.rewardHandover)
+  @Can('rewardHandover')
   @Get('redemptions/active')
   @ApiOperation({
     summary: 'Redemptions still waiting to be handed over, oldest first (M14-03)',
@@ -127,7 +126,7 @@ export class RewardController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.rewardHandover)
+  @Can('rewardHandover')
   @Post('redemptions/:id/used')
   @ApiOperation({
     summary: 'Mark a redemption as handed over; closes the cancellation window (M14-03)',

@@ -5,9 +5,9 @@ import { Request } from 'express';
 import { AccountService } from '../../application/services/account.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { Can, Roles } from '@hydromart/platform';
 import { Role } from '../../domain/customer/role.enum';
-import { CAPABILITIES } from '@hydromart/access';
+
 import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
@@ -34,7 +34,7 @@ export class AccountController {
   @ApiOkResponse({ type: PublicCustomerDto })
   async me(@CurrentUser() user: AuthenticatedUser): Promise<PublicCustomerDto> {
     const profile = await this.account.getProfile(user.sub);
-    return PublicCustomerDto.from(profile);
+    return PublicCustomerDto.withCapabilities(profile);
   }
 
   @Patch('auth/me')
@@ -76,7 +76,7 @@ export class AccountController {
 
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
-  @Roles(...CAPABILITIES.staffAdmin, Role.MANAGER)
+  @Can('staffDirectory')
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
   async listStaff(
@@ -103,7 +103,7 @@ export class AccountController {
   // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the
   // staff directory above (head-office / super-admin only), dispatchers must be
   // able to read this, so it also allows the depot dispatch roles.
-  @Roles(...CAPABILITIES.driverRoster)
+  @Can('driverRoster')
   @Get('auth/drivers')
   @ApiOperation({ summary: 'List active drivers (couriers) for dispatch' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
@@ -114,7 +114,7 @@ export class AccountController {
 
   // HQ overview KPI (feature: new-customers tile): count of end-customer signups
   // in an optional [from, to) ISO window. Head-office / super-admin only.
-  @Roles(...CAPABILITIES.staffAdmin)
+  @Can('staffAdmin')
   @Get('auth/customers/count')
   @ApiOperation({ summary: 'HQ: count new customer signups in an optional date window' })
   async countCustomers(
@@ -130,7 +130,7 @@ export class AccountController {
     return { count, from: from ?? null, to: to ?? null };
   }
 
-  @Roles(...CAPABILITIES.staffAdmin)
+  @Can('staffAdmin')
   @Post('auth/staff/invite')
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })

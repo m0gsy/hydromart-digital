@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { CommissionService } from '../application/services/commission.service';
 import { CommissionSchemeRecord } from '../domain/commission';
@@ -15,7 +15,7 @@ import { ApplySchemeDto } from './dto/commission.dto';
  */
 @ApiTags('Commission')
 @ApiBearerAuth()
-@Roles(Role.FINANCE, Role.SUPER_ADMIN)
+@Can('commissionRuns')
 @Controller({ path: 'commission', version: '1' })
 export class CommissionController {
   constructor(private readonly commission: CommissionService) {}

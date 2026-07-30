@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SettingsCache } from '@hydromart/platform';
 
 import { ReferralService } from '../../src/application/services/referral.service';
@@ -156,13 +156,16 @@ describe('SettingsController reset depotId branch', () => {
     expect(reset).toHaveBeenLastCalledWith('DEPOT', null, 'referrerPoints');
   });
 
-  it('forbids a non-SUPER_ADMIN from resetting a GLOBAL default', async () => {
+  // GLOBAL scope now needs the `settingsGlobal` capability rather than a hardcoded
+  // SUPER_ADMIN string compare, so the message is the shared one — what matters is that
+  // a depot-level role still cannot move the network default.
+  it('forbids a role without settingsGlobal from resetting a GLOBAL default', async () => {
     const reset = jest.fn();
     const controller = new SettingsController({ reset } as unknown as SettingsService);
     const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
     await expect(
       controller.reset({ scope: 'GLOBAL', key: 'referrerPoints' } as never, staff),
-    ).rejects.toThrow('Only SUPER_ADMIN');
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(reset).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,8 @@ x-shared: &shared
   NODE_ENV: production
   JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
   INTERNAL_SERVICE_KEY: itest-shared-internal-key-0123456789
+  # RBAC override polling (see the prod compose note).
+  AUTH_SERVICE_URL: http://auth:3001
 
 x-svc: &svc
   restart: "no"

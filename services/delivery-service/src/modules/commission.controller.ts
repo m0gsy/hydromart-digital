@@ -1,8 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { CommissionRun, CommissionService } from '../application/services/commission.service';
 import { CommissionQueryDto } from './dto/commission.dto';
@@ -19,7 +18,7 @@ function nextMonthStart(now: Date): Date {
  * depot operators/managers + finance can read their couriers' pay run. */
 @ApiTags('Commission')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.courierSettle)
+@Can('courierSettle')
 @Controller({ path: 'commission', version: '1' })
 export class CommissionController {
   constructor(private readonly commission: CommissionService) {}

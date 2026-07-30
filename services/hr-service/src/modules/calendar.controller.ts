@@ -12,8 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { HolidayService } from '../application/services/holiday.service';
 import { ShiftService } from '../application/services/shift.service';
@@ -37,21 +36,21 @@ export class HolidayController {
   constructor(private readonly holidays: HolidayService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List holidays (depot-scoped for depot roles)' })
   list(@Query() q: ListHolidayDto, @CurrentUser() user: AuthenticatedUser) {
     return this.holidays.list(user, q);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Add a holiday (omit depotId for a national one)' })
   create(@Body() dto: CreateHolidayDto, @CurrentUser() user: AuthenticatedUser) {
     return this.holidays.create(user, dto);
   }
 
   @Delete(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a holiday' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -67,21 +66,21 @@ export class ShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List shifts (depot-scoped for depot roles)' })
   list(@Query() q: ListShiftDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.list(user, q.depotId);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create a shift' })
   create(@Body() dto: CreateShiftDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Update a shift' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -92,7 +91,7 @@ export class ShiftController {
   }
 
   @Delete(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a shift' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
@@ -111,21 +110,21 @@ export class ShiftRotationController {
   constructor(private readonly shifts: ShiftService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List rotations (a depot sees its own plus network-wide ones)' })
   list(@Query() q: ListShiftDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.listRotations(user, q.depotId);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create a weekly rotation (pattern keyed 0=Sunday .. 6=Saturday)' })
   create(@Body() dto: CreateRotationDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.createRotation(user, dto);
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Update a rotation' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -136,14 +135,14 @@ export class ShiftRotationController {
   }
 
   @Get('assignments')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'One employee’s shift assignment history, newest first' })
   listAssignments(@Query() q: ListAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.listAssignments(user, q.employeeId);
   }
 
   @Post('assignments')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Put an employee on a shift or rotation from a date (append-only)' })
   assign(@Body() dto: CreateAssignmentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.shifts.assign(user, dto);

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public, Role, Roles } from '@hydromart/platform';
+import { Can, Public } from '@hydromart/platform';
 
 import {
   ApproveResult,
@@ -35,7 +35,7 @@ import {
  */
 @ApiTags('Franchise applications')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('franchiseApplications')
 @Controller({ path: 'franchise-applications', version: '1' })
 export class FranchiseApplicationController {
   constructor(private readonly applications: FranchiseApplicationService) {}

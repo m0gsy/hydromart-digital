@@ -13,14 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { EmployeeService } from '../application/services/employee.service';
 import {
@@ -80,35 +73,35 @@ export class EmployeesController {
   }
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List employees (depot-scoped for depot roles)' })
   list(@Query() query: ListEmployeesDto, @CurrentUser() user: AuthenticatedUser) {
     return this.employees.list(user, query);
   }
 
   @Get(':id')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Get one employee' })
   getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.employees.getById(user, id);
   }
 
   @Get(':id/history')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Employment change log for one employee' })
   getHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.employees.getHistory(user, id);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create an employee (auto-assigns HR-#### code)' })
   create(@Body() dto: CreateEmployeeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.employees.create(user, dto);
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({
     summary: 'Bulk-import employees from the CSV wizard (provisions a login per row)',
     description:
@@ -119,7 +112,7 @@ export class EmployeesController {
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Update an employee (logs tracked-field changes to history)' })
   update(
     @Param('id', ParseUUIDPipe) id: string,

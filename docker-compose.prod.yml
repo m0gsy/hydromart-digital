@@ -13,6 +13,10 @@ x-shared: &shared
   NODE_ENV: production
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (min 32 chars)}
   INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?set INTERNAL_SERVICE_KEY}
+  # Every service polls auth-service for the super admin's RBAC overrides. Shared rather
+  # than per-service: a service that misses it silently serves the compiled defaults
+  # forever, which looks like "the matrix edit did nothing" and is hard to spot.
+  AUTH_SERVICE_URL: http://auth:3001
   # Optional error alerting: Slack/Discord/webhook URL. Blank = disabled (no 5xx pings).
   ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
   # M12-11: Swagger in production needs HTTP Basic. Both blank = /docs is not mounted at

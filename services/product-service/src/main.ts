@@ -9,7 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics, protectDocs } from '@hydromart/platform';
+import { enableMetrics, httpCapabilityLoader, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { ProductConfigService } from './config/product-config.service';
@@ -44,6 +44,15 @@ async function bootstrap(): Promise<void> {
   if (protectDocs(app)) {
     SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
   }
+  // Keep the RBAC matrix current without a deploy: poll auth-service for the super
+  // admin's overrides. Failure leaves the compiled defaults in place, never a lockout.
+  startCapabilityRefresh(
+    httpCapabilityLoader({
+      authServiceUrl: process.env.AUTH_SERVICE_URL,
+      internalKey: process.env.INTERNAL_SERVICE_KEY,
+    }),
+    { logger },
+  );
 
   enableMetrics(app, 'product-service');
   await app.listen(config.port, '0.0.0.0');

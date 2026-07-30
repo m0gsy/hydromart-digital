@@ -2,10 +2,19 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
-import { AuthenticatedUser } from '../http/authenticated-user';
-import { IS_PUBLIC_KEY, ROLES_KEY } from './decorators';
+import { can, type Capability } from '@hydromart/access';
 
-/** Enforces @Roles(...). No decorator ⇒ no restriction. Runs after JwtAuthGuard. */
+import { AuthenticatedUser } from '../http/authenticated-user';
+import { CAPABILITY_KEY, IS_PUBLIC_KEY, ROLES_KEY } from './decorators';
+
+/**
+ * Enforces @Can(capability) and @Roles(...). No decorator ⇒ no restriction. Runs after
+ * JwtAuthGuard.
+ *
+ * @Can resolves against the live capability map, so a super admin's matrix edit takes
+ * effect without a deploy. @Roles keeps its literal list, for the routes where the set
+ * is a fact rather than a policy (customer-only, service-to-service).
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -22,19 +31,47 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const required = this.reflector.getAllAndOverride<readonly string[] | undefined>(ROLES_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (!required || required.length === 0) {
+    const { capability, roles } = this.required(context);
+    if (!capability && (!roles || roles.length === 0)) {
       return true;
     }
     const user = context.switchToHttp().getRequest<Request>().user as AuthenticatedUser | undefined;
-    // SUPER_ADMIN holds every capability by design (superuser). Kept here in the
-    // shared guard so the bypass can never drift between services.
-    if (!user || (user.role !== 'SUPER_ADMIN' && !required.includes(user.role))) {
+    if (!user) {
+      throw new ForbiddenException('You do not have permission to perform this action.');
+    }
+    // `can()` already short-circuits SUPER_ADMIN; the @Roles path repeats the bypass so
+    // the two branches cannot drift, and so it survives an empty literal list.
+    const allowed = capability
+      ? can(capability, user.role)
+      : user.role === 'SUPER_ADMIN' || (roles ?? []).includes(user.role);
+    if (!allowed) {
       throw new ForbiddenException('You do not have permission to perform this action.');
     }
     return true;
+  }
+
+  /**
+   * Resolve what this route requires, HANDLER FIRST — not key first.
+   *
+   * getAllAndOverride() per key would let a class-level @Can shadow a method-level
+   * @Roles (or the reverse), silently applying the wrong rule to the narrower
+   * decorator. So: if the handler declares either one, the handler decides outright,
+   * and only an undecorated handler inherits from its class.
+   */
+  private required(context: ExecutionContext): {
+    capability?: Capability;
+    roles?: readonly string[];
+  } {
+    const handler = context.getHandler();
+    const handlerCapability = this.reflector.get<Capability | undefined>(CAPABILITY_KEY, handler);
+    const handlerRoles = this.reflector.get<readonly string[] | undefined>(ROLES_KEY, handler);
+    if (handlerCapability || (handlerRoles && handlerRoles.length > 0)) {
+      return { capability: handlerCapability, roles: handlerRoles };
+    }
+    const cls = context.getClass();
+    return {
+      capability: this.reflector.get<Capability | undefined>(CAPABILITY_KEY, cls),
+      roles: this.reflector.get<readonly string[] | undefined>(ROLES_KEY, cls),
+    };
   }
 }

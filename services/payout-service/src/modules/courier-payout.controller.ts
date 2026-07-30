@@ -10,14 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   CourierEarningsSummary,
@@ -42,7 +35,7 @@ import { RequestWithdrawalDto } from './dto/payout.dto';
 // Courier-scoped: reads the calling courier's own earnings ledger (user.sub).
 @ApiTags('Courier Payout')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.courierPayout)
+@Can('courierPayout')
 @Controller({ path: 'courier', version: '1' })
 export class CourierPayoutController {
   constructor(

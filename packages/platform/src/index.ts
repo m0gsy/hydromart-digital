@@ -9,7 +9,17 @@ export {
 } from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext } from './http/request-context';
-export { Public, Roles, CurrentUser, IS_PUBLIC_KEY, ROLES_KEY } from './nest/decorators';
+export {
+  Public,
+  Roles,
+  Can,
+  CurrentUser,
+  IS_PUBLIC_KEY,
+  ROLES_KEY,
+  CAPABILITY_KEY,
+} from './nest/decorators';
+export { assertCapability } from './nest/capability';
+export { startCapabilityRefresh, httpCapabilityLoader } from './nest/capability-refresh';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
 export { DepotScopeGuard } from './nest/depot-scope.guard';

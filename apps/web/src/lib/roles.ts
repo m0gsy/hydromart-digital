@@ -4,10 +4,38 @@
 // the backend's own definition, imported. Change a role once in @hydromart/access and
 // the server guard, every canX() gate, and the "Peran & hak akses" matrix all move
 // together. Covered by test/roles.test.ts.
-import { CAPABILITIES, can, type Capability } from '@hydromart/access';
+import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
 
-export { CAPABILITIES, can };
+export { CAPABILITIES };
 export type { Capability };
+
+// The signed-in account's capability list as the SERVER computed it (defaults plus any
+// super-admin override), delivered on the session and /auth/me. Held module-level for
+// the same reason CAPABILITIES is: every canX() wrapper reads it without threading a
+// context through 35 call sites.
+let session: { role: string; caps: ReadonlySet<string> } | null = null;
+
+/** Called by the auth context whenever the signed-in account changes. */
+export function loadSessionCapabilities(
+  role: string | null | undefined,
+  capabilities: string[] | null | undefined,
+): void {
+  session = role && capabilities ? { role, caps: new Set(capabilities) } : null;
+}
+
+/**
+ * Whether a role holds a capability.
+ *
+ * For the SIGNED-IN role this answers from the server's own list, so a super admin's
+ * matrix edit moves the console at the same moment it moves the guards. For any OTHER
+ * role — the access matrix screen asking "what can a SUPERVISOR do?" — it falls back to
+ * the compiled defaults, which is the right answer to a different question.
+ */
+export function can(capability: Capability, role: string | null | undefined): boolean {
+  if (role === 'SUPER_ADMIN') return true;
+  if (session && role === session.role) return session.caps.has(capability);
+  return compiledCan(capability, role);
+}
 
 /** Any non-customer role — used to gate the staff surfaces broadly. Not a capability set. */
 export function isStaff(role: string | null | undefined): boolean {

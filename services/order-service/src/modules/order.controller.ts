@@ -15,17 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-  assertDepotAccess,
-  depotScopeFilter,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -95,7 +85,7 @@ export class OrderController {
   }
 
   // Declared before any ':id' route so 'walk-in' is never read as an order id.
-  @Roles(...CAPABILITIES.walkInSale)
+  @Can('walkInSale')
   @Post('walk-in')
   @ApiOperation({ summary: 'Record a cash sale at the depot counter (completed immediately)' })
   walkIn(
@@ -145,7 +135,7 @@ export class OrderController {
 
   // Static `manage` routes are declared before `:id` so they are not captured by it.
   @Get('manage')
-  @Roles(...CAPABILITIES.orderQueue)
+  @Can('orderQueue')
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
   async listManaged(
     @CurrentUser() user: AuthenticatedUser,
@@ -177,7 +167,7 @@ export class OrderController {
   }
 
   @Get('manage/:id')
-  @Roles(...CAPABILITIES.orderQueue)
+  @Can('orderQueue')
   @ApiOperation({ summary: 'Staff: read any order by id' })
   async getManaged(
     @CurrentUser() user: AuthenticatedUser,

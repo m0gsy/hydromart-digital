@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { PayoutService, PendingPayout } from '../application/services/payout.service';
 import { WithdrawalRecord } from '../domain/ledger';
@@ -23,7 +23,7 @@ import { ReleasePayoutDto } from './dto/payout.dto';
  */
 @ApiTags('Payout (HQ)')
 @ApiBearerAuth()
-@Roles(Role.FINANCE, Role.SUPER_ADMIN)
+@Can('hqPayout')
 @Controller({ path: 'payout/hq', version: '1' })
 export class HqPayoutController {
   constructor(private readonly payout: PayoutService) {}
@@ -36,7 +36,7 @@ export class HqPayoutController {
 
   // Read-only single-owner balance for the HQ depot-detail payout card. HEAD_OFFICE also
   // reads it (depot admins view depot detail); release stays FINANCE/SUPER_ADMIN only.
-  @Roles(Role.HEAD_OFFICE, Role.FINANCE, Role.SUPER_ADMIN)
+  @Can('hqPayoutRead')
   @Get('owner/:ownerId')
   @ApiOperation({ summary: "One franchise owner's available balance + next release date" })
   ownerBalance(@Param('ownerId', ParseUUIDPipe) ownerId: string): Promise<PendingPayout> {

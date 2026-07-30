@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { AdminNotificationPrefService } from '../application/services/admin-notification-pref.service';
 import {
@@ -13,7 +13,7 @@ import {
 // (keyed by the auth `sub`), so both roles are allowed but each only ever sees/writes its own.
 @ApiTags('Notification preferences')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('hqConsole')
 @Controller({ path: 'notification-prefs', version: '1' })
 export class NotificationPrefsController {
   constructor(private readonly prefs: AdminNotificationPrefService) {}

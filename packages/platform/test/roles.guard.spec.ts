@@ -2,13 +2,17 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
 import { Role } from '../src/domain/role.enum';
-import { IS_PUBLIC_KEY } from '../src/nest/decorators';
+import { IS_PUBLIC_KEY, ROLES_KEY } from '../src/nest/decorators';
 import { RolesGuard } from '../src/nest/roles.guard';
 
+// The guard reads @Public() with getAllAndOverride (handler-or-class is enough there)
+// but resolves the role/capability pair with get(), handler first, so a class-level
+// decorator cannot overrule a narrower one on the method.
 function makeGuard(meta: { isPublic?: boolean; roles?: readonly string[] }): RolesGuard {
   const reflector = {
     getAllAndOverride: (key: unknown) =>
       key === IS_PUBLIC_KEY ? (meta.isPublic ?? false) : meta.roles,
+    get: (key: unknown) => (key === ROLES_KEY ? meta.roles : undefined),
   } as unknown as Reflector;
   return new RolesGuard(reflector);
 }

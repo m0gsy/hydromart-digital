@@ -2,14 +2,7 @@ import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { CAPABILITIES } from '@hydromart/access';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
 import { tableReportPdf } from '../domain/payroll-pdf';
@@ -30,7 +23,7 @@ export class ReportsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
   @Get('dashboard')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'HR dashboard: headcount, today’s attendance, payroll totals' })
   dashboard(@Query() q: DashboardQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.analytics.dashboard(user, q);
@@ -50,7 +43,7 @@ export class ReportsController {
   }
 
   @Get('employees')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Employee directory export (CSV or ?format=xlsx)' })
   async employees(
     @Query() q: EmployeeReportQueryDto,
@@ -66,7 +59,7 @@ export class ReportsController {
   }
 
   @Get('attendance')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Attendance export for a date range (CSV or ?format=xlsx)' })
   async attendance(
     @Query() q: AttendanceReportQueryDto,
@@ -82,7 +75,7 @@ export class ReportsController {
   }
 
   @Get('payroll')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Payroll export for a period (CSV or ?format=xlsx)' })
   async payroll(
     @Query() q: PayrollReportQueryDto,
@@ -98,7 +91,7 @@ export class ReportsController {
   }
 
   @Get('late')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Lateness export for a date range (CSV, xlsx or pdf)' })
   async late(
     @Query() q: AttendanceReportQueryDto,
@@ -116,7 +109,7 @@ export class ReportsController {
   }
 
   @Get('leave')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Leave export — anything overlapping the range (CSV, xlsx or pdf)' })
   async leave(
     @Query() q: AttendanceReportQueryDto,
@@ -134,7 +127,7 @@ export class ReportsController {
   }
 
   @Get('performance')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Performance export for a period (CSV, xlsx or pdf)' })
   async performance(
     @Query() q: PayrollReportQueryDto,
@@ -152,7 +145,7 @@ export class ReportsController {
   }
 
   @Get('assets')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Asset register export (CSV, xlsx or pdf)' })
   async assets(
     @Query() q: EmployeeReportQueryDto,
@@ -169,7 +162,7 @@ export class ReportsController {
   }
 
   @Get('announcements')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Announcement reach & read-rate export (CSV, xlsx or pdf)' })
   async announcements(@Query() q: RangeReportQueryDto, @Res() res: Response) {
     await this.deliver(
