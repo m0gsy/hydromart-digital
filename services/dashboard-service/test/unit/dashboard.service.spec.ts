@@ -226,3 +226,99 @@ describe('DashboardService', () => {
     expect(result.crm).toBeNull();
   });
 });
+
+// Every upstream is optional: the console must still render, marking each source as
+// unavailable rather than inventing a zero that looks like a real measurement.
+describe('DashboardService with every upstream down', () => {
+  const allDown = () =>
+    ({
+      sales: jest.fn().mockResolvedValue(null),
+      topCustomers: jest.fn().mockResolvedValue(null),
+      topDepots: jest.fn().mockResolvedValue(null),
+      deliverySla: jest.fn().mockResolvedValue(null),
+      myDepots: jest.fn().mockResolvedValue(null),
+      allDepots: jest.fn().mockResolvedValue(null),
+      lowStock: jest.fn().mockResolvedValue(null),
+      slaByDepot: jest.fn().mockResolvedValue(null),
+      ratingByDepot: jest.fn().mockResolvedValue(null),
+      depotMonthly: jest.fn().mockResolvedValue(null),
+      operationalCosts: jest.fn().mockResolvedValue(null),
+      crmSummary: jest.fn().mockResolvedValue(null),
+    }) as unknown as DashboardSourcesPort;
+
+  const range = { from: null, to: null } as never;
+
+  it('network reports no depots and marks every source unavailable', async () => {
+    const out = await new DashboardService(allDown()).network(range, 'Bearer t');
+
+    expect(out.depots).toEqual([]);
+    expect(out.sources).toEqual({
+      depot: 'unavailable',
+      order: 'unavailable',
+      delivery: 'unavailable',
+      inventory: 'unavailable',
+    });
+  });
+
+  it('franchise reports no depots and marks every source unavailable', async () => {
+    const out = await new DashboardService(allDown()).franchise(range, 'Bearer t');
+
+    expect(out.depots).toEqual([]);
+    expect(Object.values(out.sources)).toContain('unavailable');
+  });
+});
+
+describe('DashboardService when the depots list survives but nothing else does', () => {
+  const depots = [
+    { id: 'dep-1', code: 'JKT-01', name: 'Depot Cikini', active: true, ownershipType: 'MILIK_SENDIRI' },
+  ];
+  const partial = () =>
+    ({
+      sales: jest.fn().mockResolvedValue({ totalRevenue: 0, orderCount: 0 }),
+      topCustomers: jest.fn().mockResolvedValue({ items: [] }),
+      topDepots: jest.fn().mockResolvedValue(null),
+      deliverySla: jest.fn().mockResolvedValue(null),
+      myDepots: jest.fn().mockResolvedValue(depots),
+      allDepots: jest.fn().mockResolvedValue(depots),
+      lowStock: jest.fn().mockResolvedValue(null),
+      slaByDepot: jest.fn().mockResolvedValue(null),
+      ratingByDepot: jest.fn().mockResolvedValue(null),
+      crmSummary: jest.fn().mockResolvedValue({
+        depotId: 'dep-1',
+        counts: { baru: 0, aktif: 0, inactive: 0, total: 0 },
+        followUps: [],
+        repeatRatePct: 0,
+      }),
+      hrSummary: jest.fn().mockResolvedValue(null),
+    }) as unknown as DashboardSourcesPort;
+
+  const range = { from: null, to: null } as never;
+
+  it('reports the depot with nulls, not zeros, for what it could not measure', async () => {
+    const out = await new DashboardService(partial()).network(range, 'Bearer t');
+
+    expect(out.depots[0]).toMatchObject({
+      depotId: 'dep-1',
+      orderCount: 0,
+      slaRate: null,
+      avgMinutes: null,
+      rating: null,
+      lowStockCount: 0,
+    });
+    expect(out.sources.inventory).toBe('unavailable');
+  });
+
+  it('the franchise view does the same, and a depot with no customers is 0% repeat', async () => {
+    const out = await new DashboardService(partial()).franchise(range, 'Bearer t');
+
+    expect(out.depots[0]).toMatchObject({ orderCount: 0, revenue: 0, lowStockCount: 0 });
+  });
+
+  it('the executive view marks delivery unavailable while order data still loads', async () => {
+    const out = await new DashboardService(partial()).executive(range, 'Bearer t');
+
+    // topDepots is the order source for this view; with it down the whole source reads as
+    // unavailable rather than as an empty leaderboard.
+    expect(out.sources).toMatchObject({ order: 'unavailable', delivery: 'unavailable' });
+  });
+});
