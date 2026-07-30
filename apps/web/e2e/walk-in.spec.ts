@@ -10,6 +10,23 @@ import { loginWithOtp } from './helpers/auth';
 test('records a cash sale at the counter and prints a receipt', async ({ page, context }) => {
   await loginWithOtp(page);
 
+  // What the depot list actually answered, so "no depot" can never be reported without the
+  // response that caused it. Run inside the full suite this skipped while passing on its own,
+  // and a skip with no evidence is indistinguishable from a green run.
+  const depotCalls: string[] = [];
+  page.on('response', async (res) => {
+    if (!/\/depots(\?|$)/.test(new URL(res.url()).pathname + (res.url().includes('?') ? '?' : '')))
+      return;
+    let count: number | string = '?';
+    try {
+      const body = (await res.json()) as { items?: unknown[] } | unknown[];
+      count = Array.isArray(body) ? body.length : (body.items?.length ?? '?');
+    } catch {
+      count = 'unparseable';
+    }
+    depotCalls.push(`${res.request().method()} ${res.status()} n=${count} ${res.url()}`);
+  });
+
   await page.goto('/dashboard/walk-in');
 
   // The screen needs a depot: the operator's own, or the switcher's for roles that are not
@@ -20,7 +37,8 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   const noDepot = page.getByRole('heading', { name: /Belum ada depot/i });
   await expect(heading.or(noDepot).first()).toBeVisible({ timeout: 15_000 });
   if (await noDepot.isVisible()) {
-    test.skip(true, 'no depot available to this account on this runner');
+    console.log(`[walk-in] depot list responses:\n  ${depotCalls.join('\n  ') || '(none)'}`);
+    test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);
   }
 
   // No products seeded for this depot → nothing to sell; that's an environment gap.

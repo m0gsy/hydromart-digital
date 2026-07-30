@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import { endpoints } from './endpoints';
 import { getDepot, setDepot, subscribe } from './depot-store';
+import { getSession, subscribe as subscribeSession } from './session-store';
 import type { Depot, Page } from './types';
 
 export interface DepotContextValue {
@@ -42,6 +43,11 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
   const [listSettled, setListSettled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // Whoever is signed in. The provider mounts once for the whole app — including on /login, where
+  // nobody is — and used to fetch the list exactly then and never again. Signing in therefore left
+  // the console holding the signed-out answer (an empty list) until a full page reload, which is
+  // how a cashier reached the counter screen and was told "Belum ada depot".
+  const [accountId, setAccountId] = useState<string | null>(getSession()?.customer?.id ?? null);
   const ready = storedRead && listSettled;
 
   useEffect(() => {
@@ -50,8 +56,14 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
     return subscribe(setLocal);
   }, []);
 
+  useEffect(
+    () => subscribeSession((session) => setAccountId(session?.customer?.id ?? null)),
+    [],
+  );
+
   useEffect(() => {
     let alive = true;
+    setListSettled(false);
     api
       .get<Page<Depot>>(endpoints.depots.browse({ limit: 100 }), true)
       .then((page) => {
@@ -70,7 +82,9 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
     return () => {
       alive = false;
     };
-  }, [attempt]);
+    // Refetch when the signed-in account changes: signing in, signing out, or switching user all
+    // change which depots the caller may see.
+  }, [attempt, accountId]);
 
   const value = useMemo<DepotContextValue>(() => {
     const selected = depots.find((d) => d.id === selectedId) ?? null;
