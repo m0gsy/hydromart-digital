@@ -63,6 +63,52 @@ describe('InventoryService', () => {
     minimumStock: 20,
   });
 
+
+  // Every depot-scoped read and write checks the depot exists first: without it a typo'd id
+  // silently reads an empty depot instead of failing, and a reservation could be booked
+  // against nothing at all.
+  describe('an unknown depot is refused, not treated as empty', () => {
+    const UNKNOWN = '99999999-9999-4999-8999-999999999999';
+
+    it('on every entry point that takes a depot id', async () => {
+      await expect(inventory.listForDepot(UNKNOWN, {})).rejects.toBeInstanceOf(DepotNotFoundError);
+      await expect(
+        inventory.reserveForOrder(UNKNOWN, 'ord-1', [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR),
+      ).rejects.toBeInstanceOf(DepotNotFoundError);
+      await expect(
+        inventory.releaseForOrder(UNKNOWN, 'ord-1', [{ productId: PRODUCT_ID, quantity: 1 }]),
+      ).rejects.toBeInstanceOf(DepotNotFoundError);
+      await expect(
+        inventory.listMovementsForDepot(UNKNOWN, { page: 1, limit: 20 }),
+      ).rejects.toBeInstanceOf(DepotNotFoundError);
+    });
+  });
+
+  describe('lines that cannot move', () => {
+    it('skips a non-positive quantity and a product this depot does not stock', async () => {
+      const reserved = await inventory.reserveForOrder(
+        depotId,
+        'ord-1',
+        [
+          { productId: PRODUCT_ID, quantity: 0 },
+          { productId: '22222222-2222-4222-8222-222222222222', quantity: 2 },
+        ],
+        ACTOR,
+      );
+
+      expect(reserved.reserved).toEqual([]);
+      expect(reserved.skipped).toContain('22222222-2222-4222-8222-222222222222');
+    });
+
+    it('releasing a product with no line here is a no-op, not an error', async () => {
+      const released = await inventory.releaseForOrder(depotId, 'ord-1', [
+        { productId: '22222222-2222-4222-8222-222222222222', quantity: 1 },
+      ]);
+
+      expect(released.released).toEqual([]);
+    });
+  });
+
   it('imports many stock lines, skipping the ones already on the shelf', async () => {
     await inventory.createLine(depotId, raw(), ACTOR);
 
