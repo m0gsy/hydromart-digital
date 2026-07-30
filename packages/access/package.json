@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",
+    "test:cov": "jest --coverage",
     "prepare": "tsc -p tsconfig.json"
   },
   "jest": {
@@ -18,7 +19,12 @@
     "roots": ["<rootDir>/src"],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": { "^.+\\.ts$": ["ts-jest", { "tsconfig": "tsconfig.spec.json" }] },
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "collectCoverageFrom": ["src/**/*.ts", "!src/**/*.spec.ts"],
+    "coverageDirectory": "./coverage",
+    "coverageThreshold": {
+      "global": { "statements": 98, "branches": 98, "functions": 98, "lines": 98 }
+    }
   },
   "devDependencies": {
     "@types/jest": "^29.5.13",

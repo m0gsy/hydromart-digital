@@ -143,8 +143,10 @@ export function httpCapabilityLoader(cfg: {
  * payload crosses a network boundary, and it decides who may do what — a malformed
  * entry must not become a permission.
  */
-function sanitize(body: { overrides?: unknown }): CapabilityOverrides {
-  const raw = body.overrides;
+function sanitize(body: { overrides?: unknown } | null): CapabilityOverrides {
+  // `?.` because a literal `null` JSON body is a valid response and would otherwise
+  // throw here rather than degrade to "no overrides".
+  const raw = body?.overrides;
   if (raw === null || typeof raw !== 'object') {
     return {};
   }
