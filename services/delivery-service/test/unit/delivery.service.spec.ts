@@ -71,6 +71,28 @@ describe('DeliveryService', () => {
       AUTH,
     );
 
+
+  // Defaults nobody passes in the happy-path specs: the courier app omits the note, and the
+  // internal callers (offline flush, ops tooling) carry no bearer at all.
+  it('fails a delivery with no caller token and records a contact attempt with no note', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    const state = await service.recordContactAttempt(driver, d.id, ContactMethod.CALL);
+    expect(state.attempts).toBe(1);
+
+    const failed = await service.fail(driver, d.id, 'alamat tidak ditemukan');
+    expect(failed.status).toBe(DeliveryStatus.FAILED);
+  });
+
+  it('reschedules without a caller token', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    const rescheduled = await service.reschedule(driver, d.id, {
+      rescheduledFor: new Date('2026-08-02T02:00:00.000Z'),
+    });
+    expect(rescheduled.status).toBe(DeliveryStatus.RESCHEDULED);
+  });
+
   it('assigns a driver and advances the order to DRIVER_ASSIGNED', async () => {
     const d = await assign();
     expect(d.status).toBe(DeliveryStatus.ASSIGNED);

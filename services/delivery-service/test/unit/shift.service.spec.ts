@@ -31,6 +31,15 @@ describe('ShiftService', () => {
   const checkIn = (driverId = driver) =>
     service.checkIn(driverId, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
 
+
+  it('refuses a status change the shift cannot make', async () => {
+    const shift = await checkIn();
+    // ONLINE -> ONLINE is not a transition; the map lists BREAK, OFFLINE and ENDED only.
+    await expect(service.setStatus(driver, shift.id, ShiftStatus.ONLINE)).rejects.toBeInstanceOf(
+      InvalidShiftTransitionError,
+    );
+  });
+
   describe('checkIn', () => {
     it('opens an ONLINE shift when the courier is at the depot', async () => {
       const shift = await checkIn();
