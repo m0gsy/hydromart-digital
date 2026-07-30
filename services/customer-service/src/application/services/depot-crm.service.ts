@@ -33,13 +33,20 @@ export interface DepotCustomerListItem {
   segment: CrmSegment | null;
 }
 
-/** One at-risk customer surfaced in the depot CRM follow-up queue (Fase 4). */
+/**
+ * One at-risk customer surfaced in the depot CRM follow-up queue (Fase 4).
+ *
+ * The last order is NOT nullable here even though it is on the underlying stats row:
+ * a customer who has never ordered cannot have gone quiet, so `needsFollowUp` excludes
+ * them and nothing in this queue lacks a date. The response DTO stays nullable — it is
+ * a published contract — but inside the service the invariant is the type.
+ */
 export interface CrmFollowUp {
   customerId: string;
   name: string | null;
   phone: string | null;
-  lastOrderAt: string | null;
-  daysSinceLastOrder: number | null;
+  lastOrderAt: string;
+  daysSinceLastOrder: number;
   orderCount: number;
   totalSpentIdr: number;
 }
@@ -175,7 +182,9 @@ export class DepotCrmService {
       if (s.orderCount > 1) repeat++;
       if (needsFollowUp(s, now, t)) followUps.push(this.toFollowUp(s, now));
     }
-    followUps.sort((a, b) => (b.daysSinceLastOrder ?? 0) - (a.daysSinceLastOrder ?? 0));
+    // Longest-silent first — who to call today. Both sides are non-null here: only rows
+    // that passed needsFollowUp are in this list, and that requires a last order.
+    followUps.sort((a, b) => b.daysSinceLastOrder - a.daysSinceLastOrder);
     return {
       counts,
       repeatRatePct: counts.total > 0 ? Math.round((repeat / counts.total) * 100) : 0,
@@ -183,13 +192,20 @@ export class DepotCrmService {
     };
   }
 
+  /**
+   * Only ever called for a row that passed `needsFollowUp`, which is false without a
+   * `lastOrderAt` — so the date is present by construction. It was re-checked here with
+   * a ternary that could not take its null branch; asserting the invariant instead keeps
+   * the caller's guarantee visible rather than quietly duplicated.
+   */
   private toFollowUp(s: DepotCustomerOrderStats, now: Date): CrmFollowUp {
+    const lastOrderAt = s.lastOrderAt as Date;
     return {
       customerId: s.customerId,
       name: s.name,
       phone: s.phone,
-      lastOrderAt: s.lastOrderAt ? s.lastOrderAt.toISOString() : null,
-      daysSinceLastOrder: s.lastOrderAt ? daysBetween(s.lastOrderAt, now) : null,
+      lastOrderAt: lastOrderAt.toISOString(),
+      daysSinceLastOrder: daysBetween(lastOrderAt, now),
       orderCount: s.orderCount,
       totalSpentIdr: Math.round(s.totalSpent),
     };
