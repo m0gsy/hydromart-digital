@@ -25,6 +25,8 @@ import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYEE_STATUS_LABEL,
   EMPLOYMENT_STATUS_LABEL,
+  GENDER_LABEL,
+  PTKP_STATUS_LABEL,
   departmentLabel,
   fmtDate,
   tenureLabel,
@@ -128,6 +130,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         <Row label="NPWP" value={e.npwp ?? '—'} />
         <Row label="BPJS Kesehatan" value={e.bpjsKes ?? '—'} />
         <Row label="BPJS Ketenagakerjaan" value={e.bpjsTk ?? '—'} />
+        <Row label="NIK KTP" value={e.nik ?? '—'} />
+        <Row label="Tanggal lahir" value={e.birthDate ? fmtDate(e.birthDate) : '—'} />
+        <Row label="Jenis kelamin" value={e.gender ? GENDER_LABEL[e.gender] : '—'} />
+        <Row label="Alamat" value={e.address ?? '—'} />
+        <Row label="Status PTKP" value={e.ptkpStatus ? PTKP_STATUS_LABEL[e.ptkpStatus] : '—'} />
+        <Row label="Akhir kontrak" value={e.contractEndDate ? fmtDate(e.contractEndDate) : '—'} />
       </Card>
 
       <EmployeeAllowances employeeId={id} isAdmin={isAdmin} />

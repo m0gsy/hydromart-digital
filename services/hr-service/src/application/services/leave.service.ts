@@ -7,7 +7,13 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeFilter,
+  runImport,
+} from '@hydromart/platform';
 
 import {
   Employee,
@@ -115,6 +121,33 @@ export class LeaveService {
     const employee = await this.employees.getSelf(user);
     const when = year ? new Date(Date.UTC(year, 0, 1)) : new Date();
     return this.balanceFor(employee, when);
+  }
+
+  /**
+   * Opening leave balances (CSV wizard), keyed by staff code. Without this, migrating
+   * mid-year silently gives everyone a fresh full quota and the days they already took this
+   * year vanish — so this is the one path that writes `usedDays` outright.
+   *
+   * A year that already has a row is overwritten, and says so: the file is the correction.
+   */
+  async importBalances(
+    user: AuthenticatedUser,
+    rows: { employeeCode: string; year: number; quotaDays: number; usedDays?: number }[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async (row) => {
+      const employee = await this.employees.getByCode(user, row.employeeCode);
+      const usedDays = row.usedDays ?? 0;
+      if (usedDays > row.quotaDays) {
+        throw new BadRequestException('usedDays tidak boleh melebihi quotaDays');
+      }
+      const { balance, existed } = await this.repo.setBalance(
+        employee.id,
+        row.year,
+        row.quotaDays,
+        usedDays,
+      );
+      return { status: existed ? 'updated' : 'created', id: balance.id };
+    });
   }
 
   async cancel(user: AuthenticatedUser, id: string): Promise<LeaveRequest> {

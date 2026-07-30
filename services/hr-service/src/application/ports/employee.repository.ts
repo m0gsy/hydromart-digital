@@ -46,6 +46,16 @@ export interface EmployeeRepository {
   purgeFaceEmbeddings(cutoff: Date): Promise<number>;
   list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }>;
   findById(id: string): Promise<Employee | null>;
+  /** Resolve by the human-facing staff code — what a spreadsheet carries instead of a UUID. */
+  findByEmployeeCode(employeeCode: string): Promise<Employee | null>;
+  /**
+   * Resolve by phone for the import's upsert match. Phone is NOT unique in the schema
+   * (two people can share a family number), so this returns the oldest match — the same
+   * row every re-upload, rather than a coin flip.
+   */
+  findByPhone(phone: string): Promise<Employee | null>;
+  /** Resolve by KTP number — the import's second upsert key, after the staff code. */
+  findByNik(nik: string): Promise<Employee | null>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null>;
   /** Change log for one employee, newest first. */

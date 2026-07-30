@@ -9,6 +9,7 @@ describe('runImport', () => {
 
     expect(summary).toEqual({
       created: 2,
+      updated: 0,
       skipped: 1,
       failed: 0,
       results: [
@@ -55,10 +56,19 @@ describe('runImport', () => {
   it('returns an empty summary for an empty batch', async () => {
     await expect(runImport([], async () => ({ status: 'created' }))).resolves.toEqual({
       created: 0,
+      updated: 0,
       skipped: 0,
       failed: 0,
       results: [],
     });
+  });
+
+  it('tallies overwritten rows separately from new ones (upsert imports)', async () => {
+    const summary = await runImport(['a', 'b'], async (row) =>
+      row === 'a' ? { status: 'created', id: 'id-a' } : { status: 'updated', id: 'id-b' },
+    );
+
+    expect(summary).toMatchObject({ created: 1, updated: 1, skipped: 0, failed: 0 });
   });
 
   it('passes the zero-based index to the handler', async () => {

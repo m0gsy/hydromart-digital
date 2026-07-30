@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
 
 import { Bonus, BonusType, Deduction, DeductionType } from '../../../prisma/generated/client';
 import {
@@ -67,6 +67,28 @@ export class AdjustmentService {
       periodMonth: input.periodMonth,
       note: input.note ?? null,
       createdBy: user.sub,
+    });
+  }
+
+  /**
+   * Bulk import of deductions (CSV wizard), keyed by staff code. Like allowances, a row is
+   * appended rather than matched: two MANUAL deductions of the same amount in the same month
+   * are a legitimate pair, so nothing here may collapse them.
+   */
+  async importDeductions(
+    user: AuthenticatedUser,
+    rows: {
+      employeeCode: string;
+      type: DeductionType;
+      amount: number;
+      periodMonth: string;
+      note?: string;
+    }[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async ({ employeeCode, ...input }) => {
+      const employee = await this.employees.getByCode(user, employeeCode);
+      const deduction = await this.addDeduction(user, { ...input, employeeId: employee.id });
+      return { status: 'created', id: deduction.id };
     });
   }
 

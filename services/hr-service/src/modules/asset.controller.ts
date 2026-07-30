@@ -5,7 +5,13 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { AssetService } from '../application/services/asset.service';
-import { CreateAssetDto, ListAssetDto, MoveAssetDto, UpdateAssetDto } from './dto/asset.dto';
+import {
+  CreateAssetDto,
+  ImportAssetsDto,
+  ListAssetDto,
+  MoveAssetDto,
+  UpdateAssetDto,
+} from './dto/asset.dto';
 
 /** Company property tracking. Read hrView, write hrAdmin. */
 @ApiTags('HR Assets')
@@ -33,6 +39,15 @@ export class AssetController {
   @ApiOperation({ summary: 'Register an asset (starts AVAILABLE, held by nobody)' })
   create(@Body() dto: CreateAssetDto, @CurrentUser() user: AuthenticatedUser) {
     return this.assets.create(user, dto);
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({
+    summary: 'Bulk-import assets from the CSV wizard (optionally already handed out)',
+  })
+  import(@Body() dto: ImportAssetsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.assets.importMany(user, dto.rows);
   }
 
   @Patch(':id')

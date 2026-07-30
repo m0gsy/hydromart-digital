@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
 
 import { Loan } from '../../../prisma/generated/client';
 import { loanRemainingAfter, loanIsSettled } from '../../domain/loan';
@@ -45,6 +45,31 @@ export class LoanService {
       note: input.note ?? null,
       active: true,
       createdBy: user.sub,
+    });
+  }
+
+  /**
+   * Bulk import of running loans (CSV wizard), keyed by staff code — the migration case:
+   * kasbon taken out under the old system that payroll must keep deducting.
+   *
+   * `principal` is what is STILL OWED at `startPeriod`, not the original sum: the engine
+   * computes the balance forward from these two numbers, so entering the original amount of
+   * a half-paid loan would deduct it twice.
+   */
+  async importMany(
+    user: AuthenticatedUser,
+    rows: {
+      employeeCode: string;
+      principal: number;
+      installmentAmount: number;
+      startPeriod: string;
+      note?: string;
+    }[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async ({ employeeCode, ...input }) => {
+      const employee = await this.employees.getByCode(user, employeeCode);
+      const loan = await this.create(user, { ...input, employeeId: employee.id });
+      return { status: 'created', id: loan.id };
     });
   }
 

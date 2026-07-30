@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, runImport } from '@hydromart/platform';
 
 import { Allowance, AllowanceType } from '../../../prisma/generated/client';
 import { ALLOWANCE_REPOSITORY, AllowanceRepository } from '../ports/allowance.repository';
@@ -42,6 +42,24 @@ export class AllowanceService {
       active: true,
       note: input.note ?? null,
       createdBy: user.sub,
+    });
+  }
+
+  /**
+   * Bulk import (CSV wizard). Rows are keyed by staff code, and each one is simply added:
+   * an allowance is a dated row, not a unique fact about a person, so re-uploading the same
+   * file duplicates rather than skipping. That is the honest behaviour — the operator sees
+   * the duplicate in the list and deactivates it, which beats guessing which of two
+   * identical-looking transport allowances was meant.
+   */
+  async importMany(
+    user: AuthenticatedUser,
+    rows: (Omit<AllowanceInput, 'employeeId'> & { employeeCode: string })[],
+  ): Promise<ImportSummary> {
+    return runImport(rows, async ({ employeeCode, ...input }) => {
+      const employee = await this.employees.getByCode(user, employeeCode);
+      const allowance = await this.add(user, { ...input, employeeId: employee.id });
+      return { status: 'created', id: allowance.id };
     });
   }
 

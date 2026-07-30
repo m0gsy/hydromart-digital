@@ -3,7 +3,16 @@
 import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  ErrorState,
+  Input,
+  LinkButton,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -62,6 +71,13 @@ export default function LeaveQueuePage() {
       <SectionHeader
         title="Pengajuan Cuti"
         subtitle="Tahap 1 atasan, tahap 2 HR. Persetujuan HR menulis absensi berstatus Cuti."
+        action={
+          isHr ? (
+            <LinkButton href="/hr/leave/balances-import" variant="secondary">
+              Import Saldo Cuti
+            </LinkButton>
+          ) : undefined
+        }
       />
 
       <div className="flex flex-wrap gap-3">

@@ -5,7 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  ImportSummary,
+  assertDepotAccess,
+  depotScopeFilter,
+  runImport,
+} from '@hydromart/platform';
 
 import {
   AssetMovement,
@@ -111,6 +117,46 @@ export class AssetService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Bulk import (CSV wizard): register the asset, then hand it to whoever already holds it
+   * so the opening state matches the depot floor. The hand-over goes through `move`, not a
+   * direct write, so the movement log starts on day one like every other transfer.
+   *
+   * A registered asset whose hand-over fails stays `created` with the reason attached —
+   * downgrading it to `failed` would say the asset does not exist, and the re-upload would
+   * then be rejected as a duplicate code.
+   */
+  async importMany(
+    user: AuthenticatedUser,
+    rows: (CreateAssetInput & { holderEmployeeCode?: string })[],
+  ): Promise<ImportSummary> {
+    return runImport(
+      rows,
+      async ({ holderEmployeeCode, ...input }) => {
+        const asset = await this.create(user, input);
+        if (!holderEmployeeCode) return { status: 'created', id: asset.id };
+        try {
+          const holder = await this.employees.getByCode(user, holderEmployeeCode);
+          await this.move(user, asset.id, {
+            kind: 'ASSIGN',
+            toEmployeeId: holder.id,
+            note: 'Import data awal',
+          });
+          return { status: 'created', id: asset.id };
+        } catch (err) {
+          const reason = err instanceof Error ? err.message : 'penerima tidak valid';
+          return {
+            status: 'created',
+            id: asset.id,
+            message: `Aset terdaftar, belum diserahkan: ${reason}`,
+          };
+        }
+      },
+      // An asset code that already exists is a re-upload, not a failure.
+      (err) => err instanceof ConflictException && String(err.message).includes('Kode aset'),
+    );
   }
 
   /**

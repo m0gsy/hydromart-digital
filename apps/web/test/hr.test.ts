@@ -60,6 +60,12 @@ const employee = (over: Partial<Employee> = {}): Employee => ({
   npwp: null,
   bpjsKes: null,
   bpjsTk: null,
+  nik: null,
+  birthDate: null,
+  gender: null,
+  address: null,
+  ptkpStatus: null,
+  contractEndDate: null,
   status: 'ACTIVE',
   createdAt: '2026-01-15T00:00:00.000Z',
   updatedAt: '2026-01-15T00:00:00.000Z',
@@ -109,6 +115,27 @@ describe('employeeToForm', () => {
     expect(f.bankName).toBe('');
     expect(f.joinDate).toBe('2026-01-15');
     expect(f.dailyRate).toBe('150000');
+  });
+
+  it('slices the personal dates too and keeps the enums as-is', () => {
+    const f = employeeToForm(
+      employee({
+        nik: '3201010101010001',
+        birthDate: '1995-04-02T00:00:00.000Z',
+        gender: 'FEMALE',
+        address: 'Jl. Melati 3',
+        ptkpStatus: 'K1',
+        contractEndDate: '2027-01-15T00:00:00.000Z',
+      }),
+    );
+    expect(f).toMatchObject({
+      nik: '3201010101010001',
+      birthDate: '1995-04-02',
+      gender: 'FEMALE',
+      address: 'Jl. Melati 3',
+      ptkpStatus: 'K1',
+      contractEndDate: '2027-01-15',
+    });
   });
 });
 
@@ -163,6 +190,53 @@ describe('toEmployeePayload', () => {
     expect(r.value.bankAccount).toBe('123');
     expect(r.value.emergencyName).toBe('Siti');
     expect(r.value.emergencyPhone).toBe('0899');
+  });
+
+  it('sends the personal fields when filled and omits them when blank', () => {
+    const r = toEmployeePayload(
+      validForm({
+        nik: '3201 0101 0101 0001',
+        birthDate: '1995-04-02',
+        gender: 'FEMALE',
+        address: ' Jl. Melati 3 ',
+        ptkpStatus: 'K1',
+      }),
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Spaces are how a KTP is printed; the payload carries the 16 digits.
+    expect(r.value.nik).toBe('3201010101010001');
+    expect(r.value.birthDate).toBe(new Date('1995-04-02').toISOString());
+    expect(r.value.gender).toBe('FEMALE');
+    expect(r.value.address).toBe('Jl. Melati 3');
+    expect(r.value.ptkpStatus).toBe('K1');
+
+    // Blank cells are omitted, not sent as empty strings the enum would reject.
+    const blank = toEmployeePayload(validForm());
+    expect(blank.ok).toBe(true);
+    if (!blank.ok) return;
+    for (const key of ['nik', 'birthDate', 'gender', 'address', 'ptkpStatus', 'contractEndDate']) {
+      expect(blank.value).not.toHaveProperty(key);
+    }
+  });
+
+  it('rejects a NIK that is not 16 digits', () => {
+    const r = toEmployeePayload(validForm({ nik: '320101010101' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('16 digit');
+  });
+
+  it('rejects a contract that ends before the join date', () => {
+    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2025-12-31' }));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toContain('Akhir kontrak');
+  });
+
+  it('accepts a contract end date on or after the join date', () => {
+    const r = toEmployeePayload(validForm({ joinDate: '2026-01-15', contractEndDate: '2027-01-15' }));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.contractEndDate).toBe(new Date('2027-01-15').toISOString());
   });
 });
 

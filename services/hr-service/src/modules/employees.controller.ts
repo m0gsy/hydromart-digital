@@ -48,7 +48,9 @@ export class EmployeesController {
   @ApiSecurity('internal-key')
   @Post('internal/retention-report')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Count departed employee records past the cutoff (internal, no deletion)' })
+  @ApiOperation({
+    summary: 'Count departed employee records past the cutoff (internal, no deletion)',
+  })
   retentionReport(@Body() dto: RetentionReportDto): Promise<{ eligible: number }> {
     return this.employees.retentionReport(new Date(dto.cutoff));
   }
@@ -109,9 +111,11 @@ export class EmployeesController {
   @Roles(...CAPABILITIES.hrAdmin)
   @ApiOperation({
     summary: 'Bulk-import employees from the CSV wizard (provisions a login per row)',
+    description:
+      'mode=CREATE (default) reports an existing person as skipped; mode=UPSERT overwrites their HR data — their login role is never touched either way.',
   })
   import(@Body() dto: ImportEmployeesDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.employees.importMany(user, dto.rows);
+    return this.employees.importMany(user, dto.rows, dto.mode ?? 'CREATE');
   }
 
   @Patch(':id')

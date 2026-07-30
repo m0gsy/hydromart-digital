@@ -11,7 +11,7 @@
  * `skipped` rather than duplicating.
  */
 
-export type ImportRowStatus = 'created' | 'skipped' | 'failed';
+export type ImportRowStatus = 'created' | 'updated' | 'skipped' | 'failed';
 
 export interface ImportRowResult {
   /** 1-based position within the submitted batch (what the UI echoes back). */
@@ -23,6 +23,8 @@ export interface ImportRowResult {
 
 export interface ImportSummary {
   created: number;
+  /** Rows that matched an existing record and overwrote it (upsert mode only). */
+  updated: number;
   skipped: number;
   failed: number;
   results: ImportRowResult[];
@@ -51,6 +53,7 @@ export async function runImport<T>(
 
   return {
     created: results.filter((r) => r.status === 'created').length,
+    updated: results.filter((r) => r.status === 'updated').length,
     skipped: results.filter((r) => r.status === 'skipped').length,
     failed: results.filter((r) => r.status === 'failed').length,
     results,

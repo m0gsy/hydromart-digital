@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsInt,
   IsNumber,
@@ -10,6 +12,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { AssetMovementKind, AssetStatus, AssetType } from '../../../prisma/generated/client';
@@ -56,6 +59,19 @@ export class MoveAssetDto {
   @IsOptional() @IsUUID() toEmployeeId?: string;
   @IsOptional() @IsString() @MaxLength(255) condition?: string;
   @IsOptional() @IsString() @MaxLength(255) note?: string;
+}
+
+/** One import row: the asset itself, plus who is already holding it (optional). */
+export class ImportAssetRowDto extends CreateAssetDto {
+  @IsOptional() @IsString() @MaxLength(40) holderEmployeeCode?: string;
+}
+
+export class ImportAssetsDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportAssetRowDto)
+  rows!: ImportAssetRowDto[];
 }
 
 export class ListAssetDto {

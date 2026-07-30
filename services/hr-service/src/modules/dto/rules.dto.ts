@@ -1,4 +1,8 @@
+import { OmitType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsIn,
@@ -11,6 +15,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { BonusType } from '../../../prisma/generated/client';
@@ -59,4 +64,17 @@ export class CreateLoanDto {
 export class ListLoanDto {
   @IsUUID() employeeId!: string;
   @IsOptional() @Matches(PERIOD) asOfPeriod?: string;
+}
+
+/** One import row: the create fields, but keyed by staff code instead of a UUID. */
+export class ImportLoanRowDto extends OmitType(CreateLoanDto, ['employeeId'] as const) {
+  @IsString() @MaxLength(40) employeeCode!: string;
+}
+
+export class ImportLoansDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportLoanRowDto)
+  rows!: ImportLoanRowDto[];
 }

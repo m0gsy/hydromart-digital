@@ -5,7 +5,7 @@ import { CAPABILITIES } from '@hydromart/access';
 import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 
 import { AllowanceService } from '../application/services/allowance.service';
-import { CreateAllowanceDto, ListAllowanceDto } from './dto/allowance.dto';
+import { CreateAllowanceDto, ImportAllowancesDto, ListAllowanceDto } from './dto/allowance.dto';
 
 /** Recurring pay components. Read hrView, write hrPayroll (it is salary, not master data). */
 @ApiTags('HR Allowances')
@@ -26,6 +26,13 @@ export class AllowanceController {
   @ApiOperation({ summary: 'Add a recurring allowance' })
   create(@Body() dto: CreateAllowanceDto, @CurrentUser() user: AuthenticatedUser) {
     return this.allowances.add(user, dto);
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.hrPayroll)
+  @ApiOperation({ summary: 'Bulk-import recurring allowances from the CSV wizard' })
+  import(@Body() dto: ImportAllowancesDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.allowances.importMany(user, dto.rows);
   }
 
   @Patch(':id/deactivate')

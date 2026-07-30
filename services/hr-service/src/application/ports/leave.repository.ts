@@ -47,4 +47,15 @@ export interface LeaveRepository {
   ensureBalance(employeeId: string, year: number, quotaDays: number): Promise<LeaveBalance>;
   /** Move usedDays by a signed amount (approval adds; nothing subtracts today). */
   addUsedDays(employeeId: string, year: number, days: number): Promise<LeaveBalance>;
+  /**
+   * Set the year's quota AND days already taken outright — the opening-balance import, which
+   * is the one caller allowed to move usedDays to an arbitrary number (it is carrying over
+   * leave that was taken in a system this one never saw).
+   */
+  setBalance(
+    employeeId: string,
+    year: number,
+    quotaDays: number,
+    usedDays: number,
+  ): Promise<{ balance: LeaveBalance; existed: boolean }>;
 }

@@ -64,6 +64,21 @@ export class LeavePrismaRepository implements LeaveRepository {
     });
   }
 
+  async setBalance(
+    employeeId: string,
+    year: number,
+    quotaDays: number,
+    usedDays: number,
+  ): Promise<{ balance: LeaveBalance; existed: boolean }> {
+    const existing = await this.findBalance(employeeId, year);
+    const balance = await this.prisma.leaveBalance.upsert({
+      where: { employeeId_year: { employeeId, year } },
+      create: { employeeId, year, quotaDays, usedDays },
+      update: { quotaDays, usedDays },
+    });
+    return { balance, existed: existing !== null };
+  }
+
   addUsedDays(employeeId: string, year: number, days: number): Promise<LeaveBalance> {
     return this.prisma.leaveBalance.update({
       where: { employeeId_year: { employeeId, year } },

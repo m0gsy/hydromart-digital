@@ -7,6 +7,7 @@ import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
 import { LeaveService } from '../application/services/leave.service';
 import {
   DecideLeaveDto,
+  ImportLeaveBalancesDto,
   LeaveBalanceQueryDto,
   ListLeaveDto,
   SubmitLeaveDto,
@@ -56,6 +57,17 @@ export class LeaveController {
   @ApiOperation({ summary: 'Leave applications (depot-scoped for depot roles)' })
   list(@Query() q: ListLeaveDto, @CurrentUser() user: AuthenticatedUser) {
     return this.leave.listForApproval(user, q);
+  }
+
+  @Post('balances/import')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({
+    summary: 'Bulk-import opening leave balances from the CSV wizard',
+    description:
+      'Carries quota and days-already-taken over from a previous system. An existing year is overwritten and reported as updated.',
+  })
+  importBalances(@Body() dto: ImportLeaveBalancesDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.leave.importBalances(user, dto.rows);
   }
 
   @Patch(':id/manager-decision')

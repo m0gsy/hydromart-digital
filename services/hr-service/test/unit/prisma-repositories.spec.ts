@@ -308,6 +308,32 @@ describe('LeavePrismaRepository', () => {
       data: { usedDays: { increment: 5 } },
     });
   });
+
+  it('setBalance overwrites quota AND usedDays, and reports whether the year existed', async () => {
+    const p = makePrisma();
+    const out = sentinel();
+    m(p, 'leaveBalance').upsert.mockResolvedValue(out);
+    const repo = new LeavePrismaRepository(asService(p));
+    const key = { employeeId_year: { employeeId: 'e1', year: 2026 } };
+
+    m(p, 'leaveBalance').findUnique.mockResolvedValue(null);
+    await expect(repo.setBalance('e1', 2026, 12, 3)).resolves.toEqual({
+      balance: out,
+      existed: false,
+    });
+    expect(m(p, 'leaveBalance').upsert).toHaveBeenCalledWith({
+      where: key,
+      create: { employeeId: 'e1', year: 2026, quotaDays: 12, usedDays: 3 },
+      // Unlike ensureBalance, the opening-balance import IS allowed to set usedDays.
+      update: { quotaDays: 12, usedDays: 3 },
+    });
+
+    m(p, 'leaveBalance').findUnique.mockResolvedValue(out);
+    await expect(repo.setBalance('e1', 2026, 15, 0)).resolves.toEqual({
+      balance: out,
+      existed: true,
+    });
+  });
 });
 
 // ── AnnouncementPrismaRepository ───────────────────────────────────────
@@ -1537,6 +1563,30 @@ describe('EmployeePrismaRepository', () => {
     expect(m(p, 'employmentHistory').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1' },
       orderBy: { createdAt: 'desc' },
+    });
+  });
+
+  it('resolves the import keys: staff code, NIK, and phone (oldest match)', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findUnique.mockResolvedValue(null);
+    m(p, 'employee').findFirst.mockResolvedValue(null);
+    const repo = new EmployeePrismaRepository(asService(p));
+
+    await repo.findByEmployeeCode('HR-0001');
+    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({
+      where: { employeeCode: 'HR-0001' },
+    });
+
+    await repo.findByNik('3201010101010001');
+    expect(m(p, 'employee').findUnique).toHaveBeenLastCalledWith({
+      where: { nik: '3201010101010001' },
+    });
+
+    // Phone is not unique, so the oldest row wins — the same one on every re-upload.
+    await repo.findByPhone('+628123');
+    expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+      where: { phone: '+628123' },
+      orderBy: { createdAt: 'asc' },
     });
   });
 

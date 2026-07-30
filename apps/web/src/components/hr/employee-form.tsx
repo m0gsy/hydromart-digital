@@ -9,12 +9,16 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYMENT_STATUS_LABEL,
+  GENDER_LABEL,
+  PTKP_STATUS_LABEL,
   departmentsForDepot,
   type Department,
   type Employee,
   type EmployeeForm as Form,
   type EmploymentStatus,
+  type Gender,
   type HrPage,
+  type PtkpStatus,
   type SalaryType,
   toEmployeePayload,
 } from '@/lib/hr';
@@ -220,6 +224,60 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         </Field>
         <Field label="BPJS Ketenagakerjaan (opsional)">
           <Input value={form.bpjsTk} onChange={(e) => set('bpjsTk', e.target.value)} />
+        </Field>
+
+        <Field label="NIK KTP (opsional)">
+          <Input
+            value={form.nik}
+            inputMode="numeric"
+            maxLength={16}
+            onChange={(e) => set('nik', e.target.value)}
+          />
+        </Field>
+        <Field label="Tanggal lahir (opsional)">
+          <Input
+            type="date"
+            value={form.birthDate}
+            onChange={(e) => set('birthDate', e.target.value)}
+          />
+        </Field>
+        <Field label="Jenis kelamin (opsional)">
+          <select
+            value={form.gender}
+            onChange={(e) => set('gender', e.target.value as Gender | '')}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
+            <option value="">Tidak diisi</option>
+            {(Object.keys(GENDER_LABEL) as Gender[]).map((g) => (
+              <option key={g} value={g}>
+                {GENDER_LABEL[g]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Status PTKP (opsional)">
+          <select
+            value={form.ptkpStatus}
+            onChange={(e) => set('ptkpStatus', e.target.value as PtkpStatus | '')}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
+            <option value="">Tidak diisi</option>
+            {(Object.keys(PTKP_STATUS_LABEL) as PtkpStatus[]).map((p) => (
+              <option key={p} value={p}>
+                {PTKP_STATUS_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Akhir kontrak (opsional)">
+          <Input
+            type="date"
+            value={form.contractEndDate}
+            onChange={(e) => set('contractEndDate', e.target.value)}
+          />
+        </Field>
+        <Field label="Alamat (opsional)">
+          <Input value={form.address} onChange={(e) => set('address', e.target.value)} />
         </Field>
       </Card>
 

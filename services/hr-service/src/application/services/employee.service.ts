@@ -13,7 +13,14 @@ import {
   runImport,
 } from '@hydromart/platform';
 
-import { Employee, EmploymentHistory, Prisma, SalaryType } from '../../../prisma/generated/client';
+import {
+  Employee,
+  EmploymentHistory,
+  Gender,
+  Prisma,
+  PtkpStatus,
+  SalaryType,
+} from '../../../prisma/generated/client';
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
@@ -30,6 +37,8 @@ const TRACKED: readonly (keyof Employee)[] = [
 ];
 
 export interface CreateEmployeeInput {
+  /** Supplied only by an import carrying codes from an older system; otherwise minted here. */
+  employeeCode?: string;
   fullName: string;
   phone: string;
   email?: string;
@@ -52,16 +61,34 @@ export interface CreateEmployeeInput {
   npwp?: string;
   bpjsKes?: string;
   bpjsTk?: string;
+  nik?: string;
+  birthDate?: string;
+  gender?: Gender;
+  address?: string;
+  ptkpStatus?: PtkpStatus;
+  contractEndDate?: string;
 }
 
 export type UpdateEmployeeInput = Partial<CreateEmployeeInput> & {
   status?: Employee['status'];
 };
 
-/** One CSV row: the employee fields plus the login role to provision for them. */
+/**
+ * One CSV row: the employee fields plus the login role to provision for them. The
+ * supervisor arrives as a staff code, not a UUID — nobody types a UUID into a spreadsheet,
+ * and the person it points at may not exist until later in the same file.
+ */
 export type ImportEmployeeInput = Omit<CreateEmployeeInput, 'authSubjectId'> & {
   role: StaffRole;
+  supervisorCode?: string;
 };
+
+/**
+ * CREATE refuses to touch anyone who already exists (a re-upload reports `skipped`);
+ * UPSERT overwrites them. Overwriting is opt-in per upload because it is the one mode that
+ * can quietly wipe a correct salary with a stale spreadsheet column.
+ */
+export type ImportMode = 'CREATE' | 'UPSERT';
 
 @Injectable()
 export class EmployeeService {
@@ -158,6 +185,7 @@ export class EmployeeService {
     // A depot-locked creator may only add staff to their own depot.
     assertDepotAccess(user, input.depotId);
     this.assertSalaryShape(input.salaryType, input.dailyRate, input.monthlyRate);
+    this.assertContractWindow(input.joinDate, input.contractEndDate);
     await this.assertDepartmentFits(input.departmentId, input.depotId);
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
@@ -183,6 +211,12 @@ export class EmployeeService {
       npwp: input.npwp ?? null,
       bpjsKes: input.bpjsKes ?? null,
       bpjsTk: input.bpjsTk ?? null,
+      nik: input.nik ?? null,
+      birthDate: input.birthDate ? new Date(input.birthDate) : null,
+      gender: input.gender ?? null,
+      address: input.address ?? null,
+      ptkpStatus: input.ptkpStatus ?? null,
+      contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
       createdBy: user.sub,
       updatedBy: user.sub,
     };
@@ -196,12 +230,22 @@ export class EmployeeService {
 
     // Sequential code (HR-0001). ponytail: retry on the unique-collision from a concurrent
     // create rather than a DB sequence; internal HR volume is low, add a sequence only if it bites.
+    const supplied = input.employeeCode?.trim().toUpperCase();
     for (let attempt = 0; attempt < 5; attempt++) {
-      const employeeCode = `HR-${String((await this.repo.count()) + 1 + attempt).padStart(4, '0')}`;
+      const employeeCode =
+        supplied ?? `HR-${String((await this.repo.count()) + 1 + attempt).padStart(4, '0')}`;
       try {
         return await this.repo.create({ ...data, employeeCode }, history);
       } catch (err) {
-        if (this.isUniqueViolation(err, 'employeeCode') && attempt < 4) continue;
+        if (this.isUniqueViolation(err, 'nik')) {
+          throw new BadRequestException('NIK sudah dipakai karyawan lain');
+        }
+        if (this.isUniqueViolation(err, 'employeeCode')) {
+          // A code the file supplied is a fact about the row, not a collision to retry past:
+          // minting HR-0042 for a row that said "STAFF-7" would silently invent a code.
+          if (supplied) throw new BadRequestException('Kode karyawan sudah dipakai');
+          if (attempt < 4) continue;
+        }
         if (this.isUniqueViolation(err, 'authSubjectId')) {
           throw new BadRequestException('Akun ini sudah tertaut ke karyawan lain');
         }
@@ -219,10 +263,26 @@ export class EmployeeService {
    * operation that can simply be re-run doesn't warrant a saga. Re-running is safe:
    * `authSubjectId` is unique, so a row already imported comes back as `skipped`.
    */
-  async importMany(user: AuthenticatedUser, rows: ImportEmployeeInput[]): Promise<ImportSummary> {
-    return runImport(
+  async importMany(
+    user: AuthenticatedUser,
+    rows: ImportEmployeeInput[],
+    mode: ImportMode = 'CREATE',
+  ): Promise<ImportSummary> {
+    const summary = await runImport(
       rows,
-      async ({ role, ...input }) => {
+      async ({ role, supervisorCode: _supervisorCode, ...input }) => {
+        const existing = mode === 'UPSERT' ? await this.findForUpsert(input) : null;
+        if (existing) {
+          // The login is deliberately left alone. The account already exists, and changing
+          // someone's role — what they may do in 18 services — is not a side effect a
+          // spreadsheet column should have.
+          // employeeCode is the key we matched ON, never a field to rewrite.
+          const updated = await this.update(user, existing.id, {
+            ...input,
+            employeeCode: undefined,
+          });
+          return { status: 'updated', id: updated.id };
+        }
         const { customerId } = await this.identity.provisionStaff({
           phone: input.phone,
           role,
@@ -232,10 +292,59 @@ export class EmployeeService {
         const employee = await this.create(user, { ...input, authSubjectId: customerId });
         return { status: 'created', id: employee.id };
       },
-      // "Already linked to another employee" is a duplicate row, not a failure — it is
-      // exactly what re-uploading a corrected file produces.
-      (err) => err instanceof BadRequestException && String(err.message).includes('tertaut'),
+      // "Already linked to another employee" / "code already taken" is a duplicate row, not a
+      // failure — it is exactly what re-uploading a corrected file produces.
+      (err) =>
+        err instanceof BadRequestException && /tertaut|sudah dipakai/.test(String(err.message)),
     );
+    await this.linkSupervisors(user, rows, summary);
+    return summary;
+  }
+
+  /** Upsert match, most specific key first. Phone last: it is the only non-unique one. */
+  private async findForUpsert(input: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<Employee | null> {
+    const code = input.employeeCode?.trim().toUpperCase();
+    if (code) return this.repo.findByEmployeeCode(code);
+    if (input.nik) return this.repo.findByNik(input.nik.trim());
+    return this.repo.findByPhone(input.phone);
+  }
+
+  /**
+   * Second pass, because an employee's supervisor is very often further down the same file —
+   * resolving during row 3 would fail on a manager who only appears at row 40.
+   */
+  private async linkSupervisors(
+    user: AuthenticatedUser,
+    rows: ImportEmployeeInput[],
+    summary: ImportSummary,
+  ): Promise<void> {
+    for (const [index, row] of rows.entries()) {
+      const code = row.supervisorCode?.trim().toUpperCase();
+      const result = summary.results[index];
+      if (!code || !result?.id) continue;
+      const supervisor = await this.repo.findByEmployeeCode(code);
+      if (!supervisor) {
+        // The employee row itself is sound; it is the pointer that dangles. Saying so beats
+        // rolling a good row back to `failed` over one bad cell.
+        result.message = `Atasan "${code}" tidak ditemukan, kolom atasan dikosongkan`;
+        continue;
+      }
+      await this.repo.update(result.id, { supervisorId: supervisor.id, updatedBy: user.sub }, []);
+    }
+  }
+
+  /** Resolve the staff code an import row carries into a row this caller may touch. */
+  async getByCode(user: AuthenticatedUser, employeeCode: string): Promise<Employee> {
+    const employee = await this.repo.findByEmployeeCode(employeeCode.trim().toUpperCase());
+    if (!employee) {
+      throw new BadRequestException(`Kode karyawan "${employeeCode}" tidak ditemukan`);
+    }
+    assertDepotAccess(user, employee.depotId);
+    return employee;
   }
 
   async update(user: AuthenticatedUser, id: string, input: UpdateEmployeeInput): Promise<Employee> {
@@ -253,6 +362,10 @@ export class EmployeeService {
     if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
       this.assertSalaryShape(salaryType, dailyRate, monthlyRate);
     }
+    this.assertContractWindow(
+      input.joinDate ?? current.joinDate.toISOString(),
+      input.contractEndDate ?? current.contractEndDate?.toISOString(),
+    );
     // Re-check on a depot move too: the employee's current department may belong to the depot
     // they are leaving.
     await this.assertDepartmentFits(
@@ -280,11 +393,19 @@ export class EmployeeService {
       'npwp',
       'bpjsKes',
       'bpjsTk',
+      'nik',
+      'gender',
+      'address',
+      'ptkpStatus',
       'status',
     ] as const) {
       if (input[key] !== undefined) (data as Record<string, unknown>)[key] = input[key];
     }
     if (input.joinDate !== undefined) data.joinDate = new Date(input.joinDate);
+    if (input.birthDate !== undefined) data.birthDate = new Date(input.birthDate);
+    if (input.contractEndDate !== undefined) {
+      data.contractEndDate = new Date(input.contractEndDate);
+    }
     if (input.salaryType !== undefined) data.salaryType = input.salaryType;
     if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
       data.dailyRate = salaryType === 'DAILY' ? (dailyRate ?? null) : null;
@@ -316,6 +437,17 @@ export class EmployeeService {
     }
     if (type === 'MONTHLY' && (monthlyRate == null || monthlyRate <= 0)) {
       throw new BadRequestException('monthlyRate wajib diisi untuk tipe gaji MONTHLY');
+    }
+  }
+
+  /**
+   * A contract cannot end before it starts. Deliberately not tied to `employmentStatus`:
+   * the enum has no CONTRACT value yet (that redesign is still open), so the date stands on
+   * its own as a reminder for whoever renews it.
+   */
+  private assertContractWindow(joinDate: string, contractEndDate?: string): void {
+    if (contractEndDate && new Date(contractEndDate) < new Date(joinDate)) {
+      throw new BadRequestException('contractEndDate tidak boleh sebelum joinDate');
     }
   }
 

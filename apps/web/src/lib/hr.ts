@@ -10,6 +10,25 @@ export type BonusType = 'ATTENDANCE' | 'PERFORMANCE' | 'SALES' | 'DEPOT' | 'MANU
 export type DeductionType = 'LATE' | 'ABSENCE' | 'MANUAL' | 'CASH_ADVANCE' | 'OTHER';
 export type PayrollItemKind = 'BASE' | 'BONUS' | 'DEDUCTION' | 'ADJUSTMENT' | 'ALLOWANCE';
 export type AllowanceType = 'TRANSPORT' | 'MEAL' | 'POSITION' | 'HOUSING' | 'OTHER';
+export type Gender = 'MALE' | 'FEMALE';
+/** PPh 21 class: TK = single, K = married, digit = dependants. */
+export type PtkpStatus = 'TK0' | 'TK1' | 'TK2' | 'TK3' | 'K0' | 'K1' | 'K2' | 'K3';
+
+export const GENDER_LABEL: Record<Gender, string> = {
+  MALE: 'Laki-laki',
+  FEMALE: 'Perempuan',
+};
+
+export const PTKP_STATUS_LABEL: Record<PtkpStatus, string> = {
+  TK0: 'TK/0 — lajang',
+  TK1: 'TK/1 — lajang, 1 tanggungan',
+  TK2: 'TK/2 — lajang, 2 tanggungan',
+  TK3: 'TK/3 — lajang, 3 tanggungan',
+  K0: 'K/0 — menikah',
+  K1: 'K/1 — menikah, 1 tanggungan',
+  K2: 'K/2 — menikah, 2 tanggungan',
+  K3: 'K/3 — menikah, 3 tanggungan',
+};
 
 export interface HrPage<T> {
   rows: T[];
@@ -43,6 +62,12 @@ export interface Employee {
   npwp: string | null;
   bpjsKes: string | null;
   bpjsTk: string | null;
+  nik: string | null;
+  birthDate: string | null;
+  gender: Gender | null;
+  address: string | null;
+  ptkpStatus: PtkpStatus | null;
+  contractEndDate: string | null;
   status: EmployeeStatus;
   createdAt: string;
   updatedAt: string;
@@ -685,6 +710,12 @@ export interface EmployeeForm {
   npwp: string;
   bpjsKes: string;
   bpjsTk: string;
+  nik: string;
+  birthDate: string;
+  gender: Gender | '';
+  address: string;
+  ptkpStatus: PtkpStatus | '';
+  contractEndDate: string;
 }
 
 export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
@@ -707,6 +738,12 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   npwp: '',
   bpjsKes: '',
   bpjsTk: '',
+  nik: '',
+  birthDate: '',
+  gender: '',
+  address: '',
+  ptkpStatus: '',
+  contractEndDate: '',
 };
 
 export function employeeToForm(e: Employee): EmployeeForm {
@@ -730,6 +767,12 @@ export function employeeToForm(e: Employee): EmployeeForm {
     npwp: e.npwp ?? '',
     bpjsKes: e.bpjsKes ?? '',
     bpjsTk: e.bpjsTk ?? '',
+    nik: e.nik ?? '',
+    birthDate: e.birthDate?.slice(0, 10) ?? '',
+    gender: e.gender ?? '',
+    address: e.address ?? '',
+    ptkpStatus: e.ptkpStatus ?? '',
+    contractEndDate: e.contractEndDate?.slice(0, 10) ?? '',
   };
 }
 
@@ -770,5 +813,20 @@ export function toEmployeePayload(
   if (f.npwp.trim()) value.npwp = f.npwp.trim();
   if (f.bpjsKes.trim()) value.bpjsKes = f.bpjsKes.trim();
   if (f.bpjsTk.trim()) value.bpjsTk = f.bpjsTk.trim();
+  const nik = f.nik.replace(/\s/g, '');
+  if (nik) {
+    if (!/^\d{16}$/.test(nik)) return { ok: false, error: 'NIK harus 16 digit angka.' };
+    value.nik = nik;
+  }
+  if (f.birthDate.trim()) value.birthDate = new Date(f.birthDate).toISOString();
+  if (f.gender) value.gender = f.gender;
+  if (f.address.trim()) value.address = f.address.trim();
+  if (f.ptkpStatus) value.ptkpStatus = f.ptkpStatus;
+  if (f.contractEndDate.trim()) {
+    if (f.contractEndDate < f.joinDate) {
+      return { ok: false, error: 'Akhir kontrak tidak boleh sebelum tanggal masuk.' };
+    }
+    value.contractEndDate = new Date(f.contractEndDate).toISOString();
+  }
   return { ok: true, value };
 }

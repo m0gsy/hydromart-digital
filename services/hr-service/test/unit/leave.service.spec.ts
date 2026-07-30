@@ -99,6 +99,22 @@ class FakeLeaveRepo implements LeaveRepository {
     row.usedDays += days;
     return row;
   }
+  async setBalance(
+    employeeId: string,
+    year: number,
+    quotaDays: number,
+    usedDays: number,
+  ): Promise<{ balance: LeaveBalance; existed: boolean }> {
+    const found = await this.findBalance(employeeId, year);
+    if (found) {
+      found.quotaDays = quotaDays;
+      found.usedDays = usedDays;
+      return { balance: found, existed: true };
+    }
+    const row = { id: `bal-${year}`, employeeId, year, quotaDays, usedDays } as LeaveBalance;
+    this.balances.push(row);
+    return { balance: row, existed: false };
+  }
 }
 
 function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } = {}) {

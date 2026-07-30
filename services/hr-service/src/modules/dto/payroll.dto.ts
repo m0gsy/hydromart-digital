@@ -1,5 +1,8 @@
+import { OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEnum,
   IsInt,
   IsOptional,
@@ -9,6 +12,7 @@ import {
   Matches,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { BonusType, DeductionType, PayrollStatus } from '../../../prisma/generated/client';
@@ -45,6 +49,19 @@ export class CreateDeductionDto {
   @IsInt() @IsPositive() amount!: number;
   @Matches(PERIOD) periodMonth!: string;
   @IsOptional() @IsString() @MaxLength(200) note?: string;
+}
+
+/** One import row: the create fields, but keyed by staff code instead of a UUID. */
+export class ImportDeductionRowDto extends OmitType(CreateDeductionDto, ['employeeId'] as const) {
+  @IsString() @MaxLength(40) employeeCode!: string;
+}
+
+export class ImportDeductionsDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportDeductionRowDto)
+  rows!: ImportDeductionRowDto[];
 }
 
 export class AdjustmentQueryDto {

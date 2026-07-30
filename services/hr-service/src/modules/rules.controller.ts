@@ -9,6 +9,7 @@ import { LoanService } from '../application/services/loan.service';
 import {
   CreateBonusRuleDto,
   CreateLoanDto,
+  ImportLoansDto,
   ListBonusRuleDto,
   ListLoanDto,
   UpdateBonusRuleDto,
@@ -65,6 +66,16 @@ export class LoanController {
   @ApiOperation({ summary: 'Create an employee loan / kasbon' })
   create(@Body() dto: CreateLoanDto, @CurrentUser() user: AuthenticatedUser) {
     return this.loans.create(user, dto);
+  }
+
+  @Post('import')
+  @Roles(...CAPABILITIES.hrAdmin)
+  @ApiOperation({
+    summary: 'Bulk-import running loans from the CSV wizard',
+    description: 'principal = the balance still owed at startPeriod, not the original amount.',
+  })
+  import(@Body() dto: ImportLoansDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.loans.importMany(user, dto.rows);
   }
 
   @Patch(':id/deactivate')

@@ -31,7 +31,7 @@ export interface ImportColumn {
   parse?: (raw: string) => unknown;
 }
 
-type RowStatus = 'created' | 'skipped' | 'failed';
+type RowStatus = 'created' | 'updated' | 'skipped' | 'failed';
 
 export interface ImportResultRow {
   row: number;
@@ -43,6 +43,8 @@ export interface ImportResultRow {
 
 export interface ImportResponse {
   created: number;
+  /** Rows that overwrote an existing record (upsert imports only). */
+  updated: number;
   skipped: number;
   failed: number;
   results: ImportResultRow[];
@@ -74,6 +76,26 @@ export function numberCell(raw: string): number {
   const n = Number(raw.replace(/\s/g, '').replace(',', '.'));
   if (!Number.isFinite(n) || raw.trim() === '') throw new Error(`"${raw}" bukan angka`);
   return n;
+}
+
+/**
+ * Date cell → the ISO string every DTO validates with @IsISO8601. Excel hands a real date
+ * cell back as YYYY-MM-DD (see xlsx.ts cellText), and anything else is a typist's format
+ * we refuse to guess at: 03/04 is two different days depending on who typed it.
+ */
+export function dateCell(raw: string): string {
+  const value = raw.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`"${raw}" harus format YYYY-MM-DD`);
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime())) throw new Error(`"${raw}" bukan tanggal yang sah`);
+  return parsed.toISOString();
+}
+
+/** Payroll period cell, "YYYY-MM" — the same shape the server's PERIOD regex accepts. */
+export function periodCell(raw: string): string {
+  const value = raw.trim();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(value)) throw new Error(`"${raw}" harus format YYYY-MM`);
+  return value;
 }
 
 /** Enum cell factory: upper-cases and checks membership. */
@@ -136,7 +158,11 @@ export function prepareRows(records: CsvRecord[], columns: ImportColumn[]): Prep
       try {
         payload[col.field ?? col.key] = parserFor(col)(cell);
       } catch (err) {
-        return { row, raw, error: `${col.key}: ${err instanceof Error ? err.message : 'tidak valid'}` };
+        return {
+          row,
+          raw,
+          error: `${col.key}: ${err instanceof Error ? err.message : 'tidak valid'}`,
+        };
       }
     }
     return { row, raw, payload };
@@ -370,6 +396,7 @@ export function CsvImport({
         <Card className="flex flex-col gap-3 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="success">{result.created} dibuat</Badge>
+            {result.updated > 0 && <Badge tone="brand">{result.updated} diperbarui</Badge>}
             <Badge tone="neutral">{result.skipped} dilewati</Badge>
             {result.failed > 0 && <Badge tone="danger">{result.failed} gagal</Badge>}
           </div>

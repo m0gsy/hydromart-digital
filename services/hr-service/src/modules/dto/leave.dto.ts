@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEnum,
   IsISO8601,
@@ -7,8 +9,10 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { LeaveStatus, LeaveType } from '../../../prisma/generated/client';
@@ -37,4 +41,20 @@ export class ListLeaveDto {
 
 export class LeaveBalanceQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(2000) year?: number;
+}
+
+/** One opening-balance row: carried-over quota and days already taken, by staff code. */
+export class ImportLeaveBalanceRowDto {
+  @IsString() @MaxLength(40) employeeCode!: string;
+  @Type(() => Number) @IsInt() @Min(2000) @Max(2100) year!: number;
+  @Type(() => Number) @IsInt() @Min(0) @Max(365) quotaDays!: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(365) usedDays?: number;
+}
+
+export class ImportLeaveBalancesDto {
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ImportLeaveBalanceRowDto)
+  rows!: ImportLeaveBalanceRowDto[];
 }

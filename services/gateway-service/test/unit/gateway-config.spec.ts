@@ -88,6 +88,9 @@ describe('GatewayConfigService', () => {
     // hr-service backs many segments
     expect(map.employees).toBe('http://hr:1');
     expect(map['hr-reports']).toBe('http://hr:1');
+    // Kasbon and the bonus-rule engine: the console calls both through the gateway.
+    expect(map.loans).toBe('http://hr:1');
+    expect(map['bonus-rules']).toBe('http://hr:1');
   });
 
   it('throws when a required upstream env var is missing', () => {

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
-import { Card, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
+import { Card, ErrorState, LinkButton, SectionHeader, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -28,6 +28,18 @@ export default function AllowancesPage() {
       <SectionHeader
         title="Tunjangan"
         subtitle="Komponen gaji tetap berulang — terpisah dari bonus di slip gaji"
+        action={
+          isAdmin ? (
+            <div className="flex gap-2">
+              <LinkButton href="/hr/allowances/import" variant="secondary">
+                Import Excel
+              </LinkButton>
+              <LinkButton href="/hr/loans/import" variant="secondary">
+                Import Kasbon
+              </LinkButton>
+            </div>
+          ) : undefined
+        }
       />
 
       {employees.loading && <Skeleton className="h-12" />}

@@ -98,6 +98,18 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return this.prisma.employee.findUnique({ where: { id } });
   }
 
+  findByEmployeeCode(employeeCode: string): Promise<Employee | null> {
+    return this.prisma.employee.findUnique({ where: { employeeCode } });
+  }
+
+  findByPhone(phone: string): Promise<Employee | null> {
+    return this.prisma.employee.findFirst({ where: { phone }, orderBy: { createdAt: 'asc' } });
+  }
+
+  findByNik(nik: string): Promise<Employee | null> {
+    return this.prisma.employee.findUnique({ where: { nik } });
+  }
+
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.prisma.employee.findUnique({ where: { authSubjectId } });
   }

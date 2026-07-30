@@ -10,6 +10,7 @@ import {
   ErrorState,
   Field,
   Input,
+  LinkButton,
   Money,
   SectionHeader,
   Skeleton,
@@ -88,6 +89,13 @@ export default function AssetsPage() {
       <SectionHeader
         title="Aset"
         subtitle="Barang perusahaan yang dipegang karyawan. Riwayat serah terima tidak pernah dihapus."
+        action={
+          isAdmin ? (
+            <LinkButton href="/hr/assets/import" variant="secondary">
+              Import Excel
+            </LinkButton>
+          ) : undefined
+        }
       />
 
       <Card className="space-y-4 p-5">

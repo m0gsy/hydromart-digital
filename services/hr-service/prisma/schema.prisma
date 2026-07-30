@@ -37,6 +37,25 @@ enum EmployeeStatus {
   RESIGNED
 }
 
+/// Sex as printed on the KTP — two values because that is what the document carries.
+enum Gender {
+  MALE
+  FEMALE
+}
+
+/// PPh 21 tax class: TK = single, K = married, the digit = dependants. Stored only; no
+/// payroll rule reads it yet, income tax is still filed outside the app.
+enum PtkpStatus {
+  TK0
+  TK1
+  TK2
+  TK3
+  K0
+  K1
+  K2
+  K3
+}
+
 /// Daily attendance outcome derived from check-in time + holiday/leave calendar.
 enum AttendanceStatus {
   PRESENT
@@ -186,6 +205,18 @@ model Employee {
   photoUrl         String?
   phone            String
   email            String?
+  /// KTP number. Unique when present — two files with the same NIK is a data-entry mistake,
+  /// not two people. Personal data under UU 27/2022, so it follows the retention purge.
+  nik              String?          @unique
+  birthDate        DateTime?        @db.Date
+  gender           Gender?
+  /// Home address, free text (KTP address). One line, not split — nothing computes on it.
+  address          String?
+  /// PPh 21 class. Stored for reporting; the payroll engine does not read it yet.
+  ptkpStatus       PtkpStatus?
+  /// End of a fixed-term contract. Null = open-ended. Never auto-expires anyone: a lapsed
+  /// date is a reminder for HR, not a status change.
+  contractEndDate  DateTime?        @db.Date
   /// Home depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
   depotId          String           @db.Uuid
   position         String
