@@ -1,4 +1,4 @@
-import type { StaffImportRole } from '@hydromart/access';
+import type { HrManagedRole, StaffImportRole } from '@hydromart/access';
 
 export const IDENTITY_PORT = Symbol('IdentityPort');
 
@@ -26,4 +26,21 @@ export interface ProvisionStaffInput {
  */
 export interface IdentityPort {
   provisionStaff(input: ProvisionStaffInput): Promise<{ customerId: string }>;
+
+  /**
+   * Push a jabatan change onto the existing login.
+   *
+   * Also fails hard: an employee whose title says SPV while their token still says
+   * assistant is worse than a rejected edit — nobody would notice until they were denied
+   * something, or allowed something they should no longer reach.
+   */
+  assignRole(input: AssignRoleInput): Promise<void>;
+}
+
+export interface AssignRoleInput {
+  /** auth-service Customer.id (the employee's `authSubjectId`). */
+  customerId: string;
+  role: HrManagedRole;
+  /** Omit to leave the account's depot alone; null clears it (staff above one depot). */
+  depotId?: string | null;
 }

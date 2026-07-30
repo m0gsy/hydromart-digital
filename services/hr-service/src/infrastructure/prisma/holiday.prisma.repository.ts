@@ -40,7 +40,7 @@ export class HolidayPrismaRepository implements HolidayRepository {
     return this.prisma.holiday.findUnique({ where: { id } });
   }
 
-  async listDates(depotId: string, from: Date, to: Date): Promise<string[]> {
+  async listDates(depotId: string | null, from: Date, to: Date): Promise<string[]> {
     // National (depotId null) holidays apply everywhere; depot-specific ones add to them.
     const rows = await this.prisma.holiday.findMany({
       where: { date: { gte: from, lte: to }, OR: [{ depotId: null }, { depotId }] },

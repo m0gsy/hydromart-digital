@@ -99,7 +99,9 @@ export class PayrollService {
     });
 
     // Tenure raise for depot heads (Rule-E): % uplift on base pay by completed years.
-    if (employee.employmentStatus === 'DEPOT_MANAGER' && base > 0) {
+    // Driven by the JABATAN, not the employment status — a depot head on probation is
+    // still a depot head, and `DEPOT_MANAGER` is no longer an EmploymentStatus at all.
+    if (employee.role === 'KEPALA_DEPOT' && base > 0) {
       const ladder = parseRaiseLadder(this.config.tenureRaiseLadder(employee.depotId));
       const years = tenureYears(employee.joinDate, to);
       const pct = tenureRaisePercent(ladder, years);
@@ -144,13 +146,17 @@ export class PayrollService {
       const rules = await this.bonusRules.listActiveForDepot(employee.depotId);
       // Only pay the cross-service sales call when a SALES rule actually needs it.
       const needsSales = rules.some((r) => r.metric === 'SALES_TOTAL');
+      // No home depot ⇒ no depot sales to attribute. null (not 0) so a SALES rule is
+      // SKIPPED rather than evaluated as a miss — see evalBonusRule.
       const salesTotal =
-        needsSales && this.sales ? await this.sales.depotSales(employee.depotId, from, to) : null;
+        needsSales && this.sales && employee.depotId
+          ? await this.sales.depotSales(employee.depotId, from, to)
+          : null;
       const ctx: BonusContext = {
         presentDays,
         workingDays,
         lateDays,
-        isDepotManager: employee.employmentStatus === 'DEPOT_MANAGER',
+        isDepotManager: employee.role === 'KEPALA_DEPOT',
         salesTotal,
         basePay: sum(items, 'BASE'),
       };
@@ -339,7 +345,7 @@ export class PayrollService {
   /** Expected working days (calendar − weekly-off − holidays) minus days present or on leave. */
   private async absentDays(
     periodMonth: string,
-    depotId: string,
+    depotId: string | null,
     from: Date,
     to: Date,
     presentDays: number,
@@ -411,7 +417,7 @@ export class PayrollService {
   /** Expected working days in the period: calendar days − weekly-off − holidays. */
   private async workingDays(
     periodMonth: string,
-    depotId: string,
+    depotId: string | null,
     from: Date,
     to: Date,
   ): Promise<number> {

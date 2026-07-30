@@ -77,7 +77,8 @@ class FakeLeaveRepo implements LeaveRepository {
   async list(filter: LeaveListFilter) {
     let rows = this.rows;
     if (filter.employeeId) rows = rows.filter((r) => r.employeeId === filter.employeeId);
-    if (filter.depotIds) rows = rows.filter((r) => filter.depotIds!.includes(r.depotId));
+    if (filter.depotIds)
+      rows = rows.filter((r) => !!r.depotId && filter.depotIds!.includes(r.depotId));
     if (filter.status) rows = rows.filter((r) => r.status === filter.status);
     return { rows: rows.slice(filter.skip, filter.skip + filter.take), total: rows.length };
   }

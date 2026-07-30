@@ -8,7 +8,9 @@ export type BonusMetric =
   | 'ATTENDANCE_RATE' // percent of working days present (0..100)
   | 'PRESENT_DAYS' // count of days present
   | 'ZERO_LATE' // 1 if never late this month, else 0
-  | 'IS_DEPOT_MANAGER' // 1 if employmentStatus = DEPOT_MANAGER, else 0
+  // Metric name kept as-is: it is a stored string in bonus_rules.metric, and renaming it
+  // would orphan every existing rule row. What feeds it is now the jabatan.
+  | 'IS_DEPOT_MANAGER' // 1 if the employee's role is KEPALA_DEPOT, else 0
   | 'SALES_TOTAL'; // IDR sales attributed this month — cross-service, null until wired
 
 export type CompareOp = 'GTE' | 'LTE' | 'EQ';

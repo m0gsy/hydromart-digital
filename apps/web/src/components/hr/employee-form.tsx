@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { HR_MANAGED_ROLES, type HrManagedRole } from '@hydromart/access';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -10,6 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYMENT_STATUS_LABEL,
   GENDER_LABEL,
+  HR_ROLE_LABEL,
   PTKP_STATUS_LABEL,
   departmentsForDepot,
   type Department,
@@ -121,6 +123,23 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             value={form.joinDate}
             onChange={(e) => set('joinDate', e.target.value)}
           />
+        </Field>
+
+        {/* Changing this re-roles the person's LOGIN, not just their file — which is the
+            point: a promotion that only changed the title left the old access in place. */}
+        <Field label="Jabatan (peran login)">
+          <select
+            value={form.role}
+            onChange={(e) => set('role', e.target.value as HrManagedRole | '')}
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+          >
+            <option value="">Tidak diubah</option>
+            {HR_MANAGED_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {HR_ROLE_LABEL[r]}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <Field label="Status kepegawaian">

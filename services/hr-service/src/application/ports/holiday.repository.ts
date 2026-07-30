@@ -8,5 +8,6 @@ export interface HolidayRepository {
   delete(id: string): Promise<void>;
   findById(id: string): Promise<Holiday | null>;
   /** ISO YYYY-MM-DD dates in [from,to] that are national (depotId null) OR the given depot. */
-  listDates(depotId: string, from: Date, to: Date): Promise<string[]>;
+  /** `null` = the caller has no depot (staff above one), so only national holidays apply. */
+  listDates(depotId: string | null, from: Date, to: Date): Promise<string[]>;
 }

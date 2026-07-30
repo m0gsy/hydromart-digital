@@ -167,6 +167,30 @@ export class AccountService {
   }
 
   /**
+   * Change an EXISTING account's staff role, by account id rather than by phone.
+   *
+   * Separate from `inviteStaff` on purpose: this one never creates anybody. It backs an
+   * HR jabatan change, where the account is already known and the only question is what
+   * it may now do — inviting by phone there would silently mint a second account if the
+   * employee's phone had been corrected in the meantime.
+   */
+  async setStaffRole(customerId: string, role: Role, depotId?: string | null): Promise<PublicCustomer> {
+    if (role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    const depot = depotId === undefined ? customer.assignedDepotId : depotId;
+    if (isDepotLocked(role as unknown as PlatformRole) && (depot ?? '') === '') {
+      throw new StaffDepotRequiredError();
+    }
+    customer.promoteToStaff(role, depot);
+    return toPublicCustomer(await this.customers.save(customer));
+  }
+
+  /**
    * Pre-register an end customer imported by depot staff (bulk import). Creates the
    * identity in PENDING_VERIFICATION so the customer still claims it themselves: the
    * normal `/auth/register` flow re-issues an OTP for a PENDING phone and activates

@@ -4,7 +4,8 @@ export const ATTENDANCE_REPOSITORY = Symbol('ATTENDANCE_REPOSITORY');
 
 export interface CreateAttendanceInput {
   employeeId: string;
-  depotId: string;
+  /** Copied from the employee; null for staff who sit above any single depot. */
+  depotId: string | null;
   workDate: Date;
   checkInAt: Date;
   checkInPhotoUrl: string | null;
@@ -51,7 +52,7 @@ export interface WorkedMinutesRow {
 
 export interface ManualAttendanceInput {
   employeeId: string;
-  depotId: string;
+  depotId: string | null;
   workDate: Date;
   status: AttendanceStatus;
   lateMinutes?: number;

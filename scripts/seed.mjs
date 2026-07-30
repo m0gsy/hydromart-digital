@@ -109,9 +109,11 @@ const STAFF = [
 // Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for
 // idempotency. dailyRate/monthlyRate follow the salaryType the server validates.
 const EMPLOYEES = [
-  { fullName: 'Budi Santoso', phone: '+6281100000101', position: 'Kepala Depot', employmentStatus: 'DEPOT_MANAGER', salaryType: 'MONTHLY', monthlyRate: 5_000_000 },
-  { fullName: 'Siti Aminah', phone: '+6281100000102', position: 'Kasir', employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100_000 },
-  { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
+  // `role` is the jabatan (drives the payroll tenure raise); employmentStatus is only the
+  // employment class now — DEPOT_MANAGER stopped being one of those.
+  { fullName: 'Budi Santoso', phone: '+6281100000101', position: 'Kepala Depot', role: 'KEPALA_DEPOT', employmentStatus: 'PERMANENT', salaryType: 'MONTHLY', monthlyRate: 5_000_000 },
+  { fullName: 'Siti Aminah', phone: '+6281100000102', position: 'Kasir', role: 'STAFF_DEPOT', employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100_000 },
+  { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', role: 'STAFF_DEPOT', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
 ];
 
 const STOCK_QTY = 200;

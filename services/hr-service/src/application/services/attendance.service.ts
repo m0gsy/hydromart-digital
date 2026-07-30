@@ -142,7 +142,7 @@ export class AttendanceService {
    * Device capture time for an offline punch, clamped so a wrong or hostile clock cannot
    * backdate further than the offline window really was. Null for a live punch.
    */
-  private offlineAt(punch: FacePunch, now: Date, depotId: string): Date | null {
+  private offlineAt(punch: FacePunch, now: Date, depotId: string | null): Date | null {
     if (!punch.capturedAt) return null;
     const maxAgeMs = this.config.offlineMaxAgeHours(depotId) * 3_600_000;
     if (punch.capturedAt.getTime() < now.getTime() - maxAgeMs) {
@@ -180,7 +180,7 @@ export class AttendanceService {
   }
 
   /** Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured). */
-  private assertGeofence(depotId: string, punch: FacePunch): void {
+  private assertGeofence(depotId: string | null, punch: FacePunch): void {
     const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
     if (!ok) {
       throw new ForbiddenException(

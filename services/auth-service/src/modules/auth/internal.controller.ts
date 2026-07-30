@@ -7,6 +7,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { PublicCustomerDto } from './dto/responses.dto';
 import {
+  AssignStaffRoleDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
   ProvisionStaffDto,
@@ -40,6 +41,17 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Create or promote a staff account (internal service auth)' })
   async provisionStaff(@Body() dto: ProvisionStaffDto): Promise<PublicCustomerDto> {
     const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    return PublicCustomerDto.from(staff);
+  }
+
+  // An HR jabatan change reaching the login. Same allowlist reasoning as `staff` above,
+  // one rung wider (`HR_MANAGED_ROLES`) so a promotion up the supervision chain works
+  // without leaving the person's old access in place.
+  @Post('staff/role')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Change an existing staff account's role (internal service auth)" })
+  async assignStaffRole(@Body() dto: AssignStaffRoleDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffRole(dto.customerId, dto.role, dto.depotId);
     return PublicCustomerDto.from(staff);
   }
 

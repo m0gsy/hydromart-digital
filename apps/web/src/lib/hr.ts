@@ -1,7 +1,11 @@
 // HRIS Lite web types + pure helpers. Mirrors hr-service Prisma models / DTOs; the
 // server stays authority. Types live here (not types.ts) to keep the HR surface self-contained.
 
-export type EmploymentStatus = 'TRAINING' | 'PROBATION' | 'PERMANENT' | 'DEPOT_MANAGER';
+import type { HrManagedRole } from '@hydromart/access';
+
+// DEPOT_MANAGER is gone: it was a JABATAN wearing a status's clothes, which made "depot
+// head" and "on probation" mutually exclusive. It now lives on `Employee.role`.
+export type EmploymentStatus = 'TRAINING' | 'PROBATION' | 'PERMANENT';
 export type SalaryType = 'DAILY' | 'MONTHLY';
 export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'RESIGNED';
 export type AttendanceStatus = 'PRESENT' | 'LATE' | 'ABSENT' | 'LEAVE' | 'HOLIDAY' | 'PENDING';
@@ -45,8 +49,11 @@ export interface Employee {
   photoUrl: string | null;
   phone: string;
   email: string | null;
-  depotId: string;
+  /** Null for staff above a single depot (Asisten SPV and up). */
+  depotId: string | null;
   position: string;
+  /** Login role (jabatan). Editing it re-roles the person's account too. */
+  role: HrManagedRole | null;
   employmentStatus: EmploymentStatus;
   joinDate: string;
   salaryType: SalaryType;
@@ -519,7 +526,14 @@ export const EMPLOYMENT_STATUS_LABEL: Record<EmploymentStatus, string> = {
   TRAINING: 'Training',
   PROBATION: 'Percobaan',
   PERMANENT: 'Tetap',
-  DEPOT_MANAGER: 'Kepala Depot',
+};
+/** Jabatan labels for the roles HR may set. The office roles live in the staff console. */
+export const HR_ROLE_LABEL: Record<HrManagedRole, string> = {
+  STAFF_DEPOT: 'Staf Depot / Kurir',
+  KEPALA_DEPOT: 'Kepala Depot',
+  ASSISTANT_SUPERVISOR: 'Asisten Supervisor',
+  SUPERVISOR: 'Supervisor',
+  MANAGER: 'Manager',
 };
 export const EMPLOYEE_STATUS_LABEL: Record<EmployeeStatus, string> = {
   ACTIVE: 'Aktif',
@@ -696,6 +710,8 @@ export interface EmployeeForm {
   email: string;
   depotId: string;
   position: string;
+  /** '' = leave the login role alone. Setting it re-roles the account. */
+  role: HrManagedRole | '';
   employmentStatus: EmploymentStatus;
   joinDate: string;
   salaryType: SalaryType;
@@ -724,6 +740,7 @@ export const EMPTY_EMPLOYEE_FORM: EmployeeForm = {
   email: '',
   depotId: '',
   position: '',
+  role: '',
   employmentStatus: 'TRAINING',
   joinDate: '',
   salaryType: 'DAILY',
@@ -751,8 +768,9 @@ export function employeeToForm(e: Employee): EmployeeForm {
     fullName: e.fullName,
     phone: e.phone,
     email: e.email ?? '',
-    depotId: e.depotId,
+    depotId: e.depotId ?? '',
     position: e.position,
+    role: e.role ?? '',
     employmentStatus: e.employmentStatus,
     joinDate: e.joinDate.slice(0, 10),
     salaryType: e.salaryType,
@@ -780,12 +798,15 @@ export function employeeToForm(e: Employee): EmployeeForm {
 export function toEmployeePayload(
   f: EmployeeForm,
 ): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  // Staff above a single depot (Asisten SPV and up) have no home depot — same rule the
+  // server enforces, so the form does not demand a value the API would ignore.
+  const aboveDepot = f.role === 'ASSISTANT_SUPERVISOR' || f.role === 'SUPERVISOR' || f.role === 'MANAGER';
   const req = {
     fullName: f.fullName.trim(),
     phone: f.phone.trim(),
-    depotId: f.depotId.trim(),
     position: f.position.trim(),
     joinDate: f.joinDate.trim(),
+    ...(aboveDepot ? {} : { depotId: f.depotId.trim() }),
   };
   for (const [k, v] of Object.entries(req))
     if (!v) return { ok: false, error: `${k} wajib diisi.` };
@@ -801,6 +822,7 @@ export function toEmployeePayload(
     salaryType: f.salaryType,
     joinDate: new Date(f.joinDate).toISOString(),
   };
+  if (f.role) value.role = f.role;
   if (f.email.trim()) value.email = f.email.trim();
   if (f.salaryType === 'DAILY') value.dailyRate = daily;
   else value.monthlyRate = monthly;

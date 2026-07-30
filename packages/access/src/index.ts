@@ -300,6 +300,25 @@ export const STAFF_IMPORT_ROLES = ['STAFF_DEPOT', 'KEPALA_DEPOT'] as const satis
 export type StaffImportRole = (typeof STAFF_IMPORT_ROLES)[number];
 
 /**
+ * Roles the HR module may set on an existing login when an employee's jabatan changes.
+ *
+ * Wider than an import allowlist because a promotion up the supervision chain (Asisten
+ * SPV -> SPV) is ordinary HR work, and leaving the login behind is how someone ends up
+ * with a new title and their old access. Still bounded: the office roles, DIREKTUR,
+ * FRANCHISE_OWNER and SUPER_ADMIN are granted by hand in the staff console, never as a
+ * side effect of editing an employee file.
+ */
+export const HR_MANAGED_ROLES = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+] as const satisfies readonly Role[];
+
+export type HrManagedRole = (typeof HR_MANAGED_ROLES)[number];
+
+/**
  * SUPER_ADMIN edits to the map above, as a sparse patch: one entry per CHANGED
  * capability, holding the full replacement role list. An absent entry means "use the
  * compiled default", so an empty patch is byte-for-byte the behaviour of this file.

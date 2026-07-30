@@ -37,7 +37,7 @@ export class ShiftPrismaRepository implements ShiftRepository {
     });
   }
 
-  findActiveForDepot(depotId: string): Promise<Shift | null> {
+  findActiveForDepot(depotId: string | null): Promise<Shift | null> {
     // Prefer the depot's own active shift; fall back to a network-wide (null-depot) one.
     return this.prisma.shift.findFirst({
       where: { active: true, OR: [{ depotId }, { depotId: null }] },

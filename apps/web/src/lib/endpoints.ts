@@ -631,6 +631,20 @@ export const endpoints = {
     // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
     uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
   },
+  // The supervision map (F3): Depot -> Asisten SPV -> SPV -> Manager. Every multi-depot
+  // scope resolves from this, so all of it is `hierarchyAdmin` (SUPER_ADMIN by default).
+  hierarchy: {
+    // Superior, direct reports, supervised depots and direct grants for one account.
+    describe: (staffId: string) => `/depots/api/v1/staff-hierarchy/${staffId}`,
+    // PUT { superiorId } to point an account at its superior; DELETE to unlink.
+    superior: (staffId: string) => `/depots/api/v1/staff-hierarchy/${staffId}/superior`,
+    // PUT/DELETE one depot granted directly, on top of the hierarchy walk.
+    depotGrant: (staffId: string, depotId: string) =>
+      `/depots/api/v1/staff-hierarchy/${staffId}/depots/${depotId}`,
+    // PUT { assistantSupervisorId } / DELETE — the ONLY writer of a depot's assistant.
+    depotAssistant: (depotId: string) =>
+      `/depots/api/v1/staff-hierarchy/depots/${depotId}/assistant`,
+  },
   inventory: {
     // Stock lines for one depot (staff).
     lines: (depotId: string, q: { itemType?: string; lowStockOnly?: boolean } = {}) => {

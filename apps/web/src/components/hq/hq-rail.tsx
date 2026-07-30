@@ -10,6 +10,7 @@ import {
   MagnifyingGlass,
   Package,
   ShieldCheck,
+  TreeStructure,
   Storefront,
   Stack,
   Tag,
@@ -105,7 +106,10 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
   {
     headKey: 'network',
-    items: [{ href: '/hq/depots', labelKey: 'depots', icon: Storefront, ready: true }],
+    items: [
+      { href: '/hq/depots', labelKey: 'depots', icon: Storefront, ready: true },
+      { href: '/hq/hierarchy', labelKey: 'hierarchy', icon: TreeStructure, ready: true },
+    ],
   },
   {
     headKey: 'staff',

@@ -265,7 +265,11 @@ export class LeaveService {
     }
   }
 
-  private async workingDaysFor(depotId: string, start: string, end: string): Promise<string[]> {
+  private async workingDaysFor(
+    depotId: string | null,
+    start: string,
+    end: string,
+  ): Promise<string[]> {
     const holidays = this.holidays
       ? await this.holidays.listDates(
           depotId,

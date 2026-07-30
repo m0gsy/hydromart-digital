@@ -20,7 +20,7 @@ export class BonusRulePrismaRepository implements BonusRuleRepository {
     return this.prisma.bonusRule.findUnique({ where: { id } });
   }
 
-  listActiveForDepot(depotId: string): Promise<BonusRule[]> {
+  listActiveForDepot(depotId: string | null): Promise<BonusRule[]> {
     // Depot-specific rules + global (null-depot) defaults both apply.
     return this.prisma.bonusRule.findMany({
       where: { active: true, OR: [{ depotId }, { depotId: null }] },

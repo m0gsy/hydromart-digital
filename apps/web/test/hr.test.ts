@@ -45,6 +45,7 @@ const employee = (over: Partial<Employee> = {}): Employee => ({
   email: null,
   depotId: 'd1',
   position: 'Kurir',
+  role: 'STAFF_DEPOT',
   employmentStatus: 'PROBATION',
   joinDate: '2026-01-15T00:00:00.000Z',
   salaryType: 'DAILY',

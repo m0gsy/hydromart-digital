@@ -17,11 +17,32 @@ datasource db {
 }
 
 /// Employment classification. Drives the default salary policy (PRD Payroll).
+/// It is a STATUS, not a job: `DEPOT_MANAGER` used to live here and made the tenure raise
+/// depend on a status field, so a depot head could not also be on probation. The jabatan
+/// moved to `Employee.role`.
 enum EmploymentStatus {
   TRAINING
   PROBATION
   PERMANENT
-  DEPOT_MANAGER
+}
+
+/// Login role, mirroring auth-service's `Role` (and `@hydromart/access`). Kept as a local
+/// column so payroll and the HR console can read someone's jabatan without a cross-service
+/// call; auth-service stays the source of truth for what the role may actually DO.
+enum Role {
+  CUSTOMER
+  STAFF_DEPOT
+  KEPALA_DEPOT
+  ASSISTANT_SUPERVISOR
+  SUPERVISOR
+  MANAGER
+  DIREKTUR
+  FRANCHISE_OWNER
+  HEAD_OFFICE
+  FINANCE
+  MARKETING
+  HR
+  SUPER_ADMIN
 }
 
 /// How base pay is computed: per present-day vs a fixed monthly figure.
@@ -218,8 +239,14 @@ model Employee {
   /// date is a reminder for HR, not a status change.
   contractEndDate  DateTime?        @db.Date
   /// Home depot (depot-service Depot.id). Drives DepotScopeGuard tenant isolation.
-  depotId          String           @db.Uuid
+  /// Nullable: an Asisten SPV / SPV / Manager / Direktur is a full employee but sits above
+  /// any single depot. Null means network-wide, never "every depot" — depot-scoped queries
+  /// filter these rows OUT rather than matching them everywhere.
+  depotId          String?          @db.Uuid
   position         String
+  /// Login role (jabatan). Nullable for employees with no account, and for rows imported
+  /// before this column existed. Payroll reads it for the depot-head tenure raise.
+  role             Role?
   employmentStatus EmploymentStatus
   joinDate         DateTime         @db.Date
   /// Direct report's manager (Employee.id, same-service). Plain UUID, no relation nav — MVP.
@@ -309,7 +336,9 @@ model FaceEmbedding {
 model Attendance {
   id               String           @id @default(uuid()) @db.Uuid
   employeeId       String           @db.Uuid
-  depotId          String           @db.Uuid
+  /// Copied from the employee. Null for staff who sit above a single depot (SPV and up) —
+  /// a depot-scoped queue must skip them, not match them everywhere.
+  depotId          String?          @db.Uuid
   workDate         DateTime         @db.Date
   checkInAt        DateTime?
   checkOutAt       DateTime?
@@ -503,7 +532,8 @@ model LeaveRequest {
   id              String      @id @default(uuid()) @db.Uuid
   employeeId      String      @db.Uuid
   /// Copied from the employee so the approval queue can be depot-scoped without a join.
-  depotId         String      @db.Uuid
+  /// Null for staff above a single depot — their request lands in the HQ/HR queue only.
+  depotId         String?     @db.Uuid
   type            LeaveType
   startDate       DateTime    @db.Date
   endDate         DateTime    @db.Date

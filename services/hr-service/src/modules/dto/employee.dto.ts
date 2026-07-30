@@ -18,7 +18,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { STAFF_IMPORT_ROLES, type StaffImportRole } from '@hydromart/access';
+import {
+  HR_MANAGED_ROLES,
+  STAFF_IMPORT_ROLES,
+  type HrManagedRole,
+  type StaffImportRole,
+} from '@hydromart/access';
 
 import {
   EmploymentStatus,
@@ -49,12 +54,22 @@ export class CreateEmployeeDto {
   @MaxLength(160)
   email?: string;
 
+  /** Optional: an Asisten SPV and up is a full employee with no single home depot. */
+  @IsOptional()
   @IsUUID()
-  depotId!: string;
+  depotId?: string;
 
   @IsString()
   @MaxLength(80)
   position!: string;
+
+  /**
+   * Login role (jabatan). Bounded to `HR_MANAGED_ROLES`, not the whole enum: an employee
+   * form must not be a path to a HEAD_OFFICE or SUPER_ADMIN account.
+   */
+  @IsOptional()
+  @IsIn(HR_MANAGED_ROLES as readonly string[])
+  role?: HrManagedRole;
 
   @IsEnum(EmploymentStatus)
   employmentStatus!: EmploymentStatus;
@@ -162,9 +177,17 @@ export class CreateEmployeeDto {
 
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId
  * (the import gets that back from auth-service, it is never supplied by the file). */
-export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, ['authSubjectId'] as const) {
+export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, [
+  'authSubjectId',
+  'role',
+] as const) {
+  /** Narrower than the form's `HR_MANAGED_ROLES`: a spreadsheet may only mint depot staff. */
   @IsIn(STAFF_IMPORT_ROLES as readonly string[])
   role!: StaffImportRole;
+
+  /** Required here even though the form allows none: both import roles are depot-locked. */
+  @IsUUID()
+  depotId!: string;
 
   /** The supervisor's staff code (`HR-0007`), resolved server-side after every row is in. */
   @IsOptional()
@@ -193,6 +216,8 @@ export class UpdateEmployeeDto {
   @IsOptional() @IsString() @MaxLength(160) email?: string;
   @IsOptional() @IsUUID() depotId?: string;
   @IsOptional() @IsString() @MaxLength(80) position?: string;
+  /** Changing this re-roles the login too — see EmployeeService.update. */
+  @IsOptional() @IsIn(HR_MANAGED_ROLES as readonly string[]) role?: HrManagedRole;
   @IsOptional() @IsEnum(EmploymentStatus) employmentStatus?: EmploymentStatus;
   @IsOptional() @IsISO8601() joinDate?: string;
   @IsOptional() @IsEnum(SalaryType) salaryType?: SalaryType;

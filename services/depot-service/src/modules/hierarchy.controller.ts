@@ -49,6 +49,32 @@ export class HierarchyController {
     return { depotIds: await this.hierarchy.scopedDepotIds(staffId, role ?? '') };
   }
 
+  // Declared before the `:staffId` routes: `depots` is a static segment and must never be
+  // read as an account id. This is the ONLY writer of a depot's assistant supervisor —
+  // PATCH /depots/:id is `depotAdmin`, and a manager must not redraw their own scope.
+  @Can('hierarchyAdmin')
+  @Put('depots/:depotId/assistant')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Put a depot under an assistant supervisor' })
+  async setDepotAssistant(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: SetAssistantDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.hierarchy.setDepotAssistant(depotId, dto.assistantSupervisorId, user.sub);
+  }
+
+  @Can('hierarchyAdmin')
+  @Delete('depots/:depotId/assistant')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Leave a depot without an assistant supervisor (HQ-only visibility)' })
+  async clearDepotAssistant(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.hierarchy.setDepotAssistant(depotId, null, user.sub);
+  }
+
   @Can('hierarchyAdmin')
   @Get(':staffId')
   @ApiOperation({ summary: 'Superior, direct reports and depots recorded for one account' })

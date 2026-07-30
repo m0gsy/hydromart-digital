@@ -1,75 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
-import { HierarchyRepository } from '../../src/application/ports/hierarchy.repository';
 import { HierarchyService } from '../../src/application/services/hierarchy.service';
-
-/** In-memory hierarchy: depot -> assistant, and a person -> superior chain. */
-class FakeHierarchy implements HierarchyRepository {
-  assistantOfDepot = new Map<string, string>(); // depotId -> assistantId
-  superiorOf = new Map<string, string>(); // staffId -> superiorId
-  direct = new Map<string, string[]>(); // staffId -> depotIds
-
-  depotsForAssistant(staffId: string): Promise<string[]> {
-    return this.depotsForAssistants([staffId]);
-  }
-
-  depotsForAssistants(staffIds: readonly string[]): Promise<string[]> {
-    const set = new Set(staffIds);
-    return Promise.resolve(
-      [...this.assistantOfDepot.entries()].filter(([, a]) => set.has(a)).map(([d]) => d),
-    );
-  }
-
-  subordinatesOf(superiorId: string): Promise<string[]> {
-    return this.subordinatesOfMany([superiorId]);
-  }
-
-  subordinatesOfMany(superiorIds: readonly string[]): Promise<string[]> {
-    const set = new Set(superiorIds);
-    return Promise.resolve(
-      [...this.superiorOf.entries()].filter(([, s]) => set.has(s)).map(([staff]) => staff),
-    );
-  }
-
-  directDepots(staffId: string): Promise<string[]> {
-    return Promise.resolve(this.direct.get(staffId) ?? []);
-  }
-
-  setDepotAssistant(depotId: string, staffId: string | null): Promise<void> {
-    if (staffId === null) this.assistantOfDepot.delete(depotId);
-    else this.assistantOfDepot.set(depotId, staffId);
-    return Promise.resolve();
-  }
-
-  setSuperior(staffId: string, superiorId: string): Promise<void> {
-    this.superiorOf.set(staffId, superiorId);
-    return Promise.resolve();
-  }
-
-  clearSuperior(staffId: string): Promise<void> {
-    this.superiorOf.delete(staffId);
-    return Promise.resolve();
-  }
-
-  grantDepot(staffId: string, depotId: string): Promise<void> {
-    this.direct.set(staffId, [...(this.direct.get(staffId) ?? []), depotId]);
-    return Promise.resolve();
-  }
-
-  revokeDepot(staffId: string, depotId: string): Promise<void> {
-    this.direct.set(staffId, (this.direct.get(staffId) ?? []).filter((d) => d !== depotId));
-    return Promise.resolve();
-  }
-
-  async describe(staffId: string) {
-    return {
-      superiorId: this.superiorOf.get(staffId) ?? null,
-      subordinateIds: await this.subordinatesOf(staffId),
-      assistantDepotIds: await this.depotsForAssistant(staffId),
-      directDepotIds: await this.directDepots(staffId),
-    };
-  }
-}
+import { InMemoryHierarchyRepository as FakeHierarchy } from '../support/fakes';
 
 describe('HierarchyService.scopedDepotIds', () => {
   let repo: FakeHierarchy;

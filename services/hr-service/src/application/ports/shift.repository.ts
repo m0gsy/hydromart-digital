@@ -33,7 +33,8 @@ export interface ShiftRepository {
   findById(id: string): Promise<Shift | null>;
   list(depotIds?: readonly string[]): Promise<Shift[]>;
   /** The active shift for a depot (its own, else a null-depot default), for late calc. */
-  findActiveForDepot(depotId: string): Promise<Shift | null>;
+  /** `null` = no home depot, so only a network-wide shift can match. */
+  findActiveForDepot(depotId: string | null): Promise<Shift | null>;
 
   // ── rotations & assignments (C3) ──────────────────────────────────
   createRotation(data: RotationWrite): Promise<ShiftRotation>;

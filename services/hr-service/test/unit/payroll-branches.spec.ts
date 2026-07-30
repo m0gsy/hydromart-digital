@@ -164,7 +164,8 @@ describe('PayrollService tenure raise (Rule-E)', () => {
       employee: {
         salaryType: 'DAILY',
         dailyRate: 100_000 as never,
-        employmentStatus: 'DEPOT_MANAGER' as never,
+        // The raise follows the JABATAN now, not the employment status.
+        role: 'KEPALA_DEPOT' as never,
         joinDate: new Date('2023-01-01') as never,
       },
       ladder: '1:5,2:10',
@@ -180,7 +181,8 @@ describe('PayrollService tenure raise (Rule-E)', () => {
       employee: {
         salaryType: 'DAILY',
         dailyRate: 100_000 as never,
-        employmentStatus: 'DEPOT_MANAGER' as never,
+        // The raise follows the JABATAN now, not the employment status.
+        role: 'KEPALA_DEPOT' as never,
         joinDate: new Date('2026-06-01') as never,
       },
       ladder: '5:20',
