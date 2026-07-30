@@ -3,6 +3,41 @@ import { loadOverrides, type CapabilityOverrides, type Role } from '@hydromart/a
 const DEFAULT_TTL_MS = 30_000;
 const TIMEOUT_MS = 5_000;
 
+/**
+ * What the last successful load produced. `null` means this process has never loaded the
+ * matrix — a service whose bootstrap missed `startCapabilityRefresh` sits here forever,
+ * serving compiled defaults, and that is exactly the state /health has to expose.
+ */
+let lastLoad: { at: number; overrides: number } | null = null;
+
+export interface CapabilityMatrixStatus {
+  /** Overrides in force, or null when this process has never loaded them. */
+  overrides: number | null;
+  /** Seconds since the last successful load; null when there has never been one. */
+  ageSeconds: number | null;
+  /** True once a load has failed and no later one has succeeded. */
+  stale: boolean;
+}
+
+let refreshFailing = false;
+
+export function capabilityMatrixStatus(): CapabilityMatrixStatus {
+  if (!lastLoad) {
+    return { overrides: null, ageSeconds: null, stale: refreshFailing };
+  }
+  return {
+    overrides: lastLoad.overrides,
+    ageSeconds: Math.round((Date.now() - lastLoad.at) / 1000),
+    stale: refreshFailing,
+  };
+}
+
+/** Test/shutdown hook — the module-level snapshot outlives a single Nest app otherwise. */
+export function resetCapabilityRefreshStatus(): void {
+  lastLoad = null;
+  refreshFailing = false;
+}
+
 interface RefreshLogger {
   log?(message: string): void;
   warn(message: string): void;
@@ -36,6 +71,8 @@ export function startCapabilityRefresh(
     try {
       const next = await load();
       loadOverrides(next);
+      lastLoad = { at: Date.now(), overrides: Object.keys(next).length };
+      refreshFailing = false;
       if (!loadedOnce) {
         loadedOnce = true;
         // One line at boot naming the snapshot size. A service whose wiring was missed
@@ -49,6 +86,7 @@ export function startCapabilityRefresh(
     } catch (err) {
       // One line per failure STREAK, not per tick: a source down for an hour would
       // otherwise write 120 identical lines and bury everything else.
+      refreshFailing = true;
       if (!failing) {
         failing = true;
         logger?.warn(

@@ -19,7 +19,14 @@ export {
   CAPABILITY_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
-export { startCapabilityRefresh, httpCapabilityLoader } from './nest/capability-refresh';
+export {
+  startCapabilityRefresh,
+  httpCapabilityLoader,
+  capabilityMatrixStatus,
+  resetCapabilityRefreshStatus,
+  type CapabilityMatrixStatus,
+} from './nest/capability-refresh';
+export { rbacHealth, type RbacHealth } from './nest/rbac-health';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
 export { DepotScopeGuard } from './nest/depot-scope.guard';
@@ -39,6 +46,8 @@ export {
   httpDepotScopeResolver,
   resetDepotScope,
   resolveDepotScope,
+  depotScopeStatus,
+  type DepotScopeStatus,
 } from './nest/depot-scope-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';

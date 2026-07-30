@@ -45,6 +45,24 @@ export function resetDepotScope(): void {
   cache.clear();
 }
 
+export interface DepotScopeStatus {
+  /** False = bootstrap never called configureDepotScope. Multi-depot roles see one depot. */
+  configured: boolean;
+  /** Accounts whose depot set is currently cached (dozens at most). */
+  cached: number;
+}
+
+/**
+ * Whether this process can resolve a multi-depot scope at all.
+ *
+ * `configured: false` is the failure worth surfacing: it throws nothing and denies
+ * nothing — it quietly narrows every supervisor to their own token depot, which looks
+ * like a data problem rather than a wiring one.
+ */
+export function depotScopeStatus(): DepotScopeStatus {
+  return { configured: resolve !== null, cached: cache.size };
+}
+
 /**
  * The depots this caller is responsible for.
  *

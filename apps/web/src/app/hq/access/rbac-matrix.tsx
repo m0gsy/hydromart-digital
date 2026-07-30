@@ -83,13 +83,30 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
     key: 'network',
     caps: [
       'dashboard',
+      'hqConsole',
       'depotAdmin',
+      'depotDirectory',
       'staffAdmin',
+      'staffDirectory',
       'hierarchyAdmin',
       'depotCrm',
       'depotCrmWrite',
       'auditRead',
       'pdpRequests',
+      'settingsGlobal',
+      'accessMatrixWrite',
+    ],
+  },
+  // Decisions head office takes ON a depot's request. Kept as their own group because
+  // every one of them is the second half of a two-party flow: the depot proposes, this
+  // side disposes, and the two must never land on the same role by accident.
+  {
+    key: 'decisions',
+    caps: [
+      'priceOverrideDecide',
+      'franchiseApplications',
+      'voucherRequestDecide',
+      'fraudReview',
     ],
   },
   {
@@ -105,9 +122,35 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'resellerAdmin',
     ],
   },
-  { key: 'finance', caps: ['franchise', 'payout', 'depotFinance', 'depotDisputes'] },
+  {
+    key: 'finance',
+    caps: [
+      'franchise',
+      'payout',
+      'depotFinance',
+      'depotDisputes',
+      'refundIssue',
+      'refundQueue',
+      'settlementRead',
+      'hqPayout',
+      'hqPayoutRead',
+      'commissionRuns',
+      'earningRules',
+    ],
+  },
   { key: 'hr', caps: ['hrView', 'hrAdmin', 'hrPayroll', 'leaveApprove'] },
 ];
+
+/**
+ * Nothing may fall out of the matrix. A capability the guards enforce but this screen
+ * never lists is one a super admin cannot see, let alone retune — which is how all 16 of
+ * F2's new capabilities sat invisible while the editor above them looked complete.
+ *
+ * Anything not placed in a section by hand lands in `other` rather than disappearing.
+ */
+const PLACED = new Set(CAP_SECTIONS.flatMap((s) => s.caps));
+const UNPLACED = (Object.keys(CAPABILITIES) as Capability[]).filter((c) => !PLACED.has(c));
+if (UNPLACED.length > 0) CAP_SECTIONS.push({ key: 'other', caps: UNPLACED });
 
 type Grid = Record<Capability, Role[]>;
 
