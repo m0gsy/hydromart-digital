@@ -23,14 +23,14 @@ const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const DEPOT_B = '22222222-2222-2222-2222-222222222222';
 const staff: AuthenticatedUser = {
   sub: 'auth-emp',
-  role: 'DRIVER' as never,
+  role: 'STAFF_DEPOT' as never,
   phone: '0811',
   depotId: DEPOT_A,
 };
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
 const manager = (depotId: string): AuthenticatedUser => ({
   sub: 'mgr-1',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '0800',
   depotId,
 });

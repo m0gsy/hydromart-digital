@@ -19,7 +19,7 @@ import { PRODUCT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { MulterExceptionFilter } from './multer-exception.filter';
 
-const ADMIN_ROLES = [Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED: Record<string, string> = {
   'image/jpeg': 'jpg',

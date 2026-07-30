@@ -12,11 +12,15 @@ import { useAsync } from '@/lib/use-async';
 import type { Customer, Page } from '@/lib/types';
 
 const FILTER_ROLES = [
-  'DEPOT_MANAGER',
-  'DEPOT_OPERATOR',
-  'DRIVER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'MARKETING',
   'FINANCE',
+  'HR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'SUPER_ADMIN',

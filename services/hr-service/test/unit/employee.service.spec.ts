@@ -15,7 +15,7 @@ const DEPOT_B = '22222222-2222-2222-2222-222222222222';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
 const manager = (depotId: string): AuthenticatedUser => ({
   sub: 'mgr-1',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '0800',
   depotId,
 });
@@ -203,20 +203,20 @@ describe('EmployeeService (M1)', () => {
 });
 
 describe('EmployeeService.importMany', () => {
-  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+  const row = { ...baseInput, role: 'KEPALA_DEPOT' as const };
 
   it('provisions a login per row and links it to the employee', async () => {
     const { repo, identity, svc } = make();
 
     const summary = await svc.importMany(hr, [
       row,
-      { ...row, fullName: 'Siti', phone: '0812', role: 'DRIVER' },
+      { ...row, fullName: 'Siti', phone: '0812', role: 'STAFF_DEPOT' },
     ]);
 
     expect(summary).toMatchObject({ created: 2, skipped: 0, failed: 0 });
     expect(identity.calls).toEqual([
-      { phone: '0811', role: 'DEPOT_OPERATOR', fullName: 'Budi', depotId: DEPOT_A },
-      { phone: '0812', role: 'DRIVER', fullName: 'Siti', depotId: DEPOT_A },
+      { phone: '0811', role: 'KEPALA_DEPOT', fullName: 'Budi', depotId: DEPOT_A },
+      { phone: '0812', role: 'STAFF_DEPOT', fullName: 'Siti', depotId: DEPOT_A },
     ]);
     expect(repo.rows.map((r) => r.authSubjectId)).toEqual([
       '00000000-0000-4000-8000-000000000001',
@@ -287,7 +287,7 @@ describe('EmployeeService.importMany', () => {
 });
 
 describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
-  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+  const row = { ...baseInput, role: 'KEPALA_DEPOT' as const };
 
   it('keeps the code the file supplies instead of minting one', async () => {
     const { repo, svc } = make();

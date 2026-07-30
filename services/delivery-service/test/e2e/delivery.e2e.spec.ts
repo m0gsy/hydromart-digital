@@ -96,10 +96,15 @@ describe('Delivery HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     staffToken = jwt.sign(
       // Depot-assigned manager: depotId gates the depot-scoped shift/dispatch routes.
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: DEPOT_ID },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: DEPOT_ID },
       { secret },
     );
-    driverToken = jwt.sign({ sub: driverId, role: Role.DRIVER, phone: '+62' }, { secret });
+    // STAFF_DEPOT is depot-locked since the role rename (its predecessor DRIVER was not),
+    // so a courier token must carry the depot it works at or every depot-scoped call 403s.
+    driverToken = jwt.sign(
+      { sub: driverId, role: Role.STAFF_DEPOT, phone: '+62', depotId: DEPOT_ID },
+      { secret },
+    );
 
     await request(app.getHttpServer())
       .post('/api/v1/driver/shifts/check-in')
@@ -117,7 +122,9 @@ describe('Delivery HTTP flows (e2e)', () => {
 
   const tokenFor = (sub: string) => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
-    return app.get(JwtService).sign({ sub, role: Role.DRIVER, phone: '+62' }, { secret });
+    return app
+      .get(JwtService)
+      .sign({ sub, role: Role.STAFF_DEPOT, phone: '+62', depotId: DEPOT_ID }, { secret });
   };
 
   /** Assignment requires an open ONLINE shift, so every driver clocks in first. */
@@ -267,7 +274,7 @@ describe('Delivery HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     const otherDepot = '00000000-0000-4000-8000-0000000000ff';
     const otherDepotToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: otherDepot },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: otherDepot },
       { secret },
     );
     const superToken = jwt.sign(

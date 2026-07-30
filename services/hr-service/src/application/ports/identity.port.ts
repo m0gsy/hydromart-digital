@@ -1,8 +1,13 @@
+import type { StaffImportRole } from '@hydromart/access';
+
 export const IDENTITY_PORT = Symbol('IdentityPort');
 
-/** Roles a bulk employee import may provision — mirrors STAFF_IMPORT_ROLES in @hydromart/access. */
-export type StaffRole =
-  'DEPOT_OPERATOR' | 'DEPOT_MANAGER' | 'DRIVER' | 'FINANCE' | 'HR' | 'MARKETING';
+/**
+ * Roles a bulk employee import may provision. Aliased straight to the allowlist in
+ * @hydromart/access rather than hand-mirrored — a second copy is how the two drifted
+ * apart before.
+ */
+export type StaffRole = StaffImportRole;
 
 export interface ProvisionStaffInput {
   phone: string;

@@ -20,7 +20,7 @@ import { CUSTOMER_TOKENS } from '../tokens';
  * reseller at most once (customerId is the PK). Deactivation is soft (active=false).
  *
  * Tenant isolation: HQ (HEAD_OFFICE/SUPER_ADMIN) may act on any depot. A depot-locked caller
- * (DEPOT_MANAGER) is forced to their OWN depot on list/register (depotScopeFilter — same
+ * (MANAGER) is forced to their OWN depot on list/register (depotScopeFilter — same
  * helper every other staff list endpoint uses) and rejected with Forbidden on get/update of a
  * reseller homed at another depot (assertDepotAccess — the by-id vector DepotScopeGuard can't
  * see, per its own class doc).

@@ -39,7 +39,7 @@ export class BroadcastController {
 
   // Courier inbox: broadcasts for the courier's depot with per-courier read flags. The
   // courier passes their own assigned depot; broadcasts are low-sensitivity ops notices.
-  @Roles(Role.DRIVER)
+  @Roles(Role.STAFF_DEPOT)
   @Get()
   @ApiOperation({ summary: "List a depot's broadcasts for the current courier" })
   async list(
@@ -50,7 +50,7 @@ export class BroadcastController {
     return records.map((r) => BroadcastDto.fromCourier(r));
   }
 
-  @Roles(Role.DRIVER)
+  @Roles(Role.STAFF_DEPOT)
   @Post(':id/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a broadcast read for the current courier' })

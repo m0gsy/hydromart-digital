@@ -19,10 +19,10 @@ import { PromotionService } from '../application/services/promotion.service';
 import { CreatePromotionDto, PromotionAnalyticsDto, UpdatePromotionDto } from './dto/promotion.dto';
 
 // Promotions are authored by marketing/depot staff and shown to customers on Home.
-const ADMIN_ROLES = [Role.MARKETING, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const ADMIN_ROLES = [Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN] as const;
 const READ_ROLES = [
   Role.MARKETING,
-  Role.DEPOT_MANAGER,
+  Role.MANAGER,
   Role.HEAD_OFFICE,
   Role.SUPER_ADMIN,
 ] as const;

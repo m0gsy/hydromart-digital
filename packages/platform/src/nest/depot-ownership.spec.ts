@@ -25,7 +25,7 @@ describe('assertDepotOwnership', () => {
 
   it('is a no-op for every other role and the missing user', () => {
     expect(() => assertDepotOwnership({ role: Role.HEAD_OFFICE, sub: OTHER }, OWNER)).not.toThrow();
-    expect(() => assertDepotOwnership({ role: Role.DEPOT_MANAGER, sub: OTHER }, OWNER)).not.toThrow();
+    expect(() => assertDepotOwnership({ role: Role.MANAGER, sub: OTHER }, OWNER)).not.toThrow();
     expect(() => assertDepotOwnership(undefined, OWNER)).not.toThrow();
   });
 });

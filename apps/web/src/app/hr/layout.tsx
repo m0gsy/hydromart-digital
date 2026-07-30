@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { canViewHr } from '@/lib/roles';
 
 // HR (HRIS Lite) console shell — mirrors the HQ layout. Gated to hrView (HR / HEAD_OFFICE /
-// FINANCE / DEPOT_MANAGER / SUPER_ADMIN); depot managers are depot-scoped server-side.
+// FINANCE / MANAGER / SUPER_ADMIN); depot managers are depot-scoped server-side.
 // The /hr/me self-service PWA renders bare (its own gate is "linked employee", not hrView).
 function HrGate({ children }: { children: React.ReactNode }) {
   const { customer } = useAuth();

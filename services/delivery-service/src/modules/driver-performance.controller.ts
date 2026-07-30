@@ -12,7 +12,7 @@ import { PerformanceQueryDto } from './dto/performance.dto';
 /** Courier weekly performance card — deliveries, rating, SLA, rank vs depot (design 4c). */
 @ApiTags('Driver Performance')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/performance', version: '1' })
 export class DriverPerformanceController {
   constructor(private readonly performance: PerformanceService) {}

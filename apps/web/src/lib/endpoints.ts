@@ -34,7 +34,7 @@ export const endpoints = {
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },
     inviteStaff: '/auth/api/v1/auth/staff/invite',
-    // Active DRIVER roster for dispatch (courier assignment). Array of Customer.
+    // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
     drivers: '/auth/api/v1/auth/drivers',
   },
   // Notification channel preferences (GET to read, PATCH to update).
@@ -113,7 +113,7 @@ export const endpoints = {
       return `/products/api/v1/products${qs ? `?${qs}` : ''}`;
     },
     get: (id: string) => `/products/api/v1/products/${id}`,
-    // Admin CRUD (DEPOT_MANAGER / SUPER_ADMIN).
+    // Admin CRUD (MANAGER / SUPER_ADMIN).
     create: '/products/api/v1/products',
     update: (id: string) => `/products/api/v1/products/${id}`,
     remove: (id: string) => `/products/api/v1/products/${id}`,
@@ -305,7 +305,7 @@ export const endpoints = {
     // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
     adminSummary: '/orders/api/v1/subscriptions/admin/summary',
   },
-  // HQ analytics reports (order-service, HEAD_OFFICE/DEPOT_MANAGER/SUPER_ADMIN; customer is HQ-only).
+  // HQ analytics reports (order-service, HEAD_OFFICE/MANAGER/SUPER_ADMIN; customer is HQ-only).
   reports: {
     // Revenue share per product (22b). Grouped by product — order-service has no category column.
     revenueByCategory: (q: { from?: string; to?: string; limit?: number } = {}) => {
@@ -904,7 +904,7 @@ export const endpoints = {
     // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
     hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
   },
-  // Courier earnings: balance, month earnings, ledger (payout-service, DRIVER). Design 2c.
+  // Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
   courierPayout: {
     summary: '/payout/api/v1/courier/earnings/summary',
     ledger: (q: { page?: number; limit?: number } = {}) => {

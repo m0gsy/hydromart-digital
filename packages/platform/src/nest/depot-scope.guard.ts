@@ -15,8 +15,8 @@ import { isDepotLocked } from './depot-scope';
  * (query, body, or route param) must target the caller's own assigned depot; otherwise the
  * request is forbidden.
  *
- * Bypass (see any depot + global): HEAD_OFFICE, FINANCE, MARKETING, SUPER_ADMIN — and the
- * internal system principal (role SUPER_ADMIN). Locked: DEPOT_OPERATOR, DEPOT_MANAGER.
+ * Bypass (see any depot + global): HEAD_OFFICE, FINANCE, MARKETING, DIREKTUR, SUPER_ADMIN —
+ * and the internal system principal (role SUPER_ADMIN). Locked: STAFF_DEPOT, KEPALA_DEPOT.
  *
  * ponytail: this closes the ENUMERATION vector (list/create endpoints that take depotId as
  * input — the "list depot B's customers" case). By-id endpoints (GET/PATCH /:id) don't carry

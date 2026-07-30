@@ -13,9 +13,12 @@ import type { DepotAdmin, Page } from '@/lib/types';
 // ops staff console — this just restyles role selection as buttons (design 4b) and
 // reuses the identical inviteStaff call.
 const STAFF_ROLES = [
-  'DEPOT_MANAGER',
-  'DEPOT_OPERATOR',
-  'DRIVER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'MARKETING',
   'FINANCE',
   'HR',
@@ -29,7 +32,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<string>('DEPOT_OPERATOR');
+  const [role, setRole] = useState<string>('KEPALA_DEPOT');
   const [depotId, setDepotId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

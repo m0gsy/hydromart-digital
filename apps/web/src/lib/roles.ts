@@ -15,13 +15,14 @@ export function isStaff(role: string | null | undefined): boolean {
 }
 
 /**
- * HQ console gate (SUPER_ADMIN + HEAD_OFFICE only). Deliberately NOT a capability
- * in @hydromart/access — HQ reach is not a depot power, and DEPOT_MANAGER holds
- * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate
- * over these two head-of-network roles.
+ * HQ console gate (SUPER_ADMIN + HEAD_OFFICE + DIREKTUR only). Deliberately NOT a
+ * capability in @hydromart/access — HQ reach is not a depot power, and MANAGER holds
+ * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate over
+ * the head-of-network roles. DIREKTUR sits above the depot chain and reads the network,
+ * so it lands here rather than on a depot dashboard.
  */
 export function isHq(role: string | null | undefined): boolean {
-  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN';
+  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN' || role === 'DIREKTUR';
 }
 
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);
@@ -67,8 +68,8 @@ export const canRunPayroll = (role: string | null | undefined) => can('hrPayroll
 export const canReviewApprovals = (role: string | null | undefined) => can('approvals', role);
 export const canViewDepotFinance = (role: string | null | undefined) => can('depotFinance', role);
 // Role identity helpers for shell selection (operator gets the top-tab console).
-export const isDepotOperator = (role: string | null | undefined) => role === 'DEPOT_OPERATOR';
-export const isDepotManager = (role: string | null | undefined) => role === 'DEPOT_MANAGER';
+export const isDepotOperator = (role: string | null | undefined) => role === 'KEPALA_DEPOT';
+export const isDepotManager = (role: string | null | undefined) => role === 'MANAGER';
 // GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';

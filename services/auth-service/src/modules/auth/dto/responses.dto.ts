@@ -42,10 +42,10 @@ export class PublicCustomerDto {
   @ApiProperty({ format: 'uuid', nullable: true, description: 'Depot this staff member is assigned to.' })
   assignedDepotId!: string | null;
 
-  @ApiProperty({ nullable: true, example: 'MOTOR', description: 'DRIVER vehicle type (free text).' })
+  @ApiProperty({ nullable: true, example: 'MOTOR', description: 'STAFF_DEPOT vehicle type (free text).' })
   vehicleType!: string | null;
 
-  @ApiProperty({ nullable: true, example: 'B 1234 ABC', description: 'DRIVER vehicle plate number.' })
+  @ApiProperty({ nullable: true, example: 'B 1234 ABC', description: 'STAFF_DEPOT vehicle plate number.' })
   plateNumber!: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })

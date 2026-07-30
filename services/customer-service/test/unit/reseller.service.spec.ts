@@ -44,7 +44,7 @@ function makeProfiles(exists: boolean) {
 
 const manager = (depotId = 'd1'): AuthenticatedUser => ({
   sub: 'u1',
-  role: Role.DEPOT_MANAGER,
+  role: Role.MANAGER,
   phone: null,
   depotId,
 });

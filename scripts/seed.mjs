@@ -97,9 +97,13 @@ const DEPOTS = [
 // First staff accounts. Sign in later with phone + OTP (console adapter logs the code in dev).
 const STAFF = [
   { phone: '+6281100000001', role: 'SUPER_ADMIN', fullName: 'Admin Hydromart' },
-  { phone: '+6281100000002', role: 'DEPOT_MANAGER', fullName: 'Manajer Depot Cikini' },
-  { phone: '+6281100000003', role: 'DRIVER', fullName: 'Driver Satu' },
+  { phone: '+6281100000002', role: 'MANAGER', fullName: 'Manajer Depot Cikini' },
+  { phone: '+6281100000003', role: 'STAFF_DEPOT', fullName: 'Staf Depot Satu' },
   { phone: '+6281100000004', role: 'HR', fullName: 'HR Hydromart' },
+  { phone: '+6281100000005', role: 'KEPALA_DEPOT', fullName: 'Kepala Depot Cikini' },
+  { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu' },
+  { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu' },
+  { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart' },
 ];
 
 // Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for

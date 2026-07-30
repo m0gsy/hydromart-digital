@@ -35,9 +35,9 @@ import {
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
 // customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.
-const ADJUST_ROLES = [Role.DEPOT_MANAGER, Role.MARKETING, Role.SUPER_ADMIN] as const;
+const ADJUST_ROLES = [Role.MANAGER, Role.MARKETING, Role.SUPER_ADMIN] as const;
 const READ_ROLES = [
-  Role.DEPOT_MANAGER,
+  Role.MANAGER,
   Role.HEAD_OFFICE,
   Role.MARKETING,
   Role.SUPER_ADMIN,

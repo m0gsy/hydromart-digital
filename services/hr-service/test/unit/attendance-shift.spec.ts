@@ -19,7 +19,7 @@ import { ShiftRepository } from '../../src/application/ports/shift.repository';
 import { AttendanceService } from '../../src/application/services/attendance.service';
 import { HrConfigService } from '../../src/config/hr-config.service';
 
-const user: AuthenticatedUser = { sub: 'u1', role: 'DRIVER' as never, phone: '08', depotId: 'd1' };
+const user: AuthenticatedUser = { sub: 'u1', role: 'STAFF_DEPOT' as never, phone: '08', depotId: 'd1' };
 const punch = { image: Buffer.from('x'), photoUrl: null, live: true, lat: 0, lng: 0 };
 
 /** 2026-08-03 is a Monday. 08:10 Jakarta = 01:10 UTC. */

@@ -26,7 +26,7 @@ import {
 const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
 const AUTH = 'Bearer courier-token';
 // Cashier at the settlement's own depot (passes assertDepotAccess).
-const CASHIER: AuthenticatedUser = { sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: null, depotId: DEPOT_ID };
+const CASHIER: AuthenticatedUser = { sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: null, depotId: DEPOT_ID };
 
 describe('SettlementService', () => {
   let settlementRepo: InMemorySettlementRepository;
@@ -178,7 +178,7 @@ describe('SettlementService', () => {
       const s = await submit(75000, 75000);
       const otherDepot: AuthenticatedUser = {
         sub: randomUUID(),
-        role: Role.DEPOT_OPERATOR,
+        role: Role.KEPALA_DEPOT,
         phone: null,
         depotId: '00000000-0000-4000-8000-000000000099',
       };

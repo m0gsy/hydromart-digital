@@ -12,7 +12,7 @@ import { fakeIdentity } from './support/identity';
 
 const user: AuthenticatedUser = {
   sub: 'auth-1',
-  role: 'DRIVER' as never,
+  role: 'STAFF_DEPOT' as never,
   phone: null,
   depotId: 'd1',
 };

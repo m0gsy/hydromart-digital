@@ -65,7 +65,7 @@ describe('Executive dashboard HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     managerToken = jwt.sign(
-      { sub: 'm', role: Role.DEPOT_MANAGER, phone: '+62', depotId: DEPOT_A },
+      { sub: 'm', role: Role.MANAGER, phone: '+62', depotId: DEPOT_A },
       { secret },
     );
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });

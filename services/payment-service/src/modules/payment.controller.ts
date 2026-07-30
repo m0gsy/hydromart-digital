@@ -34,7 +34,7 @@ import {
 
 // Settlement roles (confirm/fail/read-by-order) come from the shared capability map.
 // Refunds stay a narrower finance/manager action.
-const REFUND_ROLES = [Role.FINANCE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const REFUND_ROLES = [Role.FINANCE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 // HQ refund-approval queue (feature 14a): cross-depot, finance/super-admin only.
 const REFUND_QUEUE_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
 // HQ settlement dashboard (design 6a): read-only network aggregate, finance/super-admin.
@@ -111,7 +111,7 @@ export class PaymentController {
 
   // Courier COD deposit (design 2d/slice 9): sum of PAID cash over the courier's
   // delivered orders — the "how much" for an end-of-shift settlement. Bearer is
-  // forwarded from delivery-service; settlement roles (incl. DRIVER) may read.
+  // forwarded from delivery-service; settlement roles (incl. STAFF_DEPOT) may read.
   // Declared before ':id' so the static segment wins.
   @Get('cash-collected')
   @Roles(...CAPABILITIES.paymentSettle)

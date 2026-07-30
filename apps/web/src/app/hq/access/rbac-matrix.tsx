@@ -10,21 +10,28 @@ import { useT } from '@/lib/locale-context';
 // Staff roles (CUSTOMER is never in the matrix). Column order is canonical + used for
 // the generated diff so output is deterministic.
 const ROLES: Role[] = [
-  'DRIVER',
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'FINANCE',
+  'HR',
   'MARKETING',
   'SUPER_ADMIN',
 ];
 
 const ROLE_ABBR: Record<Role, string> = {
   CUSTOMER: 'Cus',
-  DRIVER: 'Drv',
-  DEPOT_OPERATOR: 'Ops',
-  DEPOT_MANAGER: 'Mgr',
+  STAFF_DEPOT: 'Stf',
+  KEPALA_DEPOT: 'Kep',
+  ASSISTANT_SUPERVISOR: 'Asv',
+  SUPERVISOR: 'Spv',
+  MANAGER: 'Mgr',
+  DIREKTUR: 'Dir',
   FRANCHISE_OWNER: 'Fr',
   HEAD_OFFICE: 'HO',
   FINANCE: 'Fin',
@@ -40,6 +47,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
     key: 'ops',
     caps: [
       'orderQueue',
+      'walkInSale',
       'inventoryRead',
       'inventoryWrite',
       'returnsRead',
@@ -69,9 +77,34 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'depotSubscriptions',
     ],
   },
-  { key: 'network', caps: ['dashboard', 'depotAdmin', 'staffAdmin', 'depotCrm', 'auditRead'] },
-  { key: 'marketing', caps: ['campaignRead', 'campaignWrite', 'voucherRead', 'voucherWrite', 'churn'] },
+  {
+    key: 'network',
+    caps: [
+      'dashboard',
+      'depotAdmin',
+      'staffAdmin',
+      'hierarchyAdmin',
+      'depotCrm',
+      'depotCrmWrite',
+      'auditRead',
+      'pdpRequests',
+    ],
+  },
+  {
+    key: 'marketing',
+    caps: [
+      'campaignRead',
+      'campaignWrite',
+      'voucherRead',
+      'voucherWrite',
+      'churn',
+      'rewardHandover',
+      'resellerView',
+      'resellerAdmin',
+    ],
+  },
   { key: 'finance', caps: ['franchise', 'payout', 'depotFinance', 'depotDisputes'] },
+  { key: 'hr', caps: ['hrView', 'hrAdmin', 'hrPayroll', 'leaveApprove'] },
 ];
 
 type Grid = Record<Capability, Role[]>;

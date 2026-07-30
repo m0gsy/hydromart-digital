@@ -21,7 +21,7 @@ import { compressImage } from '@/lib/image';
 import { useAsync } from '@/lib/use-async';
 import type { Category, Page, Product } from '@/lib/types';
 
-const ADMIN_ROLES = ['DEPOT_MANAGER', 'SUPER_ADMIN'];
+const ADMIN_ROLES = ['MANAGER', 'SUPER_ADMIN'];
 const SELECT_CLASS =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
 

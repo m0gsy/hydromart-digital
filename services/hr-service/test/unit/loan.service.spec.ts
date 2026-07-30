@@ -10,7 +10,7 @@ const DEPOT_A = '11111111-1111-1111-1111-111111111111';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
 const manager = (depotId: string): AuthenticatedUser => ({
   sub: 'mgr-1',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '0800',
   depotId,
 });
@@ -48,7 +48,7 @@ function fakeEmployees(): EmployeeService {
   return {
     getById: async (user: AuthenticatedUser, id: string) => {
       if (id !== 'e1') throw new NotFoundException('Karyawan tidak ditemukan');
-      if (user.role === ('DEPOT_MANAGER' as never) && user.depotId !== DEPOT_A)
+      if (user.role === ('MANAGER' as never) && user.depotId !== DEPOT_A)
         throw new ForbiddenException('depot');
       return { id: 'e1', depotId: DEPOT_A } as never;
     },

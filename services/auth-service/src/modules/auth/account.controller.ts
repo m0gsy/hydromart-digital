@@ -53,7 +53,7 @@ export class AccountController {
 
   // Staff-only: resolve a phone to a customer id for voucher grant. Mirrors the
   // promo-service voucher-write roles (marketing / depot-manager / super-admin).
-  @Roles(Role.MARKETING, Role.DEPOT_MANAGER, Role.SUPER_ADMIN)
+  @Roles(Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN)
   @Get('auth/customers/lookup')
   @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -64,7 +64,7 @@ export class AccountController {
 
   // Staff-only: resolve a batch of customer ids to names (reseller console row labels).
   // Same staff scope as the reseller registry it feeds (HQ + depot-manager).
-  @Roles(Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN)
+  @Roles(Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN)
   @Get('auth/customers/by-ids')
   @ApiOperation({ summary: 'Staff: resolve customer ids to public profiles (comma-separated)' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
@@ -76,7 +76,7 @@ export class AccountController {
 
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
-  @Roles(...CAPABILITIES.staffAdmin, Role.DEPOT_MANAGER)
+  @Roles(...CAPABILITIES.staffAdmin, Role.MANAGER)
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
   async listStaff(
@@ -89,7 +89,7 @@ export class AccountController {
     limit: number;
   }> {
     let depotId = query.depotId;
-    if (user.role === Role.DEPOT_MANAGER) {
+    if (user.role === Role.MANAGER) {
       const manager = await this.account.getProfile(user.sub);
       if (!manager.assignedDepotId || (depotId && depotId !== manager.assignedDepotId)) {
         throw new ForbiddenException('Depot managers may only list staff at their assigned depot.');

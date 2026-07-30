@@ -17,6 +17,18 @@ import { IS_PUBLIC_KEY } from './decorators';
 import { INTERNAL_KEY_HEADER } from './internal-auth.guard';
 
 /**
+ * ponytail: temporary aliases for access tokens minted BEFORE the role rename
+ * (DRIVER -> STAFF_DEPOT, DEPOT_OPERATOR -> KEPALA_DEPOT, DEPOT_MANAGER -> MANAGER).
+ * Without this every staff request 403s for the lifetime of an already-issued token.
+ * Delete once one full refresh-token lifetime has passed after the rename deploy.
+ */
+const LEGACY_ROLE_ALIASES: Readonly<Record<string, Role>> = {
+  DRIVER: Role.STAFF_DEPOT,
+  DEPOT_OPERATOR: Role.KEPALA_DEPOT,
+  DEPOT_MANAGER: Role.MANAGER,
+};
+
+/**
  * Global guard: verifies the Bearer access token (signed by auth-service) and
  * attaches the identity to the request. @Public() routes are skipped. Reads the
  * shared secret from the `JWT_ACCESS_SECRET` config key (convention across
@@ -67,7 +79,7 @@ export class JwtAuthGuard implements CanActivate {
       });
       request.user = {
         sub: payload.sub,
-        role: payload.role,
+        role: LEGACY_ROLE_ALIASES[payload.role] ?? payload.role,
         phone: payload.phone,
         depotId: payload.depotId ?? null,
       };

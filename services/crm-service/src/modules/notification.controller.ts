@@ -37,9 +37,9 @@ import {
 // NOTE (MVP ceiling, same as sibling coordination endpoints): trusts the forwarded
 // staff token — proper hardening is service-to-service auth.
 const TRIGGER_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
+  Role.KEPALA_DEPOT,
+  Role.MANAGER,
+  Role.STAFF_DEPOT,
   Role.SUPER_ADMIN,
 ] as const;
 

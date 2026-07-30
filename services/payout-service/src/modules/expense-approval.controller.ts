@@ -10,7 +10,7 @@ import { Page } from '../application/pagination';
 import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
 
 // Reviewer-scoped: depot managers / finance approve or reject courier claims (design 6a).
-// expenseApprove excludes DRIVER, so a courier can never approve their own claim.
+// expenseApprove excludes STAFF_DEPOT, so a courier can never approve their own claim.
 @ApiTags('Expense Approval')
 @ApiBearerAuth()
 @Roles(...CAPABILITIES.expenseApprove)

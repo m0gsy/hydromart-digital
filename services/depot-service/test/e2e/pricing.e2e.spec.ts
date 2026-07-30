@@ -88,7 +88,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
     // to the depot under test for the `/depots/:depotId/...` routes.
     signStaff = (role, depotId) =>
       jwt.sign({ sub: 's', role, phone: '+62', depotId: depotId ?? null }, { secret });
-    managerToken = signStaff(Role.DEPOT_MANAGER);
+    managerToken = signStaff(Role.MANAGER);
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
 
@@ -107,7 +107,7 @@ describe('Pricing rules HTTP flows (e2e)', () => {
         .send(depotBody)
         .expect(201)
     ).body.id;
-    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
+    const mgrAt = signStaff(Role.MANAGER, depotId);
 
     // manager creates a rule
     const created = await request(server())

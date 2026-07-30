@@ -101,9 +101,12 @@ export const hq = {
   // Shared staff-role labels used across every HQ screen.
   roles: {
     CUSTOMER: 'Pelanggan',
-    DRIVER: 'Driver',
-    DEPOT_OPERATOR: 'Operator depot',
-    DEPOT_MANAGER: 'Manajer depot',
+    STAFF_DEPOT: 'Staf depot',
+    KEPALA_DEPOT: 'Kepala depot',
+    ASSISTANT_SUPERVISOR: 'Asisten SPV',
+    SUPERVISOR: 'SPV',
+    MANAGER: 'Manajer',
+    DIREKTUR: 'Direktur',
     FRANCHISE_OWNER: 'Pemilik waralaba',
     HEAD_OFFICE: 'Head office',
     FINANCE: 'Finance',
@@ -924,7 +927,7 @@ export const hq = {
     result: 'Berhasil {ok} · gagal {fail}',
     noFile: 'Pilih berkas CSV dulu.',
     needMap: 'Pilih kolom nomor & peran.',
-    roleHint: 'Peran harus salah satu peran staf yang valid (mis. DEPOT_OPERATOR).',
+    roleHint: 'Peran harus salah satu peran staf yang valid (mis. KEPALA_DEPOT).',
   },
   broadcast: {
     title: 'Broadcast notifikasi',

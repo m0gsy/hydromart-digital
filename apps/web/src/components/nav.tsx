@@ -69,8 +69,8 @@ export function Nav() {
             {pill('/products', t('nav.shop'))}
             {ready && customer && pill('/orders', t('nav.orders'))}
             {ready && customer && canViewDashboard(customer.role) && pill('/dashboard', t('nav.ops'))}
-            {ready && customer && customer.role === 'DRIVER' && pill('/driver', 'Pengantaran')}
-            {ready && customer && customer.role !== 'DRIVER' && !canViewDashboard(customer.role) &&
+            {ready && customer && customer.role === 'STAFF_DEPOT' && pill('/driver', 'Pengantaran')}
+            {ready && customer && customer.role !== 'STAFF_DEPOT' && !canViewDashboard(customer.role) &&
               isStaff(customer.role) && pill('/dashboard/orders', t('nav.ops'))}
           </div>
 

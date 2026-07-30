@@ -22,7 +22,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
   it('forces a depot manager directory read to their assigned depot', async () => {
     await controller.listStaff(
       { page: 1, limit: 20 },
-      { sub: 'manager-1', role: Role.DEPOT_MANAGER, phone: '+62811111111' },
+      { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
     );
 
     expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, ownDepot);
@@ -32,19 +32,19 @@ describe('AccountController.listStaff depot-manager scope', () => {
     await expect(
       controller.listStaff(
         { depotId: otherDepot },
-        { sub: 'manager-1', role: Role.DEPOT_MANAGER, phone: '+62811111111' },
+        { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('keeps HQ staff-directory filters unchanged', async () => {
     await controller.listStaff(
-      { depotId: otherDepot, role: Role.DRIVER },
+      { depotId: otherDepot, role: Role.STAFF_DEPOT },
       { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: '+62822222222' },
     );
 
     expect(account.getProfile).not.toHaveBeenCalled();
-    expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.DRIVER, otherDepot);
+    expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.STAFF_DEPOT, otherDepot);
   });
 });
 

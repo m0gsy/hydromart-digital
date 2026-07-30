@@ -112,7 +112,7 @@ export class ForecastController {
   }
 
   // Churn is CRM-facing (re-engagement) — overrides the class PLANNING_ROLES with CHURN_ROLES
-  // via getAllAndOverride (handler wins). A planning role not in this set (e.g. DEPOT_OPERATOR)
+  // via getAllAndOverride (handler wins). A planning role not in this set (e.g. KEPALA_DEPOT)
   // is rejected.
   @Roles(...CAPABILITIES.churn)
   @Get('churn')

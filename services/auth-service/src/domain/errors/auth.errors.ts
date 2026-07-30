@@ -53,6 +53,19 @@ export class InvalidStaffRoleError extends DomainError {
   }
 }
 
+/**
+ * A depot-locked role (STAFF_DEPOT, KEPALA_DEPOT) needs a depot. DepotScopeGuard fails
+ * closed on a null depotId, so minting one without a depot creates an account that 403s
+ * on every depot-scoped call — a broken login rather than a restricted one.
+ */
+export class StaffDepotRequiredError extends DomainError {
+  readonly code = 'AUTH_STAFF_DEPOT_REQUIRED';
+  readonly status = HTTP.BAD_REQUEST;
+  constructor() {
+    super('Peran staf depot wajib terikat ke satu depot.');
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

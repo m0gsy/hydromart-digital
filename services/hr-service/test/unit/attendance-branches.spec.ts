@@ -14,13 +14,13 @@ import { EmployeeRepository } from '../../src/application/ports/employee.reposit
 
 const user: AuthenticatedUser = {
   sub: 'auth-1',
-  role: 'DRIVER' as never,
+  role: 'STAFF_DEPOT' as never,
   phone: '08',
   depotId: 'd1',
 };
 const manager: AuthenticatedUser = {
   sub: 'mgr',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '08',
   depotId: 'd1',
 };

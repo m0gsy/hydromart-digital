@@ -147,7 +147,7 @@ describe('SettingsController reset depotId branch', () => {
   it('passes an explicit depotId through and defaults a missing one to null', async () => {
     const reset = jest.fn().mockResolvedValue(undefined);
     const controller = new SettingsController({ reset } as unknown as SettingsService);
-    const staff = { sub: 'u1', role: 'DEPOT_MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
+    const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
 
     await controller.reset({ scope: 'DEPOT', depotId: 'd1', key: 'referrerPoints' }, staff);
     expect(reset).toHaveBeenLastCalledWith('DEPOT', 'd1', 'referrerPoints');
@@ -159,7 +159,7 @@ describe('SettingsController reset depotId branch', () => {
   it('forbids a non-SUPER_ADMIN from resetting a GLOBAL default', async () => {
     const reset = jest.fn();
     const controller = new SettingsController({ reset } as unknown as SettingsService);
-    const staff = { sub: 'u1', role: 'DEPOT_MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
+    const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
     await expect(
       controller.reset({ scope: 'GLOBAL', key: 'referrerPoints' } as never, staff),
     ).rejects.toThrow('Only SUPER_ADMIN');

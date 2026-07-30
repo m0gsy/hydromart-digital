@@ -29,17 +29,17 @@ describe('DepotScopeGuard', () => {
   };
 
   it('allows a depot manager querying their OWN depot', () => {
-    expect(run({ role: Role.DEPOT_MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_A } })).toBe(true);
+    expect(run({ role: Role.MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_A } })).toBe(true);
   });
 
   it('forbids a depot manager querying ANOTHER depot', () => {
-    expect(() => run({ role: Role.DEPOT_MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_B } })).toThrow(
+    expect(() => run({ role: Role.MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_B } })).toThrow(
       ForbiddenException,
     );
   });
 
   it('forbids a depot operator with no assigned depot from any depot query', () => {
-    expect(() => run({ role: Role.DEPOT_OPERATOR, depotId: null }, { body: { depotId: DEPOT_A } })).toThrow(
+    expect(() => run({ role: Role.KEPALA_DEPOT, depotId: null }, { body: { depotId: DEPOT_A } })).toThrow(
       ForbiddenException,
     );
   });
@@ -52,16 +52,16 @@ describe('DepotScopeGuard', () => {
   });
 
   it('allows a locked role on requests that carry no depotId (by-id paths guarded in-service)', () => {
-    expect(run({ role: Role.DEPOT_MANAGER, depotId: DEPOT_A }, { params: { id: 'x' } })).toBe(true);
+    expect(run({ role: Role.MANAGER, depotId: DEPOT_A }, { params: { id: 'x' } })).toBe(true);
   });
 
   it('skips public routes and missing identity', () => {
-    expect(run({ role: Role.DEPOT_MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_B } }, true)).toBe(true);
+    expect(run({ role: Role.MANAGER, depotId: DEPOT_A }, { query: { depotId: DEPOT_B } }, true)).toBe(true);
     expect(run(undefined, { query: { depotId: DEPOT_B } })).toBe(true);
   });
 
   it('reads depotId from route params too (path-scoped endpoints)', () => {
-    expect(() => run({ role: Role.DEPOT_MANAGER, depotId: DEPOT_A }, { params: { depotId: DEPOT_B } })).toThrow(
+    expect(() => run({ role: Role.MANAGER, depotId: DEPOT_A }, { params: { depotId: DEPOT_B } })).toThrow(
       ForbiddenException,
     );
   });

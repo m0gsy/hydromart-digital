@@ -10,8 +10,8 @@ import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import type { Customer } from '@/lib/types';
 
-// Real data: the active DRIVER roster (auth.drivers). NOTE: endpoints.deliveries.performance
-// returns a SINGLE courier's self-scoped card under the DRIVER-gated /driver path, so a
+// Real data: the active STAFF_DEPOT roster (auth.drivers). NOTE: endpoints.deliveries.performance
+// returns a SINGLE courier's self-scoped card under the STAFF_DEPOT-gated /driver path, so a
 // manager can't derive a team leaderboard from it. The staff roster is the correct real
 // source here. ponytail: per-courier SLA/rating rows need a depot-team metric endpoint that
 // does not exist yet — rank by name until it lands.

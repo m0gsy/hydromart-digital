@@ -52,9 +52,9 @@ import {
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
 const FULFILMENT_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
+  Role.KEPALA_DEPOT,
+  Role.MANAGER,
+  Role.STAFF_DEPOT,
   Role.SUPER_ADMIN,
 ] as const;
 
@@ -163,7 +163,7 @@ export class OrderController {
     // ponytail: pinned to the token's depotId, not to the couriers actual assignments. If
     // couriers ever float between depots in one shift, resolve it from delivery-service.
     let depotId: string | undefined;
-    if (user.role === Role.DRIVER) {
+    if (user.role === Role.STAFF_DEPOT) {
       if (!user.depotId) {
         // A courier token with no depot is a misconfigured account. Failing closed beats
         // falling through to the unscoped branch, which would hand them the whole network.
@@ -449,7 +449,7 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     // Close the by-id vector: a depot-locked operator/manager may only advance their own
-    // depot's order. No-op for DRIVER/SUPER_ADMIN. Load first so the check precedes the mutation.
+    // depot's order. No-op for STAFF_DEPOT/SUPER_ADMIN. Load first so the check precedes the mutation.
     const existing = await this.orders.getAny(id);
     assertDepotAccess(user, existing.depotId);
     // Forward the caller's token so order-service can award loyalty points on

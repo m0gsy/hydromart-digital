@@ -29,7 +29,7 @@ describe('RolesGuard', () => {
 
   it('rejects a caller without a required role', () => {
     const guard = makeGuard({ roles: [Role.FINANCE] });
-    expect(() => guard.canActivate(makeContext({ role: Role.DRIVER }))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(makeContext({ role: Role.STAFF_DEPOT }))).toThrow(ForbiddenException);
   });
 
   it('allows a route with no @Roles decorator', () => {
@@ -41,7 +41,7 @@ describe('RolesGuard', () => {
   // no request.user (JwtAuthGuard skipped it), so inheriting the class roles 403'd every
   // internal push — e.g. delivery-service's courier earning event, which fails open.
   it('skips an inherited @Roles on a @Public() handler', () => {
-    const guard = makeGuard({ isPublic: true, roles: [Role.DRIVER] });
+    const guard = makeGuard({ isPublic: true, roles: [Role.STAFF_DEPOT] });
     expect(guard.canActivate(makeContext())).toBe(true);
   });
 });

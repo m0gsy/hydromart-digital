@@ -143,7 +143,7 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   it('lets the courier deposit a shift’s cash and snapshots the expected total', async () => {
     const res = await request(server())
       .post('/api/v1/driver/settlement')
-      .set(auth(token(driverId, Role.DRIVER)))
+      .set(auth(token(driverId, Role.STAFF_DEPOT)))
       .send({ shiftId, depositedAmount: 60000 })
       .expect(201);
     expect(res.body).toMatchObject({
@@ -158,7 +158,7 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   it('forbids a courier from verifying a settlement', async () => {
     await request(server())
       .post(`/api/v1/settlements/${settlementId}/verify`)
-      .set(auth(token(driverId, Role.DRIVER)))
+      .set(auth(token(driverId, Role.STAFF_DEPOT)))
       .send({ chargedToDriver: true })
       .expect(403);
   });
@@ -167,7 +167,7 @@ describe('Cash settlement HTTP flows (e2e)', () => {
     const res = await request(server())
       .post(`/api/v1/settlements/${settlementId}/verify`)
       // Cashier must be assigned to the settlement's own depot (by-id depot guard).
-      .set(auth(token(randomUUID(), Role.DEPOT_MANAGER, DEPOT_ID)))
+      .set(auth(token(randomUUID(), Role.MANAGER, DEPOT_ID)))
       .send({ chargedToDriver: true })
       .expect(201);
     expect(res.body).toMatchObject({ status: 'VERIFIED', chargedToDriver: true });
@@ -176,7 +176,7 @@ describe('Cash settlement HTTP flows (e2e)', () => {
   it("hides another courier's settlement", async () => {
     await request(server())
       .get(`/api/v1/driver/settlement/${settlementId}`)
-      .set(auth(token(randomUUID(), Role.DRIVER)))
+      .set(auth(token(randomUUID(), Role.STAFF_DEPOT)))
       .expect(404);
   });
 });

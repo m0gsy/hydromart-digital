@@ -120,7 +120,7 @@ export function OrderProgress({
 
       {/* Courier / status band. driverName + driverPhone ride on the order payload once a
           courier is assigned (order-service snapshots them from dispatch) — surface a courier
-          card with a tel: link so the customer can call the DRIVER. Never the recipient's own
+          card with a tel: link so the customer can call the STAFF_DEPOT. Never the recipient's own
           number (that is the customer themselves). */}
       {driverName ? (
         <div className="mt-[22px] flex items-center gap-3 rounded-2xl bg-[#f2fafb] px-[18px] py-[14px] dark:bg-brand-50">

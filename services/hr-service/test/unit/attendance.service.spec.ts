@@ -25,7 +25,7 @@ import { EmployeeRepository } from '../../src/application/ports/employee.reposit
 
 const user: AuthenticatedUser = {
   sub: 'auth-1',
-  role: 'DRIVER' as never,
+  role: 'STAFF_DEPOT' as never,
   phone: '08',
   depotId: 'd1',
 };

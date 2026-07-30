@@ -71,7 +71,7 @@ describe('OrderController', () => {
   });
 
   it('walk-in: forwards the lines and nulls the optional buyer fields', async () => {
-    const staff = { sub: 'op-1', role: 'DEPOT_OPERATOR', depotId: 'd1' } as never;
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
     const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 2 }] } as never;
     await expect(controller.walkIn(staff, dto, 'Bearer t')).resolves.toEqual({
       id: 'w1',
@@ -90,7 +90,7 @@ describe('OrderController', () => {
   });
 
   it('walk-in: passes an identified buyer through', async () => {
-    const staff = { sub: 'op-1', role: 'DEPOT_OPERATOR', depotId: 'd1' } as never;
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
     const dto = {
       depotId: 'd1',
       lines: [{ productId: 'p1', quantity: 1 }],
@@ -150,13 +150,13 @@ describe('OrderController', () => {
   // UAT-M28-14: a courier token used to list every depot's orders — customer names,
   // addresses and phone numbers across the whole network — from a device in the field.
   it('listManaged: pins a courier to their own depot, ignoring any ?depotId', async () => {
-    const driver = { sub: 'drv-1', role: Role.DRIVER, depotId: 'depot-a' } as never;
+    const driver = { sub: 'drv-1', role: Role.STAFF_DEPOT, depotId: 'depot-a' } as never;
     await controller.listManaged(driver, { depotId: 'depot-b', limit: 10 } as never);
     expect(service.listAll).toHaveBeenCalledWith({ depotId: 'depot-a', limit: 10 });
   });
 
   it('listManaged: refuses a courier whose token carries no depot', async () => {
-    const orphan = { sub: 'drv-2', role: Role.DRIVER, depotId: null } as never;
+    const orphan = { sub: 'drv-2', role: Role.STAFF_DEPOT, depotId: null } as never;
     await expect(controller.listManaged(orphan, { limit: 10 } as never)).rejects.toBeInstanceOf(
       ForbiddenException,
     );

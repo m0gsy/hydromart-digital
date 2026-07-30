@@ -21,10 +21,10 @@ function initials(name: string | null): string {
     .toUpperCase();
 }
 
-// Capabilities the DEPOT_MANAGER role holds — read straight off the shared RBAC map
+// Capabilities the MANAGER role holds — read straight off the shared RBAC map
 // so the chip list can never drift from what the Nest guards actually enforce.
 const MANAGER_CAPS = (Object.keys(CAPABILITIES) as (keyof typeof CAPABILITIES)[]).filter((cap) =>
-  (CAPABILITIES[cap] as readonly string[]).includes('DEPOT_MANAGER'),
+  (CAPABILITIES[cap] as readonly string[]).includes('MANAGER'),
 );
 
 function ProfileBody() {

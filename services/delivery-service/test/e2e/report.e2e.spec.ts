@@ -79,7 +79,7 @@ describe('Delivery SLA report (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: managerDepotId },
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
@@ -96,7 +96,7 @@ describe('Delivery SLA report (e2e)', () => {
     await request(server()).get('/api/v1/reports/sla').set(auth(customerToken)).expect(403);
   });
 
-  it('lets a DEPOT_MANAGER read the SLA report (200) with the default threshold', async () => {
+  it('lets a MANAGER read the SLA report (200) with the default threshold', async () => {
     const res = await request(server())
       .get('/api/v1/reports/sla')
       .set(auth(managerToken))

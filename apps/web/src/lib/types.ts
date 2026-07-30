@@ -25,7 +25,7 @@ export interface Customer {
   status: string;
   avatarUrl: string | null;
   assignedDepotId?: string | null;
-  // DRIVER-only vehicle info (null for customers / non-vehicle staff).
+  // STAFF_DEPOT-only vehicle info (null for customers / non-vehicle staff).
   vehicleType?: string | null;
   plateNumber?: string | null;
   createdAt: string;

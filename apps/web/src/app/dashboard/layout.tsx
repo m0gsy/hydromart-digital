@@ -8,7 +8,7 @@ import { DepotProvider } from '@/lib/depot-context';
 import { useAuth } from '@/lib/auth-context';
 import { isDepotOperator } from '@/lib/roles';
 
-// Ops console shell, role-aware. DEPOT_OPERATOR gets the top-tab operator console
+// Ops console shell, role-aware. KEPALA_DEPOT gets the top-tab operator console
 // (design: Depot Operator.dc.html); every other staff role keeps the grouped left
 // rail + global depot switcher (design: Depot Manager.dc.html cell 6a). Both live
 // under /dashboard/* and share DepotProvider/RequireAuth.

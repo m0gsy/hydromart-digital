@@ -5,12 +5,20 @@ import { AuthenticatedUser } from '../http/authenticated-user';
 
 /**
  * Roles locked to a single depot (their own `assignedDepotId`). Everyone else —
- * HEAD_OFFICE, FINANCE, MARKETING, SUPER_ADMIN (incl. the internal system principal),
- * plus customer/driver/franchise flows — is unaffected by depot-scope checks.
+ * HEAD_OFFICE, FINANCE, MARKETING, DIREKTUR, SUPER_ADMIN (incl. the internal system
+ * principal), plus customer/franchise flows — is unaffected by depot-scope checks.
+ *
+ * STAFF_DEPOT is locked even though its predecessor DRIVER was not: depot staff belong
+ * to one depot. An account in this set with no `assignedDepotId` fails closed.
  */
 export const DEPOT_LOCKED_ROLES: ReadonlySet<Role> = new Set([
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
+  Role.STAFF_DEPOT,
+  Role.KEPALA_DEPOT,
+  // MANAGER is locked here ONLY until the supervision hierarchy lands: it is the renamed
+  // DEPOT_MANAGER, so dropping it now would silently widen every existing manager account
+  // from one depot to the whole network. It moves to the resolved (multi-depot) set with
+  // the hierarchy, not before.
+  Role.MANAGER,
 ]);
 
 export function isDepotLocked(role: Role): boolean {

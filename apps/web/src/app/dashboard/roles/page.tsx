@@ -10,16 +10,20 @@ import { isStaff } from '@/lib/roles';
 import { CAPABILITIES } from '@hydromart/access';
 
 // Display roles (CUSTOMER holds no depot capability, so it is omitted). Order groups
-// depot staff first, then oversight/office roles. DEPOT_MANAGER is the highlighted row.
+// depot staff first, then oversight/office roles. MANAGER is the highlighted row.
 // Labels are resolved via t('dashC.roles.role.<KEY>').
 const ROLE_KEYS: string[] = [
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
-  'DRIVER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'HEAD_OFFICE',
   'FRANCHISE_OWNER',
   'MARKETING',
   'FINANCE',
+  'HR',
   'SUPER_ADMIN',
 ];
 
@@ -45,7 +49,7 @@ function MatrixBody() {
               <p className="text-sm font-semibold">{t(`dashC.roles.cap.${cap}`)}</p>
               <div className="flex flex-wrap gap-1.5">
                 {ROLE_KEYS.filter((key) => holders.includes(key)).map((key) =>
-                  key === 'DEPOT_MANAGER' ? (
+                  key === 'MANAGER' ? (
                     <Chip key={key} tone="tint" className="bg-brand-600 text-on-brand">
                       {t(`dashC.roles.role.${key}`)}
                     </Chip>

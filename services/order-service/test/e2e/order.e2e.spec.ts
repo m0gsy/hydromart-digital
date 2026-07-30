@@ -119,7 +119,7 @@ describe('Order HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     staffToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62' },
       { secret },
     );
     adminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });

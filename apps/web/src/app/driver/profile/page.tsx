@@ -60,7 +60,7 @@ function Profile() {
       </Card>
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
-        {customer?.role === 'DRIVER' && (
+        {customer?.role === 'STAFF_DEPOT' && (
           <div className="flex w-full items-center gap-3 p-4">
             <span className="flex size-8 items-center justify-center rounded-xl bg-black/5 text-brand-700">
               <Truck size={19} weight="fill" />

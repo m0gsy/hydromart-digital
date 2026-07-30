@@ -10,7 +10,7 @@ import { SubmitSettlementDto } from './dto/settlement.dto';
 /** Courier-facing COD settlement: deposit a shift's cash, read own history (design 2d/9a). */
 @ApiTags('Driver Settlement')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/settlement', version: '1' })
 export class DriverSettlementController {
   constructor(private readonly settlements: SettlementService) {}

@@ -63,7 +63,7 @@ function fakeEmployees(): EmployeeService {
   return {
     getById: async (user: AuthenticatedUser, id: string) => {
       if (id !== 'e1') throw new NotFoundException('Karyawan tidak ditemukan');
-      if (user.role === ('DEPOT_MANAGER' as never) && user.depotId !== DEPOT_A) {
+      if (user.role === ('MANAGER' as never) && user.depotId !== DEPOT_A) {
         throw new ForbiddenException('depot');
       }
       return { id: 'e1', depotId: DEPOT_A } as never;

@@ -12,7 +12,7 @@ import { Employee } from '../../prisma/generated/client';
 const hq: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 const manager: AuthenticatedUser = {
   sub: 'mgr',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: null,
   depotId: 'd-locked',
 };

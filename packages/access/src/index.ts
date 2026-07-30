@@ -9,12 +9,22 @@
 // The server always remains authoritative — the web copy is imported from the same
 // module, so it is the same values, not a hand-mirror.
 
-/** Account roles used for RBAC across Hydromart (mirrors PRD §26 / platform Role). */
+/**
+ * Account roles used for RBAC across Hydromart (mirrors PRD §26 / platform Role).
+ *
+ * The depot chain runs STAFF_DEPOT -> KEPALA_DEPOT -> ASSISTANT_SUPERVISOR ->
+ * SUPERVISOR -> MANAGER -> DIREKTUR. The first two are locked to one depot; the
+ * three middle ones oversee a resolved SET of depots (see @hydromart/platform
+ * depot-scope); DIREKTUR and the office roles are network-wide.
+ */
 export type Role =
   | 'CUSTOMER'
-  | 'DRIVER'
-  | 'DEPOT_OPERATOR'
-  | 'DEPOT_MANAGER'
+  | 'STAFF_DEPOT'
+  | 'KEPALA_DEPOT'
+  | 'ASSISTANT_SUPERVISOR'
+  | 'SUPERVISOR'
+  | 'MANAGER'
+  | 'DIREKTUR'
   | 'FRANCHISE_OWNER'
   | 'HEAD_OFFICE'
   | 'FINANCE'
@@ -22,117 +32,207 @@ export type Role =
   | 'MARKETING'
   | 'SUPER_ADMIN';
 
+// ASSISTANT_SUPERVISOR and SUPERVISOR see MANY depots but hold deliberately WEAKER
+// powers than MANAGER: oversight reads, no writes, no money, no approvals. Widening
+// them is a runtime matrix edit, not a redeploy — these are only the seeded defaults.
 export const CAPABILITIES = {
   // dashboard-service — executive dashboard.
-  dashboard: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  dashboard: [
+    'HEAD_OFFICE',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // order-service — staff order queue (cross-customer read).
-  orderQueue: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  orderQueue: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'STAFF_DEPOT',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // order-service — record a cash sale at the depot counter. Deliberately narrower than
   // orderQueue: a courier and head office never stand at the till.
-  walkInSale: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  walkInSale: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — inventory: READ is broader than WRITE (no HEAD_OFFICE on write).
-  inventoryRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
-  inventoryWrite: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  inventoryRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
+  inventoryWrite: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — retur galon + galon keluar: READ adds head-office + franchise oversight.
-  returnsRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'FRANCHISE_OWNER', 'SUPER_ADMIN'],
-  returnsWrite: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  returnsRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'SUPER_ADMIN',
+  ],
+  returnsWrite: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // crm-service — broadcast campaigns: READ adds HEAD_OFFICE for oversight.
-  campaignRead: ['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  campaignRead: ['MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   campaignWrite: ['MARKETING', 'SUPER_ADMIN'],
   // promo-service — voucher admin.
-  voucherRead: ['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
-  voucherWrite: ['MARKETING', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — depot admin (create/edit/deactivate) + dynamic pricing.
-  depotAdmin: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotAdmin: ['MANAGER', 'SUPER_ADMIN'],
   // dashboard-service franchise view + payout-service (FRANCHISE_OWNER-only).
   franchise: ['FRANCHISE_OWNER'],
   payout: ['FRANCHISE_OWNER'],
-  // auth-service — staff & roles directory.
+  // auth-service — staff & roles directory. NOT granted to DIREKTUR: minting accounts
+  // stays with head office and the superuser.
   staffAdmin: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  // depot-service — the supervision hierarchy (which depot belongs to which assistant
+  // supervisor, who reports to whom, direct depot grants). Superuser only by decision:
+  // this map is what every multi-depot scope resolves from.
+  hierarchyAdmin: ['SUPER_ADMIN'],
   // auth-service — active-driver roster for dispatch (courier assignment).
-  driverRoster: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  driverRoster: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // crm-service — operational notification feed.
-  opsNotif: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  opsNotif: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // delivery-service — dispatch (live tracking + courier assignment).
-  tracking: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  tracking: ['KEPALA_DEPOT', 'MANAGER', 'SUPERVISOR', 'ASSISTANT_SUPERVISOR', 'SUPER_ADMIN'],
   // forecast-service — planning queries.
-  forecast: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN', 'FRANCHISE_OWNER'],
+  forecast: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+    'FRANCHISE_OWNER',
+  ],
   // forecast-service — churn (marketing-led re-engagement).
-  churn: ['MARKETING', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  churn: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // payment-service — settle a payment (confirm cash/transfer/QRIS received). Mirrors
-  // the settlement roles; DRIVER can confirm cash-on-delivery, FINANCE for the office.
-  paymentSettle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'FINANCE', 'SUPER_ADMIN'],
+  // the settlement roles; STAFF_DEPOT can confirm cash-on-delivery, FINANCE for the office.
+  paymentSettle: ['KEPALA_DEPOT', 'MANAGER', 'STAFF_DEPOT', 'FINANCE', 'SUPER_ADMIN'],
   // payout-service — a courier reads their own earnings ledger and files their own
   // expense claims. Scoped to self by the controller, never cross-courier.
-  courierPayout: ['DRIVER'],
+  courierPayout: ['STAFF_DEPOT'],
   // delivery-service — the depot cashier verifies a courier's end-of-shift COD deposit
   // and decides whether a shortfall is charged to the courier.
-  courierSettle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  courierSettle: ['KEPALA_DEPOT', 'MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // payout-service — decide a courier expense claim above the auto-approve threshold.
-  expenseApprove: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  expenseApprove: ['MANAGER', 'FINANCE', 'SUPER_ADMIN'],
   // crm-service — depot -> courier in-app announcements (not customer campaigns).
-  depotBroadcast: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  depotBroadcast: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — a courier records empties taken back at the customer's door.
   // Narrower than returnsWrite: the refund amount is derived server-side from the
   // depot's deposit rate, never supplied by the courier.
-  courierReturn: ['DRIVER'],
+  courierReturn: ['STAFF_DEPOT'],
   // crm-service — depot-scoped customer directory (CRM read: profiles, deposit
   // ledger, order history). Depot staff see their own depot's customers.
   // HR reads it too (read-only Pelanggan tab in the HR console) — the same directory,
   // never a second copy of customer data inside hr-service.
-  depotCrm: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'HR', 'SUPER_ADMIN'],
+  depotCrm: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'HR',
+    'SUPER_ADMIN',
+  ],
   // Writing that directory (bulk import) stays with depot staff — HR only reads it.
-  depotCrmWrite: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotCrmWrite: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // customer-service — reseller/agen registry. Split read from write so the HR console
   // can show the roster without gaining the power to change discounts.
-  resellerView: ['DEPOT_MANAGER', 'HEAD_OFFICE', 'HR', 'SUPER_ADMIN'],
-  resellerAdmin: ['DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  resellerView: ['MANAGER', 'SUPERVISOR', 'HEAD_OFFICE', 'DIREKTUR', 'HR', 'SUPER_ADMIN'],
+  resellerAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
   // and follow-up. Operators log & triage, managers resolve.
-  incidents: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  incidents: ['KEPALA_DEPOT', 'MANAGER', 'SUPERVISOR', 'SUPER_ADMIN'],
   // auth-service — depot-scoped audit trail read (who did what at this depot).
-  auditRead: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  auditRead: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // procurement-service — purchase orders + supplier directory (goods-in -> RECEIPT).
   // Manager-exclusive depot power (like depotAdmin).
-  procurement: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  procurement: ['MANAGER', 'SUPER_ADMIN'],
   // depot-service — the manager approval queue: opname-variance, deposit-refund and
   // COD-settlement-variance decisions that exceed the depot's auto-pass thresholds.
-  approvals: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
+  approvals: ['MANAGER', 'SUPER_ADMIN'],
   // dashboard/order/payout roll-up — depot P&L, cashbook, payment reconciliation,
   // courier commission runs, monthly ops review. Depot manager + the office finance team.
-  depotFinance: ['DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN'],
+  depotFinance: ['MANAGER', 'SUPERVISOR', 'FINANCE', 'DIREKTUR', 'SUPER_ADMIN'],
   // depot-service — team & culture ops, split per-feature (was one `depotTeam` cap)
   // so each page can carry its own roles. Shift-floor ops (huddle/handover/maintenance)
   // include the operator who runs the daily shift; pricing/B2B & targets stay
   // manager-led. Each decoupled from the shared caps it used to borrow
   // (depotAdmin/depotCrm/dashboard) so widening one never leaks into depot CRUD,
   // the customer directory, or the exec dashboard.
-  depotHuddle: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotMaintenance: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotTargets: ['HEAD_OFFICE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotWholesale: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotSubscriptions: ['DEPOT_MANAGER', 'SUPER_ADMIN'],
-  depotDisputes: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotHuddle: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  depotHandover: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  depotMaintenance: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  depotTargets: ['HEAD_OFFICE', 'MANAGER', 'SUPERVISOR', 'DIREKTUR', 'SUPER_ADMIN'],
+  depotWholesale: ['MANAGER', 'SUPER_ADMIN'],
+  depotSubscriptions: ['MANAGER', 'SUPER_ADMIN'],
+  depotDisputes: [
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // hr-service (HRIS Lite). Manage employees, face enrollment, attendance edits, and the
   // SalaryConfiguration tunables. HR desk + head office; SUPER_ADMIN always.
-  hrAdmin: ['HR', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  hrAdmin: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
   hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
   // hr-service — stage 1 of a leave application. The depot manager decides for their own
   // depot (DepotScopeGuard enforces that); HR holds it too so a depot without a manager is
   // not stuck, and stage 2 stays hrAdmin either way.
-  leaveApprove: ['DEPOT_MANAGER', 'HR', 'SUPER_ADMIN'],
+  leaveApprove: ['MANAGER', 'HR', 'SUPER_ADMIN'],
   // hr-service — read HR dashboards & reports. Adds finance oversight and lets a depot
   // manager see their own depot (DepotScopeGuard keeps it to their depot).
-  hrView: ['HR', 'HEAD_OFFICE', 'FINANCE', 'DEPOT_MANAGER', 'SUPER_ADMIN'],
+  hrView: [
+    'HR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'FINANCE',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'SUPER_ADMIN',
+  ],
   // loyalty-service (M14-03) — hand a redeemed reward over and close its cancellation
   // window. The operator at the counter does the handing over, so they hold it; MARKETING
   // owns the reward catalogue and can correct a mis-stamped row.
-  rewardHandover: ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'MARKETING', 'SUPER_ADMIN'],
+  rewardHandover: ['KEPALA_DEPOT', 'MANAGER', 'MARKETING', 'SUPER_ADMIN'],
   // auth-service (UU PDP tahap 1, item 13) — decide data-subject export/deletion
   // requests. Head office only: a depot must never be able to erase a customer, and an
-  // approval here is irreversible.
+  // approval here is irreversible. NOT granted to DIREKTUR for the same reason.
   pdpRequests: ['HEAD_OFFICE', 'SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;
 
@@ -140,18 +240,12 @@ export type Capability = keyof typeof CAPABILITIES;
 
 /**
  * Roles a bulk employee import may provision an account for. Deliberately excludes
- * HEAD_OFFICE and SUPER_ADMIN: hr-service provisions accounts server-side on behalf
- * of an HR user, so without this allowlist a CSV row would be a path to minting an
- * office/superuser account — privilege escalation through a spreadsheet.
+ * every office and supervision role: hr-service provisions accounts server-side on
+ * behalf of an HR user, so without this allowlist a CSV row would be a path to minting
+ * an office/superuser/supervisor account — privilege escalation through a spreadsheet.
+ * Anything above depot level is created by hand in the staff console instead.
  */
-export const STAFF_IMPORT_ROLES = [
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
-  'DRIVER',
-  'FINANCE',
-  'HR',
-  'MARKETING',
-] as const satisfies readonly Role[];
+export const STAFF_IMPORT_ROLES = ['STAFF_DEPOT', 'KEPALA_DEPOT'] as const satisfies readonly Role[];
 
 export type StaffImportRole = (typeof STAFF_IMPORT_ROLES)[number];
 

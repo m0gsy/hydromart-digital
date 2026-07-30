@@ -35,7 +35,7 @@ import {
 
 /**
  * Depot-side propose (design 7a): a depot manager proposes a per-product price
- * override for their depot. Gated on depotAdmin (DEPOT_MANAGER + SUPER_ADMIN).
+ * override for their depot. Gated on depotAdmin (MANAGER + SUPER_ADMIN).
  */
 @ApiTags('Price overrides')
 @ApiBearerAuth()

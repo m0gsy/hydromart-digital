@@ -41,7 +41,7 @@ function ManagerNav() {
 }
 
 /**
- * Depot-manager phone frame: DEPOT_MANAGER-only gate + bottom nav. Sign-in itself is
+ * Depot-manager phone frame: MANAGER-only gate + bottom nav. Sign-in itself is
  * handled by RequireAuth in the route layout; this only checks the manager role.
  * `nav={false}` for full-bleed detail flows (approval detail) that own the whole screen.
  */
