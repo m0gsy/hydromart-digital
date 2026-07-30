@@ -26,6 +26,8 @@ export interface DepotRecord {
   deliveryFee: number;
   minOrderAmount: number | null;
   ownerId: string | null;
+  /** Assistant supervisor (auth account id) overseeing this depot; null = unassigned. */
+  assistantSupervisorId: string | null;
   paymentBankName: string | null;
   paymentBankAccountNumber: string | null;
   paymentBankAccountHolder: string | null;
@@ -59,6 +61,7 @@ export interface CreateDepotData {
   deliveryFee: number;
   minOrderAmount: number | null;
   ownerId: string | null;
+  assistantSupervisorId?: string | null;
   paymentBankName?: string | null;
   paymentBankAccountNumber?: string | null;
   paymentBankAccountHolder?: string | null;

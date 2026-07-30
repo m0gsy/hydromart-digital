@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -62,22 +62,22 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; periodMonth?: string },
   ): Promise<HrDashboard> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
+    const depotIds = depotScopeIds(user, query.depotId);
     const workDate = this.today();
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
 
     const [byStatus, byEmploymentStatus, attendanceToday, payrollTotals, payrollByStatus] =
       await Promise.all([
-        this.repo.headcountByStatus(depotId),
-        this.repo.headcountByEmploymentStatus(depotId),
-        this.repo.attendanceByStatus(workDateUtc, depotId),
-        this.repo.payrollTotals(periodMonth, depotId),
-        this.repo.payrollByStatus(periodMonth, depotId),
+        this.repo.headcountByStatus(depotIds),
+        this.repo.headcountByEmploymentStatus(depotIds),
+        this.repo.attendanceByStatus(workDateUtc, depotIds),
+        this.repo.payrollTotals(periodMonth, depotIds),
+        this.repo.payrollByStatus(periodMonth, depotIds),
       ]);
 
     return {
-      depotId: depotId ?? null,
+      depotId: depotIds && depotIds.length === 1 ? depotIds[0] : null,
       periodMonth,
       workDate,
       headcount: {
@@ -100,9 +100,9 @@ export class AnalyticsService {
     const periodMonth = workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
     const [attendanceToday, payroll, headcount] = await Promise.all([
-      this.repo.attendanceByStatus(workDateUtc, depotId),
-      this.repo.payrollTotals(periodMonth, depotId),
-      this.repo.headcountByStatus(depotId),
+      this.repo.attendanceByStatus(workDateUtc, [depotId]),
+      this.repo.payrollTotals(periodMonth, [depotId]),
+      this.repo.headcountByStatus([depotId]),
     ]);
     const count = (key: string): number => attendanceToday.find((g) => g.key === key)?.count ?? 0;
     return {
@@ -118,8 +118,8 @@ export class AnalyticsService {
   }
 
   async employeeReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, depotIdParam) ?? undefined;
-    const rows = await this.repo.employeesForReport(depotId);
+    const depotIds = depotScopeIds(user, depotIdParam);
+    const rows = await this.repo.employeesForReport(depotIds);
     return {
       headers: [
         'employeeCode',
@@ -154,11 +154,11 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; from: string; to: string },
   ): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
+    const depotIds = depotScopeIds(user, query.depotId);
     const rows = await this.repo.attendanceForReport(
       new Date(query.from),
       new Date(query.to),
-      depotId,
+      depotIds,
     );
     return {
       headers: [
@@ -188,8 +188,8 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; periodMonth: string },
   ): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
-    const rows = await this.repo.payrollForReport(query.periodMonth, depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
+    const rows = await this.repo.payrollForReport(query.periodMonth, depotIds);
     return {
       headers: [
         'periodMonth',
@@ -223,8 +223,8 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; from: string; to: string },
   ): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
-    const rows = await this.repo.lateForReport(new Date(query.from), new Date(query.to), depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
+    const rows = await this.repo.lateForReport(new Date(query.from), new Date(query.to), depotIds);
     return {
       headers: ['workDate', 'employeeCode', 'fullName', 'checkInAt', 'lateMinutes'],
       rows: rows.map((a) => [
@@ -241,8 +241,8 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; from: string; to: string },
   ): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
-    const rows = await this.repo.leaveForReport(new Date(query.from), new Date(query.to), depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
+    const rows = await this.repo.leaveForReport(new Date(query.from), new Date(query.to), depotIds);
     return {
       headers: [
         'employeeCode',
@@ -273,8 +273,8 @@ export class AnalyticsService {
     user: AuthenticatedUser,
     query: { depotId?: string; periodMonth: string },
   ): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, query.depotId) ?? undefined;
-    const rows = await this.repo.performanceForReport(query.periodMonth, depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
+    const rows = await this.repo.performanceForReport(query.periodMonth, depotIds);
     return {
       headers: [
         'periodMonth',
@@ -301,8 +301,8 @@ export class AnalyticsService {
   }
 
   async assetReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
-    const depotId = depotScopeFilter(user, depotIdParam) ?? undefined;
-    const rows = await this.repo.assetsForReport(depotId);
+    const depotIds = depotScopeIds(user, depotIdParam);
+    const rows = await this.repo.assetsForReport(depotIds);
     return {
       headers: [
         'code',

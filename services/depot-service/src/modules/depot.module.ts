@@ -55,6 +55,10 @@ import { OperationalReportPrismaRepository } from '../infrastructure/prisma/oper
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
 import { DepotController } from './depot.controller';
+import { HierarchyController } from './hierarchy.controller';
+import { HIERARCHY_REPOSITORY } from '../application/ports/hierarchy.repository';
+import { HierarchyPrismaRepository } from '../infrastructure/prisma/hierarchy.prisma.repository';
+import { HierarchyService } from '../application/services/hierarchy.service';
 import { DepotInventoryController, InventoryController } from './inventory.controller';
 import { PricingController } from './pricing.controller';
 import { GallonReturnController } from './gallon-return.controller';
@@ -82,6 +86,8 @@ import { SettingsController } from './settings.controller';
 const providers: Provider[] = [
   PrismaService,
   { provide: SETTINGS_REPOSITORY, useClass: SettingsPrismaRepository },
+  { provide: HIERARCHY_REPOSITORY, useClass: HierarchyPrismaRepository },
+  HierarchyService,
   {
     provide: SettingsCache,
     useFactory: (repo: SettingsRepository) => new SettingsCache(repo),
@@ -151,6 +157,7 @@ const providers: Provider[] = [
   imports: [JwtModule.register({})],
   controllers: [
     DepotController,
+    HierarchyController,
     DepotInventoryController,
     InventoryController,
     PricingController,

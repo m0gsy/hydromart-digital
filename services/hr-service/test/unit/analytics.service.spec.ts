@@ -21,7 +21,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
   const calls: { depotId?: string }[] = [];
   const repo: AnalyticsRepository = {
     headcountByStatus: async (depotId) => {
-      calls.push({ depotId });
+      calls.push({ depotId: depotId?.[0] });
       return [
         { key: 'ACTIVE', count: 3 },
         { key: 'RESIGNED', count: 1 },
@@ -82,7 +82,7 @@ describe('AnalyticsService.dashboard', () => {
   it('rejects a depot-locked role requesting another depot', async () => {
     const { svc } = build();
     await expect(svc.dashboard(manager, { depotId: 'someone-else' })).rejects.toThrow(
-      /depotnya sendiri/,
+      /tanggung jawabnya/,
     );
   });
 });

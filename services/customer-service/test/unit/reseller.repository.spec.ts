@@ -28,9 +28,9 @@ describe('ResellerPrismaRepository', () => {
   it('list applies both homeDepotId and active filters when provided', async () => {
     const prisma = prismaMock();
     const repo = new ResellerPrismaRepository(prisma as never);
-    await repo.list({ homeDepotId: 'd1', active: true });
+    await repo.list({ homeDepotIds: ['d1'], active: true });
     expect(prisma.resellerProfile.findMany).toHaveBeenCalledWith({
-      where: { homeDepotId: 'd1', active: true },
+      where: { homeDepotId: { in: ['d1'] }, active: true },
       orderBy: { createdAt: 'desc' },
     });
   });

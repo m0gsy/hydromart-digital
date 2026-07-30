@@ -6,9 +6,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics, httpCapabilityLoader, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
+import { configureDepotScope, enableMetrics, httpCapabilityLoader, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
 
 import { AppModule } from './app.module';
+import { HierarchyService } from './application/services/hierarchy.service';
 import { DepotConfigService } from './config/depot-config.service';
 
 async function bootstrap(): Promise<void> {
@@ -37,6 +38,10 @@ async function bootstrap(): Promise<void> {
   }
   // Keep the RBAC matrix current without a deploy: poll auth-service for the super
   // admin's overrides. Failure leaves the compiled defaults in place, never a lockout.
+  // depot-service OWNS the hierarchy, so it resolves in-process instead of calling its own
+  // HTTP endpoint.
+  const hierarchy = app.get(HierarchyService);
+  configureDepotScope((staffId, role) => hierarchy.scopedDepotIds(staffId, role));
   startCapabilityRefresh(
     httpCapabilityLoader({
       authServiceUrl: process.env.AUTH_SERVICE_URL,

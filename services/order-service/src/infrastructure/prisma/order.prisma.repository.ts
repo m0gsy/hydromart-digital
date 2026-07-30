@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { depotWhere } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
@@ -257,7 +258,7 @@ export class OrderPrismaRepository implements OrderRepository {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.depotId ? { depotId: query.depotId } : {}),
+      ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({

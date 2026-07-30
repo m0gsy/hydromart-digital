@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
+
+import { depotWhere } from '@hydromart/platform';
 import { Attendance, AttendanceStatus, Prisma } from '../../../prisma/generated/client';
+
 
 import {
   AttendanceListFilter,
@@ -11,6 +14,7 @@ import {
   ManualAttendanceInput,
 } from '../../application/ports/attendance.repository';
 import { PrismaService } from './prisma.service';
+
 
 @Injectable()
 export class AttendancePrismaRepository implements AttendanceRepository {
@@ -94,7 +98,7 @@ export class AttendancePrismaRepository implements AttendanceRepository {
 
   async list(filter: AttendanceListFilter): Promise<{ rows: Attendance[]; total: number }> {
     const where: Prisma.AttendanceWhereInput = {
-      ...(filter.depotId ? { depotId: filter.depotId } : {}),
+      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.from || filter.to

@@ -135,7 +135,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const depotId = created.body.id;
     expect(created.body.deliveryFee).toBe(5000);
     // Depot staff are now locked to their own depot — bind tokens to the created depot.
-    const oprAt = signStaff(Role.KEPALA_DEPOT, depotId);
+    const oprAt = signStaff(Role.MANAGER, depotId);
     const mgrAt = signStaff(Role.MANAGER, depotId);
 
     // depot shows in public browse
@@ -216,7 +216,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .send({ ...depotBody, code: 'CONS-01' })
         .expect(201)
     ).body.id;
-    const oprAt = signStaff(Role.KEPALA_DEPOT, depotId);
+    const oprAt = signStaff(Role.MANAGER, depotId);
     const itemId = (
       await request(server())
         .post(`/api/v1/depots/${depotId}/inventory`)

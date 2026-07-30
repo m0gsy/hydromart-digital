@@ -46,7 +46,7 @@ class FakeRepo implements EmployeeRepository {
   }
   async list(f: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     let rows = this.rows;
-    if (f.depotId) rows = rows.filter((r) => r.depotId === f.depotId);
+    if (f.depotIds) rows = rows.filter((r) => f.depotIds!.includes(r.depotId));
     if (f.status) rows = rows.filter((r) => r.status === f.status);
     return { rows: rows.slice(f.skip, f.skip + f.take), total: rows.length };
   }

@@ -1,8 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
+import { depotWhere } from '@hydromart/platform';
+
 import { Holiday, Prisma } from '../../../prisma/generated/client';
+
 import { HolidayRepository } from '../../application/ports/holiday.repository';
+
 import { PrismaService } from './prisma.service';
+
 
 @Injectable()
 export class HolidayPrismaRepository implements HolidayRepository {
@@ -12,9 +17,9 @@ export class HolidayPrismaRepository implements HolidayRepository {
     return this.prisma.holiday.create({ data });
   }
 
-  list(filter: { depotId?: string; from?: Date; to?: Date }): Promise<Holiday[]> {
+  list(filter: { depotIds?: readonly string[]; from?: Date; to?: Date }): Promise<Holiday[]> {
     const where: Prisma.HolidayWhereInput = {
-      ...(filter.depotId ? { depotId: filter.depotId } : {}),
+      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.from || filter.to
         ? {
             date: {

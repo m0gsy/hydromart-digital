@@ -7,7 +7,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -202,9 +202,9 @@ export class AttendanceService {
       pageSize: number;
     },
   ): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {
-    const depotId = depotScopeFilter(user, query.depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
     const { rows, total } = await this.repo.list({
-      depotId,
+      depotIds,
       employeeId: query.employeeId,
       status: query.status as AttendanceStatus | undefined,
       from: query.from ? new Date(query.from) : undefined,

@@ -41,8 +41,8 @@ class FakeRepo implements ShiftRepository {
   async findById(id: string): Promise<Shift | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async list(depotId?: string): Promise<Shift[]> {
-    this.lastListDepot = depotId;
+  async list(depotId?: readonly string[]): Promise<Shift[]> {
+    this.lastListDepot = depotId?.[0];
     return this.rows;
   }
   async findActiveForDepot(): Promise<Shift | null> {
@@ -67,8 +67,8 @@ class FakeRepo implements ShiftRepository {
   async findRotationById(id: string): Promise<ShiftRotation | null> {
     return this.rotations.find((r) => r.id === id) ?? null;
   }
-  async listRotations(depotId?: string): Promise<ShiftRotation[]> {
-    this.lastRotationListDepot = depotId;
+  async listRotations(depotId?: readonly string[]): Promise<ShiftRotation[]> {
+    this.lastRotationListDepot = depotId?.[0];
     return this.rotations;
   }
   async assign(data: AssignmentWrite): Promise<ShiftAssignment> {

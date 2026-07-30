@@ -26,10 +26,20 @@ export { DepotScopeGuard } from './nest/depot-scope.guard';
 export {
   assertDepotAccess,
   assertDepotOwnership,
-  depotScopeFilter,
+  depotScopeIds,
+  depotWhere,
   isDepotLocked,
+  isDepotResolved,
+  isDepotScoped,
   DEPOT_LOCKED_ROLES,
+  DEPOT_SCOPED_ROLES,
 } from './nest/depot-scope';
+export {
+  configureDepotScope,
+  httpDepotScopeResolver,
+  resetDepotScope,
+  resolveDepotScope,
+} from './nest/depot-scope-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';

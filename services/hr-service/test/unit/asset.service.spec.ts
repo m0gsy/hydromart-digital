@@ -201,7 +201,7 @@ describe('AssetService (B3)', () => {
       pageSize: 5,
     });
     expect(repo.lastFilter).toEqual({
-      depotId: 'd1',
+      depotIds: ['d1'],
       status: 'ASSIGNED',
       type: 'LAPTOP',
       holderId: 'e1',
@@ -209,6 +209,6 @@ describe('AssetService (B3)', () => {
       take: 5,
     });
     await svc.list(hr);
-    expect(repo.lastFilter).toMatchObject({ skip: 0, take: 20, depotId: undefined });
+    expect(repo.lastFilter).toMatchObject({ skip: 0, take: 20, depotIds: undefined });
   });
 });

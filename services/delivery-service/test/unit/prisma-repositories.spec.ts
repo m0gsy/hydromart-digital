@@ -170,14 +170,14 @@ describe('DeliveryPrismaRepository', () => {
     delivery.count.mockResolvedValue(1);
     const res = await repo.search({
       driverId: 'drv-1',
-      depotId: 'dep-1',
+      depotIds: ['dep-1'],
       status: DeliveryStatus.ASSIGNED,
       page: 2,
       limit: 10,
     } as never);
     expect(res).toEqual({ items: [expect.objectContaining({ id: 'del-1' })], total: 1 });
     expect(delivery.findMany).toHaveBeenCalledWith({
-      where: { driverId: 'drv-1', depotId: 'dep-1', status: DeliveryStatus.ASSIGNED },
+      where: { driverId: 'drv-1', depotId: { in: ['dep-1'] }, status: DeliveryStatus.ASSIGNED },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },
       orderBy: { assignedAt: 'desc' },
       skip: 10,

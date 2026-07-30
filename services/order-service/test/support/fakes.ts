@@ -192,7 +192,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     const all = this.rows
       .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.status || r.status === query.status)
-      .filter((r) => !query.depotId || r.depotId === query.depotId)
+      .filter((r) => !query.depotIds || (r.depotId != null && query.depotIds.includes(r.depotId)))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const start = (query.page - 1) * query.limit;
     return {

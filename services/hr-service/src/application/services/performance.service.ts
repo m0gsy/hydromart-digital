@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Prisma, PerformanceReview } from '../../../prisma/generated/client';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
@@ -125,7 +125,7 @@ export class PerformanceService {
     depotId?: string,
   ): Promise<ScoredEmployee[]> {
     const { rows } = await this.employeesRepo.list({
-      depotId: depotScopeFilter(user, depotId) ?? undefined,
+      depotIds: depotScopeIds(user, depotId),
       status: 'ACTIVE',
       skip: 0,
       take: DASHBOARD_LIMIT,

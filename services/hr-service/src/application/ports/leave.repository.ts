@@ -29,7 +29,7 @@ export interface LeaveDecision {
 
 export interface LeaveListFilter {
   employeeId?: string;
-  depotId?: string;
+  depotIds?: readonly string[];
   status?: LeaveStatus;
   skip: number;
   take: number;

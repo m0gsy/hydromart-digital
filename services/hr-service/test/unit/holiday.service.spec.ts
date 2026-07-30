@@ -17,14 +17,14 @@ const manager = (depotId: string): AuthenticatedUser => ({
 
 class FakeRepo implements HolidayRepository {
   rows: Holiday[] = [];
-  lastFilter?: { depotId?: string; from?: Date; to?: Date };
+  lastFilter?: { depotIds?: readonly string[]; from?: Date; to?: Date };
   private seq = 0;
   async create(data: { date: Date; name: string; depotId: string | null }): Promise<Holiday> {
     const row = { id: `h-${++this.seq}`, ...data } as unknown as Holiday;
     this.rows.push(row);
     return row;
   }
-  async list(filter: { depotId?: string; from?: Date; to?: Date }): Promise<Holiday[]> {
+  async list(filter: { depotIds?: readonly string[]; from?: Date; to?: Date }): Promise<Holiday[]> {
     this.lastFilter = filter;
     return this.rows;
   }
@@ -48,7 +48,7 @@ describe('HolidayService.list', () => {
   it('passes HR-supplied filters through, parsing dates', async () => {
     const { repo, svc } = make();
     await svc.list(hr, { depotId: DEPOT_A, from: '2026-07-01', to: '2026-07-31' });
-    expect(repo.lastFilter?.depotId).toBe(DEPOT_A);
+    expect(repo.lastFilter?.depotIds?.[0]).toBe(DEPOT_A);
     expect(repo.lastFilter?.from).toEqual(new Date('2026-07-01'));
     expect(repo.lastFilter?.to).toEqual(new Date('2026-07-31'));
   });
@@ -62,7 +62,7 @@ describe('HolidayService.list', () => {
   it('forces a depot-locked role onto its own depot', async () => {
     const { repo, svc } = make();
     await svc.list(manager(DEPOT_A), {});
-    expect(repo.lastFilter?.depotId).toBe(DEPOT_A);
+    expect(repo.lastFilter?.depotIds?.[0]).toBe(DEPOT_A);
     await expect(svc.list(manager(DEPOT_A), { depotId: DEPOT_B })).rejects.toThrow(
       ForbiddenException,
     );

@@ -4,7 +4,8 @@ import { Request } from 'express';
 
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { IS_PUBLIC_KEY } from './decorators';
-import { isDepotLocked } from './depot-scope';
+import { isDepotLocked, isDepotResolved, isDepotScoped } from './depot-scope';
+import { resolveDepotScope } from './depot-scope-resolver';
 
 /**
  * Depot tenant isolation (business rule: a depot's staff must never see another depot's
@@ -28,7 +29,7 @@ import { isDepotLocked } from './depot-scope';
 export class DepotScopeGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -40,8 +41,32 @@ export class DepotScopeGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const user = request.user as AuthenticatedUser | undefined;
     // No identity to scope (defensive — JwtAuthGuard already ran on non-public routes).
-    if (!user || !isDepotLocked(user.role)) {
+    if (!user || !isDepotScoped(user.role)) {
       return true;
+    }
+
+    // Resolve the caller's depots ONCE and stash them, so assertDepotAccess and
+    // depotScopeIds downstream stay synchronous pure functions.
+    if (isDepotLocked(user.role)) {
+      user.depotIds = user.depotId ? [user.depotId] : [];
+    } else if (isDepotResolved(user.role) && !user.depotIds) {
+      // Own depot UNION the hierarchy. The token's assignedDepotId was written by
+      // auth-service, so counting it needs no lookup and can never widen access — the
+      // hierarchy only ever adds depots on top.
+      //
+      // That is also what the failure mode rests on: if the hierarchy cannot be reached,
+      // the caller keeps their own depot and loses the wider set. Narrowing is safe for
+      // tenant isolation (it denies, never grants); a wildcard would not be. Only a
+      // caller with no depot of their own gets the 503, because for them there is
+      // nothing left to serve.
+      const own = user.depotId ? [user.depotId] : [];
+      let resolved: string[] = [];
+      try {
+        resolved = (await resolveDepotScope(user.sub, user.role)) ?? [];
+      } catch (err) {
+        if (own.length === 0) throw err;
+      }
+      user.depotIds = [...new Set([...own, ...resolved])];
     }
 
     const requested = DepotScopeGuard.requestedDepotId(request);
@@ -51,10 +76,12 @@ export class DepotScopeGuard implements CanActivate {
       return true;
     }
 
-    if (user.depotId && requested === user.depotId) {
+    if ((user.depotIds ?? []).includes(requested)) {
       return true;
     }
-    throw new ForbiddenException('Akun ini hanya boleh mengakses depotnya sendiri.');
+    throw new ForbiddenException(
+      'Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya.',
+    );
   }
 
   /** First depotId found across query, body, and route params (string values only). */

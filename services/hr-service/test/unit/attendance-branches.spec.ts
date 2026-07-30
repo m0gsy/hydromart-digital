@@ -112,7 +112,7 @@ describe('AttendanceService geofence + list', () => {
       page: 2,
       pageSize: 10,
     });
-    expect(att.lastFilter).toMatchObject({ depotId: 'd1', skip: 10, take: 10 });
+    expect(att.lastFilter).toMatchObject({ depotIds: ['d1'], skip: 10, take: 10 });
     expect(att.lastFilter?.from).toEqual(new Date('2026-07-01'));
     expect(out).toMatchObject({ total: 1, page: 2, pageSize: 10 });
   });

@@ -113,7 +113,7 @@ describe('AccountService', () => {
 
   // A depot-locked role with no depot is a login that 403s on every depot-scoped call,
   // so it is rejected at the write path instead of being created and discovered later.
-  it.each([Role.STAFF_DEPOT, Role.KEPALA_DEPOT, Role.MANAGER])(
+  it.each([Role.STAFF_DEPOT, Role.KEPALA_DEPOT])(
     'refuses to invite %s without a depot',
     async (role) => {
       await expect(service.inviteStaff('+628990001199', role, 'Tanpa Depot')).rejects.toBeInstanceOf(

@@ -42,8 +42,8 @@ class FakeRepo implements DepartmentRepository {
   async findById(id: string): Promise<Department | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
-  async list(depotId?: string): Promise<Department[]> {
-    this.lastListDepot = depotId;
+  async list(depotId?: readonly string[]): Promise<Department[]> {
+    this.lastListDepot = depotId?.[0];
     return this.rows;
   }
   private throwIfColliding() {

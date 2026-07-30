@@ -100,7 +100,9 @@ describe('Forecast HTTP flows (e2e)', () => {
     // via signStaff; the unbound managerToken is only for depot-agnostic routes (e.g. /sales).
     signStaff = (role, depotId) =>
       jwt.sign({ sub: randomUUID(), role, phone: '+62', depotId: depotId ?? null }, { secret });
-    managerToken = signStaff(Role.MANAGER);
+    // A MANAGER covers a resolved SET of depots; with no hierarchy in this isolated stack the
+    // guard falls back to the token depot, so the token must carry one (production always does).
+    managerToken = signStaff(Role.MANAGER, randomUUID());
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });

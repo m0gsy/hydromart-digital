@@ -134,7 +134,7 @@ describe('ResellerService', () => {
 
       await svc.list(manager('d1'), {});
 
-      expect(repo.list).toHaveBeenCalledWith({ homeDepotId: 'd1', active: undefined });
+      expect(repo.list).toHaveBeenCalledWith({ homeDepotIds: ['d1'], active: undefined });
     });
 
     it('rejects a depot-locked manager listing a different depot', async () => {
@@ -155,7 +155,7 @@ describe('ResellerService', () => {
 
       await svc.list(hq, { homeDepotId: 'd2' });
 
-      expect(repo.list).toHaveBeenCalledWith({ homeDepotId: 'd2', active: undefined });
+      expect(repo.list).toHaveBeenCalledWith({ homeDepotIds: ['d2'], active: undefined });
     });
 
     it('lets a depot-locked manager register a reseller at their own depot', async () => {

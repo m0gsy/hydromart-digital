@@ -138,9 +138,9 @@ describe('DepartmentPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'department').findMany.mockResolvedValue([]);
     const repo = new DepartmentPrismaRepository(asService(p));
-    await repo.list('d1');
+    await repo.list(['d1']);
     expect(m(p, 'department').findMany).toHaveBeenCalledWith({
-      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      where: { OR: [{ depotId: { in: ['d1'] } }, { depotId: null }] },
       orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
     });
     await repo.list();
@@ -249,10 +249,10 @@ describe('LeavePrismaRepository', () => {
     m(p, 'leaveRequest').count.mockResolvedValue(1);
     const repo = new LeavePrismaRepository(asService(p));
     await expect(
-      repo.list({ employeeId: 'e1', depotId: 'd1', status: 'PENDING_HR', skip: 0, take: 20 }),
+      repo.list({ employeeId: 'e1', depotIds: ['d1'], status: 'PENDING_HR', skip: 0, take: 20 }),
     ).resolves.toEqual({ rows, total: 1 });
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
-      where: { employeeId: 'e1', depotId: 'd1', status: 'PENDING_HR' },
+      where: { employeeId: 'e1', depotId: { in: ['d1'] }, status: 'PENDING_HR' },
       orderBy: { createdAt: 'desc' },
       skip: 0,
       take: 20,
@@ -484,7 +484,7 @@ describe('AssetPrismaRepository', () => {
 
     await expect(
       repo.list({
-        depotId: 'd1',
+        depotIds: ['d1'],
         status: 'ASSIGNED',
         type: 'LAPTOP',
         holderId: 'e1',
@@ -493,7 +493,7 @@ describe('AssetPrismaRepository', () => {
       }),
     ).resolves.toEqual({ rows: ['a'], total: 1 });
     expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1', status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1' },
+      where: { depotId: { in: ['d1'] }, status: 'ASSIGNED', type: 'LAPTOP', holderId: 'e1' },
       orderBy: { code: 'asc' },
       skip: 5,
       take: 10,
@@ -677,9 +677,9 @@ describe('ShiftPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'shift').findMany.mockResolvedValue([]);
     const repo = new ShiftPrismaRepository(asService(p));
-    await repo.list('d1');
+    await repo.list(['d1']);
     expect(m(p, 'shift').findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1' },
+      where: { depotId: { in: ['d1'] } },
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
     await repo.list();
@@ -777,9 +777,9 @@ describe('ShiftPrismaRepository rotations & assignments', () => {
     const p = makePrisma();
     m(p, 'shiftRotation').findMany.mockResolvedValue([]);
     const repo = new ShiftPrismaRepository(asService(p));
-    await repo.listRotations('d1');
+    await repo.listRotations(['d1']);
     expect(m(p, 'shiftRotation').findMany).toHaveBeenCalledWith({
-      where: { OR: [{ depotId: 'd1' }, { depotId: null }] },
+      where: { OR: [{ depotId: { in: ['d1'] } }, { depotId: null }] },
       orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
     });
     await repo.listRotations();
@@ -831,10 +831,10 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'employee').groupBy.mockResolvedValue([{ status: 'ACTIVE', _count: { _all: 5 } }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.headcountByStatus('d1')).resolves.toEqual([{ key: 'ACTIVE', count: 5 }]);
+    await expect(repo.headcountByStatus(['d1'])).resolves.toEqual([{ key: 'ACTIVE', count: 5 }]);
     expect(m(p, 'employee').groupBy).toHaveBeenCalledWith({
       by: ['status'],
-      where: { depotId: 'd1' },
+      where: { depotId: { in: ['d1'] } },
       _count: { _all: true },
     });
   });
@@ -860,12 +860,12 @@ describe('AnalyticsPrismaRepository', () => {
     const wd = new Date('2026-07-01');
     m(p, 'attendance').groupBy.mockResolvedValue([{ status: 'PRESENT', _count: { _all: 2 } }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.attendanceByStatus(wd, 'd1')).resolves.toEqual([
+    await expect(repo.attendanceByStatus(wd, ['d1'])).resolves.toEqual([
       { key: 'PRESENT', count: 2 },
     ]);
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledWith({
       by: ['status'],
-      where: { workDate: wd, depotId: 'd1' },
+      where: { workDate: wd, depotId: { in: ['d1'] } },
       _count: { _all: true },
     });
   });
@@ -878,7 +878,7 @@ describe('AnalyticsPrismaRepository', () => {
       _count: { _all: 4 },
     });
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.payrollTotals('2026-07', 'd1')).resolves.toEqual({
+    await expect(repo.payrollTotals('2026-07', ['d1'])).resolves.toEqual({
       gross: 1000,
       totalBonus: 100,
       totalDeduction: 0,
@@ -886,7 +886,7 @@ describe('AnalyticsPrismaRepository', () => {
       count: 4,
     });
     expect(m(p, 'payroll').aggregate).toHaveBeenCalledWith({
-      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       _sum: { gross: true, totalBonus: true, totalDeduction: true, net: true },
       _count: { _all: true },
     });
@@ -917,12 +917,12 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'payroll').groupBy.mockResolvedValue([{ status: 'PAID', _count: { _all: 7 } }]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await expect(repo.payrollByStatus('2026-07', 'd1')).resolves.toEqual([
+    await expect(repo.payrollByStatus('2026-07', ['d1'])).resolves.toEqual([
       { key: 'PAID', count: 7 },
     ]);
     expect(m(p, 'payroll').groupBy).toHaveBeenCalledWith({
       by: ['status'],
-      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       _count: { _all: true },
     });
   });
@@ -950,9 +950,9 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'employee').findMany.mockResolvedValue([]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await repo.employeesForReport('d1');
+    await repo.employeesForReport(['d1']);
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1' },
+      where: { depotId: { in: ['d1'] } },
       orderBy: { employeeCode: 'asc' },
     });
   });
@@ -963,9 +963,9 @@ describe('AnalyticsPrismaRepository', () => {
     const to = new Date('2026-07-31');
     m(p, 'attendance').findMany.mockResolvedValue([]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await repo.attendanceForReport(from, to, 'd1');
+    await repo.attendanceForReport(from, to, ['d1']);
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
-      where: { workDate: { gte: from, lte: to }, depotId: 'd1', status: { not: 'PENDING' } },
+      where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: { not: 'PENDING' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
     });
@@ -975,9 +975,9 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'payroll').findMany.mockResolvedValue([]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await repo.payrollForReport('2026-07', 'd1');
+    await repo.payrollForReport('2026-07', ['d1']);
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
-      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
       orderBy: { employee: { employeeCode: 'asc' } },
     });
@@ -991,9 +991,9 @@ describe('AnalyticsPrismaRepository', () => {
   it('lateForReport takes LATE rows only — an absence has no arrival to be late by', async () => {
     const p = makePrisma();
     m(p, 'attendance').findMany.mockResolvedValue([]);
-    await new AnalyticsPrismaRepository(asService(p)).lateForReport(from, to, 'd1');
+    await new AnalyticsPrismaRepository(asService(p)).lateForReport(from, to, ['d1']);
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
-      where: { workDate: { gte: from, lte: to }, depotId: 'd1', status: 'LATE' },
+      where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: 'LATE' },
       include: summary,
       orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
     });
@@ -1002,9 +1002,9 @@ describe('AnalyticsPrismaRepository', () => {
   it('leaveForReport matches by OVERLAP, so leave crossing the edge is included', async () => {
     const p = makePrisma();
     m(p, 'leaveRequest').findMany.mockResolvedValue([]);
-    await new AnalyticsPrismaRepository(asService(p)).leaveForReport(from, to, 'd1');
+    await new AnalyticsPrismaRepository(asService(p)).leaveForReport(from, to, ['d1']);
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
-      where: { startDate: { lte: to }, endDate: { gte: from }, depotId: 'd1' },
+      where: { startDate: { lte: to }, endDate: { gte: from }, depotId: { in: ['d1'] } },
       include: summary,
       orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
     });
@@ -1014,9 +1014,9 @@ describe('AnalyticsPrismaRepository', () => {
     const p = makePrisma();
     m(p, 'performanceReview').findMany.mockResolvedValue([]);
     const repo = new AnalyticsPrismaRepository(asService(p));
-    await repo.performanceForReport('2026-07', 'd1');
+    await repo.performanceForReport('2026-07', ['d1']);
     expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
-      where: { periodMonth: '2026-07', employee: { depotId: 'd1' } },
+      where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: summary,
       orderBy: { score: 'desc' },
     });
@@ -1029,9 +1029,9 @@ describe('AnalyticsPrismaRepository', () => {
   it('assetsForReport includes the holder', async () => {
     const p = makePrisma();
     m(p, 'employeeAsset').findMany.mockResolvedValue([]);
-    await new AnalyticsPrismaRepository(asService(p)).assetsForReport('d1');
+    await new AnalyticsPrismaRepository(asService(p)).assetsForReport(['d1']);
     expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1' },
+      where: { depotId: { in: ['d1'] } },
       include: { holder: { select: { employeeCode: true, fullName: true } } },
       orderBy: [{ status: 'asc' }, { code: 'asc' }],
     });
@@ -1237,9 +1237,9 @@ describe('AttendancePrismaRepository', () => {
     m(p, 'attendance').count.mockResolvedValue(1);
     const repo = new AttendancePrismaRepository(asService(p));
     await expect(
-      repo.list({ depotId: 'd1', employeeId: 'e1', from, to, skip: 10, take: 5 }),
+      repo.list({ depotIds: ['d1'], employeeId: 'e1', from, to, skip: 10, take: 5 }),
     ).resolves.toEqual({ rows, total: 1 });
-    const where = { depotId: 'd1', employeeId: 'e1', workDate: { gte: from, lte: to } };
+    const where = { depotId: { in: ['d1'] }, employeeId: 'e1', workDate: { gte: from, lte: to } };
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where,
       orderBy: { workDate: 'desc' },
@@ -1507,7 +1507,7 @@ describe('EmployeePrismaRepository', () => {
     const repo = new EmployeePrismaRepository(asService(p));
     await expect(
       repo.list({
-        depotId: 'd1',
+        depotIds: ['d1'],
         status: 'ACTIVE',
         departmentId: 'dep1',
         search: 'ali',
@@ -1516,7 +1516,7 @@ describe('EmployeePrismaRepository', () => {
       }),
     ).resolves.toEqual({ rows, total: 1 });
     const where = {
-      depotId: 'd1',
+      depotId: { in: ['d1'] },
       status: 'ACTIVE',
       departmentId: 'dep1',
       OR: [
@@ -1688,9 +1688,9 @@ describe('HolidayPrismaRepository', () => {
     const to = new Date('2026-08-31');
     m(p, 'holiday').findMany.mockResolvedValue([]);
     const repo = new HolidayPrismaRepository(asService(p));
-    await repo.list({ depotId: 'd1', from, to });
+    await repo.list({ depotIds: ['d1'], from, to });
     expect(m(p, 'holiday').findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1', date: { gte: from, lte: to } },
+      where: { depotId: { in: ['d1'] }, date: { gte: from, lte: to } },
       orderBy: { date: 'asc' },
     });
     await repo.list({});

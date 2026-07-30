@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -152,18 +152,22 @@ export class OrderController {
     //
     // ponytail: pinned to the token's depotId, not to the couriers actual assignments. If
     // couriers ever float between depots in one shift, resolve it from delivery-service.
-    let depotId: string | undefined;
+    let depotIds: readonly string[] | undefined;
     if (user.role === Role.STAFF_DEPOT) {
       if (!user.depotId) {
         // A courier token with no depot is a misconfigured account. Failing closed beats
         // falling through to the unscoped branch, which would hand them the whole network.
         throw new ForbiddenException('Akun kurir ini belum tertaut ke depot mana pun.');
       }
-      depotId = user.depotId;
+      depotIds = [user.depotId];
     } else {
-      depotId = depotScopeFilter(user, query.depotId);
+      depotIds = depotScopeIds(user, query.depotId);
     }
-    return this.orders.listAll({ ...query, depotId });
+    // depotId is dropped from the spread on purpose: the scalar has been replaced by the
+    // resolved set, and leaving a stale one on the input invites someone to read it again.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { depotId: _dropped, ...rest } = query;
+    return this.orders.listAll({ ...rest, depotIds });
   }
 
   @Get('manage/:id')

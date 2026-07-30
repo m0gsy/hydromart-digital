@@ -25,7 +25,7 @@ export interface CheckOutPatch {
 }
 
 export interface AttendanceListFilter {
-  depotId?: string;
+  depotIds?: readonly string[];
   employeeId?: string;
   status?: AttendanceStatus;
   from?: Date;

@@ -5,7 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeFilter, runImport } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
 import {
   Employee,
@@ -130,9 +130,9 @@ export class EmployeeService {
     },
   ): Promise<{ rows: Employee[]; total: number; page: number; pageSize: number }> {
     // Depot-locked roles (operator/manager) are forced to their own depot; HQ sees all.
-    const depotId = depotScopeFilter(user, query.depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
     const { rows, total } = await this.repo.list({
-      depotId,
+      depotIds,
       status: query.status,
       departmentId: query.departmentId,
       search: query.search,
@@ -147,7 +147,7 @@ export class EmployeeService {
     if (!employee) {
       throw new NotFoundException('Karyawan tidak ditemukan');
     }
-    // By-id endpoints carry no depotId for the guard to see — enforce here (see DepotScopeGuard note).
+    // By-id endpoints carry no depotIds for the guard to see — enforce here (see DepotScopeGuard note).
     assertDepotAccess(user, employee.depotId);
     return employee;
   }

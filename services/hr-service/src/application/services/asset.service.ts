@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeFilter, runImport } from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
 import {
   AssetMovement,
@@ -73,7 +73,7 @@ export class AssetService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     return this.repo.list({
-      depotId: depotScopeFilter(user, query.depotId) ?? undefined,
+      depotIds: depotScopeIds(user, query.depotId),
       status: query.status,
       type: query.type,
       holderId: query.holderId,

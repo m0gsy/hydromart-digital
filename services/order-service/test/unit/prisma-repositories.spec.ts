@@ -359,21 +359,21 @@ describe('OrderPrismaRepository', () => {
     const out = await repo.search({
       customerId: 'cust-1',
       status: OrderStatus.CREATED,
-      depotId: 'depot-1',
+      depotIds: ['depot-1'],
       page: 2,
       limit: 10,
     });
     expect(out.total).toBe(1);
     expect(out.items).toHaveLength(1);
     expect(order.findMany).toHaveBeenCalledWith({
-      where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: 'depot-1' },
+      where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: { in: ['depot-1'] } },
       include: expect.any(Object),
       orderBy: { createdAt: 'desc' },
       skip: 10,
       take: 10,
     });
     expect(order.count).toHaveBeenCalledWith({
-      where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: 'depot-1' },
+      where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: { in: ['depot-1'] } },
     });
   });
 

@@ -342,7 +342,7 @@ describe('Order HTTP flows (e2e)', () => {
     await request(server()).get('/api/v1/orders/manage').set(auth(customerToken)).expect(403);
 
     // A cross-depot role (SUPER_ADMIN) sees every depot's orders. A depot-locked manager
-    // token carries no depotId here, so depotScopeFilter fail-closes it — asserting "sees all"
+    // token carries no depotId here, so depotScopeIds fail-closes it — asserting "sees all"
     // requires the unscoped admin token (the e2e orders route to a null/other depot).
     const res = await request(server())
       .get('/api/v1/orders/manage')

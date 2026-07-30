@@ -17,6 +17,8 @@ x-shared: &shared
   # than per-service: a service that misses it silently serves the compiled defaults
   # forever, which looks like "the matrix edit did nothing" and is hard to spot.
   AUTH_SERVICE_URL: http://auth:3001
+  # Multi-depot scope resolution (supervision chain + franchise owners).
+  DEPOT_SERVICE_URL: http://depot:3007
   # Optional error alerting: Slack/Discord/webhook URL. Blank = disabled (no 5xx pings).
   ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
   # M12-11: Swagger in production needs HTTP Basic. Both blank = /docs is not mounted at

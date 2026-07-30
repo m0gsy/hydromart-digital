@@ -116,6 +116,7 @@ export class InMemoryDepotRepository implements DepotRepository {
       paymentBankAccountNumber: data.paymentBankAccountNumber ?? null,
       paymentBankAccountHolder: data.paymentBankAccountHolder ?? null,
       paymentQrisImageUrl: data.paymentQrisImageUrl ?? null,
+      assistantSupervisorId: data.assistantSupervisorId ?? null,
       id: randomUUID(),
       active: true,
       createdAt: now,

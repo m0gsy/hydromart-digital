@@ -7,7 +7,7 @@ import { OrderService } from '../../src/application/services/order.service';
 
 type Mocked = { [K in keyof OrderService]: jest.Mock };
 
-// SUPER_ADMIN so the real assertDepotAccess / depotScopeFilter guards are no-ops and we can
+// SUPER_ADMIN so the real assertDepotAccess / depotScopeIds guards are no-ops and we can
 // exercise the controller's own mapping logic (the depot-lock branches live in @hydromart/platform).
 const admin = { sub: 'admin-1', role: 'SUPER_ADMIN' } as never;
 const customer = { sub: 'cust-1', role: 'CUSTOMER' } as never;
@@ -144,7 +144,7 @@ describe('OrderController', () => {
 
   it('listManaged: applies the depot scope filter (undefined for SUPER_ADMIN)', async () => {
     await controller.listManaged(admin, { depotId: 'd9', limit: 10 } as never);
-    expect(service.listAll).toHaveBeenCalledWith({ depotId: 'd9', limit: 10 });
+    expect(service.listAll).toHaveBeenCalledWith({ depotIds: ['d9'], limit: 10 });
   });
 
   // UAT-M28-14: a courier token used to list every depot's orders — customer names,
@@ -152,7 +152,7 @@ describe('OrderController', () => {
   it('listManaged: pins a courier to their own depot, ignoring any ?depotId', async () => {
     const driver = { sub: 'drv-1', role: Role.STAFF_DEPOT, depotId: 'depot-a' } as never;
     await controller.listManaged(driver, { depotId: 'depot-b', limit: 10 } as never);
-    expect(service.listAll).toHaveBeenCalledWith({ depotId: 'depot-a', limit: 10 });
+    expect(service.listAll).toHaveBeenCalledWith({ depotIds: ['depot-a'], limit: 10 });
   });
 
   it('listManaged: refuses a courier whose token carries no depot', async () => {
