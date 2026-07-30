@@ -87,7 +87,17 @@ describe('HealthController', () => {
     const controller = new HealthController(prisma as never);
     const res = await controller.check();
     expect(res.status).toBe('ok');
-    expect(res.checks).toEqual({ database: 'up' });
+    expect(res.checks.database).toBe('up');
+    // The RBAC wiring reports alongside the database but never changes `status`:
+    // a service serving the compiled matrix is serving its own binary's policy,
+    // and 503-ing over an observability gap would be the worse trade. In this
+    // isolated controller test nothing bootstrapped either, so both read unwired.
+    expect(res.checks.capabilityMatrix).toEqual({
+      overrides: null,
+      ageSeconds: null,
+      stale: false,
+    });
+    expect(res.checks.depotScope).toEqual({ configured: false, cached: 0 });
   });
 
   it('throws 503 when the database probe fails', async () => {

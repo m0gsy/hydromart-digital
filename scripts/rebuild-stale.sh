@@ -16,7 +16,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+# Overridable so a local run can layer an extra overlay (e.g. dropping redis's host
+# port when another project already publishes 6379) without editing this file.
+COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml}"
 # ponytail: 4 fits the current 16GB/8vCPU VPS (a build peaks ~1.5GB). Lower it to
 # 1-2 if the host is ever downsized again.
 BATCH="${BATCH:-4}"
@@ -26,8 +28,10 @@ BATCH="${BATCH:-4}"
 DEFAULT_STALE=(customer dashboard loyalty promo referral crm recommendation forecast payout scheduler)
 # Every deployable service, for `rebuild-stale.sh --all` (used by deploy.sh on a
 # shared-package change). Order is build order; gateway/web last so upstreams exist.
+# `hr` was missing here, so `--all` (what deploy.sh runs on a shared-package change)
+# quietly skipped hr-service and left it on an old image.
 ALL_SERVICES=(auth customer product order payment delivery depot dashboard loyalty \
-  promo referral crm recommendation forecast payout admin scheduler gateway web)
+  promo referral crm recommendation forecast payout admin hr scheduler gateway web)
 
 if [ "${1:-}" = "--all" ]; then
   SERVICES=("${ALL_SERVICES[@]}")
