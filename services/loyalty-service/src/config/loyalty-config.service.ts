@@ -21,7 +21,7 @@ export class LoyaltyConfigService {
    * `SETTING_DEF_BY_KEY[key].envDefault` (that field is only the UI's documented
    * default).
    */
-  private tunable(key: string, envValue: number, depotId: string | null = null): number {
+  private tunable(key: string, envValue: number, depotId: string | null): number {
     const def = SETTING_DEF_BY_KEY[key];
     return this.settings.effective(key, def.type, envValue, depotId) as number;
   }
