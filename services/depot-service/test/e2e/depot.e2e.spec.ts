@@ -90,8 +90,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     signStaff = (role, depotId) =>
       jwt.sign({ sub: 's', role, phone: '+62', depotId: depotId ?? null }, { secret });
-    managerToken = signStaff(Role.DEPOT_MANAGER);
-    operatorToken = signStaff(Role.DEPOT_OPERATOR);
+    managerToken = signStaff(Role.MANAGER);
+    operatorToken = signStaff(Role.KEPALA_DEPOT);
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
     ownerToken = jwt.sign({ sub: OWNER_SUB, role: Role.FRANCHISE_OWNER, phone: '+62' }, { secret });
   });
@@ -135,8 +135,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     const depotId = created.body.id;
     expect(created.body.deliveryFee).toBe(5000);
     // Depot staff are now locked to their own depot — bind tokens to the created depot.
-    const oprAt = signStaff(Role.DEPOT_OPERATOR, depotId);
-    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
+    const oprAt = signStaff(Role.MANAGER, depotId);
+    const mgrAt = signStaff(Role.MANAGER, depotId);
 
     // depot shows in public browse
     await request(server())
@@ -216,7 +216,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .send({ ...depotBody, code: 'CONS-01' })
         .expect(201)
     ).body.id;
-    const oprAt = signStaff(Role.DEPOT_OPERATOR, depotId);
+    const oprAt = signStaff(Role.MANAGER, depotId);
     const itemId = (
       await request(server())
         .post(`/api/v1/depots/${depotId}/inventory`)
@@ -309,7 +309,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // deactivate one of the owner's depots — listMine still returns it
     await request(server())
       .delete(`/api/v1/depots/${b.id}`)
-      .set(auth(signStaff(Role.DEPOT_MANAGER, b.id)))
+      .set(auth(signStaff(Role.MANAGER, b.id)))
       .expect(200);
 
     await request(server())
@@ -335,7 +335,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         .send({ ...depotBody, code: 'MNG-01', name: 'Depot Manage' })
         .expect(201)
     ).body.id;
-    const mgrAt = signStaff(Role.DEPOT_MANAGER, depotId);
+    const mgrAt = signStaff(Role.MANAGER, depotId);
 
     // deactivate (soft delete)
     await request(server()).delete(`/api/v1/depots/${depotId}`).set(auth(mgrAt)).expect(200);

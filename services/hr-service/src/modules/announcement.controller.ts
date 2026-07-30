@@ -11,14 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AnnouncementService } from '../application/services/announcement.service';
 import { CreateAnnouncementDto, ListAnnouncementDto } from './dto/announcement.dto';
@@ -31,21 +24,21 @@ export class AnnouncementController {
   constructor(private readonly announcements: AnnouncementService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List announcements, drafts included, newest first' })
   list(@Query() q: ListAnnouncementDto) {
     return this.announcements.list(q.page, q.pageSize);
   }
 
   @Get(':id')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'One announcement with its targets and read statistics' })
   getById(@Param('id', ParseUUIDPipe) id: string) {
     return this.announcements.getById(id);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Write an announcement (sends now unless scheduledAt is in future)' })
   create(@Body() dto: CreateAnnouncementDto, @CurrentUser() user: AuthenticatedUser) {
     return this.announcements.create(user, dto);

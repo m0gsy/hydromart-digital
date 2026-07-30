@@ -15,8 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
 import {
@@ -45,7 +44,7 @@ export class VoucherController {
   constructor(private readonly vouchers: VoucherService) {}
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherRead)
+  @Can('voucherRead')
   @Get()
   @ApiOperation({ summary: 'List all vouchers (admin, includes inactive)' })
   browse(@Query() query: BrowseQueryDto): Promise<Page<VoucherRecord>> {
@@ -55,7 +54,7 @@ export class VoucherController {
   // HQ voucher governance (14b): real burn per voucher + network total. Declared before
   // `@Get(':code')` so "burn-summary" is not captured as a code.
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherRead)
+  @Can('voucherRead')
   @Get('burn-summary')
   @ApiOperation({ summary: 'Rupiah discount burned per voucher + network total (admin)' })
   burnSummary(): Promise<{ totalUsed: number; byVoucher: Record<string, number> }> {
@@ -98,7 +97,7 @@ export class VoucherController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherWrite)
+  @Can('voucherWrite')
   @Post()
   @ApiOperation({ summary: 'Create a voucher (admin)' })
   create(@Body() dto: CreateVoucherDto): Promise<VoucherRecord> {
@@ -119,7 +118,7 @@ export class VoucherController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherWrite)
+  @Can('voucherWrite')
   @Post(':id/grant')
   @ApiOperation({ summary: "Grant a voucher to a customer's wallet (admin, spec 5h)" })
   grant(
@@ -131,7 +130,7 @@ export class VoucherController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherWrite)
+  @Can('voucherWrite')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a voucher (admin)' })
   update(
@@ -154,7 +153,7 @@ export class VoucherController {
   }
 
   @ApiBearerAuth()
-  @Roles(...CAPABILITIES.voucherWrite)
+  @Can('voucherWrite')
   @Delete(':id')
   @ApiOperation({ summary: 'Deactivate a voucher (admin)' })
   deactivate(@Param('id', ParseUUIDPipe) id: string): Promise<VoucherRecord> {

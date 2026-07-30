@@ -15,12 +15,16 @@ import type { Customer, Page } from '@/lib/types';
 
 // Staff roles selectable in the invite form (CUSTOMER is not assignable here).
 const STAFF_ROLES = [
-  'DRIVER',
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'FINANCE',
+  'HR',
   'MARKETING',
   'SUPER_ADMIN',
 ] as const;
@@ -34,13 +38,13 @@ function InviteForm({ onSaved }: { onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<string>('DEPOT_OPERATOR');
+  const [role, setRole] = useState<string>('KEPALA_DEPOT');
   const [vehicleType, setVehicleType] = useState('MOTOR');
   const [plateNumber, setPlateNumber] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isDriver = role === 'DRIVER';
+  const isDriver = role === 'STAFF_DEPOT';
 
   async function submit() {
     if (phone.trim() === '') {

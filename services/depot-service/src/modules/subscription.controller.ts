@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { SubscriptionService } from '../application/services/subscription.service';
 import { Subscription } from '../domain/subscription';
@@ -11,7 +10,7 @@ import { CreateSubscriptionDto, ListSubscriptionQueryDto } from './dto/subscript
 /** Customer recurring subscriptions (design 16b). */
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotSubscriptions)
+@Can('depotSubscriptions')
 @Controller({ path: 'subscriptions', version: '1' })
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}

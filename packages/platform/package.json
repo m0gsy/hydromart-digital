@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
     "test": "jest --passWithNoTests",
-    "prepare": "tsc -p tsconfig.json"
+    "test:cov": "jest --coverage",
+    "_prepare_note": "Builds access FIRST: this package imports it, .dockerignore strips **/dist so nothing is prebuilt in an image, and npm gives no ordering guarantee between two workspaces' prepare scripts. Without this, `npm ci` fails with TS2307 on @hydromart/access — which blocked every image rebuild.",
+    "prepare": "tsc -p ../access/tsconfig.json && tsc -p tsconfig.json"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -32,9 +34,25 @@
         }
       ]
     },
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.ts",
+      "!src/**/*.spec.ts",
+      "!src/**/*.d.ts",
+      "!src/index.ts"
+    ],
+    "coverageDirectory": "./coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 98,
+        "branches": 98,
+        "functions": 98,
+        "lines": 98
+      }
+    }
   },
   "dependencies": {
+    "@hydromart/access": "*",
     "joi": "^17.13.3",
     "prom-client": "^15.1.3"
   },

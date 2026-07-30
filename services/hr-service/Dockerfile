@@ -22,8 +22,8 @@ COPY services/hr-service/prisma ./services/hr-service/prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY services/hr-service ./services/hr-service
-RUN npm run build -w @hydromart/platform \
-  && npm run build -w @hydromart/access \
+RUN npm run build -w @hydromart/access \
+  && npm run build -w @hydromart/platform \
   && cd services/hr-service && npx prisma generate && npm run build
 RUN npm prune --omit=dev && mkdir -p /app/services/hr-service/node_modules
 

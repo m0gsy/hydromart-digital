@@ -1,8 +1,7 @@
-import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { assertCapability, Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { SettingsService } from '../application/services/settings.service';
 import { PutSettingDto, ResetSettingDto } from './dto/settings.dto';
@@ -10,7 +9,7 @@ import { PutSettingDto, ResetSettingDto } from './dto/settings.dto';
 /** Per-depot business-tunable settings: schema/effective read, GLOBAL/DEPOT put+reset. */
 @ApiTags('Settings')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotAdmin)
+@Can('depotAdmin')
 @Controller({ path: 'settings', version: '1' })
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
@@ -25,8 +24,8 @@ export class SettingsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Set a GLOBAL or DEPOT override' })
   async put(@Body() dto: PutSettingDto, @CurrentUser() user: AuthenticatedUser): Promise<void> {
-    if (dto.scope === 'GLOBAL' && user.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Only SUPER_ADMIN can change global defaults');
+    if (dto.scope === 'GLOBAL') {
+      assertCapability(user, 'settingsGlobal');
     }
     await this.settings.put({
       scope: dto.scope,
@@ -41,8 +40,8 @@ export class SettingsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Remove an override, falling back to the parent scope' })
   async reset(@Body() dto: ResetSettingDto, @CurrentUser() user: AuthenticatedUser): Promise<void> {
-    if (dto.scope === 'GLOBAL' && user.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Only SUPER_ADMIN can change global defaults');
+    if (dto.scope === 'GLOBAL') {
+      assertCapability(user, 'settingsGlobal');
     }
     await this.settings.reset(dto.scope, dto.depotId ?? null, dto.key);
   }

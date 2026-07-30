@@ -12,10 +12,10 @@ import { PrismaService } from './prisma.service';
 export class ResellerPrismaRepository implements ResellerRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(filter: { homeDepotId?: string; active?: boolean }): Promise<Reseller[]> {
+  list(filter: { homeDepotIds?: readonly string[]; active?: boolean }): Promise<Reseller[]> {
     return this.prisma.resellerProfile.findMany({
       where: {
-        ...(filter.homeDepotId ? { homeDepotId: filter.homeDepotId } : {}),
+        ...(filter.homeDepotIds ? { homeDepotId: { in: [...filter.homeDepotIds] } } : {}),
         ...(filter.active != null ? { active: filter.active } : {}),
       },
       orderBy: { createdAt: 'desc' },

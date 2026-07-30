@@ -9,17 +9,46 @@ export {
 } from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext } from './http/request-context';
-export { Public, Roles, CurrentUser, IS_PUBLIC_KEY, ROLES_KEY } from './nest/decorators';
+export {
+  Public,
+  Roles,
+  Can,
+  CurrentUser,
+  IS_PUBLIC_KEY,
+  ROLES_KEY,
+  CAPABILITY_KEY,
+} from './nest/decorators';
+export { assertCapability } from './nest/capability';
+export {
+  startCapabilityRefresh,
+  httpCapabilityLoader,
+  capabilityMatrixStatus,
+  resetCapabilityRefreshStatus,
+  type CapabilityMatrixStatus,
+} from './nest/capability-refresh';
+export { rbacHealth, type RbacHealth } from './nest/rbac-health';
 export { JwtAuthGuard } from './nest/jwt-auth.guard';
 export { RolesGuard } from './nest/roles.guard';
 export { DepotScopeGuard } from './nest/depot-scope.guard';
 export {
   assertDepotAccess,
   assertDepotOwnership,
-  depotScopeFilter,
+  depotScopeIds,
+  depotWhere,
   isDepotLocked,
+  isDepotResolved,
+  isDepotScoped,
   DEPOT_LOCKED_ROLES,
+  DEPOT_SCOPED_ROLES,
 } from './nest/depot-scope';
+export {
+  configureDepotScope,
+  httpDepotScopeResolver,
+  resetDepotScope,
+  resolveDepotScope,
+  depotScopeStatus,
+  type DepotScopeStatus,
+} from './nest/depot-scope-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';

@@ -23,13 +23,20 @@ export async function loginWithOtp(page: Page, phone = E2E_PHONE) {
   // challenge is still active. Two specs starting within a second of each other leave the
   // second one sitting on /login with "Please wait Ns before requesting another code", so
   // retry rather than fail: the cooldown is seconds, not minutes.
-  for (let attempt = 0; attempt < 4; attempt++) {
+  // The cooldown is OTP_RESEND_COOLDOWN_SECONDS (60 by default), not the couple of seconds the
+  // old 4x2s budget assumed, so a spec that logged in right after another one always ran out of
+  // retries. Read the countdown the form prints and wait exactly that long instead of guessing.
+  for (let attempt = 0; attempt < 3; attempt++) {
     await page.locator('button[type=submit]').click();
     try {
       await expect(page).toHaveURL(/\/verify\?/, { timeout: 5_000 });
       break;
     } catch {
-      await page.waitForTimeout(2_000);
+      // The alert reads "Please wait 39s before requesting another code." / "Tunggu 39 detik…".
+      const message = (await page.locator('body').innerText()).match(
+        /(\d+)\s*(?:s\b|detik|seconds?)/i,
+      );
+      await page.waitForTimeout(message ? (Number(message[1]) + 2) * 1_000 : 5_000);
     }
   }
   await expect(page).toHaveURL(/\/verify\?/, { timeout: 10_000 });

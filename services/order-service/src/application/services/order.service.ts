@@ -76,7 +76,7 @@ export interface ListOrdersInput {
   page?: number;
   limit?: number;
   status?: OrderStatus;
-  depotId?: string;
+  depotIds?: readonly string[];
 }
 
 /** Rounds to 2 decimals (IDR minor units) to keep money arithmetic exact. */
@@ -851,7 +851,7 @@ export class OrderService {
       limit,
       customerId: input.customerId,
       status: input.status,
-      depotId: input.depotId,
+      depotIds: input.depotIds,
     };
     const { items, total } = await this.orders.search(query);
     return buildPage(items, total, page, limit);

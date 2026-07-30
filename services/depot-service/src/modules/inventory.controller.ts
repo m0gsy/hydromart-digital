@@ -13,15 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  CurrentUser,
-  AuthenticatedUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-  ImportSummary,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, ImportSummary } from '@hydromart/platform';
 
 import {
   InventoryService,
@@ -62,7 +54,7 @@ export class DepotInventoryController {
     private readonly pricing: PricingService,
   ) {}
 
-  @Roles(...CAPABILITIES.inventoryWrite)
+  @Can('inventoryWrite')
   @Post()
   @ApiOperation({ summary: 'Add a stock line to a depot (staff)' })
   create(
@@ -85,7 +77,7 @@ export class DepotInventoryController {
     );
   }
 
-  @Roles(...CAPABILITIES.inventoryWrite)
+  @Can('inventoryWrite')
   @Post('import')
   @ApiOperation({ summary: 'Bulk-create stock lines from the CSV wizard (staff)' })
   import(
@@ -134,7 +126,7 @@ export class DepotInventoryController {
     return this.pricing.resolvePrices(depotId, ids, new Date(), qty);
   }
 
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get('movements')
   @ApiOperation({ summary: "List a depot's stock movements (paginated, newest first)" })
   movements(
@@ -155,7 +147,7 @@ export class DepotInventoryController {
     });
   }
 
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get()
   @ApiOperation({ summary: "List a depot's stock lines (staff)" })
   list(
@@ -217,7 +209,7 @@ export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
 
   // Declared before ':itemId' so the static segment wins the route match.
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get('low-stock')
   @ApiOperation({ summary: 'List low-stock lines, optionally for one depot (FR-074)' })
   lowStock(@Query('depotId') depotId?: string): Promise<ItemView[]> {
@@ -225,7 +217,7 @@ export class InventoryController {
   }
 
   // Static segment: declared before ':itemId' so it wins the route match.
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get('wastage')
   @ApiOperation({ summary: 'Depot wastage summary from negative ADJUSTMENT movements' })
   wastage(@Query() q: WastageQueryDto): Promise<WastageSummary> {
@@ -236,14 +228,14 @@ export class InventoryController {
     );
   }
 
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get(':itemId')
   @ApiOperation({ summary: 'Get a stock line by id (staff)' })
   get(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<ItemView> {
     return this.inventory.get(itemId);
   }
 
-  @Roles(...CAPABILITIES.inventoryWrite)
+  @Can('inventoryWrite')
   @Patch(':itemId')
   @ApiOperation({ summary: 'Update a stock line label/unit/minimum (staff)' })
   update(
@@ -253,7 +245,7 @@ export class InventoryController {
     return this.inventory.updateMeta(itemId, dto);
   }
 
-  @Roles(...CAPABILITIES.inventoryWrite)
+  @Can('inventoryWrite')
   @Post(':itemId/adjust')
   @ApiOperation({ summary: 'Adjust stock by a signed delta (FR-072, staff)' })
   adjust(
@@ -265,7 +257,7 @@ export class InventoryController {
     return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub, authorization);
   }
 
-  @Roles(...CAPABILITIES.inventoryWrite)
+  @Can('inventoryWrite')
   @Post(':itemId/opname')
   @ApiOperation({ summary: 'Reconcile stock to a physical count (FR-073, staff)' })
   opname(
@@ -283,7 +275,7 @@ export class InventoryController {
     );
   }
 
-  @Roles(...CAPABILITIES.inventoryRead)
+  @Can('inventoryRead')
   @Get(':itemId/movements')
   @ApiOperation({ summary: 'Stock movement history for a line (staff)' })
   movements(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<StockMovementRecord[]> {

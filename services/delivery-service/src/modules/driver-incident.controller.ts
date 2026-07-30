@@ -9,7 +9,7 @@ import { IncidentDto, ReportIncidentDto } from './dto/incident.dto';
 /** Courier field incident reporting (design 4b). A courier only sees their own. */
 @ApiTags('Driver Incidents')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/incidents', version: '1' })
 export class DriverIncidentController {
   constructor(private readonly incidents: IncidentService) {}

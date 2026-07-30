@@ -9,7 +9,7 @@ export const EMPLOYEE_REPOSITORY = Symbol('EMPLOYEE_REPOSITORY');
 
 export interface EmployeeListFilter {
   /** Restrict to one depot (tenant isolation). Undefined = all depots (HQ view). */
-  depotId?: string;
+  depotIds?: readonly string[];
   status?: EmployeeStatus;
   /** Restrict to one org unit. Undefined = every department, including the unassigned. */
   departmentId?: string;

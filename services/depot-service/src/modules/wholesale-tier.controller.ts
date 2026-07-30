@@ -11,8 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { WholesaleTierService } from '../application/services/wholesale-tier.service';
 import { WholesaleTier } from '../domain/wholesale-tier';
@@ -25,7 +24,7 @@ import {
 /** Depot wholesale pricing tiers (design 16b). */
 @ApiTags('Wholesale Tiers')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotWholesale)
+@Can('depotWholesale')
 @Controller({ path: 'wholesale-tiers', version: '1' })
 export class WholesaleTierController {
   constructor(private readonly tiers: WholesaleTierService) {}

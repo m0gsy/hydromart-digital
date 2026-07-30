@@ -316,3 +316,122 @@ describe('RatingHttpAdapter', () => {
     });
   });
 });
+
+// Every adapter arms an AbortController so a hung owner cannot pin a courier's screen open.
+// The abort callback itself only runs when the timer fires, which no other spec waits for —
+// leaving the one line that enforces the timeout unexecuted.
+describe('the 5s timeout actually aborts', () => {
+  const hang = () =>
+    jest.fn(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error('The operation was aborted')));
+        }),
+    );
+
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  /** Attach the assertion BEFORE the timer fires, or the rejection lands unhandled. */
+  async function settleAfterTimeout<T>(assertion: Promise<T>): Promise<T> {
+    await jest.advanceTimersByTimeAsync(5000);
+    return assertion;
+  }
+
+  it('cash collection gives up and rethrows', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new CashCollectionHttpAdapter(makeConfig()).sumCollected(['o1'], 'Bearer t'),
+      ).rejects.toThrow(/aborted/),
+    );
+  });
+
+  it('depot lookup gives up and rethrows', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(new DepotLocationHttpAdapter(makeConfig()).find('dep-1')).rejects.toThrow(/aborted/),
+    );
+  });
+
+  it('order coordination gives up and rethrows', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus(
+          'o1',
+          'ON_DELIVERY' as never,
+          'Bearer t',
+        ),
+      ).rejects.toThrow(/aborted/),
+    );
+  });
+
+  it('payout push fails OPEN on the same timeout', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new CourierPayoutHttpAdapter(makeConfig()).deliveryCompleted({
+          deliveryId: 'd1',
+        } as DeliveryCompletedEvent),
+      ).resolves.toBeUndefined(),
+    );
+  });
+
+  it('ops alert fails OPEN on the same timeout', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(
+        new OpsNotifierHttpAdapter(makeConfig()).incidentReported({
+          severity: 'HIGH',
+          category: 'ACCIDENT',
+          description: 'ban pecah',
+        } as OpsIncidentAlert),
+      ).resolves.toBeUndefined(),
+    );
+  });
+
+  it('rating read fails OPEN on the same timeout', async () => {
+    global.fetch = hang() as never;
+    await settleAfterTimeout(
+      expect(new RatingHttpAdapter(makeConfig()).avgRating(['o1'])).resolves.toEqual({
+        average: null,
+        count: 0,
+      }),
+    );
+  });
+});
+
+// A body that arrives without the fields we read is not an error — it is 0 / '' / null, never
+// NaN or "undefined" rendered into a courier's screen.
+describe('missing fields in an owner response', () => {
+  it('cash collection reads absent totals as zero', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }) as never;
+    expect(await new CashCollectionHttpAdapter(makeConfig()).sumCollected(['o1'], 'Bearer t')).toEqual({
+      total: 0,
+      count: 0,
+    });
+  });
+
+  it('a depot with coordinates but no name still anchors the radius check', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ lat: -6.2, lng: 106.8 }) }) as never;
+    expect(await new DepotLocationHttpAdapter(makeConfig()).find('dep-1')).toEqual({
+      id: 'dep-1',
+      name: '',
+      lat: -6.2,
+      lng: 106.8,
+    });
+  });
+
+  it('a rating body with no count reports zero ratings', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => ({ average: 4.5 }) }) as never;
+    expect(await new RatingHttpAdapter(makeConfig()).avgRating(['o1'])).toEqual({
+      average: 4.5,
+      count: 0,
+    });
+  });
+});

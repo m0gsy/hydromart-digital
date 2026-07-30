@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { depotWhere } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -192,7 +193,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
-      ...(query.depotId ? { depotId: query.depotId } : {}),
+      ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
       ...(query.status ? { status: query.status } : {}),
     };
     const [rows, total] = await Promise.all([

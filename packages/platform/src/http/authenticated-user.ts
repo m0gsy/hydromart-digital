@@ -10,6 +10,17 @@ export interface AuthenticatedUser {
    * (operator/manager). The DepotScopeGuard uses it to keep those roles inside their own
    * depot; null/absent for customers, HQ roles, and the system principal. */
   depotId?: string | null;
+  /**
+   * Depots this caller may touch, resolved ONCE per request by DepotScopeGuard.
+   *
+   * Single-depot roles: `[depotId]`. Multi-depot roles (the supervision chain and
+   * franchise owners): the resolved set, possibly empty. `undefined` means unscoped — HQ,
+   * finance, marketing, direktur, super admin and the system principal see every depot,
+   * and must not be confused with an empty array, which sees none.
+   *
+   * Resolved in the guard so everything downstream stays a synchronous pure function.
+   */
+  depotIds?: readonly string[];
 }
 
 /** Caller metadata for audit logs and records. */

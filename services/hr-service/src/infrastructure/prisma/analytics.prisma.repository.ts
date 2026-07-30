@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { depotWhere } from '@hydromart/platform';
 
 import { Employee, Prisma } from '../../../prisma/generated/client';
 import {
@@ -20,36 +21,36 @@ const EMPLOYEE_SUMMARY = { select: { employeeCode: true, fullName: true } } as c
 export class AnalyticsPrismaRepository implements AnalyticsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async headcountByStatus(depotId?: string): Promise<GroupCount[]> {
+  async headcountByStatus(depotIds?: readonly string[]): Promise<GroupCount[]> {
     const groups = await this.prisma.employee.groupBy({
       by: ['status'],
-      where: { depotId },
+      where: { depotId: depotWhere(depotIds) },
       _count: { _all: true },
     });
     return groups.map((g) => ({ key: g.status, count: g._count._all }));
   }
 
-  async headcountByEmploymentStatus(depotId?: string): Promise<GroupCount[]> {
+  async headcountByEmploymentStatus(depotIds?: readonly string[]): Promise<GroupCount[]> {
     const groups = await this.prisma.employee.groupBy({
       by: ['employmentStatus'],
-      where: { depotId, status: 'ACTIVE' },
+      where: { depotId: depotWhere(depotIds), status: 'ACTIVE' },
       _count: { _all: true },
     });
     return groups.map((g) => ({ key: g.employmentStatus, count: g._count._all }));
   }
 
-  async attendanceByStatus(workDate: Date, depotId?: string): Promise<GroupCount[]> {
+  async attendanceByStatus(workDate: Date, depotIds?: readonly string[]): Promise<GroupCount[]> {
     const groups = await this.prisma.attendance.groupBy({
       by: ['status'],
-      where: { workDate, depotId },
+      where: { workDate, depotId: depotWhere(depotIds) },
       _count: { _all: true },
     });
     return groups.map((g) => ({ key: g.status, count: g._count._all }));
   }
 
-  async payrollTotals(periodMonth: string, depotId?: string): Promise<PayrollTotals> {
+  async payrollTotals(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollTotals> {
     const agg = await this.prisma.payroll.aggregate({
-      where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
+      where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
       _sum: { gross: true, totalBonus: true, totalDeduction: true, net: true },
       _count: { _all: true },
     });
@@ -63,31 +64,31 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     };
   }
 
-  async payrollByStatus(periodMonth: string, depotId?: string): Promise<GroupCount[]> {
+  async payrollByStatus(periodMonth: string, depotIds?: readonly string[]): Promise<GroupCount[]> {
     const groups = await this.prisma.payroll.groupBy({
       by: ['status'],
-      where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
+      where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
       _count: { _all: true },
     });
     return groups.map((g) => ({ key: g.status, count: g._count._all }));
   }
 
-  employeesForReport(depotId?: string): Promise<Employee[]> {
-    return this.prisma.employee.findMany({ where: { depotId }, orderBy: { employeeCode: 'asc' } });
+  employeesForReport(depotIds?: readonly string[]): Promise<Employee[]> {
+    return this.prisma.employee.findMany({ where: { depotId: depotWhere(depotIds) }, orderBy: { employeeCode: 'asc' } });
   }
 
-  attendanceForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]> {
+  attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]> {
     return this.prisma.attendance.findMany({
       // PENDING = offline punch still awaiting HR; it is not attendance yet.
-      where: { workDate: { gte: from, lte: to }, depotId, status: { not: 'PENDING' } },
+      where: { workDate: { gte: from, lte: to }, depotId: depotWhere(depotIds), status: { not: 'PENDING' } },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
     });
   }
 
-  payrollForReport(periodMonth: string, depotId?: string): Promise<PayrollWithEmployee[]> {
+  payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]> {
     return this.prisma.payroll.findMany({
-      where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
+      where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: { employee: { employeeCode: 'asc' } },
     });
@@ -95,35 +96,35 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
 
   // ── C4 reports ──────────────────────────────────────────────────────
 
-  lateForReport(from: Date, to: Date, depotId?: string): Promise<AttendanceWithEmployee[]> {
+  lateForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]> {
     return this.prisma.attendance.findMany({
       // status LATE only: an ABSENT day has no arrival time to be late by.
-      where: { workDate: { gte: from, lte: to }, depotId, status: 'LATE' },
+      where: { workDate: { gte: from, lte: to }, depotId: depotWhere(depotIds), status: 'LATE' },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
     });
   }
 
-  leaveForReport(from: Date, to: Date, depotId?: string): Promise<LeaveWithEmployee[]> {
+  leaveForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<LeaveWithEmployee[]> {
     return this.prisma.leaveRequest.findMany({
       // Overlap, not containment: leave running across the window edge still belongs in it.
-      where: { startDate: { lte: to }, endDate: { gte: from }, depotId },
+      where: { startDate: { lte: to }, endDate: { gte: from }, depotId: depotWhere(depotIds) },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
     });
   }
 
-  performanceForReport(periodMonth: string, depotId?: string): Promise<ReviewWithEmployee[]> {
+  performanceForReport(periodMonth: string, depotIds?: readonly string[]): Promise<ReviewWithEmployee[]> {
     return this.prisma.performanceReview.findMany({
-      where: { periodMonth, ...(depotId ? { employee: { depotId } } : {}) },
+      where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
       include: { employee: EMPLOYEE_SUMMARY },
       orderBy: { score: 'desc' },
     });
   }
 
-  assetsForReport(depotId?: string): Promise<AssetWithHolder[]> {
+  assetsForReport(depotIds?: readonly string[]): Promise<AssetWithHolder[]> {
     return this.prisma.employeeAsset.findMany({
-      where: { depotId },
+      where: { depotId: depotWhere(depotIds) },
       include: { holder: EMPLOYEE_SUMMARY },
       orderBy: [{ status: 'asc' }, { code: 'asc' }],
     });

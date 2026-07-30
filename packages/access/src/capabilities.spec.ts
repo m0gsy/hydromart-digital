@@ -2,7 +2,7 @@ import { CAPABILITIES, STAFF_IMPORT_ROLES, can } from './index';
 
 describe('CAPABILITIES', () => {
   it('grants a capability only to its listed roles', () => {
-    expect(can('inventoryWrite', 'DEPOT_OPERATOR')).toBe(true);
+    expect(can('inventoryWrite', 'KEPALA_DEPOT')).toBe(true);
     expect(can('inventoryWrite', 'HEAD_OFFICE')).toBe(false); // read-only, not write
     expect(can('payout', 'FRANCHISE_OWNER')).toBe(true);
     // SUPER_ADMIN is a superuser: holds every capability even when not listed.
@@ -42,6 +42,6 @@ describe('CAPABILITIES', () => {
     expect(STAFF_IMPORT_ROLES).not.toContain('HEAD_OFFICE');
     expect(STAFF_IMPORT_ROLES).not.toContain('SUPER_ADMIN');
     expect(STAFF_IMPORT_ROLES).not.toContain('CUSTOMER');
-    expect(STAFF_IMPORT_ROLES).toContain('DEPOT_OPERATOR');
+    expect(STAFF_IMPORT_ROLES).toContain('KEPALA_DEPOT');
   });
 });

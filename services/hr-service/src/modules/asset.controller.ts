@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { AssetService } from '../application/services/asset.service';
 import {
@@ -21,28 +20,28 @@ export class AssetController {
   constructor(private readonly assets: AssetService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List assets (filter by depot, status, type or current holder)' })
   list(@Query() q: ListAssetDto, @CurrentUser() user: AuthenticatedUser) {
     return this.assets.list(user, q);
   }
 
   @Get(':id')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'One asset with its full append-only movement history' })
   getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.assets.getById(user, id);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Register an asset (starts AVAILABLE, held by nobody)' })
   create(@Body() dto: CreateAssetDto, @CurrentUser() user: AuthenticatedUser) {
     return this.assets.create(user, dto);
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({
     summary: 'Bulk-import assets from the CSV wizard (optionally already handed out)',
   })
@@ -51,7 +50,7 @@ export class AssetController {
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Edit asset details — status and holder move via /movements only' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -62,7 +61,7 @@ export class AssetController {
   }
 
   @Post(':id/movements')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Hand over, transfer, take back, service or write off an asset' })
   move(
     @Param('id', ParseUUIDPipe) id: string,

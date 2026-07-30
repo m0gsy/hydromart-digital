@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { AdjustmentService } from '../application/services/adjustment.service';
 import {
@@ -19,14 +18,14 @@ export class BonusController {
   constructor(private readonly adjustments: AdjustmentService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s bonuses for a period' })
   list(@Query() q: AdjustmentQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.listBonuses(user, q.employeeId, q.periodMonth);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Add a bonus' })
   create(@Body() dto: CreateBonusDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.addBonus(user, dto);
@@ -40,21 +39,21 @@ export class DeductionController {
   constructor(private readonly adjustments: AdjustmentService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s deductions for a period' })
   list(@Query() q: AdjustmentQueryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.listDeductions(user, q.employeeId, q.periodMonth);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Add a deduction' })
   create(@Body() dto: CreateDeductionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.addDeduction(user, dto);
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Bulk-import deductions from the CSV wizard' })
   import(@Body() dto: ImportDeductionsDto, @CurrentUser() user: AuthenticatedUser) {
     return this.adjustments.importDeductions(user, dto.rows);

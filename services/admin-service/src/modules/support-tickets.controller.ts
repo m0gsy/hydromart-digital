@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { SupportTicketService } from '../application/services/support-ticket.service';
 import {
@@ -15,7 +15,7 @@ import {
 // newest-first) + reply / assign / resolve. Threads live in child ticket_messages.
 @ApiTags('Support tickets')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('hqConsole')
 @Controller({ path: 'tickets', version: '1' })
 export class SupportTicketsController {
   constructor(private readonly tickets: SupportTicketService) {}

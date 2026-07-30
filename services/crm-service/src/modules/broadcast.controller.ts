@@ -11,8 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
 import { BroadcastService } from '../application/services/broadcast.service';
 import { BroadcastDto, BroadcastQueryDto, CreateBroadcastDto } from './dto/broadcast.dto';
@@ -26,7 +25,7 @@ export class BroadcastController {
   // Depot ops post an announcement to their depot. Staff JWTs carry no depotId, so it is
   // supplied in the body (same as delivery-service). MVP ceiling: the depotId is trusted,
   // not cross-checked against the poster's depot assignment.
-  @Roles(...CAPABILITIES.depotBroadcast)
+  @Can('depotBroadcast')
   @Post()
   @ApiOperation({ summary: 'Post a depot broadcast to its couriers (design 8a)' })
   async create(
@@ -39,7 +38,7 @@ export class BroadcastController {
 
   // Courier inbox: broadcasts for the courier's depot with per-courier read flags. The
   // courier passes their own assigned depot; broadcasts are low-sensitivity ops notices.
-  @Roles(Role.DRIVER)
+  @Roles(Role.STAFF_DEPOT)
   @Get()
   @ApiOperation({ summary: "List a depot's broadcasts for the current courier" })
   async list(
@@ -50,7 +49,7 @@ export class BroadcastController {
     return records.map((r) => BroadcastDto.fromCourier(r));
   }
 
-  @Roles(Role.DRIVER)
+  @Roles(Role.STAFF_DEPOT)
   @Post(':id/read')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Mark a broadcast read for the current courier' })

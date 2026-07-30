@@ -4,10 +4,38 @@
 // the backend's own definition, imported. Change a role once in @hydromart/access and
 // the server guard, every canX() gate, and the "Peran & hak akses" matrix all move
 // together. Covered by test/roles.test.ts.
-import { CAPABILITIES, can, type Capability } from '@hydromart/access';
+import { CAPABILITIES, can as compiledCan, type Capability } from '@hydromart/access';
 
-export { CAPABILITIES, can };
+export { CAPABILITIES };
 export type { Capability };
+
+// The signed-in account's capability list as the SERVER computed it (defaults plus any
+// super-admin override), delivered on the session and /auth/me. Held module-level for
+// the same reason CAPABILITIES is: every canX() wrapper reads it without threading a
+// context through 35 call sites.
+let session: { role: string; caps: ReadonlySet<string> } | null = null;
+
+/** Called by the auth context whenever the signed-in account changes. */
+export function loadSessionCapabilities(
+  role: string | null | undefined,
+  capabilities: string[] | null | undefined,
+): void {
+  session = role && capabilities ? { role, caps: new Set(capabilities) } : null;
+}
+
+/**
+ * Whether a role holds a capability.
+ *
+ * For the SIGNED-IN role this answers from the server's own list, so a super admin's
+ * matrix edit moves the console at the same moment it moves the guards. For any OTHER
+ * role — the access matrix screen asking "what can a SUPERVISOR do?" — it falls back to
+ * the compiled defaults, which is the right answer to a different question.
+ */
+export function can(capability: Capability, role: string | null | undefined): boolean {
+  if (role === 'SUPER_ADMIN') return true;
+  if (session && role === session.role) return session.caps.has(capability);
+  return compiledCan(capability, role);
+}
 
 /** Any non-customer role — used to gate the staff surfaces broadly. Not a capability set. */
 export function isStaff(role: string | null | undefined): boolean {
@@ -15,13 +43,14 @@ export function isStaff(role: string | null | undefined): boolean {
 }
 
 /**
- * HQ console gate (SUPER_ADMIN + HEAD_OFFICE only). Deliberately NOT a capability
- * in @hydromart/access — HQ reach is not a depot power, and DEPOT_MANAGER holds
- * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate
- * over these two head-of-network roles.
+ * HQ console gate (SUPER_ADMIN + HEAD_OFFICE + DIREKTUR only). Deliberately NOT a
+ * capability in @hydromart/access — HQ reach is not a depot power, and MANAGER holds
+ * `dashboard` but is denied HQ (design 20c). So HQ reach is its own coarse gate over
+ * the head-of-network roles. DIREKTUR sits above the depot chain and reads the network,
+ * so it lands here rather than on a depot dashboard.
  */
 export function isHq(role: string | null | undefined): boolean {
-  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN';
+  return role === 'HEAD_OFFICE' || role === 'SUPER_ADMIN' || role === 'DIREKTUR';
 }
 
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);
@@ -67,8 +96,8 @@ export const canRunPayroll = (role: string | null | undefined) => can('hrPayroll
 export const canReviewApprovals = (role: string | null | undefined) => can('approvals', role);
 export const canViewDepotFinance = (role: string | null | undefined) => can('depotFinance', role);
 // Role identity helpers for shell selection (operator gets the top-tab console).
-export const isDepotOperator = (role: string | null | undefined) => role === 'DEPOT_OPERATOR';
-export const isDepotManager = (role: string | null | undefined) => role === 'DEPOT_MANAGER';
+export const isDepotOperator = (role: string | null | undefined) => role === 'KEPALA_DEPOT';
+export const isDepotManager = (role: string | null | undefined) => role === 'MANAGER';
 // GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';

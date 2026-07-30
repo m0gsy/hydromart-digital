@@ -76,10 +76,12 @@ describe('Broadcast HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    // DEPOT_OPERATOR is depot-locked by the platform DepotScopeGuard: its token must carry the
-    // depotId it acts on, or broadcasts scoped to `depot-1` get 403.
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62', depotId }, { secret });
-    driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
+    // Both depot roles are depot-locked by the platform DepotScopeGuard, so their tokens
+    // must carry the depotId they act on or broadcasts scoped to `depot-1` get 403.
+    // STAFF_DEPOT joined that set with the role rename (its predecessor DRIVER was
+    // unlocked), which is why the courier token now carries a depot too.
+    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62', depotId }, { secret });
+    driverToken = jwt.sign({ sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62', depotId }, { secret });
   });
 
   afterAll(async () => {
@@ -92,11 +94,11 @@ describe('Broadcast HTTP flows (e2e)', () => {
 
   let broadcastId: string;
 
-  it('rejects a DRIVER posting a broadcast with 403', async () => {
+  it('rejects a STAFF_DEPOT posting a broadcast with 403', async () => {
     await request(server()).post('/api/v1/broadcasts').set(auth(driverToken)).send(body()).expect(403);
   });
 
-  it('lets a DEPOT_OPERATOR post a broadcast (201)', async () => {
+  it('lets a KEPALA_DEPOT post a broadcast (201)', async () => {
     const res = await request(server())
       .post('/api/v1/broadcasts')
       .set(auth(operatorToken))

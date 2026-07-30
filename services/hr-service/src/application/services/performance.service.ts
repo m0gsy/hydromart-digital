@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { AuthenticatedUser, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Prisma, PerformanceReview } from '../../../prisma/generated/client';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
@@ -23,7 +23,7 @@ export interface ScoredEmployee {
   employeeId: string;
   employeeCode: string;
   fullName: string;
-  depotId: string;
+  depotId: string | null;
   position: string;
   score: PerformanceScore;
   inputs: ScoreInputs;
@@ -125,7 +125,7 @@ export class PerformanceService {
     depotId?: string,
   ): Promise<ScoredEmployee[]> {
     const { rows } = await this.employeesRepo.list({
-      depotId: depotScopeFilter(user, depotId) ?? undefined,
+      depotIds: depotScopeIds(user, depotId),
       status: 'ACTIVE',
       skip: 0,
       take: DASHBOARD_LIMIT,
@@ -155,9 +155,11 @@ export class PerformanceService {
     );
     // Fail-soft exactly like the bonus rules: an unreachable order-service means the sales
     // component is unmeasurable, never a zero that drags somebody's score down.
-    const salesTotal = this.sales
-      ? await this.sales.depotSales(employee.depotId, from, to).catch(() => null)
-      : null;
+    // No home depot ⇒ no depot sales to attribute, so the component stays unmeasurable too.
+    const salesTotal =
+      this.sales && employee.depotId
+        ? await this.sales.depotSales(employee.depotId, from, to).catch(() => null)
+        : null;
 
     const inputs: ScoreInputs = {
       presentDays: summary.presentDays,

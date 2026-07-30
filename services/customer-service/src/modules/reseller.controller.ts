@@ -12,13 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  ImportSummary,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
 
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { ResellerService } from '../application/services/reseller.service';
@@ -29,10 +23,9 @@ import {
 import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './dto/reseller.dto';
 import { ImportResellersDto } from './dto/customer-import.dto';
 
-
 @ApiTags('Resellers')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.resellerView)
+@Can('resellerView')
 @Controller({ path: 'resellers', version: '1' })
 export class ResellerController {
   constructor(
@@ -61,7 +54,7 @@ export class ResellerController {
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.resellerAdmin)
+  @Can('resellerAdmin')
   @ApiOperation({ summary: 'Bulk-import resellers from the CSV wizard (pre-registers new phones)' })
   import(
     @CurrentUser() user: AuthenticatedUser,
@@ -71,7 +64,7 @@ export class ResellerController {
   }
 
   @Post()
-  @Roles(...CAPABILITIES.resellerAdmin)
+  @Can('resellerAdmin')
   @ApiOperation({ summary: 'Register an existing customer as a reseller' })
   async register(@CurrentUser() user: AuthenticatedUser, @Body() dto: RegisterResellerDto) {
     try {
@@ -90,7 +83,7 @@ export class ResellerController {
   }
 
   @Patch(':customerId')
-  @Roles(...CAPABILITIES.resellerAdmin)
+  @Can('resellerAdmin')
   @ApiOperation({ summary: 'Edit a reseller (target / depot / note / active)' })
   async update(
     @CurrentUser() user: AuthenticatedUser,

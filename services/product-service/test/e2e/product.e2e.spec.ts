@@ -57,7 +57,7 @@ describe('Product HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    adminToken = jwt.sign({ sub: 'a', role: Role.DEPOT_MANAGER, phone: '+62' }, { secret });
+    adminToken = jwt.sign({ sub: 'a', role: Role.MANAGER, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: 'c', role: Role.CUSTOMER, phone: '+62' }, { secret });
   });
 

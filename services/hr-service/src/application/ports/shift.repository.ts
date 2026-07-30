@@ -31,15 +31,16 @@ export interface ShiftRepository {
   update(id: string, data: Partial<ShiftWrite>): Promise<Shift>;
   delete(id: string): Promise<void>;
   findById(id: string): Promise<Shift | null>;
-  list(depotId?: string): Promise<Shift[]>;
+  list(depotIds?: readonly string[]): Promise<Shift[]>;
   /** The active shift for a depot (its own, else a null-depot default), for late calc. */
-  findActiveForDepot(depotId: string): Promise<Shift | null>;
+  /** `null` = no home depot, so only a network-wide shift can match. */
+  findActiveForDepot(depotId: string | null): Promise<Shift | null>;
 
   // ── rotations & assignments (C3) ──────────────────────────────────
   createRotation(data: RotationWrite): Promise<ShiftRotation>;
   updateRotation(id: string, data: Partial<RotationWrite>): Promise<ShiftRotation>;
   findRotationById(id: string): Promise<ShiftRotation | null>;
-  listRotations(depotId?: string): Promise<ShiftRotation[]>;
+  listRotations(depotIds?: readonly string[]): Promise<ShiftRotation[]>;
   /** Append only — an assignment is never edited, a newer one supersedes it. */
   assign(data: AssignmentWrite): Promise<ShiftAssignment>;
   /**

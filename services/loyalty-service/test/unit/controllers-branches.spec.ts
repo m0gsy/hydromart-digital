@@ -356,7 +356,7 @@ describe('SettingsController (guards + delegation)', () => {
     await expect(
       ctrl.put(
         { scope: 'GLOBAL', key: 'earnRateRupiah', value: '1' } as never,
-        user({ role: 'DEPOT_MANAGER' }),
+        user({ role: 'MANAGER' }),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(settings.put).not.toHaveBeenCalled();
@@ -379,7 +379,7 @@ describe('SettingsController (guards + delegation)', () => {
   it('put() lets a depot admin set a DEPOT override (depotId forwarded)', async () => {
     await ctrl.put(
       { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah', value: '1' } as never,
-      user({ sub: 'u2', role: 'DEPOT_MANAGER' }),
+      user({ sub: 'u2', role: 'MANAGER' }),
     );
     expect(settings.put).toHaveBeenCalledWith({
       scope: 'DEPOT',
@@ -394,7 +394,7 @@ describe('SettingsController (guards + delegation)', () => {
     await expect(
       ctrl.reset(
         { scope: 'GLOBAL', key: 'earnRateRupiah' } as never,
-        user({ role: 'DEPOT_MANAGER' }),
+        user({ role: 'MANAGER' }),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
@@ -402,7 +402,7 @@ describe('SettingsController (guards + delegation)', () => {
   it('reset() removes a DEPOT override', async () => {
     await ctrl.reset(
       { scope: 'DEPOT', depotId: 'd1', key: 'earnRateRupiah' } as never,
-      user({ role: 'DEPOT_MANAGER' }),
+      user({ role: 'MANAGER' }),
     );
     expect(settings.reset).toHaveBeenCalledWith('DEPOT', 'd1', 'earnRateRupiah');
   });

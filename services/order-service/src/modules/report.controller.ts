@@ -19,10 +19,10 @@ import {
   TopReportQueryDto,
 } from './dto/report.dto';
 
-const REPORT_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
-// Depot daily/weekly (2d/7d) are the operator's own console screens, so DEPOT_OPERATOR
+const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
+// Depot daily/weekly (2d/7d) are the operator's own console screens, so KEPALA_DEPOT
 // joins the reporting roles for these two depot-scoped routes only.
-const DEPOT_REPORT_ROLES = [...REPORT_ROLES, Role.DEPOT_OPERATOR] as const;
+const DEPOT_REPORT_ROLES = [...REPORT_ROLES, Role.KEPALA_DEPOT] as const;
 // Customer 360 (17e) is HQ-only — no depot-manager access to a single customer's history.
 const HQ_ROLES = [Role.HEAD_OFFICE, Role.SUPER_ADMIN] as const;
 // Broadcast reach + segment sizing (10d/21d) are marketing-led audience tools.

@@ -29,7 +29,7 @@ export interface UpdateResellerData {
 
 export interface ResellerRepository {
   /** Registry rows, newest first. Filter by home depot and/or active flag. */
-  list(filter: { homeDepotId?: string; active?: boolean }): Promise<Reseller[]>;
+  list(filter: { homeDepotIds?: readonly string[]; active?: boolean }): Promise<Reseller[]>;
   findById(customerId: string): Promise<Reseller | null>;
   create(data: CreateResellerData): Promise<Reseller>;
   update(customerId: string, patch: UpdateResellerData): Promise<Reseller>;

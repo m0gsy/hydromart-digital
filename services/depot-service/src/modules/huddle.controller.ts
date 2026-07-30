@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 
 import { HuddleService } from '../application/services/huddle.service';
 import { HuddleNote } from '../domain/huddle';
@@ -11,7 +10,7 @@ import { ListHuddleQueryDto, UpsertHuddleNoteDto } from './dto/huddle.dto';
 /** Weekly depot team huddle notes (design depotTeam). */
 @ApiTags('Huddle notes')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotHuddle)
+@Can('depotHuddle')
 @Controller({ path: 'huddle-notes', version: '1' })
 export class HuddleController {
   constructor(private readonly huddles: HuddleService) {}

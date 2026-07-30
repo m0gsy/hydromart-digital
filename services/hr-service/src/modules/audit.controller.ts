@@ -1,8 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { AuditService } from '../application/services/audit.service';
 import { ListAuditDto } from './dto/audit.dto';
@@ -15,7 +14,7 @@ export class AuditController {
   constructor(private readonly audit: AuditService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'List HR audit-log entries' })
   async list(@Query() q: ListAuditDto) {
     const { rows, total } = await this.audit.list(q);

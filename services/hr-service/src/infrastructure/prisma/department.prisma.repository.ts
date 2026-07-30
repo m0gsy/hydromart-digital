@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { depotWhere } from '@hydromart/platform';
 
 import { Department } from '../../../prisma/generated/client';
 import {
@@ -27,9 +28,9 @@ export class DepartmentPrismaRepository implements DepartmentRepository {
     return this.prisma.department.findUnique({ where: { id } });
   }
 
-  list(depotId?: string): Promise<Department[]> {
+  list(depotIds?: readonly string[]): Promise<Department[]> {
     return this.prisma.department.findMany({
-      where: depotId ? { OR: [{ depotId }, { depotId: null }] } : {},
+      where: depotIds ? { OR: [{ depotId: depotWhere(depotIds) }, { depotId: null }] } : {},
       orderBy: [{ depotId: 'asc' }, { code: 'asc' }],
     });
   }

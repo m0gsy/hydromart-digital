@@ -22,8 +22,8 @@ COPY services/depot-service/prisma ./services/depot-service/prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY services/depot-service ./services/depot-service
-RUN npm run build -w @hydromart/platform \
-  && npm run build -w @hydromart/access \
+RUN npm run build -w @hydromart/access \
+  && npm run build -w @hydromart/platform \
   && cd services/depot-service && npx prisma generate && npm run build
 RUN npm prune --omit=dev && mkdir -p /app/services/depot-service/node_modules
 

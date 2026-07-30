@@ -12,17 +12,42 @@ datasource db {
 }
 
 /// Account role. Downstream services authorize against this claim (PRD §26 RBAC).
+/// Depot chain: STAFF_DEPOT -> KEPALA_DEPOT (both locked to one depot) ->
+/// ASSISTANT_SUPERVISOR -> SUPERVISOR -> MANAGER (each oversees a resolved SET of
+/// depots) -> DIREKTUR and the office roles (network-wide).
 enum Role {
   CUSTOMER
-  DRIVER
-  DEPOT_OPERATOR
-  DEPOT_MANAGER
+  STAFF_DEPOT
+  KEPALA_DEPOT
+  ASSISTANT_SUPERVISOR
+  SUPERVISOR
+  MANAGER
+  DIREKTUR
   FRANCHISE_OWNER
   HEAD_OFFICE
   FINANCE
   HR
   MARKETING
   SUPER_ADMIN
+}
+
+/// A SUPER_ADMIN edit to the compiled RBAC matrix in @hydromart/access.
+///
+/// ONE row per CHANGED capability, holding the full replacement role list. A capability
+/// with no row keeps the default shipped in the code, so an empty table is exactly
+/// today's behaviour and there is nothing to seed or keep in sync. Resetting a
+/// capability is a DELETE, and a capability added in a later release works with no
+/// migration at all.
+model CapabilityOverride {
+  /// Capability name, validated against the compiled map before it is written.
+  capability String   @id
+  /// Full replacement role list. An empty list means "SUPER_ADMIN only" — the
+  /// superuser short-circuit sits above this lookup and cannot be edited away.
+  roles      Role[]
+  updatedBy  String?  @db.Uuid
+  updatedAt  DateTime @updatedAt
+
+  @@map("capability_overrides")
 }
 
 /// Lifecycle of an account.
@@ -56,7 +81,7 @@ model Customer {
   /// Depot a staff member is assigned to (null for customers / unassigned staff). Used
   /// by the HQ depot-detail staff roster. No FK — depots live in depot-service.
   assignedDepotId String?     @db.Uuid
-  /// DRIVER-only vehicle info: type (free text, e.g. "MOTOR"/"MOBIL") + plate number.
+  /// Courier-only vehicle info: type (free text, e.g. "MOTOR"/"MOBIL") + plate number.
   /// Null for customers and staff without a vehicle. Set by staff on the invite form.
   vehicleType     String?
   plateNumber     String?

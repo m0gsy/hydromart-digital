@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
   CreateResellerData,
@@ -20,7 +20,7 @@ import { CUSTOMER_TOKENS } from '../tokens';
  * reseller at most once (customerId is the PK). Deactivation is soft (active=false).
  *
  * Tenant isolation: HQ (HEAD_OFFICE/SUPER_ADMIN) may act on any depot. A depot-locked caller
- * (DEPOT_MANAGER) is forced to their OWN depot on list/register (depotScopeFilter — same
+ * (MANAGER) is forced to their OWN depot on list/register (depotScopeIds — same
  * helper every other staff list endpoint uses) and rejected with Forbidden on get/update of a
  * reseller homed at another depot (assertDepotAccess — the by-id vector DepotScopeGuard can't
  * see, per its own class doc).
@@ -36,8 +36,8 @@ export class ResellerService {
     user: AuthenticatedUser,
     filter: { homeDepotId?: string; active?: boolean },
   ): Promise<Reseller[]> {
-    const homeDepotId = depotScopeFilter(user, filter.homeDepotId);
-    return this.resellers.list({ homeDepotId, active: filter.active });
+    const homeDepotIds = depotScopeIds(user, filter.homeDepotId);
+    return this.resellers.list({ homeDepotIds, active: filter.active });
   }
 
   async get(user: AuthenticatedUser, customerId: string): Promise<Reseller> {
@@ -49,7 +49,9 @@ export class ResellerService {
 
   async register(user: AuthenticatedUser, data: CreateResellerData): Promise<Reseller> {
     // Forced to the caller's own depot for depot-locked roles; HQ keeps the free selector.
-    const homeDepotId = depotScopeFilter(user, data.homeDepotId) ?? data.homeDepotId;
+    // A reseller lives at exactly ONE depot; the scope call is here to REJECT a depot the
+    // caller has no business writing to, not to widen the write.
+    depotScopeIds(user, data.homeDepotId);
     // The profile row is customer-service's lazily-created shell for a customer — it only
     // appears once that customer opens something that reads it. Demanding one up front made
     // a real, signed-up customer unenrollable purely because they had never viewed their
@@ -58,7 +60,7 @@ export class ResellerService {
       await this.profiles.create(data.customerId);
     }
     if (await this.resellers.findById(data.customerId)) throw new ResellerExistsError();
-    return this.resellers.create({ ...data, homeDepotId });
+    return this.resellers.create({ ...data, homeDepotId: data.homeDepotId });
   }
 
   async update(user: AuthenticatedUser, customerId: string, patch: UpdateResellerData): Promise<Reseller> {

@@ -29,7 +29,7 @@ const ALLOWED: Record<string, string> = {
 /** Driver uploads a PoD photo/signature and gets back a URL to submit to /complete. */
 @ApiTags('Driver Deliveries')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @UseFilters(MulterExceptionFilter)
 @Controller({ path: 'driver/deliveries', version: '1' })
 export class UploadController {

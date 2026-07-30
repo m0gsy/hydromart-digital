@@ -49,7 +49,9 @@ export class SettingsService {
     }
     await this.repo.upsert({
       scope: input.scope,
-      depotId: input.scope === 'GLOBAL' ? null : input.depotId,
+      // Every tunable this service owns is global-only (see setting-defs), and the guard above
+      // already refused a DEPOT scope — so the row is always the network one.
+      depotId: null,
       key: input.key,
       value: String(coerced),
       updatedBy: input.updatedBy,

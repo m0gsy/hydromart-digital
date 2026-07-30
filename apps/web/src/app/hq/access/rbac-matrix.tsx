@@ -1,30 +1,39 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Check } from '@phosphor-icons/react';
 
 import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
 import { Button, Card } from '@/components/ui';
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 
 // Staff roles (CUSTOMER is never in the matrix). Column order is canonical + used for
 // the generated diff so output is deterministic.
 const ROLES: Role[] = [
-  'DRIVER',
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'FINANCE',
+  'HR',
   'MARKETING',
   'SUPER_ADMIN',
 ];
 
 const ROLE_ABBR: Record<Role, string> = {
   CUSTOMER: 'Cus',
-  DRIVER: 'Drv',
-  DEPOT_OPERATOR: 'Ops',
-  DEPOT_MANAGER: 'Mgr',
+  STAFF_DEPOT: 'Stf',
+  KEPALA_DEPOT: 'Kep',
+  ASSISTANT_SUPERVISOR: 'Asv',
+  SUPERVISOR: 'Spv',
+  MANAGER: 'Mgr',
+  DIREKTUR: 'Dir',
   FRANCHISE_OWNER: 'Fr',
   HEAD_OFFICE: 'HO',
   FINANCE: 'Fin',
@@ -40,6 +49,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
     key: 'ops',
     caps: [
       'orderQueue',
+      'walkInSale',
       'inventoryRead',
       'inventoryWrite',
       'returnsRead',
@@ -69,12 +79,86 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'depotSubscriptions',
     ],
   },
-  { key: 'network', caps: ['dashboard', 'depotAdmin', 'staffAdmin', 'depotCrm', 'auditRead'] },
-  { key: 'marketing', caps: ['campaignRead', 'campaignWrite', 'voucherRead', 'voucherWrite', 'churn'] },
-  { key: 'finance', caps: ['franchise', 'payout', 'depotFinance', 'depotDisputes'] },
+  {
+    key: 'network',
+    caps: [
+      'dashboard',
+      'hqConsole',
+      'depotAdmin',
+      'depotDirectory',
+      'staffAdmin',
+      'staffDirectory',
+      'hierarchyAdmin',
+      'depotCrm',
+      'depotCrmWrite',
+      'auditRead',
+      'pdpRequests',
+      'settingsGlobal',
+      'accessMatrixWrite',
+    ],
+  },
+  // Decisions head office takes ON a depot's request. Kept as their own group because
+  // every one of them is the second half of a two-party flow: the depot proposes, this
+  // side disposes, and the two must never land on the same role by accident.
+  {
+    key: 'decisions',
+    caps: [
+      'priceOverrideDecide',
+      'franchiseApplications',
+      'voucherRequestDecide',
+      'fraudReview',
+    ],
+  },
+  {
+    key: 'marketing',
+    caps: [
+      'campaignRead',
+      'campaignWrite',
+      'voucherRead',
+      'voucherWrite',
+      'churn',
+      'rewardHandover',
+      'resellerView',
+      'resellerAdmin',
+    ],
+  },
+  {
+    key: 'finance',
+    caps: [
+      'franchise',
+      'payout',
+      'depotFinance',
+      'depotDisputes',
+      'refundIssue',
+      'refundQueue',
+      'settlementRead',
+      'hqPayout',
+      'hqPayoutRead',
+      'commissionRuns',
+      'earningRules',
+    ],
+  },
+  { key: 'hr', caps: ['hrView', 'hrAdmin', 'hrPayroll', 'leaveApprove'] },
 ];
 
+/**
+ * Nothing may fall out of the matrix. A capability the guards enforce but this screen
+ * never lists is one a super admin cannot see, let alone retune — which is how all 16 of
+ * F2's new capabilities sat invisible while the editor above them looked complete.
+ *
+ * Anything not placed in a section by hand lands in `other` rather than disappearing.
+ */
+const PLACED = new Set(CAP_SECTIONS.flatMap((s) => s.caps));
+const UNPLACED = (Object.keys(CAPABILITIES) as Capability[]).filter((c) => !PLACED.has(c));
+if (UNPLACED.length > 0) CAP_SECTIONS.push({ key: 'other', caps: UNPLACED });
+
 type Grid = Record<Capability, Role[]>;
+
+// GET /access/matrix — effective is defaults + super-admin overrides, i.e. what the
+// Nest guards enforce right now.
+interface AccessMatrixResponse {
+  effective?: Partial<Record<Capability, Role[]>>;
+}
 
 function cloneCaps(): Grid {
   const out = {} as Grid;
@@ -92,13 +176,41 @@ function sameRoles(a: Role[], b: readonly Role[]): boolean {
 
 export function RbacMatrix() {
   const { t } = useT();
+  // `baseline` is what the SERVER currently enforces (compiled defaults with the
+  // super-admin overrides applied), not what this build was compiled with — otherwise
+  // an earlier edit would show up as an unsaved change on every visit.
+  const [baseline, setBaseline] = useState<Grid>(cloneCaps);
   const [grid, setGrid] = useState<Grid>(cloneCaps);
   const [showDiff, setShowDiff] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api
+      .get<AccessMatrixResponse>(endpoints.auth.matrix, true)
+      .then((res) => {
+        if (!alive) return;
+        const next = cloneCaps();
+        (Object.keys(next) as Capability[]).forEach((c) => {
+          const roles = res.effective?.[c];
+          if (roles) next[c] = [...roles] as Role[];
+        });
+        setBaseline(next);
+        setGrid(next);
+      })
+      .catch(() => {
+        /* fall back to the compiled defaults already in state */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const changed = useMemo(
-    () => (Object.keys(CAPABILITIES) as Capability[]).filter((c) => !sameRoles(grid[c], CAPABILITIES[c])),
-    [grid],
+    () => (Object.keys(CAPABILITIES) as Capability[]).filter((c) => !sameRoles(grid[c], baseline[c])),
+    [grid, baseline],
   );
 
   const dirty = changed.length > 0;
@@ -142,12 +254,38 @@ export function RbacMatrix() {
   }
 
   function reset() {
-    setGrid(cloneCaps());
+    setGrid(baseline);
     setShowDiff(false);
     setCopied(false);
+    setError(null);
   }
 
-  // ponytail: matrix save copies diff; RBAC is compile-time in @hydromart/access
+  /**
+   * Write each changed capability. A capability dragged back to its compiled default is
+   * DELETEd rather than stored as an identical override, so the table only ever holds
+   * real deviations and "reset to default" stays a meaningful state.
+   */
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      for (const cap of changed) {
+        const roles = ROLES.filter((r) => grid[cap].includes(r));
+        if (sameRoles(roles, CAPABILITIES[cap])) {
+          await api.del(endpoints.auth.capability(cap), true);
+        } else {
+          await api.put(endpoints.auth.capability(cap), { roles }, true);
+        }
+      }
+      setBaseline(grid);
+      setShowDiff(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const diffText = changed
     .map((c) => {
       const roles = ROLES.filter((r) => grid[c].includes(r));
@@ -173,13 +311,18 @@ export function RbacMatrix() {
             <p className="text-xs text-brand-700">{t('hq.access.dirtyBody')}</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={reset}>
+            <Button variant="ghost" onClick={reset} disabled={saving}>
               {t('hq.access.reset')}
             </Button>
             <Button variant="secondary" onClick={() => setShowDiff((v) => !v)}>
               {t('hq.access.diff')}
             </Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? t('hq.access.saving') : t('hq.access.save')}
+            </Button>
           </div>
+          {error && <p className="w-full text-xs text-danger">{error}</p>}
+          <p className="w-full text-xs text-brand-700">{t('hq.access.propagation')}</p>
         </Card>
       )}
 

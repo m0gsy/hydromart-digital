@@ -27,7 +27,7 @@ describe('InternalAccountController', () => {
       phone: '+628123456789',
       fullName: 'Budi',
       email: null,
-      role: Role.DEPOT_OPERATOR,
+      role: Role.KEPALA_DEPOT,
       status: 'ACTIVE',
       avatarUrl: null,
       assignedDepotId: 'depot-1',
@@ -36,18 +36,18 @@ describe('InternalAccountController', () => {
 
     const result = await controller.provisionStaff({
       phone: '+628123456789',
-      role: Role.DEPOT_OPERATOR as never,
+      role: Role.KEPALA_DEPOT as never,
       fullName: 'Budi',
       depotId: 'depot-1',
     });
 
     expect(account.inviteStaff).toHaveBeenCalledWith(
       '+628123456789',
-      Role.DEPOT_OPERATOR,
+      Role.KEPALA_DEPOT,
       'Budi',
       'depot-1',
     );
-    expect(result).toMatchObject({ id: 'cust-1', role: Role.DEPOT_OPERATOR });
+    expect(result).toMatchObject({ id: 'cust-1', role: Role.KEPALA_DEPOT });
   });
 
   it('passes a pre-register through untouched', async () => {
@@ -66,19 +66,28 @@ describe('ProvisionStaffDto role allowlist', () => {
     return (await validate(dto)).map((e) => e.property);
   }
 
-  it.each(['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'DRIVER', 'FINANCE', 'HR', 'MARKETING'])(
-    'accepts %s',
-    async (role) => {
-      expect(await errorsFor(role)).not.toContain('role');
-    },
-  );
+  it.each(['STAFF_DEPOT', 'KEPALA_DEPOT'])('accepts %s', async (role) => {
+    expect(await errorsFor(role)).not.toContain('role');
+  });
 
   // The whole point of routing hr-service through this DTO: a CSV row must never be
-  // a path to an office/superuser account.
-  it.each(['HEAD_OFFICE', 'SUPER_ADMIN', 'CUSTOMER', 'FRANCHISE_OWNER', ''])(
-    'rejects %s',
-    async (role) => {
-      expect(await errorsFor(role)).toContain('role');
-    },
-  );
+  // a path to an office/superuser account — and since the depot chain grew supervision
+  // levels, it must not mint those either. Everything above depot level is created by
+  // hand in the staff console.
+  it.each([
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'HEAD_OFFICE',
+    'SUPER_ADMIN',
+    'CUSTOMER',
+    'FRANCHISE_OWNER',
+    '',
+  ])('rejects %s', async (role) => {
+    expect(await errorsFor(role)).toContain('role');
+  });
 });

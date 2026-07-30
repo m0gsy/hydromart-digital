@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { SlaPolicyService } from '../application/services/sla-policy.service';
 import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
@@ -11,7 +11,7 @@ import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
 // yet read this policy (cross-service wiring is a later change, not done here).
 @ApiTags('SLA policy')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('hqConsole')
 @Controller({ path: 'sla-policy', version: '1' })
 export class SlaPolicyController {
   constructor(private readonly policy: SlaPolicyService) {}

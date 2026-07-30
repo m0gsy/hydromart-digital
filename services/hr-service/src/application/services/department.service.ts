@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { Department, Prisma } from '../../../prisma/generated/client';
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
@@ -11,13 +11,13 @@ export interface DepartmentInput {
   active?: boolean;
 }
 
-/** Org units. A null depotId is network-wide (Finance, HR); otherwise it belongs to one depot. */
+/** Org units. A null depotIds is network-wide (Finance, HR); otherwise it belongs to one depot. */
 @Injectable()
 export class DepartmentService {
   constructor(@Inject(DEPARTMENT_REPOSITORY) private readonly repo: DepartmentRepository) {}
 
   async list(user: AuthenticatedUser, depotIdParam?: string): Promise<Department[]> {
-    return this.repo.list(depotScopeFilter(user, depotIdParam) ?? undefined);
+    return this.repo.list(depotScopeIds(user, depotIdParam) ?? undefined);
   }
 
   async create(user: AuthenticatedUser, input: DepartmentInput): Promise<Department> {

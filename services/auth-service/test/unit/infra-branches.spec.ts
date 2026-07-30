@@ -233,10 +233,10 @@ describe('CustomerPrismaRepository branch gaps', () => {
   it('filters the staff list by role and depot', async () => {
     model.findMany.mockResolvedValue([row()]);
     model.count.mockResolvedValue(1);
-    const result = await repo.listStaff(2, 10, Role.DRIVER, 'depot-1');
+    const result = await repo.listStaff(2, 10, Role.STAFF_DEPOT, 'depot-1');
     expect(result.total).toBe(1);
     const where = model.findMany.mock.calls[0][0].where;
-    expect(where).toMatchObject({ role: 'DRIVER', assignedDepotId: 'depot-1' });
+    expect(where).toMatchObject({ role: 'STAFF_DEPOT', assignedDepotId: 'depot-1' });
     expect(model.findMany.mock.calls[0][0]).toMatchObject({ skip: 10, take: 10 });
   });
 

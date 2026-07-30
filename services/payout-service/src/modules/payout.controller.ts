@@ -10,14 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   OrderRevenueResult,
@@ -31,7 +24,7 @@ import { LedgerQueryDto, OrderRevenueDto, RequestWithdrawalDto } from './dto/pay
 // Owner-scoped: every endpoint reads the caller's own franchise ledger (user.sub).
 @ApiTags('Payout')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.payout)
+@Can('payout')
 @Controller({ path: 'payout', version: '1' })
 export class PayoutController {
   constructor(private readonly payout: PayoutService) {}

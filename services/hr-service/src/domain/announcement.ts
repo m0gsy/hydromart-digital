@@ -3,7 +3,8 @@ import { AnnouncementDimension } from '../../prisma/generated/client';
 /** The only employee fields an audience rule can look at. */
 export interface AudienceEmployee {
   id: string;
-  depotId: string;
+  /** Null for staff above a single depot — a DEPOT-dimension target never matches them. */
+  depotId: string | null;
   departmentId: string | null;
   position: string;
 }

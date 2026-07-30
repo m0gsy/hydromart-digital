@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ExportStatus } from '../domain/export';
 import { ExportLogService } from '../application/services/export-log.service';
@@ -24,7 +24,7 @@ import { ExportLogDto, ExportLogQueryDto, IngestExportLogDto } from './dto/expor
 export class ExportLogsController {
   constructor(private readonly exports: ExportLogService) {}
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('hqConsole')
   @Get()
   @ApiOperation({ summary: 'List export log entries (13c, paginated, newest first)' })
   async list(@Query() query: ExportLogQueryDto): Promise<{

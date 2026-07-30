@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { depotWhere } from '@hydromart/platform';
+
 import { AssetMovement, AssetStatus, EmployeeAsset } from '../../../prisma/generated/client';
+
 import {
   AssetListFilter,
   AssetMovementWrite,
@@ -8,6 +11,7 @@ import {
   AssetWrite,
 } from '../../application/ports/asset.repository';
 import { PrismaService } from './prisma.service';
+
 
 @Injectable()
 export class AssetPrismaRepository implements AssetRepository {
@@ -27,7 +31,7 @@ export class AssetPrismaRepository implements AssetRepository {
 
   async list(filter: AssetListFilter): Promise<{ rows: EmployeeAsset[]; total: number }> {
     const where = {
-      ...(filter.depotId ? { depotId: filter.depotId } : {}),
+      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.type ? { type: filter.type } : {}),
       ...(filter.holderId ? { holderId: filter.holderId } : {}),

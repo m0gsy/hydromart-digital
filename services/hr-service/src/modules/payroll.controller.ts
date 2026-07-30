@@ -2,8 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
 import { GeneratePayrollDto, ListPayrollDto } from './dto/payroll.dto';
@@ -16,7 +15,7 @@ export class PayrollController {
   constructor(private readonly payroll: PayrollService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List payroll runs' })
   list(@Query() query: ListPayrollDto) {
     return this.payroll.list(query);
@@ -29,14 +28,14 @@ export class PayrollController {
   }
 
   @Get(':id')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Get one payroll with its item lines (salary slip)' })
   getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.payroll.getById(user, id);
   }
 
   @Get(':id/slip')
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Download a payroll as a salary-slip PDF' })
   async slip(
     @Param('id', ParseUUIDPipe) id: string,
@@ -50,21 +49,21 @@ export class PayrollController {
   }
 
   @Post('generate')
-  @Roles(...CAPABILITIES.hrPayroll)
+  @Can('hrPayroll')
   @ApiOperation({ summary: 'Generate/re-generate a DRAFT payroll for an employee + period' })
   generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthenticatedUser) {
     return this.payroll.generate(user, dto.employeeId, dto.periodMonth);
   }
 
   @Post(':id/approve')
-  @Roles(...CAPABILITIES.hrPayroll)
+  @Can('hrPayroll')
   @ApiOperation({ summary: 'Approve a DRAFT payroll' })
   approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.payroll.approve(user, id);
   }
 
   @Post(':id/pay')
-  @Roles(...CAPABILITIES.hrPayroll)
+  @Can('hrPayroll')
   @ApiOperation({ summary: 'Mark an APPROVED payroll as paid' })
   pay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.payroll.markPaid(user, id);

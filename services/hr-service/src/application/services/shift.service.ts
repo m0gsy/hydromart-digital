@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { Prisma, Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
 import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
@@ -42,7 +42,7 @@ export class ShiftService {
   ) {}
 
   async list(user: AuthenticatedUser, depotIdParam?: string): Promise<Shift[]> {
-    return this.repo.list(depotScopeFilter(user, depotIdParam) ?? undefined);
+    return this.repo.list(depotScopeIds(user, depotIdParam) ?? undefined);
   }
 
   async create(user: AuthenticatedUser, input: ShiftInput): Promise<Shift> {
@@ -80,7 +80,7 @@ export class ShiftService {
   // ── rotations (C3) ──────────────────────────────────────────────────
 
   async listRotations(user: AuthenticatedUser, depotIdParam?: string): Promise<ShiftRotation[]> {
-    return this.repo.listRotations(depotScopeFilter(user, depotIdParam) ?? undefined);
+    return this.repo.listRotations(depotScopeIds(user, depotIdParam) ?? undefined);
   }
 
   async createRotation(user: AuthenticatedUser, input: RotationInput): Promise<ShiftRotation> {

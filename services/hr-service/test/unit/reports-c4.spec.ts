@@ -26,7 +26,7 @@ import { tableReportPdf } from '../../src/domain/payroll-pdf';
 const hq: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 const manager: AuthenticatedUser = {
   sub: 'mgr',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: null,
   depotId: 'd-locked',
 };
@@ -206,11 +206,11 @@ describe('C4 report builders', () => {
     const { svc, seen } = build();
     await svc.lateReport(manager, { ...range, depotId: 'someone-else' }).catch(() => undefined);
     await svc.leaveReport(manager, range);
-    expect(seen.leave[2]).toBe('d-locked');
+    expect(seen.leave[2]).toEqual(['d-locked']);
     await svc.performanceReport(manager, { periodMonth: '2026-07' });
-    expect(seen.performance[1]).toBe('d-locked');
+    expect(seen.performance[1]).toEqual(['d-locked']);
     await svc.assetReport(manager);
-    expect(seen.assets[0]).toBe('d-locked');
+    expect(seen.assets[0]).toEqual(['d-locked']);
   });
 
   it('passes the whole window to the announcement fetcher — it has no depot scope', async () => {

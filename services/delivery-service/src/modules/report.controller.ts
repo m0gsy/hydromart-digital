@@ -7,7 +7,7 @@ import { ReportRange } from '../application/ports/delivery.repository';
 import { ReportService } from '../application/services/report.service';
 import { DepotTeamReportQueryDto, SlaReportQueryDto } from './dto/report.dto';
 
-const REPORT_ROLES = [Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 function toRange(q: { from?: string; to?: string }): ReportRange {
   return {

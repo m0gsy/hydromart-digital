@@ -4,7 +4,13 @@ import {
   CustomerNotFoundError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
+  StaffDepotRequiredError,
 } from '../../domain/errors/auth.errors';
+// The locked-role set is the guards' own definition, imported rather than mirrored: the
+// two Role enums carry identical string values, so the cast is a type bridge, not a
+// second source of truth.
+import { isDepotLocked, Role as PlatformRole } from '@hydromart/platform';
+
 import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
@@ -103,12 +109,12 @@ export class AccountService {
 
   /**
    * Driver roster for dispatch (feature 9b): active couriers only, so staff can
-   * pick one by name. Reuses the staff-directory query with a DRIVER filter and
+   * pick one by name. Reuses the staff-directory query with a STAFF_DEPOT filter and
    * keeps only ACTIVE accounts. Non-paginated — a depot has few drivers.
    * ponytail: single generous page; add real pagination if a depot ever runs 500+ drivers.
    */
   async listDrivers(): Promise<PublicCustomer[]> {
-    const { items } = await this.customers.listStaff(1, 500, Role.DRIVER);
+    const { items } = await this.customers.listStaff(1, 500, Role.STAFF_DEPOT);
     return items.map(toPublicCustomer).filter((c) => c.status === CustomerStatus.ACTIVE);
   }
 
@@ -127,9 +133,15 @@ export class AccountService {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
+    // Depot-locked roles are unusable without a depot (see StaffDepotRequiredError).
+    // Enforced here rather than in each DTO because the console invite and the hr-service
+    // bulk import both funnel through this one write path.
+    if (isDepotLocked(role as unknown as PlatformRole) && (depotId ?? '') === '') {
+      throw new StaffDepotRequiredError();
+    }
     // Vehicle info only applies to couriers; ignore it for other roles.
-    const vehicleType = role === Role.DRIVER ? vehicle?.vehicleType : undefined;
-    const plateNumber = role === Role.DRIVER ? vehicle?.plateNumber : undefined;
+    const vehicleType = role === Role.STAFF_DEPOT ? vehicle?.vehicleType : undefined;
+    const plateNumber = role === Role.STAFF_DEPOT ? vehicle?.plateNumber : undefined;
     const phone = PhoneNumber.create(rawPhone).value;
     const existing = await this.customers.findByPhone(phone);
     if (existing) {
@@ -152,6 +164,30 @@ export class AccountService {
     // create() defaults the account to PENDING; activate it so the invitee can sign in.
     created.promoteToStaff(role, depotId);
     return toPublicCustomer(await this.customers.save(created));
+  }
+
+  /**
+   * Change an EXISTING account's staff role, by account id rather than by phone.
+   *
+   * Separate from `inviteStaff` on purpose: this one never creates anybody. It backs an
+   * HR jabatan change, where the account is already known and the only question is what
+   * it may now do — inviting by phone there would silently mint a second account if the
+   * employee's phone had been corrected in the meantime.
+   */
+  async setStaffRole(customerId: string, role: Role, depotId?: string | null): Promise<PublicCustomer> {
+    if (role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    const depot = depotId === undefined ? customer.assignedDepotId : depotId;
+    if (isDepotLocked(role as unknown as PlatformRole) && (depot ?? '') === '') {
+      throw new StaffDepotRequiredError();
+    }
+    customer.promoteToStaff(role, depot);
+    return toPublicCustomer(await this.customers.save(customer));
   }
 
   /**

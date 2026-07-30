@@ -17,7 +17,7 @@ const hq: AuthenticatedUser = {
 };
 const operator = (depotId: string): AuthenticatedUser => ({
   sub: 'op-1',
-  role: Role.DEPOT_OPERATOR,
+  role: Role.KEPALA_DEPOT,
   phone: '0800',
   depotId,
 });

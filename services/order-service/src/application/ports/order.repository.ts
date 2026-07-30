@@ -110,7 +110,7 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
 export interface OrderQuery {
   customerId?: string;
   status?: OrderStatus;
-  depotId?: string;
+  depotIds?: readonly string[];
   page: number;
   limit: number;
 }

@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { DisputeService } from '../application/services/dispute.service';
 import { OrderDispute } from '../domain/order-dispute';
@@ -11,7 +10,7 @@ import { CreateDisputeDto, ListDisputeQueryDto, ResolveDisputeDto } from './dto/
 /** Customer order disputes inbox (depot CRM). */
 @ApiTags('Order Disputes')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotDisputes)
+@Can('depotDisputes')
 @Controller({ path: 'order-disputes', version: '1' })
 export class DisputeController {
   constructor(private readonly disputes: DisputeService) {}

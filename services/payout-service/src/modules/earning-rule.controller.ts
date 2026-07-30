@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierEarningRuleRecord } from '../application/ports/courier-ledger.repository';
@@ -14,7 +14,7 @@ import { ApplyEarningRuleDto } from './dto/earning-rule.dto';
  */
 @ApiTags('Courier Earning Rules')
 @ApiBearerAuth()
-@Roles(Role.FINANCE, Role.SUPER_ADMIN)
+@Can('earningRules')
 @Controller({ path: 'courier-earning-rules', version: '1' })
 export class EarningRuleController {
   constructor(private readonly payout: CourierPayoutService) {}

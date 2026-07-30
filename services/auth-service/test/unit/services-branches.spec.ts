@@ -79,8 +79,8 @@ describe('AccountService branch gaps', () => {
   it('renames an existing account while promoting it to staff', async () => {
     const customer = makeCustomer({ phone: '+628990002222', role: Role.CUSTOMER, fullName: 'Old' });
     customers.seed(customer);
-    const promoted = await service.inviteStaff('+628990002222', Role.DEPOT_MANAGER, 'New Name');
-    expect(promoted.role).toBe(Role.DEPOT_MANAGER);
+    const promoted = await service.inviteStaff('+628990002222', Role.MANAGER, 'New Name', 'depot-1');
+    expect(promoted.role).toBe(Role.MANAGER);
     expect(promoted.fullName).toBe('New Name');
   });
 

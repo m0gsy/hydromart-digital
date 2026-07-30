@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { depotWhere } from '@hydromart/platform';
+
 import { LeaveBalance, LeaveRequest, LeaveStatus } from '../../../prisma/generated/client';
+
 import {
   LeaveDecision,
   LeaveListFilter,
@@ -8,6 +11,7 @@ import {
   LeaveRequestWrite,
 } from '../../application/ports/leave.repository';
 import { PrismaService } from './prisma.service';
+
 
 @Injectable()
 export class LeavePrismaRepository implements LeaveRepository {
@@ -28,7 +32,7 @@ export class LeavePrismaRepository implements LeaveRepository {
   async list(filter: LeaveListFilter): Promise<{ rows: LeaveRequest[]; total: number }> {
     const where = {
       ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
-      ...(filter.depotId ? { depotId: filter.depotId } : {}),
+      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.status ? { status: filter.status } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([

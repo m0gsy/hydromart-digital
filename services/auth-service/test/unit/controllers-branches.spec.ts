@@ -72,7 +72,7 @@ describe('AccountController delegation', () => {
   });
 
   it('lists drivers for dispatch', async () => {
-    account.listDrivers.mockResolvedValue([publicCustomer({ role: Role.DRIVER })]);
+    account.listDrivers.mockResolvedValue([publicCustomer({ role: Role.STAFF_DEPOT })]);
     const drivers = await controller.listDrivers();
     expect(drivers).toHaveLength(1);
   });
@@ -94,10 +94,10 @@ describe('AccountController delegation', () => {
   });
 
   it('invites a staff member', async () => {
-    account.inviteStaff.mockResolvedValue(publicCustomer({ role: Role.DRIVER }));
+    account.inviteStaff.mockResolvedValue(publicCustomer({ role: Role.STAFF_DEPOT }));
     await controller.inviteStaff({
       phone: '+628990001111',
-      role: Role.DRIVER,
+      role: Role.STAFF_DEPOT,
       fullName: 'Joko',
       depotId: 'depot-1',
       vehicleType: 'MOTOR',
@@ -105,7 +105,7 @@ describe('AccountController delegation', () => {
     });
     expect(account.inviteStaff).toHaveBeenCalledWith(
       '+628990001111',
-      Role.DRIVER,
+      Role.STAFF_DEPOT,
       'Joko',
       'depot-1',
       {

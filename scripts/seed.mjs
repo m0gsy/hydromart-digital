@@ -10,6 +10,7 @@
 //   GATEWAY_URL         default http://localhost:8080
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret (mints the admin token)
 import crypto from 'node:crypto';
+import { fetchThrottled } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -33,7 +34,7 @@ function adminToken() {
 const TOKEN = adminToken();
 
 async function api(method, path, body) {
-  const res = await fetch(`${GATEWAY}${path}`, {
+  const res = await fetchThrottled(`${GATEWAY}${path}`, {
     method,
     headers: { 'content-type': 'application/json', authorization: `Bearer ${TOKEN}` },
     body: body ? JSON.stringify(body) : undefined,
@@ -97,17 +98,23 @@ const DEPOTS = [
 // First staff accounts. Sign in later with phone + OTP (console adapter logs the code in dev).
 const STAFF = [
   { phone: '+6281100000001', role: 'SUPER_ADMIN', fullName: 'Admin Hydromart' },
-  { phone: '+6281100000002', role: 'DEPOT_MANAGER', fullName: 'Manajer Depot Cikini' },
-  { phone: '+6281100000003', role: 'DRIVER', fullName: 'Driver Satu' },
+  { phone: '+6281100000002', role: 'MANAGER', fullName: 'Manajer Depot Cikini' },
+  { phone: '+6281100000003', role: 'STAFF_DEPOT', fullName: 'Staf Depot Satu' },
   { phone: '+6281100000004', role: 'HR', fullName: 'HR Hydromart' },
+  { phone: '+6281100000005', role: 'KEPALA_DEPOT', fullName: 'Kepala Depot Cikini' },
+  { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu' },
+  { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu' },
+  { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart' },
 ];
 
 // Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for
 // idempotency. dailyRate/monthlyRate follow the salaryType the server validates.
 const EMPLOYEES = [
-  { fullName: 'Budi Santoso', phone: '+6281100000101', position: 'Kepala Depot', employmentStatus: 'DEPOT_MANAGER', salaryType: 'MONTHLY', monthlyRate: 5_000_000 },
-  { fullName: 'Siti Aminah', phone: '+6281100000102', position: 'Kasir', employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100_000 },
-  { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
+  // `role` is the jabatan (drives the payroll tenure raise); employmentStatus is only the
+  // employment class now — DEPOT_MANAGER stopped being one of those.
+  { fullName: 'Budi Santoso', phone: '+6281100000101', position: 'Kepala Depot', role: 'KEPALA_DEPOT', employmentStatus: 'PERMANENT', salaryType: 'MONTHLY', monthlyRate: 5_000_000 },
+  { fullName: 'Siti Aminah', phone: '+6281100000102', position: 'Kasir', role: 'STAFF_DEPOT', employmentStatus: 'PERMANENT', salaryType: 'DAILY', dailyRate: 100_000 },
+  { fullName: 'Andi Pratama', phone: '+6281100000103', position: 'Kurir Gudang', role: 'STAFF_DEPOT', employmentStatus: 'TRAINING', salaryType: 'DAILY', dailyRate: 80_000 },
 ];
 
 const STOCK_QTY = 200;
@@ -167,10 +174,17 @@ async function seedStock(depotByCode, productBySku) {
   }
 }
 
-async function seedStaff() {
+// STAFF_DEPOT and KEPALA_DEPOT are depot-locked (DEPOT_LOCKED_ROLES): auth-service refuses the
+// invite outright without a depot, because such an account can see nothing at all. Everyone else
+// is either network-wide or resolves their depots from the hierarchy, so no depot is sent.
+const DEPOT_LOCKED = new Set(['STAFF_DEPOT', 'KEPALA_DEPOT']);
+
+async function seedStaff(depotByCode) {
+  const depotId = [...depotByCode.values()][0];
   // inviteStaff is idempotent server-side (promotes an existing phone), so just POST each.
   for (const s of STAFF) {
-    ok(await api('POST', '/auth/api/v1/auth/staff/invite', s), `invite ${s.role} ${s.phone}`);
+    const payload = DEPOT_LOCKED.has(s.role) ? { ...s, depotId } : s;
+    ok(await api('POST', '/auth/api/v1/auth/staff/invite', payload), `invite ${s.role} ${s.phone}`);
     console.log(`+ staff ${s.role} ${s.phone}`);
   }
 }
@@ -194,7 +208,7 @@ async function main() {
   const productBySku = await seedProducts(catBySlug);
   const depotByCode = await seedDepots();
   await seedStock(depotByCode, productBySku);
-  await seedStaff();
+  await seedStaff(depotByCode);
   await seedEmployees(depotByCode);
   console.log('\nSEED COMPLETE. Staff sign in with phone + OTP:');
   for (const s of STAFF) console.log(`  ${s.role.padEnd(14)} ${s.phone}  (${s.fullName})`);

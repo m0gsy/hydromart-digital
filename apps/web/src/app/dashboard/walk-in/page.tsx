@@ -160,14 +160,23 @@ function WalkIn({ depotId }: { depotId: string }) {
 
       <Card className="space-y-3 p-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Nama pembeli (opsional)">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Budi" />
+          {/* htmlFor/id on every field: without it the <label> is only nearby text, so a screen
+              reader announces an unnamed box and the cashier tabbing in hears nothing. */}
+          <Field label="Nama pembeli (opsional)" htmlFor="wi-name">
+            <Input
+              id="wi-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Budi"
+            />
           </Field>
           <Field
             label="Nomor HP (opsional)"
+            htmlFor="wi-phone"
             hint="Diisi = pembeli dapat poin dan masuk daftar pelanggan depot."
           >
             <Input
+              id="wi-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               inputMode="tel"
@@ -183,8 +192,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           </span>
         </div>
 
-        <Field label="Uang tunai diterima">
+        <Field label="Uang tunai diterima" htmlFor="wi-cash">
           <Input
+            id="wi-cash"
             value={cash}
             onChange={(e) => setCash(e.target.value)}
             inputMode="numeric"
@@ -209,7 +219,7 @@ function WalkIn({ depotId }: { depotId: string }) {
 
 export default function WalkInPage() {
   const { customer } = useAuth();
-  const { scopedId, ready } = useDepot();
+  const { scopedId, ready, error: depotError, reload: reloadDepots } = useDepot();
   // A depot-locked operator sells for their OWN depot — the switcher falls back to the first
   // depot in the network, and the server would rightly reject a sale booked against it.
   const depotId = customer?.assignedDepotId ?? scopedId;
@@ -222,6 +232,10 @@ export default function WalkInPage() {
         </CenterState>
       ) : !ready ? (
         <Skeleton className="h-64" />
+      ) : !depotId && depotError ? (
+        // The depot list failed to load. Saying "pick a depot" here would be a lie: there is
+        // nothing in the picker to pick.
+        <ErrorState message={depotError} onRetry={reloadDepots} />
       ) : !depotId ? (
         <CenterState icon={<MoneyIcon size={32} />} title="Belum ada depot">
           Pilih depot dulu dari pemilih depot.

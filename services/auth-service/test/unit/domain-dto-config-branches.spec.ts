@@ -134,7 +134,7 @@ describe('getRequestContext', () => {
 
 describe('query DTOs coerce numeric params', () => {
   it('transforms ListStaffQueryDto page/limit to numbers', () => {
-    const dto = plainToInstance(ListStaffQueryDto, { page: '2', limit: '10', role: Role.DRIVER });
+    const dto = plainToInstance(ListStaffQueryDto, { page: '2', limit: '10', role: Role.STAFF_DEPOT });
     expect(dto.page).toBe(2);
     expect(dto.limit).toBe(10);
   });

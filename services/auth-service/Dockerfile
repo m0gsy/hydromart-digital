@@ -26,8 +26,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 
 COPY services/auth-service ./services/auth-service
-RUN npm run build -w @hydromart/platform \
-  && npm run build -w @hydromart/access \
+RUN npm run build -w @hydromart/access \
+  && npm run build -w @hydromart/platform \
   && cd services/auth-service && npx prisma generate && npm run build
 
 # Prune dev dependencies for a lean runtime image.

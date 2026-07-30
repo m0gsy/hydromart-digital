@@ -1,4 +1,8 @@
-import { IdentityPort, ProvisionStaffInput } from '../../../src/application/ports/identity.port';
+import {
+  AssignRoleInput,
+  IdentityPort,
+  ProvisionStaffInput,
+} from '../../../src/application/ports/identity.port';
 
 /**
  * Stub auth-service. Records what it was asked to provision so the import specs can
@@ -6,6 +10,8 @@ import { IdentityPort, ProvisionStaffInput } from '../../../src/application/port
  */
 export class FakeIdentity implements IdentityPort {
   readonly calls: ProvisionStaffInput[] = [];
+  /** Re-role calls from an employee edit, so a spec can assert the login moved too. */
+  readonly roleCalls: AssignRoleInput[] = [];
   private error: Error | null = null;
   private seq = 0;
 
@@ -19,6 +25,11 @@ export class FakeIdentity implements IdentityPort {
     if (this.error) throw this.error;
     this.seq += 1;
     return { customerId: `00000000-0000-4000-8000-00000000000${this.seq}` };
+  }
+
+  async assignRole(input: AssignRoleInput): Promise<void> {
+    this.roleCalls.push(input);
+    if (this.error) throw this.error;
   }
 }
 

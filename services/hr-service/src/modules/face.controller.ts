@@ -1,8 +1,7 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { FaceService } from '../application/services/face.service';
 import { EnrollFaceDto } from './dto/attendance.dto';
@@ -31,7 +30,7 @@ export class FaceController {
   constructor(private readonly face: FaceService) {}
 
   @Post('enroll')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Enroll aligned face frames (replaces the current set)' })
   enroll(
     @Param('id', ParseUUIDPipe) id: string,

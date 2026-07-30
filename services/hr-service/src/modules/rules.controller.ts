@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { BonusRuleService } from '../application/services/bonus-rule.service';
 import { LoanService } from '../application/services/loan.service';
@@ -22,7 +21,7 @@ export class BonusRuleController {
   constructor(private readonly rules: BonusRuleService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List auto-bonus rules (depotId=global for network-wide)' })
   list(@Query() q: ListBonusRuleDto) {
     const depotId = q.depotId === undefined ? undefined : q.depotId === 'global' ? null : q.depotId;
@@ -30,14 +29,14 @@ export class BonusRuleController {
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create an auto-bonus rule' })
   create(@Body() dto: CreateBonusRuleDto, @CurrentUser() user: AuthenticatedUser) {
     return this.rules.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Update an auto-bonus rule' })
   update(
     @Param('id') id: string,
@@ -55,21 +54,21 @@ export class LoanController {
   constructor(private readonly loans: LoanService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s loans with computed remaining balance' })
   list(@Query() q: ListLoanDto, @CurrentUser() user: AuthenticatedUser) {
     return this.loans.listByEmployee(user, q.employeeId, q.asOfPeriod ?? '');
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create an employee loan / kasbon' })
   create(@Body() dto: CreateLoanDto, @CurrentUser() user: AuthenticatedUser) {
     return this.loans.create(user, dto);
   }
 
   @Post('import')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({
     summary: 'Bulk-import running loans from the CSV wizard',
     description: 'principal = the balance still owed at startPeriod, not the original amount.',
@@ -79,7 +78,7 @@ export class LoanController {
   }
 
   @Patch(':id/deactivate')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Stop further deductions for a loan' })
   deactivate(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.loans.deactivate(user, id);

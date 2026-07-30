@@ -9,7 +9,7 @@ import { CheckInDto, CheckOutDto, SetShiftStatusDto } from './dto/shift.dto';
 /** Courier-facing shift: check in at the depot, go on break, check out (design 3a/3b). */
 @ApiTags('Driver Shifts')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/shifts', version: '1' })
 export class DriverShiftController {
   constructor(private readonly shifts: ShiftService) {}

@@ -32,7 +32,7 @@ import {
 /** Driver-facing view: a driver only ever sees and acts on their own deliveries. */
 @ApiTags('Driver Deliveries')
 @ApiBearerAuth()
-@Roles(Role.DRIVER)
+@Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/deliveries', version: '1' })
 export class DriverDeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}

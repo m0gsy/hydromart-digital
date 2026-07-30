@@ -1,8 +1,7 @@
 import { Controller, Get, Headers, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import {
   DashboardService,
@@ -15,7 +14,7 @@ import { ExecutiveQueryDto, MonthlyPnlQueryDto } from './dto/dashboard.dto';
 
 @ApiTags('Dashboard')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.dashboard)
+@Can('dashboard')
 @Controller({ path: 'dashboard', version: '1' })
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
@@ -50,7 +49,7 @@ export class DashboardController {
   }
 
   // Method-level @Roles overrides the class-level roles (RolesGuard getAllAndOverride).
-  @Roles(...CAPABILITIES.franchise)
+  @Can('franchise')
   @Get('franchise')
   @ApiOperation({ summary: "Franchise-owner dashboard scoped to the caller's depots" })
   franchise(

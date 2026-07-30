@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { depotWhere } from '@hydromart/platform';
 
 import { Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
 import {
@@ -29,14 +30,14 @@ export class ShiftPrismaRepository implements ShiftRepository {
     return this.prisma.shift.findUnique({ where: { id } });
   }
 
-  list(depotId?: string): Promise<Shift[]> {
+  list(depotIds?: readonly string[]): Promise<Shift[]> {
     return this.prisma.shift.findMany({
-      where: depotId ? { depotId } : {},
+      where: depotIds ? { depotId: depotWhere(depotIds) } : {},
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
   }
 
-  findActiveForDepot(depotId: string): Promise<Shift | null> {
+  findActiveForDepot(depotId: string | null): Promise<Shift | null> {
     // Prefer the depot's own active shift; fall back to a network-wide (null-depot) one.
     return this.prisma.shift.findFirst({
       where: { active: true, OR: [{ depotId }, { depotId: null }] },
@@ -56,10 +57,10 @@ export class ShiftPrismaRepository implements ShiftRepository {
     return this.prisma.shiftRotation.findUnique({ where: { id } });
   }
 
-  listRotations(depotId?: string): Promise<ShiftRotation[]> {
+  listRotations(depotIds?: readonly string[]): Promise<ShiftRotation[]> {
     // Like departments, a depot sees its own PLUS the network-wide ones.
     return this.prisma.shiftRotation.findMany({
-      where: depotId ? { OR: [{ depotId }, { depotId: null }] } : {},
+      where: depotIds ? { OR: [{ depotId: depotWhere(depotIds) }, { depotId: null }] } : {},
       orderBy: [{ depotId: 'asc' }, { name: 'asc' }],
     });
   }

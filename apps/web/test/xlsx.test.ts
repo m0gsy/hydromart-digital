@@ -16,7 +16,7 @@ async function asFile(blob: Blob, name: string): Promise<File> {
 const COLUMNS = [
   { key: 'fullName', example: 'Budi Santoso' },
   { key: 'phone', example: '081234567890', text: true },
-  { key: 'role', example: 'DRIVER', options: ['DRIVER', 'DEPOT_OPERATOR'] },
+  { key: 'role', example: 'STAFF_DEPOT', options: ['STAFF_DEPOT', 'KEPALA_DEPOT'] },
   { key: 'dailyRate', example: '150000' },
 ];
 
@@ -55,7 +55,7 @@ describe('template round-trip', () => {
       {
         fullName: 'Budi Santoso',
         phone: '081234567890',
-        role: 'DRIVER',
+        role: 'STAFF_DEPOT',
         dailyRate: '150000',
       },
     ]);
@@ -77,7 +77,7 @@ describe('template round-trip', () => {
     await workbook.xlsx.load(await (await buildTemplateXlsx(COLUMNS, 'karyawan')).arrayBuffer());
 
     const validation = workbook.worksheets[0]?.getCell(2, 3).dataValidation;
-    expect(validation).toMatchObject({ type: 'list', formulae: ['"DRIVER,DEPOT_OPERATOR"'] });
+    expect(validation).toMatchObject({ type: 'list', formulae: ['"STAFF_DEPOT,KEPALA_DEPOT"'] });
     expect(workbook.worksheets[0]?.getCell(2, 1).dataValidation).toBeUndefined();
   });
 });

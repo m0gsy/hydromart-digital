@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ConsentService } from '../../application/services/consent.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { Roles } from '@hydromart/platform';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { Role } from '../../domain/customer/role.enum';
 import {

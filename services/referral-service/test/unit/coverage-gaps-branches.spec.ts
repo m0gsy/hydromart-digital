@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { SettingsCache } from '@hydromart/platform';
 
 import { ReferralService } from '../../src/application/services/referral.service';
@@ -75,6 +75,19 @@ describe('ReferralService branch gaps', () => {
     });
   });
 
+
+  // Both summary reads are also callable with no paging at all (the console's first load).
+  it('defaults paging when the caller passes none', async () => {
+    const customerId = randomUUID();
+
+    const mine = await service.getMySummary(customerId);
+    const staffView = await service.getCustomerSummary(customerId);
+
+    expect(mine.referrals).toMatchObject({ page: 1, limit: 20 });
+    expect(staffView.referrals).toMatchObject({ page: 1, limit: 20 });
+    expect(staffView.code).toEqual(mine.code);
+  });
+
   describe('depotSummary', () => {
     it('returns 0% conversion when the depot has customers but no referrals', async () => {
       const dir = new FakeCustomerDirectory({ d1: ['cust-1', 'cust-2'] });
@@ -147,7 +160,7 @@ describe('SettingsController reset depotId branch', () => {
   it('passes an explicit depotId through and defaults a missing one to null', async () => {
     const reset = jest.fn().mockResolvedValue(undefined);
     const controller = new SettingsController({ reset } as unknown as SettingsService);
-    const staff = { sub: 'u1', role: 'DEPOT_MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
+    const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
 
     await controller.reset({ scope: 'DEPOT', depotId: 'd1', key: 'referrerPoints' }, staff);
     expect(reset).toHaveBeenLastCalledWith('DEPOT', 'd1', 'referrerPoints');
@@ -156,13 +169,16 @@ describe('SettingsController reset depotId branch', () => {
     expect(reset).toHaveBeenLastCalledWith('DEPOT', null, 'referrerPoints');
   });
 
-  it('forbids a non-SUPER_ADMIN from resetting a GLOBAL default', async () => {
+  // GLOBAL scope now needs the `settingsGlobal` capability rather than a hardcoded
+  // SUPER_ADMIN string compare, so the message is the shared one — what matters is that
+  // a depot-level role still cannot move the network default.
+  it('forbids a role without settingsGlobal from resetting a GLOBAL default', async () => {
     const reset = jest.fn();
     const controller = new SettingsController({ reset } as unknown as SettingsService);
-    const staff = { sub: 'u1', role: 'DEPOT_MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
+    const staff = { sub: 'u1', role: 'MANAGER' } as unknown as import('@hydromart/platform').AuthenticatedUser;
     await expect(
       controller.reset({ scope: 'GLOBAL', key: 'referrerPoints' } as never, staff),
-    ).rejects.toThrow('Only SUPER_ADMIN');
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(reset).not.toHaveBeenCalled();
   });
 });

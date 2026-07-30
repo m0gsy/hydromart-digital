@@ -5,13 +5,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import {
-  AuthenticatedUser,
-  ImportSummary,
-  assertDepotAccess,
-  depotScopeFilter,
-  runImport,
-} from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
 import {
   Employee,
@@ -24,11 +18,13 @@ import {
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
+import type { HrManagedRole } from '@hydromart/access';
 
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
 const TRACKED: readonly (keyof Employee)[] = [
   'employmentStatus',
   'position',
+  'role',
   'status',
   'salaryType',
   'dailyRate',
@@ -42,8 +38,11 @@ export interface CreateEmployeeInput {
   fullName: string;
   phone: string;
   email?: string;
-  depotId: string;
+  /** Optional: staff above a single depot (Asisten SPV and up) belong to no one depot. */
+  depotId?: string;
   position: string;
+  /** Login role (jabatan). Setting it on an employee with an account re-roles the login. */
+  role?: HrManagedRole;
   employmentStatus: Employee['employmentStatus'];
   joinDate: string;
   salaryType: SalaryType;
@@ -136,9 +135,9 @@ export class EmployeeService {
     },
   ): Promise<{ rows: Employee[]; total: number; page: number; pageSize: number }> {
     // Depot-locked roles (operator/manager) are forced to their own depot; HQ sees all.
-    const depotId = depotScopeFilter(user, query.depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
     const { rows, total } = await this.repo.list({
-      depotId,
+      depotIds,
       status: query.status,
       departmentId: query.departmentId,
       search: query.search,
@@ -153,7 +152,7 @@ export class EmployeeService {
     if (!employee) {
       throw new NotFoundException('Karyawan tidak ditemukan');
     }
-    // By-id endpoints carry no depotId for the guard to see — enforce here (see DepotScopeGuard note).
+    // By-id endpoints carry no depotIds for the guard to see — enforce here (see DepotScopeGuard note).
     assertDepotAccess(user, employee.depotId);
     return employee;
   }
@@ -186,14 +185,15 @@ export class EmployeeService {
     assertDepotAccess(user, input.depotId);
     this.assertSalaryShape(input.salaryType, input.dailyRate, input.monthlyRate);
     this.assertContractWindow(input.joinDate, input.contractEndDate);
-    await this.assertDepartmentFits(input.departmentId, input.depotId);
+    await this.assertDepartmentFits(input.departmentId, input.depotId ?? null);
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
       fullName: input.fullName,
       phone: input.phone,
       email: input.email ?? null,
-      depotId: input.depotId,
+      depotId: input.depotId ?? null,
       position: input.position,
+      role: input.role ?? null,
       employmentStatus: input.employmentStatus,
       joinDate: new Date(input.joinDate),
       salaryType: input.salaryType,
@@ -289,7 +289,9 @@ export class EmployeeService {
           fullName: input.fullName,
           depotId: input.depotId,
         });
-        const employee = await this.create(user, { ...input, authSubjectId: customerId });
+        // `role` is recorded on the employee too, not only on the login it just minted:
+        // payroll reads the jabatan locally (KEPALA_DEPOT gets the tenure raise).
+        const employee = await this.create(user, { ...input, role, authSubjectId: customerId });
         return { status: 'created', id: employee.id };
       },
       // "Already linked to another employee" / "code already taken" is a duplicate row, not a
@@ -379,6 +381,7 @@ export class EmployeeService {
       'phone',
       'email',
       'position',
+      'role',
       'employmentStatus',
       'depotId',
       'bankName',
@@ -412,6 +415,18 @@ export class EmployeeService {
       data.monthlyRate = salaryType === 'MONTHLY' ? (monthlyRate ?? null) : null;
     }
 
+    // A promotion that changes the jabatan but leaves the LOGIN behind is the whole bug
+    // this closes: the title said SPV while the token still said assistant. Done BEFORE
+    // the employee write so a rejected re-role (auth down, role not HR-managed) fails the
+    // edit outright instead of leaving the two records disagreeing.
+    if (input.role !== undefined && input.role !== current.role && current.authSubjectId) {
+      await this.identity.assignRole({
+        customerId: current.authSubjectId,
+        role: input.role,
+        depotId: input.depotId ?? current.depotId,
+      });
+    }
+
     const history = this.diffHistory(current, data, user.sub);
     return this.repo.update(id, data, history);
   }
@@ -421,7 +436,7 @@ export class EmployeeService {
    * depot-owned department only accepts staff of that same depot — otherwise a JKT clerk could
    * land in "Gudang SBY" and every depot-scoped report would count them twice.
    */
-  private async assertDepartmentFits(departmentId: string | undefined, depotId: string) {
+  private async assertDepartmentFits(departmentId: string | undefined, depotId: string | null) {
     if (!departmentId || !this.departments) return;
     const department = await this.departments.findById(departmentId);
     if (!department) throw new BadRequestException('Departemen tidak ditemukan');

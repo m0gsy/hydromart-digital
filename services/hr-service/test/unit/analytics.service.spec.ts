@@ -12,7 +12,7 @@ import { Employee } from '../../prisma/generated/client';
 const hq: AuthenticatedUser = { sub: 'hr', role: 'HR' as never, phone: null, depotId: null };
 const manager: AuthenticatedUser = {
   sub: 'mgr',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: null,
   depotId: 'd-locked',
 };
@@ -21,7 +21,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
   const calls: { depotId?: string }[] = [];
   const repo: AnalyticsRepository = {
     headcountByStatus: async (depotId) => {
-      calls.push({ depotId });
+      calls.push({ depotId: depotId?.[0] });
       return [
         { key: 'ACTIVE', count: 3 },
         { key: 'RESIGNED', count: 1 },
@@ -82,7 +82,7 @@ describe('AnalyticsService.dashboard', () => {
   it('rejects a depot-locked role requesting another depot', async () => {
     const { svc } = build();
     await expect(svc.dashboard(manager, { depotId: 'someone-else' })).rejects.toThrow(
-      /depotnya sendiri/,
+      /tanggung jawabnya/,
     );
   });
 });

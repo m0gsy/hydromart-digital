@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { LeaveService } from '../application/services/leave.service';
 import {
@@ -53,14 +52,14 @@ export class LeaveController {
   constructor(private readonly leave: LeaveService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'Leave applications (depot-scoped for depot roles)' })
   list(@Query() q: ListLeaveDto, @CurrentUser() user: AuthenticatedUser) {
     return this.leave.listForApproval(user, q);
   }
 
   @Post('balances/import')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({
     summary: 'Bulk-import opening leave balances from the CSV wizard',
     description:
@@ -71,7 +70,7 @@ export class LeaveController {
   }
 
   @Patch(':id/manager-decision')
-  @Roles(...CAPABILITIES.leaveApprove)
+  @Can('leaveApprove')
   @ApiOperation({ summary: 'Stage 1: the manager approves or rejects' })
   manager(
     @Param('id', ParseUUIDPipe) id: string,
@@ -82,7 +81,7 @@ export class LeaveController {
   }
 
   @Patch(':id/hr-decision')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Stage 2: HR approves (writes the LEAVE attendance rows) or rejects' })
   hr(
     @Param('id', ParseUUIDPipe) id: string,

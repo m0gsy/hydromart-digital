@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { ExpenseClaimService } from '../application/services/expense-claim.service';
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
@@ -10,10 +9,10 @@ import { Page } from '../application/pagination';
 import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
 
 // Reviewer-scoped: depot managers / finance approve or reject courier claims (design 6a).
-// expenseApprove excludes DRIVER, so a courier can never approve their own claim.
+// expenseApprove excludes STAFF_DEPOT, so a courier can never approve their own claim.
 @ApiTags('Expense Approval')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.expenseApprove)
+@Can('expenseApprove')
 @Controller({ path: 'expenses', version: '1' })
 export class ExpenseApprovalController {
   constructor(private readonly expenses: ExpenseClaimService) {}

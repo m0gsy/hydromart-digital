@@ -1,7 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public } from '@hydromart/platform';
+import { Public, rbacHealth } from '@hydromart/platform';
 
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 
@@ -23,7 +23,7 @@ export class HealthController {
     const status = {
       status: database === 'up' ? 'ok' : 'error',
       service: 'hr-service',
-      checks: { database },
+      checks: { database, ...rbacHealth() },
       timestamp: new Date().toISOString(),
     };
     if (status.status === 'error') {

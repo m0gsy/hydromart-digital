@@ -14,13 +14,13 @@ import { EmployeeRepository } from '../../src/application/ports/employee.reposit
 
 const user: AuthenticatedUser = {
   sub: 'auth-1',
-  role: 'DRIVER' as never,
+  role: 'STAFF_DEPOT' as never,
   phone: '08',
   depotId: 'd1',
 };
 const manager: AuthenticatedUser = {
   sub: 'mgr',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '08',
   depotId: 'd1',
 };
@@ -112,7 +112,7 @@ describe('AttendanceService geofence + list', () => {
       page: 2,
       pageSize: 10,
     });
-    expect(att.lastFilter).toMatchObject({ depotId: 'd1', skip: 10, take: 10 });
+    expect(att.lastFilter).toMatchObject({ depotIds: ['d1'], skip: 10, take: 10 });
     expect(att.lastFilter?.from).toEqual(new Date('2026-07-01'));
     expect(out).toMatchObject({ total: 1, page: 2, pageSize: 10 });
   });

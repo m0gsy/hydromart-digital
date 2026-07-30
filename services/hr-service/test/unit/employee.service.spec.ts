@@ -15,7 +15,7 @@ const DEPOT_B = '22222222-2222-2222-2222-222222222222';
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: null, depotId: null };
 const manager = (depotId: string): AuthenticatedUser => ({
   sub: 'mgr-1',
-  role: 'DEPOT_MANAGER' as never,
+  role: 'MANAGER' as never,
   phone: '0800',
   depotId,
 });
@@ -46,7 +46,9 @@ class FakeRepo implements EmployeeRepository {
   }
   async list(f: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     let rows = this.rows;
-    if (f.depotId) rows = rows.filter((r) => r.depotId === f.depotId);
+    // `depotId IN (…)` never matches NULL — a network-level employee falls OUT of a
+    // depot-scoped list rather than showing up in every one of them.
+    if (f.depotIds) rows = rows.filter((r) => !!r.depotId && f.depotIds!.includes(r.depotId));
     if (f.status) rows = rows.filter((r) => r.status === f.status);
     return { rows: rows.slice(f.skip, f.skip + f.take), total: rows.length };
   }
@@ -142,6 +144,54 @@ describe('EmployeeService (M1)', () => {
     expect(repo.history[0]).toMatchObject({ changeType: 'HIRED' });
   });
 
+  // The gap this closes: a promotion used to change the title and leave the login on the
+  // old role, so somebody kept the access they had been moved off.
+  it('pushes a jabatan change onto the login, and only when it actually changed', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'ASSISTANT_SUPERVISOR',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { role: 'SUPERVISOR' });
+    expect(identity.roleCalls).toEqual([
+      {
+        customerId: '11111111-1111-4111-8111-111111111111',
+        role: 'SUPERVISOR',
+        depotId: DEPOT_A,
+      },
+    ]);
+
+    await svc.update(hr, e.id, { role: 'SUPERVISOR', position: 'SPV Wilayah' });
+    expect(identity.roleCalls).toHaveLength(1);
+  });
+
+  it('leaves the login alone for an employee with no account', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    await svc.update(hr, e.id, { role: 'KEPALA_DEPOT' });
+    expect(identity.roleCalls).toHaveLength(0);
+  });
+
+  // An employee above depot level: full HR record, no home depot. It must not then be
+  // visible from every depot — `depotId IN (…)` skips NULL.
+  it('creates an employee with no depot and keeps them out of depot-scoped lists', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      depotId: undefined,
+      role: 'SUPERVISOR',
+      position: 'SPV',
+    });
+    expect(e.depotId).toBeNull();
+    const scoped = await svc.list(
+      { ...hr, role: 'KEPALA_DEPOT' as never, depotId: DEPOT_A },
+      { page: 1, pageSize: 50 },
+    );
+    expect(scoped.rows.map((r) => r.id)).not.toContain(e.id);
+  });
+
   it('rejects DAILY without a dailyRate and MONTHLY without a monthlyRate', async () => {
     const { svc } = make();
     await expect(svc.create(hr, { ...baseInput, dailyRate: undefined })).rejects.toThrow(
@@ -203,20 +253,20 @@ describe('EmployeeService (M1)', () => {
 });
 
 describe('EmployeeService.importMany', () => {
-  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+  const row = { ...baseInput, role: 'KEPALA_DEPOT' as const };
 
   it('provisions a login per row and links it to the employee', async () => {
     const { repo, identity, svc } = make();
 
     const summary = await svc.importMany(hr, [
       row,
-      { ...row, fullName: 'Siti', phone: '0812', role: 'DRIVER' },
+      { ...row, fullName: 'Siti', phone: '0812', role: 'STAFF_DEPOT' },
     ]);
 
     expect(summary).toMatchObject({ created: 2, skipped: 0, failed: 0 });
     expect(identity.calls).toEqual([
-      { phone: '0811', role: 'DEPOT_OPERATOR', fullName: 'Budi', depotId: DEPOT_A },
-      { phone: '0812', role: 'DRIVER', fullName: 'Siti', depotId: DEPOT_A },
+      { phone: '0811', role: 'KEPALA_DEPOT', fullName: 'Budi', depotId: DEPOT_A },
+      { phone: '0812', role: 'STAFF_DEPOT', fullName: 'Siti', depotId: DEPOT_A },
     ]);
     expect(repo.rows.map((r) => r.authSubjectId)).toEqual([
       '00000000-0000-4000-8000-000000000001',
@@ -244,6 +294,7 @@ describe('EmployeeService.importMany', () => {
     // Same phone twice -> auth-service hands back the same account both times.
     const svc = new EmployeeService(repo, {
       provisionStaff: async () => ({ customerId: 'auth-same' }),
+      assignRole: async () => {},
     });
 
     await svc.importMany(hr, [row]);
@@ -287,7 +338,7 @@ describe('EmployeeService.importMany', () => {
 });
 
 describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
-  const row = { ...baseInput, role: 'DEPOT_OPERATOR' as const };
+  const row = { ...baseInput, role: 'KEPALA_DEPOT' as const };
 
   it('keeps the code the file supplies instead of minting one', async () => {
     const { repo, svc } = make();

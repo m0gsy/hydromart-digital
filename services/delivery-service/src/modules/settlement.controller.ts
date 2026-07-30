@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { SettlementService } from '../application/services/settlement.service';
 import { SettlementRecord } from '../application/ports/settlement.repository';
@@ -11,7 +10,7 @@ import { DisputeSettlementDto, SettlementQueryDto, VerifySettlementDto } from '.
 /** Cashier-facing COD settlement: verify or dispute a courier's deposit (design 6a). */
 @ApiTags('Settlements')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.courierSettle)
+@Can('courierSettle')
 @Controller({ path: 'settlements', version: '1' })
 export class SettlementController {
   constructor(private readonly settlements: SettlementService) {}

@@ -34,6 +34,7 @@ describe('SettingsService', () => {
     expect(svc.cache.effective('referrerPoints', 'int', 500)).toBe(700);
   });
 
+
   it('put rejects an unknown key', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));

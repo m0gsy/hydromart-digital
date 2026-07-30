@@ -80,7 +80,7 @@ describe('Settings HTTP flows (e2e)', () => {
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62' },
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });

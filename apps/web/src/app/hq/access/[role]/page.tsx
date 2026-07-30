@@ -11,12 +11,16 @@ import { useT } from '@/lib/locale-context';
 
 const ALL_ROLES: Role[] = [
   'CUSTOMER',
-  'DRIVER',
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
   'FRANCHISE_OWNER',
   'HEAD_OFFICE',
   'FINANCE',
+  'HR',
   'MARKETING',
   'SUPER_ADMIN',
 ];

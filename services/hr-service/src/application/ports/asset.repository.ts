@@ -31,7 +31,7 @@ export interface AssetMovementWrite {
 }
 
 export interface AssetListFilter {
-  depotId?: string;
+  depotIds?: readonly string[];
   status?: AssetStatus;
   type?: AssetType;
   holderId?: string;

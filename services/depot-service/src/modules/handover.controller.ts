@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { HandoverService } from '../application/services/handover.service';
 import { ShiftHandover } from '../domain/handover';
@@ -11,7 +10,7 @@ import { CreateHandoverDto, ListHandoverQueryDto } from './dto/handover.dto';
 /** Shift handover checklist (design 14d). */
 @ApiTags('Shift handovers')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotHandover)
+@Can('depotHandover')
 @Controller({ path: 'shift-handovers', version: '1' })
 export class HandoverController {
   constructor(private readonly handovers: HandoverService) {}

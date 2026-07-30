@@ -158,7 +158,7 @@ export class Customer {
   }
 
   /**
-   * Set DRIVER vehicle info (staff invite/promote form). `undefined` leaves a field
+   * Set STAFF_DEPOT vehicle info (staff invite/promote form). `undefined` leaves a field
    * untouched; `null` clears it. Free-text type (e.g. "MOTOR"/"MOBIL") + plate number.
    */
   setVehicle(vehicleType?: string | null, plateNumber?: string | null): void {

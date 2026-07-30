@@ -30,7 +30,7 @@ import {
 // system-to-system call from order-service, authenticated by the shared
 // INTERNAL_SERVICE_KEY, not a JWT.
 const READ_ROLES = [
-  Role.DEPOT_MANAGER,
+  Role.MANAGER,
   Role.HEAD_OFFICE,
   Role.MARKETING,
   Role.SUPER_ADMIN,

@@ -21,7 +21,7 @@ function res(init: { ok?: boolean; status?: number; body?: unknown }): Response 
 }
 
 const fetchMock = jest.fn();
-const INPUT = { phone: '+628123456789', role: 'DRIVER' as const, fullName: 'Joko', depotId: 'd1' };
+const INPUT = { phone: '+628123456789', role: 'STAFF_DEPOT' as const, fullName: 'Joko', depotId: 'd1' };
 
 beforeEach(() => {
   fetchMock.mockReset();

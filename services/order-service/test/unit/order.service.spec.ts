@@ -878,7 +878,7 @@ describe('OrderService', () => {
     const all = await service.listAll({});
     expect(all.total).toBe(2);
 
-    const onlyNear = await service.listAll({ depotId: 'depot-near' });
+    const onlyNear = await service.listAll({ depotIds: ['depot-near'] });
     expect(onlyNear.total).toBe(1);
     expect(onlyNear.items[0].id).toBe(near.id);
   });

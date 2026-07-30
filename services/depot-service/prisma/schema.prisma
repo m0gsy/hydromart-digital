@@ -63,6 +63,10 @@ model Depot {
   minOrderAmount Decimal?      @db.Decimal(12, 2)
   /// Franchise owner (account id) who manages this depot. Null = unassigned / company-run.
   ownerId        String?       @db.Uuid
+  /// Assistant supervisor (auth account id) overseeing this depot; null = unassigned, which
+  /// means HQ and up only. Written ONLY through the staff-hierarchy routes, never the depot
+  /// PATCH — a manager must not be able to redraw their own scope.
+  assistantSupervisorId String? @db.Uuid
   /// Per-depot payment destination shown to a paying customer (franchise model: money goes
   /// direct to each depot, manually confirmed, no gateway). All optional until an owner sets them.
   paymentBankName          String?
@@ -102,6 +106,7 @@ model Depot {
   @@index([active])
   @@index([ownershipType])
   @@index([ownerId])
+  @@index([assistantSupervisorId])
   @@map("depots")
 }
 
@@ -762,6 +767,36 @@ model ShiftHandover {
 }
 
 /// Per-depot/global overridable service settings (key-value, GLOBAL falls back to DEPOT).
+/// The supervision chain above the depot (F3): Depot -> Asisten SPV -> SPV -> Manager.
+/// One row per SUBORDINATE — the primary key on `staffId` IS the "exactly one superior"
+/// rule, so a cycle or a second boss cannot be recorded in the first place.
+///
+/// Deliberately NOT relations to Depot: these hold auth-service account ids, and
+/// auth-service owns its own database.
+model StaffSupervision {
+  staffId    String   @id @db.Uuid
+  superiorId String   @db.Uuid
+  updatedBy  String?  @db.Uuid
+  updatedAt  DateTime @default(now())
+
+  @@index([superiorId])
+  @@map("staff_supervision")
+}
+
+/// Depots granted to somebody DIRECTLY, unioned with the hierarchy walk. Exists so a
+/// depot with no assistant supervisor yet, or a temporary hand-over, can still be
+/// covered without bending the chain.
+model StaffDepotAssignment {
+  staffId   String   @db.Uuid
+  depotId   String   @db.Uuid
+  updatedBy String?  @db.Uuid
+  updatedAt DateTime @default(now())
+
+  @@id([staffId, depotId])
+  @@index([staffId])
+  @@map("staff_depot_assignments")
+}
+
 model ServiceSetting {
   id        String   @id @default(uuid())
   scope     String   // 'GLOBAL' | 'DEPOT'

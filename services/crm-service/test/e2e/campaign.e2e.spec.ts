@@ -78,7 +78,7 @@ describe('Campaign HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
-    driverToken = jwt.sign({ sub: randomUUID(), role: Role.DRIVER, phone: '+62' }, { secret });
+    driverToken = jwt.sign({ sub: randomUUID(), role: Role.STAFF_DEPOT, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -164,7 +164,7 @@ describe('Campaign HTTP flows (e2e)', () => {
       .expect(403);
   });
 
-  it('lets a fulfilment role (DRIVER) trigger a rendered WhatsApp notification (200)', async () => {
+  it('lets a fulfilment role (STAFF_DEPOT) trigger a rendered WhatsApp notification (200)', async () => {
     const res = await request(server())
       .post('/api/v1/notifications')
       .set(auth(driverToken))

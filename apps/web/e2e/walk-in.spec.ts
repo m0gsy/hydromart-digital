@@ -10,6 +10,23 @@ import { loginWithOtp } from './helpers/auth';
 test('records a cash sale at the counter and prints a receipt', async ({ page, context }) => {
   await loginWithOtp(page);
 
+  // What the depot list actually answered, so "no depot" can never be reported without the
+  // response that caused it. Run inside the full suite this skipped while passing on its own,
+  // and a skip with no evidence is indistinguishable from a green run.
+  const depotCalls: string[] = [];
+  page.on('response', async (res) => {
+    if (!/\/depots(\?|$)/.test(new URL(res.url()).pathname + (res.url().includes('?') ? '?' : '')))
+      return;
+    let count: number | string = '?';
+    try {
+      const body = (await res.json()) as { items?: unknown[] } | unknown[];
+      count = Array.isArray(body) ? body.length : (body.items?.length ?? '?');
+    } catch {
+      count = 'unparseable';
+    }
+    depotCalls.push(`${res.request().method()} ${res.status()} n=${count} ${res.url()}`);
+  });
+
   await page.goto('/dashboard/walk-in');
 
   // The screen needs a depot: the operator's own, or the switcher's for roles that are not
@@ -20,20 +37,32 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   const noDepot = page.getByRole('heading', { name: /Belum ada depot/i });
   await expect(heading.or(noDepot).first()).toBeVisible({ timeout: 15_000 });
   if (await noDepot.isVisible()) {
-    test.skip(true, 'no depot available to this account on this runner');
+    console.log(`[walk-in] depot list responses:\n  ${depotCalls.join('\n  ') || '(none)'}`);
+    test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);
   }
 
   // No products seeded for this depot → nothing to sell; that's an environment gap.
+  // 30s, not 10: the depot switcher resolves the depot and THEN fetches its inventory, two round
+  // trips through the gateway. Under the full serial suite that outran 10s and the test skipped
+  // itself on a runner that did have products — a skip that reads as "environment gap" and hides
+  // a flow nobody ran.
   const increase = page.getByRole('button', { name: /Increase quantity/i }).first();
   try {
-    await expect(increase).toBeEnabled({ timeout: 10_000 });
+    await expect(increase).toBeEnabled({ timeout: 30_000 });
   } catch {
     test.skip(true, 'no depot products available on this runner');
   }
   await increase.click();
 
   // The page shows the running total; pay it with a round note so there is change to print.
-  const totalText = (await page.getByText(/^Rp/).last().innerText()).replace(/\D/g, '');
+  // Read the amount NEXT TO the "Total" label — the last Rp on the page is "Kembalian", which is
+  // Rp 0 until cash is entered, so `.last()` measured the change and never the total.
+  const totalText = (
+    await page
+      .getByText('Total', { exact: true })
+      .locator('xpath=following-sibling::span')
+      .innerText()
+  ).replace(/\D/g, '');
   const total = Number(totalText);
   expect(total).toBeGreaterThan(0);
   await page.getByLabel(/Uang tunai diterima/i).fill(String(total + 50_000));

@@ -77,7 +77,7 @@ describe('Settings HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     managerDepotId = randomUUID();
     managerToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62', depotId: managerDepotId },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62', depotId: managerDepotId },
       { secret },
     );
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });

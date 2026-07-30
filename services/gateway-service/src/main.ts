@@ -21,6 +21,9 @@ async function bootstrap(): Promise<void> {
 
   // Before configureGateway: it registers a catch-all 404 for unknown routes, so
   // GET /metrics must be mounted first or the proxy swallows it (Prometheus 404).
+  // No capability refresher here on purpose: the gateway is a pure proxy that
+  // authorizes nothing, and pulling it in would drag the guard barrel (and @nestjs/jwt)
+  // back into a service that deliberately avoids both.
   enableMetrics(app, 'gateway-service');
 
   // Wire before listen() so the proxies/health/404 precede Nest's own router.

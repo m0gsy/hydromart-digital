@@ -12,8 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-import { AuthenticatedUser, CurrentUser, Roles } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { DepartmentService } from '../application/services/department.service';
 import { CreateDepartmentDto, ListDepartmentDto, UpdateDepartmentDto } from './dto/department.dto';
@@ -26,21 +25,21 @@ export class DepartmentController {
   constructor(private readonly departments: DepartmentService) {}
 
   @Get()
-  @Roles(...CAPABILITIES.hrView)
+  @Can('hrView')
   @ApiOperation({ summary: 'List departments (a depot sees its own plus network-wide ones)' })
   list(@Query() q: ListDepartmentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.departments.list(user, q.depotId);
   }
 
   @Post()
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Create a department (omit depotId for a network-wide one)' })
   create(@Body() dto: CreateDepartmentDto, @CurrentUser() user: AuthenticatedUser) {
     return this.departments.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @ApiOperation({ summary: 'Update a department' })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,7 +50,7 @@ export class DepartmentController {
   }
 
   @Delete(':id')
-  @Roles(...CAPABILITIES.hrAdmin)
+  @Can('hrAdmin')
   @HttpCode(204)
   @ApiOperation({ summary: 'Delete a department' })
   remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {

@@ -16,6 +16,9 @@ export default defineConfig({
   // per-phone resend cooldown (429 → no OTP sent → log scrape finds nothing).
   fullyParallel: false,
   workers: 1,
+  // A spec that has to sit out the 60s OTP resend cooldown before it can even log in cannot fit
+  // in the 30s default. Everything else finishes in seconds; this only raises the ceiling.
+  timeout: 120_000,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',

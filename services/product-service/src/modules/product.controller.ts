@@ -20,7 +20,7 @@ import { ProductRecord } from '../application/ports/product.repository';
 import { Page } from '../application/pagination';
 import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
 
-const ADMIN_ROLES = [Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Products')
 @Controller({ path: 'products', version: '1' })

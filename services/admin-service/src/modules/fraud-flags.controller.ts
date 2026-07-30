@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { FraudFlagService } from '../application/services/fraud-flag.service';
 import { FraudFlagDto, FraudFlagQueryDto, IngestFraudFlagDto } from './dto/fraud-flag.dto';
@@ -25,7 +25,7 @@ import { FraudFlagDto, FraudFlagQueryDto, IngestFraudFlagDto } from './dto/fraud
 export class FraudFlagsController {
   constructor(private readonly fraud: FraudFlagService) {}
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('fraudReview')
   @Get()
   @ApiOperation({ summary: 'List fraud flags (15b, highest score first, filterable)' })
   async list(@Query() query: FraudFlagQueryDto): Promise<FraudFlagDto[]> {
@@ -33,21 +33,21 @@ export class FraudFlagsController {
     return rows.map(FraudFlagDto.from);
   }
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('fraudReview')
   @Post(':id/review')
   @ApiOperation({ summary: 'Mark a flag reviewed' })
   async review(@Param('id') id: string): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.review(id));
   }
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('fraudReview')
   @Post(':id/block')
   @ApiOperation({ summary: 'Block the flagged entity' })
   async block(@Param('id') id: string): Promise<FraudFlagDto> {
     return FraudFlagDto.from(await this.fraud.block(id));
   }
 
-  @Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+  @Can('fraudReview')
   @Post(':id/clear')
   @ApiOperation({ summary: 'Clear the flag (no fraud)' })
   async clear(@Param('id') id: string): Promise<FraudFlagDto> {

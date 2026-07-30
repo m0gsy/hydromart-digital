@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
+
+import { depotWhere } from '@hydromart/platform';
 import { Employee, EmploymentHistory, Prisma } from '../../../prisma/generated/client';
+
 
 import {
   EmployeeListFilter,
   EmployeeRepository,
 } from '../../application/ports/employee.repository';
 import { PrismaService } from './prisma.service';
+
 
 @Injectable()
 export class EmployeePrismaRepository implements EmployeeRepository {
@@ -69,7 +73,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
 
   async list(filter: EmployeeListFilter): Promise<{ rows: Employee[]; total: number }> {
     const where: Prisma.EmployeeWhereInput = {
-      ...(filter.depotId ? { depotId: filter.depotId } : {}),
+      ...(filter.depotIds ? { depotId: depotWhere(filter.depotIds) } : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
       ...(filter.search

@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
 import { Incident } from '../domain/incident';
@@ -11,7 +10,7 @@ import { CreateIncidentDto, ListIncidentQueryDto, ResolveIncidentDto } from './d
 /** Depot operational incidents inbox (design 6b operator + 13b manager). */
 @ApiTags('Incidents')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.incidents)
+@Can('incidents')
 @Controller({ path: 'incidents', version: '1' })
 export class IncidentController {
   constructor(private readonly incidents: IncidentService) {}

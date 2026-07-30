@@ -48,7 +48,7 @@ function DriverNav() {
 }
 
 /**
- * Courier app frame: DRIVER-only gate + bottom nav. Non-drivers get the 1k gate.
+ * Courier app frame: STAFF_DEPOT-only gate + bottom nav. Non-drivers get the 1k gate.
  * `nav={false}` for full-bleed flows (check-in, PoD) that own the whole screen.
  */
 export function DriverShell({
@@ -62,7 +62,7 @@ export function DriverShell({
   const { t } = useT();
   return (
     <RequireAuth>
-      {customer?.role === 'DRIVER' ? (
+      {customer?.role === 'STAFF_DEPOT' ? (
         <div className="mx-auto flex min-h-dvh max-w-[384px] flex-col">
           {/* Anything captured without signal (shift check-in, proof of delivery) surfaces
               here on every driver screen until it reaches the server. */}

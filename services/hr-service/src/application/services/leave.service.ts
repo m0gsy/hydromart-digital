@@ -7,13 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
-import {
-  AuthenticatedUser,
-  ImportSummary,
-  assertDepotAccess,
-  depotScopeFilter,
-  runImport,
-} from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, assertDepotAccess, depotScopeIds, runImport } from '@hydromart/platform';
 
 import {
   Employee,
@@ -169,7 +163,7 @@ export class LeaveService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     return this.repo.list({
-      depotId: depotScopeFilter(user, query.depotId) ?? undefined,
+      depotIds: depotScopeIds(user, query.depotId),
       status: query.status,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -271,7 +265,11 @@ export class LeaveService {
     }
   }
 
-  private async workingDaysFor(depotId: string, start: string, end: string): Promise<string[]> {
+  private async workingDaysFor(
+    depotId: string | null,
+    start: string,
+    end: string,
+  ): Promise<string[]> {
     const holidays = this.holidays
       ? await this.holidays.listDates(
           depotId,

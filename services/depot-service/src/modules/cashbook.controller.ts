@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 
 import { CashbookService, CashbookView } from '../application/services/cashbook.service';
 import { CashbookEntry } from '../domain/cashbook';
@@ -11,7 +10,7 @@ import { CreateCashbookDto, ListCashbookQueryDto } from './dto/cashbook.dto';
 /** Depot cashbook / daily cash-flow ledger (design 14c). */
 @ApiTags('Cashbook')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotFinance)
+@Can('depotFinance')
 @Controller({ path: 'cashbook', version: '1' })
 export class CashbookController {
   constructor(private readonly cashbook: CashbookService) {}

@@ -9,9 +9,10 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics, protectDocs } from '@hydromart/platform';
+import { enableMetrics, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
 
 import { AppModule } from './app.module';
+import { AccessMatrixService } from './application/services/access-matrix.service';
 import { AuthConfigService } from './config/auth-config.service';
 
 async function bootstrap(): Promise<void> {
@@ -22,6 +23,11 @@ async function bootstrap(): Promise<void> {
   app.useLogger(logger);
 
   const config = app.get(AuthConfigService);
+
+  // auth-service owns the override table, so it reads straight from the database
+  // instead of calling its own HTTP endpoint. Same refresher, same fail-open rule.
+  const matrix = app.get(AccessMatrixService);
+  startCapabilityRefresh(() => matrix.patch(), { logger });
 
   app.use(helmet());
 

@@ -1,8 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { DepotService } from '../application/services/depot.service';
 import {
@@ -23,7 +22,7 @@ export class GallonNetworkController {
     private readonly depots: DepotService,
   ) {}
 
-  @Roles(...CAPABILITIES.returnsRead)
+  @Can('returnsRead')
   @Get()
   @ApiOperation({ summary: 'Per-depot outstanding empties + net deposit held (network)' })
   async outstanding(@CurrentUser() user: AuthenticatedUser): Promise<GallonOutstandingRow[]> {

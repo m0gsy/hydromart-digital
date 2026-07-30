@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { STAFF_IMPORT_ROLES } from '@hydromart/access';
 import {
   CsvImport,
   dateCell,
@@ -24,14 +25,9 @@ import {
 } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
 
-const STAFF_ROLES = [
-  'DEPOT_OPERATOR',
-  'DEPOT_MANAGER',
-  'DRIVER',
-  'FINANCE',
-  'HR',
-  'MARKETING',
-] as const;
+// Imported, not re-listed: the server validates the `role` column against this exact
+// allowlist, so a local copy could only ever offer a value the import will reject.
+const STAFF_ROLES = STAFF_IMPORT_ROLES;
 
 // Straight from the enum the server validates against. It used to offer CONTRACT (rejected
 // on arrival) and hide TRAINING (the class most new hires are in).
@@ -100,7 +96,7 @@ export default function ImportEmployeesPage() {
       },
       // The login role provisioned for this person. auth-service rejects anything
       // outside STAFF_IMPORT_ROLES, so a spreadsheet can never mint an office account.
-      { key: 'role', required: true, example: 'DRIVER', options: STAFF_ROLES },
+      { key: 'role', required: true, example: 'STAFF_DEPOT', options: STAFF_ROLES },
       {
         key: 'employmentStatus',
         required: true,

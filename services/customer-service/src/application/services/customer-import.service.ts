@@ -1,11 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  AuthenticatedUser,
-  ImportSummary,
-  assertDepotAccess,
-  runImport,
-} from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, assertDepotAccess, runImport } from '@hydromart/platform';
 
 import { ResellerExistsError } from '../../domain/errors';
 import { IdentityPort } from '../ports/identity.port';

@@ -18,7 +18,7 @@ import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import { FaceEmbeddingRepository } from '../../src/application/ports/face-embedding.repository';
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 
-const user: AuthenticatedUser = { sub: 'auth-1', role: 'DRIVER' as never, phone: '08', depotId: 'd1' };
+const user: AuthenticatedUser = { sub: 'auth-1', role: 'STAFF_DEPOT' as never, phone: '08', depotId: 'd1' };
 const hr: AuthenticatedUser = { sub: 'hr-1', role: 'HR' as never, phone: '08', depotId: null };
 
 // 08:10 / 08:30 / 16:10 Asia/Jakarta (UTC+7).
@@ -271,7 +271,7 @@ describe('AttendanceService.decide', () => {
     const { svc } = make({ att });
     const otherDepot: AuthenticatedUser = {
       sub: 'mgr',
-      role: 'DEPOT_MANAGER' as never,
+      role: 'MANAGER' as never,
       phone: '08',
       depotId: 'd2',
     };

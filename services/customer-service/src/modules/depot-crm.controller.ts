@@ -1,13 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  ImportSummary,
-  Roles,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
 
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { DepotCrmService } from '../application/services/depot-crm.service';
@@ -24,7 +18,7 @@ import { ImportCustomersDto } from './dto/customer-import.dto';
 /** Depot CRM — customer directory scoped to a depot (Depot Operator 6a/7a, Manager 12b). */
 @ApiTags('Depot CRM')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.depotCrm)
+@Can('depotCrm')
 @Controller({ path: 'customers', version: '1' })
 export class DepotCrmController {
   constructor(
@@ -35,7 +29,7 @@ export class DepotCrmController {
   @Post('import')
   // Narrower than the class-level depotCrm (which HR now holds read-only): importing
   // customers is a depot-staff write. Handler @Roles overrides the class decorator.
-  @Roles(...CAPABILITIES.depotCrmWrite)
+  @Can('depotCrmWrite')
   @ApiOperation({ summary: "Bulk-import a depot's customers from the CSV wizard" })
   import(
     @Body() dto: ImportCustomersDto,

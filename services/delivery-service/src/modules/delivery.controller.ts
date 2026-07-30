@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Roles, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
@@ -11,7 +10,7 @@ import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
 
 @ApiTags('Deliveries (staff)')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.tracking)
+@Can('tracking')
 @Controller({ path: 'deliveries', version: '1' })
 export class DeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}
@@ -51,8 +50,10 @@ export class DeliveryController {
     @Query() query: ListDeliveriesQueryDto,
   ): Promise<Page<DeliveryRecord>> {
     // Depot-locked operator/manager are forced to their own depot; HQ keeps the optional ?depotId.
-    const depotId = depotScopeFilter(user, query.depotId);
-    return this.deliveries.listAll({ ...query, depotId });
+    const depotIds = depotScopeIds(user, query.depotId);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { depotId: _dropped, ...rest } = query;
+    return this.deliveries.listAll({ ...rest, depotIds });
   }
 
   @Get(':id')

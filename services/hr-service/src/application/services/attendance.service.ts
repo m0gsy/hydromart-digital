@@ -7,7 +7,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess, depotScopeFilter } from '@hydromart/platform';
+import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
@@ -142,7 +142,7 @@ export class AttendanceService {
    * Device capture time for an offline punch, clamped so a wrong or hostile clock cannot
    * backdate further than the offline window really was. Null for a live punch.
    */
-  private offlineAt(punch: FacePunch, now: Date, depotId: string): Date | null {
+  private offlineAt(punch: FacePunch, now: Date, depotId: string | null): Date | null {
     if (!punch.capturedAt) return null;
     const maxAgeMs = this.config.offlineMaxAgeHours(depotId) * 3_600_000;
     if (punch.capturedAt.getTime() < now.getTime() - maxAgeMs) {
@@ -180,7 +180,7 @@ export class AttendanceService {
   }
 
   /** Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured). */
-  private assertGeofence(depotId: string, punch: FacePunch): void {
+  private assertGeofence(depotId: string | null, punch: FacePunch): void {
     const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
     if (!ok) {
       throw new ForbiddenException(
@@ -202,9 +202,9 @@ export class AttendanceService {
       pageSize: number;
     },
   ): Promise<{ rows: Attendance[]; total: number; page: number; pageSize: number }> {
-    const depotId = depotScopeFilter(user, query.depotId);
+    const depotIds = depotScopeIds(user, query.depotId);
     const { rows, total } = await this.repo.list({
-      depotId,
+      depotIds,
       employeeId: query.employeeId,
       status: query.status as AttendanceStatus | undefined,
       from: query.from ? new Date(query.from) : undefined,

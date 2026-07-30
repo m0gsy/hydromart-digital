@@ -119,7 +119,7 @@ describe('Order HTTP flows (e2e)', () => {
     const jwt = app.get(JwtService);
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     staffToken = jwt.sign(
-      { sub: randomUUID(), role: Role.DEPOT_MANAGER, phone: '+62' },
+      { sub: randomUUID(), role: Role.MANAGER, phone: '+62' },
       { secret },
     );
     adminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
@@ -342,7 +342,7 @@ describe('Order HTTP flows (e2e)', () => {
     await request(server()).get('/api/v1/orders/manage').set(auth(customerToken)).expect(403);
 
     // A cross-depot role (SUPER_ADMIN) sees every depot's orders. A depot-locked manager
-    // token carries no depotId here, so depotScopeFilter fail-closes it — asserting "sees all"
+    // token carries no depotId here, so depotScopeIds fail-closes it — asserting "sees all"
     // requires the unscoped admin token (the e2e orders route to a null/other depot).
     const res = await request(server())
       .get('/api/v1/orders/manage')

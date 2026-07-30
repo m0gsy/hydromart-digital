@@ -1,11 +1,9 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CAPABILITIES } from '@hydromart/access';
-
 import { DataSubjectService, DataExport } from '../../application/services/data-subject.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
+import { Can, Roles } from '@hydromart/platform';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { Role } from '../../domain/customer/role.enum';
 import {
@@ -57,7 +55,7 @@ export class DataSubjectController {
     return this.requests.exportFor(user.sub);
   }
 
-  @Roles(...CAPABILITIES.pdpRequests)
+  @Can('pdpRequests')
   @Get()
   @ApiOperation({ summary: 'The PDP queue — pending first, longest wait first' })
   async queue(@Query('status') status?: string): Promise<DataSubjectRequestDto[]> {
@@ -67,7 +65,7 @@ export class DataSubjectController {
     return rows.map((r) => DataSubjectRequestDto.from(r));
   }
 
-  @Roles(...CAPABILITIES.pdpRequests)
+  @Can('pdpRequests')
   @Post(':id/approve')
   @ApiOperation({
     summary: 'Grant the request',
@@ -85,7 +83,7 @@ export class DataSubjectController {
     };
   }
 
-  @Roles(...CAPABILITIES.pdpRequests)
+  @Can('pdpRequests')
   @Post(':id/reject')
   @ApiOperation({ summary: 'Refuse the request, with a reason the customer can read' })
   async reject(

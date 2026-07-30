@@ -11,7 +11,7 @@ import { OperationalCostQueryDto } from './dto/operational-report.dto';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.DEPOT_MANAGER, Role.DEPOT_OPERATOR, Role.FINANCE, Role.SUPER_ADMIN)
+@Roles(Role.HEAD_OFFICE, Role.MANAGER, Role.KEPALA_DEPOT, Role.FINANCE, Role.SUPER_ADMIN)
 @Controller({ path: 'reports', version: '1' })
 export class OperationalReportController {
   constructor(private readonly reports: OperationalReportService) {}

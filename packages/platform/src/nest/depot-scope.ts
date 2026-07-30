@@ -4,17 +4,69 @@ import { Role } from '../domain/role.enum';
 import { AuthenticatedUser } from '../http/authenticated-user';
 
 /**
- * Roles locked to a single depot (their own `assignedDepotId`). Everyone else —
- * HEAD_OFFICE, FINANCE, MARKETING, SUPER_ADMIN (incl. the internal system principal),
- * plus customer/driver/franchise flows — is unaffected by depot-scope checks.
+ * Roles locked to a SINGLE depot — their own `assignedDepotId`, straight off the access
+ * token with no lookup.
+ *
+ * STAFF_DEPOT is locked even though its predecessor DRIVER was not: depot staff belong to
+ * one depot. An account in this set with no depot fails closed.
  */
 export const DEPOT_LOCKED_ROLES: ReadonlySet<Role> = new Set([
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
+  Role.STAFF_DEPOT,
+  Role.KEPALA_DEPOT,
+]);
+
+/**
+ * Roles whose depots are a RESOLVED SET rather than a single token claim: the supervision
+ * chain: an assistant supervisor covers many depots, a supervisor covers their assistants',
+ * a manager covers their supervisors'.
+ *
+ * FRANCHISE_OWNER is deliberately NOT here. An owner's depots come from Depot.ownerId,
+ * checked by assertDepotOwnership against the row itself — stronger than set membership.
+ * Resolving them here too would add a second, weaker path and a failure mode they do not
+ * need.
+ *
+ * A set is too large and too mutable to live in a JWT, so DepotScopeGuard resolves it per
+ * request from depot-service and caches it briefly. MANAGER moves here from the locked set
+ * in the same change that starts resolving — never earlier, or every existing manager
+ * would widen to the whole network for a release.
+ */
+export const DEPOT_SCOPED_ROLES: ReadonlySet<Role> = new Set([
+  Role.ASSISTANT_SUPERVISOR,
+  Role.SUPERVISOR,
+  Role.MANAGER,
 ]);
 
 export function isDepotLocked(role: Role): boolean {
   return DEPOT_LOCKED_ROLES.has(role);
+}
+
+/** Whether this role sees a resolved SET of depots rather than one or all of them. */
+export function isDepotResolved(role: Role): boolean {
+  return DEPOT_SCOPED_ROLES.has(role);
+}
+
+/** Whether depot scoping applies at all. Everyone else (HQ, finance, system) sees all. */
+export function isDepotScoped(role: Role): boolean {
+  return isDepotLocked(role) || isDepotResolved(role);
+}
+
+/**
+ * The depots a caller may touch, or `undefined` for an unscoped caller.
+ *
+ * `depotIds` is filled in by DepotScopeGuard; the `[depotId]` fallback keeps by-id checks
+ * correct on paths that build a user object by hand (tests, internal callers) without
+ * passing through the guard.
+ */
+function allowedDepots(
+  user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'>,
+): readonly string[] | undefined {
+  if (!isDepotScoped(user.role)) {
+    return undefined;
+  }
+  if (user.depotIds) {
+    return user.depotIds;
+  }
+  return user.depotId ? [user.depotId] : [];
 }
 
 /**
@@ -22,29 +74,34 @@ export function isDepotLocked(role: Role): boolean {
  *
  * Complements DepotScopeGuard: the guard closes the LIST/enumeration vector (depotId in the
  * request), this closes the BY-ID vector — call it in a service/controller after loading a
- * row whose depot isn't in the request URL (e.g. `GET /order-disputes/:id`). For a
- * depot-locked role, the row's depot must equal the caller's own; otherwise Forbidden.
- * No-op for bypass roles and the system principal.
+ * row whose depot isn't in the request URL (e.g. `GET /order-disputes/:id`). Membership in
+ * the caller's set, so it covers a locked role (a one-element set) and a supervisor (many)
+ * with the same check. No-op for unscoped roles and the system principal.
+ *
+ * An empty set denies: a supervisor with nothing assigned sees nothing, never everything.
  */
 export function assertDepotAccess(
-  user: Pick<AuthenticatedUser, 'role' | 'depotId'> | undefined,
+  user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'> | undefined,
   resourceDepotId: string | null | undefined,
 ): void {
-  if (!user || !isDepotLocked(user.role)) {
+  if (!user) {
     return;
   }
-  if (!user.depotId || user.depotId !== resourceDepotId) {
-    throw new ForbiddenException('Akun ini hanya boleh mengakses depotnya sendiri.');
+  const allowed = allowedDepots(user);
+  if (!allowed) {
+    return;
+  }
+  if (!resourceDepotId || !allowed.includes(resourceDepotId)) {
+    throw new ForbiddenException(
+      'Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya.',
+    );
   }
 }
 
 /**
- * Assert a FRANCHISE_OWNER only touches a depot they OWN. Unlike depot staff (operator/
- * manager, handled by DepotScopeGuard/assertDepotAccess via the token's `depotId`), an
- * owner has no single assigned depot — they own a SET — so ownership can't be read from the
- * JWT. Call this after loading the depot's `ownerId`: for FRANCHISE_OWNER the depot's owner
- * must be the caller (`user.sub`); otherwise Forbidden. No-op for every other role (HQ,
- * finance, marketing, super-admin, system, and depot staff whose own guard already applies).
+ * Assert a FRANCHISE_OWNER only touches a depot they OWN. Stronger than set membership: it
+ * compares the row's recorded owner to the caller, so it stays correct even if a resolved
+ * set is stale. Call it after loading the depot's `ownerId`.
  *
  * Fail-closed: a null/unknown owner never matches, so an owner is denied a depot with no
  * recorded owner rather than granted it.
@@ -62,29 +119,49 @@ export function assertDepotOwnership(
 }
 
 /**
- * Resolve which depot a LIST query must be scoped to for the caller. Use on staff list
- * endpoints that carry no mandatory depotId param (e.g. `GET orders/manage`, `GET deliveries`)
- * so a depot-locked role only ever lists its OWN depot's rows — closing the list-without-filter
- * vector that DepotScopeGuard can't see (no depotId in the request to compare).
+ * Resolve which depots a LIST query must be scoped to. Use on staff list endpoints that
+ * carry no mandatory depotId param (e.g. `GET orders/manage`, `GET deliveries`) so a scoped
+ * role only ever lists depots it is responsible for — closing the list-without-filter
+ * vector DepotScopeGuard can't see (no depotId in the request to compare).
  *
- * - Depot-locked role (operator/manager): returns their own `depotId` (the query MUST filter by
- *   it). Throws if the account has no depot (fail-closed) or asked for a different depot. Rows
- *   with a null depot never match this filter → correctly invisible to locked staff (HQ-only).
- * - Everyone else (HQ/finance/marketing/super-admin, system): returns the requested depotId if
- *   given, else `undefined` (no filter — sees all depots).
+ * - Scoped role: the caller's set, narrowed to `requestedDepotId` when one is given. Throws
+ *   if that depot is outside the set, or if the account has no depots at all (fail-closed).
+ *   Rows with a null depot never match an `IN` filter, so they stay correctly invisible to
+ *   depot staff — HQ-only.
+ * - Everyone else: the requested depot if given, else `undefined` (no filter, sees all).
+ *
+ * Renamed from `depotScopeFilter`, which returned ONE id: keeping that name would have let
+ * every list call site silently narrow a supervisor to a single depot. Deleting it makes
+ * each one a compile error instead.
  */
-export function depotScopeFilter(
-  user: Pick<AuthenticatedUser, 'role' | 'depotId'> | undefined,
+export function depotScopeIds(
+  user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'> | undefined,
   requestedDepotId?: string | null,
-): string | undefined {
-  if (!user || !isDepotLocked(user.role)) {
-    return requestedDepotId ?? undefined;
+): readonly string[] | undefined {
+  if (!user) {
+    return requestedDepotId ? [requestedDepotId] : undefined;
   }
-  if (!user.depotId) {
-    throw new ForbiddenException('Akun ini belum terikat ke depot manapun.');
+  const allowed = allowedDepots(user);
+  if (!allowed) {
+    return requestedDepotId ? [requestedDepotId] : undefined;
   }
-  if (requestedDepotId && requestedDepotId !== user.depotId) {
-    throw new ForbiddenException('Akun ini hanya boleh mengakses depotnya sendiri.');
+  if (allowed.length === 0) {
+    throw new ForbiddenException('Akun ini belum diberi tanggung jawab depot manapun.');
   }
-  return user.depotId;
+  if (requestedDepotId) {
+    if (!allowed.includes(requestedDepotId)) {
+      throw new ForbiddenException(
+        'Akun ini hanya boleh mengakses depot yang menjadi tanggung jawabnya.',
+      );
+    }
+    return [requestedDepotId];
+  }
+  return allowed;
+}
+
+/** Prisma `where` fragment for a depot filter. `undefined` = no filter (sees all). */
+export function depotWhere(
+  depotIds: readonly string[] | undefined,
+): { in: string[] } | undefined {
+  return depotIds ? { in: [...depotIds] } : undefined;
 }

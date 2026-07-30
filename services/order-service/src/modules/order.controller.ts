@@ -15,17 +15,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  InternalAuthGuard,
-  Public,
-  Role,
-  Roles,
-  assertDepotAccess,
-  depotScopeFilter,
-} from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
@@ -52,9 +42,9 @@ import {
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
 const FULFILMENT_ROLES = [
-  Role.DEPOT_OPERATOR,
-  Role.DEPOT_MANAGER,
-  Role.DRIVER,
+  Role.KEPALA_DEPOT,
+  Role.MANAGER,
+  Role.STAFF_DEPOT,
   Role.SUPER_ADMIN,
 ] as const;
 
@@ -95,7 +85,7 @@ export class OrderController {
   }
 
   // Declared before any ':id' route so 'walk-in' is never read as an order id.
-  @Roles(...CAPABILITIES.walkInSale)
+  @Can('walkInSale')
   @Post('walk-in')
   @ApiOperation({ summary: 'Record a cash sale at the depot counter (completed immediately)' })
   walkIn(
@@ -145,7 +135,7 @@ export class OrderController {
 
   // Static `manage` routes are declared before `:id` so they are not captured by it.
   @Get('manage')
-  @Roles(...CAPABILITIES.orderQueue)
+  @Can('orderQueue')
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
   async listManaged(
     @CurrentUser() user: AuthenticatedUser,
@@ -162,22 +152,26 @@ export class OrderController {
     //
     // ponytail: pinned to the token's depotId, not to the couriers actual assignments. If
     // couriers ever float between depots in one shift, resolve it from delivery-service.
-    let depotId: string | undefined;
-    if (user.role === Role.DRIVER) {
+    let depotIds: readonly string[] | undefined;
+    if (user.role === Role.STAFF_DEPOT) {
       if (!user.depotId) {
         // A courier token with no depot is a misconfigured account. Failing closed beats
         // falling through to the unscoped branch, which would hand them the whole network.
         throw new ForbiddenException('Akun kurir ini belum tertaut ke depot mana pun.');
       }
-      depotId = user.depotId;
+      depotIds = [user.depotId];
     } else {
-      depotId = depotScopeFilter(user, query.depotId);
+      depotIds = depotScopeIds(user, query.depotId);
     }
-    return this.orders.listAll({ ...query, depotId });
+    // depotId is dropped from the spread on purpose: the scalar has been replaced by the
+    // resolved set, and leaving a stale one on the input invites someone to read it again.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { depotId: _dropped, ...rest } = query;
+    return this.orders.listAll({ ...rest, depotIds });
   }
 
   @Get('manage/:id')
-  @Roles(...CAPABILITIES.orderQueue)
+  @Can('orderQueue')
   @ApiOperation({ summary: 'Staff: read any order by id' })
   async getManaged(
     @CurrentUser() user: AuthenticatedUser,
@@ -449,7 +443,7 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     // Close the by-id vector: a depot-locked operator/manager may only advance their own
-    // depot's order. No-op for DRIVER/SUPER_ADMIN. Load first so the check precedes the mutation.
+    // depot's order. No-op for STAFF_DEPOT/SUPER_ADMIN. Load first so the check precedes the mutation.
     const existing = await this.orders.getAny(id);
     assertDepotAccess(user, existing.depotId);
     // Forward the caller's token so order-service can award loyalty points on

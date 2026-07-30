@@ -95,16 +95,18 @@ describe('Forecast HTTP flows (e2e)', () => {
 
     const secret = app.get(ConfigService).getOrThrow<string>('JWT_ACCESS_SECRET');
     const jwt = app.get(JwtService);
-    // DEPOT_MANAGER is depot-locked by the platform DepotScopeGuard: a token acting on a specific
+    // MANAGER is depot-locked by the platform DepotScopeGuard: a token acting on a specific
     // depotId must carry that depotId claim. Tests that hit a runtime depotId mint a bound token
     // via signStaff; the unbound managerToken is only for depot-agnostic routes (e.g. /sales).
     signStaff = (role, depotId) =>
       jwt.sign({ sub: randomUUID(), role, phone: '+62', depotId: depotId ?? null }, { secret });
-    managerToken = signStaff(Role.DEPOT_MANAGER);
+    // A MANAGER covers a resolved SET of depots; with no hierarchy in this isolated stack the
+    // guard falls back to the token depot, so the token must carry one (production always does).
+    managerToken = signStaff(Role.MANAGER, randomUUID());
     customerToken = jwt.sign({ sub: randomUUID(), role: Role.CUSTOMER, phone: '+62' }, { secret });
     superAdminToken = jwt.sign({ sub: randomUUID(), role: Role.SUPER_ADMIN, phone: '+62' }, { secret });
     marketingToken = jwt.sign({ sub: randomUUID(), role: Role.MARKETING, phone: '+62' }, { secret });
-    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.DEPOT_OPERATOR, phone: '+62' }, { secret });
+    operatorToken = jwt.sign({ sub: randomUUID(), role: Role.KEPALA_DEPOT, phone: '+62' }, { secret });
   });
 
   afterAll(async () => {
@@ -127,7 +129,7 @@ describe('Forecast HTTP flows (e2e)', () => {
     const productId = randomUUID();
     const depotId = randomUUID();
     // Depot-locked manager may only query its own depot — bind the token to this depotId.
-    const depotManagerToken = signStaff(Role.DEPOT_MANAGER, depotId);
+    const depotManagerToken = signStaff(Role.MANAGER, depotId);
     const body = ingestBody({
       depotId,
       items: [{ productId, productName: 'Aqua 19L', sku: 'AQ19', unit: 'galon', quantity: 4 }],
@@ -219,7 +221,7 @@ describe('Forecast HTTP flows (e2e)', () => {
     expect(churn.body).toHaveProperty('customers');
     expect(Array.isArray(churn.body.customers)).toBe(true);
 
-    // DEPOT_OPERATOR is a planning role but NOT in CHURN_ROLES → rejected by the method override.
+    // KEPALA_DEPOT is a planning role but NOT in CHURN_ROLES → rejected by the method override.
     await request(server()).get('/api/v1/forecast/churn').set(auth(operatorToken)).expect(403);
     await request(server()).get('/api/v1/forecast/churn').set(auth(customerToken)).expect(403);
   });

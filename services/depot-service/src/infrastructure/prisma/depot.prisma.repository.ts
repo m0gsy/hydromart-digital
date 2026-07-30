@@ -27,6 +27,7 @@ interface DepotRow {
   deliveryFee: { toNumber(): number };
   minOrderAmount: { toNumber(): number } | null;
   ownerId: string | null;
+  assistantSupervisorId: string | null;
   paymentBankName: string | null;
   paymentBankAccountNumber: string | null;
   paymentBankAccountHolder: string | null;

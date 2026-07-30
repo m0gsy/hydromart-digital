@@ -18,7 +18,7 @@ import { CategoryService } from '../application/services/category.service';
 import { CategoryRecord } from '../application/ports/category.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
-const ADMIN_ROLES = [Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
+const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
 @ApiTags('Categories')
 @Controller({ path: 'categories', version: '1' })

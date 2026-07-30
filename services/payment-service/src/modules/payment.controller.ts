@@ -11,8 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
 
 import { PaymentService } from '../application/services/payment.service';
 import {
@@ -32,13 +31,11 @@ import {
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
 
-// Settlement roles (confirm/fail/read-by-order) come from the shared capability map.
-// Refunds stay a narrower finance/manager action.
-const REFUND_ROLES = [Role.FINANCE, Role.DEPOT_MANAGER, Role.SUPER_ADMIN] as const;
-// HQ refund-approval queue (feature 14a): cross-depot, finance/super-admin only.
-const REFUND_QUEUE_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
-// HQ settlement dashboard (design 6a): read-only network aggregate, finance/super-admin.
-const SETTLEMENT_READ_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
+// Refunds, the refund-approval queue (feature 14a) and the HQ settlement dashboard
+// (design 6a) used to carry hand-written role arrays here, invisible to the shared map
+// and untunable by a super admin. They are now three capabilities — refundIssue stays
+// deliberately wider than refundQueue so whoever raises a refund is not whoever signs
+// it off.
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -59,7 +56,7 @@ export class PaymentController {
   // the body rather than the token. A sibling route, not a branch inside the customer one —
   // the amount is still validated against the authoritative order total in the service.
   @Post('staff')
-  @Roles(...CAPABILITIES.paymentSettle)
+  @Can('paymentSettle')
   @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
   initiateForCustomer(@Body() dto: StaffInitiatePaymentDto): Promise<PaymentRecord> {
     return this.payments.initiate(dto.customerId, { ...dto, atCounter: true });
@@ -77,7 +74,7 @@ export class PaymentController {
   // Staff: read an order's payments to confirm receipt. Declared before ':id' so the
   // static 'for-order' segment wins. Not customer-scoped (staff act across customers).
   @Get('for-order/:orderId')
-  @Roles(...CAPABILITIES.paymentSettle)
+  @Can('paymentSettle')
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
   listForOrder(@Param('orderId', ParseUUIDPipe) orderId: string): Promise<Page<PaymentRecord>> {
     return this.payments.listAll({ orderId, limit: 20 });
@@ -86,7 +83,7 @@ export class PaymentController {
   // HQ settlement dashboard (design 6a): network-wide unsettled payments grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
   @Get('unsettled-by-method')
-  @Roles(...SETTLEMENT_READ_ROLES)
+  @Can('settlementRead')
   @ApiOperation({ summary: 'Network unsettled payments grouped by method (finance/super-admin)' })
   unsettledByMethod(
     @Query() query: UnsettledByMethodQueryDto,
@@ -100,7 +97,7 @@ export class PaymentController {
   // HQ report export (design 10a): network-wide collected (PAID) revenue grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
   @Get('revenue-by-method')
-  @Roles(...SETTLEMENT_READ_ROLES)
+  @Can('settlementRead')
   @ApiOperation({ summary: 'Network collected revenue grouped by method (finance/super-admin)' })
   revenueByMethod(@Query() query: UnsettledByMethodQueryDto): Promise<UnsettledMethodAggregate[]> {
     return this.payments.revenueByMethod({
@@ -111,10 +108,10 @@ export class PaymentController {
 
   // Courier COD deposit (design 2d/slice 9): sum of PAID cash over the courier's
   // delivered orders — the "how much" for an end-of-shift settlement. Bearer is
-  // forwarded from delivery-service; settlement roles (incl. DRIVER) may read.
+  // forwarded from delivery-service; settlement roles (incl. STAFF_DEPOT) may read.
   // Declared before ':id' so the static segment wins.
   @Get('cash-collected')
-  @Roles(...CAPABILITIES.paymentSettle)
+  @Can('paymentSettle')
   @ApiOperation({ summary: 'Sum PAID cash over a set of orders (courier COD deposit)' })
   cashCollected(@Query() query: CashCollectedQueryDto): Promise<CashCollectedSummary> {
     return this.payments.cashCollected(query.orderIds);
@@ -123,7 +120,7 @@ export class PaymentController {
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
   // threshold, newest first. Declared before ':id' so the static segment wins.
   @Get('refunds/queue')
-  @Roles(...REFUND_QUEUE_ROLES)
+  @Can('refundQueue')
   @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
   listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<PaymentRecord>> {
     return this.payments.listRefundQueue(query);
@@ -139,7 +136,7 @@ export class PaymentController {
   }
 
   @Post(':id/confirm')
-  @Roles(...CAPABILITIES.paymentSettle)
+  @Can('paymentSettle')
   @ApiOperation({ summary: 'Confirm a payment as settled (staff, e.g. cash received)' })
   confirm(
     @CurrentUser() user: AuthenticatedUser,
@@ -150,7 +147,7 @@ export class PaymentController {
   }
 
   @Post(':id/fail')
-  @Roles(...CAPABILITIES.paymentSettle)
+  @Can('paymentSettle')
   @ApiOperation({ summary: 'Mark a pending payment as failed (staff)' })
   fail(
     @CurrentUser() user: AuthenticatedUser,
@@ -160,7 +157,7 @@ export class PaymentController {
   }
 
   @Post(':id/refund')
-  @Roles(...REFUND_ROLES)
+  @Can('refundIssue')
   @ApiOperation({ summary: 'Refund a paid payment (finance/manager)' })
   refund(
     @CurrentUser() user: AuthenticatedUser,
@@ -171,7 +168,7 @@ export class PaymentController {
   }
 
   @Post(':id/refund/approve')
-  @Roles(...REFUND_QUEUE_ROLES)
+  @Can('refundQueue')
   @ApiOperation({ summary: 'Approve a queued refund → settles now (HQ)' })
   approveRefund(
     @CurrentUser() user: AuthenticatedUser,
@@ -181,7 +178,7 @@ export class PaymentController {
   }
 
   @Post(':id/refund/reject')
-  @Roles(...REFUND_QUEUE_ROLES)
+  @Can('refundQueue')
   @ApiOperation({ summary: 'Reject a queued refund → no money moves (HQ)' })
   rejectRefund(
     @CurrentUser() user: AuthenticatedUser,

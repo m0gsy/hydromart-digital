@@ -25,10 +25,14 @@ export interface Customer {
   status: string;
   avatarUrl: string | null;
   assignedDepotId?: string | null;
-  // DRIVER-only vehicle info (null for customers / non-vehicle staff).
+  // STAFF_DEPOT-only vehicle info (null for customers / non-vehicle staff).
   vehicleType?: string | null;
   plateNumber?: string | null;
   createdAt: string;
+  // Capabilities this account holds under the CURRENT matrix, computed server-side and
+  // sent with the session + /auth/me. Absent on staff-listing rows, which describe
+  // someone else's account rather than the caller's.
+  capabilities?: string[];
 }
 
 export interface DepotTeamReport {

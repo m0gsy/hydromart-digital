@@ -1,3 +1,4 @@
+import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { DeliveryPrismaRepository } from '../../src/infrastructure/prisma/delivery.prisma.repository';
 import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incident.prisma.repository';
@@ -71,6 +72,39 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('create maps a JS-null item list to Prisma.JsonNull, and keeps a real one', async () => {
+    delivery.create.mockResolvedValue(deliveryRow());
+    const base = {
+      orderId: 'ord-9',
+      orderNumber: 'HM-0009',
+      driverId: 'drv-1',
+      depotId: 'dep-1',
+      customerName: 'Budi',
+      customerPhone: '+628110000001',
+      address: 'Jl. Mawar 1',
+      assignedAt: new Date('2026-01-01'),
+    } as never;
+
+    await repo.create(base);
+    expect(delivery.create.mock.calls[0][0].data.items).toBe(Prisma.JsonNull);
+
+    await repo.create({ ...(base as object), items: [{ name: 'Galon', quantity: 2 }] } as never);
+    expect(delivery.create.mock.calls[1][0].data.items).toEqual([{ name: 'Galon', quantity: 2 }]);
+  });
+
+  it('updateLocation leaves the ETA alone when the courier app sends none', async () => {
+    delivery.update.mockResolvedValue(deliveryRow({ lastLat: -6.3, lastLng: 106.9 }));
+    await repo.updateLocation('del-1', -6.3, 106.9);
+    expect(delivery.update.mock.calls[0][0].data).not.toHaveProperty('estimatedArrivalAt');
+  });
+
+  it('reassign puts the delivery back to ASSIGNED and clears the abandoned attempt', async () => {
+    delivery.update.mockResolvedValue(deliveryRow({ status: 'ASSIGNED', driverId: 'drv-2' }));
+    const rec = await repo.reassign('del-1', 'drv-2', 'sup-1', 'kurir sakit');
+    expect(delivery.update.mock.calls[0][0].data).toMatchObject({ driverId: 'drv-2' });
+    expect(rec.status).toBe('ASSIGNED');
+  });
 
   it('create passes ASSIGNED status + seed history and maps the row', async () => {
     delivery.create.mockResolvedValue(deliveryRow({ proof: proofRow }));
@@ -170,14 +204,14 @@ describe('DeliveryPrismaRepository', () => {
     delivery.count.mockResolvedValue(1);
     const res = await repo.search({
       driverId: 'drv-1',
-      depotId: 'dep-1',
+      depotIds: ['dep-1'],
       status: DeliveryStatus.ASSIGNED,
       page: 2,
       limit: 10,
     } as never);
     expect(res).toEqual({ items: [expect.objectContaining({ id: 'del-1' })], total: 1 });
     expect(delivery.findMany).toHaveBeenCalledWith({
-      where: { driverId: 'drv-1', depotId: 'dep-1', status: DeliveryStatus.ASSIGNED },
+      where: { driverId: 'drv-1', depotId: { in: ['dep-1'] }, status: DeliveryStatus.ASSIGNED },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },
       orderBy: { assignedAt: 'desc' },
       skip: 10,
@@ -502,6 +536,20 @@ describe('SettlementPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  it('verifiedByOperatorInWindow skips rows nobody verified', async () => {
+    cashSettlement.findMany.mockResolvedValue([
+      { verifiedBy: null, variance: -5000 },
+      { verifiedBy: 'op-1', variance: -1000 },
+      { verifiedBy: 'op-1', variance: 0 },
+    ]);
+    const stats = await repo.verifiedByOperatorInWindow(
+      'dep-1',
+      new Date('2026-01-01'),
+      new Date('2026-02-01'),
+    );
+    expect(stats).toEqual([{ operatorId: 'op-1', verifiedSettlements: 2, varianceIdr: 1000 }]);
+  });
+
   it('create persists and casts status', async () => {
     cashSettlement.create.mockResolvedValue(settlementRow());
     const data = {
@@ -649,6 +697,22 @@ describe('ShiftPrismaRepository', () => {
   });
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('search with no window filters asks for the depot alone', async () => {
+    shift.findMany.mockResolvedValue([shiftRow()]);
+    await repo.search({ depotId: 'dep-1' });
+    expect(shift.findMany.mock.calls[0][0].where).toEqual({ depotId: 'dep-1' });
+
+    await repo.search({ from: new Date('2026-01-01') });
+    expect(shift.findMany.mock.calls[1][0].where).toEqual({
+      checkInAt: { gte: new Date('2026-01-01') },
+    });
+
+    await repo.search({ to: new Date('2026-02-01') });
+    expect(shift.findMany.mock.calls[2][0].where).toEqual({
+      checkInAt: { lte: new Date('2026-02-01') },
+    });
+  });
 
   it('open persists and casts status', async () => {
     shift.create.mockResolvedValue(shiftRow());

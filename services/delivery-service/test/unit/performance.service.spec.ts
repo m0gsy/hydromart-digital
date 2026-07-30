@@ -60,6 +60,13 @@ describe('PerformanceService.weekly', () => {
     service = new PerformanceService(repo, rating, buildTestConfig());
   });
 
+
+  it('a week with no deliveries scores 0, not a division by zero', async () => {
+    const summary = await service.weekly(driver, '2026-07-13');
+    expect(summary.delivered).toBe(0);
+    expect(summary.onTimeRate).toBe(0);
+  });
+
   it('rolls up count, per-day bars, on-time rate, rating and target (design 4c)', async () => {
     // Two on-time (Mon 13, Wed 15) + one breached (assigned far earlier, delivered Fri 17).
     const o1 = seed(repo, {

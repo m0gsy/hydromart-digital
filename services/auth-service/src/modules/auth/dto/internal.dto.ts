@@ -1,9 +1,34 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
-import { STAFF_IMPORT_ROLES, type StaffImportRole } from '@hydromart/access';
+import {
+  HR_MANAGED_ROLES,
+  STAFF_IMPORT_ROLES,
+  type HrManagedRole,
+  type StaffImportRole,
+} from '@hydromart/access';
 
 import { Role } from '../../../domain/customer/role.enum';
+
+/**
+ * A jabatan change in the HR module, pushed onto the login. Same reasoning as
+ * `ProvisionStaffDto`, one rung wider: a promotion up the supervision chain is ordinary
+ * HR work, but the office roles and SUPER_ADMIN stay out of reach of an employee form.
+ */
+export class AssignStaffRoleDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ enum: HR_MANAGED_ROLES })
+  @IsIn(HR_MANAGED_ROLES as readonly string[])
+  role!: HrManagedRole & Role;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot to assign with the role; null clears it.' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string | null;
+}
 
 export class ProvisionStaffDto {
   @ApiProperty({ example: '+628123456789' })

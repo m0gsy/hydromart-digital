@@ -397,13 +397,13 @@ describe('EmployeesController', () => {
     c.update('e1', ud, user);
     expect(emp.update).toHaveBeenCalledWith(user, 'e1', ud);
     // The import route hands the service the rows only — the DTO wrapper stops here.
-    const rows = [{ fullName: 'Budi', role: 'DRIVER' }] as never;
+    const rows = [{ fullName: 'Budi', role: 'STAFF_DEPOT' }] as never;
     c.import({ rows } as never, user);
     expect(emp.importMany).toHaveBeenCalledWith(user, rows, 'CREATE');
   });
 
   it('defaults the import to CREATE and passes UPSERT through when asked', () => {
-    const rows = [{ fullName: 'Budi', role: 'DRIVER' }] as never;
+    const rows = [{ fullName: 'Budi', role: 'STAFF_DEPOT' }] as never;
     c.import({ rows, mode: 'UPSERT' } as never, user);
     expect(emp.importMany).toHaveBeenLastCalledWith(user, rows, 'UPSERT');
     c.import({ rows, mode: undefined } as never, user);

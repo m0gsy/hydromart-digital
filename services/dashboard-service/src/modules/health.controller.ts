@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Public } from '@hydromart/platform';
+import { Public, rbacHealth } from '@hydromart/platform';
 
 @ApiTags('Health')
 @Controller()
@@ -13,6 +13,7 @@ export class HealthController {
     return {
       status: 'ok',
       service: 'dashboard-service',
+      checks: { ...rbacHealth() },
       timestamp: new Date().toISOString(),
     };
   }

@@ -20,7 +20,7 @@ export interface BonusRuleRepository {
   update(id: string, data: Partial<BonusRuleWrite>): Promise<BonusRule>;
   findById(id: string): Promise<BonusRule | null>;
   /** Active rules that apply to a depot: its own overrides + the global (null-depot) defaults. */
-  listActiveForDepot(depotId: string): Promise<BonusRule[]>;
+  listActiveForDepot(depotId: string | null): Promise<BonusRule[]>;
   /** Admin listing: all rules for a depot scope (null = global), or every rule when undefined. */
   list(depotId?: string | null): Promise<BonusRule[]>;
 }

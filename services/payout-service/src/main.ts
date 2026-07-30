@@ -6,7 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 
-import { enableMetrics, protectDocs } from '@hydromart/platform';
+import { configureDepotScope, enableMetrics, httpCapabilityLoader, httpDepotScopeResolver, protectDocs, startCapabilityRefresh } from '@hydromart/platform';
 
 import { AppModule } from './app.module';
 import { PayoutConfigService } from './config/payout-config.service';
@@ -35,6 +35,23 @@ async function bootstrap(): Promise<void> {
   if (protectDocs(app)) {
     SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swaggerConfig));
   }
+  // Keep the RBAC matrix current without a deploy: poll auth-service for the super
+  // admin's overrides. Failure leaves the compiled defaults in place, never a lockout.
+  // A supervisor's depots are a resolved SET, too large and too mutable for a JWT. Fails
+  // CLOSED if depot-service is unreachable: there is no safe default for tenant isolation.
+  configureDepotScope(
+    httpDepotScopeResolver({
+      depotServiceUrl: process.env.DEPOT_SERVICE_URL,
+      internalKey: process.env.INTERNAL_SERVICE_KEY,
+    }),
+  );
+  startCapabilityRefresh(
+    httpCapabilityLoader({
+      authServiceUrl: process.env.AUTH_SERVICE_URL,
+      internalKey: process.env.INTERNAL_SERVICE_KEY,
+    }),
+    { logger },
+  );
 
   enableMetrics(app, 'payout-service');
   await app.listen(config.port, '0.0.0.0');

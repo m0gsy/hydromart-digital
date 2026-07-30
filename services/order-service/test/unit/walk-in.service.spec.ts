@@ -47,7 +47,7 @@ describe('OrderService.walkInSale', () => {
 
   const operator: AuthenticatedUser = {
     sub: 'op-1',
-    role: 'DEPOT_OPERATOR' as never,
+    role: 'KEPALA_DEPOT' as never,
     phone: '08',
     depotId: DEPOT,
   };

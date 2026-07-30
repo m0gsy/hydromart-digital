@@ -19,5 +19,5 @@ export interface DepartmentRepository {
    * unlike shifts, which filter on an exact depot. A depot's staff can sit in Finance.
    * Undefined depotId = every department (HQ view).
    */
-  list(depotId?: string): Promise<Department[]>;
+  list(depotIds?: readonly string[]): Promise<Department[]>;
 }

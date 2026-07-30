@@ -9,7 +9,8 @@ export const LEAVE_REPOSITORY = Symbol('LEAVE_REPOSITORY');
 
 export interface LeaveRequestWrite {
   employeeId: string;
-  depotId: string;
+  /** Copied from the employee; null routes the request to the HQ/HR queue only. */
+  depotId: string | null;
   type: LeaveType;
   startDate: Date;
   endDate: Date;
@@ -29,7 +30,7 @@ export interface LeaveDecision {
 
 export interface LeaveListFilter {
   employeeId?: string;
-  depotId?: string;
+  depotIds?: readonly string[];
   status?: LeaveStatus;
   skip: number;
   take: number;

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Can } from '@hydromart/platform';
 
 import { ScheduledReportService } from '../application/services/scheduled-report.service';
 import {
@@ -24,7 +24,7 @@ import {
 // advisory metadata for the future scheduler; toggling `enabled` pauses without deleting.
 @ApiTags('Scheduled reports')
 @ApiBearerAuth()
-@Roles(Role.HEAD_OFFICE, Role.SUPER_ADMIN)
+@Can('hqConsole')
 @Controller({ path: 'scheduled-reports', version: '1' })
 export class ScheduledReportsController {
   constructor(private readonly reports: ScheduledReportService) {}

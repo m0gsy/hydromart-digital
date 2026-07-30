@@ -19,7 +19,7 @@ describe('isStaff', () => {
     for (const r of ['CUSTOMER', '', null, undefined]) expect(isStaff(r)).toBe(false);
   });
   it('is true for any non-customer role', () => {
-    for (const r of ['DEPOT_OPERATOR', 'DEPOT_MANAGER', 'FINANCE', 'SUPER_ADMIN']) expect(isStaff(r)).toBe(true);
+    for (const r of ['KEPALA_DEPOT', 'MANAGER', 'FINANCE', 'SUPER_ADMIN']) expect(isStaff(r)).toBe(true);
   });
 });
 
@@ -29,9 +29,9 @@ describe('isHq (SUPER_ADMIN + HEAD_OFFICE only, NOT depot manager)', () => {
     expect(isHq('SUPER_ADMIN')).toBe(true);
   });
   it('denies depot manager despite its dashboard power (design 20c)', () => {
-    expect(isHq('DEPOT_MANAGER')).toBe(false);
-    expect(canViewDashboard('DEPOT_MANAGER')).toBe(true); // has dashboard...
-    expect(isHq('DEPOT_MANAGER')).toBe(false); // ...but not HQ reach
+    expect(isHq('MANAGER')).toBe(false);
+    expect(canViewDashboard('MANAGER')).toBe(true); // has dashboard...
+    expect(isHq('MANAGER')).toBe(false); // ...but not HQ reach
   });
 });
 
@@ -39,14 +39,14 @@ describe('canManageEarningRules (finance config, role-gated directly)', () => {
   it('is FINANCE or SUPER_ADMIN only', () => {
     expect(canManageEarningRules('FINANCE')).toBe(true);
     expect(canManageEarningRules('SUPER_ADMIN')).toBe(true);
-    expect(canManageEarningRules('DEPOT_MANAGER')).toBe(false);
+    expect(canManageEarningRules('MANAGER')).toBe(false);
   });
 });
 
 describe('capability wrappers delegate to the shared map', () => {
   it('canManagePricing maps to depotAdmin (manager/super-admin)', () => {
-    expect(canManagePricing('DEPOT_MANAGER')).toBe(true);
-    expect(canManagePricing('DEPOT_OPERATOR')).toBe(false);
+    expect(canManagePricing('MANAGER')).toBe(true);
+    expect(canManagePricing('KEPALA_DEPOT')).toBe(false);
   });
 });
 
@@ -55,8 +55,8 @@ describe('dashboardLandingView (one route, four audiences)', () => {
     expect(dashboardLandingView('FRANCHISE_OWNER')).toBe('franchise');
   });
   it('gives depot operators the daily summary, managers the ops landing', () => {
-    expect(dashboardLandingView('DEPOT_OPERATOR')).toBe('operator');
-    expect(dashboardLandingView('DEPOT_MANAGER')).toBe('manager');
+    expect(dashboardLandingView('KEPALA_DEPOT')).toBe('operator');
+    expect(dashboardLandingView('MANAGER')).toBe('manager');
   });
   it('gives head-office roles the executive view', () => {
     for (const r of ['HEAD_OFFICE', 'SUPER_ADMIN']) expect(dashboardLandingView(r)).toBe('executive');
@@ -68,9 +68,9 @@ describe('dashboardLandingView (one route, four audiences)', () => {
 
 describe('role identity helpers', () => {
   it('match exactly one role each', () => {
-    expect(isDepotOperator('DEPOT_OPERATOR')).toBe(true);
-    expect(isDepotOperator('DEPOT_MANAGER')).toBe(false);
-    expect(isDepotManager('DEPOT_MANAGER')).toBe(true);
-    expect(isDepotManager('DEPOT_OPERATOR')).toBe(false);
+    expect(isDepotOperator('KEPALA_DEPOT')).toBe(true);
+    expect(isDepotOperator('MANAGER')).toBe(false);
+    expect(isDepotManager('MANAGER')).toBe(true);
+    expect(isDepotManager('KEPALA_DEPOT')).toBe(false);
   });
 });

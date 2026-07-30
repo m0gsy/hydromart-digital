@@ -1,8 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { CurrentUser, AuthenticatedUser, Roles, assertDepotAccess } from '@hydromart/platform';
-import { CAPABILITIES } from '@hydromart/access';
+import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { PurchaseOrder } from '../domain/purchase-order';
@@ -11,7 +10,7 @@ import { CreatePurchaseOrderDto, PurchaseOrderQueryDto } from './dto/procurement
 /** Depot purchase orders (design 7a/9d). Receiving posts a RECEIPT movement per line. */
 @ApiTags('Procurement')
 @ApiBearerAuth()
-@Roles(...CAPABILITIES.procurement)
+@Can('procurement')
 @Controller({ path: 'purchase-orders', version: '1' })
 export class PurchaseOrderController {
   constructor(private readonly orders: PurchaseOrderService) {}
