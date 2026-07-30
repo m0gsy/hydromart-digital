@@ -22,7 +22,7 @@ export class PayoutConfigService {
    * default and, for a couple of keys, intentionally differs from the real ENV
    * default; using it here would silently change today's behavior).
    */
-  private tunable(key: string, envValue: number, depotId: string | null = null): number {
+  private tunable(key: string, envValue: number, depotId: string | null): number {
     const def = SETTING_DEF_BY_KEY[key];
     return this.settings.effective(key, def.type, envValue, depotId) as number;
   }

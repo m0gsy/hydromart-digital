@@ -120,7 +120,9 @@ export class PurgeService {
       unenforced: entries.filter((e) => e.outcome === 'UNENFORCED').map((e) => e.dataset),
       // Datasets where rows are past their window and waiting on a human to act.
       awaitingReview: entries
-        .filter((e) => e.outcome === 'REPORT_ONLY' && (e.eligible ?? 0) > 0)
+        // Boolean(), not `(e.eligible ?? 0) > 0`: a REPORT_ONLY entry always carries a count, so
+        // the nullish half could never be taken and only pretended to guard something.
+        .filter((e) => e.outcome === 'REPORT_ONLY' && Boolean(e.eligible))
         .map((e) => e.dataset),
     };
     this.logger.log(

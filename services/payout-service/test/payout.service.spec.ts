@@ -147,6 +147,23 @@ describe('PayoutService.summary', () => {
     expect(s.recentEntries).toHaveLength(2);
     expect(s.nextPayoutDate).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
+
+  // Payouts land on the 15th. Which 15th depends on today, and "today" is whatever the calendar
+  // says when the suite happens to run — so the branch was only ever exercised in one direction.
+  it('points at this month’s 15th before it, and next month’s once it has passed', async () => {
+    jest.useFakeTimers();
+    try {
+      const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes());
+
+      jest.setSystemTime(new Date(2026, 7, 3));
+      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(new Date(2026, 7, 15).toISOString());
+
+      jest.setSystemTime(new Date(2026, 7, 20));
+      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(new Date(2026, 8, 15).toISOString());
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('PayoutService.ledgerPage', () => {
