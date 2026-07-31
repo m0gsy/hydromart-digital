@@ -7,7 +7,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 
 const DUTIES: { icon: Icon; titleKey: string; descKey: string }[] = [
   { icon: CheckCircle, titleKey: 'dashB.onboarding.duty1Title', descKey: 'dashB.onboarding.duty1Desc' },
@@ -75,7 +75,7 @@ function OnboardingBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title={t('dashB.onboarding.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashB.onboarding.gateBody')}

@@ -20,7 +20,7 @@ import { formatDateTime, formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotCrm, isDepotManager } from '@/lib/roles';
+import { canViewDepotCrm, canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotCustomerDetail } from '@/lib/types';
 
@@ -54,7 +54,7 @@ function DetailBody({ id }: { id: string }) {
   );
 
   const { customer } = useAuth();
-  const isManager = isDepotManager(customer?.role);
+  const isManager = canUseManagerConsole(customer?.role);
 
   return (
     <div className="flex flex-col gap-5">

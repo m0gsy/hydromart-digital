@@ -6,7 +6,7 @@ import { Bell, ChartBar, Gavel, House, User } from '@phosphor-icons/react';
 
 import { CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 
 const TABS = [
   { href: '/m/manager', label: 'Beranda', icon: House },
@@ -53,7 +53,7 @@ export function ManagerShell({
   nav?: boolean;
 }) {
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState icon={<House size={32} />} title="Halaman khusus manajer depot">
         Akun ini bukan manajer depot. Masuk dengan akun manajer untuk membuka konsol ini.

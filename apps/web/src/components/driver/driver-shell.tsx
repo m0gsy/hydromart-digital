@@ -9,6 +9,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canUseCourierApp } from '@/lib/roles';
 
 const TABS = [
   { href: '/driver', labelKey: 'tabTasks', icon: ListChecks },
@@ -62,14 +63,14 @@ export function DriverShell({
   const { t } = useT();
   return (
     <RequireAuth>
-      {customer?.role === 'STAFF_DEPOT' ? (
+      {canUseCourierApp(customer?.role) ? (
         <div className="mx-auto flex min-h-dvh max-w-[384px] flex-col">
           {/* Anything captured without signal (shift check-in, proof of delivery) surfaces
               here on every driver screen until it reaches the server. */}
           <div className="px-5 pt-3 empty:hidden">
             <OfflineQueueBanner />
           </div>
-          <div className="flex-1">{children}</div>
+          <div className="flex flex-1 flex-col">{children}</div>
           {nav && <DriverNav />}
         </div>
       ) : (

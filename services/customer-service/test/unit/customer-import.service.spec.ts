@@ -3,7 +3,7 @@ import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common'
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { CustomerImportService } from '../../src/application/services/customer-import.service';
-import { IdentityPort, PreRegisterResult } from '../../src/application/ports/identity.port';
+import { CustomerIdentity, IdentityPort, PreRegisterResult } from '../../src/application/ports/identity.port';
 import { ResellerExistsError } from '../../src/domain/errors';
 
 const DEPOT_A = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +35,11 @@ class FakeIdentity implements IdentityPort {
     const out = this.result(phone);
     if (out instanceof Error) throw out;
     return { ...out, customerId: out.customerId || `cust-${++this.seq}` };
+  }
+
+  // Import never reads names back; present only to satisfy the port.
+  async getCustomerNames(): Promise<Map<string, CustomerIdentity>> {
+    return new Map();
   }
 }
 

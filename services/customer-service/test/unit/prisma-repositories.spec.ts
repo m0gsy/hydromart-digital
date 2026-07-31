@@ -406,7 +406,9 @@ describe('DepotCrmPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('lists depot customers without a search term, mapping the tier', async () => {
+  // Searching moved OUT of this query: the name staff search by is the account name,
+  // which lives in auth-service, so DepotCrmService filters after overlaying it.
+  it('lists depot customers, mapping the tier', async () => {
     $queryRaw.mockResolvedValue([
       { customerId: 'cust-1', fullName: 'Budi', phone: '+62800', membershipTier: 'SILVER' },
     ]);
@@ -415,15 +417,9 @@ describe('DepotCrmPrismaRepository', () => {
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 
-  it('lists depot customers with a trimmed search term', async () => {
+  it('returns an empty list when the depot has no customers', async () => {
     $queryRaw.mockResolvedValue([]);
-    expect(await repo.listDepotCustomers('depot-1', '  budi  ')).toEqual([]);
-    expect($queryRaw).toHaveBeenCalledTimes(1);
-  });
-
-  it('treats a blank search term as no filter', async () => {
-    $queryRaw.mockResolvedValue([]);
-    await repo.listDepotCustomers('depot-1', '   ');
+    expect(await repo.listDepotCustomers('depot-1')).toEqual([]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 

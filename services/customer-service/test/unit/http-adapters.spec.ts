@@ -207,3 +207,64 @@ describe('IdentityHttpAdapter.preRegisterCustomer', () => {
     );
   });
 });
+
+// The read side is the mirror image of the write side above: it must NEVER throw, because
+// a depot's customer list has to render even when auth-service is down — just with the
+// names the caller already had.
+describe('IdentityHttpAdapter.getCustomerNames', () => {
+  const config = makeConfig({ authServiceUrl: 'http://auth:3001/' });
+
+  it('posts the deduplicated ids and maps the rows back by id', async () => {
+    fetchMock.mockResolvedValue(
+      res({ json: [{ id: 'c1', fullName: 'Budi', phone: '0811' }, { id: 'c2', fullName: null }] }),
+    );
+
+    const out = await new IdentityHttpAdapter(config).getCustomerNames(['c1', 'c2', 'c1', '']);
+
+    expect(out.get('c1')).toEqual({ fullName: 'Budi', phone: '0811' });
+    // A PENDING account has no name yet: absent fields normalise to null, not undefined.
+    expect(out.get('c2')).toEqual({ fullName: null, phone: null });
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://auth:3001/api/v1/auth/internal/customers/by-ids');
+    expect(options.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(options.body)).toEqual({ ids: ['c1', 'c2'] });
+  });
+
+  it('skips rows with no id', async () => {
+    fetchMock.mockResolvedValue(res({ json: [{ fullName: 'Nobody' }] }));
+    expect((await new IdentityHttpAdapter(config).getCustomerNames(['c1'])).size).toBe(0);
+  });
+
+  it('returns empty without calling fetch when there is nothing to ask, or nowhere to ask', async () => {
+    const adapter = new IdentityHttpAdapter(config);
+    expect((await adapter.getCustomerNames([])).size).toBe(0);
+    expect((await adapter.getCustomerNames([''])).size).toBe(0);
+    expect((await new IdentityHttpAdapter(makeConfig({ authServiceUrl: '' })).getCustomerNames(['c1'])).size).toBe(0);
+    expect(
+      (
+        await new IdentityHttpAdapter(
+          makeConfig({ authServiceUrl: 'http://auth:3001', internalServiceKey: '' }),
+        ).getCustomerNames(['c1'])
+      ).size,
+    ).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('degrades to no names on a rejected call or a non-2xx answer', async () => {
+    fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    expect((await new IdentityHttpAdapter(config).getCustomerNames(['c1'])).size).toBe(0);
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    expect((await new IdentityHttpAdapter(config).getCustomerNames(['c1'])).size).toBe(0);
+  });
+
+  it('splits a depot bigger than one lookup into batches', async () => {
+    const ids = Array.from({ length: 201 }, (_, i) => `c${i}`);
+    fetchMock.mockResolvedValue(res({ json: [] }));
+
+    await new IdentityHttpAdapter(config).getCustomerNames(ids);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).ids).toHaveLength(200);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).ids).toEqual(['c200']);
+  });
+});

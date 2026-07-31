@@ -22,7 +22,8 @@ export default function HqOrderDetailPage() {
   const param = useParams();
   const id = (Array.isArray(param.id) ? param.id[0] : param.id) ?? '';
 
-  const order = useAsync<Order>(() => api.get(endpoints.orders.get(id), true), [id]);
+  // Staff read, not the customer one: `orders.get` filters by owner, so HQ always got 404.
+  const order = useAsync<Order>(() => api.get(endpoints.orders.manageGet(id), true), [id]);
   const payments = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(id), true), [id]);
 
   const back = (

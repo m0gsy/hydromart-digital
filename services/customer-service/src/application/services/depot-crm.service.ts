@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
+import { IdentityPort } from '../ports/identity.port';
 import { OrderCrmPort, DepotCustomerOrderStats } from '../ports/order-crm.port';
 import { ProfileRepository } from '../ports/profile.repository';
 import { MembershipTier } from '../../domain/membership-tier.enum';
@@ -112,6 +113,22 @@ export interface DepotCustomerDetail {
 }
 
 /**
+ * Case-insensitive contains over the name the staff member can actually SEE. Applied after
+ * the account-name overlay rather than in SQL, because the searchable name is not in this
+ * service's database.
+ *
+ * ponytail: in-memory scan over one depot's customers. Push it into the query only if a
+ * single depot's directory ever gets big enough for that to matter.
+ */
+function matches(item: DepotCustomerListItem, q: string): boolean {
+  const needle = q.toLowerCase();
+  return (
+    (item.fullName?.toLowerCase().includes(needle) ?? false) ||
+    (item.phone?.toLowerCase().includes(needle) ?? false)
+  );
+}
+
+/**
  * Depot customer directory (Depot Operator 6a/7a, Depot Manager 12b). Profile + address data
  * is served for real from customer-service; the order and gallon-deposit aggregates are
  * cross-service and returned as zero/empty for now.
@@ -128,23 +145,28 @@ export class DepotCrmService {
     @Inject(CUSTOMER_TOKENS.AddressRepository) private readonly addresses: AddressRepository,
     @Inject(CUSTOMER_TOKENS.ProfileRepository) private readonly profiles: ProfileRepository,
     @Inject(CUSTOMER_TOKENS.OrderCrmPort) private readonly orderCrm: OrderCrmPort,
+    @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
     private readonly config: CustomerConfigService,
   ) {}
 
   async listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerListItem[]> {
     const [rows, stats] = await Promise.all([
-      this.crm.listDepotCustomers(depotId, q),
+      this.crm.listDepotCustomers(depotId),
       this.orderCrm.depotCustomerStats(depotId),
     ]);
+    // The account name, not the primary address's recipient — a customer who never saved
+    // an address has an account name but no address, and used to list as "Tanpa nama".
+    const identities = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
     const statsBy = new Map(stats.map((s) => [s.customerId, s]));
     const now = new Date();
     const t = this.config.crmThresholds;
-    return rows.map((r) => {
+    const items = rows.map((r) => {
       const s = statsBy.get(r.customerId);
+      const account = identities.get(r.customerId);
       return {
         id: r.customerId,
-        fullName: r.fullName,
-        phone: r.phone,
+        fullName: account?.fullName ?? r.fullName,
+        phone: account?.phone ?? r.phone,
         membershipTier: r.membershipTier,
         // Order aggregates from order-service; null (not 0) when it had no data / was unreachable.
         orderCount: s ? s.orderCount : null,
@@ -156,6 +178,7 @@ export class DepotCrmService {
         isSubscriber: null,
       };
     });
+    return q && q.trim() !== '' ? items.filter((i) => matches(i, q.trim())) : items;
   }
 
   /**
@@ -217,17 +240,20 @@ export class DepotCrmService {
   }
 
   async getDepotDetail(customerId: string, _depotId: string): Promise<DepotCustomerDetail> {
-    const [profile, addressRecords] = await Promise.all([
+    const [profile, addressRecords, identities] = await Promise.all([
       this.profiles.findByCustomerId(customerId),
       this.addresses.listByCustomer(customerId),
+      this.identity.getCustomerNames([customerId]),
     ]);
     const primary = addressRecords.find((a) => a.isPrimary) ?? addressRecords[0] ?? null;
+    const account = identities.get(customerId);
 
     return {
       profile: {
         id: customerId,
-        fullName: primary?.recipientName ?? null,
-        phone: primary?.phone ?? null,
+        // Same rule as the list: account name first, address recipient as the fallback.
+        fullName: account?.fullName ?? primary?.recipientName ?? null,
+        phone: account?.phone ?? primary?.phone ?? null,
         membershipTier: profile?.membershipTier ?? MembershipTier.BASIC,
         // Cross-service aggregates unwired — null ("unknown"), never a fabricated 0/false.
         isSubscriber: null,

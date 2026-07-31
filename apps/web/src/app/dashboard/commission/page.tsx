@@ -10,7 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { isDepotManager } from '@/lib/roles';
+import { canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { CommissionCourier, CommissionRun, Customer } from '@/lib/types';
 
@@ -136,7 +136,7 @@ function CommissionBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canViewDepotFinance(customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Pembayaran komisi kurir hanya untuk Manajer depot.

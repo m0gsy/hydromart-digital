@@ -1,14 +1,17 @@
+import { randomUUID } from 'node:crypto';
+
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 
 import { Role } from '../../src/domain/customer/role.enum';
 import { InternalAccountController } from '../../src/modules/auth/internal.controller';
-import { ProvisionStaffDto } from '../../src/modules/auth/dto/internal.dto';
+import { LookupCustomerIdsDto, ProvisionStaffDto } from '../../src/modules/auth/dto/internal.dto';
 
 describe('InternalAccountController', () => {
   const account = {
     inviteStaff: jest.fn(),
     preRegisterCustomer: jest.fn(),
+    lookupByIds: jest.fn(),
   };
   const audit = { purgeOlderThan: jest.fn(async () => ({ deleted: 4 })) };
   const controller = new InternalAccountController(account as never, audit as never);
@@ -57,6 +60,35 @@ describe('InternalAccountController', () => {
       controller.preRegisterCustomer({ phone: '081200001111', fullName: 'Siti' }),
     ).resolves.toEqual({ customerId: 'cust-2', status: 'created' });
     expect(account.preRegisterCustomer).toHaveBeenCalledWith('081200001111', 'Siti');
+  });
+
+  it('resolves a batch of ids to public profiles', async () => {
+    account.lookupByIds.mockResolvedValue([
+      { id: 'c1', phone: '+62811', fullName: 'Budi', email: null, role: Role.CUSTOMER, status: 'ACTIVE', avatarUrl: null },
+    ]);
+
+    const out = await controller.lookupByIds({ ids: ['c1', 'c2'] } as never);
+
+    expect(account.lookupByIds).toHaveBeenCalledWith(['c1', 'c2']);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: 'c1', fullName: 'Budi', phone: '+62811' });
+  });
+});
+
+// The route exists so a depot directory can resolve names; the cap is what keeps one
+// caller from asking for every account in the system in a single POST.
+describe('LookupCustomerIdsDto', () => {
+  const errorsFor = async (ids: unknown): Promise<string[]> =>
+    (await validate(plainToInstance(LookupCustomerIdsDto, { ids }))).map((e) => e.property);
+
+  it('accepts a list of uuids', async () => {
+    expect(await errorsFor([randomUUID(), randomUUID()])).toEqual([]);
+  });
+
+  it('rejects a non-array, a non-uuid member, and more than 200 ids', async () => {
+    expect(await errorsFor('c1')).toContain('ids');
+    expect(await errorsFor(['not-a-uuid'])).toContain('ids');
+    expect(await errorsFor(Array.from({ length: 201 }, () => randomUUID()))).toContain('ids');
   });
 });
 

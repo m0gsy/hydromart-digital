@@ -9,7 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { InventoryWastageSummary } from '@/lib/types';
 
@@ -116,7 +116,7 @@ function WastageBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Pelacakan wastage hanya untuk Manajer depot.

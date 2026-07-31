@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, IdentificationBadge } from '@phosphor-icons/react';
 
-import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
+import { type Capability, type Role } from '@hydromart/access';
 import { CAP_SECTIONS } from '../rbac-matrix';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 
 const ALL_ROLES: Role[] = [
   'CUSTOMER',
@@ -25,11 +26,12 @@ const ALL_ROLES: Role[] = [
   'SUPER_ADMIN',
 ];
 
-const TOTAL_CAPS = Object.keys(CAPABILITIES).length;
-
 // Design 19a — role detail: every capability one role holds, grouped by area.
 export default function HqRoleDetailPage() {
   const { t } = useT();
+  // The matrix the server enforces, so a saved edit on /hq/access shows up here too.
+  const holdersByCap = useEffectiveCapabilities();
+  const totalCaps = Object.keys(holdersByCap).length;
   const param = useParams();
   const raw = Array.isArray(param.role) ? param.role[0] : param.role;
   const role = ALL_ROLES.find((r) => r === raw);
@@ -53,8 +55,8 @@ export default function HqRoleDetailPage() {
     );
   }
 
-  const held = (c: Capability) => (CAPABILITIES[c] as readonly Role[]).includes(role);
-  const heldCount = (Object.keys(CAPABILITIES) as Capability[]).filter(held).length;
+  const held = (c: Capability) => (holdersByCap[c] as readonly Role[] | undefined)?.includes(role) ?? false;
+  const heldCount = (Object.keys(holdersByCap) as Capability[]).filter(held).length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,7 +68,7 @@ export default function HqRoleDetailPage() {
         </div>
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
           {t('hq.roleDetail.subtitle')}
-          <Chip tone="tint">{t('hq.roleDetail.capsCount', { n: heldCount, total: TOTAL_CAPS })}</Chip>
+          <Chip tone="tint">{t('hq.roleDetail.capsCount', { n: heldCount, total: totalCaps })}</Chip>
         </p>
       </div>
 

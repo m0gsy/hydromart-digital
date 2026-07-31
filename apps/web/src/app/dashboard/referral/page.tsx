@@ -9,7 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotReferralSummary } from '@/lib/types';
 
@@ -102,7 +102,7 @@ function ReferralBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title={t('dashC.referral.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashC.referral.gateBody')}

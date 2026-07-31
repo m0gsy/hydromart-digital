@@ -9,7 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { ReportDepotCompare, ReportDepotCompareRow } from '@/lib/types';
 
@@ -150,7 +150,7 @@ function CompareBody() {
 
 function Gate() {
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title="Khusus Manajer depot" icon={<Lock size={40} weight="fill" />}>
         Banding antar depot hanya untuk Manajer depot.

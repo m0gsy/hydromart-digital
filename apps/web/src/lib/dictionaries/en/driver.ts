@@ -239,6 +239,7 @@ export const driver = {
     error: 'Could not check in. Try again.',
     noDepotTitle: 'No depot yet',
     noDepotBody: 'This courier account has not been placed at a depot. Contact the depot admin.',
+    noDepotAction: 'Open my profile',
     welcome: 'Welcome,',
     fallbackName: 'Courier',
     intro: 'Check in at the depot to start your shift and receive tasks.',
@@ -246,6 +247,7 @@ export const driver = {
     locationHint: 'You must be within the depot area to start your shift.',
     submit: 'Start shift · check-in',
     locationNote: 'Location is recorded as proof of shift start.',
+    queuedOffline: 'No network. The check-in is saved on this phone and sends itself once the network is back — your shift starts when it does.',
   },
   shiftStatus: {
     title: 'Availability status',

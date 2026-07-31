@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { isDepotManager } from '@/lib/roles';
+import { canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { PaymentMethod, UnsettledMethodBucket } from '@/lib/types';
 
@@ -155,7 +155,7 @@ function PaymentReconBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canViewDepotFinance(customer?.role)) {
     return (
       <CenterState title={t('dashB.paymentRecon.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashB.paymentRecon.gateBody')}

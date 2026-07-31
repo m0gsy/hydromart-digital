@@ -61,12 +61,28 @@ describe('offline queue', () => {
     expect(pending()[0]!.kind).toBe('hrPunch');
   });
 
-  it('queues on 401 too, since the cookie may have lapsed while offline', async () => {
+  // A 401 at capture time is a lapsed session, not a lost network. Queuing it silently
+  // left the courier tapping a button that appeared to do nothing; it has to reach them.
+  it('surfaces a 401 instead of hiding a lapsed session in the queue', async () => {
     const { runOrQueue, pending } = await freshQueue();
     post.mockRejectedValue(new ApiError(401, 'Unauthorized'));
 
-    await expect(runOrQueue(punch)).resolves.toEqual({ outcome: 'queued' });
+    await expect(runOrQueue(punch)).rejects.toThrow('Unauthorized');
+    expect(pending()).toHaveLength(0);
+  });
+
+  // ...but a job already captured offline is still valid work: flush must hold it for the
+  // next sign-in rather than burning it.
+  it('flush keeps a queued job when the session has lapsed', async () => {
+    const { runOrQueue, flush, pending } = await freshQueue();
+    post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+    await runOrQueue(punch);
+
+    post.mockRejectedValue(new ApiError(401, 'Unauthorized'));
+    await flush();
+
     expect(pending()).toHaveLength(1);
+    expect(pending()[0]!.error).toBeUndefined();
   });
 
   it('lets a real rejection through instead of hiding it in the queue', async () => {

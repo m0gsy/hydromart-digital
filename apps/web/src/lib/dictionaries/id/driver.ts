@@ -240,6 +240,7 @@ export const driver = {
     error: 'Gagal check-in. Coba lagi.',
     noDepotTitle: 'Belum ada depot',
     noDepotBody: 'Akun kurir ini belum ditempatkan di depot. Hubungi admin depot.',
+    noDepotAction: 'Buka profil saya',
     welcome: 'Selamat datang,',
     fallbackName: 'Kurir',
     intro: 'Check-in di depot untuk memulai shift dan menerima tugas.',
@@ -247,6 +248,7 @@ export const driver = {
     locationHint: 'Kamu harus berada di area depot untuk memulai shift.',
     submit: 'Mulai shift · check-in',
     locationNote: 'Lokasi terekam sebagai bukti mulai shift.',
+    queuedOffline: 'Tidak ada jaringan. Check-in tersimpan di HP dan otomatis terkirim saat jaringan kembali — shift baru mulai setelah terkirim.',
   },
   shiftStatus: {
     title: 'Status ketersediaan',
