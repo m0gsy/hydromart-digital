@@ -517,7 +517,7 @@ function CheckoutInner() {
               {depotChoicesLoading ? (
                 <Skeleton className="h-20 w-full" />
               ) : depotChoices && depotChoices.items.length > 0 ? (
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div data-testid="depot-picker" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                   {depotChoices.items.map((d) => (
                     <RadioCard
                       key={d.id}
