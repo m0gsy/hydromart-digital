@@ -129,6 +129,128 @@ describe('OrderService', () => {
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
   });
 
+  // The optional arguments every other test in this file happens to fill in, and the
+  // fail-open catches that only fire when a coordination call actually throws.
+  describe('omitted arguments and coordination failures', () => {
+    const nearDepot = {
+      id: 'depot-near',
+      lat: -6.9,
+      lng: 107.6,
+      serviceRadiusKm: 10,
+      deliveryFee: 5000,
+      minOrderAmount: null,
+    };
+
+    it('treats a depot rule with no value as a zero adjustment', async () => {
+      depots.depots = [nearDepot];
+      const productId = await addToCart(20000, 1);
+      pricing.setRule('depot-near', productId, 'PERCENT', null as never);
+      const order = await service.checkout(
+        customer,
+        { deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 } },
+        'Bearer tok',
+      );
+      expect(order.items[0].unitPrice).toBe(20000);
+    });
+
+    it('cancels without a reason and sweeps abandoned orders on the configured defaults', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const cancelled = await service.cancel(customer, order.id);
+      expect(cancelled.status).toBe(OrderStatus.CANCELLED);
+
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+      // No token, no explicit age: the sweep must read its own config.
+      await expect(service.expireAbandoned('admin')).resolves.toMatchObject({
+        cancelled: expect.any(Number),
+      });
+    });
+
+    it('schedules a subscription delivery with no discount rate', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: p.id, quantity: 1 }],
+        address,
+      );
+      expect(order.subtotal).toBe(20000);
+    });
+
+    it('runs the reorder nudge on its default window and counts a failed send as not reminded', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      orders.rows.find((r) => r.id === order.id)!.createdAt = new Date('2020-01-01T00:00:00.000Z');
+      notification.notify = async () => {
+        throw new Error('sms gateway down');
+      };
+      const out = await service.remindStaleCustomers(new Date());
+      expect(out.reminded).toBe(0);
+    });
+
+    it('completes even when notification, recommendation and forecast all throw', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+      const fail = async (): Promise<never> => {
+        throw new Error('downstream down');
+      };
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+      ]) {
+        await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+      }
+      // Only the completion fan-out is fail-open; the status-change notification is awaited,
+      // so just the points message is made to fail here.
+      const realNotify = notification.notify.bind(notification);
+      notification.notify = async (event, phone, vars, customerId, authorization) => {
+        if (event === 'POINTS_EARNED') throw new Error('downstream down');
+        return realNotify(event, phone, vars, customerId, authorization);
+      };
+      recommendation.recordCompleted = fail;
+      forecast.ingestCompletedOrder = fail;
+      await expect(
+        service.updateStatus(order.id, OrderStatus.COMPLETED, 'staff', undefined, 'Bearer tok'),
+      ).resolves.toMatchObject({ status: OrderStatus.COMPLETED });
+    });
+
+    it('stamps the ETA the courier gave when going on delivery', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const eta = '2026-07-31T10:00:00.000Z';
+      await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+      await service.updateStatus(order.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+      await service.updateStatus(order.id, OrderStatus.PICKED_UP, 'staff');
+      const out = await service.updateStatus(
+        order.id,
+        OrderStatus.ON_DELIVERY,
+        'staff',
+        undefined,
+        '',
+        undefined,
+        undefined,
+        eta,
+      );
+      expect(out.estimatedArrivalAt).toEqual(new Date(eta));
+    });
+
+    it('exposes the depot sales total and per-customer aggregates other services read', async () => {
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+      await expect(
+        service.sumDepotSales('depot-near', new Date('2020-01-01'), new Date('2099-01-01')),
+      ).resolves.toEqual(expect.any(Number));
+      await expect(service.depotCustomerAggregates('depot-near')).resolves.toEqual(
+        expect.any(Array),
+      );
+    });
+  });
+
   it('batch-reads authoritative totals for existing order ids', async () => {
     await addToCart(20_000, 2);
     const order = await service.checkout(customer, { deliveryAddress: address });

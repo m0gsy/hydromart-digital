@@ -106,6 +106,90 @@ describe('OrderPrismaRepository report range filters (bounded-window branches)',
   });
 });
 
+// The other half of the same ternaries: an aggregate over zero rows returns a null _sum, and
+// an unbounded report window must not push a createdAt filter at all.
+describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', () => {
+  const order = {
+    groupBy: jest.fn().mockResolvedValue([]),
+    aggregate: jest.fn(),
+    findMany: jest.fn().mockResolvedValue([]),
+    update: jest.fn(),
+  };
+  const orderReview = { findUnique: jest.fn() };
+  const repo = new OrderPrismaRepository({
+    order,
+    orderReview,
+  } as unknown as PrismaService);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reads zero revenue from a depot rollup with no matching orders', async () => {
+    order.groupBy.mockResolvedValue([
+      { depotId: 'd1', _count: { _all: 0 }, _sum: { total: null, deliveryFee: null } },
+    ]);
+    expect((await repo.topDepots({}, 5))[0].revenue).toBe(0);
+    expect((await repo.shippingByDepot({}))[0].shippingBilled).toBe(0);
+  });
+
+  it('reads zero lifetime revenue for a customer who never ordered', async () => {
+    order.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { total: null },
+      _min: { createdAt: null },
+      _max: { createdAt: null },
+    });
+    expect(await repo.customerLifetime('c1')).toMatchObject({ revenue: 0, firstOrderAt: null });
+  });
+
+  it('omits createdAt entirely from an unbounded refund rollup and depot order list', async () => {
+    await repo.refundsByDepot({});
+    expect(order.groupBy.mock.calls.at(-1)?.[0].where.createdAt).toBeUndefined();
+    await repo.ordersForDepot('d1', {});
+    expect(order.findMany.mock.calls.at(-1)?.[0].where.createdAt).toBeUndefined();
+  });
+
+  it('applies a one-sided window to a depot order list', async () => {
+    const from = new Date('2026-01-01');
+    await repo.ordersForDepot('d1', { from });
+    expect(order.findMany.mock.calls.at(-1)?.[0].where.createdAt).toEqual({ gte: from });
+    const to = new Date('2026-02-01');
+    await repo.ordersForDepot('d1', { to });
+    expect(order.findMany.mock.calls.at(-1)?.[0].where.createdAt).toEqual({ lt: to });
+  });
+
+  it('maps a review that exists', async () => {
+    orderReview.findUnique.mockResolvedValue({
+      id: 'r1',
+      orderId: 'o1',
+      customerId: 'c1',
+      rating: 5,
+      aspects: [],
+      comment: null,
+      tipAmount: 0,
+      createdAt: new Date('2026-01-01'),
+    });
+    expect(await repo.findReviewByOrderId('o1')).toMatchObject({ id: 'r1', rating: 5 });
+  });
+
+  it('writes only the courier fields it was actually given', async () => {
+    order.update.mockResolvedValue({
+      id: 'o1',
+      subtotal: dec(20000),
+      deliveryFee: dec(5000),
+      discount: dec(0),
+      total: dec(25000),
+      refundedAmount: null,
+      items: [],
+      history: [],
+    });
+    await repo.applyStatus('o1', 'DRIVER_ASSIGNED' as never, 'staff', null, 'Budi', null, null);
+    const data = order.update.mock.calls.at(-1)?.[0].data;
+    expect(data).toMatchObject({ driverName: 'Budi' });
+    expect(data.driverPhone).toBeUndefined();
+    expect(data.estimatedArrivalAt).toBeUndefined();
+  });
+});
+
 describe('VoucherRejectedError', () => {
   it('defaults to a generic message when constructed with no argument', () => {
     expect(new VoucherRejectedError().message).toBe('This voucher could not be applied.');

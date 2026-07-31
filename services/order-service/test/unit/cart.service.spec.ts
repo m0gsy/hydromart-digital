@@ -60,4 +60,11 @@ describe('CartService', () => {
     await service.removeItem(customer, p.id);
     expect((await service.view(customer)).items).toHaveLength(0);
   });
+
+  it('clears the whole cart at once (what checkout does on success)', async () => {
+    await service.setItem(customer, catalog.seed({ id: randomUUID() }).id, 1, false);
+    await service.setItem(customer, catalog.seed({ id: randomUUID() }).id, 2, false);
+    await service.clear(customer);
+    expect((await service.view(customer)).items).toHaveLength(0);
+  });
 });

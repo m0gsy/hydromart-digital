@@ -156,7 +156,7 @@ export class OrderService {
 
     // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
     // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
-    const reseller = await this.resellerDiscount.get(authorization ?? '');
+    const reseller = await this.resellerDiscount.get(authorization);
     const isReseller = reseller?.active === true && reseller.discountPct > 0;
 
     // voucherCode is null for resellers so the later redeem block is skipped too.

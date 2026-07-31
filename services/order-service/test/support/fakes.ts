@@ -882,6 +882,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     CRM_SERVICE_URL: 'http://localhost:3012',
     ORDER_DELIVERY_FEE: '5000',
     ORDER_STALLED_HOURS: '24',
+    ORDER_ABANDON_MINUTES: '60',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',

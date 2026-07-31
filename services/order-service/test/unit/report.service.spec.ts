@@ -400,3 +400,107 @@ describe('ReportService', () => {
     expect(items).toEqual([{ depotId: depot, rating: 4, reviewCount: 2 }]);
   });
 });
+
+// The report surface degrades instead of dividing by zero or reading a missing row: these are
+// the empty/absent shapes a real depot hits on a quiet week, driven off a stubbed repository
+// so the exact aggregate rows can be dictated.
+describe('ReportService empty and absent shapes', () => {
+  const stub = (over: Record<string, unknown>): ReportService => new ReportService(over as never);
+
+  it('gives every product a zero share when nothing sold', async () => {
+    const svc = stub({
+      revenueByProduct: async () => [{ productId: 'p1', productName: 'Galon', qty: 0, revenue: 0 }],
+    });
+    const out = await svc.revenueByProduct({}, 10);
+    expect(out.items[0].share).toBe(0);
+  });
+
+  it('echoes both range bounds when the caller supplies them', async () => {
+    const from = new Date('2026-05-01T00:00:00.000Z');
+    const to = new Date('2026-06-01T00:00:00.000Z');
+    const svc = stub({ revenueByProduct: async () => [] });
+    const out = await svc.revenueByProduct({ from, to }, 10);
+    expect(out).toMatchObject({ from: from.toISOString(), to: to.toISOString() });
+  });
+
+  it('reports a cohort that never had a month-0 as zero-sized, not NaN', async () => {
+    const svc = stub({
+      retentionCohort: async () => [
+        { cohort: '2026-01', monthIndex: 0, customers: 10 },
+        { cohort: '2026-01', monthIndex: 1, customers: 4 },
+        { cohort: '2026-02', monthIndex: 1, customers: 3 }, // no month-0 row
+      ],
+    });
+    const out = await svc.retentionCohort({});
+    expect(out.rows[0]).toMatchObject({ label: '2026-01', cohortSize: 10, cells: [1, 0.4] });
+    expect(out.rows[1]).toMatchObject({ label: '2026-02', cohortSize: 0, cells: [0, 0] });
+  });
+
+  it('nulls a customer summary that has no orders at all', async () => {
+    const svc = stub({
+      customerLifetime: async () => ({
+        orderCount: 0,
+        revenue: 0,
+        firstOrderAt: null,
+        lastOrderAt: null,
+      }),
+      search: async () => ({ items: [], total: 0 }),
+    });
+    const out = await svc.customerSummary('c1');
+    expect(out).toMatchObject({ firstOrderAt: null, lastOrderAt: null, recentOrders: [] });
+  });
+
+  it('defaults the weekly window to the last seven days and omits a courier nobody drove', async () => {
+    const svc = stub({
+      ordersForDepot: async () => [
+        {
+          id: 'o1',
+          customerId: 'c1',
+          status: OrderStatus.DELIVERED,
+          total: 20000,
+          driverName: null,
+          createdAt: new Date(),
+          items: [
+            { productId: 'p1', productName: 'Galon 19L', unit: 'botol', quantity: 2 },
+            { productId: 'p2', productName: 'Tutup', unit: 'pcs', quantity: 5 },
+          ],
+        },
+      ],
+    });
+    const out = await svc.depotWeekly('d1');
+    expect(out.topCourier).toBeUndefined();
+    expect(out.topProducts.map((p) => p.label)).toEqual(['Tutup', 'Galon 19L']);
+    expect(new Date(out.to).getTime() - new Date(out.from).getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+
+  it('omits the top courier from a month nobody delivered in', async () => {
+    const svc = stub({ ordersForDepot: async () => [] });
+    const out = await svc.reportsDepotMonthly('d1', '2026-05');
+    expect(out.topCourier).toBeUndefined();
+    expect(out.orders).toBe(0);
+  });
+
+  it('zeroes a reseller who bought nothing this month and counts gallons by product name', async () => {
+    const bought = {
+      id: 'o1',
+      customerId: 'reseller-1',
+      status: OrderStatus.DELIVERED,
+      total: 90000,
+      createdAt: new Date('2026-05-10T00:00:00.000Z'),
+      items: [
+        { productId: 'p1', productName: 'Galon 19L', unit: 'botol', quantity: 3 },
+        { productId: 'p2', productName: 'Tutup', unit: 'pcs', quantity: 9 },
+      ],
+    };
+    const svc = stub({ ordersForDepot: async () => [bought] });
+    const out = await svc.resellerRollup('d1', '2026-05', ['reseller-1', 'reseller-2']);
+    expect(out.rows[0]).toMatchObject({ customerId: 'reseller-1', volumeQty: 3, orderCount: 1 });
+    expect(out.rows[1]).toMatchObject({
+      customerId: 'reseller-2',
+      volumeQty: 0,
+      prevVolumeQty: 0,
+      orderCount: 0,
+      lastOrderAt: null,
+    });
+  });
+});

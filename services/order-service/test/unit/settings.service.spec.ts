@@ -87,6 +87,18 @@ describe('SettingsService', () => {
     ).rejects.toThrow();
   });
 
+  it('put rejects a DEPOT scope without depotId, and a per-depot override of a global-only key', async () => {
+    const repo = repoWith([]);
+    const svc = new SettingsService(repo, new SettingsCache(repo));
+    await expect(
+      svc.put({ scope: 'DEPOT', depotId: null, key: 'deliveryFee', value: '1', updatedBy: 'u1' }),
+    ).rejects.toThrow(/depotId required/);
+    // deliveryFee is global-only here: the real per-galon fee is depot-service's.
+    await expect(
+      svc.put({ scope: 'DEPOT', depotId: 'd1', key: 'deliveryFee', value: '1', updatedBy: 'u1' }),
+    ).rejects.toThrow(/global-only/);
+  });
+
   it('reset rejects a DEPOT scope without depotId', async () => {
     const repo = repoWith([]);
     const svc = new SettingsService(repo, new SettingsCache(repo));

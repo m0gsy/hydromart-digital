@@ -10,8 +10,10 @@ describe('OrderConfigService', () => {
   });
 
   it('throws when a required numeric key is missing', () => {
-    // ORDER_ABANDON_MINUTES is not in the default test env → getOrThrow raises.
-    expect(() => buildTestConfig().abandonMinutes).toThrow(/ORDER_ABANDON_MINUTES/);
+    // Blank out the key the sweep needs → getOrThrow raises rather than defaulting.
+    expect(
+      () => buildTestConfig({ ORDER_ABANDON_MINUTES: undefined as never }).abandonMinutes,
+    ).toThrow(/ORDER_ABANDON_MINUTES/);
   });
 
   it('strips trailing slashes from every service URL', () => {
@@ -46,6 +48,13 @@ describe('OrderConfigService', () => {
     expect(buildTestConfig().nodeEnv).toBe('test');
     expect(buildTestConfig().isProduction).toBe(false);
     expect(buildTestConfig({ NODE_ENV: 'production' }).isProduction).toBe(true);
+  });
+
+  it('leaves the payout push disabled until its URL is configured', () => {
+    expect(buildTestConfig().payoutServiceUrl).toBe('');
+    expect(buildTestConfig({ PAYOUT_SERVICE_URL: 'http://payout:3016/' }).payoutServiceUrl).toBe(
+      'http://payout:3016',
+    );
   });
 
   it('splits, trims and drops empty CORS origins', () => {

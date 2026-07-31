@@ -8,6 +8,10 @@ import { ForecastCoordinationHttpAdapter } from '../../src/infrastructure/http/f
 import { PromoHttpAdapter } from '../../src/infrastructure/http/promo.http.adapter';
 import { InventoryHttpAdapter } from '../../src/infrastructure/http/inventory.http.adapter';
 import { DepotPricingHttpAdapter } from '../../src/infrastructure/http/depot-pricing.http.adapter';
+import { DepotDirectoryHttpAdapter } from '../../src/infrastructure/http/depot-directory.http.adapter';
+import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
+import { MembershipHttpAdapter } from '../../src/infrastructure/http/membership.http.adapter';
+import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { ResellerDiscountHttpAdapter } from '../../src/infrastructure/http/reseller-discount.http.adapter';
 
 // Covers the fail-open error branches the happy-path specs don't reach: the `if (!res.ok)
@@ -109,6 +113,122 @@ describe('coordination adapters fail open on a non-2xx response', () => {
     await expect(
       new InventoryHttpAdapter(makeConfig()).release('d1', 'o1', line, ''),
     ).resolves.toBeUndefined();
+  });
+});
+
+// Every adapter arms a setTimeout that aborts its request. Nothing had ever let that timer
+// fire, so the abort itself was never exercised: a hung dependency must still make the call
+// settle (fail open for coordination, fail closed for the two the order depends on).
+describe('an outbound call that hangs is aborted and still settles', () => {
+  const cfg = (): OrderConfigService =>
+    makeConfig({
+      productServiceUrl: 'http://product:3003',
+      payoutServiceUrl: 'http://payout:3016',
+    });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const aborted = new Error('The operation was aborted');
+            aborted.name = 'AbortError';
+            reject(aborted);
+          });
+        }),
+    );
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const revenue = { orderId: 'o1', depotId: 'd1', amountIdr: 240000 } as never;
+  const cases: [string, () => Promise<unknown>][] = [
+    [
+      'depot-directory.listActiveDepots',
+      () => new DepotDirectoryHttpAdapter(cfg()).listActiveDepots(),
+    ],
+    ['depot-directory.findOwnerId', () => new DepotDirectoryHttpAdapter(cfg()).findOwnerId('d1')],
+    ['depot-pricing.getPrices', () => new DepotPricingHttpAdapter(cfg()).getPrices('d1', ['p1'])],
+    [
+      'forecast.ingestCompletedOrder',
+      () => new ForecastCoordinationHttpAdapter(cfg()).ingestCompletedOrder(order()),
+    ],
+    [
+      'franchise-revenue.orderCompleted',
+      () => new FranchiseRevenueHttpAdapter(cfg()).orderCompleted(revenue),
+    ],
+    ['inventory.consume', () => new InventoryHttpAdapter(cfg()).consume('d1', 'o1', line, '')],
+    ['inventory.reserve', () => new InventoryHttpAdapter(cfg()).reserve('d1', 'o1', line, '')],
+    ['inventory.release', () => new InventoryHttpAdapter(cfg()).release('d1', 'o1', line, '')],
+    [
+      'loyalty.awardPoints',
+      () => new LoyaltyCoordinationHttpAdapter(cfg()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ],
+    [
+      'membership.getDiscountRate',
+      () => new MembershipHttpAdapter(cfg()).getDiscountRate('Bearer t'),
+    ],
+    ['notification.notify', () => new NotificationHttpAdapter(cfg()).notify('e', 'p', {}, 'c', '')],
+    ['product-catalog.getProduct', () => new ProductCatalogHttpAdapter(cfg()).getProduct('p1')],
+    ['promo.quote', () => new PromoHttpAdapter(cfg()).quote('X', 'c1', 1, 0, 'Bearer x')],
+    ['promo.redeem', () => new PromoHttpAdapter(cfg()).redeem('X', 'c', 'o', 1, 0, '')],
+    [
+      'recommendation.recordCompleted',
+      () => new RecommendationCoordinationHttpAdapter(cfg()).recordCompleted(order()),
+    ],
+    ['referral.qualify', () => new ReferralCoordinationHttpAdapter(cfg()).qualify('c1', 'o1', '')],
+    ['reseller-discount.get', () => new ResellerDiscountHttpAdapter(cfg()).get('Bearer t')],
+  ];
+
+  it.each(cases)('%s', async (_name, run) => {
+    // The handler has to be attached before the timer fires, or the rejection lands unhandled.
+    const settled = run().then(
+      () => 'settled',
+      () => 'settled',
+    );
+    await jest.advanceTimersByTimeAsync(10_000);
+    expect(await settled).toBe('settled');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+});
+
+// A dependency that answers with a body that is not JSON at all: the parse must not become the
+// error the caller sees.
+describe('unparseable response bodies', () => {
+  const badJson = (status: number): Response =>
+    ({
+      ok: status < 400,
+      status,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON');
+      },
+    }) as unknown as Response;
+
+  it('promo.quote still rejects with the generic voucher message', async () => {
+    fetchMock.mockResolvedValue(badJson(400));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer x'),
+    ).rejects.toThrow(/could not be applied/);
+  });
+
+  it('promo.quote reads a 200 with no discount field as no discount', async () => {
+    fetchMock.mockResolvedValue(badJson(200));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer x'),
+    ).resolves.toEqual({ discount: 0, discountType: undefined });
+  });
+
+  it('inventory.reserve reports a shortfall even when the 422 body is unreadable', async () => {
+    fetchMock.mockResolvedValue(badJson(422));
+    await expect(
+      new InventoryHttpAdapter(makeConfig()).reserve('d1', 'o1', line, ''),
+    ).rejects.toThrow();
+  });
+
+  it('depot-pricing keeps a row that carries only a tier price', async () => {
+    fetchMock.mockResolvedValue(res({ body: [{ productId: 'p1', tierPrice: 5500 }] }));
+    const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1'], [10]);
+    expect(out.get('p1')).toEqual({ tierPrice: 5500 });
   });
 });
 
