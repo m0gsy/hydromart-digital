@@ -1,6 +1,37 @@
 # HRIS Lite — Audit Gap & Rencana Penyelesaian
 
-> **Status dokumen:** rencana yang sudah disetujui, belum dieksekusi.
+> ## ⚠️ SUDAH DIKERJAKAN — dokumen ini arsip, bukan daftar kerja
+>
+> **Diverifikasi ulang terhadap kode 2026-07-31: sepuluh milestone (A1–A3, B1–B3, C1–C4)
+> sudah ada di `main`.** Jangan eksekusi ulang isi §4–§6. Daftar celah di §1 menggambarkan
+> keadaan 2026-07-29, waktu empat modul masih "0%" — keempatnya sudah dibangun sesudahnya.
+>
+> | rencana | bukti di `main` |
+> | --- | --- |
+> | A1 Department | `model Department` + `Employee.departmentId`, `/hr/departments`, migration `0006` |
+> | A2 Port notifikasi | `notification.port.ts` + `notification.http.adapter.ts` (fail-open ke crm) |
+> | A3 Allowance | `model Allowance` + `PayrollItemKind.ALLOWANCE`, `/hr/allowances`, `0007` |
+> | B1 Leave | `LeaveRequest` + `LeaveBalance`, `/hr/leave` + `/hr/me/leave`, `0008` |
+> | B2 Document | `EmployeeDocument`, `0009` |
+> | B3 Asset | `EmployeeAsset` + `AssetMovement`, `/hr/assets`, `0010` |
+> | C1 Announcement | `Announcement`/`Target`/`Read`, `/hr/announcements`, `0011` |
+> | C2 Performance | `domain/performance-score.ts`, `0012` |
+> | C3 Shift rotasi | `ShiftRotation` + `ShiftAssignment`, `/hr/shift`, `0013` |
+> | C4 Reporting | 8 jenis laporan + `tableReportPdf` hasil generalisasi `payroll-pdf.ts` |
+>
+> hr-service: 734 test hijau, gate coverage 98/98/98/98.
+>
+> **Yang masih berlaku dari dokumen ini** cuma dua: §2 (keputusan yang dikunci — geofence
+> dipertahankan, tidak ada soft delete, basis lembur gaji pokok saja, `BonusRule` tidak
+> di-rename, ANNUAL/PERMISSION memotong kuota) dan §8 poin 4 — rantai end-to-end itu baru
+> terbukti lewat unit test, belum pernah dijalankan di stack hidup.
+>
+> §10 sudah usang: PR #38–#42 sudah merge, `/docs` sudah fail-closed di produksi, dan modul
+> UU PDP item 13 sudah rilis.
+>
+> ---
+>
+> **Status dokumen asli:** rencana yang sudah disetujui, belum dieksekusi.
 > **Tanggal audit:** 2026-07-29. **Basis:** pembacaan kode, bukan ingatan — setiap klaim
 > punya berkas rujukan.
 > **Lingkup:** Fase A–C (backend + web). Mobile (Fase D) di luar dokumen ini.
