@@ -2,10 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowsClockwise, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
+import { ArrowsClockwise, Bell, House, Receipt, SquaresFour, User } from '@phosphor-icons/react';
 import type { Icon } from '@phosphor-icons/react';
 
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { consoleHome, isStaff } from '@/lib/roles';
+
+const BAR =
+  'fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-app bg-[color:var(--surface-muted)]/95 px-[22px] pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[8px] sm:hidden';
 
 // Mobile-only bottom tab bar (hidden on sm+, where the top nav carries the links).
 // 1f: five slots with an elevated teal "Pesan lagi" (reorder) FAB in the middle.
@@ -15,6 +20,7 @@ import { useT } from '@/lib/locale-context';
 export function BottomNav() {
   const pathname = usePathname();
   const { t } = useT();
+  const { customer, ready } = useAuth();
 
   const active = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -38,11 +44,19 @@ export function BottomNav() {
     );
   };
 
+  // Staff accounts don't shop: no shop/reorder/cart tabs, just their console.
+  if (ready && customer != null && isStaff(customer.role)) {
+    return (
+      <nav className={BAR} aria-label="Navigasi utama">
+        {tab(consoleHome(customer.role), t('nav.ops'), SquaresFour)}
+        {tab('/notifications', t('notifications.title'), Bell)}
+        {tab('/account', t('nav.account'), User)}
+      </nav>
+    );
+  }
+
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-30 flex items-end justify-between border-t border-app bg-[color:var(--surface-muted)]/95 px-[22px] pb-[max(14px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-[8px] sm:hidden"
-      aria-label="Navigasi utama"
-    >
+    <nav className={BAR} aria-label="Navigasi utama">
       {tab('/', t('nav.home'), House)}
       {tab('/products', t('nav.shop'), SquaresFour)}
 
