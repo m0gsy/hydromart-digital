@@ -48,6 +48,20 @@ describe('AccountController.listStaff depot-manager scope', () => {
   });
 });
 
+describe('AccountController.importStaff', () => {
+  const account = { importStaff: jest.fn() };
+  const controller = new AccountController(account as never, {} as never);
+
+  it('hands the rows to the service and returns the summary untouched', async () => {
+    const summary = { created: 1, updated: 0, skipped: 0, failed: 0, results: [{ row: 1, status: 'created' }] };
+    account.importStaff.mockResolvedValue(summary);
+
+    const rows = [{ phone: '+628990005001', role: Role.HEAD_OFFICE }];
+    await expect(controller.importStaff({ rows } as never)).resolves.toBe(summary);
+    expect(account.importStaff).toHaveBeenCalledWith(rows);
+  });
+});
+
 describe('AccountController.lookupByIds', () => {
   const account = { lookupByIds: jest.fn() };
   const controller = new AccountController(account as never, {} as never);

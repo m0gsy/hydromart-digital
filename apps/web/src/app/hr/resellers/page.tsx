@@ -2,6 +2,7 @@
 
 import { Storefront } from '@phosphor-icons/react';
 
+import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -26,20 +27,23 @@ export default function HrResellersPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Storefront size={24} weight="fill" className="text-brand-500" />
-          Reseller / Agen
-        </h1>
-        <p className="mt-1 text-[13px] text-muted">
-          Hanya lihat. Registry yang sama dengan konsol depot.
-          {depot && (
-            <>
-              {' '}
-              Depot: <strong className="text-[color:var(--text)]">{depot.name}</strong>
-            </>
-          )}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Storefront size={24} weight="fill" className="text-brand-500" />
+            Reseller / Agen
+          </h1>
+          <p className="mt-1 text-[13px] text-muted">
+            Hanya lihat. Registry yang sama dengan konsol depot.
+            {depot && (
+              <>
+                {' '}
+                Depot: <strong className="text-[color:var(--text)]">{depot.name}</strong>
+              </>
+            )}
+          </p>
+        </div>
+        <HrDepotPicker />
       </div>
 
       {ready && depots.length === 0 ? (

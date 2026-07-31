@@ -17,6 +17,7 @@ export const ops = {
   nav: {
     myFranchise: 'Waralabaku',
     operations: 'Operasi',
+    hqConsole: 'Konsol HQ',
     search: 'Pencarian',
     orders: 'Antrean pesanan',
     walkIn: 'Penjualan depot',

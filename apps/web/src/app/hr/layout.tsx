@@ -6,6 +6,7 @@ import { AccessDeniedHq } from '@/components/hq/access-denied';
 import { HrRail } from '@/components/hr/hr-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
+import { DepotProvider } from '@/lib/depot-context';
 import { canViewHr } from '@/lib/roles';
 
 // HR (HRIS Lite) console shell — mirrors the HQ layout. Gated to hrView (HR / HEAD_OFFICE /
@@ -30,13 +31,20 @@ export default function HrLayout({ children }: { children: React.ReactNode }) {
       </RequireAuth>
     );
 
+  // DepotProvider, because nine HR pages (employee/asset import, departemen, shift,
+  // pelanggan, reseller, pengumuman, kinerja, aset) read the depot list to turn a depot
+  // CODE in a spreadsheet into an id. Without it useDepot() throws and the page never
+  // renders — HR is network-wide, but it still has to NAME depots.
+  // Not on /hr/me above: self-service carries no depot picker and would only pay for the fetch.
   return (
     <RequireAuth>
       <HrGate>
-        <div className="flex">
-          <HrRail />
-          <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
-        </div>
+        <DepotProvider>
+          <div className="flex">
+            <HrRail />
+            <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
+          </div>
+        </DepotProvider>
       </HrGate>
     </RequireAuth>
   );

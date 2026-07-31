@@ -15,6 +15,7 @@ export const ops = {
   nav: {
     myFranchise: 'My Franchise',
     operations: 'Operations',
+    hqConsole: 'HQ console',
     search: 'Search',
     orders: 'Order queue',
     walkIn: 'Counter sale',

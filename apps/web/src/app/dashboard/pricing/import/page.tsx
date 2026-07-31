@@ -20,10 +20,12 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportPricesPage() {
-  const { scopedId } = useDepot();
+  const { selectedId, ready } = useDepot();
 
-  if (!scopedId) {
-    return <CenterState title="Pilih depot dulu di pemilih depot" />;
+  // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
+  // silently resolve to depots[0] and propose price overrides for the wrong depot.
+  if (!selectedId) {
+    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
   }
 
   return (
@@ -31,7 +33,7 @@ export default function ImportPricesPage() {
       title="Import Harga Depot"
       description="Setiap baris menjadi usulan override harga dan tetap menunggu persetujuan HQ — tidak langsung berlaku."
       columns={COLUMNS}
-      endpoint={endpoints.priceOverrides.import(scopedId)}
+      endpoint={endpoints.priceOverrides.import(selectedId)}
       templateName="harga-depot"
     />
   );
