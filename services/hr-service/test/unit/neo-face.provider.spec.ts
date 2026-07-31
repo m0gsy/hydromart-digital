@@ -82,6 +82,65 @@ describe('NeoFaceProvider', () => {
     );
   });
 
+  // NEO reports similarity as a percentage, but some deployments answer with a 0..1 fraction
+  // (and an older one omits it entirely) — neither may be read as a 90% match.
+  it('reads a fractional similarity as-is and a missing one as zero', async () => {
+    mockFetch(() => ({ body: { status: '200', similarity: 0.42 } }));
+    const fractional = await new NeoFaceProvider(makeConfig()).verify(
+      Buffer.from('p'),
+      [],
+      true,
+      identity,
+    );
+    expect(fractional.score).toBeCloseTo(0.42);
+
+    mockFetch(() => ({ body: { status: '200' } }));
+    const missing = await new NeoFaceProvider(makeConfig()).verify(
+      Buffer.from('p'),
+      [],
+      true,
+      identity,
+    );
+    expect(missing.score).toBe(0);
+  });
+
+  it('refuses to enroll with no frames at all', async () => {
+    mockFetch(() => ({ body: { status: '200' } }));
+    await expect(new NeoFaceProvider(makeConfig()).enroll([], identity)).rejects.toThrow(
+      /no frames/,
+    );
+  });
+
+  // The gallery is created once per process. An "already exists" answer is the normal second
+  // boot; any other failure has to be retried rather than remembered as done.
+  it('tolerates an existing gallery and retries a genuine creation failure', async () => {
+    let attempts = 0;
+    mockFetch((url) => {
+      if (url.endsWith('create-facegallery')) {
+        attempts += 1;
+        return { body: { status: '400', status_message: 'facegallery already exist' } };
+      }
+      return { body: { status: '200' } };
+    });
+    const existing = new NeoFaceProvider(makeConfig());
+    await existing.enroll([Buffer.from('img')], identity);
+    await existing.enroll([Buffer.from('img')], identity);
+    expect(attempts).toBe(1); // remembered as done
+
+    attempts = 0;
+    mockFetch((url) => {
+      if (url.endsWith('create-facegallery')) {
+        attempts += 1;
+        return { body: { status: '500', status_message: 'internal' } };
+      }
+      return { body: { status: '200' } };
+    });
+    const broken = new NeoFaceProvider(makeConfig());
+    await broken.enroll([Buffer.from('img')], identity);
+    await broken.enroll([Buffer.from('img')], identity);
+    expect(attempts).toBe(2); // retried on the next enroll
+  });
+
   it('requires an identity (userId)', async () => {
     mockFetch(() => ({ body: { status: '200' } }));
     const neo = new NeoFaceProvider(makeConfig());

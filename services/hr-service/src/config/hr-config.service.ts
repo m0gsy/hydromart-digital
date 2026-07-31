@@ -19,12 +19,12 @@ export class HrConfigService {
     return Number(this.config.getOrThrow(key));
   }
 
-  private tunableNum(key: string, envValue: number, depotId: string | null = null): number {
+  private tunableNum(key: string, envValue: number, depotId: string | null): number {
     const def = SETTING_DEF_BY_KEY[key];
     return this.settings.effective(key, def.type, envValue, depotId) as number;
   }
 
-  private tunableStr(key: string, envValue: string, depotId: string | null = null): string {
+  private tunableStr(key: string, envValue: string, depotId: string | null): string {
     const def = SETTING_DEF_BY_KEY[key];
     return this.settings.effective(key, def.type, envValue, depotId) as string;
   }

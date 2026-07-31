@@ -139,6 +139,14 @@ describe('AnnouncementService (C1)', () => {
     expect(out.audienceSize).toBe(2);
   });
 
+  // The sweep is ops-triggered and defaults to "now"; a COMPANY target carries no value.
+  it('sweeps on the current clock and stores a company target with no value', async () => {
+    const { svc, repo } = make();
+    await svc.create(hr, { ...DRAFT, targets: [{ dimension: 'COMPANY', value: 'diabaikan' }] });
+    expect(repo.rows[0].targets[0]).toMatchObject({ dimension: 'COMPANY', value: null });
+    await expect(svc.publishDue()).resolves.toEqual({ published: 0 });
+  });
+
   it('holds a future notice back until the sweep runs', async () => {
     const { svc, sent, repo } = make();
     const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();

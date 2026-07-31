@@ -3,6 +3,7 @@ import { SettingsCache, SettingRow } from '@hydromart/platform';
 
 import { SettingsService } from '../../src/application/services/settings.service';
 import { SettingsRepository } from '../../src/application/ports/settings.repository';
+import { SETTING_DEF_BY_KEY } from '../../src/config/setting-defs';
 
 class FakeSettingsRepo implements SettingsRepository {
   rows: (SettingRow & { updatedBy: string })[] = [];
@@ -37,3 +38,35 @@ describe('SettingsService.reset', () => {
     expect(repo.removed).toEqual({ scope: 'GLOBAL', depotId: null, key: 'lateDeductionAmount' });
   });
 });
+
+describe('SettingsService.put guards', () => {
+  const key = 'lateToleranceMinutes';
+
+  it('rejects a DEPOT override with no depot and a value under the minimum', async () => {
+    const { svc } = make();
+    await expect(
+      svc.put({ scope: 'DEPOT', depotId: null, key, value: '5', updatedBy: 'u' }),
+    ).rejects.toThrow(/depotId required/);
+    await expect(
+      svc.put({ scope: 'GLOBAL', depotId: null, key, value: '-1', updatedBy: 'u' }),
+    ).rejects.toThrow(/below min/);
+  });
+
+  // No shipped def is global-only today, but the console reads the same flag to hide the
+  // per-depot control — the server has to reject the scope regardless.
+  it('rejects a per-depot override of a global-only setting', async () => {
+    const def = SETTING_DEF_BY_KEY[key];
+    def.global = true;
+    try {
+      await expect(
+        svc0().put({ scope: 'DEPOT', depotId: 'd1', key, value: '5', updatedBy: 'u' }),
+      ).rejects.toThrow(/global-only/);
+    } finally {
+      delete def.global;
+    }
+  });
+});
+
+function svc0(): SettingsService {
+  return make().svc;
+}

@@ -92,6 +92,19 @@ describe('performance score (C2)', () => {
     expect(out.final).toBe(100); // discipline alone
   });
 
+  // A component with nothing to measure contributes neither score nor weight — it must not
+  // drag the average down as a zero.
+  it('scores on the measured components alone when one has no data', () => {
+    const out = computePerformanceScore(inputs({ presentDays: 10, lateDays: 0, workingDays: 0 }), {
+      attendance: 40,
+      discipline: 30,
+      sales: 30,
+    });
+    expect(out.attendance).toBeNull();
+    expect(out.effectiveWeights.attendance).toBe(0);
+    expect(out.final).not.toBeNull();
+  });
+
   it('rounds to two decimals rather than trailing float noise', () => {
     const out = computePerformanceScore(inputs({ presentDays: 1, workingDays: 3, lateDays: 0 }));
     expect(out.attendance).toBe(33.33);

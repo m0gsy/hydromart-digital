@@ -59,6 +59,62 @@ describe('AttendanceService manual override', () => {
     );
   });
 
+  it('adjust keeps the stored status when the patch only moves the times', async () => {
+    const { svc, upsert } = build();
+    await svc.adjust(user, 'a1', {
+      reason: 'lupa absen pulang',
+      checkInAt: '2026-07-01T01:00:00.000Z',
+      checkOutAt: '2026-07-01T10:00:00.000Z',
+    });
+    expect(upsert()).toMatchObject({
+      status: 'ABSENT', // unchanged
+      checkInAt: new Date('2026-07-01T01:00:00.000Z'),
+      checkOutAt: new Date('2026-07-01T10:00:00.000Z'),
+    });
+  });
+
+  it('404s an attendance row whose employee is gone, on both write paths', async () => {
+    const repo = {
+      findById: async () => row,
+      findByEmployeeAndDate: async () => null,
+      upsertManual: async () => row,
+      recordAdjustment: async () => undefined,
+    } as unknown as AttendanceRepository;
+    const employees = { findById: async () => null } as unknown as EmployeeRepository;
+    const svc = new AttendanceService(repo, {} as never, {} as never, employees, {} as never);
+    await expect(svc.adjust(user, 'a1', { status: 'LEAVE', reason: 'x' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      svc.createManual(user, {
+        employeeId: 'gone',
+        workDate: '2026-07-02',
+        status: 'HOLIDAY',
+        reason: 'x',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('createManual audits the day it overwrote when one already existed', async () => {
+    const adjustments: { before: unknown }[] = [];
+    const repo = {
+      findById: async () => row,
+      findByEmployeeAndDate: async () => row,
+      upsertManual: async (input: ManualAttendanceInput) =>
+        ({ ...row, status: input.status }) as Attendance,
+      recordAdjustment: async (d: { before: unknown }) => void adjustments.push(d),
+    } as unknown as AttendanceRepository;
+    const employees = { findById: async () => employee } as unknown as EmployeeRepository;
+    const svc = new AttendanceService(repo, {} as never, {} as never, employees, {} as never);
+    await svc.createManual(user, {
+      employeeId: 'e1',
+      workDate: '2026-07-01',
+      status: 'HOLIDAY',
+      reason: 'libur depot',
+    });
+    expect((adjustments[0].before as { status: string }).status).toBe('ABSENT');
+  });
+
   it('createManual upserts a day (no check-in) and audits it', async () => {
     const { svc, adjustments, upsert } = build();
     const out = await svc.createManual(user, {

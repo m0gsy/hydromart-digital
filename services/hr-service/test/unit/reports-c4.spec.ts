@@ -170,6 +170,27 @@ describe('C4 report builders', () => {
     expect(out.rows[0]).toEqual(['2026-07', 'EMP-001', 'Budi', 82.5, 90, '', '', 'stabil']);
   });
 
+  // The mirror image of the row above: the components that WERE measured are the ones that
+  // may be missing, and a review with no manager note prints an empty cell.
+  it('performance prints the measured components and blanks a missing note', async () => {
+    const { svc } = build({
+      performanceForReport: async () =>
+        [
+          {
+            periodMonth: '2026-07',
+            score: null,
+            attendanceScore: null,
+            disciplineScore: new Prisma.Decimal(70),
+            salesScore: new Prisma.Decimal(60),
+            managerNote: null,
+            employee: { employeeCode: 'EMP-002', fullName: 'Sari' },
+          },
+        ] as unknown as ReviewWithEmployee[],
+    });
+    const out = await svc.performanceReport(hq, { periodMonth: '2026-07' });
+    expect(out.rows[0]).toEqual(['2026-07', 'EMP-002', 'Sari', 0, '', 70, 60, '']);
+  });
+
   it('assets name the holder, or leave it blank when nobody holds it', async () => {
     const { svc } = build();
     const out = await svc.assetReport(hq);

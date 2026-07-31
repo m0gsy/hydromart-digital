@@ -278,6 +278,15 @@ describe('LeaveService approval flow', () => {
     expect(await ctx.repo.findBalance('emp-1', 2026)).toBeNull();
   });
 
+  it('lets HR reject what the manager already approved', async () => {
+    const ctx = make();
+    const req = await ctx.svc.submit(staff, APPLY);
+    await ctx.svc.decideManager(manager(DEPOT_A), req.id, true);
+    const decided = await ctx.svc.decideHr(hr, req.id, false, 'Kuota depot habis');
+    expect(decided.status).toBe('REJECTED');
+    expect(ctx.attendanceWrites).toHaveLength(0); // nothing stamped for a rejection
+  });
+
   it('notifies the employee on approval and on rejection', async () => {
     const ctx = make();
     await approvedRequest(ctx);
@@ -367,6 +376,12 @@ describe('LeaveService reads', () => {
     });
   });
 
+  it('reads the current year balance when no year is asked for', async () => {
+    const { svc } = make({ quota: 15 });
+    const thisYear = new Date().getUTCFullYear();
+    expect(await svc.myBalance(staff)).toMatchObject({ year: thisYear, quotaDays: 15 });
+  });
+
   it('forces a depot manager to their own depot in the approval queue', async () => {
     const ctx = make();
     await ctx.svc.submit(staff, APPLY);
@@ -377,6 +392,38 @@ describe('LeaveService reads', () => {
 });
 
 describe('LeaveService without optional collaborators', () => {
+  // Nothing to notify when the person has no login yet: the message is skipped, not attempted
+  // against a null recipient.
+  it('skips both notifications when neither party has a linked account', async () => {
+    const repo = new FakeLeaveRepo();
+    const attendance = { upsertManual: async () => ({}) as never } as never;
+    const unlinked = { ...EMPLOYEE, authSubjectId: null };
+    const employees = {
+      getSelf: async () => unlinked,
+      findByIdInternal: async () => ({ ...SUPERVISOR, authSubjectId: null }),
+    } as unknown as EmployeeService;
+    const config = {
+      weeklyOffDays: () => '',
+      annualLeaveQuotaDays: () => 12,
+    } as unknown as HrConfigService;
+    const sent: string[] = [];
+    const notifications: NotificationPort = {
+      notify: async (event) => void sent.push(event),
+    };
+    const svc = new LeaveService(
+      repo,
+      attendance,
+      employees,
+      config,
+      { listDates: async () => [] } as never,
+      notifications,
+    );
+
+    const req = await svc.submit(staff, APPLY);
+    await svc.decideManager(manager(DEPOT_A), req.id, false, 'tidak disetujui');
+    expect(sent).toEqual([]);
+  });
+
   it('works with no holiday repository and no notification port', async () => {
     const repo = new FakeLeaveRepo();
     const writes: ManualAttendanceInput[] = [];

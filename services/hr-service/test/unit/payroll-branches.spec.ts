@@ -90,6 +90,10 @@ function build(opts: {
   sales?: number | null;
   allowances?: Partial<Allowance>[];
   workedMinutes?: { workDate: string; workingMinutes: number | null }[];
+  bonusRows?: { id: string; type: string; amount: number; note: string | null }[];
+  deductionRows?: { id: string; type: string; amount: number; note: string | null }[];
+  /** Deploys without the holiday table wired (the port is optional). */
+  noHolidays?: boolean;
 }) {
   const repo = new FakePayrollRepo();
   const attendance = {
@@ -101,8 +105,12 @@ function build(opts: {
         workingMinutes: d.workingMinutes,
       })),
   } as unknown as AttendanceRepository;
-  const bonuses = { listByEmployeePeriod: async () => [] } as unknown as BonusRepository;
-  const deductions = { listByEmployeePeriod: async () => [] } as unknown as DeductionRepository;
+  const bonuses = {
+    listByEmployeePeriod: async () => opts.bonusRows ?? [],
+  } as unknown as BonusRepository;
+  const deductions = {
+    listByEmployeePeriod: async () => opts.deductionRows ?? [],
+  } as unknown as DeductionRepository;
   const employees = {
     getById: async () =>
       ({
@@ -124,7 +132,9 @@ function build(opts: {
     overtimeMultiplierPct: () => 150,
     overtimeOffDayMultiplierPct: () => 200,
   } as unknown as HrConfigService;
-  const holidays = { listDates: async () => [] } as unknown as HolidayRepository;
+  const holidays = opts.noHolidays
+    ? undefined
+    : ({ listDates: async () => [] } as unknown as HolidayRepository);
   const bonusRules = opts.rules
     ? ({
         listActiveForDepot: async () => opts.rules as BonusRule[],
@@ -416,5 +426,67 @@ describe('PayrollService allowances (A3)', () => {
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.items.some((i) => i.kind === 'ALLOWANCE')).toBe(false);
     expect(repo.lastWrite!.gross).toBe(4_000_000);
+  });
+});
+
+// The pay shapes nobody had generated: a manual bonus/deduction row with and without its own
+// note, a trainee with no rate of their own, a monthly employee with no rate stored at all,
+// and a deployment with no holiday table wired.
+describe('PayrollService remaining pay shapes', () => {
+  const basicOf = (w: PayrollWrite | undefined): number | undefined =>
+    w?.items.find((i) => i.kind === 'BASE')?.amount;
+
+  it('labels manual bonus and deduction lines by note, falling back to the type', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
+      bonusRows: [
+        { id: 'b1', type: 'THR', amount: 500_000, note: 'THR Idulfitri' },
+        { id: 'b2', type: 'LAINNYA', amount: 100_000, note: null },
+      ],
+      deductionRows: [
+        { id: 'd1', type: 'BPJS', amount: 50_000, note: 'BPJS Juli' },
+        { id: 'd2', type: 'LAINNYA', amount: 25_000, note: null },
+      ],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.items.map((i) => i.label)).toEqual(
+      expect.arrayContaining(['THR Idulfitri', 'Bonus LAINNYA', 'BPJS Juli', 'Potongan LAINNYA']),
+    );
+  });
+
+  it('pays a trainee with no rate of their own at the training day rate', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: null, employmentStatus: 'TRAINING' as never },
+      summary: { presentDays: 10, lateDays: 0, leaveDays: 0 },
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(basicOf(repo.lastWrite)).toBe(300_000); // 10 days at 30.000
+    expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Lembur'))).toBe(true);
+  });
+
+  it('adds no overtime line when there is no rate to price it with', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: null },
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(repo.lastWrite!.items.some((i) => i.label.startsWith('Lembur'))).toBe(false);
+  });
+
+  it('pays a monthly employee with no stored rate nothing, rather than NaN', async () => {
+    const { repo, svc } = build({ employee: { salaryType: 'MONTHLY', monthlyRate: null } });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(basicOf(repo.lastWrite)).toBe(0);
+  });
+
+  it('generates payroll on a deployment with no holiday table wired', async () => {
+    const { repo, svc } = build({
+      employee: { salaryType: 'DAILY', dailyRate: 100_000 as never },
+      workedMinutes: [{ workDate: '2026-07-06', workingMinutes: 600 }],
+      noHolidays: true,
+    });
+    await svc.generate(user, 'e1', '2026-07');
+    expect(basicOf(repo.lastWrite)).toBe(2_000_000);
   });
 });

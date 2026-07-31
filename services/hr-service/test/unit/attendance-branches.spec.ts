@@ -104,6 +104,41 @@ describe('AttendanceService geofence + list', () => {
     expect(att).toBeDefined();
   });
 
+  // An unfiltered list is what both consoles open with: no window at all, and the self-service
+  // PWA reading only its own log.
+  it('lists without a date window, for staff and for the caller themselves', async () => {
+    const { att, svc } = make({ lat: null, lng: null, radiusM: 0 });
+    await svc.list(manager, { page: 1, pageSize: 20 });
+    expect(att.lastFilter).toMatchObject({ from: undefined, to: undefined });
+    await svc.listSelf(user, { page: 1, pageSize: 20 });
+    expect(att.lastFilter).toMatchObject({ employeeId: 'e1', from: undefined, to: undefined });
+    const from = '2026-07-01';
+    const to = '2026-07-31';
+    await svc.listSelf(user, { from, to, page: 1, pageSize: 20 });
+    expect(att.lastFilter?.from).toEqual(new Date(from));
+    expect(att.lastFilter?.to).toEqual(new Date(to));
+  });
+
+  // Both punches default `now` to the server clock; only the specs that freeze time pass it.
+  it('punches in and out on the server clock when no time is supplied', async () => {
+    const { att, svc } = make({ lat: null, lng: null, radiusM: 0 });
+    await svc.checkIn(user, punch);
+    jest
+      .spyOn(att, 'findByEmployeeAndDate')
+      .mockResolvedValue({ id: 'a1', checkInAt: new Date(), checkOutAt: null } as Attendance);
+    await expect(svc.checkOut(user, punch)).resolves.toBeDefined();
+  });
+
+  it('refuses a second check-out on the same day', async () => {
+    const { att, svc } = make({ lat: null, lng: null, radiusM: 0 });
+    jest.spyOn(att, 'findByEmployeeAndDate').mockResolvedValue({
+      id: 'a1',
+      checkInAt: new Date(),
+      checkOutAt: new Date(),
+    } as Attendance);
+    await expect(svc.checkOut(user, punch, AT)).rejects.toThrow(/Sudah check-out/);
+  });
+
   it('scopes the attendance list to a manager’s own depot', async () => {
     const { att, svc } = make({ lat: null, lng: null, radiusM: 0 });
     const out = await svc.list(manager, {

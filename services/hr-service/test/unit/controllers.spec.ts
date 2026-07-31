@@ -379,8 +379,30 @@ describe('HolidayController / ShiftController', () => {
 });
 
 describe('EmployeesController', () => {
-  const emp = svcMock(['list', 'getById', 'getHistory', 'create', 'update', 'importMany']);
+  const emp = svcMock([
+    'list',
+    'getById',
+    'getHistory',
+    'create',
+    'update',
+    'importMany',
+    'retentionReport',
+    'retentionAnonymise',
+    'purgeBiometrics',
+  ]);
   const c = new EmployeesController(emp as never);
+
+  // The three internal PDP-retention routes: admin-service decides the cutoff, HR only
+  // counts, anonymises and purges biometrics against it.
+  it('passes the retention cutoff through as a Date', () => {
+    const cutoff = '2020-01-01T00:00:00.000Z';
+    c.retentionReport({ cutoff } as never);
+    expect(emp.retentionReport).toHaveBeenCalledWith(new Date(cutoff));
+    c.retentionAnonymise({ cutoff } as never);
+    expect(emp.retentionAnonymise).toHaveBeenCalledWith(new Date(cutoff));
+    c.purgeBiometrics({ cutoff } as never);
+    expect(emp.purgeBiometrics).toHaveBeenCalledWith(new Date(cutoff));
+  });
 
   it('delegates every route', () => {
     const q = { page: 1 } as never;
@@ -480,7 +502,7 @@ describe('PayrollController', () => {
 });
 
 describe('PerformanceController', () => {
-  const perf = svcMock(['listByEmployee', 'upsert']);
+  const perf = svcMock(['listByEmployee', 'upsert', 'score', 'dashboard', 'generate']);
   const c = new PerformanceController(perf as never);
   it('delegates list + upsert', () => {
     c.list({ employeeId: 'e1' } as never, user);
@@ -488,6 +510,15 @@ describe('PerformanceController', () => {
     const dto = { employeeId: 'e1', periodMonth: '2026-07' } as never;
     c.upsert(dto, user);
     expect(perf.upsert).toHaveBeenCalledWith(user, dto);
+  });
+
+  it('delegates the scoring routes', () => {
+    c.score({ employeeId: 'e1', periodMonth: '2026-07' } as never, user);
+    expect(perf.score).toHaveBeenCalledWith(user, 'e1', '2026-07');
+    c.dashboard({ periodMonth: '2026-07', depotId: 'd1' } as never, user);
+    expect(perf.dashboard).toHaveBeenCalledWith(user, '2026-07', 'd1');
+    c.generate({ employeeId: 'e1', periodMonth: '2026-07', managerNote: 'bagus' } as never, user);
+    expect(perf.generate).toHaveBeenCalledWith(user, 'e1', '2026-07', 'bagus');
   });
 });
 

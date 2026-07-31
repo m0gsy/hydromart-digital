@@ -69,6 +69,34 @@ describe('HrConfigService', () => {
     expect(svc.workStartTime()).toBe('07:30'); // global override applies network-wide
   });
 
+  // The network-wide (no depot) read of every tunable the payroll and performance engines
+  // ask for, plus the outbound service targets.
+  it('serves every remaining tunable from its ENV default when no depot is given', async () => {
+    const svc = new HrConfigService(
+      config({
+        HR_OVERTIME_MULTIPLIER_PCT: '150',
+        HR_OVERTIME_OFF_DAY_MULTIPLIER_PCT: '200',
+        HR_ANNUAL_LEAVE_QUOTA_DAYS: '12',
+        HR_WEEKLY_OFF_DAYS: '0,6',
+      }),
+      await cacheWith([]),
+    );
+    expect(svc.overtimeMultiplierPct()).toBe(150);
+    expect(svc.overtimeOffDayMultiplierPct()).toBe(200);
+    expect(svc.annualLeaveQuotaDays()).toBe(12);
+    expect(svc.weeklyOffDays()).toBe('0,6');
+    expect(svc.performanceWeights()).toEqual({ attendance: 40, discipline: 30, sales: 30 });
+    expect(svc.performanceSalesTarget()).toBe(0);
+  });
+
+  it('reads the crm notification target from ENV', () => {
+    const svc = new HrConfigService(
+      config({ CRM_SERVICE_URL: 'http://crm:3012', INTERNAL_SERVICE_KEY: 'k' }),
+      new SettingsCache(new FakeSource([])),
+    );
+    expect(svc.crmService).toEqual({ url: 'http://crm:3012', internalKey: 'k' });
+  });
+
   it('parses corsOrigins into a trimmed list', () => {
     const svc = new HrConfigService(
       config({ CORS_ALLOWED_ORIGINS: 'http://a.com, http://b.com ' }),

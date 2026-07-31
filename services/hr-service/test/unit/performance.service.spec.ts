@@ -248,5 +248,17 @@ describe('PerformanceService — computed score (C2)', () => {
       roster: [EMPLOYEE],
     });
     expect((await empty.svc.dashboard(user, '2026-07')).map((r) => r.score.final)).toEqual([null]);
+
+    // Two people, neither measurable: the sort still has to order them without reading a
+    // null as a zero.
+    const noneMeasurable = build({
+      presentDays: 0,
+      lateDays: 0,
+      weights: { attendance: 0, discipline: 0, sales: 0 },
+      roster: [EMPLOYEE, other],
+    });
+    expect((await noneMeasurable.svc.dashboard(user, '2026-07')).map((r) => r.score.final)).toEqual(
+      [null, null],
+    );
   });
 });

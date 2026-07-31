@@ -518,3 +518,62 @@ describe('EmployeeService retention enforcement', () => {
     expect(await service.purgeBiometrics(new Date('2026-01-01'))).toEqual({ deleted: 7 });
   });
 });
+
+// The salary/date shapes and the by-code lookup the import wizard leans on: nothing had
+// created a MONTHLY employee, moved somebody onto a monthly salary, patched a birth date or
+// contract end, or resolved a staff code.
+describe('EmployeeService salary, dates and code lookup', () => {
+  it('stores a monthly salary and leaves the daily rate empty', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      fullName: 'Rina',
+      salaryType: 'MONTHLY',
+      dailyRate: undefined,
+      monthlyRate: 4_500_000,
+    });
+    expect(Number(e.monthlyRate)).toBe(4_500_000);
+    expect(e.dailyRate).toBeNull();
+  });
+
+  it('reuses the stored rate when the salary type is re-sent without one', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, baseInput); // DAILY 50000
+    // Re-sending the same type with no rate must not demand the number again.
+    const same = await svc.update(hr, e.id, { salaryType: 'DAILY' });
+    expect(Number(same.dailyRate)).toBe(50000);
+
+    const moved = await svc.update(hr, e.id, { salaryType: 'MONTHLY', monthlyRate: 5_000_000 });
+    expect(Number(moved.monthlyRate)).toBe(5_000_000);
+    expect(moved.dailyRate).toBeNull();
+    const stillMonthly = await svc.update(hr, e.id, { salaryType: 'MONTHLY' });
+    expect(Number(stillMonthly.monthlyRate)).toBe(5_000_000);
+  });
+
+  it('patches the personal dates as Dates, not strings', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, baseInput);
+    const updated = await svc.update(hr, e.id, {
+      birthDate: '1995-05-05',
+      contractEndDate: '2027-01-01',
+    });
+    expect(updated.birthDate).toEqual(new Date('1995-05-05'));
+    expect(updated.contractEndDate).toEqual(new Date('2027-01-01'));
+  });
+
+  it('resolves a staff code for the import wizard and rejects an unknown one', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, baseInput);
+    await expect(svc.getByCode(hr, ' hr-0001 ')).resolves.toMatchObject({ id: e.id });
+    await expect(svc.getByCode(hr, 'HR-9999')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('reads an employee without a depot check for internal callers', async () => {
+    const { svc } = make();
+    const e = await svc.create(hr, baseInput);
+    // A manager from another depot may not getById, but the internal read is ungated on purpose.
+    await expect(svc.getById(manager(DEPOT_B), e.id)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(svc.findByIdInternal(e.id)).resolves.toMatchObject({ id: e.id });
+    await expect(svc.findByIdInternal('missing')).resolves.toBeNull();
+  });
+});

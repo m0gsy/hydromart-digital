@@ -180,6 +180,18 @@ describe('ShiftService.update', () => {
     expect(u).toMatchObject({ name: 'Pagi', startTime: '09:00', endTime: '16:00', active: true });
   });
 
+  it('renames a shift without touching its hours', async () => {
+    const { svc } = make();
+    const s = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
+    const u = await svc.update(hr, s.id, { name: 'Pagi Awal' });
+    expect(u).toMatchObject({ name: 'Pagi Awal', startTime: '08:00', endTime: '16:00' });
+  });
+
   it('depot-checks both the existing shift and a moved-to depot', async () => {
     const { svc } = make();
     const s = await svc.create(hr, {
@@ -215,6 +227,9 @@ describe('ShiftService rotations & assignments (C3)', () => {
     const { svc, repo } = make();
     await svc.listRotations(manager(DEPOT_A));
     expect(repo.lastRotationListDepot).toBe(DEPOT_A);
+    // HR with no depot asked for reads network-wide (no filter at all).
+    await svc.listRotations(hr);
+    expect(repo.lastRotationListDepot).toBeUndefined();
     await expect(
       svc.createRotation(manager(DEPOT_B), { name: 'x', pattern: {}, depotId: DEPOT_A }),
     ).rejects.toThrow(ForbiddenException);
@@ -253,6 +268,13 @@ describe('ShiftService rotations & assignments (C3)', () => {
     expect(repo.assignments[0].effectiveFrom).toEqual(new Date('2026-08-01T00:00:00.000Z'));
     expect(repo.assignments[1]).toMatchObject({ note: 'pindah gudang', createdBy: 'hr-1' });
     expect(await svc.listAssignments(hr, 'e1')).toHaveLength(2);
+  });
+
+  it('assigns a rotation, leaving the fixed shift empty', async () => {
+    const { svc, repo } = make();
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': 's-1' } });
+    await svc.assign(hr, { employeeId: 'e1', rotationId: rot.id, effectiveFrom: '2026-08-01' });
+    expect(repo.assignments[0]).toMatchObject({ rotationId: rot.id, shiftId: null, note: null });
   });
 
   it('demands exactly one of shiftId / rotationId', async () => {
