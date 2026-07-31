@@ -35,7 +35,20 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   // nothing to sell — an environment gap, not a product defect.
   const heading = page.getByRole('heading', { name: /Penjualan di depot/i });
   const noDepot = page.getByRole('heading', { name: /Belum ada depot/i });
-  await expect(heading.or(noDepot).first()).toBeVisible({ timeout: 15_000 });
+  // The depot list can also fail outright — the console renders its error state, a THIRD
+  // heading. Matching only the first two turned a gateway 429 into "element(s) not found",
+  // which named nothing. Match it too, and fail with what the depot list actually answered.
+  const depotFailed = page.getByRole('heading', {
+    name: /Ada yang tidak beres|Something went wrong/i,
+  });
+  await expect(heading.or(noDepot).or(depotFailed).first()).toBeVisible({ timeout: 15_000 });
+  if (await depotFailed.isVisible()) {
+    throw new Error(
+      `the depot list failed to load, so the counter never rendered. Responses:\n  ${
+        depotCalls.join('\n  ') || '(no depot call was made)'
+      }`,
+    );
+  }
   if (await noDepot.isVisible()) {
     console.log(`[walk-in] depot list responses:\n  ${depotCalls.join('\n  ') || '(none)'}`);
     test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);

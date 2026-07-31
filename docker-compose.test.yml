@@ -321,6 +321,13 @@ services:
     environment:
       <<: *shared
       GATEWAY_PORT: 8080
+      # Relaxed for E2E, same reason as auth's OTP cooldown above: the whole browser suite
+      # runs serially from ONE runner IP through this ONE gateway, so the prod default of
+      # 100 requests/60s trips mid-suite. It used to hide: the console swallowed the failed
+      # depot fetch and rendered "no depot", and the walk-in spec skipped itself as an
+      # environment gap. Now that the provider surfaces the error, a 429 fails the run
+      # outright — correctly. Test stack only; prod keeps its edge limit.
+      RATE_LIMIT_MAX: 10000
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
       PRODUCT_SERVICE_URL: http://product:3003

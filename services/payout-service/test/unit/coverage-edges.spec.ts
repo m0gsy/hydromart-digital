@@ -270,10 +270,21 @@ describe('money DTOs coerce what an HTTP client actually sends', () => {
   it('coerces the order amount a revenue callback posts as a string', () => {
     const dto = plainToInstance(OrderRevenueDto, {
       orderId: '11111111-1111-4111-8111-111111111111',
+      // Required since the owner-credit rewrite: order-service resolves the depot's owner
+      // before it posts, so a body without one is a caller bug, not a shape to accept.
+      franchiseOwnerId: '22222222-2222-4222-8222-222222222222',
       amountIdr: '240000',
     });
     expect(validateSync(dto as object)).toEqual([]);
     expect(dto.amountIdr).toBe(240_000);
+  });
+
+  it('refuses a revenue callback that names no owner to credit', () => {
+    const dto = plainToInstance(OrderRevenueDto, {
+      orderId: '11111111-1111-4111-8111-111111111111',
+      amountIdr: 240_000,
+    });
+    expect(validateSync(dto as object).map((e) => e.property)).toContain('franchiseOwnerId');
   });
 });
 
