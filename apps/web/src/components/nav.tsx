@@ -18,6 +18,10 @@ export function Nav() {
   const { t } = useT();
   const pathname = usePathname();
 
+  // Staff accounts don't shop. The shop chrome (Belanja / Pesanan / cart) is hidden for
+  // every non-CUSTOMER role — they keep only their console pill, notifications, account.
+  const staff = ready && customer != null && isStaff(customer.role);
+
   const active = (href: string) =>
     href === '/' ? pathname === '/' : pathname.startsWith(href);
 
@@ -66,8 +70,8 @@ export function Nav() {
         <div className="ml-auto flex items-center gap-1.5">
           {/* primary links — desktop only; mobile uses the bottom tab bar */}
           <div className="hidden items-center gap-1.5 sm:flex">
-            {pill('/products', t('nav.shop'))}
-            {ready && customer && pill('/orders', t('nav.orders'))}
+            {!staff && pill('/products', t('nav.shop'))}
+            {ready && customer && !staff && pill('/orders', t('nav.orders'))}
             {ready && customer && canViewDashboard(customer.role) && pill('/dashboard', t('nav.ops'))}
             {ready && customer && customer.role === 'STAFF_DEPOT' && pill('/driver', 'Pengantaran')}
             {ready && customer && customer.role !== 'STAFF_DEPOT' && !canViewDashboard(customer.role) &&
@@ -75,6 +79,7 @@ export function Nav() {
           </div>
 
           {/* cart — ink button carrying the running subtotal + teal count badge (1c signature) */}
+          {!staff && (
           <Link
             href="/cart"
             aria-label={t('nav.cart')}
@@ -88,6 +93,7 @@ export function Nav() {
               </span>
             )}
           </Link>
+          )}
 
           {ready && customer && (
             <Link
