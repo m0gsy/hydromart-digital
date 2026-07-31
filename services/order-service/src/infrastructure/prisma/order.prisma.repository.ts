@@ -234,6 +234,15 @@ export class OrderPrismaRepository implements OrderRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
+    const row = await this.prisma.order.update({
+      where: { id },
+      data: { depotId },
+      include: INCLUDE,
+    });
+    return this.toRecord(row);
+  }
+
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     const rows = await this.prisma.order.findMany({
       where: { id: { in: orderIds } },
@@ -258,7 +267,11 @@ export class OrderPrismaRepository implements OrderRepository {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
-      ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
+      ...(query.unrouted
+        ? { depotId: null }
+        : query.depotIds
+          ? { depotId: depotWhere(query.depotIds) }
+          : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({

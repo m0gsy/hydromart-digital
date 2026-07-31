@@ -28,12 +28,25 @@ import {
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 const INTERNAL_KEY = 'test-internal-service-key-01';
 
+// Pinned inside E2E_DEPOT's radius — checkout is fail-closed, an unpinned address
+// without a picked depot is refused (422 ORDER_DEPOT_REQUIRED).
 const ADDRESS = {
   recipientName: 'Budi',
   phone: '081234567890',
   addressLine: 'Jl. Merdeka 10',
   city: 'Bandung',
   province: 'Jawa Barat',
+  latitude: -6.9,
+  longitude: 107.6,
+};
+
+const E2E_DEPOT = {
+  id: '11111111-1111-4111-8111-111111111111',
+  lat: -6.9,
+  lng: 107.6,
+  serviceRadiusKm: 10,
+  deliveryFee: 5000,
+  minOrderAmount: null,
 };
 
 describe('Order HTTP flows (e2e)', () => {
@@ -91,7 +104,7 @@ describe('Order HTTP flows (e2e)', () => {
       .overrideProvider(ORDER_TOKENS.ProductCatalog)
       .useValue(catalog)
       .overrideProvider(ORDER_TOKENS.DepotDirectory)
-      .useValue(new FakeDepotDirectory())
+      .useValue(Object.assign(new FakeDepotDirectory(), { depots: [E2E_DEPOT] }))
       .overrideProvider(ORDER_TOKENS.LoyaltyCoordination)
       .useValue(new FakeLoyaltyCoordination())
       .overrideProvider(ORDER_TOKENS.ReferralCoordination)

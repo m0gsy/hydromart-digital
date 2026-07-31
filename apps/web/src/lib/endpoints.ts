@@ -143,15 +143,23 @@ export const endpoints = {
     review: (id: string) => `/orders/api/v1/orders/${id}/review`,
     status: (id: string) => `/orders/api/v1/orders/${id}/status`,
     // Staff queue across all customers; depotId scopes to one depot (switcher).
-    manage: (q: { page?: number; limit?: number; status?: string; depotId?: string } = {}) => {
+    // unrouted=true is the HQ tray of orders that reached no depot at all.
+    manage: (
+      q: { page?: number; limit?: number; status?: string; depotId?: string; unrouted?: boolean } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.status) p.set('status', q.status);
       if (q.depotId) p.set('depotId', q.depotId);
+      if (q.unrouted) p.set('unrouted', 'true');
       const qs = p.toString();
       return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
     },
+    // Staff read of any order (the customer-scoped GET /orders/:id 404s for staff).
+    manageGet: (id: string) => `/orders/api/v1/orders/manage/${id}`,
+    // PATCH { depotId } — fills in the depot of an order that has none.
+    assignDepot: (id: string) => `/orders/api/v1/orders/manage/${id}/depot`,
   },
   // Delivery live tracking (delivery-service). Staff read; driver app posts position.
   deliveries: {

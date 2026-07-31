@@ -1,10 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -85,6 +86,15 @@ export class CheckoutDto {
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Depot the customer picked. Required when the address carries no map pin, ignored when it does.',
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+
   @ApiPropertyOptional({ example: 'HEMAT10', description: 'Optional discount voucher code.' })
   @IsOptional()
   @IsString()
@@ -137,6 +147,22 @@ export class ListOrdersQueryDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'HQ tray: only orders that reached no depot (legacy rows from when checkout failed open).',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  unrouted?: boolean;
+}
+
+/** HQ fills in the fulfilling depot of an order that has none. */
+export class AssignDepotDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
 }
 
 export class CancelOrderDto {

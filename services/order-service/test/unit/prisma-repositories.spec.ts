@@ -325,6 +325,26 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  it('assigns a depot to an order that had none', async () => {
+    order.update.mockResolvedValue({ ...orderRow(), depotId: 'depot-a' });
+    const out = await repo.assignDepot('ord-1', 'depot-a');
+    expect(out.depotId).toBe('depot-a');
+    expect(order.update).toHaveBeenCalledWith({
+      where: { id: 'ord-1' },
+      data: { depotId: 'depot-a' },
+      include: expect.any(Object),
+    });
+  });
+
+  it('filters the unrouted tray on a null depot, ignoring any depot set', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    await repo.search({ unrouted: true, depotIds: ['depot-a'], page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { depotId: null } }),
+    );
+  });
+
   it('batch-reads order totals in one selected findMany query', async () => {
     order.findMany.mockResolvedValue([
       { id: 'ord-1', total: dec(103_000) },

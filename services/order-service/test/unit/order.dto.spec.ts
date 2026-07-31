@@ -44,6 +44,19 @@ describe('request payload transforms', () => {
     expect(await validate(dto)).toEqual([]);
   });
 
+  // ?unrouted=true arrives as a string; anything else must stay false so the tray
+  // is never opened by accident.
+  it.each([
+    [{ unrouted: 'true' }, true],
+    [{ unrouted: true }, true],
+    [{ unrouted: 'false' }, false],
+    [{ unrouted: '1' }, false],
+  ])('reads the unrouted flag from %p', async (raw, expected) => {
+    const dto = plainToInstance(ListOrdersQueryDto, raw);
+    expect(dto.unrouted).toBe(expected);
+    expect(await validate(dto)).toEqual([]);
+  });
+
   it('coerces a cart quantity string to an integer', async () => {
     const dto = plainToInstance(SetCartItemQuantityDto, { quantity: '4' });
     expect(dto.quantity).toBe(4);

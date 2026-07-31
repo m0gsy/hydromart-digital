@@ -175,6 +175,11 @@ export class InMemoryOrderRepository implements OrderRepository {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
   }
+  async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.depotId = depotId;
+    return structuredClone(row);
+  }
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     return this.rows
       .filter((row) => orderIds.includes(row.id))
@@ -192,7 +197,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     const all = this.rows
       .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.status || r.status === query.status)
-      .filter((r) => !query.depotIds || (r.depotId != null && query.depotIds.includes(r.depotId)))
+      .filter((r) => (query.unrouted ? r.depotId == null : true))
+      .filter(
+        (r) =>
+          query.unrouted ||
+          !query.depotIds ||
+          (r.depotId != null && query.depotIds.includes(r.depotId)),
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const start = (query.page - 1) * query.limit;
     return {

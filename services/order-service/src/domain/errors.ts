@@ -40,6 +40,37 @@ export class OutOfServiceAreaError extends DomainError {
   }
 }
 
+/**
+ * No depot could be resolved for the order and the caller did not pick one. An
+ * order with no depot is invisible to every depot queue and reserves no stock, so
+ * checkout refuses it instead of silently placing an unfulfillable order.
+ */
+export class DepotRequiredError extends DomainError {
+  readonly code = 'ORDER_DEPOT_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Pick a depot: this address has no map pin, so we cannot route it automatically.');
+  }
+}
+
+/** Manual depot assignment only fills a blank — an order already routed keeps its depot. */
+export class OrderAlreadyRoutedError extends DomainError {
+  readonly code = 'ORDER_ALREADY_ROUTED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This order already has a depot.');
+  }
+}
+
+/** The depot the caller picked is unknown or not active. */
+export class DepotUnavailableError extends DomainError {
+  readonly code = 'ORDER_DEPOT_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('That depot is not available right now. Please pick another one.');
+  }
+}
+
 /** A supplied voucher could not be applied (invalid, or promo-service unreachable). */
 export class VoucherRejectedError extends DomainError {
   readonly code = 'ORDER_VOUCHER_REJECTED';
