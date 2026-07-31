@@ -20,6 +20,7 @@ function makeService(): Mocked {
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     getAny: jest.fn().mockResolvedValue({ id: 'o1', depotId: 'd1', total: 42000 }),
+    assignDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-a' }),
     listCompletedPage: jest.fn(),
     sumDepotSales: jest.fn().mockResolvedValue(150000),
     depotCustomerAggregates: jest.fn(),
@@ -161,6 +162,21 @@ describe('OrderController', () => {
       ForbiddenException,
     );
     expect(service.listAll).not.toHaveBeenCalled();
+  });
+
+  it('listManaged: lets HQ read the unrouted tray but refuses a depot-scoped caller', async () => {
+    await controller.listManaged(admin, { unrouted: true, limit: 10 } as never);
+    expect(service.listAll).toHaveBeenCalledWith({ unrouted: true, limit: 10, depotIds: undefined });
+
+    const manager = { sub: 'mgr-1', role: Role.MANAGER, depotIds: ['depot-a'] } as never;
+    await expect(
+      controller.listManaged(manager, { unrouted: true, limit: 10 } as never),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('assignDepot: hands the order and depot to the service', async () => {
+    await controller.assignDepot('order-1', { depotId: 'depot-a' });
+    expect(service.assignDepot).toHaveBeenCalledWith('order-1', 'depot-a');
   });
 
   it('getManaged: loads the order then passes the depot access check', async () => {

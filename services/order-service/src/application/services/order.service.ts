@@ -6,9 +6,12 @@ import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 import {
   BelowMinimumOrderError,
   CatalogUnavailableError,
+  DepotRequiredError,
+  DepotUnavailableError,
   EmptyCartError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
+  OrderAlreadyRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -66,6 +69,11 @@ export interface WalkInSaleInput {
 
 export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
+  /**
+   * Depot the customer picked, used only when the address carries no map pin so
+   * automatic routing cannot run. Ignored when the address has coordinates.
+   */
+  depotId?: string | null;
   /** Optional voucher code to apply (validated against the promo-service). */
   voucherCode?: string | null;
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
@@ -77,6 +85,8 @@ export interface ListOrdersInput {
   limit?: number;
   status?: OrderStatus;
   depotIds?: readonly string[];
+  /** HQ tray of orders that reached no depot (legacy fail-open rows). */
+  unrouted?: boolean;
 }
 
 /** Rounds to 2 decimals (IDR minor units) to keep money arithmetic exact. */
@@ -137,22 +147,19 @@ export class OrderService {
     }
 
     // Route to the fulfilling depot first: it prices the goods (per-depot overrides),
-    // the delivery fee, and the minimum order amount. Routing is fail-OPEN (null depot
-    // when the address has no coordinates, the directory is unreachable, or no depots
-    // are configured), in which case we fall back to catalog prices + the flat config
-    // fee and skip the minimum. But an address outside every known depot's radius is
-    // rejected (OutOfServiceAreaError) rather than placed unfulfillable.
-    const depot = await this.routeDepot(input.deliveryAddress);
+    // the delivery fee, and the minimum order amount. Resolution is fail-CLOSED — an
+    // order that reaches no depot is an order nobody can see or fulfil, so checkout
+    // rejects instead (the customer picks a depot when the address has no map pin).
+    const depot = await this.resolveDepot(input.deliveryAddress, input.depotId);
 
-    const { items, subtotal, tierPricedTotal } = await this.priceLines(depot?.id ?? null, lines);
+    const { items, subtotal, tierPricedTotal } = await this.priceLines(depot.id, lines);
 
-    if (depot && depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
+    if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
     }
     // Delivery is charged per galon (FR: Rp perUnitFee × galon count), not a flat
     // per-order fee. Non-galon lines (bottled dus, accessories) don't add to it.
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
-    const deliveryFee = money(perUnitFee * galonQuantity(items));
+    const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
 
     // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
     // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
@@ -211,23 +218,22 @@ export class OrderService {
     const total = money(subtotal + deliveryFee - discount);
 
     // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves
-    // no dangling order. Keyed by a pre-generated id. Only when routed to a depot;
-    // reserve fails OPEN except on a genuine shortfall (throws InsufficientStockError).
+    // no dangling order. Keyed by a pre-generated id. Every order has a depot now, so
+    // this always runs; reserve fails OPEN except on a genuine shortfall
+    // (throws InsufficientStockError).
     const orderId = randomUUID();
-    if (depot) {
-      await this.inventory.reserve(
-        depot.id,
-        orderId,
-        items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        authorization,
-      );
-    }
+    await this.inventory.reserve(
+      depot.id,
+      orderId,
+      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      authorization,
+    );
 
     const order = await this.orders.create({
       id: orderId,
       orderNumber: OrderService.newOrderNumber(),
       customerId,
-      depotId: depot?.id ?? null,
+      depotId: depot.id,
       subtotal,
       deliveryFee,
       discount,
@@ -323,28 +329,28 @@ export class OrderService {
     discountRate = 0,
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
-    const depot = await this.routeDepot(address);
-    const { items, subtotal } = await this.priceLines(depot?.id ?? null, lines);
-    const perUnitFee = depot ? depot.deliveryFee : this.config.deliveryFee(null);
-    const deliveryFee = money(perUnitFee * galonQuantity(items));
+    // Fail-closed like checkout. A subscription whose saved address has no map pin
+    // cannot be routed and there is nobody to ask, so the sweep skips it with a log
+    // (subscription.service isolates each run) instead of placing a lost order.
+    const depot = await this.resolveDepot(address);
+    const { items, subtotal } = await this.priceLines(depot.id, lines);
+    const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);
 
     const orderId = randomUUID();
-    if (depot) {
-      await this.inventory.reserve(
-        depot.id,
-        orderId,
-        items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        '',
-      );
-    }
+    await this.inventory.reserve(
+      depot.id,
+      orderId,
+      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      '',
+    );
 
     const order = await this.orders.create({
       id: orderId,
       orderNumber: OrderService.newOrderNumber(),
       customerId,
-      depotId: depot?.id ?? null,
+      depotId: depot.id,
       subtotal,
       deliveryFee,
       discount,
@@ -479,6 +485,26 @@ export class OrderService {
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search(input);
+  }
+
+  /**
+   * Staff assigns the fulfilling depot for an order that has none — the legacy rows
+   * checkout used to create when routing failed open. Only ever fills a blank: an
+   * order already at a depot keeps it, so this can't be used to move work between
+   * depots behind the operator's back.
+   *
+   * Stock is NOT reserved retroactively: the reserve step never ran for these rows,
+   * and silently holding stock now would surprise the depot mid-day. The operator
+   * checks availability when they pick the order up.
+   */
+  async assignDepot(orderId: string, depotId: string): Promise<OrderRecord> {
+    const order = await this.orders.findById(orderId);
+    if (!order) throw new OrderNotFoundError();
+    if (order.depotId) throw new OrderAlreadyRoutedError();
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) throw new DepotUnavailableError();
+    if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
+    return this.orders.assignDepot(orderId, depotId);
   }
 
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {
@@ -793,26 +819,35 @@ export class OrderService {
   }
 
   /**
-   * Resolves the fulfilling depot for a delivery address (nearest active depot
-   * within its service radius). Fails OPEN (null depot) when the address has no
-   * coordinates, the directory is unreachable, or the platform has no active
-   * depots. But when the directory DID return depots and none covers the address,
-   * the address is genuinely out of service area — reject rather than place an
-   * order no depot can fulfill.
+   * Resolves the fulfilling depot for a delivery address, and never returns null.
+   *
+   * This used to fail OPEN — an address with no map pin, or a directory outage,
+   * placed the order with `depotId = null`. Such an order matches no depot queue
+   * (`IN` filters skip nulls), reserves no stock, and can never be dispatched: it
+   * is lost the moment it is placed. So every path now ends in a depot or an error
+   * the caller can act on:
+   *   - address has coordinates  → nearest depot within radius, else out-of-service
+   *   - no coordinates           → the depot the customer picked (`requestedDepotId`)
+   *   - neither                  → DepotRequiredError, so the UI can ask
+   *   - directory down / no depots → DepotUnavailableError (retry later)
    */
-  private async routeDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation | null> {
-    if (address.latitude === null || address.longitude === null) {
-      return null;
-    }
+  private async resolveDepot(
+    address: DeliveryAddressSnapshot,
+    requestedDepotId?: string | null,
+  ): Promise<DepotLocation> {
     const depots = await this.depotDirectory.listActiveDepots();
-    if (depots === null) {
-      return null; // directory unreachable — stay fail-open, leave unrouted
+    if (depots === null || depots.length === 0) {
+      throw new DepotUnavailableError();
     }
-    const depot = selectNearestDepot(address.latitude, address.longitude, depots);
-    if (!depot && depots.length > 0) {
-      throw new OutOfServiceAreaError();
+    if (address.latitude !== null && address.longitude !== null) {
+      const nearest = selectNearestDepot(address.latitude, address.longitude, depots);
+      if (!nearest) throw new OutOfServiceAreaError();
+      return nearest;
     }
-    return depot;
+    if (!requestedDepotId) throw new DepotRequiredError();
+    const picked = depots.find((d) => d.id === requestedDepotId);
+    if (!picked) throw new DepotUnavailableError();
+    return picked;
   }
 
   private async priced(productId: string): Promise<CatalogProduct> {
@@ -852,6 +887,7 @@ export class OrderService {
       customerId: input.customerId,
       status: input.status,
       depotIds: input.depotIds,
+      unrouted: input.unrouted,
     };
     const { items, total } = await this.orders.search(query);
     return buildPage(items, total, page, limit);

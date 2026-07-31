@@ -740,9 +740,17 @@ export const hq = {
     title: 'Network orders',
     subtitle: 'Every order across all depots',
     number: 'Order no.',
+    customer: 'Customer',
     status: 'Status',
     total: 'Total',
     empty: 'No orders yet.',
+    tabAll: 'All',
+    tabUnrouted: 'Unrouted',
+    unroutedHint:
+      'Legacy orders that never reached a depot. Assign one — no stock was reserved, so check availability first.',
+    emptyUnrouted: 'No orders without a depot.',
+    assign: 'Assign depot',
+    assignPlaceholder: 'Pick a depot…',
   },
   notifications: {
     title: 'Notifications',

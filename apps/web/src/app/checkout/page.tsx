@@ -32,10 +32,12 @@ import { useAsync } from '@/lib/use-async';
 import type {
   Address,
   Cart,
+  Depot,
   LoyaltyAccount,
   MyVoucher,
   NearbyDepot,
   Order,
+  Page,
   PaymentMethod,
   VoucherQuote,
 } from '@/lib/types';
@@ -164,6 +166,21 @@ function CheckoutInner() {
     [coords.latitude, coords.longitude],
   );
 
+  // No map pin on this address → order-service cannot route it to a depot, and it now
+  // refuses to place an unrouted order (one nobody could see or fulfil). So the customer
+  // picks the fulfilling depot here, and that choice goes with the checkout payload.
+  const needsDepotPick = coords.latitude == null || coords.longitude == null;
+  const [pickedDepotId, setPickedDepotId] = useState<string | null>(null);
+  const { data: depotChoices, loading: depotChoicesLoading } = useAsync<Page<Depot> | null>(
+    () => (needsDepotPick ? api.get(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null)),
+    [needsDepotPick],
+  );
+
+  // A pin arriving (saved address chosen) makes the manual choice meaningless — drop it.
+  useEffect(() => {
+    if (!needsDepotPick) setPickedDepotId(null);
+  }, [needsDepotPick]);
+
   // Preselect the primary saved address (else the first) the first time the book loads.
   useEffect(() => {
     if (selection !== null || !savedAddresses || savedAddresses.length === 0) return;
@@ -243,6 +260,8 @@ function CheckoutInner() {
             longitude: coords.longitude ?? undefined,
             notes: form.notes || undefined,
           },
+          // Only meaningful without coordinates; with a pin, order-service routes itself.
+          depotId: needsDepotPick ? pickedDepotId ?? undefined : undefined,
           // order-service re-validates the voucher (fail-closed) and applies the
           // membership discount itself; sending the raw code is enough.
           // Gate on isReseller: never send voucher code for resellers (flat pricing, no stacking).
@@ -487,6 +506,36 @@ function CheckoutInner() {
               )}
             </div>
           </Card>
+
+          {/* Depot picker — only when the address has no map pin to route from */}
+          {needsDepotPick && (
+            <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
+              <div>
+                <h2 className="text-base font-extrabold">{t('order.checkout.pickDepot')}</h2>
+                <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotHint')}</p>
+              </div>
+              {depotChoicesLoading ? (
+                <Skeleton className="h-20 w-full" />
+              ) : depotChoices && depotChoices.items.length > 0 ? (
+                <div data-testid="depot-picker" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {depotChoices.items.map((d) => (
+                    <RadioCard
+                      key={d.id}
+                      selected={pickedDepotId === d.id}
+                      onSelect={() => setPickedDepotId(d.id)}
+                    >
+                      <span className="block font-bold">{d.name}</span>
+                      <span className="block text-[12.5px] text-muted">
+                        {d.city} · {d.code}
+                      </span>
+                    </RadioCard>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotEmpty')}</p>
+              )}
+            </Card>
+          )}
 
           {/* Payment method */}
           <Card className="flex flex-col gap-3 rounded-[22px] p-[22px]">
@@ -777,9 +826,17 @@ function CheckoutInner() {
             </p>
           )}
 
-          <Button type="submit" loading={submitting} className="h-[54px] rounded-full text-[15px] font-extrabold">
+          <Button
+            type="submit"
+            loading={submitting}
+            disabled={needsDepotPick && !pickedDepotId}
+            className="h-[54px] rounded-full text-[15px] font-extrabold"
+          >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
           </Button>
+          {needsDepotPick && !pickedDepotId && (
+            <p className="text-xs text-muted">{t('order.checkout.pickDepotRequired')}</p>
+          )}
 
           <p className="flex items-start gap-2 text-xs leading-relaxed text-muted">
             <ShieldCheck size={15} weight="fill" className="mt-0.5 flex-shrink-0 text-brand-600" />

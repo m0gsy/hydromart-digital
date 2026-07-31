@@ -65,6 +65,11 @@ export const order = {
     deliveryEst: 'Ongkir (est.) — {name}',
     deliveryNote: 'Ongkir dihitung saat depot ditentukan.',
     total: 'Total',
+    pickDepot: 'Pilih depot pengantar',
+    pickDepotHint:
+      'Alamat ini belum punya titik lokasi, jadi kami tidak bisa memilih depot otomatis. Pilih depot terdekat dari rumahmu.',
+    pickDepotEmpty: 'Belum ada depot aktif. Coba lagi nanti.',
+    pickDepotRequired: 'Pilih depot dulu untuk melanjutkan.',
     placeOrder: 'Buat pesanan —',
     priceVerified:
       'Harga diverifikasi ulang oleh depot saat pesanan dibuat — kamu tidak akan ditagih lebih.',

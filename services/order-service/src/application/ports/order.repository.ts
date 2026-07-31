@@ -111,6 +111,12 @@ export interface OrderQuery {
   customerId?: string;
   status?: OrderStatus;
   depotIds?: readonly string[];
+  /**
+   * Only orders that reached no depot (`depotId IS NULL`). Legacy rows from when
+   * checkout failed open — they match no depot filter, so HQ needs this tray to
+   * find and assign them. Takes precedence over `depotIds`.
+   */
+  unrouted?: boolean;
   page: number;
   limit: number;
 }
@@ -256,6 +262,8 @@ export interface SegmentConditions {
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
+  assignDepot(id: string, depotId: string): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */

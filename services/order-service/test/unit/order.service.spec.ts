@@ -5,10 +5,13 @@ import { OrderService } from '../../src/application/services/order.service';
 import {
   BelowMinimumOrderError,
   CatalogUnavailableError,
+  DepotRequiredError,
+  DepotUnavailableError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
+  OrderAlreadyRoutedError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -38,6 +41,9 @@ import {
   buildTestConfig,
 } from '../support/fakes';
 
+// Pinned address + a depot that covers it: checkout is fail-CLOSED now, so every
+// test that just wants an order placed needs a routable address. Its fee matches
+// the config fee the older tests asserted, so the money maths is unchanged.
 const address: DeliveryAddressSnapshot = {
   recipientName: 'Budi',
   phone: '081234567890',
@@ -45,9 +51,21 @@ const address: DeliveryAddressSnapshot = {
   city: 'Bandung',
   province: 'Jawa Barat',
   postalCode: '40111',
-  latitude: null,
-  longitude: null,
+  latitude: -6.9,
+  longitude: 107.6,
   notes: null,
+};
+
+/** Address with no map pin — the case that now forces an explicit depot choice. */
+const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, longitude: null };
+
+const homeDepot = {
+  id: 'depot-home',
+  lat: -6.9,
+  lng: 107.6,
+  serviceRadiusKm: 10,
+  deliveryFee: 5000,
+  minOrderAmount: null,
 };
 
 describe('OrderService', () => {
@@ -75,6 +93,7 @@ describe('OrderService', () => {
     cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
+    depots.depots = [homeDepot];
     pricing = new FakeDepotPricing();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
@@ -761,9 +780,9 @@ describe('OrderService', () => {
     expect(inventory.calls[0].items).toEqual([{ productId, quantity: 2 }]);
   });
 
-  it('does not deduct stock when the order was not routed to a depot', async () => {
+  it('deducts stock at the depot the order was routed to, once it completes', async () => {
     await addToCart(20000, 1);
-    const order = await service.checkout(customer, { deliveryAddress: address }); // no coords
+    const order = await service.checkout(customer, { deliveryAddress: address });
     const flow = [
       OrderStatus.CONFIRMED,
       OrderStatus.PREPARING,
@@ -776,7 +795,8 @@ describe('OrderService', () => {
     for (const s of flow) {
       await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
     }
-    expect(inventory.calls).toHaveLength(0);
+    expect(inventory.calls).toHaveLength(1);
+    expect(order.depotId).toBe(homeDepot.id);
   });
 
   const routedCheckout = () => {
@@ -809,10 +829,88 @@ describe('OrderService', () => {
     expect(inventory.reserveCalls[0].items).toEqual([{ productId, quantity: 2 }]);
   });
 
-  it('does not reserve stock when the order is not routed to a depot', async () => {
-    await addToCart(20000, 1);
-    await service.checkout(customer, { deliveryAddress: address }); // no coords
-    expect(inventory.reserveCalls).toHaveLength(0);
+  // An order with no depot is invisible to every depot queue and reserves no stock,
+  // so checkout refuses one instead of placing it. These four cases are that contract.
+  describe('an order always gets a depot', () => {
+    it('refuses an unpinned address when the customer picked no depot', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, { deliveryAddress: unpinnedAddress }),
+      ).rejects.toBeInstanceOf(DepotRequiredError);
+      expect(orders.rows).toHaveLength(0);
+      expect(inventory.reserveCalls).toHaveLength(0);
+      expect(await cart.findByCustomer(customer)).toHaveLength(1); // cart untouched
+    });
+
+    it('uses the depot the customer picked when the address has no pin', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, {
+        deliveryAddress: unpinnedAddress,
+        depotId: homeDepot.id,
+      });
+      expect(order.depotId).toBe(homeDepot.id);
+      expect(inventory.reserveCalls).toHaveLength(1);
+    });
+
+    it('rejects a depot that is not in the active directory', async () => {
+      await addToCart(20000, 1);
+      await expect(
+        service.checkout(customer, { deliveryAddress: unpinnedAddress, depotId: randomUUID() }),
+      ).rejects.toBeInstanceOf(DepotUnavailableError);
+    });
+
+    // Legacy rows: orders placed back when checkout failed open. HQ has to be able to
+    // find them (they match no depot filter) and route them by hand.
+    describe('the HQ tray for orders that never reached a depot', () => {
+      const unroute = async (): Promise<string> => {
+        await addToCart(20000, 1);
+        const order = await service.checkout(customer, { deliveryAddress: address });
+        orders.rows.find((r) => r.id === order.id)!.depotId = null;
+        return order.id;
+      };
+
+      it('lists only unrouted orders, ignoring any depot filter', async () => {
+        const id = await unroute();
+        await addToCart(20000, 1);
+        await service.checkout(customer, { deliveryAddress: address }); // routed
+
+        const tray = await service.listAll({ unrouted: true, depotIds: [homeDepot.id] });
+        expect(tray.items.map((o) => o.id)).toEqual([id]);
+      });
+
+      it('releases no stock when cancelling one — none was ever held', async () => {
+        const id = await unroute();
+        await service.cancel(customer, id, 'changed mind', 'Bearer tok');
+        expect(inventory.releaseCalls).toHaveLength(0);
+      });
+
+      it('assigns a depot, after which the order leaves the tray', async () => {
+        const id = await unroute();
+        const assigned = await service.assignDepot(id, homeDepot.id);
+        expect(assigned.depotId).toBe(homeDepot.id);
+        expect((await service.listAll({ unrouted: true })).items).toHaveLength(0);
+      });
+
+      it('refuses an unknown depot and refuses to move an already-routed order', async () => {
+        const id = await unroute();
+        await expect(service.assignDepot(id, randomUUID())).rejects.toBeInstanceOf(
+          DepotUnavailableError,
+        );
+        await service.assignDepot(id, homeDepot.id);
+        await expect(service.assignDepot(id, homeDepot.id)).rejects.toBeInstanceOf(
+          OrderAlreadyRoutedError,
+        );
+      });
+    });
+
+    it('rejects checkout while the depot directory is unreachable', async () => {
+      await addToCart(20000, 1);
+      depots.unreachable = true;
+      await expect(
+        service.checkout(customer, { deliveryAddress: address }),
+      ).rejects.toBeInstanceOf(DepotUnavailableError);
+      expect(orders.rows).toHaveLength(0);
+    });
   });
 
   it('rejects checkout on a stock shortfall, creating no order and keeping the cart', async () => {
@@ -1088,27 +1186,29 @@ describe('OrderService', () => {
     ).rejects.toBeInstanceOf(OutOfServiceAreaError);
   });
 
-  it('stays fail-open (flat fee, unrouted) when the depot directory is unreachable', async () => {
+  // These three used to assert fail-open (order placed with depotId null). That is
+  // exactly the bug that lost live orders, so the contract flipped: no depot, no order.
+  it('rejects checkout when the depot directory is unreachable', async () => {
     depots.unreachable = true;
     await addToCart(20000, 1);
-    const order = await service.checkout(customer, {
-      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
-    });
-    expect(order.depotId).toBeNull();
-    expect(order.deliveryFee).toBe(5000);
+    await expect(
+      service.checkout(customer, {
+        deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+      }),
+    ).rejects.toBeInstanceOf(DepotUnavailableError);
   });
 
-  it('stays fail-open when no depots are configured at all', async () => {
+  it('rejects checkout when no depots are configured at all', async () => {
     depots.depots = [];
     await addToCart(20000, 1);
-    const order = await service.checkout(customer, {
-      deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
-    });
-    expect(order.depotId).toBeNull();
-    expect(order.deliveryFee).toBe(5000);
+    await expect(
+      service.checkout(customer, {
+        deliveryAddress: { ...address, latitude: -6.91, longitude: 107.61 },
+      }),
+    ).rejects.toBeInstanceOf(DepotUnavailableError);
   });
 
-  it('leaves an order unrouted when the address has no coordinates', async () => {
+  it('asks for a depot when the address has no coordinates', async () => {
     depots.depots = [
       {
         id: 'depot-near',
@@ -1120,8 +1220,16 @@ describe('OrderService', () => {
       },
     ];
     await addToCart(20000, 1);
-    const order = await service.checkout(customer, { deliveryAddress: address });
-    expect(order.depotId).toBeNull();
+    await expect(
+      service.checkout(customer, { deliveryAddress: unpinnedAddress }),
+    ).rejects.toBeInstanceOf(DepotRequiredError);
+    // ...and the picked depot's own fee applies once the customer chooses it.
+    const order = await service.checkout(customer, {
+      deliveryAddress: unpinnedAddress,
+      depotId: 'depot-near',
+    });
+    expect(order.depotId).toBe('depot-near');
+    expect(order.deliveryFee).toBe(7000);
   });
 
   it('prices lines from the routed depot override, not the catalog base', async () => {
@@ -1188,10 +1296,14 @@ describe('OrderService', () => {
     expect(order.items[0].unitPrice).toBe(20000);
   });
 
-  it('does not look up depot prices when the order is not routed', async () => {
+  it('looks up depot prices for the depot the customer picked', async () => {
     await addToCart(20000, 1);
-    await service.checkout(customer, { deliveryAddress: address }); // no coords → unrouted
-    expect(pricing.calls).toHaveLength(0);
+    await service.checkout(customer, {
+      deliveryAddress: unpinnedAddress,
+      depotId: homeDepot.id,
+    });
+    expect(pricing.calls).toHaveLength(1);
+    expect(pricing.calls[0].depotId).toBe(homeDepot.id);
   });
 
   const coordAddress: DeliveryAddressSnapshot = { ...address, latitude: -6.91, longitude: 107.61 };

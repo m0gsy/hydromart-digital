@@ -743,9 +743,17 @@ export const hq = {
     title: 'Pesanan jaringan',
     subtitle: 'Semua pesanan seluruh depot',
     number: 'No. pesanan',
+    customer: 'Pelanggan',
     status: 'Status',
     total: 'Total',
     empty: 'Belum ada pesanan.',
+    tabAll: 'Semua',
+    tabUnrouted: 'Belum terutuk',
+    unroutedHint:
+      'Pesanan lama yang tidak pernah sampai ke depot mana pun. Tugaskan depotnya — stok belum di-reserve, cek ketersediaan dulu.',
+    emptyUnrouted: 'Tidak ada pesanan tanpa depot.',
+    assign: 'Tugaskan depot',
+    assignPlaceholder: 'Pilih depot…',
   },
   notifications: {
     title: 'Notifikasi',

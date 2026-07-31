@@ -173,15 +173,24 @@ async function advanceToCompleted(staff, orderId) {
 }
 
 // 1. Core transaction loop: order COMPLETED + loyalty awarded across a real service boundary.
+//    Address carries no map pin, so this also covers the CUSTOMER-PICKED depot path:
+//    checkout is fail-CLOSED now, and an unpinned address is only placeable with an
+//    explicit `depotId` (order.service.ts resolveDepot).
 async function coreLoop(staff) {
   const { productId } = await createProduct(staff);
+  const depot = await createDepot(staff, { ...remote(-6.2, 106.82), deliveryFee: 6000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
   ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 2 } }), 'add to cart');
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
-    body: { deliveryAddress: { recipientName: 'Integration User', phone, addressLine: 'Jl. Test 1', city: 'Jakarta', province: 'DKI Jakarta' } },
+    body: {
+      depotId: depot.id,
+      deliveryAddress: { recipientName: 'Integration User', phone, addressLine: 'Jl. Test 1', city: 'Jakarta', province: 'DKI Jakarta' },
+    },
   });
   ok(checkout, 'checkout');
+  assert(checkout.body.depotId === depot.id, `checkout: picked depot ignored — got ${checkout.body.depotId}`);
   const orderId = checkout.body.id;
   const total = checkout.body.total;
   assert(orderId && total > 0, `bad checkout: ${JSON.stringify(checkout.body)}`);
@@ -242,11 +251,16 @@ async function depotRoutedLoop(staff) {
 //    webhook path uses a genuinely-online method: EWALLET or VA.)
 async function onlineWebhookLoop(staff) {
   const { productId } = await createProduct(staff);
+  const depot = await createDepot(staff, { ...remote(-6.9, 107.6), deliveryFee: 6000, minOrderAmount: 0, serviceRadiusKm: 5 });
+  await createStock(staff, depot.id, productId, 100);
   const { phone, token } = await registerCustomer();
   ok(await api('POST', '/orders/api/v1/cart/items', { token, body: { productId, quantity: 1 } }), 'ow: add to cart');
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
-    body: { deliveryAddress: { recipientName: 'OW User', phone, addressLine: 'Jl. OW 1', city: 'Jakarta', province: 'DKI Jakarta' } },
+    body: {
+      depotId: depot.id,
+      deliveryAddress: { recipientName: 'OW User', phone, addressLine: 'Jl. OW 1', city: 'Jakarta', province: 'DKI Jakarta' },
+    },
   });
   ok(checkout, 'ow: checkout');
   const orderId = checkout.body.id;
@@ -308,7 +322,21 @@ async function failurePaths(staff) {
   });
   assert(shortage.status === 422, `fp: insufficient-stock expected 422, got ${shortage.status} — ${JSON.stringify(shortage.body)}`);
 
-  console.log('PASSED failure-paths: below-min 422, out-of-area 422, insufficient-stock 422');
+  // No map pin AND no picked depot: nothing can route it, so it must be refused rather
+  // than stored with depotId = null (an order no depot queue would ever show).
+  const c4 = await registerCustomer();
+  ok(await api('POST', '/orders/api/v1/cart/items', { token: c4.token, body: { productId, quantity: 1 } }), 'fp: cart unrouted');
+  const unrouted = await api('POST', '/orders/api/v1/orders/checkout', {
+    token: c4.token,
+    body: { deliveryAddress: { recipientName: 'FP', phone: c4.phone, addressLine: 'Jl. Tanpa Pin', city: 'Jakarta', province: 'DKI Jakarta' } },
+  });
+  assert(unrouted.status === 422, `fp: unrouted expected 422, got ${unrouted.status} — ${JSON.stringify(unrouted.body)}`);
+  assert(
+    unrouted.body.code === 'ORDER_DEPOT_REQUIRED',
+    `fp: unrouted expected ORDER_DEPOT_REQUIRED, got ${JSON.stringify(unrouted.body)}`,
+  );
+
+  console.log('PASSED failure-paths: below-min 422, out-of-area 422, insufficient-stock 422, unrouted 422');
 }
 
 async function main() {

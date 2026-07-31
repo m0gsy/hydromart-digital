@@ -28,6 +28,7 @@ import {
 } from '../application/ports/order.repository';
 import { Page } from '../application/pagination';
 import {
+  AssignDepotDto,
   CancelOrderDto,
   CheckoutDto,
   CreateReviewDto,
@@ -77,6 +78,7 @@ export class OrderController {
           longitude: dto.deliveryAddress.longitude ?? null,
           notes: dto.deliveryAddress.notes ?? null,
         },
+        depotId: dto.depotId ?? null,
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
       },
@@ -163,11 +165,26 @@ export class OrderController {
     } else {
       depotIds = depotScopeIds(user, query.depotId);
     }
+    // The unrouted tray is HQ-only by construction: those orders belong to no depot, so
+    // a depot-scoped caller has no claim on them.
+    if (query.unrouted && depotIds !== undefined) {
+      throw new ForbiddenException('Pesanan tanpa depot hanya bisa dilihat kantor pusat.');
+    }
     // depotId is dropped from the spread on purpose: the scalar has been replaced by the
     // resolved set, and leaving a stale one on the input invites someone to read it again.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { depotId: _dropped, ...rest } = query;
     return this.orders.listAll({ ...rest, depotIds });
+  }
+
+  @Patch('manage/:id/depot')
+  @Can('orderQueue')
+  @ApiOperation({ summary: 'Staff: assign the fulfilling depot of an order that has none' })
+  assignDepot(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignDepotDto,
+  ): Promise<OrderRecord> {
+    return this.orders.assignDepot(id, dto.depotId);
   }
 
   @Get('manage/:id')

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardText, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -267,11 +267,16 @@ function QueueBody() {
   const [group, setGroup] = useState<'assign' | 'process'>('assign');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOrder, setDetailOrder] = useState<Order | null>(null);
-  const { scopedId, selected: scopedDepot } = useDepot();
+  // The QUEUE filters, it does not need one depot: `selectedId` (null = every depot the
+  // caller may see) is the honest source. `scopedId` falls back to depots[0] for pages
+  // that must name a single depot — using it here sent ?depotId=<first depot> while the
+  // banner said "Semua depot", so HQ saw one arbitrary depot's queue and called it empty.
+  const { selectedId: depotFilterId, selected: scopedDepot } = useDepot();
 
   const { data, error, loading, reload } = useAsync<Page<Order>>(
-    () => api.get(endpoints.orders.manage({ depotId: scopedId ?? undefined, limit: 100 }), true),
-    [scopedId],
+    () =>
+      api.get(endpoints.orders.manage({ depotId: depotFilterId ?? undefined, limit: 100 }), true),
+    [depotFilterId],
   );
 
   // Active-driver roster joined with live deliveries → real per-courier load (design 1b).
@@ -292,6 +297,16 @@ function QueueBody() {
   const inProcess = useMemo(() => items.filter(IN_PROCESS), [items]);
   const list = group === 'assign' ? needAssign : inProcess;
   const selected = items.find((o) => o.id === selectedId) ?? null;
+
+  // Land on the group that actually has work. The default tab only holds PREPARING
+  // orders, so a depot whose queue is all CREATED/CONFIRMED opened on "Antrean kosong"
+  // with orders waiting one tab over. Fires once per load; switching back stays put.
+  const autoGrouped = useRef(false);
+  useEffect(() => {
+    if (autoGrouped.current || loading) return;
+    if (needAssign.length === 0 && inProcess.length > 0) setGroup('process');
+    autoGrouped.current = true;
+  }, [loading, needAssign.length, inProcess.length]);
 
   const CHIPS: { value: 'assign' | 'process'; label: string; count: number }[] = [
     { value: 'assign', label: t('dashB.orders.chipAssign'), count: needAssign.length },

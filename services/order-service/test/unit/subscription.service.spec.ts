@@ -26,6 +26,8 @@ import {
   buildTestConfig,
 } from '../support/fakes';
 
+// Pinned: a scheduled run has nobody to ask for a depot, so an unpinned saved
+// address is skipped by design (see 'skips a subscription that cannot be routed').
 const address: DeliveryAddressSnapshot = {
   recipientName: 'Budi',
   phone: '081234567890',
@@ -33,9 +35,18 @@ const address: DeliveryAddressSnapshot = {
   city: 'Bandung',
   province: 'Jawa Barat',
   postalCode: '40111',
-  latitude: null,
-  longitude: null,
+  latitude: -6.9,
+  longitude: 107.6,
   notes: null,
+};
+
+const homeDepot = {
+  id: 'depot-home',
+  lat: -6.9,
+  lng: 107.6,
+  serviceRadiusKm: 10,
+  deliveryFee: 5000,
+  minOrderAmount: null,
 };
 
 describe('SubscriptionService', () => {
@@ -44,19 +55,22 @@ describe('SubscriptionService', () => {
   let catalog: FakeProductCatalog;
   let orderService: OrderService;
   let service: SubscriptionService;
+  let depots: FakeDepotDirectory;
   const customer = randomUUID();
 
   beforeEach(() => {
     orders = new InMemoryOrderRepository();
     subs = new InMemorySubscriptionRepository();
     catalog = new FakeProductCatalog();
+    depots = new FakeDepotDirectory();
+    depots.depots = [homeDepot];
     const cart = new InMemoryCartRepository();
     const cartService = new CartService(cart, catalog);
     orderService = new OrderService(
       orders,
       cart,
       catalog,
-      new FakeDepotDirectory(),
+      depots,
       new FakeDepotPricing(),
       new FakeLoyaltyCoordination(),
       new FakeReferralCoordination(),
@@ -135,6 +149,25 @@ describe('SubscriptionService', () => {
     // a paused subscription is not swept.
     await service.pause(customer, sub.id);
     expect((await service.processDue(new Date('2026-08-01T00:00:00Z'))).placed).toBe(0);
+  });
+
+  it('skips a subscription whose address cannot be routed, leaving its schedule alone', async () => {
+    const p = seedProduct();
+    const sub = await service.create(customer, {
+      productId: p.id,
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address: { ...address, latitude: null, longitude: null },
+    });
+
+    const result = await service.processDue(new Date('2026-07-13T00:00:00Z'));
+
+    // Placing a depot-less order would lose it silently; skipping keeps it due.
+    expect(result.placed).toBe(0);
+    expect(orders.rows).toHaveLength(0);
+    const stillDue = (await service.list(customer)).find((s) => s.id === sub.id)!;
+    expect(stillDue.nextDeliveryAt.getTime()).toBe(new Date('2026-07-01T00:00:00Z').getTime());
   });
 
   it('refuses to subscribe to an inactive/unknown product', async () => {

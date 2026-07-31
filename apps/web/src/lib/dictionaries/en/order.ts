@@ -66,6 +66,11 @@ export const order: typeof base = {
     deliveryEst: 'Delivery (est.) — {name}',
     deliveryNote: 'Delivery is calculated once a depot is set.',
     total: 'Total',
+    pickDepot: 'Pick the fulfilling depot',
+    pickDepotHint:
+      'This address has no map pin, so we cannot route it automatically. Pick the depot nearest to you.',
+    pickDepotEmpty: 'No active depot right now. Please try again later.',
+    pickDepotRequired: 'Pick a depot to continue.',
     placeOrder: 'Place order —',
     priceVerified:
       "Prices are re-verified by the depot when the order is placed — you won't be charged more.",
