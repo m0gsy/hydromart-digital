@@ -20,8 +20,10 @@ export function Footer() {
       heading: t('auth.footer.shop'),
       links: [
         { label: t('auth.footer.allProducts'), href: '/products' },
-        { label: t('auth.footer.gallonRefill'), href: '/products' },
-        { label: t('auth.footer.bottled'), href: '/products' },
+        // Searches, not category ids: the ids are database-generated and the footer is
+        // static. Still a real filter — three identical "all products" links were not.
+        { label: t('auth.footer.gallonRefill'), href: '/products?search=galon' },
+        { label: t('auth.footer.bottled'), href: '/products?search=botol' },
       ],
     },
     {
@@ -36,7 +38,12 @@ export function Footer() {
       heading: t('auth.footer.help'),
       links: [
         { label: t('auth.footer.howToOrder'), href: '/help' },
-        { label: t('auth.footer.becomePartner') },
+        // ponytail: mailto until there is a public franchise-application page; the
+        // application pipeline itself is staff-side only (/hq/applications).
+        {
+          label: t('auth.footer.becomePartner'),
+          href: 'mailto:hello@hydromart-digital.com?subject=Kemitraan%20depot%20Hydromart',
+        },
         { label: 'hello@hydromart-digital.com', href: 'mailto:hello@hydromart-digital.com' },
       ],
     },

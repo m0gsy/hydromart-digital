@@ -7,7 +7,9 @@ import {
   canUseCourierApp,
   canUseManagerConsole,
   canUseOperatorConsole,
+  consoleHome,
   dashboardLandingView,
+  isConsolePath,
   isDepotManager,
   isDepotOperator,
   isHq,
@@ -107,5 +109,46 @@ describe('console entry gates', () => {
     expect(canUseCourierApp('MANAGER')).toBe(false);
     expect(canUseManagerConsole('KEPALA_DEPOT')).toBe(false);
     expect(canUseOperatorConsole('MANAGER')).toBe(false);
+  });
+});
+
+// Both the shop-chrome split and the login-door choice read this, so a wrong answer
+// either strips a customer page of its nav or sends a courier to the customer door.
+describe('isConsolePath', () => {
+  it('claims a console root and everything under it', () => {
+    for (const p of ['/hq', '/hq/orders', '/dashboard', '/dashboard/inventory', '/hr/me', '/driver', '/m/manager'])
+      expect(isConsolePath(p)).toBe(true);
+  });
+
+  it('respects the segment boundary — /m does not swallow /mother', () => {
+    for (const p of ['/mother', '/hqx', '/dashboards', '/driverless'])
+      expect(isConsolePath(p)).toBe(false);
+  });
+
+  it('leaves the shop (and /resellers, which has no console layout) alone', () => {
+    for (const p of ['/', '/products', '/cart', '/login', '/resellers', '', null, undefined])
+      expect(isConsolePath(p)).toBe(false);
+  });
+});
+
+describe('consoleHome', () => {
+  it('sends each role to the console it owns', () => {
+    for (const r of ['HEAD_OFFICE', 'SUPER_ADMIN', 'DIREKTUR']) expect(consoleHome(r)).toBe('/hq');
+    expect(consoleHome('STAFF_DEPOT')).toBe('/driver');
+    for (const r of ['MANAGER', 'KEPALA_DEPOT', 'SUPERVISOR', 'FRANCHISE_OWNER'])
+      expect(consoleHome(r)).toBe('/dashboard');
+    expect(consoleHome('HR')).toBe('/hr');
+    expect(consoleHome('MARKETING')).toBe('/dashboard/campaigns');
+  });
+
+  it('sends a customer to the shop, never into a console', () => {
+    for (const r of ['CUSTOMER', '', null, undefined]) expect(consoleHome(r)).toBe('/products');
+  });
+
+  // The regression this fixes: /hq/login bounced on an exact HEAD_OFFICE/SUPER_ADMIN
+  // check, so a DIREKTUR signed in and then sat on the login screen.
+  it('never lands a role on a page its own gate would deny', () => {
+    expect(isConsolePath(consoleHome('DIREKTUR'))).toBe(true);
+    expect(consoleHome('DIREKTUR')).toBe('/hq');
   });
 });

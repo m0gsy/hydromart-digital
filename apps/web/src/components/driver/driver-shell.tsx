@@ -6,10 +6,10 @@ import { ClockCounterClockwise, ListChecks, Truck, User, Wallet } from '@phospho
 
 import { OfflineQueueBanner } from '@/components/offline-queue-banner';
 import { RequireAuth } from '@/components/require-auth';
-import { CenterState } from '@/components/ui';
+import { CenterState, LinkButton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canUseCourierApp } from '@/lib/roles';
+import { canUseCourierApp, consoleHome } from '@/lib/roles';
 
 const TABS = [
   { href: '/driver', labelKey: 'tabTasks', icon: ListChecks },
@@ -74,7 +74,16 @@ export function DriverShell({
           {nav && <DriverNav />}
         </div>
       ) : (
-        <CenterState icon={<Truck size={32} />} title={t('driver.shell.gateTitle')}>
+        <CenterState
+          icon={<Truck size={32} />}
+          title={t('driver.shell.gateTitle')}
+          // The courier app has no top nav, so the refusal carries its own way out.
+          action={
+            <LinkButton href={consoleHome(customer?.role)} variant="secondary">
+              {t('hq.denied.back')}
+            </LinkButton>
+          }
+        >
           {t('driver.shell.gateBody')}
         </CenterState>
       )}

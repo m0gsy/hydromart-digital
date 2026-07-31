@@ -28,7 +28,7 @@ export default function HqLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAuth>
       <HqGate>
-        <div className="-mx-4 -mt-6 -mb-24 flex sm:-mx-8 sm:-mb-10">
+        <div className="flex">
           <HqRail />
           <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
         </div>

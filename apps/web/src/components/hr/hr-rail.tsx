@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { canManageHr } from '@/lib/roles';
 
@@ -61,7 +62,7 @@ export function HrRail() {
   return (
     <nav
       aria-label="HR"
-      className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-app px-3 py-6 sm:flex"
+      className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-app px-3 py-6 sm:flex"
     >
       <p className="px-3 pb-2 text-xs font-bold uppercase tracking-wide text-muted">HR</p>
       {items.map(({ href, label, icon: Icon }) => {
@@ -82,6 +83,7 @@ export function HrRail() {
           </Link>
         );
       })}
+      <ConsoleSignOut />
     </nav>
   );
 }
