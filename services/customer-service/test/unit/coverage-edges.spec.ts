@@ -27,6 +27,7 @@ describe('DepotCrmService follow-up list', () => {
       {} as never,
       {} as never,
       { depotCustomerStats: async () => rows } as never,
+      { getCustomerNames: async () => new Map() } as never,
       buildTestConfig(),
     );
 

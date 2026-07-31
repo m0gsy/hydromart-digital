@@ -95,12 +95,29 @@ export const canManageHr = (role: string | null | undefined) => can('hrAdmin', r
 export const canRunPayroll = (role: string | null | undefined) => can('hrPayroll', role);
 export const canReviewApprovals = (role: string | null | undefined) => can('approvals', role);
 export const canViewDepotFinance = (role: string | null | undefined) => can('depotFinance', role);
-// Role identity helpers for shell selection (operator gets the top-tab console).
+// Role identity helpers for shell SELECTION — "which console do we render for this
+// account". Kept exact on purpose: a super admin must still land on the executive
+// dashboard, not the operator's top-tab console. For "may this account open the page",
+// use the canUseXConsole() gates below instead.
 export const isDepotOperator = (role: string | null | undefined) => role === 'KEPALA_DEPOT';
 export const isDepotManager = (role: string | null | undefined) => role === 'MANAGER';
 // GLOBAL-scope settings writes are SUPER_ADMIN-only server-side (settings.controller.ts);
 // this mirrors that gate so the UI doesn't offer inputs the server will 403.
 export const isSuperAdmin = (role: string | null | undefined) => role === 'SUPER_ADMIN';
+
+// Console-ENTRY gates. These three consoles are role-shaped rather than capability-shaped
+// — there is no `wastage` or `checkIn` capability to hang them on — so they stay role
+// checks. But a super admin oversees every console and must never be locked out of one,
+// which is exactly what the bare `role === 'MANAGER'` comparisons used to do (it holds
+// every capability in @hydromart/access yet was refused /driver, /m/manager and 11
+// /dashboard pages). Separate from the identity helpers above so shell selection is
+// unaffected.
+export const canUseManagerConsole = (role: string | null | undefined) =>
+  isDepotManager(role) || isSuperAdmin(role);
+export const canUseOperatorConsole = (role: string | null | undefined) =>
+  isDepotOperator(role) || isSuperAdmin(role);
+export const canUseCourierApp = (role: string | null | undefined) =>
+  role === 'STAFF_DEPOT' || isSuperAdmin(role);
 
 // Reseller registry. Now a capability pair in @hydromart/access rather than a
 // hand-rolled `isHq() || isDepotManager()` — the read side widened to HR (read-only

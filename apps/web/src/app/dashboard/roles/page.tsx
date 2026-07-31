@@ -7,7 +7,7 @@ import { Card, CenterState, Chip } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
-import { CAPABILITIES } from '@hydromart/access';
+import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 
 // Display roles (CUSTOMER holds no depot capability, so it is omitted). Order groups
 // depot staff first, then oversight/office roles. MANAGER is the highlighted row.
@@ -29,7 +29,8 @@ const ROLE_KEYS: string[] = [
 
 function MatrixBody() {
   const { t } = useT();
-  const caps = Object.keys(CAPABILITIES);
+  const holdersByCap = useEffectiveCapabilities();
+  const caps = Object.keys(holdersByCap);
 
   return (
     <div className="flex flex-col gap-5">
@@ -43,7 +44,7 @@ function MatrixBody() {
 
       <div className="flex flex-col gap-2">
         {caps.map((cap) => {
-          const holders = CAPABILITIES[cap as keyof typeof CAPABILITIES] as readonly string[];
+          const holders = holdersByCap[cap as keyof typeof holdersByCap];
           return (
             <Card key={cap} className="flex flex-col gap-2 p-4">
               <p className="text-sm font-semibold">{t(`dashC.roles.cap.${cap}`)}</p>

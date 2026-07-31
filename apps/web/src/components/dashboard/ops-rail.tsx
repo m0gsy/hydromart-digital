@@ -20,6 +20,7 @@ import {
   Gavel,
   Gift,
   HandCoins,
+  ListChecks,
   Medal,
   Notebook,
   Receipt,
@@ -39,6 +40,7 @@ import {
   Star,
   Storefront,
   Target,
+  Trash,
   Truck,
   UserGear,
   Tag,
@@ -80,7 +82,8 @@ import {
   canViewDepotFinance,
   canBroadcastToCouriers,
   canHandOverRewards,
-  isDepotManager,
+  canUseManagerConsole,
+  can,
   isStaff,
 } from '@/lib/roles';
 
@@ -118,6 +121,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/tracking', labelKey: 'tracking', icon: MapPin, show: canViewTracking },
       { href: '/dashboard/inventory', labelKey: 'inventory', icon: Package, show: canViewInventory },
       { href: '/dashboard/returns', labelKey: 'returns', icon: Recycle, show: canViewReturns },
+      { href: '/dashboard/wastage', labelKey: 'wastage', icon: Trash, show: canUseManagerConsole },
       { href: '/dashboard/notifications', labelKey: 'notifications', icon: Bell, show: canViewOpsNotifications },
       { href: '/dashboard/settlements', labelKey: 'settlements', icon: HandCoins, show: canVerifySettlement },
       { href: '/dashboard/forecast', labelKey: 'forecast', icon: TrendUp, show: canViewForecast },
@@ -146,7 +150,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/approvals', labelKey: 'approvalsQueue', icon: Gavel, show: canReviewApprovals },
       { href: '/dashboard/incidents', labelKey: 'incidents', icon: FirstAid, show: canViewIncidents },
-      { href: '/dashboard/disputes', labelKey: 'disputes', icon: Scales, show: isDepotManager },
+      { href: '/dashboard/disputes', labelKey: 'disputes', icon: Scales, show: (r) => can('depotDisputes', r) },
     ],
   },
   {
@@ -160,10 +164,11 @@ const GROUPS: RailGroup[] = [
     headKey: 'people',
     items: [
       { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
-      { href: '/dashboard/targets', labelKey: 'targets', icon: Target, show: isDepotManager },
-      { href: '/dashboard/huddle', labelKey: 'huddle', icon: UsersThree, show: isDepotManager },
-      { href: '/dashboard/handover', labelKey: 'handover', icon: ClipboardText, show: isDepotManager },
-      { href: '/dashboard/maintenance', labelKey: 'maintenance', icon: Wrench, show: isDepotManager },
+      { href: '/dashboard/targets', labelKey: 'targets', icon: Target, show: (r) => can('depotTargets', r) },
+      { href: '/dashboard/huddle', labelKey: 'huddle', icon: UsersThree, show: (r) => can('depotHuddle', r) },
+      { href: '/dashboard/handover', labelKey: 'handover', icon: ClipboardText, show: (r) => can('depotHandover', r) },
+      { href: '/dashboard/maintenance', labelKey: 'maintenance', icon: Wrench, show: (r) => can('depotMaintenance', r) },
+      { href: '/dashboard/onboarding', labelKey: 'staffOnboarding', icon: ListChecks, show: canUseManagerConsole },
     ],
   },
   {
@@ -172,18 +177,18 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/customers', labelKey: 'customers', icon: UsersThree, show: canViewDepotCrm },
       { href: '/dashboard/crm', labelKey: 'crm', icon: ChartPieSlice, show: canViewDepotCrm },
       { href: '/dashboard/broadcast', labelKey: 'broadcast', icon: Megaphone, show: canBroadcastToCouriers },
-      { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: isDepotManager },
+      { href: '/dashboard/loyalty', labelKey: 'loyalty', icon: Medal, show: canUseManagerConsole },
       { href: '/dashboard/redemptions', labelKey: 'redemptions', icon: Gift, show: canHandOverRewards },
-      { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: isDepotManager },
-      { href: '/dashboard/recommendations', labelKey: 'recommendations', icon: Sparkle, show: isDepotManager },
-      { href: '/dashboard/ratings', labelKey: 'ratings', icon: Star, show: isDepotManager },
-      { href: '/dashboard/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, show: isDepotManager },
+      { href: '/dashboard/referral', labelKey: 'referral', icon: Gift, show: canUseManagerConsole },
+      { href: '/dashboard/recommendations', labelKey: 'recommendations', icon: Sparkle, show: canManageDepots },
+      { href: '/dashboard/ratings', labelKey: 'ratings', icon: Star, show: canUseManagerConsole },
+      { href: '/dashboard/subscriptions', labelKey: 'subscriptions', icon: ArrowsClockwise, show: (r) => can('depotSubscriptions', r) },
     ],
   },
   {
     headKey: 'catalog',
     items: [
-      { href: '/dashboard/products/manage', labelKey: 'manageProducts', icon: Cube, show: isDepotManager },
+      { href: '/dashboard/products/manage', labelKey: 'manageProducts', icon: Cube, show: canManageDepots },
       { href: '/dashboard/wholesale', labelKey: 'wholesale', icon: Stack, show: canManagePricing },
       { href: '/dashboard/payments', labelKey: 'payments', icon: QrCode, show: canManageDepots },
     ],
@@ -199,7 +204,7 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/commission', labelKey: 'commission', icon: HandCoins, show: canViewDepotFinance },
       { href: '/dashboard/reports', labelKey: 'reports', icon: ChartPieSlice, show: isStaff },
       { href: '/dashboard/monthly-review', labelKey: 'monthlyReview', icon: ClipboardText, show: canViewDepotFinance },
-      { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: isDepotManager },
+      { href: '/dashboard/compare', labelKey: 'compare', icon: Scales, show: canUseManagerConsole },
     ],
   },
   {
@@ -207,7 +212,7 @@ const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/roles', labelKey: 'roles', icon: ShieldCheck, show: isStaff },
       { href: '/dashboard/audit', labelKey: 'audit', icon: Scroll, show: canViewAudit },
-      { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: isDepotManager },
+      { href: '/dashboard/profile', labelKey: 'profile', icon: UserGear, show: canUseManagerConsole },
     ],
   },
 ];

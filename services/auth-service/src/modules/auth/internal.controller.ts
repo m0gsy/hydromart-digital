@@ -8,6 +8,7 @@ import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { PublicCustomerDto } from './dto/responses.dto';
 import {
   AssignStaffRoleDto,
+  LookupCustomerIdsDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
   ProvisionStaffDto,
@@ -60,6 +61,20 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Pre-register an imported customer as PENDING (internal service auth)' })
   preRegisterCustomer(@Body() dto: PreRegisterCustomerDto): Promise<PreRegisterResultDto> {
     return this.account.preRegisterCustomer(dto.phone, dto.fullName);
+  }
+
+  /**
+   * Name lookup for service-to-service callers. customer-service holds no name of its own
+   * — its depot directory was reading the primary ADDRESS's recipientName, so a customer
+   * with no primary address showed as "Tanpa nama". The account name lives here, so this
+   * is where the directory asks for it.
+   */
+  @Post('customers/by-ids')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resolve customer ids to public profiles (internal service auth)' })
+  async lookupByIds(@Body() dto: LookupCustomerIdsDto): Promise<PublicCustomerDto[]> {
+    const customers = await this.account.lookupByIds(dto.ids);
+    return customers.map(PublicCustomerDto.from);
   }
 
   /**

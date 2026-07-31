@@ -3,6 +3,7 @@ import { DepotCrmRepository, DepotCustomerRow } from '../../src/application/port
 import { DepotCustomerOrderStats, OrderCrmPort } from '../../src/application/ports/order-crm.port';
 import { AddressRecord, AddressRepository } from '../../src/application/ports/address.repository';
 import { CustomerProfileRecord, ProfileRepository } from '../../src/application/ports/profile.repository';
+import { CustomerIdentity, IdentityPort } from '../../src/application/ports/identity.port';
 import { MembershipTier } from '../../src/domain/membership-tier.enum';
 
 // Minimal fake: findIdsByDepot + listDepotCustomers are exercised here.
@@ -17,12 +18,23 @@ class FakeDepotCrmRepository implements DepotCrmRepository {
   }
 }
 
+/** auth-service stand-in. Empty by default = the fail-soft path (no account names). */
+class FakeIdentity implements IdentityPort {
+  names = new Map<string, CustomerIdentity>();
+  asked: string[][] = [];
+  preRegisterCustomer = jest.fn();
+  async getCustomerNames(ids: string[]): Promise<Map<string, CustomerIdentity>> {
+    this.asked.push(ids);
+    return this.names;
+  }
+}
+
 describe('DepotCrmService.listCustomerIdsByDepot', () => {
   it('returns only the ids whose favourite depot matches', async () => {
     const repo = new FakeDepotCrmRepository();
     repo.byDepot.set('depot-a', ['c1', 'c2']);
     repo.byDepot.set('depot-b', ['c3']);
-    const service = new DepotCrmService(repo, {} as never, {} as never, {} as never, {} as never);
+    const service = new DepotCrmService(repo, {} as never, {} as never, {} as never, new FakeIdentity(), {} as never);
 
     expect(await service.listCustomerIdsByDepot('depot-a')).toEqual(['c1', 'c2']);
     expect(await service.listCustomerIdsByDepot('depot-b')).toEqual(['c3']);
@@ -36,7 +48,7 @@ describe('DepotCrmService.getCrmDashboard', () => {
 
   function serviceWithStats(stats: DepotCustomerOrderStats[]): DepotCrmService {
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
-    return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, config);
+    return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, new FakeIdentity(), config);
   }
 
   it('counts segments, repeat rate, and overdue follow-ups (most-overdue first)', async () => {
@@ -70,11 +82,15 @@ describe('DepotCrmService.listDepotCustomers', () => {
     membershipTier: MembershipTier.BASIC,
   });
 
-  function service(rows: DepotCustomerRow[], stats: DepotCustomerOrderStats[]): DepotCrmService {
+  function service(
+    rows: DepotCustomerRow[],
+    stats: DepotCustomerOrderStats[],
+    identity: IdentityPort = new FakeIdentity(),
+  ): DepotCrmService {
     const repo = new FakeDepotCrmRepository();
     repo.rows = rows;
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
-    return new DepotCrmService(repo, {} as never, {} as never, orderCrm, config);
+    return new DepotCrmService(repo, {} as never, {} as never, orderCrm, identity, config);
   }
 
   it('merges order stats onto rows that have them, and nulls the rest', async () => {
@@ -84,7 +100,7 @@ describe('DepotCrmService.listDepotCustomers', () => {
       [{ customerId: 'c1', name: 'n', phone: 'p', orderCount: 3, totalSpent: 90_000, firstOrderAt: fiveDaysAgo, lastOrderAt: fiveDaysAgo }],
     );
 
-    const [withStats, without] = await svc.listDepotCustomers('depot-a', 'q');
+    const [withStats, without] = await svc.listDepotCustomers('depot-a');
 
     // c1 gets its aggregate + a computed segment (first order 5d ago → BARU).
     expect(withStats).toMatchObject({ id: 'c1', orderCount: 3, segment: 'BARU', gallonsOnLoan: null, depositHeldIdr: null, isSubscriber: null });
@@ -96,6 +112,40 @@ describe('DepotCrmService.listDepotCustomers', () => {
   it('empty stats → every row is order-less (all null)', async () => {
     const [only] = await service([row('c9')], []).listDepotCustomers('depot-a');
     expect(only).toMatchObject({ id: 'c9', orderCount: null, lastOrderAt: null, segment: null });
+  });
+
+  it('shows the ACCOUNT name, not the primary address recipient', async () => {
+    const identity = new FakeIdentity();
+    identity.names.set('c1', { fullName: 'Budi Santoso', phone: '0811' });
+    const [only] = await service([row('c1')], [], identity).listDepotCustomers('depot-a');
+    expect(only).toMatchObject({ id: 'c1', fullName: 'Budi Santoso', phone: '0811' });
+    expect(identity.asked).toEqual([['c1']]);
+  });
+
+  it('a customer with no saved address still lists under their account name', async () => {
+    // The old SQL read the name off the primary address, so this customer was "Tanpa nama".
+    const identity = new FakeIdentity();
+    identity.names.set('c2', { fullName: 'Siti', phone: '0822' });
+    const nameless: DepotCustomerRow = { customerId: 'c2', fullName: null, phone: null, membershipTier: MembershipTier.BASIC };
+    const [only] = await service([nameless], [], identity).listDepotCustomers('depot-a');
+    expect(only).toMatchObject({ fullName: 'Siti', phone: '0822' });
+  });
+
+  it('auth-service silent → keeps the address name rather than blanking the row', async () => {
+    const [only] = await service([row('c3')], []).listDepotCustomers('depot-a');
+    expect(only).toMatchObject({ fullName: 'name-c3', phone: 'phone-c3' });
+  });
+
+  it('search matches the account name the staff member can actually see', async () => {
+    const identity = new FakeIdentity();
+    identity.names.set('c1', { fullName: 'Budi Santoso', phone: '0811' });
+    identity.names.set('c2', { fullName: 'Siti Aminah', phone: '0822' });
+    const svc = service([row('c1'), row('c2')], [], identity);
+
+    expect((await svc.listDepotCustomers('depot-a', ' bUdI ')).map((i) => i.id)).toEqual(['c1']);
+    expect((await svc.listDepotCustomers('depot-a', '0822')).map((i) => i.id)).toEqual(['c2']);
+    expect((await svc.listDepotCustomers('depot-a', 'name-c1')).map((i) => i.id)).toEqual([]);
+    expect((await svc.listDepotCustomers('depot-a', '   ')).map((i) => i.id)).toEqual(['c1', 'c2']);
   });
 });
 
@@ -119,10 +169,14 @@ describe('DepotCrmService.getDepotDetail', () => {
     ...over,
   });
 
-  function service(profile: CustomerProfileRecord | null, addresses: AddressRecord[]): DepotCrmService {
+  function service(
+    profile: CustomerProfileRecord | null,
+    addresses: AddressRecord[],
+    identity: IdentityPort = new FakeIdentity(),
+  ): DepotCrmService {
     const profiles: ProfileRepository = { findByCustomerId: async () => profile } as unknown as ProfileRepository;
     const addressRepo: AddressRepository = { listByCustomer: async () => addresses } as unknown as AddressRepository;
-    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, {} as never, {} as never);
+    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, {} as never, identity, {} as never);
   }
 
   const profile = (tier: MembershipTier): CustomerProfileRecord => ({

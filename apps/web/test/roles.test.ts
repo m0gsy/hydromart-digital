@@ -4,6 +4,9 @@ import {
   canManageEarningRules,
   canManagePricing,
   canViewDashboard,
+  canUseCourierApp,
+  canUseManagerConsole,
+  canUseOperatorConsole,
   dashboardLandingView,
   isDepotManager,
   isDepotOperator,
@@ -72,5 +75,37 @@ describe('role identity helpers', () => {
     expect(isDepotOperator('MANAGER')).toBe(false);
     expect(isDepotManager('MANAGER')).toBe(true);
     expect(isDepotManager('KEPALA_DEPOT')).toBe(false);
+  });
+
+  // The identity helpers must stay exact even though the ENTRY gates below let a super
+  // admin in: if isDepotOperator() widened, dashboardLandingView() would hand a super
+  // admin the operator console instead of the executive one.
+  it('stay exact for SUPER_ADMIN, so shell selection is unchanged', () => {
+    expect(isDepotOperator('SUPER_ADMIN')).toBe(false);
+    expect(isDepotManager('SUPER_ADMIN')).toBe(false);
+    expect(dashboardLandingView('SUPER_ADMIN')).toBe('executive');
+  });
+});
+
+// The bug these gates fix: a super admin holds every capability in @hydromart/access yet
+// was refused /driver, /m/manager and 11 /dashboard pages, because those compared the
+// role string exactly.
+describe('console entry gates', () => {
+  it('admit the console owner and the super admin, nobody else', () => {
+    expect(canUseManagerConsole('MANAGER')).toBe(true);
+    expect(canUseOperatorConsole('KEPALA_DEPOT')).toBe(true);
+    expect(canUseCourierApp('STAFF_DEPOT')).toBe(true);
+    for (const gate of [canUseManagerConsole, canUseOperatorConsole, canUseCourierApp]) {
+      expect(gate('SUPER_ADMIN')).toBe(true);
+      for (const r of ['CUSTOMER', 'FINANCE', 'HR', 'NOPE', '', null, undefined]) {
+        expect(gate(r)).toBe(false);
+      }
+    }
+  });
+
+  it('do not admit each other — a manager is still not a courier', () => {
+    expect(canUseCourierApp('MANAGER')).toBe(false);
+    expect(canUseManagerConsole('KEPALA_DEPOT')).toBe(false);
+    expect(canUseOperatorConsole('MANAGER')).toBe(false);
   });
 });

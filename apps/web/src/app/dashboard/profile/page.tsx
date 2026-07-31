@@ -8,7 +8,7 @@ import { Button, Card, Chip, CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { isDepotManager } from '@/lib/roles';
+import { canUseManagerConsole } from '@/lib/roles';
 import { CAPABILITIES } from '@hydromart/access';
 
 function initials(name: string | null): string {
@@ -114,7 +114,7 @@ function ProfileBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isDepotManager(customer?.role)) {
+  if (!canUseManagerConsole(customer?.role)) {
     return (
       <CenterState title={t('dashC.profile.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashC.profile.gateBody')}

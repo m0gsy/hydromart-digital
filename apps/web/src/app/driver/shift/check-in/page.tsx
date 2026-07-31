@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BatteryCharging,
   CheckCircle,
+  CloudArrowUp,
   Fingerprint,
   MapPinArea,
   Motorcycle,
@@ -14,7 +16,7 @@ import {
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
@@ -52,6 +54,9 @@ function CheckIn() {
   const queue = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Captured without signal. We must NOT jump to the task list — there is no shift on the
+  // server yet, so /driver would bounce straight back here with no explanation.
+  const [queuedOffline, setQueuedOffline] = useState(false);
 
   if (current.data && !busy) {
     router.replace('/driver');
@@ -64,21 +69,37 @@ function CheckIn() {
     try {
       const pos = await currentPosition();
       // Depot wifi is not a given at 6am: queue the check-in rather than lose the shift start.
-      await runOrQueue({
+      const { outcome } = await runOrQueue({
         kind: 'shiftCheckIn',
         payload: { depotId, lat: pos.coords.latitude, lng: pos.coords.longitude },
       });
+      if (outcome === 'queued') {
+        setQueuedOffline(true);
+        setBusy(false);
+        return;
+      }
       router.replace('/driver');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('driver.checkIn.error'));
+      // Keep the thrown message — "Lokasi GPS ditolak. Aktifkan izin lokasi." tells the
+      // courier what to do; the generic fallback does not.
+      setError(e instanceof Error ? e.message : t('driver.checkIn.error'));
       setBusy(false);
     }
   };
 
+  // No depot assigned = check-in is impossible, so this screen must not be a wall. The
+  // bottom tabs are back (see DriverShell below), and the courier is pointed at the one
+  // screen that can help: their profile, which names the depot contact.
   if (!depotId) {
     return (
       <CenterState icon={<WarningCircle size={32} />} title={t('driver.checkIn.noDepotTitle')}>
         {t('driver.checkIn.noDepotBody')}
+        <Link
+          href="/driver/profile"
+          className="mt-4 inline-flex h-11 items-center rounded-full bg-brand-600 px-5 text-sm font-bold text-white"
+        >
+          {t('driver.checkIn.noDepotAction')}
+        </Link>
       </CenterState>
     );
   }
@@ -87,7 +108,7 @@ function CheckIn() {
   const batteryLow = battery != null && battery < 50;
 
   return (
-    <div className="flex min-h-dvh flex-col px-5 py-6">
+    <div className="flex flex-1 flex-col px-5 py-6">
       <div>
         <p className="text-xs font-bold text-[color:var(--muted)]">{t('driver.checkIn.welcome')}</p>
         <h1 className="mt-0.5 text-2xl font-extrabold tracking-tight">{customer?.fullName ?? t('driver.checkIn.fallbackName')}</h1>
@@ -123,6 +144,13 @@ function CheckIn() {
         <div className="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-brand-50 px-3.5 py-3">
           <Package size={18} weight="fill" className="shrink-0 text-brand-700" />
           <span className="text-xs leading-snug text-brand-800">{t('courierFix.checkIn.queued', { n: queued })}</span>
+        </div>
+      )}
+
+      {queuedOffline && (
+        <div className="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-amber-50 px-3.5 py-3">
+          <CloudArrowUp size={18} weight="fill" className="shrink-0 text-amber-600" />
+          <span className="text-xs leading-snug text-amber-800">{t('driver.checkIn.queuedOffline')}</span>
         </div>
       )}
 
@@ -179,8 +207,10 @@ function ChecklistRow({
 }
 
 export default function CheckInPage() {
+  // Bottom tabs stay ON here. /driver sends every shiftless courier to this screen, so
+  // hiding the nav made it a dead end — Riwayat and Profil must remain reachable.
   return (
-    <DriverShell nav={false}>
+    <DriverShell>
       <CheckIn />
     </DriverShell>
   );

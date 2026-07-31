@@ -1,5 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 
 import {
   HR_MANAGED_ROLES,
@@ -78,6 +87,18 @@ export class PreRegisterResultDto {
       'created = new PENDING identity; pending = one already awaiting its first OTP; active = the phone already belongs to a verified account and was left untouched.',
   })
   status!: 'created' | 'pending' | 'active';
+}
+
+/**
+ * Batch id lookup. A POST for a read on purpose: a depot directory can hold more ids than
+ * fits a query string, and every route on this controller is already a POST.
+ */
+export class LookupCustomerIdsDto {
+  @ApiProperty({ type: [String], format: 'uuid' })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @IsUUID('4', { each: true })
+  ids!: string[];
 }
 
 /**

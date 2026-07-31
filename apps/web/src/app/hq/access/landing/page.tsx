@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
-import { CAPABILITIES, type Capability, type Role } from '@hydromart/access';
+import { type Capability, type Role } from '@hydromart/access';
 import { HQ_GROUPS, hqItemsForRole } from '@/components/hq/hq-rail';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 import { isHq } from '@/lib/roles';
+import { useEffectiveCapabilities, type CapabilityHolders } from '@/lib/use-effective-capabilities';
 
 // Full rail size (every ready surface) — the denominator for the visible/total counter.
 const TOTAL_SURFACES = HQ_GROUPS.flatMap((g) => g.items).filter((i) => i.ready).length;
@@ -44,9 +45,9 @@ const LANDING: Record<Role, string> = {
   CUSTOMER: '/products',
 };
 
-function capCount(role: Role): number {
-  return (Object.keys(CAPABILITIES) as Capability[]).filter((c) =>
-    (CAPABILITIES[c] as readonly Role[]).includes(role),
+function capCount(holdersByCap: CapabilityHolders, role: Role): number {
+  return (Object.keys(holdersByCap) as Capability[]).filter((c) =>
+    (holdersByCap[c] as readonly Role[] | undefined)?.includes(role),
   ).length;
 }
 
@@ -54,6 +55,9 @@ function capCount(role: Role): number {
 export default function HqLandingPage() {
   const { t } = useT();
   const [role, setRole] = useState<Role>('SUPER_ADMIN');
+  // Effective matrix, not the compiled one — the counts here must move when a super admin
+  // edits a cell on /hq/access.
+  const holdersByCap = useEffectiveCapabilities();
 
   // Regroup the visible rail under its section headers (spec 9a railPreview), reading the
   // same ready/isHq filter that drives the real rail. Non-HQ roles get no groups → noMenu.
@@ -100,7 +104,7 @@ export default function HqLandingPage() {
               }
             >
               <span>{t(`hq.roles.${r}`)}</span>
-              <span className="text-xs tabular-nums text-muted">{capCount(r)}</span>
+              <span className="text-xs tabular-nums text-muted">{capCount(holdersByCap, r)}</span>
             </button>
           ))}
         </Card>
@@ -109,7 +113,7 @@ export default function HqLandingPage() {
         <Card className="flex flex-col gap-5 p-5">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-bold">{t(`hq.roles.${role}`)}</h2>
-            <Chip tone="tint">{t('hq.landing.capsCount', { n: capCount(role) })}</Chip>
+            <Chip tone="tint">{t('hq.landing.capsCount', { n: capCount(holdersByCap, role) })}</Chip>
           </div>
 
           <div className="flex flex-col gap-1.5">

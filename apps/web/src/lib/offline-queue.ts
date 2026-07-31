@@ -187,9 +187,17 @@ async function uploadDataUrl(dataUrl: string, name: string, type: string): Promi
 
 /** True when the failure is "the network isn't there", as opposed to a real rejection. */
 function isOffline(e: unknown): boolean {
-  // 401 lands here too: the cookie may simply have expired while the device was offline, and
-  // the punch itself is still valid. It retries after the operator signs in again.
-  return e instanceof ApiError && (e.status === 0 || e.status === 401);
+  return e instanceof ApiError && e.status === 0;
+}
+
+/**
+ * Session gone. Deliberately NOT folded into isOffline(): a 401 at capture time means the
+ * courier must sign in again, and swallowing it into the queue leaves them staring at a
+ * screen that quietly did nothing. A job ALREADY queued is a different story — the punch
+ * itself is still valid, so flush() keeps it and retries after the next sign-in.
+ */
+function isUnauthenticated(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 401;
 }
 
 /**
@@ -224,7 +232,8 @@ export async function flush(): Promise<void> {
         await run(job, job.capturedAt);
         await discard(job.id);
       } catch (e) {
-        if (isOffline(e)) return; // still no network — keep the rest for the next attempt
+        // No network, or the session lapsed — keep the rest for the next attempt either way.
+        if (isOffline(e) || isUnauthenticated(e)) return;
         await put({ ...job, error: e instanceof Error ? e.message : 'Gagal mengirim' });
       }
     }

@@ -19,7 +19,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, Chip, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { isDepotOperator } from '@/lib/roles';
+import { canUseOperatorConsole } from '@/lib/roles';
 
 const OPS_NOTIF: { id: string; icon: Icon; label: string; def: boolean }[] = [
   { id: 'lowStock', icon: Package, label: 'dashB.operatorSettings.notifLowStock', def: true },
@@ -143,7 +143,7 @@ function StaticRow({ icon: RIcon, label, sub }: { icon: Icon; label: string; sub
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!isDepotOperator(customer?.role)) {
+  if (!canUseOperatorConsole(customer?.role)) {
     return (
       <CenterState title={t('dashB.operatorSettings.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashB.operatorSettings.gateBody')}
