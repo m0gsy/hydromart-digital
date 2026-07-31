@@ -93,9 +93,9 @@ describe('AccountService', () => {
     customers.seed(taken);
     customers.seed(me);
 
-    await expect(
-      service.updateProfile(me.id, { email: 'taken@x.com' }),
-    ).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
+    await expect(service.updateProfile(me.id, { email: 'taken@x.com' })).rejects.toBeInstanceOf(
+      EmailAlreadyRegisteredError,
+    );
   });
 
   it('allows re-saving the account own email unchanged', async () => {
@@ -116,9 +116,9 @@ describe('AccountService', () => {
   it.each([Role.STAFF_DEPOT, Role.KEPALA_DEPOT])(
     'refuses to invite %s without a depot',
     async (role) => {
-      await expect(service.inviteStaff('+628990001199', role, 'Tanpa Depot')).rejects.toBeInstanceOf(
-        StaffDepotRequiredError,
-      );
+      await expect(
+        service.inviteStaff('+628990001199', role, 'Tanpa Depot'),
+      ).rejects.toBeInstanceOf(StaffDepotRequiredError);
     },
   );
 
@@ -126,6 +126,52 @@ describe('AccountService', () => {
   it('invites an office role without a depot', async () => {
     const staff = await service.inviteStaff('+628990001188', Role.HEAD_OFFICE, 'Kantor');
     expect(staff).toMatchObject({ role: Role.HEAD_OFFICE, status: 'ACTIVE' });
+  });
+
+  // setStaffRole backs an HR jabatan change: the account already exists and only its role
+  // (and possibly its depot) moves. It must never mint an account, and it enforces the same
+  // depot rule as the invite path.
+  describe('setStaffRole', () => {
+    it('rejects demoting to CUSTOMER and an unknown account', async () => {
+      const staff = await service.inviteStaff('+628990003001', Role.HEAD_OFFICE, 'Kantor');
+      await expect(service.setStaffRole(staff.id, Role.CUSTOMER)).rejects.toBeInstanceOf(
+        InvalidStaffRoleError,
+      );
+      await expect(
+        service.setStaffRole('00000000-0000-4000-8000-000000000000', Role.HEAD_OFFICE),
+      ).rejects.toBeInstanceOf(CustomerNotFoundError);
+    });
+
+    it('keeps the account on its current depot when none is passed', async () => {
+      const staff = await service.inviteStaff('+628990003002', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      const moved = await service.setStaffRole(staff.id, Role.KEPALA_DEPOT);
+      expect(moved).toMatchObject({ role: Role.KEPALA_DEPOT, assignedDepotId: 'depot-1' });
+    });
+
+    it('reassigns the depot when one is passed', async () => {
+      const staff = await service.inviteStaff('+628990003003', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      const moved = await service.setStaffRole(staff.id, Role.STAFF_DEPOT, 'depot-2');
+      expect(moved.assignedDepotId).toBe('depot-2');
+    });
+
+    it('refuses to leave a depot-locked role without a depot', async () => {
+      const office = await service.inviteStaff('+628990003004', Role.HEAD_OFFICE, 'Kantor');
+      // No depot on the account and none supplied.
+      await expect(service.setStaffRole(office.id, Role.KEPALA_DEPOT)).rejects.toBeInstanceOf(
+        StaffDepotRequiredError,
+      );
+      const staff = await service.inviteStaff('+628990003005', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      // Explicitly clearing the depot is refused too.
+      await expect(service.setStaffRole(staff.id, Role.STAFF_DEPOT, null)).rejects.toBeInstanceOf(
+        StaffDepotRequiredError,
+      );
+    });
+
+    it('moves an office role that never had a depot', async () => {
+      const office = await service.inviteStaff('+628990003006', Role.HEAD_OFFICE, 'Kantor');
+      const moved = await service.setStaffRole(office.id, Role.FINANCE);
+      expect(moved).toMatchObject({ role: Role.FINANCE, assignedDepotId: null });
+    });
   });
 
   it('resolves a batch of ids to public profiles, deduping and dropping unknowns', async () => {
@@ -155,13 +201,23 @@ describe('AccountService', () => {
       vehicleType: 'MOTOR',
       plateNumber: 'B 1234 ABC',
     });
-    expect(driver).toMatchObject({ role: Role.STAFF_DEPOT, vehicleType: 'MOTOR', plateNumber: 'B 1234 ABC' });
+    expect(driver).toMatchObject({
+      role: Role.STAFF_DEPOT,
+      vehicleType: 'MOTOR',
+      plateNumber: 'B 1234 ABC',
+    });
 
     // Same vehicle payload on a non-driver role is dropped (not a courier).
-    const operator = await service.inviteStaff('+628990001313', Role.KEPALA_DEPOT, 'Sari', 'depot-1', {
-      vehicleType: 'MOTOR',
-      plateNumber: 'B 9999 ZZ',
-    });
+    const operator = await service.inviteStaff(
+      '+628990001313',
+      Role.KEPALA_DEPOT,
+      'Sari',
+      'depot-1',
+      {
+        vehicleType: 'MOTOR',
+        plateNumber: 'B 9999 ZZ',
+      },
+    );
     expect(operator.vehicleType).toBeNull();
     expect(operator.plateNumber).toBeNull();
   });
@@ -234,8 +290,16 @@ describe('AccountService', () => {
     customers.seed(makeCustomer({ phone: '+628991110001', role: Role.CUSTOMER, createdAt: jan }));
     customers.seed(makeCustomer({ phone: '+628991110002', role: Role.CUSTOMER, createdAt: feb }));
     // Excluded: a staff account in-range, and a customer outside the window.
-    customers.seed(makeCustomer({ phone: '+628991110003', role: Role.HEAD_OFFICE, createdAt: feb }));
-    customers.seed(makeCustomer({ phone: '+628991110004', role: Role.CUSTOMER, createdAt: new Date('2025-12-01T00:00:00Z') }));
+    customers.seed(
+      makeCustomer({ phone: '+628991110003', role: Role.HEAD_OFFICE, createdAt: feb }),
+    );
+    customers.seed(
+      makeCustomer({
+        phone: '+628991110004',
+        role: Role.CUSTOMER,
+        createdAt: new Date('2025-12-01T00:00:00Z'),
+      }),
+    );
 
     const all = await service.countNewCustomers();
     expect(all).toBe(3); // three CUSTOMER rows regardless of date
@@ -248,15 +312,28 @@ describe('AccountService', () => {
 
   it('lists only active STAFF_DEPOT accounts for dispatch', async () => {
     customers.seed(
-      makeCustomer({ phone: '+628990007777', role: Role.STAFF_DEPOT, status: CustomerStatus.ACTIVE, fullName: 'Andi' }),
+      makeCustomer({
+        phone: '+628990007777',
+        role: Role.STAFF_DEPOT,
+        status: CustomerStatus.ACTIVE,
+        fullName: 'Andi',
+      }),
     );
     // A STAFF_DEPOT who is not yet active must be excluded.
     customers.seed(
-      makeCustomer({ phone: '+628990008888', role: Role.STAFF_DEPOT, status: CustomerStatus.PENDING_VERIFICATION }),
+      makeCustomer({
+        phone: '+628990008888',
+        role: Role.STAFF_DEPOT,
+        status: CustomerStatus.PENDING_VERIFICATION,
+      }),
     );
     // Active non-drivers and customers must be excluded.
     customers.seed(
-      makeCustomer({ phone: '+628990009999', role: Role.KEPALA_DEPOT, status: CustomerStatus.ACTIVE }),
+      makeCustomer({
+        phone: '+628990009999',
+        role: Role.KEPALA_DEPOT,
+        status: CustomerStatus.ACTIVE,
+      }),
     );
     customers.seed(
       makeCustomer({ phone: '+628990001010', role: Role.CUSTOMER, status: CustomerStatus.ACTIVE }),
@@ -264,8 +341,14 @@ describe('AccountService', () => {
 
     const drivers = await service.listDrivers();
     expect(drivers).toHaveLength(1);
-    expect(drivers[0]).toMatchObject({ fullName: 'Andi', role: Role.STAFF_DEPOT, status: CustomerStatus.ACTIVE });
-    expect(drivers.every((d) => d.role === Role.STAFF_DEPOT && d.status === CustomerStatus.ACTIVE)).toBe(true);
+    expect(drivers[0]).toMatchObject({
+      fullName: 'Andi',
+      role: Role.STAFF_DEPOT,
+      status: CustomerStatus.ACTIVE,
+    });
+    expect(
+      drivers.every((d) => d.role === Role.STAFF_DEPOT && d.status === CustomerStatus.ACTIVE),
+    ).toBe(true);
   });
 
   it('lists active sessions and logs out everywhere', async () => {

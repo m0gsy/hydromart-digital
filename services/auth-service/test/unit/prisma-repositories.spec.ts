@@ -6,6 +6,7 @@ import { CustomerPrismaRepository } from '../../src/infrastructure/prisma/reposi
 import { OtpTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/refresh-token.prisma.repository';
 import { AuditLogPrismaRepository } from '../../src/infrastructure/prisma/repositories/audit-log.prisma.repository';
+import { CapabilityOverridePrismaRepository } from '../../src/infrastructure/prisma/repositories/capability-override.prisma.repository';
 import { Customer } from '../../src/domain/customer/customer.entity';
 
 const customerRow = () => ({
@@ -54,9 +55,22 @@ describe('CustomerPrismaRepository', () => {
 
   it('creates a customer with the mapped role', async () => {
     model.create.mockResolvedValue(customerRow());
-    await repo.create({ phone: '+6281234567890', email: null, fullName: null, role: Role.CUSTOMER });
+    await repo.create({
+      phone: '+6281234567890',
+      email: null,
+      fullName: null,
+      role: Role.CUSTOMER,
+    });
     expect(model.create).toHaveBeenCalledWith({
-      data: { phone: '+6281234567890', email: null, fullName: null, role: 'CUSTOMER', assignedDepotId: null, vehicleType: null, plateNumber: null },
+      data: {
+        phone: '+6281234567890',
+        email: null,
+        fullName: null,
+        role: 'CUSTOMER',
+        assignedDepotId: null,
+        vehicleType: null,
+        plateNumber: null,
+      },
     });
   });
 
@@ -69,7 +83,10 @@ describe('CustomerPrismaRepository', () => {
     });
     await repo.save(customer);
     expect(model.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'cust-1' }, data: expect.objectContaining({ status: 'ACTIVE' }) }),
+      expect.objectContaining({
+        where: { id: 'cust-1' },
+        data: expect.objectContaining({ status: 'ACTIVE' }),
+      }),
     );
   });
 });
@@ -182,6 +199,106 @@ describe('AuditLogPrismaRepository', () => {
 
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ action: 'auth.login.succeeded', success: true }),
+    });
+  });
+});
+
+// The lookups and repositories nothing had constructed yet: every by-key miss, the empty-id
+// short-circuit, the created-customer count windows, retention pruning, and the whole
+// capability-override table (the source of the runtime RBAC patch).
+describe('remaining prisma repository paths', () => {
+  it('returns null from every by-key customer lookup that misses', async () => {
+    const customer = { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn() };
+    const repo = new CustomerPrismaRepository({ customer } as unknown as PrismaService);
+    expect(await repo.findById('nope')).toBeNull();
+    expect(await repo.findByPhone('+628000000000')).toBeNull();
+    expect(await repo.findByEmail('nobody@x.com')).toBeNull();
+    expect(await repo.findByGoogleSub('sub-x')).toBeNull();
+    // An empty id list never touches the database.
+    expect(await repo.findByIds([])).toEqual([]);
+    expect(customer.findMany).not.toHaveBeenCalled();
+  });
+
+  it('maps a batch of ids to entities', async () => {
+    const customer = { findMany: jest.fn().mockResolvedValue([customerRow()]) };
+    const repo = new CustomerPrismaRepository({ customer } as unknown as PrismaService);
+    const out = await repo.findByIds(['cust-1']);
+    expect(out[0]?.id).toBe('cust-1');
+    expect(customer.findMany).toHaveBeenCalledWith({ where: { id: { in: ['cust-1'] } } });
+  });
+
+  it('counts created customers over an open, one-sided and closed window', async () => {
+    const count = jest.fn().mockResolvedValue(7);
+    const repo = new CustomerPrismaRepository({ customer: { count } } as unknown as PrismaService);
+    const from = new Date('2026-01-01');
+    const to = new Date('2026-02-01');
+    expect(await repo.countCustomersCreated()).toBe(7);
+    expect(count.mock.calls[0][0].where.createdAt).toBeUndefined();
+    await repo.countCustomersCreated(from);
+    expect(count.mock.calls[1][0].where.createdAt).toEqual({ gte: from });
+    await repo.countCustomersCreated(undefined, to);
+    expect(count.mock.calls[2][0].where.createdAt).toEqual({ lt: to });
+    await repo.countCustomersCreated(from, to);
+    expect(count.mock.calls[3][0].where.createdAt).toEqual({ gte: from, lt: to });
+  });
+
+  it('prunes audit rows older than the cutoff and writes an entry with no metadata', async () => {
+    const auditLog = {
+      deleteMany: jest.fn().mockResolvedValue({ count: 12 }),
+      create: jest.fn().mockResolvedValue({}),
+    };
+    const repo = new AuditLogPrismaRepository({ auditLog } as unknown as PrismaService);
+    const cutoff = new Date('2026-01-01');
+    expect(await repo.deleteOlderThan(cutoff)).toBe(12);
+    expect(auditLog.deleteMany).toHaveBeenCalledWith({ where: { createdAt: { lt: cutoff } } });
+    await repo.record({
+      customerId: null,
+      action: 'auth.login.failed',
+      success: false,
+      ipAddress: null,
+      userAgent: null,
+    } as never);
+    expect(auditLog.create.mock.calls[0][0].data.metadata).toBeUndefined();
+  });
+
+  it('reads, writes and clears a capability override', async () => {
+    const capabilityOverride = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          capability: 'staffAdmin',
+          roles: ['SUPER_ADMIN'],
+          updatedBy: 'admin-1',
+          updatedAt: new Date('2026-01-01'),
+        },
+      ]),
+      upsert: jest.fn().mockResolvedValue({}),
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+    };
+    const repo = new CapabilityOverridePrismaRepository({
+      capabilityOverride,
+    } as unknown as PrismaService);
+
+    expect(await repo.listAll()).toEqual([
+      {
+        capability: 'staffAdmin',
+        roles: ['SUPER_ADMIN'],
+        updatedBy: 'admin-1',
+        updatedAt: new Date('2026-01-01'),
+      },
+    ]);
+    expect(capabilityOverride.findMany).toHaveBeenCalledWith({ orderBy: { capability: 'asc' } });
+
+    await repo.upsert('staffAdmin', ['SUPER_ADMIN'] as never, 'admin-1');
+    expect(capabilityOverride.upsert).toHaveBeenCalledWith({
+      where: { capability: 'staffAdmin' },
+      create: { capability: 'staffAdmin', roles: ['SUPER_ADMIN'], updatedBy: 'admin-1' },
+      update: { roles: ['SUPER_ADMIN'], updatedBy: 'admin-1' },
+    });
+
+    // Resetting a capability that was never overridden is a no-op, not a 404.
+    await repo.remove('never-set');
+    expect(capabilityOverride.deleteMany).toHaveBeenCalledWith({
+      where: { capability: 'never-set' },
     });
   });
 });

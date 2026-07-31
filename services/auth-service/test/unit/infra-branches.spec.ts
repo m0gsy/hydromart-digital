@@ -26,9 +26,20 @@ import { CustomerPrismaRepository } from '../../src/infrastructure/prisma/reposi
 import { OtpTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../src/infrastructure/prisma/repositories/refresh-token.prisma.repository';
 import { AuditLogPrismaRepository } from '../../src/infrastructure/prisma/repositories/audit-log.prisma.repository';
-import { buildTestConfig } from '../support/fakes';
+import { OAuth2Client } from 'google-auth-library';
 
-const message = { phone: '+6281234567890', code: '123456', purpose: OtpPurpose.REGISTRATION, ttlSeconds: 300 };
+import { GoogleVerifier } from '../../src/infrastructure/security/google-verifier';
+import { AuditService } from '../../src/application/services/audit.service';
+import { OtpService } from '../../src/application/services/otp.service';
+import { DataSubjectRequestDto } from '../../src/modules/auth/dto/data-subject.dto';
+import { buildTestConfig, InMemoryAuditLogRepository } from '../support/fakes';
+
+const message = {
+  phone: '+6281234567890',
+  code: '123456',
+  purpose: OtpPurpose.REGISTRATION,
+  ttlSeconds: 300,
+};
 
 describe('PrismaService lifecycle', () => {
   it('connects on init and disconnects on destroy', async () => {
@@ -58,7 +69,11 @@ describe('S3StorageAdapter', () => {
     });
     const adapter = new S3StorageAdapter(config);
 
-    const result = await adapter.put({ body: Buffer.from('img'), contentType: 'image/png', ext: 'png' });
+    const result = await adapter.put({
+      body: Buffer.from('img'),
+      contentType: 'image/png',
+      ext: 'png',
+    });
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(result.key).toMatch(/^avatars\/.+\.png$/);
@@ -80,7 +95,11 @@ describe('LocalDiskStorageAdapter', () => {
     });
     const adapter = new LocalDiskStorageAdapter(config);
 
-    const result = await adapter.put({ body: Buffer.from('img'), contentType: 'image/png', ext: 'jpg' });
+    const result = await adapter.put({
+      body: Buffer.from('img'),
+      contentType: 'image/png',
+      ext: 'jpg',
+    });
 
     expect(mkdir).toHaveBeenCalledWith(expect.any(String), { recursive: true });
     expect(writeFile).toHaveBeenCalled();
@@ -105,7 +124,9 @@ describe('CustomerNotificationHttpAdapter', () => {
   });
 
   it('posts the welcome event when configured', async () => {
-    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200 } as Response);
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true, status: 200 } as Response);
     const adapter = new CustomerNotificationHttpAdapter(enabledConfig);
 
     await adapter.sendWelcome('+6281234567890', 'Budi');
@@ -218,14 +239,31 @@ describe('ZenzivaOtpDeliveryAdapter branch gaps', () => {
 });
 
 describe('CustomerPrismaRepository branch gaps', () => {
-  const model = { findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() };
+  const model = {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+  };
   const prisma = { customer: model } as unknown as PrismaService;
   const repo = new CustomerPrismaRepository(prisma);
   const row = () => ({
-    id: 'cust-1', phone: '+6281234567890', email: 'b@x.com', fullName: 'Budi', role: 'CUSTOMER',
-    status: 'ACTIVE', googleSub: null, avatarUrl: null, assignedDepotId: null, vehicleType: null,
-    plateNumber: null, phoneVerifiedAt: new Date('2026-01-01'), lastLoginAt: null,
-    createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01'),
+    id: 'cust-1',
+    phone: '+6281234567890',
+    email: 'b@x.com',
+    fullName: 'Budi',
+    role: 'CUSTOMER',
+    status: 'ACTIVE',
+    googleSub: null,
+    avatarUrl: null,
+    assignedDepotId: null,
+    vehicleType: null,
+    plateNumber: null,
+    phoneVerifiedAt: new Date('2026-01-01'),
+    lastLoginAt: null,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
   });
 
   beforeEach(() => jest.clearAllMocks());
@@ -252,7 +290,10 @@ describe('CustomerPrismaRepository branch gaps', () => {
   it('counts customers within a date window', async () => {
     model.count.mockResolvedValue(5);
     await repo.countCustomersCreated(new Date('2026-01-01'), new Date('2026-02-01'));
-    expect(model.count.mock.calls[0][0].where.createdAt).toMatchObject({ gte: expect.any(Date), lt: expect.any(Date) });
+    expect(model.count.mock.calls[0][0].where.createdAt).toMatchObject({
+      gte: expect.any(Date),
+      lt: expect.any(Date),
+    });
   });
 
   it('counts all customers when no window is given', async () => {
@@ -269,13 +310,21 @@ describe('CustomerPrismaRepository branch gaps', () => {
         meta: { target: ['email'] },
       }),
     );
-    const customer = Customer.fromPersistence({ ...row(), role: Role.CUSTOMER, status: CustomerStatus.ACTIVE });
+    const customer = Customer.fromPersistence({
+      ...row(),
+      role: Role.CUSTOMER,
+      status: CustomerStatus.ACTIVE,
+    });
     await expect(repo.save(customer)).rejects.toBeInstanceOf(EmailAlreadyRegisteredError);
   });
 
   it('rethrows a non-P2002 database error', async () => {
     model.update.mockRejectedValue(new Error('db down'));
-    const customer = Customer.fromPersistence({ ...row(), role: Role.CUSTOMER, status: CustomerStatus.ACTIVE });
+    const customer = Customer.fromPersistence({
+      ...row(),
+      role: Role.CUSTOMER,
+      status: CustomerStatus.ACTIVE,
+    });
     await expect(repo.save(customer)).rejects.toThrow('db down');
   });
 });
@@ -286,8 +335,15 @@ describe('AuditLogPrismaRepository.list branch gaps', () => {
   const prisma = { auditLog, customer } as unknown as PrismaService;
   const repo = new AuditLogPrismaRepository(prisma);
   const auditRow = (overrides: Record<string, unknown> = {}) => ({
-    id: 'a1', customerId: 'cust-1', action: 'staff.login', success: true, ipAddress: null,
-    userAgent: null, metadata: { depotId: 'depot-1' }, createdAt: new Date('2026-01-01'), ...overrides,
+    id: 'a1',
+    customerId: 'cust-1',
+    action: 'staff.login',
+    success: true,
+    ipAddress: null,
+    userAgent: null,
+    metadata: { depotId: 'depot-1' },
+    createdAt: new Date('2026-01-01'),
+    ...overrides,
   });
 
   beforeEach(() => jest.clearAllMocks());
@@ -295,9 +351,18 @@ describe('AuditLogPrismaRepository.list branch gaps', () => {
   it('applies every filter and resolves the actor identity', async () => {
     auditLog.findMany.mockResolvedValue([auditRow()]);
     auditLog.count.mockResolvedValue(1);
-    customer.findMany.mockResolvedValue([{ id: 'cust-1', email: 'a@x.com', fullName: 'Admin', role: 'SUPER_ADMIN' }]);
+    customer.findMany.mockResolvedValue([
+      { id: 'cust-1', email: 'a@x.com', fullName: 'Admin', role: 'SUPER_ADMIN' },
+    ]);
 
-    const result = await repo.list({ page: 1, limit: 20, action: 'staff.login', customerId: 'cust-1', depotId: 'depot-1', type: 'STAF' });
+    const result = await repo.list({
+      page: 1,
+      limit: 20,
+      action: 'staff.login',
+      customerId: 'cust-1',
+      depotId: 'depot-1',
+      type: 'STAF',
+    });
 
     expect(result.total).toBe(1);
     expect(result.items[0].actorEmail).toBe('a@x.com');
@@ -305,7 +370,9 @@ describe('AuditLogPrismaRepository.list branch gaps', () => {
     expect(where.action).toBe('staff.login');
     expect(where.customerId).toBe('cust-1');
     expect(where.metadata).toEqual({ path: ['depotId'], equals: 'depot-1' });
-    expect(where.OR).toEqual(expect.arrayContaining([{ action: { contains: 'staff', mode: 'insensitive' } }]));
+    expect(where.OR).toEqual(
+      expect.arrayContaining([{ action: { contains: 'staff', mode: 'insensitive' } }]),
+    );
   });
 
   it('skips the actor lookup for system rows with no actor', async () => {
@@ -335,5 +402,62 @@ describe('RefreshTokenPrismaRepository.revoke without replacement', () => {
     const repo = new RefreshTokenPrismaRepository({ refreshToken } as unknown as PrismaService);
     await repo.revoke('rt-1', new Date());
     expect(refreshToken.update.mock.calls[0][0].data.replacedById).toBeNull();
+  });
+});
+
+// The last few defensive fallbacks: a Google payload that carries only `sub`, an audit ingest
+// with a target but no metadata of its own, a phone too short to mask, a PDP request that has
+// already been processed, and the PDP fan-out config getter.
+describe('remaining fallback branches', () => {
+  it('defaults every optional Google claim when the payload carries only a sub', async () => {
+    jest
+      .spyOn(OAuth2Client.prototype, 'verifyIdToken')
+      .mockResolvedValue({ getPayload: () => ({ sub: 'google-sub-1' }) } as never);
+    const verifier = new GoogleVerifier(buildTestConfig({ GOOGLE_OAUTH_CLIENT_ID: 'client-1' }));
+    await expect(verifier.verify('token')).resolves.toEqual({
+      sub: 'google-sub-1',
+      email: null,
+      emailVerified: false,
+      name: null,
+    });
+  });
+
+  it('attaches a target to an ingest that carried no metadata', async () => {
+    const auditLog = new InMemoryAuditLogRepository();
+    await new AuditService(auditLog).ingest({
+      actorId: 'admin-1',
+      action: 'depot.suspend',
+      success: true,
+      target: 'Depot A',
+    } as never);
+    expect(auditLog.entries.at(-1)?.metadata).toEqual({ target: 'Depot A' });
+  });
+
+  it('leaves a phone too short to mask alone', () => {
+    expect(OtpService.maskPhone('+62812')).toBe('+62812');
+  });
+
+  it('serialises a processed PDP request with its timestamp', () => {
+    const processedAt = new Date('2026-02-01T00:00:00.000Z');
+    const dto = DataSubjectRequestDto.from({
+      id: 'r1',
+      customerId: 'cust-1',
+      type: 'EXPORT',
+      status: 'DONE',
+      reason: null,
+      requestedAt: new Date('2026-01-01T00:00:00.000Z'),
+      processedBy: 'admin-1',
+      processedAt,
+    } as never);
+    expect(dto.processedAt).toBe(processedAt.toISOString());
+  });
+
+  it('reads the PDP fan-out target from configuration', () => {
+    expect(
+      buildTestConfig({
+        CUSTOMER_SERVICE_URL: 'http://customer:3002',
+        INTERNAL_SERVICE_KEY: 'k',
+      }).customerData,
+    ).toEqual({ customerUrl: 'http://customer:3002', internalKey: 'k' });
   });
 });

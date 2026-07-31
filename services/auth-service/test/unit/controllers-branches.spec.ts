@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 
+import { AccessController } from '../../src/modules/auth/access.controller';
 import { AccountController } from '../../src/modules/auth/account.controller';
 import { AuditController } from '../../src/modules/auth/audit.controller';
 import { AvatarController } from '../../src/modules/auth/avatar.controller';
+import { InternalAccountController } from '../../src/modules/auth/internal.controller';
 import { Role } from '../../src/domain/customer/role.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { PublicCustomer } from '../../src/application/results';
@@ -91,6 +93,13 @@ describe('AccountController delegation', () => {
     const result = await controller.countCustomers('not-a-date', undefined);
     expect(result).toEqual({ count: 0, from: 'not-a-date', to: null });
     expect(account.countNewCustomers).toHaveBeenCalledWith(undefined, undefined);
+  });
+
+  it('counts customers with only an upper bound', async () => {
+    account.countNewCustomers.mockResolvedValue(1);
+    const result = await controller.countCustomers(undefined, '2026-02-01');
+    expect(result).toEqual({ count: 1, from: null, to: '2026-02-01' });
+    expect(account.countNewCustomers.mock.calls[0][0]).toBeUndefined();
   });
 
   it('invites a staff member', async () => {
@@ -287,5 +296,55 @@ describe('AvatarController', () => {
       ServiceUnavailableException,
     );
     expect(account.setAvatar).not.toHaveBeenCalled(); // no half-written profile
+  });
+});
+
+// The two controllers nothing had constructed: the RBAC matrix surface (read, write, reset,
+// and the internal poll the other services cache from) and the HR-driven role change.
+describe('AccessController', () => {
+  const matrix = {
+    view: jest.fn().mockResolvedValue({ defaults: {}, overrides: {}, effective: {} }),
+    set: jest.fn().mockResolvedValue(undefined),
+    reset: jest.fn().mockResolvedValue(undefined),
+    patch: jest.fn().mockResolvedValue({ staffAdmin: ['SUPER_ADMIN'] }),
+  };
+  const controller = new AccessController(matrix as never);
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('reads the compiled matrix', async () => {
+    await expect(controller.view()).resolves.toHaveProperty('effective');
+  });
+
+  it('records who changed a capability, and resets it back to the default', async () => {
+    await controller.set(
+      'staffAdmin',
+      { roles: ['SUPER_ADMIN'] } as never,
+      {
+        sub: 'admin-1',
+      } as never,
+    );
+    expect(matrix.set).toHaveBeenCalledWith('staffAdmin', ['SUPER_ADMIN'], 'admin-1');
+    await controller.reset('staffAdmin');
+    expect(matrix.reset).toHaveBeenCalledWith('staffAdmin');
+  });
+
+  it('serves the override patch the other services poll', async () => {
+    await expect(controller.internalOverrides()).resolves.toEqual({
+      overrides: { staffAdmin: ['SUPER_ADMIN'] },
+    });
+  });
+});
+
+describe('InternalAccountController.assignStaffRole', () => {
+  it('changes an existing account role without ever creating one', async () => {
+    const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };
+    const controller = new InternalAccountController(account as never, {} as never);
+    await controller.assignStaffRole({
+      customerId: 'cust-1',
+      role: Role.KEPALA_DEPOT,
+      depotId: 'depot-1',
+    } as never);
+    expect(account.setStaffRole).toHaveBeenCalledWith('cust-1', Role.KEPALA_DEPOT, 'depot-1');
   });
 });
