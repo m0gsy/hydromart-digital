@@ -226,6 +226,104 @@ describe('OperationalReportService', () => {
     expect(report.disclaimer).toContain('not statutory');
   });
 
+  // One fixture for the three ways a sale can miss a cost: the PO landed after the sale, the
+  // matching PO line carries two different unit costs, and the same item misses twice (the
+  // second miss must accumulate onto the first row rather than open a second one).
+  it('accumulates repeat misses, flags conflicting PO costs and ignores POs received after the sale', async () => {
+    const lateItem = randomUUID();
+    const conflictItem = randomUUID();
+    const sameInstant = new Date('2026-07-20T10:00:00.000Z');
+    repo.data = {
+      sales: [
+        {
+          movementId: randomUUID(),
+          itemId: lateItem,
+          itemType: InventoryItemType.PRODUK,
+          label: 'Item Terlambat',
+          quantitySold: 2,
+          occurredAt: new Date('2026-07-10T10:00:00.000Z'),
+        },
+        {
+          movementId: randomUUID(),
+          itemId: lateItem,
+          itemType: InventoryItemType.PRODUK,
+          label: 'Item Terlambat',
+          quantitySold: 3,
+          occurredAt: new Date('2026-07-11T10:00:00.000Z'),
+        },
+        {
+          movementId: randomUUID(),
+          itemId: conflictItem,
+          itemType: InventoryItemType.PRODUK,
+          label: 'Item Bentrok',
+          quantitySold: 1,
+          occurredAt: new Date('2026-07-10T10:00:00.000Z'),
+        },
+      ],
+      receivedPurchaseOrders: [
+        // Same receivedAt: the sort falls through to the poNumber tiebreak.
+        {
+          id: randomUUID(),
+          poNumber: 'PO-B',
+          receivedAt: sameInstant,
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Item Terlambat',
+              quantity: 5,
+              unitCostIdr: 4000,
+            },
+          ],
+        },
+        {
+          id: randomUUID(),
+          poNumber: 'PO-A',
+          receivedAt: sameInstant,
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Item Terlambat',
+              quantity: 5,
+              unitCostIdr: 4100,
+            },
+          ],
+        },
+        {
+          id: randomUUID(),
+          poNumber: 'PO-CONFLICT',
+          receivedAt: new Date('2026-07-05T10:00:00.000Z'),
+          lines: [
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Item Bentrok',
+              quantity: 5,
+              unitCostIdr: 4000,
+            },
+            {
+              itemType: InventoryItemType.PRODUK,
+              label: 'Item Bentrok',
+              quantity: 5,
+              unitCostIdr: 5000,
+            },
+          ],
+        },
+      ],
+      outflows: [],
+    };
+
+    const report = await service.report(depotId, { from: FROM, to: TO });
+
+    expect(report.cogs.coveredUnits).toBe(0);
+    expect(report.cogs.uncoveredItems).toEqual([
+      expect.objectContaining({
+        label: 'Item Terlambat',
+        units: 5,
+        reason: 'NO_MATCHING_RECEIVED_PO',
+      }),
+      expect.objectContaining({ label: 'Item Bentrok', units: 1, reason: 'AMBIGUOUS_PO_COST' }),
+    ]);
+  });
+
   it('rejects an unknown depot', async () => {
     await expect(service.report(randomUUID(), { from: FROM, to: TO })).rejects.toBeInstanceOf(
       DepotNotFoundError,

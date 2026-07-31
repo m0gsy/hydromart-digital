@@ -1,4 +1,4 @@
-import { BadRequestException, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, PayloadTooLargeException } from '@nestjs/common';
 
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -13,6 +13,7 @@ import { GallonIssueController } from '../../src/modules/gallon-issue.controller
 import { GallonNetworkController } from '../../src/modules/gallon-network.controller';
 import { GallonReturnController } from '../../src/modules/gallon-return.controller';
 import { HandoverController } from '../../src/modules/handover.controller';
+import { HierarchyController } from '../../src/modules/hierarchy.controller';
 import { HuddleController } from '../../src/modules/huddle.controller';
 import { IncidentController } from '../../src/modules/incident.controller';
 import {
@@ -818,6 +819,22 @@ describe('DepotController', () => {
     expect(svc.update).toHaveBeenCalledWith(ID, { active: false });
   });
 
+  // The full record carries bank details and ownership: a franchise owner may open their own
+  // depot's row and nobody else's.
+  it('lets a franchise owner manage only their own depot', async () => {
+    const owner = {
+      sub: 'owner-1',
+      role: Role.FRANCHISE_OWNER,
+      depotId: null,
+    } as AuthenticatedUser;
+    svc.get.mockResolvedValue({ id: DEPOT, ownerId: 'owner-2' });
+    await expect(c.manageOne(owner, DEPOT)).rejects.toBeInstanceOf(ForbiddenException);
+    svc.get.mockResolvedValue({ id: DEPOT, ownerId: 'owner-1' });
+    await expect(c.manageOne(owner, DEPOT)).resolves.toMatchObject({ id: DEPOT });
+    // A head-office role is not owner-scoped at all.
+    await expect(c.manageOne(user, DEPOT)).resolves.toMatchObject({ id: DEPOT });
+  });
+
   describe('uploadQris', () => {
     const file = (over: Partial<{ mimetype: string; size: number }> = {}) => ({
       buffer: Buffer.from('x'),
@@ -846,6 +863,16 @@ describe('DepotController', () => {
         paymentQrisImageUrl: `/uploads/qris/${ID}.png`,
       });
     });
+  });
+});
+
+describe('HierarchyController', () => {
+  const svc = { scopedDepotIds: jest.fn().mockResolvedValue([DEPOT]) };
+  const c = new HierarchyController(svc as never);
+
+  it('treats a missing role query as an empty role', async () => {
+    expect(await c.internalScope(ID, undefined as never)).toEqual({ depotIds: [DEPOT] });
+    expect(svc.scopedDepotIds).toHaveBeenCalledWith(ID, '');
   });
 });
 

@@ -3,16 +3,39 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException } from '@nestjs/common';
 import { SettingsCache } from '@hydromart/platform';
 
+import { ApprovalService } from '../../src/application/services/approval.service';
+import { DepotService } from '../../src/application/services/depot.service';
+import { FranchiseApplicationService } from '../../src/application/services/franchise-application.service';
+import { HandoverService } from '../../src/application/services/handover.service';
+import { IncidentService } from '../../src/application/services/incident.service';
 import { MaintenanceService } from '../../src/application/services/maintenance.service';
+import { PriceOverrideService } from '../../src/application/services/price-override.service';
+import { PricingService } from '../../src/application/services/pricing.service';
 import { SettingsService } from '../../src/application/services/settings.service';
+import { WholesaleTierService } from '../../src/application/services/wholesale-tier.service';
 import { MaintenanceItem, MaintenanceStatus } from '../../src/domain/maintenance';
-import { DepotNotFoundError, MaintenanceItemNotFoundError } from '../../src/domain/errors';
+import { FranchiseAppStage } from '../../src/domain/franchise-application';
+import { IncidentStatus, isOpen } from '../../src/domain/incident';
+import { PriceOverrideStatus } from '../../src/domain/price-override-proposal';
+import {
+  DepotNotFoundError,
+  GallonOverReturnError,
+  MaintenanceItemNotFoundError,
+  PriceOverrideProposalDecidedError,
+  PricingRuleNotFoundError,
+  WholesaleTierNotFoundError,
+} from '../../src/domain/errors';
+import { SETTING_DEF_BY_KEY } from '../../src/config/setting-defs';
 import {
   CreateMaintenanceData,
   MaintenanceRepository,
   UpdateMaintenanceData,
 } from '../../src/application/ports/maintenance.repository';
-import { InMemoryDepotRepository, InMemorySettingsRepository } from '../support/fakes';
+import {
+  buildTestConfig,
+  InMemoryDepotRepository,
+  InMemorySettingsRepository,
+} from '../support/fakes';
 
 const KNOWN_DEPOT = '11111111-1111-4111-8111-111111111111';
 
@@ -121,6 +144,140 @@ describe('MaintenanceService branch fills', () => {
   });
 });
 
+// Every depot-scoped service refuses an unknown depot the same way, and every by-id getter
+// raises its own not-found error. These are the guards that were only covered on some of them.
+describe('depot-scoped guards and by-id getters', () => {
+  const missing = { findById: async () => null } as never;
+  const found = { findById: async () => ({ id: KNOWN_DEPOT }) } as never;
+
+  it('refuses an unknown depot on approval, handover and wholesale-tier writes', async () => {
+    const approvals = new ApprovalService({} as never, missing, buildTestConfig());
+    await expect(
+      approvals.create({ depotId: KNOWN_DEPOT, amountIdr: 1 } as never, 'u'),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
+    await expect(approvals.list(KNOWN_DEPOT)).rejects.toBeInstanceOf(DepotNotFoundError);
+
+    const handovers = new HandoverService({} as never, missing);
+    await expect(handovers.list(KNOWN_DEPOT)).rejects.toBeInstanceOf(DepotNotFoundError);
+
+    const tiers = new WholesaleTierService({} as never, missing);
+    await expect(
+      tiers.create({ depotId: KNOWN_DEPOT, label: 'l', minQty: 1, priceIdr: 1 } as never),
+    ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  it('loads one handover and one wholesale tier by id', async () => {
+    const handover = { id: 'ho-1' };
+    const handovers = new HandoverService({ findById: async () => handover } as never, found);
+    expect(await handovers.get('ho-1')).toBe(handover);
+
+    const tier = { id: 'wt-1' };
+    const tiers = new WholesaleTierService({ findById: async () => tier } as never, found);
+    expect(await tiers.get('wt-1')).toBe(tier);
+    await expect(
+      new WholesaleTierService({ findById: async () => null } as never, found).get('nope'),
+    ).rejects.toBeInstanceOf(WholesaleTierNotFoundError);
+  });
+
+  it('clears the resolution fields when an incident is moved back off RESOLVED', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const incidents = new IncidentService(
+      { findById: async () => ({ id: 'in-1' }), update } as never,
+      found,
+    );
+    await incidents.updateStatus('in-1', IncidentStatus.IN_PROGRESS);
+    expect(update).toHaveBeenCalledWith('in-1', {
+      status: IncidentStatus.IN_PROGRESS,
+      resolutionNote: null,
+      resolvedBy: null,
+      resolvedAt: null,
+    });
+  });
+
+  it('patches a franchise application without touching an unsent checklist', async () => {
+    const update = jest.fn().mockResolvedValue({});
+    const apps = new FranchiseApplicationService({
+      findById: async () => ({ id: 'fa-1', stage: FranchiseAppStage.PENDING, checklist: {} }),
+      update,
+    } as never);
+    await apps.patch('fa-1', { stage: FranchiseAppStage.SURVEY });
+    expect(update).toHaveBeenCalledWith('fa-1', {
+      stage: FranchiseAppStage.SURVEY,
+      checklist: undefined,
+    });
+  });
+
+  it('falls back to 10 nearby depots when the caller sends limit 0', async () => {
+    const search = jest.fn().mockResolvedValue({ items: [], total: 0 });
+    await new DepotService({ search } as never).findNearby(-6.19, 106.84, 0);
+    expect(search).toHaveBeenCalled();
+  });
+});
+
+describe('PricingService not-found and empty-input branches', () => {
+  const rules = { findById: jest.fn(), listActiveForDepot: jest.fn().mockResolvedValue([]) };
+  const inventory = { findPrices: jest.fn().mockResolvedValue([]) };
+  const tiers = { listForDepot: jest.fn().mockResolvedValue([]) };
+  const service = new PricingService(
+    rules as never,
+    inventory as never,
+    {} as never,
+    tiers as never,
+    buildTestConfig(),
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('raises PricingRuleNotFound from get and remove', async () => {
+    rules.findById.mockResolvedValue(null);
+    await expect(service.get('nope')).rejects.toBeInstanceOf(PricingRuleNotFoundError);
+    await expect(service.remove('nope')).rejects.toBeInstanceOf(PricingRuleNotFoundError);
+  });
+
+  it('short-circuits an empty product list and defaults `now` to the current clock', async () => {
+    expect(await service.resolvePrices(KNOWN_DEPOT, [])).toEqual([]);
+    expect(inventory.findPrices).not.toHaveBeenCalled();
+    await service.resolvePrices(KNOWN_DEPOT, ['prod-1']);
+    expect(inventory.findPrices).toHaveBeenCalledWith(KNOWN_DEPOT, ['prod-1']);
+  });
+});
+
+describe('PriceOverrideService', () => {
+  const proposals = { findById: jest.fn(), countByProduct: jest.fn().mockResolvedValue([]) };
+  const service = new PriceOverrideService(
+    proposals as never,
+    {} as never,
+    {} as never,
+    buildTestConfig(),
+  );
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('defaults the per-product count to the PENDING queue', async () => {
+    await service.countByProduct();
+    expect(proposals.countByProduct).toHaveBeenCalledWith(PriceOverrideStatus.PENDING);
+  });
+
+  it('refuses to decide an already-decided proposal', async () => {
+    proposals.findById.mockResolvedValue({ id: 'po-1', status: PriceOverrideStatus.APPROVED });
+    await expect(service.approve('po-1', 'hq-1')).rejects.toBeInstanceOf(
+      PriceOverrideProposalDecidedError,
+    );
+  });
+});
+
+describe('domain helpers', () => {
+  it('words the deposit variant of an over-return distinctly from the gallon one', () => {
+    expect(new GallonOverReturnError('deposit', 5000, 1000).message).toContain('Deposit refund');
+    expect(new GallonOverReturnError('gallons', 5, 1).message).toContain('empties');
+  });
+
+  it('treats anything short of RESOLVED as still open', () => {
+    expect(isOpen({ status: IncidentStatus.IN_PROGRESS })).toBe(true);
+    expect(isOpen({ status: IncidentStatus.RESOLVED })).toBe(false);
+  });
+});
+
 describe('SettingsService', () => {
   let repo: InMemorySettingsRepository;
   let service: SettingsService;
@@ -152,6 +309,26 @@ describe('SettingsService', () => {
         updatedBy: 'u',
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  // No shipped def is global-only today, but the flag is part of the schema the console reads
+  // (it hides the per-depot control) — the server has to reject the scope regardless.
+  it('rejects a DEPOT override of a global-only setting', async () => {
+    const def = SETTING_DEF_BY_KEY['gallonDepositIdr'];
+    def.global = true;
+    try {
+      await expect(
+        service.put({
+          scope: 'DEPOT',
+          depotId: 'd1',
+          key: 'gallonDepositIdr',
+          value: '1',
+          updatedBy: 'u',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    } finally {
+      delete def.global;
+    }
   });
 
   it('rejects a value below the minimum and above the maximum', async () => {

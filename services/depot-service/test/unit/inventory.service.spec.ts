@@ -63,7 +63,6 @@ describe('InventoryService', () => {
     minimumStock: 20,
   });
 
-
   // Every depot-scoped read and write checks the depot exists first: without it a typo'd id
   // silently reads an empty depot instead of failing, and a reservation could be booked
   // against nothing at all.
@@ -73,7 +72,12 @@ describe('InventoryService', () => {
     it('on every entry point that takes a depot id', async () => {
       await expect(inventory.listForDepot(UNKNOWN, {})).rejects.toBeInstanceOf(DepotNotFoundError);
       await expect(
-        inventory.reserveForOrder(UNKNOWN, 'ord-1', [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR),
+        inventory.reserveForOrder(
+          UNKNOWN,
+          'ord-1',
+          [{ productId: PRODUCT_ID, quantity: 1 }],
+          ACTOR,
+        ),
       ).rejects.toBeInstanceOf(DepotNotFoundError);
       await expect(
         inventory.releaseForOrder(UNKNOWN, 'ord-1', [{ productId: PRODUCT_ID, quantity: 1 }]),
@@ -98,6 +102,35 @@ describe('InventoryService', () => {
 
       expect(reserved.reserved).toEqual([]);
       expect(reserved.skipped).toContain('22222222-2222-4222-8222-222222222222');
+    });
+
+    it('skips a non-positive quantity on consume too', async () => {
+      const out = await inventory.consumeForOrder(
+        depotId,
+        'ord-1',
+        [{ productId: PRODUCT_ID, quantity: 0 }],
+        ACTOR,
+      );
+      expect(out).toMatchObject({ consumed: [], skipped: [] });
+    });
+
+    it('reports a shortfall on an item the plan no longer knows by product', async () => {
+      await inventory.createLine(
+        depotId,
+        { ...raw(), itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, quantity: 1 },
+        ACTOR,
+      );
+      jest
+        .spyOn(invRepo, 'reserveAtomic')
+        .mockResolvedValue({ shortfalls: [{ itemId: 'ghost', requested: 5, available: 0 }] });
+      await expect(
+        inventory.reserveForOrder(
+          depotId,
+          'ord-9',
+          [{ productId: PRODUCT_ID, quantity: 5 }],
+          ACTOR,
+        ),
+      ).rejects.toThrow(/ghost \(need 5, have 0\)/);
     });
 
     it('releasing a product with no line here is a no-op, not an error', async () => {
@@ -585,6 +618,31 @@ describe('InventoryService', () => {
     await inventory.adjust(line.id, -2, 'pecah', ACTOR);
     const summary = await inventory.wastageSummary(depotId, new Date('2099-01-01T00:00:00.000Z'));
     expect(summary.byItem).toEqual([]);
+  });
+
+  it('echoes both window bounds it was given', async () => {
+    const from = new Date('2026-07-01T00:00:00.000Z');
+    const to = new Date('2026-08-01T00:00:00.000Z');
+    const summary = await inventory.wastageSummary(depotId, from, to);
+    expect(summary).toMatchObject({ from: from.toISOString(), to: to.toISOString() });
+  });
+
+  it('raises no variance approval when the physical count matches the system', async () => {
+    const line = await produkLine(PRODUCT_ID, 10);
+    await inventory.opname(line.id, 10, null, ACTOR, TOKEN);
+    const moves = await inventory.movements(line.id);
+    expect(moves[0].delta).toBe(0);
+  });
+
+  it('names the depot by id when the depot row cannot be read back for the alert', async () => {
+    const line = await inventory.createLine(
+      depotId,
+      { ...raw(), quantity: 30, minimumStock: 20 },
+      ACTOR,
+    );
+    jest.spyOn(depotRepo, 'findById').mockResolvedValue(null);
+    await inventory.adjust(line.id, -15, 'pecah', ACTOR, TOKEN);
+    expect(alerts.emitted.at(-1)?.alert.depotName).toBe(depotId);
   });
 
   it('returns a standard page of depot-wide movements', async () => {
