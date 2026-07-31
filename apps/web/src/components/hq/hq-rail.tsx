@@ -66,6 +66,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { isHq } from '@/lib/roles';
@@ -238,7 +239,7 @@ export function HqRail() {
     href === '/hq' ? pathname === '/hq' : pathname.startsWith(href);
 
   return (
-    <aside className="surface sticky top-[72px] hidden h-[calc(100dvh-72px)] w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
+    <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
       {/* Brand header — HQ is network-wide, so no depot switcher. */}
       <div className="flex items-center gap-2.5 rounded-xl bg-deep-teal px-3 py-3 text-white">
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
@@ -341,6 +342,7 @@ export function HqRail() {
             <strong className="text-[color:var(--text)]">{t(`hq.roles.${role}`)}</strong>
           </div>
         )}
+        <ConsoleSignOut />
       </div>
     </aside>
   );

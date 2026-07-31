@@ -146,3 +146,37 @@ export function dashboardLandingView(role: string | null | undefined): Dashboard
   if (!canViewDashboard(role)) return 'denied';
   return isDepotManager(role) ? 'manager' : 'executive';
 }
+
+/**
+ * Route prefixes that belong to a staff console rather than the shop. Two things read
+ * this: <AppShell> (console routes get no shop nav/cart/footer/bottom tabs) and
+ * RequireAuth (a signed-out hit lands on the staff door, not the customer one).
+ *
+ * A constant rather than a filesystem fact — the alternative was moving ~25 customer
+ * route directories under app/(shop)/ just to escape one layout. `/resellers` is
+ * deliberately ABSENT: it has no console layout of its own, so stripping the shop chrome
+ * would leave it with no navigation at all.
+ */
+export const CONSOLE_PREFIXES = ['/hq', '/dashboard', '/hr', '/driver', '/m'] as const;
+
+/** Boundary-aware, so `/m` claims `/m/manager` but never `/mother`. */
+export function isConsolePath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return CONSOLE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/**
+ * Where a role belongs after signing in at the staff door — and where the "back home"
+ * button on a denial screen points. Composed from the gates above rather than a second
+ * role map, so it can't drift from them.
+ */
+export function consoleHome(role: string | null | undefined): string {
+  if (isHq(role)) return '/hq';
+  if (canUseCourierApp(role)) return '/driver';
+  if (dashboardLandingView(role) !== 'denied') return '/dashboard';
+  if (canViewHr(role)) return '/hr';
+  // MARKETING holds no dashboard capability, so the /dashboard landing would deny it —
+  // send it to the surface it actually owns.
+  if (canViewCampaigns(role)) return '/dashboard/campaigns';
+  return isStaff(role) ? '/dashboard' : '/products';
+}

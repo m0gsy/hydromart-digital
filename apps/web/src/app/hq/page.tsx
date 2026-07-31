@@ -73,7 +73,10 @@ export default function HqOverviewPage() {
   const totalRevenue = buckets.reduce((n, b) => n + b.revenue, 0);
   const totalOrders = buckets.reduce((n, b) => n + b.orderCount, 0);
   const activeDepots = depots.filter((d) => d.active).length;
-  const slaPct = deliverySla ? Math.round(deliverySla.slaRate * 100) : null;
+  // No delivered order in the window means there is no rate to state — the service
+  // reports slaRate 0 for that, and "0%" reads as a failing network rather than a quiet one.
+  const slaPct =
+    deliverySla && deliverySla.totalDelivered > 0 ? Math.round(deliverySla.slaRate * 100) : null;
   // Pending franchise applications = non-terminal stages (mirrors /hq/applications).
   const pendingCount = pendingApps.data
     ? pendingApps.data.items.filter((a) => a.stage !== 'APPROVED' && a.stage !== 'REJECTED').length

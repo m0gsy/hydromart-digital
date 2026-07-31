@@ -97,7 +97,7 @@ export const hq = {
     title: 'Khusus HQ',
     body: 'Konsol Admin & Super Admin hanya untuk head office dan super admin. Peran kamu saat ini {role} tidak memiliki akses.',
     cap: 'Butuh capability: dashboard / staffAdmin',
-    back: 'Kembali ke Operasi',
+    back: 'Kembali ke halaman saya',
   },
   // Shared staff-role labels used across every HQ screen.
   roles: {
@@ -146,8 +146,8 @@ export const hq = {
     },
   },
   login: {
-    heading: 'Masuk ke HQ',
-    subtitle: 'Konsol Admin & Super Admin · khusus staf pusat',
+    heading: 'Masuk konsol staf',
+    subtitle: 'Pintu masuk konsol staf · pakai nomor yang terdaftar',
     phoneLabel: 'Nomor telepon',
     submit: 'Verifikasi & masuk',
     sendCode: 'Kirim kode',

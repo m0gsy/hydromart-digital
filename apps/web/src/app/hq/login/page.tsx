@@ -1,26 +1,31 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 import { ArrowRight, LockKey, ShieldCheck } from '@phosphor-icons/react';
 
-import { Button } from '@/components/ui';
+import { Button, Skeleton } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { consoleHome } from '@/lib/roles';
 import type { OtpChallenge, Session } from '@/lib/types';
 
 const RESEND_SECONDS = 30;
 const OTP_LENGTH = 6;
 
-// Design 13a — deep-teal HQ sign-in panel. Reuses the exact OTP flow from the
-// customer login/verify pages (auth.login → auth.verifyOtp → signIn), collapsed to a
-// single two-step screen. Rendered outside the HQ gate (see hq/layout.tsx).
-export default function HqLoginPage() {
+// Design 13a — deep-teal sign-in panel. Reuses the exact OTP flow from the customer
+// login/verify pages (auth.login → auth.verifyOtp → signIn), collapsed to a single
+// two-step screen. Rendered outside the HQ gate (see hq/layout.tsx). This is the door
+// for EVERY console, not just HQ: RequireAuth sends any signed-out console route here,
+// and `next` carries the visitor back to the page they asked for.
+function HqLoginPanel() {
   const { t } = useT();
   const router = useRouter();
+  // The page the visitor was gated out of, if any; otherwise the console their role owns.
+  const next = useSearchParams().get('next');
   const { customer, signIn } = useAuth();
 
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
@@ -30,12 +35,13 @@ export default function HqLoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
 
-  // Already signed in as HQ → straight to the console.
+  // Already signed in → straight on. This is the ONLY navigation out of this screen:
+  // verify() signs in and lets this effect route, so a fresh sign-in and a return visit
+  // land in the same place. A customer who wanders in is sent to the shop, not stranded.
+  const signedInRole = customer?.role ?? null;
   useEffect(() => {
-    if (customer && (customer.role === 'HEAD_OFFICE' || customer.role === 'SUPER_ADMIN')) {
-      router.replace('/hq');
-    }
-  }, [customer, router]);
+    if (signedInRole) router.replace(next || consoleHome(signedInRole));
+  }, [signedInRole, next, router]);
 
   const counting = cooldown > 0;
   useEffect(() => {
@@ -71,7 +77,6 @@ export default function HqLoginPage() {
         purpose: 'LOGIN',
       });
       signIn(session);
-      router.replace('/hq');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.login.error'));
       setLoading(false);
@@ -89,10 +94,8 @@ export default function HqLoginPage() {
             </span>
             <span className="text-[16px] font-extrabold tracking-tight">{t('hq.rail.title')}</span>
           </div>
-          <div>
-            <h2 className="text-[26px] font-extrabold leading-tight">{t('hq.login.heading')}</h2>
-            <p className="mt-3 max-w-[280px] text-[14px] text-white/70">{t('hq.login.hero')}</p>
-          </div>
+          {/* Statement, not a heading — the form's h1 is the page's only title. */}
+          <p className="max-w-[280px] text-[26px] font-extrabold leading-tight">{t('hq.login.hero')}</p>
         </div>
 
         {/* Form */}
@@ -213,5 +216,14 @@ export default function HqLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function HqLoginPage() {
+  // useSearchParams needs a Suspense boundary or the Next build fails.
+  return (
+    <Suspense fallback={<Skeleton className="mx-auto my-10 h-96 w-full max-w-[880px] rounded-[24px]" />}>
+      <HqLoginPanel />
+    </Suspense>
   );
 }

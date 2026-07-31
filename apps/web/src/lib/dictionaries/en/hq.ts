@@ -95,7 +95,7 @@ export const hq = {
     title: 'HQ only',
     body: 'The Admin & Super Admin console is for head office and super admins only. Your current role {role} does not have access.',
     cap: 'Requires capability: dashboard / staffAdmin',
-    back: 'Back to Operations',
+    back: 'Back to my home',
   },
   roles: {
     CUSTOMER: 'Customer',
@@ -143,8 +143,8 @@ export const hq = {
     },
   },
   login: {
-    heading: 'Sign in to HQ',
-    subtitle: 'Admin & Super Admin console · head-office staff only',
+    heading: 'Sign in to the staff console',
+    subtitle: 'Staff console entrance · use your registered number',
     phoneLabel: 'Phone number',
     submit: 'Verify & sign in',
     sendCode: 'Send code',

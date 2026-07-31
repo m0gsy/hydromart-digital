@@ -2,16 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 
 import './globals.css';
-import { Nav } from '@/components/nav';
-import { Footer } from '@/components/footer';
-import { BottomNav } from '@/components/bottom-nav';
-import { OnboardingTour } from '@/components/onboarding-tour';
-import { PageTransition } from '@/components/page-transition';
+import { AppShell } from '@/components/app-shell';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
-import { CartProvider } from '@/lib/cart-context';
 import { LocaleProvider } from '@/lib/locale-context';
-import { LocationProvider } from '@/lib/location-context';
 import { ThemeProvider } from '@/lib/theme-context';
 
 const jakarta = Plus_Jakarta_Sans({
@@ -49,19 +43,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <LocaleProvider>
             <AuthProvider>
-              <CartProvider>
-                <LocationProvider>
-                  <ToastProvider>
-                    <Nav />
-                    <main className="mx-auto w-full max-w-[1216px] px-4 pt-6 pb-24 sm:px-8 sm:pb-10">
-                      <PageTransition>{children}</PageTransition>
-                    </main>
-                    <Footer />
-                    <BottomNav />
-                    <OnboardingTour />
-                  </ToastProvider>
-                </LocationProvider>
-              </CartProvider>
+              <ToastProvider>
+                {/* Shop chrome vs. bare console — the cart/location providers ride the
+                    shop branch, so consoles never fetch a cart. */}
+                <AppShell>{children}</AppShell>
+              </ToastProvider>
             </AuthProvider>
           </LocaleProvider>
         </ThemeProvider>

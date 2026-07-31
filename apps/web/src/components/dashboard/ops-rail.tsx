@@ -325,7 +325,7 @@ export function OpsRail() {
     href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
 
   return (
-    <aside className="surface sticky top-[72px] hidden h-[calc(100dvh-72px)] w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
+    <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
       <DepotSwitcher />
 
       <nav className="mt-3.5 flex flex-col gap-px">

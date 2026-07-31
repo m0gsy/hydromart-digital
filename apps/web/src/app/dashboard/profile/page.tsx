@@ -38,7 +38,8 @@ function ProfileBody() {
 
   const logout = () => {
     signOut();
-    router.replace('/login');
+    // Back to the staff door, not the customer one — this account works here.
+    router.replace('/hq/login');
   };
 
   return (
