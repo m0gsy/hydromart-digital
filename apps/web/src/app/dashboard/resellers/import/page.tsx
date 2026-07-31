@@ -15,10 +15,12 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportResellersPage() {
-  const { scopedId } = useDepot();
+  const { selectedId, ready } = useDepot();
 
-  if (!scopedId) {
-    return <CenterState title="Pilih depot dulu di pemilih depot" />;
+  // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
+  // silently resolve to depots[0] and file every reseller under the wrong depot.
+  if (!selectedId) {
+    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
   }
 
   return (
@@ -28,7 +30,7 @@ export default function ImportResellersPage() {
       columns={COLUMNS}
       endpoint={endpoints.resellers.import}
       templateName="reseller"
-      body={{ depotId: scopedId }}
+      body={{ depotId: selectedId }}
     />
   );
 }

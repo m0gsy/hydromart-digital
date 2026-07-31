@@ -9,7 +9,7 @@ import {
 // The locked-role set is the guards' own definition, imported rather than mirrored: the
 // two Role enums carry identical string values, so the cast is a type bridge, not a
 // second source of truth.
-import { isDepotLocked, Role as PlatformRole } from '@hydromart/platform';
+import { ImportSummary, isDepotLocked, Role as PlatformRole, runImport } from '@hydromart/platform';
 
 import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
@@ -19,6 +19,14 @@ import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
 import { AuditAction, AuditService } from './audit.service';
 import { SessionInfo, SessionService } from './session.service';
+
+/** One row of a bulk staff invite — the same four fields the single invite takes. */
+export interface ImportStaffRow {
+  phone: string;
+  role: Role;
+  fullName?: string;
+  depotId?: string;
+}
 
 /** Account self-service: profile, active sessions, and logout-everywhere (FR-009/010). */
 @Injectable()
@@ -164,6 +172,26 @@ export class AccountService {
     // create() defaults the account to PENDING; activate it so the invitee can sign in.
     created.promoteToStaff(role, depotId);
     return toPublicCustomer(await this.customers.save(created));
+  }
+
+  /**
+   * Bulk staff invite (HQ spreadsheet wizard). Every row goes through `inviteStaff`, so an
+   * uploaded file has exactly the powers and exactly the validation of the single-invite
+   * form — a bad role, a missing depot or an unparseable phone fails THAT row and the rest
+   * of the file still lands.
+   *
+   * Re-uploading is safe and is the expected way to fix a file: a phone that already holds
+   * an account is promoted, not duplicated, and comes back as `updated` rather than
+   * `created` so the summary tells the truth about what the second run actually did.
+   */
+  async importStaff(rows: readonly ImportStaffRow[]): Promise<ImportSummary> {
+    return runImport(rows, async (row) => {
+      // Looked up BEFORE the write, and with the same normalisation inviteStaff uses —
+      // asking afterwards would call every row `updated`.
+      const existing = await this.customers.findByPhone(PhoneNumber.create(row.phone).value);
+      const staff = await this.inviteStaff(row.phone, row.role, row.fullName, row.depotId);
+      return { status: existing ? 'updated' : 'created', id: staff.id };
+    });
   }
 
   /**

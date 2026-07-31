@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { AccountService } from '../../application/services/account.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, Roles } from '@hydromart/platform';
+import { Can, ImportSummary, Roles } from '@hydromart/platform';
 import { Role } from '../../domain/customer/role.enum';
 
 import { getRequestContext } from '../../common/http/request-context';
@@ -13,7 +13,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { InviteStaffDto, ListStaffQueryDto } from './dto/staff.dto';
+import { ImportStaffDto, InviteStaffDto, ListStaffQueryDto } from './dto/staff.dto';
 import {
   MessageResponseDto,
   PublicCustomerDto,
@@ -140,6 +140,18 @@ export class AccountController {
       plateNumber: dto.plateNumber,
     });
     return PublicCustomerDto.from(staff);
+  }
+
+  @Can('staffAdmin')
+  @Post('auth/staff/import')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Bulk-invite staff accounts from the HQ spreadsheet wizard',
+    description:
+      'One row per account, validated exactly like the single invite. A row that fails stops only itself; a phone that already has an account is promoted and reported as updated.',
+  })
+  async importStaff(@Body() dto: ImportStaffDto): Promise<ImportSummary> {
+    return this.account.importStaff(dto.rows);
   }
 
   @Get('sessions')

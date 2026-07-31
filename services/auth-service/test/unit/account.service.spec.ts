@@ -128,6 +128,31 @@ describe('AccountService', () => {
     expect(staff).toMatchObject({ role: Role.HEAD_OFFICE, status: 'ACTIVE' });
   });
 
+  // The bulk wizard is the invite path in a loop, so what matters is that one bad row
+  // cannot take the file down with it, and that a re-upload reports the truth.
+  describe('importStaff', () => {
+    it('creates good rows, fails only the bad one, and calls a re-upload updated', async () => {
+      const first = await service.importStaff([
+        { phone: '+628990004001', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        // Depot-locked with no depot: rejected by inviteStaff, so this row alone fails.
+        { phone: '+628990004002', role: Role.KEPALA_DEPOT, fullName: 'Tanpa Depot' },
+        { phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+      ]);
+
+      expect(first).toMatchObject({ created: 2, updated: 0, failed: 1 });
+      expect(first.results[1]).toMatchObject({ row: 2, status: 'failed' });
+      expect(first.results[0].id).toBeDefined();
+
+      // Same file again: the two accounts now exist, so they are promoted, not duplicated.
+      const second = await service.importStaff([
+        { phone: '+628990004001', role: Role.FINANCE, fullName: 'Kantor' },
+        { phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+      ]);
+      expect(second).toMatchObject({ created: 0, updated: 2, failed: 0 });
+      expect(second.results[0].id).toBe(first.results[0].id);
+    });
+  });
+
   // setStaffRole backs an HR jabatan change: the account already exists and only its role
   // (and possibly its depot) moves. It must never mint an account, and it enforces the same
   // depot rule as the invite path.

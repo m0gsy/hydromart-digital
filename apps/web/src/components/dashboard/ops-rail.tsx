@@ -84,6 +84,7 @@ import {
   canHandOverRewards,
   canUseManagerConsole,
   can,
+  isHq,
   isStaff,
 } from '@/lib/roles';
 
@@ -111,6 +112,10 @@ const GROUPS: RailGroup[] = [
       { href: '/dashboard/franchise', labelKey: 'myFranchise', icon: Buildings, show: canViewFranchise },
       { href: '/dashboard', labelKey: 'operations', icon: ChartLineUp, show: canViewDashboard },
       { href: '/dashboard/search', labelKey: 'search', icon: MagnifyingGlass, show: isStaff },
+      // The way back out. Console routes carry no shop nav, so without this an HQ account
+      // that stepped into the depot console had no link home either — the same missing
+      // door as the /dashboard entry in the HQ rail, in the other direction.
+      { href: '/hq', labelKey: 'hqConsole', icon: Buildings, show: isHq },
     ],
   },
   {

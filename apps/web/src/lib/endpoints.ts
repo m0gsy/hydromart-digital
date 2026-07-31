@@ -38,6 +38,9 @@ export const endpoints = {
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },
     inviteStaff: '/auth/api/v1/auth/staff/invite',
+    // Bulk form of the line above: one POST for the whole spreadsheet, with a per-row
+    // verdict back, instead of the console firing N invites and counting them itself.
+    importStaff: '/auth/api/v1/auth/staff/import',
     // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
     drivers: '/auth/api/v1/auth/drivers',
   },

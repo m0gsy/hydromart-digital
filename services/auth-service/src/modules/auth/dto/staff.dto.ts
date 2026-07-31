@@ -1,6 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 import { Role } from '../../../domain/customer/role.enum';
 
@@ -61,4 +72,22 @@ export class InviteStaffDto {
   @IsString()
   @MaxLength(20)
   plateNumber?: string;
+}
+
+/**
+ * Bulk staff invite from the HQ spreadsheet wizard. One row is exactly one InviteStaffDto,
+ * so a file can never express something the single-invite form cannot — the role allowlist,
+ * the depot requirement and the phone rules are the same code either way.
+ *
+ * Deliberately NOT bounded by STAFF_IMPORT_ROLES: that allowlist exists because hr-service
+ * provisions accounts on an HR user's behalf from employee data. This endpoint IS the staff
+ * console, where minting an office account is the point, and it carries staffAdmin.
+ */
+export class ImportStaffDto {
+  @ApiProperty({ type: [InviteStaffDto], description: 'Rows to invite, in file order.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => InviteStaffDto)
+  rows!: InviteStaffDto[];
 }

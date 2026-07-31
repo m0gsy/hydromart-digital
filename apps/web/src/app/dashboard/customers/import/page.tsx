@@ -15,10 +15,13 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportCustomersPage() {
-  const { scopedId } = useDepot();
+  const { selectedId, ready } = useDepot();
 
-  if (!scopedId) {
-    return <CenterState title="Pilih depot dulu di pemilih depot" />;
+  // selectedId, NOT scopedId. An import writes into exactly one depot, and scopedId falls
+  // back to depots[0] whenever the switcher says "Semua depot" — which would file every
+  // row under whichever depot happened to sort first, with nothing on screen saying so.
+  if (!selectedId) {
+    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
   }
 
   return (
@@ -28,7 +31,7 @@ export default function ImportCustomersPage() {
       columns={COLUMNS}
       endpoint={endpoints.depotCrm.import}
       templateName="pelanggan"
-      body={{ depotId: scopedId }}
+      body={{ depotId: selectedId }}
     />
   );
 }

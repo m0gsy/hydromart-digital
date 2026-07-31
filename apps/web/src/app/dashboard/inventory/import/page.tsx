@@ -21,10 +21,12 @@ const COLUMNS: ImportColumn[] = [
 ];
 
 export default function ImportInventoryPage() {
-  const { scopedId } = useDepot();
+  const { selectedId, ready } = useDepot();
 
-  if (!scopedId) {
-    return <CenterState title="Pilih depot dulu di pemilih depot" />;
+  // selectedId, NOT scopedId — see the note in the pelanggan import: "Semua depot" would
+  // silently resolve to depots[0] and pour the whole stock file into the wrong depot.
+  if (!selectedId) {
+    return <CenterState title={ready ? 'Pilih satu depot dulu di pemilih depot' : 'Memuat depot…'} />;
   }
 
   return (
@@ -32,7 +34,7 @@ export default function ImportInventoryPage() {
       title="Import Stok"
       description="Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi productId; baris stok mentah harus mengosongkannya."
       columns={COLUMNS}
-      endpoint={endpoints.inventory.import(scopedId)}
+      endpoint={endpoints.inventory.import(selectedId)}
       templateName="stok"
     />
   );

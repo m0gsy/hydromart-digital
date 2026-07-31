@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { MagnifyingGlass, Users } from '@phosphor-icons/react';
 
+import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -52,7 +53,9 @@ export default function HrCustomersPage() {
             )}
           </p>
         </div>
-        <div className="relative">
+        <div className="flex flex-wrap items-center gap-3">
+          <HrDepotPicker />
+          <div className="relative">
           <MagnifyingGlass
             size={16}
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-muted)]"
@@ -64,6 +67,7 @@ export default function HrCustomersPage() {
             aria-label="Cari pelanggan"
             className="pl-9"
           />
+          </div>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import {
   ChartLineUp,
   ClipboardText,
   Drop,
+  Gauge,
   Gear,
   MagnifyingGlass,
   Package,
@@ -110,6 +111,10 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq/depots', labelKey: 'depots', icon: Storefront, ready: true },
       { href: '/hq/hierarchy', labelKey: 'hierarchy', icon: TreeStructure, ready: true },
+      // The depot console, which HQ can open but had no door to: the shop nav that
+      // carries its link is stripped on console routes, so from here /dashboard was
+      // reachable only by typing the URL — and with it the pelanggan/stok/harga imports.
+      { href: '/dashboard', labelKey: 'opsConsole', icon: Gauge, ready: true },
     ],
   },
   {
