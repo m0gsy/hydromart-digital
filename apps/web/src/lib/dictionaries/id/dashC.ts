@@ -12,6 +12,8 @@ export const dashC = {
     unit: 'Satuan',
     unitHint: 'mis. galon, botol, dus',
     basePrice: 'Harga dasar (Rp)',
+    category: 'Kategori',
+    noCategory: 'Tanpa kategori',
     mainImage: 'URL gambar utama',
     mainImageHint: 'Opsional.',
     extraImages: 'Gambar tambahan',

@@ -1,7 +1,20 @@
 // Pure helpers for the dynamic-pricing console. Covered by test/pricing.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
-import type { PricingAdjustType, PricingRulePayload, ResolvedPrice } from './types';
+import type { CartLine, PricingAdjustType, PricingRulePayload, ResolvedPrice } from './types';
+
+/**
+ * Galons in a cart. Delivery is charged per galon (fee × this), so bottled dus and
+ * accessories don't add to the ongkir. Mirrors `galonQuantity` in
+ * order-service/src/domain/pricing.ts, which prices the real order — keep the two in step
+ * or the checkout preview lies about the total.
+ */
+export function galonQuantity(items: CartLine[]): number {
+  return items.reduce(
+    (n, i) => (i.unit.trim().toLowerCase().startsWith('galon') ? n + i.quantity : n),
+    0,
+  );
+}
 
 export interface RuleForm {
   productId: string; // blank = depot-wide

@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Lock, Star } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -126,7 +127,10 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
 
 function RatingsBody() {
   const { scopedId, selected } = useDepot();
-  const { from, to } = window30d();
+  // Computed once per mount. Called bare in render, `to` moved with every Date.now(), so the
+  // useAsync deps changed on every render — the page refetched forever and burned the gateway's
+  // 100-req/min per-IP budget, which then 429'd every OTHER console page too.
+  const { from, to } = useMemo(window30d, []);
   const data = useAsync<DepotRatingsReport | null>(
     () =>
       scopedId

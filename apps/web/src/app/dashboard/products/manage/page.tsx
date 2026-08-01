@@ -12,15 +12,20 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Page, Product } from '@/lib/types';
+import type { Category, Page, Product } from '@/lib/types';
+
+const selectClass =
+  'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600';
 
 /** Create/edit form for a product (POST create / PATCH update). */
 function ProductForm({
   initial,
+  categories,
   onDone,
   onCancel,
 }: {
   initial?: Product;
+  categories: Category[];
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -30,6 +35,10 @@ function ProductForm({
   const [sku, setSku] = useState(initial?.sku ?? '');
   const [unit, setUnit] = useState(initial?.unit ?? '');
   const [basePrice, setBasePrice] = useState(initial ? String(initial.basePrice) : '');
+  // Without this the form posted no categoryId at all, so every product added from the depot
+  // console landed uncategorised — invisible behind every category pill on /products, which
+  // reads as "the filter is broken" to the customer.
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '');
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? '');
   // Additional gallery image URLs beyond the primary imageUrl.
   const [images, setImages] = useState<string[]>(initial?.images ?? []);
@@ -61,6 +70,7 @@ function ProductForm({
       sku: sku.trim(),
       unit: unit.trim(),
       basePrice: price,
+      categoryId: categoryId || null,
       imageUrl: imageUrl.trim() || null,
       images: images.map((u) => u.trim()).filter(Boolean),
     };
@@ -97,6 +107,21 @@ function ProductForm({
             value={basePrice}
             onChange={(e) => setBasePrice(e.target.value)}
           />
+        </Field>
+        <Field label={t('dashC.productsManage.category')} htmlFor="pf-cat">
+          <select
+            id="pf-cat"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">{t('dashC.productsManage.noCategory')}</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </Field>
       </div>
       <Field label={t('dashC.productsManage.mainImage')} htmlFor="pf-image" hint={t('dashC.productsManage.mainImageHint')}>
@@ -160,7 +185,15 @@ function ProductForm({
   );
 }
 
-function ProductItem({ product, onChanged }: { product: Product; onChanged: () => void }) {
+function ProductItem({
+  product,
+  categories,
+  onChanged,
+}: {
+  product: Product;
+  categories: Category[];
+  onChanged: () => void;
+}) {
   const { t } = useT();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -182,6 +215,7 @@ function ProductItem({ product, onChanged }: { product: Product; onChanged: () =
     return (
       <ProductForm
         initial={product}
+        categories={categories}
         onDone={() => {
           setEditing(false);
           onChanged();
@@ -232,6 +266,8 @@ function ProductsManageBody() {
   const { t } = useT();
   const { selected, depots, scopedId } = useDepot();
   const products = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 }), true), []);
+  // Same public list the shop's category pills are built from, so the two can't disagree.
+  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
   const [creating, setCreating] = useState(false);
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
@@ -260,6 +296,7 @@ function ProductsManageBody() {
 
       {creating && (
         <ProductForm
+          categories={categories.data ?? []}
           onDone={() => {
             setCreating(false);
             products.reload();
@@ -286,7 +323,12 @@ function ProductsManageBody() {
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((p) => (
-            <ProductItem key={p.id} product={p} onChanged={products.reload} />
+            <ProductItem
+              key={p.id}
+              product={p}
+              categories={categories.data ?? []}
+              onChanged={products.reload}
+            />
           ))}
         </div>
       )}
