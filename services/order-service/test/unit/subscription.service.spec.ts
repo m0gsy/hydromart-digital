@@ -85,10 +85,16 @@ describe('SubscriptionService', () => {
       new FakeForecastCoordination(),
       new FakeFranchiseRevenue(),
     );
-    service = new SubscriptionService(subs, catalog, orderService);
+    service = new SubscriptionService(subs, catalog, orderService, buildTestConfig());
   });
 
   const seedProduct = () => catalog.seed({ id: randomUUID(), basePrice: 8000 });
+
+  it('discountRate: quotes the depot ladder the sweep will actually charge', () => {
+    // Same config the sweep prices against — the shop cannot quote a different saving.
+    expect(service.discountRate(homeDepot.id)).toBe(0.05);
+    expect(service.discountRate(null)).toBe(0.05);
+  });
 
   it('creates an ACTIVE subscription snapshotting product name/unit', async () => {
     const p = seedProduct();
@@ -141,7 +147,8 @@ describe('SubscriptionService', () => {
     expect(result.placed).toBe(1);
     expect(orders.rows).toHaveLength(1);
     expect(orders.rows[0].customerId).toBe(customer);
-    // spec 7b: 5% subscription discount applied. subtotal = 8000 × 3 = 24000 → 1200 off.
+    // spec 7b: the routed depot's subscription discount applied (5% by default here).
+    // subtotal = 8000 × 3 = 24000 → 1200 off.
     expect(orders.rows[0].discount).toBe(1200);
     // schedule advanced one week past `now`.
     const advanced = (await service.list(customer))[0].nextDeliveryAt;

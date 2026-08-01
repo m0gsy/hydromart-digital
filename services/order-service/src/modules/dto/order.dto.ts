@@ -241,6 +241,17 @@ export class CreateSubscriptionDto {
   deliveryAddress!: DeliveryAddressDto;
 }
 
+/** Optional depot scope: which depot's subscription discount to answer against. */
+export class DepotScopeQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: "Depot whose rate applies; omit for the global one.",
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 /** Spec 7c: rate a delivered/completed order. */
 export class CreateReviewDto {
   @ApiProperty({ minimum: 1, maximum: 5, description: 'Star rating.' })

@@ -34,6 +34,9 @@ export const envValidationSchema = Joi.object({
   // and auto-cancelled, releasing its stock hold. Long by design — the depot has already
   // accepted the order, and payment is collected at the depot, so being unpaid is normal.
   ORDER_STALLED_HOURS: Joi.number().integer().positive().default(24),
+  // Percent off the subtotal of every subscription delivery (spec 7b "hemat 5%").
+  // Boot-time fallback only; a depot may override it through settings.
+  ORDER_SUBSCRIPTION_DISCOUNT_PCT: Joi.number().min(0).max(50).default(5),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

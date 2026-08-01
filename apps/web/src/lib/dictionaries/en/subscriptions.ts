@@ -20,7 +20,8 @@ export const subscriptions = {
   deliverTo: 'Deliver to',
   noAddress: 'Add an address first to start a subscription.',
   addAddress: 'Add address',
-  discountNote: 'Save 5% on every subscription delivery.',
+  // {pct} = the chosen depot's subscription discount (a per-depot setting), not a fixed number.
+  discountNote: 'Save {pct}% on every subscription delivery.',
   start: 'Start subscription',
   started: 'Subscription created.',
   createError: 'Failed to create subscription.',

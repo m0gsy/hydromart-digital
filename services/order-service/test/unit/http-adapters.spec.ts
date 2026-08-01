@@ -312,6 +312,24 @@ describe('LoyaltyCoordinationHttpAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('returns the points loyalty actually awarded, and null when the body carries none', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 42 } }));
+    await expect(
+      new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ).resolves.toBe(42);
+
+    // No count in the body (or an unreadable one) is still a successful award — report
+    // unknown rather than a number this service invented from the subtotal.
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await expect(
+      new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ).resolves.toBeNull();
+    fetchMock.mockResolvedValue(res({ ok: true, throwJson: true }));
+    await expect(
+      new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
+    ).resolves.toBeNull();
+  });
+
   it('forwards depotId in the POST body', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', '');

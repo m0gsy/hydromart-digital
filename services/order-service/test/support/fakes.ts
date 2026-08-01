@@ -683,14 +683,17 @@ export interface AwardCall {
 
 export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   calls: AwardCall[] = [];
+  /** What the next award reports back; null mimics loyalty being down (fail-open). */
+  pointsEarned: number | null = 60;
   async awardPoints(
     customerId: string,
     orderId: string,
     subtotal: number,
     depotId: string | null,
     authorization: string,
-  ): Promise<void> {
+  ): Promise<number | null> {
     this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
+    return this.pointsEarned;
   }
 }
 
@@ -896,6 +899,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     ORDER_DELIVERY_FEE: '5000',
     ORDER_STALLED_HOURS: '24',
     ORDER_ABANDON_MINUTES: '60',
+    ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
     CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
     RATE_LIMIT_TTL_SECONDS: '60',
     RATE_LIMIT_MAX: '100',

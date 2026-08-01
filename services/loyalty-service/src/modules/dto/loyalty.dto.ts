@@ -153,6 +153,19 @@ export class LoyaltyAccountDto {
   }
 }
 
+/**
+ * The earn response: the account plus what THIS call awarded. order-service needs the
+ * number to word its "you earned N points" message; computing it there again would
+ * mirror an earn rate that is per-depot and would drift the moment a depot overrides it.
+ */
+export class EarnResultDto extends LoyaltyAccountDto {
+  @ApiProperty({
+    example: 60,
+    description: 'Points this call awarded; 0 when already earned or the subtotal is too small.',
+  })
+  pointsEarned!: number;
+}
+
 export class PointsTransactionDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;

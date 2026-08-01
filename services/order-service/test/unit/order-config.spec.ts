@@ -11,6 +11,7 @@ describe('OrderConfigService with settings cache', () => {
   const env = new ConfigService({
     ORDER_DELIVERY_FEE: '1000',
     ORDER_ABANDON_MINUTES: '60',
+    ORDER_SUBSCRIPTION_DISCOUNT_PCT: '5',
   } as never);
 
   it('returns depot override when present', async () => {
@@ -49,11 +50,26 @@ describe('OrderConfigService with settings cache', () => {
     expect(cfg.abandonMinutes).toBe(30);
   });
 
+  it('subscriptionDiscountRate turns whole-percent settings into a fraction, per depot', async () => {
+    const cache = cacheWith([
+      { scope: 'DEPOT', depotId: 'd1', key: 'subscriptionDiscountPct', value: '8' },
+      { scope: 'DEPOT', depotId: 'd2', key: 'subscriptionDiscountPct', value: '0' },
+    ]);
+    await cache.refresh();
+    const cfg = new OrderConfigService(env, cache);
+    expect(cfg.subscriptionDiscountRate('d1')).toBe(0.08);
+    // A depot that funds no subscription discount at all is a legitimate setting, not
+    // a missing one: 0 must survive rather than fall through to the env 5%.
+    expect(cfg.subscriptionDiscountRate('d2')).toBe(0);
+    expect(cfg.subscriptionDiscountRate('d3')).toBe(0.05);
+  });
+
   it('an empty cache preserves every business getter at its exact env value', async () => {
     const cache = cacheWith([]);
     await cache.refresh();
     const cfg = new OrderConfigService(env, cache);
     expect(cfg.deliveryFee()).toBe(1000);
     expect(cfg.abandonMinutes).toBe(60);
+    expect(cfg.subscriptionDiscountRate()).toBe(0.05);
   });
 });

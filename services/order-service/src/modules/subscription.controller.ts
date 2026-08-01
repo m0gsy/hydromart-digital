@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
@@ -15,7 +16,7 @@ import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, R
 
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
-import { CreateSubscriptionDto } from './dto/order.dto';
+import { CreateSubscriptionDto, DepotScopeQueryDto } from './dto/order.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -28,6 +29,15 @@ export class SubscriptionController {
   @ApiOperation({ summary: "List the current customer's subscriptions (spec 7b)" })
   list(@CurrentUser() user: AuthenticatedUser): Promise<SubscriptionRecord[]> {
     return this.subscriptions.list(user.sub);
+  }
+
+  // Public like loyalty's tier ladder, and for the same reason: the shop must quote the
+  // saving before anyone signs in, and a discount rate is not private.
+  @Public()
+  @Get('discount')
+  @ApiOperation({ summary: "A depot's subscription discount rate (spec 7b)" })
+  discount(@Query() query: DepotScopeQueryDto): { rate: number } {
+    return { rate: this.subscriptions.discountRate(query.depotId ?? null) };
   }
 
   @Can('hqConsole')

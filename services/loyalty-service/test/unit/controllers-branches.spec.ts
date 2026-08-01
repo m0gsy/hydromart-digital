@@ -105,9 +105,18 @@ describe('LoyaltyController (delegation)', () => {
     expect(loyalty.listTransactions).toHaveBeenCalledWith('cust-1', 1, 20);
   });
 
-  it('earn() forwards depotId when present', async () => {
-    await ctrl.earn({ customerId: 'c', orderId: 'o', subtotal: 60000, depotId: 'd1' } as never);
+  it('earn() forwards depotId when present and reports what it awarded', async () => {
+    // order-service words its "you earned N points" message from this number rather than
+    // dividing the subtotal itself — the earn rate is per-depot and only loyalty knows it.
+    const out = await ctrl.earn({
+      customerId: 'c',
+      orderId: 'o',
+      subtotal: 60000,
+      depotId: 'd1',
+    } as never);
     expect(loyalty.earnForOrder).toHaveBeenCalledWith('c', 'o', 60000, 'd1');
+    expect(out.pointsEarned).toBe(60);
+    expect(out.customerId).toBe('cust-1');
   });
 
   it('earn() defaults depotId to null when omitted', async () => {

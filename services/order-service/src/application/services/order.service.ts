@@ -94,14 +94,6 @@ function money(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-// loyalty-service is the source of truth for the balance (BR-013: 1 pt / Rp 1.000 subtotal).
-// This mirrors that rate ONLY to render the "points earned" notification copy without a
-// round-trip. Single definition so the magic divisor can't silently drift (ARCH-2).
-const RUPIAH_PER_POINT = 1000;
-function pointsForSubtotal(subtotal: number): number {
-  return Math.floor(subtotal / RUPIAH_PER_POINT);
-}
-
 @Injectable()
 export class OrderService {
   private static readonly MAX_LIMIT = 100;
@@ -322,13 +314,13 @@ export class OrderService {
   /**
    * Place an order for explicit lines (no cart), for scheduled subscription deliveries
    * (spec 7b). No voucher; no membership discount (a scheduled run carries no customer
-   * token → fail-open 0 rate).
+   * token → fail-open 0 rate). The subscription discount is read here rather than passed
+   * in: it is a per-depot rate now, and the depot is only known after routing.
    */
   async placeScheduled(
     customerId: string,
     lines: { productId: string; quantity: number }[],
     address: DeliveryAddressSnapshot,
-    discountRate = 0,
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
     // Fail-closed like checkout. A subscription whose saved address has no map pin
@@ -337,6 +329,7 @@ export class OrderService {
     const depot = await this.resolveDepot(address);
     const { items, subtotal } = await this.priceLines(depot.id, lines);
     const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
+    const discountRate = this.config.subscriptionDiscountRate(depot.id);
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);
 
@@ -670,21 +663,19 @@ export class OrderService {
     const anonymous = updated.customerId === ANONYMOUS_CUSTOMER_ID;
 
     if (!anonymous) {
-      // BR-013: award loyalty points.
-      await this.loyalty.awardPoints(
+      // BR-013: award loyalty points. The count comes back from loyalty-service, which
+      // owns the (per-depot) earn rate — this used to be recomputed here against the
+      // global 1 pt / Rp 1.000 and quoted the wrong number at any depot that overrode it.
+      const pointsEarned = await this.loyalty.awardPoints(
         updated.customerId,
         updated.id,
         updated.subtotal,
         updated.depotId,
         authorization,
       );
-      // Notify the customer of the points they just earned (spec 5h feed). Points mirror
-      // loyalty's BR-013 rate (1 pt / Rp 1.000 subtotal); computed here only for the
-      // message copy — loyalty-service remains the source of truth for the balance.
-      // ponytail: this copy uses the global rate and may differ from a depot-overridden
-      // earn rate; the awarded balance itself (via awardPoints above) is still correct.
-      const pointsEarned = pointsForSubtotal(updated.subtotal);
-      if (pointsEarned > 0) {
+      // Notify the customer of the points they just earned (spec 5h feed). Null = the
+      // award failed or its count is unknown: stay silent rather than promise points.
+      if (pointsEarned !== null && pointsEarned > 0) {
         await this.notification
           .notify(
             'POINTS_EARNED',

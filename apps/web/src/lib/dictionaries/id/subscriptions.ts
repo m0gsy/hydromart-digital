@@ -20,7 +20,8 @@ export const subscriptions = {
   deliverTo: 'Antar ke',
   noAddress: 'Tambah alamat dulu untuk mulai langganan.',
   addAddress: 'Tambah alamat',
-  discountNote: 'Hemat 5% tiap pengiriman langganan.',
+  // {pct} = diskon langganan depot terpilih (setting per-depot), bukan angka tetap.
+  discountNote: 'Hemat {pct}% tiap pengiriman langganan.',
   start: 'Mulai langganan',
   started: 'Langganan dibuat.',
   createError: 'Gagal membuat langganan.',

@@ -20,6 +20,7 @@ import {
   AdjustPointsDto,
   DepotSummaryQueryDto,
   EarnPointsDto,
+  EarnResultDto,
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   PointsTransactionDto,
@@ -81,14 +82,14 @@ export class LoyaltyController {
   @ApiOperation({
     summary: 'Award points for a completed order (internal service auth, BR-013, idempotent)',
   })
-  async earn(@Body() dto: EarnPointsDto): Promise<LoyaltyAccountDto> {
+  async earn(@Body() dto: EarnPointsDto): Promise<EarnResultDto> {
     const result = await this.loyalty.earnForOrder(
       dto.customerId,
       dto.orderId,
       dto.subtotal,
       dto.depotId ?? null,
     );
-    return LoyaltyAccountDto.from(result.account);
+    return { ...LoyaltyAccountDto.from(result.account), pointsEarned: result.pointsEarned };
   }
 
   @ApiBearerAuth()
