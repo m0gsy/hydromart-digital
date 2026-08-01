@@ -2,8 +2,10 @@
 // discount). Thresholds are cumulative lifetime points. Exact numbers are "company
 // policy" (not fixed by the PRD); these are the documented defaults.
 //
-// ponytail: tier table is a domain constant, not env-configurable. It changes rarely
-// and lives in one place; promote to config only if marketing needs to tune it live.
+// The table below is the DEFAULT ladder. A depot may override any rung (threshold and
+// rate) through per-depot settings, so every function here takes the table to judge
+// against; callers that have a depot pass that depot's table. See
+// LoyaltyConfigService.tierBenefits.
 
 export enum MembershipTier {
   REGULAR = 'REGULAR',
@@ -28,17 +30,34 @@ export const TIER_BENEFITS: readonly TierBenefit[] = [
   { tier: MembershipTier.PLATINUM, threshold: 15000, discountRate: 0.08 },
 ] as const;
 
-/** Highest tier whose threshold is met by the given lifetime points. */
-export function tierFor(lifetimePoints: number): MembershipTier {
+/**
+ * Highest tier whose threshold is met by the given lifetime points.
+ *
+ * Sorts first: the constant is written ascending, but a per-depot table is assembled from
+ * six independently-editable settings, and nothing stops an operator from setting GOLD's
+ * threshold below SILVER's. Reading such a table in stored order would hand out the last
+ * rung that happened to match rather than the best one.
+ */
+export function tierFor(
+  lifetimePoints: number,
+  benefits: readonly TierBenefit[] = TIER_BENEFITS,
+): MembershipTier {
   let result = MembershipTier.REGULAR;
-  for (const benefit of TIER_BENEFITS) {
-    if (lifetimePoints >= benefit.threshold) result = benefit.tier;
+  let best = -1;
+  for (const benefit of benefits) {
+    if (lifetimePoints >= benefit.threshold && benefit.threshold > best) {
+      best = benefit.threshold;
+      result = benefit.tier;
+    }
   }
   return result;
 }
 
-export function benefitFor(tier: MembershipTier): TierBenefit {
-  const found = TIER_BENEFITS.find((b) => b.tier === tier);
+export function benefitFor(
+  tier: MembershipTier,
+  benefits: readonly TierBenefit[] = TIER_BENEFITS,
+): TierBenefit {
+  const found = benefits.find((b) => b.tier === tier);
   // Every enum member has a row; the fallback keeps the return type non-optional.
-  return found ?? TIER_BENEFITS[0];
+  return found ?? benefits[0] ?? TIER_BENEFITS[0];
 }

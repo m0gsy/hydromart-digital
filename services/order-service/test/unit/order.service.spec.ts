@@ -500,6 +500,12 @@ describe('OrderService', () => {
     expect(order.total).toBe(60000 + 5000 * 3 - 3000);
   });
 
+  it('asks loyalty for the rate of the depot that fulfils the order', async () => {
+    await addToCart(20000, 3);
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(membership.calls).toEqual([{ authorization: 'Bearer tok', depotId: order.depotId }]);
+  });
+
   it('stacks the membership discount with a voucher, capped at the subtotal', async () => {
     await addToCart(20000, 3); // subtotal 60000
     membership.rate = 0.05; // 3000

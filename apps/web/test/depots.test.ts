@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { EMPTY_DEPOT_FORM, toDepotPayload } from '@/lib/depots';
+import { EMPTY_DEPOT_FORM, resolveDeliveryDepot, toDepotPayload } from '@/lib/depots';
+import type { Depot, NearbyDepot } from '@/lib/types';
 
 const valid = {
   ...EMPTY_DEPOT_FORM,
@@ -43,5 +44,25 @@ describe('toDepotPayload', () => {
 
   it('rejects a non-positive service radius', () => {
     expect(toDepotPayload({ ...valid, serviceRadiusKm: '0' }).ok).toBe(false);
+  });
+});
+
+describe('resolveDeliveryDepot', () => {
+  const picked = { id: 'd2', code: 'JKT-02', name: 'Depot Menteng', city: 'Jakarta', deliveryFee: 7000 } as Depot;
+  const near = { id: 'd1', name: 'Depot Cikini', deliveryFee: 5000 } as NearbyDepot;
+
+  it('quotes the hand-picked depot when the address has no pin', () => {
+    expect(resolveDeliveryDepot(true, 'd2', [picked], [])).toBe(picked);
+  });
+
+  it('quotes the routed depot when the address has a pin', () => {
+    expect(resolveDeliveryDepot(false, null, null, [near])).toBe(near);
+  });
+
+  it('returns null while no depot is picked yet, or none is nearby', () => {
+    expect(resolveDeliveryDepot(true, null, [picked], [])).toBeNull();
+    expect(resolveDeliveryDepot(true, 'd9', [picked], [])).toBeNull();
+    expect(resolveDeliveryDepot(false, null, null, [])).toBeNull();
+    expect(resolveDeliveryDepot(false, null, null, undefined)).toBeNull();
   });
 });

@@ -622,8 +622,9 @@ function ReferralCard() {
 
 function RewardsInner() {
   const { t } = useT();
-  const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
-  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers));
+  // The member card and its ladder: global, network-wide standing.
+  const account = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
+  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
   const [balance, setBalance] = useState<number | null>(null);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   // Bumped after a redeem so the redemption list picks the new row up without a page reload.

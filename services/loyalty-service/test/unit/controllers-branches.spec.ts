@@ -50,6 +50,11 @@ describe('LoyaltyController (delegation)', () => {
   const loyalty = {
     getTiers: jest.fn(() => ['tier']),
     getAccount: jest.fn(async () => account()),
+    getStanding: jest.fn(async () => ({
+      account: account(),
+      tier: MembershipTier.GOLD,
+      discountRate: 0.05,
+    })),
     listTransactions: jest.fn(async () => ({
       items: [txn],
       total: 1,
@@ -71,15 +76,27 @@ describe('LoyaltyController (delegation)', () => {
   const ctrl = new LoyaltyController(loyalty as never);
   beforeEach(() => jest.clearAllMocks());
 
-  it('tiers() returns the tier table', () => {
-    expect(ctrl.tiers()).toEqual(['tier']);
+  it('tiers() returns the tier table, global when no depot is asked for', () => {
+    expect(ctrl.tiers({})).toEqual(['tier']);
+    expect(loyalty.getTiers).toHaveBeenCalledWith(null);
   });
 
-  it('me() maps the current account', async () => {
-    const out = await ctrl.me(user());
+  it('tiers() scopes to the requested depot', () => {
+    ctrl.tiers({ depotId: 'd1' });
+    expect(loyalty.getTiers).toHaveBeenCalledWith('d1');
+  });
+
+  it('me() maps the current standing', async () => {
+    const out = await ctrl.me(user(), {});
     expect(out).toBeInstanceOf(Object);
     expect(out.tier).toBe(MembershipTier.GOLD);
-    expect(loyalty.getAccount).toHaveBeenCalledWith('cust-1');
+    expect(out.discountRate).toBe(0.05);
+    expect(loyalty.getStanding).toHaveBeenCalledWith('cust-1', null);
+  });
+
+  it('me() answers against the requested depot ladder', async () => {
+    await ctrl.me(user(), { depotId: 'd1' });
+    expect(loyalty.getStanding).toHaveBeenCalledWith('cust-1', 'd1');
   });
 
   it('myTransactions() maps the ledger page', async () => {

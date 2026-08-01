@@ -1,4 +1,4 @@
-import { MembershipTier, benefitFor, tierFor } from '../../src/domain/membership';
+import { MembershipTier, TierBenefit, benefitFor, tierFor } from '../../src/domain/membership';
 import { expiryFrom, pointsForOrder } from '../../src/domain/points';
 
 describe('membership tiers', () => {
@@ -16,6 +16,36 @@ describe('membership tiers', () => {
     expect(benefitFor(MembershipTier.REGULAR).discountRate).toBe(0);
     expect(benefitFor(MembershipTier.GOLD).discountRate).toBe(0.05);
     expect(benefitFor(MembershipTier.PLATINUM).discountRate).toBe(0.08);
+  });
+
+  it('judges against a supplied ladder, so a depot can move the rungs', () => {
+    const strict: TierBenefit[] = [
+      { tier: MembershipTier.REGULAR, threshold: 0, discountRate: 0 },
+      { tier: MembershipTier.SILVER, threshold: 4000, discountRate: 0.01 },
+      { tier: MembershipTier.GOLD, threshold: 9000, discountRate: 0.03 },
+      { tier: MembershipTier.PLATINUM, threshold: 30000, discountRate: 0.04 },
+    ];
+    // 5000 points is GOLD on the default ladder but only SILVER on this one.
+    expect(tierFor(5000, strict)).toBe(MembershipTier.SILVER);
+    expect(benefitFor(MembershipTier.SILVER, strict).discountRate).toBe(0.01);
+  });
+
+  it('picks the highest rung reached even when the ladder is stored out of order', () => {
+    // Six independently-editable settings can produce this; taking the last match
+    // in stored order would hand a 6000-point customer SILVER instead of GOLD.
+    const jumbled: TierBenefit[] = [
+      { tier: MembershipTier.PLATINUM, threshold: 15000, discountRate: 0.08 },
+      { tier: MembershipTier.GOLD, threshold: 5000, discountRate: 0.05 },
+      { tier: MembershipTier.REGULAR, threshold: 0, discountRate: 0 },
+      { tier: MembershipTier.SILVER, threshold: 1000, discountRate: 0.02 },
+    ];
+    expect(tierFor(6000, jumbled)).toBe(MembershipTier.GOLD);
+    expect(tierFor(0, jumbled)).toBe(MembershipTier.REGULAR);
+  });
+
+  it('falls back to the default table when the supplied ladder is empty', () => {
+    expect(tierFor(9999, [])).toBe(MembershipTier.REGULAR);
+    expect(benefitFor(MembershipTier.GOLD, []).discountRate).toBe(0);
   });
 });
 

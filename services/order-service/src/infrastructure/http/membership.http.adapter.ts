@@ -8,7 +8,8 @@ import { MembershipPort } from '../../application/ports/membership.port';
  * membership tier discount rate (FR-032). Fails OPEN: any error (loyalty down,
  * non-2xx, missing token, malformed rate) returns 0, so a missing membership
  * discount never blocks checkout. The customer's own token is forwarded, so
- * `/loyalty/me` resolves to their account.
+ * `/loyalty/me` resolves to their account, and the fulfilling depot is passed so
+ * loyalty answers against that depot's membership ladder.
  */
 @Injectable()
 export class MembershipHttpAdapter implements MembershipPort {
@@ -17,9 +18,10 @@ export class MembershipHttpAdapter implements MembershipPort {
 
   constructor(private readonly config: OrderConfigService) {}
 
-  async getDiscountRate(authorization: string): Promise<number> {
+  async getDiscountRate(authorization: string, depotId: string | null = null): Promise<number> {
     if (!authorization) return 0;
-    const url = `${this.config.loyaltyServiceUrl}/api/v1/loyalty/me`;
+    const scope = depotId ? `?depotId=${encodeURIComponent(depotId)}` : '';
+    const url = `${this.config.loyaltyServiceUrl}/api/v1/loyalty/me${scope}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MembershipHttpAdapter.TIMEOUT_MS);
     try {

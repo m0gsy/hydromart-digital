@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
+import { useLocation } from '@/lib/location-context';
 import { useAsync } from '@/lib/use-async';
 import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types';
 
@@ -29,10 +30,16 @@ function CartInner() {
   const { t } = useT();
   const { toast } = useToast();
   const { refresh, bump } = useCart();
+  const { location } = useLocation();
 
   const { data, error, loading, reload } = useAsync<Cart>(() => api.get(endpoints.cart.view, true));
   // Fail-soft: no membership / signed-out loyalty → rate stays 0, no error surfaced.
-  const { data: account } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
+  // Quoted against the shopper's chosen location, since the rate is a per-depot setting
+  // and this line is real money ("hemat Rp X"), not a badge.
+  const { data: account } = useAsync<LoyaltyAccount>(
+    () => api.get(endpoints.loyalty.me(location?.depotId ?? null), true),
+    [location?.depotId],
+  );
   const recs = useAsync<Recommendation[]>(() =>
     api.get(endpoints.recommendations.trending({ limit: 4 })),
   );

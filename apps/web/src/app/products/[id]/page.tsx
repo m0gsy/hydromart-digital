@@ -54,7 +54,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   // expose the tier; a second read is the lazy way to name the tier without
   // touching member.ts.
   const { data: account } = useAsync<LoyaltyAccount | null>(
-    () => (customer ? api.get(endpoints.loyalty.me, true) : Promise.resolve(null)),
+    () => (customer ? api.get(endpoints.loyalty.me(), true) : Promise.resolve(null)),
     [customer],
   );
 

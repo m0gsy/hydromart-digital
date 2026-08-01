@@ -24,6 +24,7 @@ import { Badge, Button, Card, Chip, ErrorState, Field, Input, Money, RadioCard, 
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
+import { resolveDeliveryDepot } from '@/lib/depots';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
 import { galonQuantity } from '@/lib/pricing';
@@ -87,10 +88,6 @@ function CheckoutInner() {
   const { data: cart, error, loading, reload } = useAsync<Cart>(() =>
     api.get(endpoints.cart.view, true),
   );
-  // Non-blocking: the membership discount is a bonus preview. If loyalty is down
-  // the customer still checks out (order-service applies the tier discount itself,
-  // fail-open). rate 0 on any error.
-  const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
   // Saved address book. Fail-soft: if this can't load, the customer just types a fresh
   // address (as before) — never blocks checkout, so the load error is intentionally ignored.
   const { data: savedAddresses } = useAsync<Address[]>(() =>
@@ -181,6 +178,21 @@ function CheckoutInner() {
   useEffect(() => {
     if (!needsDepotPick) setPickedDepotId(null);
   }, [needsDepotPick]);
+
+  // The depot that will fulfil this order, however it was determined. Everything the
+  // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
+  // here rather than per line.
+  const depot = resolveDeliveryDepot(needsDepotPick, pickedDepotId, depotChoices?.items, nearbyDepots);
+
+  // Non-blocking: the membership discount is a bonus preview. If loyalty is down
+  // the customer still checks out (order-service applies the tier discount itself,
+  // fail-open). rate 0 on any error. Scoped to the fulfilling depot because both the
+  // tier thresholds and the rate are per-depot settings — quoting the global rate here
+  // would preview a discount the depot never gives.
+  const { data: loyalty } = useAsync<LoyaltyAccount>(
+    () => api.get(endpoints.loyalty.me(depot?.id ?? null), true),
+    [depot?.id],
+  );
 
   // Preselect the primary saved address (else the first) the first time the book loads.
   useEffect(() => {
@@ -328,15 +340,9 @@ function CheckoutInner() {
   // Advisory only: display-only ongkir estimate, never part of the API payload.
   // order-service computes the authoritative delivery fee + order total from the
   // routed depot at checkout — this displayedTotal is just a pre-submit preview.
-  // The fee follows whichever depot will actually fulfil: the nearest one when the address
-  // carries a pin, otherwise the one the customer picked below. Reading only `nearbyDepots`
-  // left the ongkir at Rp 0 for every pinless address, however carefully the depot was chosen.
-  const pickedDepot = pickedDepotId
-    ? depotChoices?.items.find((d) => d.id === pickedDepotId) ?? null
-    : null;
-  const depot = nearbyDepots?.[0] ?? pickedDepot;
   // Charged per galon, exactly as order.service.ts does it — a flat per-order preview
-  // under-quoted every cart with more than one galon.
+  // under-quoted every cart with more than one galon. `depot` is resolved further up,
+  // because the membership-rate lookup needs it too.
   const deliveryFee = (depot?.deliveryFee ?? 0) * galonQuantity(cart.items);
   // ponytail: express surcharge is display-only until a depot express-pricing API exists.
   const expressFee = express ? EXPRESS_FEE : 0;

@@ -25,7 +25,7 @@ describe('LoyaltyService read/list helpers', () => {
   });
 
   it('getTiers exposes the domain tier table', () => {
-    expect(service.getTiers()).toBe(TIER_BENEFITS);
+    expect(service.getTiers()).toEqual([...TIER_BENEFITS]);
   });
 
   it('countMembers counts enrolled accounts', async () => {

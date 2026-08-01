@@ -13,7 +13,7 @@ import { canUseManagerConsole } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotLoyaltySummary, TierBenefit } from '@/lib/types';
 
-// Tier thresholds come from loyalty.tiers (network-wide, real); per-tier member counts +
+// Tier thresholds come from loyalty.tiers for THIS depot (real); per-tier member counts +
 // points-outstanding + redeemed-this-month come from the depot-scoped summary (this depot's
 // own customers only).
 type TierCard = {
@@ -48,7 +48,12 @@ function LoyaltyBody() {
     () => (scopedId ? api.get(endpoints.loyalty.depotSummary(scopedId), true) : Promise.resolve(null)),
     [scopedId],
   );
-  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers, true), []);
+  // Scoped to the depot on screen: its ladder sits next to its member counts, and both
+  // thresholds and rates are per-depot settings.
+  const tiers = useAsync<TierBenefit[]>(
+    () => api.get(endpoints.loyalty.tiers(scopedId), true),
+    [scopedId],
+  );
 
   const s = summary.data;
   const idr = (n: number | undefined) => (n ?? 0).toLocaleString('id-ID');

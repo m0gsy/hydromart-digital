@@ -636,7 +636,9 @@ export default function AccountPage() {
   const { customer, ready, signOut } = useAuth();
   const { t } = useT();
   const router = useRouter();
-  const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me, true));
+  // Global on purpose: this is the customer's card across the network, not their
+  // standing at one depot.
+  const { data: loyalty } = useAsync<LoyaltyAccount>(() => api.get(endpoints.loyalty.me(), true));
 
   if (ready && !customer) {
     return (
