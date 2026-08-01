@@ -49,9 +49,10 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
   return (
     <Card className="divide-y divide-[color:var(--border)] border-amber-300">
       <div className="p-3 text-sm font-bold">
-        Absen offline menunggu persetujuan ({data.total})
+        Absen menunggu persetujuan ({data.total})
         <p className="font-normal text-muted">
-          Terkirim jauh setelah waktu absen, jadi jamnya berasal dari perangkat. Belum dihitung hadir.
+          Terkirim jauh setelah waktu absen sehingga jamnya berasal dari perangkat, atau diambil di
+          luar area semua depot yang jadi tanggung jawabnya. Belum dihitung hadir.
         </p>
       </div>
       {data.rows.map((a) => (

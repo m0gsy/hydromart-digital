@@ -43,6 +43,9 @@ const manageTabs: Tab[] = [
   { label: 'Promo', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
   { label: 'Hadiah', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
   { label: 'Broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
+  // Self-service absen (HRIS). This shell only ever renders for KEPALA_DEPOT, so the tab
+  // needs no role check of its own — /hr/me answers for the linked employee behind it.
+  { label: 'Absen saya', href: '/hr/me', match: (p) => p.startsWith('/hr/me') },
   { label: 'Shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
   { label: 'Huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },
   { label: 'Serah terima', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },

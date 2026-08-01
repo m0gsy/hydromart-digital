@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { Card, SectionHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { consoleHome } from '@/lib/roles';
 
 // Employee self-service landing (PWA). Rank-and-file staff (courier/operator/…) whose
 // role has no hrView still reach this — ownership is enforced in-service by the linked
@@ -50,6 +51,14 @@ export default function MePage() {
         <Card className="p-4 text-center transition-colors hover:bg-brand-50">
           <p className="text-sm font-semibold text-brand-700">Daftar / Perbarui Wajah</p>
         </Card>
+      </Link>
+      {/* This PWA renders bare — no rail, no tabs, no shop nav. Without a way out it is a
+          dead end for anyone who arrived from a console. */}
+      <Link
+        href={consoleHome(customer?.role)}
+        className="block py-2 text-center text-sm font-semibold text-muted hover:text-brand-700"
+      >
+        ← Kembali ke konsol
       </Link>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { CaretRight, ChartBar, Coins, GearSix, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Truck, Wallet, Warning } from '@phosphor-icons/react';
+import { CalendarCheck, CaretRight, ChartBar, Coins, GearSix, Megaphone, Question, Receipt, SealCheck, SignOut, Storefront, Truck, Wallet, Warning } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
@@ -77,6 +77,13 @@ function Profile() {
             onClick={() => router.push('/driver/announcements')}
           />
         )}
+        {/* HRIS self-service (absen wajah, slip gaji, cuti). The bottom bar is a fixed
+            3-tab design, so the door to /hr/me belongs on this list instead. */}
+        <Row
+          icon={<CalendarCheck size={19} weight="fill" />}
+          label={t('driver.profile.selfService')}
+          onClick={() => router.push('/hr/me')}
+        />
         <Row
           icon={<ChartBar size={19} weight="fill" />}
           label={t('driver.profile.weeklyPerformance')}

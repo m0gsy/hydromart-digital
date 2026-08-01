@@ -195,6 +195,7 @@ export const driver = {
     },
     notSet: 'Not set',
     depotPlacement: 'Depot placement',
+    selfService: 'Attendance & payslip',
     weeklyPerformance: 'Weekly performance',
     earnings: 'Earnings',
     codSettlement: 'Cash settlement (COD)',

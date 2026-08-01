@@ -47,6 +47,7 @@ export const ops = {
     shift: 'Jadwal shift',
     targets: 'Target & goals',
     huddle: 'Huddle mingguan',
+    selfService: 'Absen saya',
     handover: 'Serah terima shift',
     maintenance: 'Perawatan alat',
     staffOnboarding: 'Panduan manajer',

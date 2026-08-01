@@ -4,6 +4,7 @@ import {
   canManageEarningRules,
   canManagePricing,
   canViewDashboard,
+  canPunchAttendance,
   canUseCourierApp,
   canUseManagerConsole,
   canUseOperatorConsole,
@@ -109,6 +110,22 @@ describe('console entry gates', () => {
     expect(canUseCourierApp('MANAGER')).toBe(false);
     expect(canUseManagerConsole('KEPALA_DEPOT')).toBe(false);
     expect(canUseOperatorConsole('MANAGER')).toBe(false);
+  });
+});
+
+// The whole depot chain clocks in, not just the two roles with an obvious shift.
+describe('canPunchAttendance', () => {
+  it('admits every depot rank that clocks in', () => {
+    for (const r of ['STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR']) {
+      expect(canPunchAttendance(r)).toBe(true);
+    }
+    expect(canPunchAttendance('SUPER_ADMIN')).toBe(true);
+  });
+
+  it('leaves the office roles and customers out', () => {
+    for (const r of ['CUSTOMER', 'HEAD_OFFICE', 'FINANCE', 'HR', 'NOPE', '', null, undefined]) {
+      expect(canPunchAttendance(r)).toBe(false);
+    }
   });
 });
 

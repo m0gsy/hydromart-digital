@@ -82,6 +82,7 @@ import {
   canViewDepotFinance,
   canBroadcastToCouriers,
   canHandOverRewards,
+  canPunchAttendance,
   canUseManagerConsole,
   can,
   isHq,
@@ -168,6 +169,9 @@ const GROUPS: RailGroup[] = [
   {
     headKey: 'people',
     items: [
+      // Self-service absen. Lives here rather than in a console of its own because the
+      // supervision ranks land on this rail and had no way at all to reach /hr/me.
+      { href: '/hr/me', labelKey: 'selfService', icon: CalendarCheck, show: canPunchAttendance },
       { href: '/dashboard/shift', labelKey: 'shift', icon: CalendarCheck, show: isStaff },
       { href: '/dashboard/targets', labelKey: 'targets', icon: Target, show: (r) => can('depotTargets', r) },
       { href: '/dashboard/huddle', labelKey: 'huddle', icon: UsersThree, show: (r) => can('depotHuddle', r) },
