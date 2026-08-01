@@ -342,7 +342,25 @@ export class InMemoryCustomerDirectory implements CustomerDirectory {
   }
 }
 
+/**
+ * Config over a settings cache preloaded with `rows`. Async because the cache reads its
+ * source once at build time; with no rows every getter falls through to the env value
+ * above, matching today's (pre-settings-cache) behavior exactly.
+ */
+export async function buildTestConfigWithSettings(
+  rows: SettingRow[],
+  overrides: Record<string, string> = {},
+): Promise<LoyaltyConfigService> {
+  const cache = new SettingsCache({ loadAll: async () => rows });
+  await cache.refresh();
+  return withCache(cache, overrides);
+}
+
 export function buildTestConfig(overrides: Record<string, string> = {}): LoyaltyConfigService {
+  return withCache(new SettingsCache({ loadAll: async () => [] }), overrides);
+}
+
+function withCache(cache: SettingsCache, overrides: Record<string, string>): LoyaltyConfigService {
   const env: Record<string, string> = {
     NODE_ENV: 'test',
     LOYALTY_SERVICE_PORT: '3009',
@@ -362,12 +380,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Loyalty
       return env[k];
     },
   };
-  // ponytail: empty-row cache — every business getter falls through to the env value
-  // above, matching today's (pre-settings-cache) behavior exactly.
-  return new LoyaltyConfigService(
-    fake as unknown as ConfigService,
-    new SettingsCache({ loadAll: async () => [] }),
-  );
+  return new LoyaltyConfigService(fake as unknown as ConfigService, cache);
 }
 
 export class InMemorySettingsRepository implements SettingsRepository {

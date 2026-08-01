@@ -419,8 +419,12 @@ export const endpoints = {
     },
   },
   loyalty: {
-    tiers: '/loyalty/api/v1/loyalty/tiers',
-    me: '/loyalty/api/v1/loyalty/me',
+    // depotId scopes both to that depot's membership ladder (thresholds + rates are
+    // per-depot settings); omitted answers against the global one.
+    tiers: (depotId?: string | null) =>
+      `/loyalty/api/v1/loyalty/tiers${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
+    me: (depotId?: string | null) =>
+      `/loyalty/api/v1/loyalty/me${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // Read any customer's loyalty account (staff — HEAD_OFFICE/MARKETING/SUPER_ADMIN).
     byCustomer: (customerId: string) => `/loyalty/api/v1/loyalty/customers/${customerId}`,
     // Total enrolled members (HQ broadcast reach for the loyalty audience).

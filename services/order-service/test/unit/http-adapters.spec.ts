@@ -342,6 +342,16 @@ describe('MembershipHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     expect(await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x')).toBe(0);
   });
+  it('scopes the lookup to the fulfilling depot when one is given', async () => {
+    fetchMock.mockResolvedValue(res({ body: { discountRate: 0.03 } }));
+    await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x', 'depot 1');
+    expect(fetchMock.mock.calls[0][0]).toContain('/loyalty/me?depotId=depot%201');
+  });
+  it('omits the scope entirely without a depot', async () => {
+    fetchMock.mockResolvedValue(res({ body: { discountRate: 0.03 } }));
+    await new MembershipHttpAdapter(makeConfig()).getDiscountRate('Bearer x');
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/loyalty\/me$/);
+  });
 });
 
 describe('NotificationHttpAdapter', () => {

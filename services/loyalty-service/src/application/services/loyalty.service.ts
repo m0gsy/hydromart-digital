@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
 import { InvalidAdjustmentError } from '../../domain/errors';
-import { MembershipTier, TIER_BENEFITS, TierBenefit, tierFor } from '../../domain/membership';
+import { MembershipTier, TierBenefit, benefitFor, tierFor } from '../../domain/membership';
 import { PointsTxnType, expiryFrom, pointsForOrder } from '../../domain/points';
 import { Page, buildPage } from '../pagination';
 import { CustomerDirectory } from '../ports/customer-directory.port';
@@ -51,8 +51,25 @@ export class LoyaltyService {
     return (await this.repo.findAccount(customerId)) ?? (await this.repo.createAccount(customerId));
   }
 
-  getTiers(): readonly TierBenefit[] {
-    return TIER_BENEFITS;
+  /** The ladder in force at `depotId` (null = the global one). */
+  getTiers(depotId: string | null = null): TierBenefit[] {
+    return this.config.tierBenefits(depotId);
+  }
+
+  /**
+   * A customer's standing as seen from one depot: same points, but the tier and rate are
+   * re-derived against that depot's ladder. The stored `tier` column is deliberately left
+   * alone — it is the customer's card across the whole network, and letting whichever
+   * depot they last shopped at rewrite it would make their history unreadable.
+   */
+  async getStanding(
+    customerId: string,
+    depotId: string | null = null,
+  ): Promise<{ account: LoyaltyAccountRecord; tier: MembershipTier; discountRate: number }> {
+    const account = await this.getAccount(customerId);
+    const benefits = this.config.tierBenefits(depotId);
+    const tier = tierFor(account.lifetimePoints, benefits);
+    return { account, tier, discountRate: benefitFor(tier, benefits).discountRate };
   }
 
   /** HQ broadcast reach: how many customers are enrolled in loyalty. */
@@ -132,7 +149,9 @@ export class LoyaltyService {
       expiresAt: expiryFrom(new Date(), this.config.pointExpiryMonths(depotId)),
       newBalance: account.pointsBalance + points,
       newLifetime,
-      newTier: tierFor(newLifetime),
+      // Global ladder on purpose: the stored tier is the customer's card across the
+      // network, not the tier they happen to hold at the depot behind this write.
+      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
     });
     return { account: updated, pointsEarned: points, alreadyEarned: false };
   }
@@ -154,7 +173,9 @@ export class LoyaltyService {
       reason,
       newBalance,
       newLifetime,
-      newTier: tierFor(newLifetime),
+      // Global ladder on purpose: the stored tier is the customer's card across the
+      // network, not the tier they happen to hold at the depot behind this write.
+      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
     });
   }
 
@@ -175,7 +196,9 @@ export class LoyaltyService {
       reason,
       newBalance: account.pointsBalance + points,
       newLifetime,
-      newTier: tierFor(newLifetime),
+      // Global ladder on purpose: the stored tier is the customer's card across the
+      // network, not the tier they happen to hold at the depot behind this write.
+      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
     });
   }
 

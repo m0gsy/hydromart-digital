@@ -793,7 +793,9 @@ export class FakeInventory implements InventoryPort {
 
 export class FakeMembership implements MembershipPort {
   rate = 0;
-  async getDiscountRate(_authorization: string): Promise<number> {
+  calls: { authorization: string; depotId: string | null }[] = [];
+  async getDiscountRate(authorization: string, depotId: string | null = null): Promise<number> {
+    this.calls.push({ authorization, depotId });
     return this.rate;
   }
 }

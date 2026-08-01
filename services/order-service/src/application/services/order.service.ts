@@ -179,7 +179,9 @@ export class OrderService {
     } else {
       // FR-032: the customer's membership tier gives an always-on discount on the
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
-      const membershipRate = await this.membership.getDiscountRate(authorization);
+      // Scoped to the fulfilling depot — it is the one absorbing the discount, and it
+      // sets both the points needed for a tier and what that tier is worth there.
+      const membershipRate = await this.membership.getDiscountRate(authorization, depot.id);
       const membershipDiscount = money(subtotal * membershipRate);
 
       // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:

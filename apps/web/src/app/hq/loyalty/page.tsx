@@ -13,7 +13,9 @@ import type { RewardItem, TierBenefit } from '@/lib/types';
 // Rp1.000 earn rate is a fixed program constant (shown as a note, not a computed metric).
 export default function HqLoyaltyPage() {
   const { t } = useT();
-  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers));
+  // No depot arg: HQ looks at the network-wide ladder. Per-depot overrides are edited
+  // in Pengaturan, scoped to their depot.
+  const tiers = useAsync<TierBenefit[]>(() => api.get(endpoints.loyalty.tiers()));
   const rewards = useAsync<RewardItem[]>(() => api.get(endpoints.rewards.catalog));
 
   const ladder = [...(tiers.data ?? [])].sort((a, b) => a.threshold - b.threshold);
