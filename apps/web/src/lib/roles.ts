@@ -119,6 +119,23 @@ export const canUseOperatorConsole = (role: string | null | undefined) =>
 export const canUseCourierApp = (role: string | null | undefined) =>
   role === 'STAFF_DEPOT' || isSuperAdmin(role);
 
+/**
+ * Roles that clock in and out, i.e. who gets a door to the HRIS self-service PWA
+ * (/hr/me — face punch, my attendance, my payslip, leave).
+ *
+ * The whole depot chain punches: depot staff, the depot head, and the two supervision
+ * ranks above them. hr-service never gated this by role — it scopes /me endpoints to the
+ * linked employee — but no console linked to /hr/me at all, so in practice nobody could
+ * reach it without typing the URL. This is the entry gate, not a permission: the server
+ * still answers only for a caller with an employee record of their own.
+ */
+export const canPunchAttendance = (role: string | null | undefined) =>
+  role === 'STAFF_DEPOT' ||
+  role === 'KEPALA_DEPOT' ||
+  role === 'ASSISTANT_SUPERVISOR' ||
+  role === 'SUPERVISOR' ||
+  isSuperAdmin(role);
+
 // Reseller registry. Now a capability pair in @hydromart/access rather than a
 // hand-rolled `isHq() || isDepotManager()` — the read side widened to HR (read-only
 // roster in the HR console) and only the server's own map decides that.

@@ -196,6 +196,7 @@ export const driver = {
     },
     notSet: 'Belum diatur',
     depotPlacement: 'Depot penempatan',
+    selfService: 'Absen & slip gaji',
     weeklyPerformance: 'Performa mingguan',
     earnings: 'Pendapatan',
     codSettlement: 'Setoran tunai (COD)',

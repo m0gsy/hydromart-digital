@@ -71,7 +71,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async patchCheckOut(_id: string, patch: CheckOutPatch): Promise<Attendance> {
     this.patched = patch;
-    return { ...(this.row as Attendance), ...patch };
+    // Kept on `row` so a later patchStatus sees the checked-out day, as Prisma would.
+    this.row = { ...(this.row as Attendance), ...patch };
+    return this.row;
   }
   async patchStatus(_id: string, status: AttendanceStatus): Promise<Attendance> {
     this.row = { ...(this.row as Attendance), status };
@@ -92,12 +94,15 @@ const config = {
   faceMatchThreshold: 0.62,
 } as unknown as HrConfigService;
 
-function make(opts: {
-  employee?: Partial<Employee> | null;
-  enrolled?: FaceEmbedding[];
-  verify?: Awaited<ReturnType<FaceVerifier['verify']>>;
-  att?: FakeAtt;
-}) {
+function make(
+  opts: {
+    employee?: Partial<Employee> | null;
+    enrolled?: FaceEmbedding[];
+    verify?: Awaited<ReturnType<FaceVerifier['verify']>>;
+    att?: FakeAtt;
+  },
+  cfg: HrConfigService = config,
+) {
   const att = opts.att ?? new FakeAtt();
   const faces: FaceEmbeddingRepository = {
     create: async () => ({}) as FaceEmbedding,
@@ -115,7 +120,7 @@ function make(opts: {
         ? null
         : ({ id: 'e1', depotId: 'd1', status: 'ACTIVE', ...opts.employee } as Employee),
   } as unknown as EmployeeRepository;
-  return { att, svc: new AttendanceService(att, verifier, faces, employees, config) };
+  return { att, svc: new AttendanceService(att, verifier, faces, employees, cfg) };
 }
 
 describe('AttendanceService', () => {
@@ -170,5 +175,119 @@ describe('AttendanceService', () => {
   it('check-out before check-in is rejected', async () => {
     const { svc } = make({}); // no row
     await expect(svc.checkOut(user, punch, AT_1610)).rejects.toThrow(BadRequestException);
+  });
+});
+
+// Asisten SPV and up carry no home depot: they punch at whichever depot they supervise.
+// Outside every fenced one is held for HR rather than refused — a supervisor genuinely on
+// site at a depot nobody geofenced must not be locked out, and a punch from home must not
+// pass unnoticed.
+describe('AttendanceService — supervisor with no home depot', () => {
+  const FENCE = { lat: -6.2, lng: 106.8, radiusM: 200 };
+  const spv: AuthenticatedUser = {
+    sub: 'auth-2',
+    role: 'SUPERVISOR' as never,
+    phone: '08',
+    depotId: null as never,
+    depotIds: ['d1', 'd2'],
+  };
+  const farAway: FacePunch = { ...punch, lat: -7.5, lng: 110.4 }; // ~350 km off
+
+  /** Fences only `fencedIds`; every other depot (and the global fallback) stays unset. */
+  function withFences(fencedIds: string[]) {
+    return {
+      ...config,
+      geofence: (depotId: string | null = null) =>
+        depotId !== null && fencedIds.includes(depotId)
+          ? FENCE
+          : { lat: null, lng: null, radiusM: 0 },
+    } as unknown as HrConfigService;
+  }
+
+  function makeSpv(cfg: HrConfigService, att = new FakeAtt()) {
+    const faces: FaceEmbeddingRepository = {
+      create: async () => ({}) as FaceEmbedding,
+      listActiveByEmployee: async () => [{ vector: [1, 0] } as FaceEmbedding],
+      listActiveVectorsExcept: async () => [],
+      deactivateForEmployee: async () => {},
+    };
+    const verifier: FaceVerifier = {
+      enroll: async () => ({ vector: [1, 0], quality: 1 }),
+      verify: async () => ({ score: 0.9, matched: true, live: true }),
+    };
+    const employees = {
+      findByAuthSubjectId: async () =>
+        ({ id: 'e2', depotId: null, status: 'ACTIVE' }) as unknown as Employee,
+    } as unknown as EmployeeRepository;
+    return { att, svc: new AttendanceService(att, verifier, faces, employees, cfg) };
+  }
+
+  it('inside ANY supervised depot fence counts normally', async () => {
+    const { att, svc } = makeSpv(withFences(['d2']));
+    await svc.checkIn(spv, punch, AT_0810); // punch sits on d2's fence centre
+    expect(att.created).toMatchObject({ status: 'PRESENT', depotId: null });
+  });
+
+  it('outside every fenced depot is held PENDING, not refused', async () => {
+    const { att, svc } = makeSpv(withFences(['d1', 'd2']));
+    await svc.checkIn(spv, farAway, AT_0810);
+    expect(att.created).toMatchObject({ status: 'PENDING' });
+  });
+
+  it('lateness is still recorded on a held punch, so approval keeps it', async () => {
+    const { att, svc } = makeSpv(withFences(['d1']));
+    await svc.checkIn(spv, farAway, AT_0830);
+    expect(att.created).toMatchObject({ status: 'PENDING', lateMinutes: 30 });
+  });
+
+  it('no supervised depot has a fence → nothing to measure, punch passes', async () => {
+    const { att, svc } = makeSpv(withFences([]));
+    await svc.checkIn(spv, farAway, AT_0810);
+    expect(att.created).toMatchObject({ status: 'PRESENT' });
+  });
+
+  it('an empty supervised set falls back to the global fence', async () => {
+    const { att, svc } = makeSpv(withFences(['d1']));
+    await svc.checkIn({ ...spv, depotIds: [] }, farAway, AT_0810);
+    expect(att.created).toMatchObject({ status: 'PRESENT' });
+  });
+
+  // The guard fills depotIds on every non-public route, but the service must not assume it:
+  // an unresolved scope means "no depots to measure against", never "fence everything".
+  it('an unresolved scope behaves like an empty one', async () => {
+    const { att, svc } = makeSpv(withFences(['d1']));
+    await svc.checkIn({ ...spv, depotIds: undefined }, farAway, AT_0810);
+    expect(att.created).toMatchObject({ status: 'PRESENT' });
+  });
+
+  it('a check-out away from every site puts the whole day in front of HR', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, checkOutAt: null, status: 'PRESENT' } as Attendance;
+    const { svc } = makeSpv(withFences(['d1']), att);
+    const out = await svc.checkOut(spv, farAway, AT_1610);
+    expect(out.status).toBe('PENDING');
+  });
+
+  it('an on-site check-out leaves the day alone', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, checkOutAt: null, status: 'PRESENT' } as Attendance;
+    const { svc } = makeSpv(withFences(['d1']), att);
+    const out = await svc.checkOut(spv, punch, AT_1610);
+    expect(out.status).toBe('PRESENT');
+    expect(out.workingMinutes).toBe(480);
+  });
+
+  it('a day already PENDING is not re-queued by the check-out', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'a1', checkInAt: AT_0810, checkOutAt: null, status: 'PENDING' } as Attendance;
+    const { svc } = makeSpv(withFences(['d1']), att);
+    const out = await svc.checkOut(spv, farAway, AT_1610);
+    expect(out.status).toBe('PENDING');
+    expect(out.workingMinutes).toBe(480);
+  });
+
+  it('a depot-locked employee is still refused outright, never held', async () => {
+    const { svc } = make({}, withFences(['d1']));
+    await expect(svc.checkIn(user, farAway, AT_0810)).rejects.toThrow(ForbiddenException);
   });
 });

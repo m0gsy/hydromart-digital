@@ -58,7 +58,7 @@ export class AttendanceService {
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
-    this.assertGeofence(employee.depotId, punch);
+    const { holdForReview } = this.geofenceOutcome(employee, user, punch);
 
     const offlineAt = this.offlineAt(punch, now, employee.depotId);
     const at = offlineAt ?? now;
@@ -96,7 +96,7 @@ export class AttendanceService {
       checkInLat: punch.lat,
       checkInLng: punch.lng,
       lateMinutes,
-      status: stale ? 'PENDING' : late ? 'LATE' : 'PRESENT',
+      status: stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT',
     });
   }
 
@@ -107,7 +107,7 @@ export class AttendanceService {
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
     const score = await this.assertFace(employee, punch);
-    this.assertGeofence(employee.depotId, punch);
+    const { holdForReview } = this.geofenceOutcome(employee, user, punch);
 
     const offlineAt = this.offlineAt(punch, now, employee.depotId);
     const { workDate } = this.localParts(offlineAt ?? now, this.config.timeZone);
@@ -128,7 +128,7 @@ export class AttendanceService {
     );
     const photoUrl =
       punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
-    return this.repo.patchCheckOut(row.id, {
+    const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
       checkOutScore: score,
@@ -136,6 +136,13 @@ export class AttendanceService {
       checkOutLng: punch.lng,
       workingMinutes,
     });
+    // A check-out taken away from every supervised site puts the whole day in front of HR,
+    // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
+    // where they are rather than being re-queued.
+    if (holdForReview && updated.status !== 'PENDING') {
+      return this.repo.patchStatus(row.id, 'PENDING');
+    }
+    return updated;
   }
 
   /**
@@ -187,6 +194,55 @@ export class AttendanceService {
         `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi.`,
       );
     }
+  }
+
+  /**
+   * Where a punch is allowed to happen, which differs by rank.
+   *
+   * An employee tied to ONE depot is fenced to it and refused outside — unchanged.
+   *
+   * An employee ABOVE a depot (Asisten SPV and up carry no `depotId`) has no single place
+   * to stand: they punch at whichever depot they are supervising that day. So the punch is
+   * measured against every depot in their resolved scope — the set DepotScopeGuard already
+   * put on the request, so this costs no lookup — and inside ANY of them is on-site.
+   *
+   * Outside all of them is NOT a refusal. Refusing would strand a supervisor who is
+   * genuinely at a site whose geofence nobody configured; letting it through silently
+   * would make the fence decorative. So it is held as PENDING for HR to decide, the same
+   * path a late offline sync already takes: worth nothing to payroll until a human agrees.
+   *
+   * Returns `holdForReview`. Never throws for the no-home-depot case.
+   */
+  private geofenceOutcome(
+    employee: Pick<Employee, 'depotId'>,
+    user: AuthenticatedUser,
+    punch: FacePunch,
+  ): { holdForReview: boolean } {
+    if (employee.depotId) {
+      this.assertGeofence(employee.depotId, punch);
+      return { holdForReview: false };
+    }
+
+    const scope = user.depotIds ?? [];
+    // Nothing to measure against: no supervised depots, or none of them has a fence
+    // configured. Keep the standing rule for an unconfigured fence — record the GPS,
+    // don't block, don't bother HR.
+    const fenced = scope.filter((id) => this.isFenced(id));
+    if (fenced.length === 0) {
+      this.assertGeofence(null, punch);
+      return { holdForReview: false };
+    }
+
+    const onSite = fenced.some(
+      (id) => withinGeofence(this.config.geofence(id), punch.lat, punch.lng).ok,
+    );
+    return { holdForReview: !onSite };
+  }
+
+  /** True when this depot actually has an attendance geofence configured. */
+  private isFenced(depotId: string): boolean {
+    const g = this.config.geofence(depotId);
+    return g.lat !== null && g.lng !== null && g.radiusM > 0;
   }
 
   /** Depot-scoped attendance log for the HR dashboard / manager (their own depot only). */

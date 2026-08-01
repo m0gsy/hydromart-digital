@@ -44,6 +44,7 @@ export const ops = {
     shift: 'Shift schedule',
     targets: 'Targets & goals',
     huddle: 'Weekly huddle',
+    selfService: 'My attendance',
     handover: 'Shift handover',
     maintenance: 'Equipment maintenance',
     staffOnboarding: 'Manager guide',
