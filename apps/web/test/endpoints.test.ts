@@ -18,7 +18,11 @@ describe('endpoints', () => {
   });
 
   it('routes the Release 2 loyalty/voucher/referral paths through the gateway', () => {
-    expect(endpoints.loyalty.me).toBe('/loyalty/api/v1/loyalty/me');
+    expect(endpoints.loyalty.me()).toBe('/loyalty/api/v1/loyalty/me');
+    expect(endpoints.loyalty.me('d 1')).toBe('/loyalty/api/v1/loyalty/me?depotId=d%201');
+    expect(endpoints.loyalty.tiers()).toBe('/loyalty/api/v1/loyalty/tiers');
+    expect(endpoints.loyalty.tiers(null)).toBe('/loyalty/api/v1/loyalty/tiers');
+    expect(endpoints.loyalty.tiers('d1')).toBe('/loyalty/api/v1/loyalty/tiers?depotId=d1');
     expect(endpoints.loyalty.transactions({ limit: 10 })).toBe(
       '/loyalty/api/v1/loyalty/me/transactions?limit=10',
     );

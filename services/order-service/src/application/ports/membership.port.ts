@@ -7,6 +7,11 @@
  * blocked by a loyalty-service outage.
  */
 export interface MembershipPort {
-  /** Fractional discount rate in [0, 1) for the caller's tier; 0 when unavailable. */
-  getDiscountRate(authorization: string): Promise<number>;
+  /**
+   * Fractional discount rate in [0, 1) for the caller's tier; 0 when unavailable.
+   * `depotId` is the fulfilling depot: it decides both the thresholds the customer's
+   * points are judged against and what that tier is worth there. Omitted means the
+   * global ladder.
+   */
+  getDiscountRate(authorization: string, depotId?: string | null): Promise<number>;
 }

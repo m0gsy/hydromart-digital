@@ -1,7 +1,22 @@
 // Pure helpers for the depot admin console. Covered by test/depots.test.ts.
 // Client-side pre-validation mirrors depot-service's DTO; the server stays authority.
 
-import type { DepotPayload } from './types';
+import type { Depot, DepotPayload, NearbyDepot } from './types';
+
+/**
+ * Which depot the checkout ongkir preview should quote. An address with a map pin is
+ * routed by the nearby lookup; one without has no lookup at all and the customer picks
+ * the depot by hand — reading only the nearby result showed those orders no ongkir.
+ */
+export function resolveDeliveryDepot(
+  needsDepotPick: boolean,
+  pickedDepotId: string | null,
+  depotChoices: Depot[] | null | undefined,
+  nearbyDepots: NearbyDepot[] | null | undefined,
+): Depot | NearbyDepot | null {
+  if (needsDepotPick) return depotChoices?.find((d) => d.id === pickedDepotId) ?? null;
+  return nearbyDepots?.[0] ?? null;
+}
 
 export interface DepotForm {
   code: string;

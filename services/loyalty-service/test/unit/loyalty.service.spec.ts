@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { SettingRow } from '@hydromart/platform';
+
 import { InvalidAdjustmentError } from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
@@ -8,6 +10,7 @@ import {
   InMemoryCustomerDirectory,
   InMemoryLoyaltyRepository,
   buildTestConfig,
+  buildTestConfigWithSettings,
 } from '../support/fakes';
 
 describe('LoyaltyService', () => {
@@ -112,5 +115,53 @@ describe('LoyaltyService', () => {
     await service.runExpiry(new Date());
     const second = await service.runExpiry(new Date());
     expect(second.lotsExpired).toBe(0);
+  });
+});
+
+describe('LoyaltyService standing under a per-depot ladder', () => {
+  // depot-1 makes GOLD harder to reach (9000) and cheaper to honour (3%).
+  const rows: SettingRow[] = [
+    { scope: 'DEPOT', depotId: 'depot-1', key: 'goldThreshold', value: '9000' },
+    { scope: 'DEPOT', depotId: 'depot-1', key: 'goldDiscountPct', value: '3' },
+  ];
+  let repo: InMemoryLoyaltyRepository;
+  let service: LoyaltyService;
+
+  beforeEach(async () => {
+    repo = new InMemoryLoyaltyRepository();
+    service = new LoyaltyService(
+      repo,
+      await buildTestConfigWithSettings(rows),
+      new InMemoryCustomerDirectory(),
+    );
+    // 6.000.000 rupiah at the default 1 pt / Rp 1.000 = 6000 lifetime points.
+    await service.earnForOrder('cust-1', randomUUID(), 6_000_000);
+  });
+
+  it('answers the global ladder when no depot is named', async () => {
+    const standing = await service.getStanding('cust-1');
+    expect(standing.tier).toBe(MembershipTier.GOLD);
+    expect(standing.discountRate).toBe(0.05);
+  });
+
+  it('re-derives tier and rate against the named depot ladder', async () => {
+    const standing = await service.getStanding('cust-1', 'depot-1');
+    expect(standing.tier).toBe(MembershipTier.SILVER);
+    expect(standing.discountRate).toBe(0.02);
+  });
+
+  it("leaves the stored tier on the customer's global standing", async () => {
+    // Earning happened with depot-1 supplied; the card must still read GOLD, because a
+    // stricter depot's opinion is not the customer's network-wide tier.
+    await service.earnForOrder('cust-1', randomUUID(), 1000, 'depot-1');
+    const { account } = await service.getStanding('cust-1', 'depot-1');
+    expect(account.tier).toBe(MembershipTier.GOLD);
+  });
+
+  it('scopes the published ladder to the depot', async () => {
+    const gold = (depotId: string | null) =>
+      service.getTiers(depotId).find((b) => b.tier === MembershipTier.GOLD);
+    expect(gold('depot-1')).toMatchObject({ threshold: 9000, discountRate: 0.03 });
+    expect(gold(null)).toMatchObject({ threshold: 5000, discountRate: 0.05 });
   });
 });

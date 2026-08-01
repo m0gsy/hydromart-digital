@@ -24,6 +24,7 @@ import {
   LoyaltyAccountDto,
   PointsTransactionDto,
   RewardPointsDto,
+  TierScopeQueryDto,
 } from './dto/loyalty.dto';
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
@@ -44,15 +45,22 @@ export class LoyaltyController {
   @Public()
   @Get('tiers')
   @ApiOperation({ summary: 'List membership tiers and their benefits (FR-014)' })
-  tiers() {
-    return this.loyalty.getTiers();
+  tiers(@Query() query: TierScopeQueryDto) {
+    return this.loyalty.getTiers(query.depotId ?? null);
   }
 
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: "Get the current customer's loyalty account (FR-014/015)" })
-  async me(@CurrentUser() user: AuthenticatedUser): Promise<LoyaltyAccountDto> {
-    return LoyaltyAccountDto.from(await this.loyalty.getAccount(user.sub));
+  async me(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: TierScopeQueryDto,
+  ): Promise<LoyaltyAccountDto> {
+    const { account, tier, discountRate } = await this.loyalty.getStanding(
+      user.sub,
+      query.depotId ?? null,
+    );
+    return LoyaltyAccountDto.from(account, tier, discountRate);
   }
 
   @ApiBearerAuth()

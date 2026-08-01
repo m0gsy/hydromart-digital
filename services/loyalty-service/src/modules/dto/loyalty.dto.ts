@@ -97,6 +97,14 @@ export class DepotSummaryQueryDto {
   depotId!: string;
 }
 
+/** Optional depot scope: which depot's membership ladder to answer against. */
+export class TierScopeQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: "Depot whose ladder applies; omit for the global one." })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsInt()
@@ -117,7 +125,10 @@ export class ListTransactionsQueryDto {
 export class LoyaltyAccountDto {
   @ApiProperty({ format: 'uuid' })
   customerId!: string;
-  @ApiProperty({ enum: MembershipTier })
+  @ApiProperty({
+    enum: MembershipTier,
+    description: 'Tier at the queried depot; the global tier when no depotId was given.',
+  })
   tier!: MembershipTier;
   @ApiProperty({ example: 1200 })
   pointsBalance!: number;
@@ -126,13 +137,18 @@ export class LoyaltyAccountDto {
   @ApiProperty({ example: 0.05, description: 'Membership discount rate for this tier (FR-032).' })
   discountRate!: number;
 
-  static from(account: LoyaltyAccountRecord): LoyaltyAccountDto {
+  /** `tier`/`discountRate` come from the caller's standing so a depot ladder can apply. */
+  static from(
+    account: LoyaltyAccountRecord,
+    tier: MembershipTier = account.tier,
+    discountRate: number = benefitFor(account.tier).discountRate,
+  ): LoyaltyAccountDto {
     return {
       customerId: account.customerId,
-      tier: account.tier,
+      tier,
       pointsBalance: account.pointsBalance,
       lifetimePoints: account.lifetimePoints,
-      discountRate: benefitFor(account.tier).discountRate,
+      discountRate,
     };
   }
 }

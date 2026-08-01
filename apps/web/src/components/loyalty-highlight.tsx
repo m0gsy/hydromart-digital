@@ -8,6 +8,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import { useLocation } from '@/lib/location-context';
 import { Chip, LinkButton } from '@/components/ui';
 import type { LoyaltyAccount, TierBenefit } from '@/lib/types';
 
@@ -20,15 +21,19 @@ const CARD = 'surface flex flex-col gap-4 rounded-[22px] border border-app p-[26
 
 export function LoyaltyHighlight() {
   const { customer } = useAuth();
+  const { location } = useLocation();
   const { t } = useT();
 
+  // Both scoped to the shopper's location: the ladder is a per-depot setting, and a
+  // teaser promising a rate the local depot does not give is worse than no teaser.
+  const depotId = location?.depotId ?? null;
   const { data: tiers } = useAsync<TierBenefit[]>(
-    () => api.get<TierBenefit[]>(endpoints.loyalty.tiers),
-    [],
+    () => api.get<TierBenefit[]>(endpoints.loyalty.tiers(depotId)),
+    [depotId],
   );
   const { data: account } = useAsync<LoyaltyAccount>(
-    () => (customer ? api.get(endpoints.loyalty.me, true) : Promise.resolve(null as never)),
-    [customer],
+    () => (customer ? api.get(endpoints.loyalty.me(depotId), true) : Promise.resolve(null as never)),
+    [customer, depotId],
   );
 
   if (!tiers || tiers.length === 0) return null;
