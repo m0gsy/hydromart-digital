@@ -32,6 +32,17 @@ export class CategoryController {
     return this.categories.list(true);
   }
 
+  // Deactivated categories are invisible on the public list by design, which left the
+  // console unable to bring one back. Admins get the unfiltered set on their own route
+  // rather than a flag on the public one — nothing extra leaks to the shop.
+  @ApiBearerAuth()
+  @Roles(...ADMIN_ROLES)
+  @Get('all')
+  @ApiOperation({ summary: 'List every category, active or not (admin)' })
+  listAll(): Promise<CategoryRecord[]> {
+    return this.categories.list(false);
+  }
+
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Post()

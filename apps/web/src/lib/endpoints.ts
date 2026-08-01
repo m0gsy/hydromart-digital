@@ -128,6 +128,11 @@ export const endpoints = {
     uploadImage: '/products/api/v1/products/images',
     // Public active-category list (no pagination) → Category[].
     categories: '/products/api/v1/categories',
+    // Category admin (MANAGER / SUPER_ADMIN). `categoriesAll` also returns deactivated
+    // ones, which the public list hides — the console needs them to switch one back on.
+    categoriesAll: '/products/api/v1/categories/all',
+    categoryCreate: '/products/api/v1/categories',
+    category: (id: string) => `/products/api/v1/categories/${id}`,
   },
   cart: {
     view: '/orders/api/v1/cart',

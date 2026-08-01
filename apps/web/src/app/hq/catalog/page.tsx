@@ -8,6 +8,7 @@ import { Badge, Button, Card, ErrorState, Field, Input, Money, Skeleton } from '
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { slugify } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Category, Page, Product } from '@/lib/types';
@@ -131,6 +132,160 @@ function ProductEditor({
   );
 }
 
+/**
+ * Category master list. The product editor above only PICKS from this list; until now
+ * nothing in any console could add to it, so a new category meant calling the API by hand.
+ * Same MANAGER/SUPER_ADMIN roles as product create, so no extra gating is needed here.
+ */
+function CategoryManager({ onChange }: { onChange: () => void }) {
+  const { t } = useT();
+  const { toast } = useToast();
+  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categoriesAll, true));
+  const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The slug follows the name while it is untouched; typing in it takes over from there,
+  // so an existing category's URL never changes behind the operator's back on a rename.
+  const [slugTouched, setSlugTouched] = useState(false);
+  const effectiveSlug = slugTouched ? slug : slugify(name);
+
+  function reset() {
+    setEditId(null);
+    setName('');
+    setSlug('');
+    setSlugTouched(false);
+    setError(null);
+  }
+
+  function edit(c: Category) {
+    setEditId(c.id);
+    setName(c.name);
+    setSlug(c.slug);
+    setSlugTouched(true);
+    setError(null);
+  }
+
+  async function submit() {
+    if (!name.trim()) return setError(t('hq.catalog.categories.needName'));
+    if (!effectiveSlug) return setError(t('hq.catalog.categories.needSlug'));
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = { name: name.trim(), slug: effectiveSlug };
+      if (editId) {
+        await api.patch(endpoints.products.category(editId), payload, true);
+      } else {
+        await api.post(endpoints.products.categoryCreate, payload, true);
+      }
+      reset();
+      categories.reload();
+      onChange(); // the product editor's dropdown reads the public list, not this one
+      toast(t('hq.catalog.categories.saved'), 'success');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.catalog.categories.saveError'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggle(c: Category) {
+    setError(null);
+    try {
+      // Deactivating is a soft delete: products keep the category, it just stops showing
+      // as a pill in the shop. Reactivating is the same PATCH the other way.
+      if (c.active) {
+        await api.del(endpoints.products.category(c.id), true);
+      } else {
+        await api.patch(endpoints.products.category(c.id), { active: true }, true);
+      }
+      categories.reload();
+      onChange(); // the product editor's dropdown reads the public list, not this one
+      toast(t('hq.catalog.categories.saved'), 'success');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.catalog.categories.saveError'));
+    }
+  }
+
+  const rows = categories.data ?? [];
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div>
+        <h2 className="text-lg font-bold">{t('hq.catalog.categories.title')}</h2>
+        <p className="text-sm text-muted">{t('hq.catalog.categories.subtitle')}</p>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <Field label={t('hq.catalog.categories.name')}>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Air Minum" />
+        </Field>
+        <Field label={t('hq.catalog.categories.slug')}>
+          <Input
+            value={effectiveSlug}
+            onChange={(e) => {
+              setSlugTouched(true);
+              setSlug(e.target.value);
+            }}
+            placeholder="air-minum"
+          />
+        </Field>
+        <div className="flex gap-2">
+          <Button onClick={submit} loading={busy}>
+            {editId ? t('hq.catalog.save') : t('hq.catalog.categories.add')}
+          </Button>
+          {editId && (
+            <Button variant="ghost" onClick={reset}>
+              {t('hq.catalog.cancel')}
+            </Button>
+          )}
+        </div>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {categories.loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : categories.error ? (
+        <ErrorState message={categories.error} onRetry={categories.reload} />
+      ) : rows.length === 0 ? (
+        <p className="py-2 text-sm text-muted">{t('hq.catalog.categories.empty')}</p>
+      ) : (
+        <ul className="divide-y divide-[color:var(--border)]">
+          {rows.map((c) => (
+            <li key={c.id} className="flex flex-wrap items-center gap-3 py-2.5">
+              <span className="font-medium">{c.name}</span>
+              <span className="font-mono text-xs text-muted">/{c.slug}</span>
+              <Badge tone={c.active ? 'success' : 'neutral'}>
+                {c.active ? t('hq.catalog.available') : t('hq.catalog.unavailable')}
+              </Badge>
+              <div className="ml-auto flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => edit(c)}
+                  className="text-xs font-semibold text-brand-700 hover:underline"
+                >
+                  {t('hq.catalog.categories.rename')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggle(c)}
+                  className="text-xs font-semibold text-brand-700 hover:underline"
+                >
+                  {c.active
+                    ? t('hq.catalog.categories.deactivate')
+                    : t('hq.catalog.categories.reactivate')}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 // Design 18a — network product catalog. Real: products.browse + create/update + categories.
 export default function HqCatalogPage() {
   const { t } = useT();
@@ -218,6 +373,8 @@ export default function HqCatalogPage() {
           </table>
         </Card>
       )}
+
+      <CategoryManager onChange={categories.reload} />
 
       <Link href="/hq/pricing" className="text-sm font-semibold text-brand-700 hover:underline">
         {t('hq.catalog.pricingLink')}
