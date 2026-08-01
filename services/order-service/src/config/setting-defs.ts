@@ -41,6 +41,19 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 1440,
     envDefault: 60,
   },
+  // Spec 7b's "hemat 5%" on every subscription delivery. Per-depot like every other
+  // money rate: the depot funds the discount, so the depot sets it. Whole percent —
+  // an operator types "5" and the getter divides. Capped at 50%: past that a
+  // "discount" is a pricing decision, not a subscription perk.
+  {
+    key: 'subscriptionDiscountPct',
+    label: 'Diskon langganan',
+    type: 'number',
+    unit: '%',
+    min: 0,
+    max: 50,
+    envDefault: 5,
+  },
   {
     key: 'stalledHours',
     label: 'Batas pesanan mandek di depot',

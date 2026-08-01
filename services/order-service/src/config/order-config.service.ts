@@ -90,6 +90,20 @@ export class OrderConfigService {
   get stalledHours(): number {
     return this.tunable('stalledHours', this.num('ORDER_STALLED_HOURS'));
   }
+  /**
+   * Fraction off the subtotal of every subscription delivery (spec 7b). Settings hold
+   * whole percent (an operator types "5"); the pricing code wants 0.05. Scoped to the
+   * depot the subscription's address routes to — the depot that funds the discount.
+   */
+  subscriptionDiscountRate(depotId: string | null = null): number {
+    return (
+      this.tunable(
+        'subscriptionDiscountPct',
+        this.num('ORDER_SUBSCRIPTION_DISCOUNT_PCT'),
+        depotId,
+      ) / 100
+    );
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

@@ -5,7 +5,8 @@ import {
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
 } from '../../domain/errors';
-import { SUBSCRIPTION_DISCOUNT_RATE, advanceDelivery } from '../../domain/subscription';
+import { advanceDelivery } from '../../domain/subscription';
+import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import {
@@ -50,7 +51,17 @@ export class SubscriptionService {
     @Inject(ORDER_TOKENS.ProductCatalog)
     private readonly catalog: ProductCatalogPort,
     private readonly orders: OrderService,
+    private readonly config: OrderConfigService,
   ) {}
+
+  /**
+   * The subscription discount in force at `depotId` (null = global default), as a
+   * fraction. The shop quotes this so its "hemat N%" line matches what the sweep
+   * actually charges at that depot instead of a copy-pasted 5%.
+   */
+  discountRate(depotId: string | null): number {
+    return this.config.subscriptionDiscountRate(depotId);
+  }
 
   async create(customerId: string, input: CreateSubscriptionInput): Promise<SubscriptionRecord> {
     const product = await this.catalog.getProduct(input.productId);
@@ -133,7 +144,6 @@ export class SubscriptionService {
           sub.customerId,
           [{ productId: sub.productId, quantity: sub.quantity }],
           address,
-          SUBSCRIPTION_DISCOUNT_RATE,
         );
         await this.subs.advance(sub.id, advanceDelivery(now, sub.frequency));
         placed += 1;

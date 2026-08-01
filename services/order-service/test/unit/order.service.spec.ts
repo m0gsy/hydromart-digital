@@ -186,7 +186,7 @@ describe('OrderService', () => {
       });
     });
 
-    it('schedules a subscription delivery with no discount rate', async () => {
+    it('schedules a subscription delivery', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
       const order = await service.placeScheduled(
         customer,
@@ -746,6 +746,27 @@ describe('OrderService', () => {
       authorization: 'Bearer tok',
     });
     expect(confirmed.vars).toMatchObject({ orderNumber: order.orderNumber });
+  });
+
+  it('says nothing about points when loyalty could not report how many were awarded', async () => {
+    // The count comes from loyalty (it owns the per-depot earn rate). Unknown means
+    // unknown: promising a number this service made up is worse than staying silent.
+    loyalty.pointsEarned = null;
+    await addToCart(20000, 1);
+    const order = await service.checkout(customer, { deliveryAddress: address });
+    for (const s of [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PREPARING,
+      OrderStatus.DRIVER_ASSIGNED,
+      OrderStatus.PICKED_UP,
+      OrderStatus.ON_DELIVERY,
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
+    ]) {
+      await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+    }
+    expect(loyalty.calls).toHaveLength(1); // the award itself still happened
+    expect(notification.calls.map((c) => c.event)).not.toContain('POINTS_EARNED');
   });
 
   it('deducts routed-depot stock once, only when a routed order completes (FR-067..074)', async () => {
@@ -1314,7 +1335,7 @@ describe('OrderService', () => {
 
   const coordAddress: DeliveryAddressSnapshot = { ...address, latitude: -6.91, longitude: 107.61 };
 
-  it('placeScheduled routes to a depot: reserves stock, uses depot pricing and the discount rate', async () => {
+  it("placeScheduled routes to a depot: reserves stock, uses depot pricing and the depot's discount rate", async () => {
     depots.depots = [
       {
         id: 'depot-near',
@@ -1332,8 +1353,7 @@ describe('OrderService', () => {
       customer,
       [{ productId: p.id, quantity: 2 }],
       coordAddress,
-      0.05, // 5% subscription discount
-    );
+    ); // 5% subscription discount — the depot's setting, env default in buildTestConfig
 
     expect(order.depotId).toBe('depot-near');
     expect(order.subtotal).toBe(44000); // 22000 × 2 (depot price, not catalog base)
@@ -1346,8 +1366,54 @@ describe('OrderService', () => {
     expect(inventory.reserveCalls[0].items).toEqual([{ productId: p.id, quantity: 2 }]);
   });
 
+  it('placeScheduled quotes the subscription discount against the ROUTED depot', async () => {
+    // The rate used to be a 5% constant passed in by the sweep. It is a per-depot setting
+    // now, so what matters is that the depot doing the delivery is the one asked.
+    const config = buildTestConfig();
+    const spy = jest.spyOn(config, 'subscriptionDiscountRate').mockReturnValue(0.1);
+    const service = new OrderService(
+      orders,
+      cart,
+      catalog,
+      depots,
+      pricing,
+      loyalty,
+      referral,
+      membership,
+      resellerDiscount,
+      notification,
+      promo,
+      inventory,
+      cartService,
+      config,
+      recommendation,
+      forecast,
+      franchiseRevenue,
+    );
+    depots.depots = [
+      {
+        id: 'depot-near',
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 10,
+        deliveryFee: 0,
+        minOrderAmount: null,
+      },
+    ];
+    const p = catalog.seed({ id: randomUUID(), basePrice: 10000 });
+
+    const order = await service.placeScheduled(
+      customer,
+      [{ productId: p.id, quantity: 2 }],
+      coordAddress,
+    );
+
+    expect(spy).toHaveBeenCalledWith('depot-near');
+    expect(order.discount).toBe(2000); // 10% of 20000, the depot's rate — not a fixed 5%
+  });
+
   it('placeScheduled rejects an empty line list', async () => {
-    await expect(service.placeScheduled(customer, [], coordAddress, 0)).rejects.toBeInstanceOf(
+    await expect(service.placeScheduled(customer, [], coordAddress)).rejects.toBeInstanceOf(
       EmptyCartError,
     );
   });

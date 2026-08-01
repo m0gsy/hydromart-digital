@@ -23,6 +23,12 @@ describe('endpoints', () => {
     expect(endpoints.loyalty.tiers()).toBe('/loyalty/api/v1/loyalty/tiers');
     expect(endpoints.loyalty.tiers(null)).toBe('/loyalty/api/v1/loyalty/tiers');
     expect(endpoints.loyalty.tiers('d1')).toBe('/loyalty/api/v1/loyalty/tiers?depotId=d1');
+    // The subscription saving is per-depot too, and quoted before sign-in.
+    expect(endpoints.subscriptions.discount()).toBe('/orders/api/v1/subscriptions/discount');
+    expect(endpoints.subscriptions.discount(null)).toBe('/orders/api/v1/subscriptions/discount');
+    expect(endpoints.subscriptions.discount('d 1')).toBe(
+      '/orders/api/v1/subscriptions/discount?depotId=d%201',
+    );
     expect(endpoints.loyalty.transactions({ limit: 10 })).toBe(
       '/loyalty/api/v1/loyalty/me/transactions?limit=10',
     );

@@ -12,6 +12,7 @@ function makeService(): Mocked {
     resume: jest.fn().mockResolvedValue({ id: 's1', status: 'ACTIVE' }),
     cancel: jest.fn().mockResolvedValue({ id: 's1', status: 'CANCELLED' }),
     processDue: jest.fn().mockResolvedValue({ placed: 2 }),
+    discountRate: jest.fn().mockReturnValue(0.08),
   } as unknown as Mocked;
 }
 
@@ -102,6 +103,13 @@ describe('SubscriptionController', () => {
     expect(service.pause).toHaveBeenCalledWith('cust-1', 's1');
     expect(service.resume).toHaveBeenCalledWith('cust-1', 's1');
     expect(service.cancel).toHaveBeenCalledWith('cust-1', 's1');
+  });
+
+  it("discount: quotes the queried depot's rate, or the global one when no depot is given", () => {
+    expect(controller.discount({ depotId: 'd1' })).toEqual({ rate: 0.08 });
+    expect(service.discountRate).toHaveBeenCalledWith('d1');
+    controller.discount({});
+    expect(service.discountRate).toHaveBeenLastCalledWith(null);
   });
 
   it('processDue: sweeps due subscriptions as of now', async () => {

@@ -23,11 +23,11 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
     subtotal: number,
     depotId: string | null,
     _authorization: string,
-  ): Promise<void> {
+  ): Promise<number | null> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
       this.logger.warn(`No internal service key; skipped loyalty award for order ${orderId}`);
-      return;
+      return null;
     }
     const url = `${this.config.loyaltyServiceUrl}/api/v1/loyalty/earn`;
     const controller = new AbortController();
@@ -42,8 +42,14 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
       if (!res.ok) {
         throw new Error(`loyalty-service responded ${res.status}`);
       }
+      // loyalty owns the earn rate (per-depot), so the awarded count comes back with the
+      // account rather than being recomputed here. An unparseable body is still a
+      // successful award — report "unknown" (null), never a made-up number.
+      const body = (await res.json()) as { pointsEarned?: number };
+      return typeof body?.pointsEarned === 'number' ? body.pointsEarned : null;
     } catch (error) {
       this.logger.warn(`Loyalty award skipped for order ${orderId}: ${(error as Error).message}`);
+      return null;
     } finally {
       clearTimeout(timer);
     }

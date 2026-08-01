@@ -9,6 +9,7 @@ import { Button, Chip, ErrorState, Field, LinkButton, Skeleton } from '@/compone
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
@@ -26,12 +27,21 @@ function inDays(n: number): string {
 
 function Panel() {
   const { t, locale } = useT();
+  const { location } = useLocation();
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
   const products = useAsync<Paged<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
   const addresses = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
   const subs = useAsync<Subscription[]>(() => api.get(endpoints.subscriptions.list, true));
+  // The saving is a per-depot rate now, so it is quoted against the depot behind the
+  // shopper's chosen location (none → the global default). Never a hardcoded 5%.
+  const depotId = location?.depotId ?? null;
+  const discount = useAsync<{ rate: number }>(
+    () => api.get(endpoints.subscriptions.discount(depotId)),
+    [depotId],
+  );
+  const discountPct = Math.round((discount.data?.rate ?? 0) * 100);
 
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(2);
@@ -203,10 +213,12 @@ function Panel() {
             </div>
           )}
 
-          <div className="flex items-center gap-2 rounded-[12px] bg-brand-50 px-3.5 py-2.5 text-[12px] font-bold text-brand-800">
-            <Percent size={15} weight="fill" />
-            {copy.discountNote}
-          </div>
+          {discountPct > 0 && (
+            <div className="flex items-center gap-2 rounded-[12px] bg-brand-50 px-3.5 py-2.5 text-[12px] font-bold text-brand-800">
+              <Percent size={15} weight="fill" />
+              {copy.discountNote.replace('{pct}', String(discountPct))}
+            </div>
+          )}
 
           {error && <p className="text-sm font-semibold text-[color:var(--danger)]">{error}</p>}
           <Button type="submit" loading={saving} disabled={!productId || !primaryAddress}>

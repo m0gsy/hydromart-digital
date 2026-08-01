@@ -66,9 +66,10 @@ const line = [{ productId: 'p1', quantity: 2 }] as never;
 describe('coordination adapters fail open on a non-2xx response', () => {
   it('loyalty.awardPoints swallows a 500', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    // null = "no points to report", the only honest answer when the award never landed.
     await expect(
       new LoyaltyCoordinationHttpAdapter(makeConfig()).awardPoints('c1', 'o1', 50000, 'd1', ''),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

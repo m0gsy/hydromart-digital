@@ -317,6 +317,10 @@ export const endpoints = {
     pause: (id: string) => `/orders/api/v1/subscriptions/${id}/pause`,
     resume: (id: string) => `/orders/api/v1/subscriptions/${id}/resume`,
     cancel: (id: string) => `/orders/api/v1/subscriptions/${id}/cancel`,
+    // The saving quoted on the signup panel. Per-depot like every other money rate, so
+    // the note matches what the sweep actually charges at that depot; omitted = global.
+    discount: (depotId?: string | null) =>
+      `/orders/api/v1/subscriptions/discount${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
     adminSummary: '/orders/api/v1/subscriptions/admin/summary',
   },
