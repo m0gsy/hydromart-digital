@@ -10,6 +10,8 @@ export const dashC = {
     unit: 'Unit',
     unitHint: 'e.g. gallon, bottle, box',
     basePrice: 'Base price (Rp)',
+    category: 'Category',
+    noCategory: 'No category',
     mainImage: 'Primary image URL',
     mainImageHint: 'Optional.',
     extraImages: 'Additional images',

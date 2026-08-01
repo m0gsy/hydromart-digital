@@ -26,6 +26,7 @@ import { endpoints } from '@/lib/endpoints';
 import { addressToForm, pickDefaultAddress } from '@/lib/addresses';
 import { formatIDR } from '@/lib/format';
 import { PAYMENT_METHODS } from '@/lib/payments';
+import { galonQuantity } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -327,8 +328,16 @@ function CheckoutInner() {
   // Advisory only: display-only ongkir estimate, never part of the API payload.
   // order-service computes the authoritative delivery fee + order total from the
   // routed depot at checkout — this displayedTotal is just a pre-submit preview.
-  const depot = nearbyDepots?.[0] ?? null;
-  const deliveryFee = depot?.deliveryFee ?? 0;
+  // The fee follows whichever depot will actually fulfil: the nearest one when the address
+  // carries a pin, otherwise the one the customer picked below. Reading only `nearbyDepots`
+  // left the ongkir at Rp 0 for every pinless address, however carefully the depot was chosen.
+  const pickedDepot = pickedDepotId
+    ? depotChoices?.items.find((d) => d.id === pickedDepotId) ?? null
+    : null;
+  const depot = nearbyDepots?.[0] ?? pickedDepot;
+  // Charged per galon, exactly as order.service.ts does it — a flat per-order preview
+  // under-quoted every cart with more than one galon.
+  const deliveryFee = (depot?.deliveryFee ?? 0) * galonQuantity(cart.items);
   // ponytail: express surcharge is display-only until a depot express-pricing API exists.
   const expressFee = express ? EXPRESS_FEE : 0;
   const displayedTotal = estimatedTotal + deliveryFee + expressFee;

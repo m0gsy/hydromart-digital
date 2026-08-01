@@ -834,6 +834,9 @@ export interface Depot {
   code: string;
   name: string;
   city: string;
+  /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
+  deliveryFee: number;
+  minOrderAmount: number | null;
 }
 
 // ---- Payout / komisi (payout-service, "Keuangan · usulan") ----
