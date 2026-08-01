@@ -10,6 +10,19 @@ export function formatIDR(amount: number): string {
   return `Rp ${rupiah.format(amount)}`;
 }
 
+/**
+ * Name -> URL slug, matching the shape product-service validates
+ * (`^[a-z0-9]+(?:-[a-z0-9]+)*$`): lowercase, runs of anything else become one hyphen,
+ * no leading or trailing hyphen. Returns '' for a name with nothing sluggable in it,
+ * which callers must treat as "ask the operator" rather than post an invalid slug.
+ */
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
 const dateFmt = new Intl.DateTimeFormat('id-ID', {
   day: 'numeric',
   month: 'short',

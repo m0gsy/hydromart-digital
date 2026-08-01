@@ -23,6 +23,10 @@ describe('endpoints', () => {
     expect(endpoints.loyalty.tiers()).toBe('/loyalty/api/v1/loyalty/tiers');
     expect(endpoints.loyalty.tiers(null)).toBe('/loyalty/api/v1/loyalty/tiers');
     expect(endpoints.loyalty.tiers('d1')).toBe('/loyalty/api/v1/loyalty/tiers?depotId=d1');
+    // Category admin: the shop's list is active-only, the console's is not.
+    expect(endpoints.products.categories).toBe('/products/api/v1/categories');
+    expect(endpoints.products.categoriesAll).toBe('/products/api/v1/categories/all');
+    expect(endpoints.products.category('c1')).toBe('/products/api/v1/categories/c1');
     // The subscription saving is per-depot too, and quoted before sign-in.
     expect(endpoints.subscriptions.discount()).toBe('/orders/api/v1/subscriptions/discount');
     expect(endpoints.subscriptions.discount(null)).toBe('/orders/api/v1/subscriptions/discount');

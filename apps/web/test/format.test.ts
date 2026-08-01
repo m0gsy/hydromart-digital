@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIDR, normalizePhone } from '@/lib/format';
+import { formatIDR, normalizePhone, slugify } from '@/lib/format';
+
+describe('slugify', () => {
+  it('produces the shape product-service accepts', () => {
+    expect(slugify('Air Minum')).toBe('air-minum');
+    expect(slugify('  Galon 19L / Isi Ulang!  ')).toBe('galon-19l-isi-ulang');
+    expect(slugify('Air—Minum')).toBe('air-minum'); // one hyphen per run, not two
+  });
+
+  it('returns empty for a name with nothing sluggable, so the caller must ask', () => {
+    expect(slugify('!!!')).toBe('');
+    expect(slugify('')).toBe('');
+  });
+});
 
 describe('formatIDR', () => {
   it('groups thousands with the id-ID dot separator and Rp prefix', () => {

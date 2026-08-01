@@ -18,6 +18,11 @@ describe('CategoryController', () => {
     expect(service.list).toHaveBeenCalledWith(true);
   });
 
+  it('listAll delegates with activeOnly=false so the console can revive a deactivated one', async () => {
+    await controller.listAll();
+    expect(service.list).toHaveBeenCalledWith(false);
+  });
+
   it('create maps dto with default sortOrder when omitted', async () => {
     const dto: CreateCategoryDto = { name: 'Air', slug: 'air' };
     await controller.create(dto);
