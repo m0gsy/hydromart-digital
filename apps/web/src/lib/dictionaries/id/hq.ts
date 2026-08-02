@@ -419,7 +419,8 @@ export const hq = {
   },
   hierarchy: {
     title: 'Hierarki pembinaan',
-    subtitle: 'Depot → Asisten SPV → SPV → Manager. Peta ini yang menentukan depot mana terlihat oleh siapa.',
+    subtitle:
+      'Depot → Asisten SPV → SPV → Manager. Peta ini yang menentukan depot mana terlihat oleh siapa.',
     depotsHead: 'Asisten SPV tiap depot',
     depotsHint:
       'Depot tanpa asisten hanya terlihat oleh HQ ke atas. Ini anak tangga paling bawah — tanpa ini, rantai di atasnya tidak menghasilkan depot apa pun.',
@@ -433,7 +434,8 @@ export const hq = {
     subordinates: 'Bawahan langsung',
     supervised: 'Depot binaan (dari hierarki)',
     direct: 'Depot titipan langsung',
-    directHint: 'Di luar penurunan hierarki — untuk depot yang belum punya asisten, atau titipan sementara.',
+    directHint:
+      'Di luar penurunan hierarki — untuk depot yang belum punya asisten, atau titipan sementara.',
     addDirect: '+ Tambah depot langsung',
     none: 'Tidak ada',
     saved: 'Tersimpan. Berlaku di seluruh service dalam 60 detik.',
@@ -948,6 +950,10 @@ export const hq = {
     cancel: 'Batal',
     needName: 'Nama wajib diisi.',
     needPrice: 'Harga harus 0 atau lebih.',
+    gallonUnticked:
+      'Satuan menyebut "galon" tapi centang galon isi ulang masih kosong. Ongkir per galon dihitung dari centang ini, bukan dari satuan — produk ini tidak akan kena ongkir.',
+    gallonNoVolume:
+      'Isi (ml) masih kosong, jadi produk ini belum ikut dihitung di rekonsiliasi meteran air.',
     saveError: 'Gagal menyimpan produk.',
     saved: 'Produk disimpan.',
     categories: {
@@ -1236,11 +1242,13 @@ export const hq = {
     actionError: 'Gagal memproses permintaan.',
     exportReady: 'Salinan data siap diunduh.',
     download: 'Unduh JSON',
-    deleteWarning: 'Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun).',
+    deleteWarning:
+      'Menyetujui penghapusan bersifat permanen: identitas pelanggan dihapus, data keuangan tetap disimpan tanpa pemilik (retensi 10 tahun).',
   },
   retention: {
     runSweep: 'Jalankan sapuan retensi',
-    sweepHint: 'Menghapus data yang lewat masa simpan untuk dataset yang punya eksekutor. Data keuangan tidak pernah disentuh.',
+    sweepHint:
+      'Menghapus data yang lewat masa simpan untuk dataset yang punya eksekutor. Data keuangan tidak pernah disentuh.',
     sweepDone: 'Sapuan selesai: {n} baris dihapus, {gaps} dataset belum ditegakkan.',
     sweepError: 'Sapuan retensi gagal.',
     title: 'Retensi & backup',

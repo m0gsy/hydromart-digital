@@ -416,7 +416,8 @@ export const hq = {
   },
   hierarchy: {
     title: 'Supervision hierarchy',
-    subtitle: 'Depot → Assistant SPV → SPV → Manager. This map decides which depots are visible to whom.',
+    subtitle:
+      'Depot → Assistant SPV → SPV → Manager. This map decides which depots are visible to whom.',
     depotsHead: 'Assistant supervisor per depot',
     depotsHint:
       'A depot with no assistant is visible to HQ and up only. This is the bottom rung — without it the chain above resolves to no depots at all.',
@@ -430,7 +431,8 @@ export const hq = {
     subordinates: 'Direct reports',
     supervised: 'Supervised depots (from the hierarchy)',
     direct: 'Directly granted depots',
-    directHint: 'On top of the hierarchy walk — for a depot with no assistant yet, or a temporary hand-over.',
+    directHint:
+      'On top of the hierarchy walk — for a depot with no assistant yet, or a temporary hand-over.',
     addDirect: '+ Grant one depot',
     none: 'None',
     saved: 'Saved. In force across every service within 60 seconds.',
@@ -945,6 +947,10 @@ export const hq = {
     cancel: 'Cancel',
     needName: 'Name is required.',
     needPrice: 'Price must be 0 or more.',
+    gallonUnticked:
+      'The unit says "galon" but the refillable-gallon box is unticked. The per-gallon delivery fee is charged off this box, not the unit label, so this product will not attract it.',
+    gallonNoVolume:
+      'Volume (ml) is empty, so this product is left out of the water-meter reconciliation.',
     saveError: 'Could not save the product.',
     saved: 'Product saved.',
     categories: {
@@ -1232,11 +1238,13 @@ export const hq = {
     actionError: 'Could not process the request.',
     exportReady: 'The data copy is ready to download.',
     download: 'Download JSON',
-    deleteWarning: 'Approving a deletion is permanent: the identity is destroyed, financial records stay without an owner (10-year retention).',
+    deleteWarning:
+      'Approving a deletion is permanent: the identity is destroyed, financial records stay without an owner (10-year retention).',
   },
   retention: {
     runSweep: 'Run retention sweep',
-    sweepHint: 'Deletes data past its window for datasets that have an executor. Financial data is never touched.',
+    sweepHint:
+      'Deletes data past its window for datasets that have an executor. Financial data is never touched.',
     sweepDone: 'Sweep done: {n} rows deleted, {gaps} dataset(s) not enforced.',
     sweepError: 'The retention sweep failed.',
     title: 'Retention & backup',
