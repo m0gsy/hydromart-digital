@@ -9,7 +9,11 @@ export interface NotificationPort {
     event: string,
     phone: string,
     vars: Record<string, string>,
-    customerId: string,
+    /**
+     * Null for staff-facing operational events (meter variance), which go to the ops
+     * number and belong to no customer. crm-service already stores this nullable.
+     */
+    customerId: string | null,
     authorization: string,
   ): Promise<void>;
 }

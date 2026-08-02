@@ -135,6 +135,52 @@ describe('OrderService', () => {
     return p.id;
   };
 
+  // The reconciliation reads litres off the ORDER LINE, not the live catalog. If the
+  // snapshot ever stops being written, every meter comparison silently reports the
+  // whole day's production as unaccounted-for water. These two guard that.
+  describe('catalog volume snapshot', () => {
+    it('freezes volumeMl and isGallon onto each checked-out line', async () => {
+      const galon = catalog.seed({
+        id: randomUUID(),
+        basePrice: 20000,
+        unit: 'Galon 19L',
+        volumeMl: 19000,
+        isGallon: true,
+      });
+      const botol = catalog.seed({
+        id: randomUUID(),
+        basePrice: 6000,
+        unit: 'Dus 24x600ml',
+        volumeMl: 14400,
+        isGallon: false,
+      });
+      await cartService.setItem(customer, galon.id, 2, false);
+      await cartService.setItem(customer, botol.id, 1, false);
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const galonLine = order.items.find((i) => i.productId === galon.id)!;
+      const botolLine = order.items.find((i) => i.productId === botol.id)!;
+      expect(galonLine).toMatchObject({ volumeMl: 19000, isGallon: true });
+      expect(botolLine).toMatchObject({ volumeMl: 14400, isGallon: false });
+      // Only the galon line pays the per-galon delivery fee.
+      expect(order.deliveryFee).toBe(5000 * 2);
+    });
+
+    it('keeps an unmeasured catalog line unmeasured rather than defaulting it to zero', async () => {
+      const cap = catalog.seed({
+        id: randomUUID(),
+        basePrice: 5000,
+        unit: 'Pak',
+        volumeMl: null,
+        isGallon: false,
+      });
+      await cartService.setItem(customer, cap.id, 3, false);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.items[0].volumeMl).toBeNull();
+      expect(order.items[0].isGallon).toBe(false);
+    });
+  });
+
   it('checks out, snapshotting prices and charging delivery per galon', async () => {
     await addToCart(20000, 2);
     await addToCart(6000, 1);

@@ -157,14 +157,19 @@ export interface ResellerRollupReport {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-/** A line item counts as a gallon (galon) when its unit or product name says so. */
-function isGallon(unit: string, productName: string): boolean {
-  return /galon/i.test(unit) || /galon/i.test(productName);
+/**
+ * Gallon count off the line's snapshotted `isGallon` flag. Previously a /galon/i
+ * test over the unit label and product name — the flag makes the answer stable
+ * against catalog copy edits, and identical for historical rows (backfilled with
+ * the union of both old predicates in 20260802120000_meter_reading).
+ */
+export function gallonQty(order: OrderRecord): number {
+  return order.items.reduce((s, i) => s + (i.isGallon ? i.quantity : 0), 0);
 }
-function gallonQty(order: OrderRecord): number {
-  return order.items.reduce((s, i) => s + (isGallon(i.unit, i.productName) ? i.quantity : 0), 0);
-}
-const isDelivered = (s: OrderStatus): boolean =>
+// Exported so the meter reconciliation counts a day exactly the way depotDaily does.
+// Two copies of "what counts as delivered" would drift, and the whole point of the
+// reconciliation is that its sales side matches the daily report's.
+export const isDelivered = (s: OrderStatus): boolean =>
   s === OrderStatus.DELIVERED || s === OrderStatus.COMPLETED;
 
 /** Sales/customer/depot aggregates over the order book (PRD Module 13, FR-095..098). */

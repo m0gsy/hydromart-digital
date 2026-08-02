@@ -122,12 +122,53 @@ model OrderItem {
   productName String
   sku         String
   unit        String
+  /// Snapshotted fill volume (ml) — same freeze rule as unitPrice. If the catalog
+  /// later restates a galon as 19.2L, past orders still reconcile at the volume
+  /// that was true when they were sold. Null = unmeasured, never zero litres.
+  volumeMl    Int?
+  /// Snapshotted galon flag. Drives the per-galon delivery fee and the gallon
+  /// counts in depot reports — both used to be guessed from the `unit` string.
+  isGallon    Boolean @default(false)
   unitPrice   Decimal @db.Decimal(12, 2)
   quantity    Int
   lineTotal   Decimal @db.Decimal(12, 2)
 
   @@index([orderId])
   @@map("order_items")
+}
+
+/// One depot's water-meter reading for one day. Operator writes it twice: the
+/// opening number when the depot opens, the closing number when it shuts. The
+/// difference is the litres of treated water that actually left the plant, which
+/// is then reconciled against the litres the day's recorded sales account for.
+///
+/// The source (raw-water) pair is optional: filled in only by depots that also
+/// meter their intake, and it yields the RO recovery percentage.
+model MeterReading {
+  id              String    @id @default(uuid()) @db.Uuid
+  depotId         String    @db.Uuid
+  readingDate     DateTime  @db.Date
+  /// Cubic metres, as read off the dial. Litres are derived, never stored.
+  openingM3       Decimal   @db.Decimal(12, 3)
+  closingM3       Decimal?  @db.Decimal(12, 3)
+  sourceOpeningM3 Decimal?  @db.Decimal(12, 3)
+  sourceClosingM3 Decimal?  @db.Decimal(12, 3)
+  openedBy        String    @db.Uuid
+  openedAt        DateTime  @default(now())
+  closedBy        String?   @db.Uuid
+  closedAt        DateTime?
+  /// Set when the variance alert has been sent, so correcting a typo and saving
+  /// again does not fire a second alert for the same day.
+  alertedAt       DateTime?
+  note            String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // One reading per depot per day — the upsert key for both the morning and the
+  // evening write.
+  @@unique([depotId, readingDate])
+  @@index([depotId, readingDate])
+  @@map("meter_readings")
 }
 
 /// Append-only audit of every status transition (BR-012 traceability).

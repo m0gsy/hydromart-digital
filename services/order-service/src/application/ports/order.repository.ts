@@ -6,6 +6,10 @@ export interface OrderItemRecord {
   productName: string;
   sku: string;
   unit: string;
+  /** Snapshotted fill volume (ml). Null = unmeasured line, not zero litres. */
+  volumeMl: number | null;
+  /** Snapshotted galon flag: delivery fee + report gallon counts read this. */
+  isGallon: boolean;
   unitPrice: number;
   quantity: number;
   lineTotal: number;
@@ -83,6 +87,8 @@ export interface CreateOrderItemData {
   productName: string;
   sku: string;
   unit: string;
+  volumeMl: number | null;
+  isGallon: boolean;
   unitPrice: number;
   quantity: number;
   lineTotal: number;

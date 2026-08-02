@@ -52,6 +52,8 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'walkInSale',
       'inventoryRead',
       'inventoryWrite',
+      'meterRead',
+      'meterWrite',
       'returnsRead',
       'returnsWrite',
       'tracking',

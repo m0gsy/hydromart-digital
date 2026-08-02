@@ -70,6 +70,20 @@ export const CAPABILITIES = {
     'SUPER_ADMIN',
   ],
   inventoryWrite: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  // order-service — daily water-meter reading. WRITE includes STAFF_DEPOT because the
+  // person who reads the dial at opening and closing is the operator on shift, not the
+  // depot head; inventoryWrite deliberately excludes them, so this cannot reuse it.
+  meterWrite: ['STAFF_DEPOT', 'KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  meterRead: [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'MANAGER',
+    'SUPERVISOR',
+    'ASSISTANT_SUPERVISOR',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
   // depot-service — retur galon + galon keluar: READ adds head-office + franchise oversight.
   returnsRead: [
     'KEPALA_DEPOT',

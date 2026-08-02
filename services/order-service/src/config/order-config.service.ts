@@ -104,6 +104,29 @@ export class OrderConfigService {
       ) / 100
     );
   }
+  /**
+   * Nominal galon fill (ml) the water-meter variance is divided by to read as
+   * "setara galon". Per-depot: a depot whose main line is 15L counts in 15L units.
+   */
+  meterReferenceVolumeMl(depotId: string | null = null): number {
+    return this.tunable(
+      'meterReferenceVolumeMl',
+      this.num('ORDER_METER_REFERENCE_VOLUME_ML'),
+      depotId,
+    );
+  }
+  /** Litres of meter-vs-sales variance tolerated before the ops alert fires. */
+  meterVarianceToleranceLiters(depotId: string | null = null): number {
+    return this.tunable(
+      'meterVarianceToleranceLiters',
+      this.num('ORDER_METER_VARIANCE_TOLERANCE_LITERS'),
+      depotId,
+    );
+  }
+  /** Ops number for staff alerts. Blank disables alerting (dev default), never throws. */
+  get alertPhone(): string {
+    return this.config.get<string>('ORDER_ALERT_PHONE', '');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

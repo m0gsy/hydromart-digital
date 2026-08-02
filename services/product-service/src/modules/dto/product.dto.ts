@@ -69,6 +69,26 @@ export class CreateProductDto {
   @MaxLength(50)
   unit!: string;
 
+  @ApiPropertyOptional({
+    example: 19000,
+    description: 'Fill volume in millilitres. Omit for lines that hold nothing (caps, seals).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  @Max(100_000)
+  volumeMl?: number;
+
+  @ApiPropertyOptional({
+    default: false,
+    description:
+      'Refillable galon line. Drives the per-galon delivery fee, so a 600ml bottle stays false even though it has a volume.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isGallon?: boolean;
+
   @ApiProperty({ example: 20000, description: 'Base price in IDR.' })
   @Type(() => Number)
   @IsPositive()

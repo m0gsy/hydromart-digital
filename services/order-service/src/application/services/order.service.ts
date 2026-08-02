@@ -304,12 +304,20 @@ export class OrderService {
         productName: product.name,
         sku: product.sku,
         unit: product.unit,
+        // Frozen for the same reason unitPrice is: a later catalog restatement
+        // (19L -> 19.2L) must not silently rewrite what past orders reconcile to.
+        volumeMl: product.volumeMl,
+        isGallon: product.isGallon,
         unitPrice,
         quantity: line.quantity,
         lineTotal,
       });
     }
-    return { items, subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)), tierPricedTotal };
+    return {
+      items,
+      subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
+      tierPricedTotal,
+    };
   }
 
   /**

@@ -9,11 +9,13 @@ import { ORDER_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { CartService } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
+import { MeterService } from '../application/services/meter.service';
 import { ReportService } from '../application/services/report.service';
 import { SubscriptionService } from '../application/services/subscription.service';
 import { SettingsService } from '../application/services/settings.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { CartPrismaRepository } from '../infrastructure/prisma/cart.prisma.repository';
+import { MeterReadingPrismaRepository } from '../infrastructure/prisma/meter-reading.prisma.repository';
 import { OrderPrismaRepository } from '../infrastructure/prisma/order.prisma.repository';
 import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
@@ -32,6 +34,7 @@ import { PromoHttpAdapter } from '../infrastructure/http/promo.http.adapter';
 import { InventoryHttpAdapter } from '../infrastructure/http/inventory.http.adapter';
 import { CartController } from './cart.controller';
 import { OrderController } from './order.controller';
+import { MeterController } from './meter.controller';
 import { ReportController } from './report.controller';
 import { SubscriptionController } from './subscription.controller';
 import { SettingsController } from './settings.controller';
@@ -47,11 +50,13 @@ const providers: Provider[] = [
   OrderConfigService,
   CartService,
   OrderService,
+  MeterService,
   ReportService,
   SubscriptionService,
   SettingsService,
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
+  { provide: ORDER_TOKENS.MeterReadingRepository, useClass: MeterReadingPrismaRepository },
   { provide: ORDER_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: ORDER_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   { provide: ORDER_TOKENS.DepotDirectory, useClass: DepotDirectoryHttpAdapter },
@@ -79,6 +84,7 @@ const providers: Provider[] = [
   controllers: [
     CartController,
     OrderController,
+    MeterController,
     ReportController,
     SubscriptionController,
     SettingsController,

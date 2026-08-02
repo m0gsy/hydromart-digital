@@ -36,6 +36,8 @@ interface ItemRow {
   productName: string;
   sku: string;
   unit: string;
+  volumeMl: number | null;
+  isGallon: boolean;
   unitPrice: Decimalish;
   quantity: number;
   lineTotal: Decimalish;
@@ -138,6 +140,8 @@ export class OrderPrismaRepository implements OrderRepository {
         productName: i.productName,
         sku: i.sku,
         unit: i.unit,
+        volumeMl: i.volumeMl,
+        isGallon: i.isGallon,
         unitPrice: i.unitPrice.toNumber(),
         quantity: i.quantity,
         lineTotal: i.lineTotal.toNumber(),

@@ -20,6 +20,8 @@ interface ProductForm {
   name: string;
   sku: string;
   unit: string;
+  volumeMl: string;
+  isGallon: boolean;
   basePrice: string;
   categoryId: string;
   description: string;
@@ -29,11 +31,12 @@ interface ProductForm {
 function formFrom(p: Product): ProductForm {
   return {
     name: p.name, sku: p.sku, unit: p.unit, basePrice: String(p.basePrice),
+    volumeMl: p.volumeMl != null ? String(p.volumeMl) : '', isGallon: p.isGallon ?? false,
     categoryId: p.categoryId ?? '', description: p.description ?? '', active: p.active,
   };
 }
 
-const EMPTY: ProductForm = { name: '', sku: '', unit: 'pcs', basePrice: '', categoryId: '', description: '', active: true };
+const EMPTY: ProductForm = { name: '', sku: '', unit: 'pcs', volumeMl: '', isGallon: false, basePrice: '', categoryId: '', description: '', active: true };
 
 function ProductEditor({
   product,
@@ -63,6 +66,10 @@ function ProductEditor({
         name: form.name.trim(),
         sku: form.sku.trim(),
         unit: form.unit.trim() || 'pcs',
+        // Blank stays null: an unmeasured product is reported as unmeasured in the
+        // depot meter reconciliation, never counted as zero litres.
+        volumeMl: form.volumeMl.trim() === '' ? null : Number(form.volumeMl),
+        isGallon: form.isGallon,
         basePrice: price,
         categoryId: form.categoryId || null,
         description: form.description.trim() || null,
@@ -97,6 +104,22 @@ function ProductEditor({
         <Field label={t('hq.catalog.fields.unit')}>
           <Input value={form.unit} onChange={set('unit')} placeholder="galon / dus / pcs" />
         </Field>
+        <Field label={t('hq.catalog.fields.volumeMl')}>
+          <Input
+            inputMode="numeric"
+            value={form.volumeMl}
+            onChange={set('volumeMl')}
+            placeholder="19000"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.isGallon}
+            onChange={(e) => setForm((f) => ({ ...f, isGallon: e.target.checked }))}
+          />
+          {t('hq.catalog.fields.isGallon')}
+        </label>
         <Field label={t('hq.catalog.fields.category')}>
           <select value={form.categoryId} onChange={set('categoryId')} className={inputClass}>
             <option value="">{t('hq.catalog.noCategory')}</option>

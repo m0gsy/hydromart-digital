@@ -37,6 +37,13 @@ export const envValidationSchema = Joi.object({
   // Percent off the subtotal of every subscription delivery (spec 7b "hemat 5%").
   // Boot-time fallback only; a depot may override it through settings.
   ORDER_SUBSCRIPTION_DISCOUNT_PCT: Joi.number().min(0).max(50).default(5),
+  // Nominal galon fill used to express a water-meter variance as "setara galon".
+  ORDER_METER_REFERENCE_VOLUME_ML: Joi.number().integer().positive().default(19000),
+  // Litres of meter-vs-sales variance tolerated before an ops alert fires.
+  ORDER_METER_VARIANCE_TOLERANCE_LITERS: Joi.number().integer().min(0).default(200),
+  // Ops WhatsApp number for staff-facing alerts (meter variance). Blank = alerting off,
+  // same fail-open convention depot-service uses for its low-stock alert.
+  ORDER_ALERT_PHONE: Joi.string().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

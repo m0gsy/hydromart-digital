@@ -120,6 +120,8 @@ describe('ReportService', () => {
           productName: 'Galon 19L',
           sku: 'G19',
           unit: 'Galon',
+          volumeMl: 19000,
+          isGallon: true,
           unitPrice: 20000,
           quantity: 2,
           lineTotal: 40000,
@@ -129,6 +131,8 @@ describe('ReportService', () => {
           productName: 'Air 600ml',
           sku: 'A600',
           unit: 'Dus',
+          volumeMl: null,
+          isGallon: false,
           unitPrice: 20000,
           quantity: 1,
           lineTotal: 20000,
@@ -207,6 +211,8 @@ describe('ReportService', () => {
         productName: 'Galon 19L',
         sku: 'G19',
         unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
         unitPrice: 20000,
         quantity: 3,
         lineTotal: 60000,
@@ -249,6 +255,8 @@ describe('ReportService', () => {
             productName: 'Galon 19L',
             sku: 'G19',
             unit: 'Galon',
+            volumeMl: 19000,
+            isGallon: true,
             unitPrice: 20000,
             quantity: qty,
             lineTotal: total,
@@ -461,8 +469,22 @@ describe('ReportService empty and absent shapes', () => {
           driverName: null,
           createdAt: new Date(),
           items: [
-            { productId: 'p1', productName: 'Galon 19L', unit: 'botol', quantity: 2 },
-            { productId: 'p2', productName: 'Tutup', unit: 'pcs', quantity: 5 },
+            {
+              productId: 'p1',
+              productName: 'Galon 19L',
+              unit: 'botol',
+              volumeMl: null,
+              isGallon: false,
+              quantity: 2,
+            },
+            {
+              productId: 'p2',
+              productName: 'Tutup',
+              unit: 'pcs',
+              volumeMl: null,
+              isGallon: false,
+              quantity: 5,
+            },
           ],
         },
       ],
@@ -480,7 +502,11 @@ describe('ReportService empty and absent shapes', () => {
     expect(out.orders).toBe(0);
   });
 
-  it('zeroes a reseller who bought nothing this month and counts gallons by product name', async () => {
+  // Behaviour change, deliberate (migration 20260802120000_meter_reading): a gallon is
+  // now whatever carries the snapshotted isGallon flag. A bottled line whose PRODUCT
+  // NAME merely mentions "Galon" used to be counted as gallons sold by the old
+  // /galon/i-over-name heuristic; it is not a gallon of water and no longer counts.
+  it('zeroes a reseller who bought nothing, and does not count bottled lines as gallons', async () => {
     const bought = {
       id: 'o1',
       customerId: 'reseller-1',
@@ -488,13 +514,29 @@ describe('ReportService empty and absent shapes', () => {
       total: 90000,
       createdAt: new Date('2026-05-10T00:00:00.000Z'),
       items: [
-        { productId: 'p1', productName: 'Galon 19L', unit: 'botol', quantity: 3 },
-        { productId: 'p2', productName: 'Tutup', unit: 'pcs', quantity: 9 },
+        {
+          productId: 'p1',
+          productName: 'Galon 19L',
+          unit: 'botol',
+          volumeMl: null,
+          isGallon: false,
+          quantity: 3,
+        },
+        {
+          productId: 'p2',
+          productName: 'Tutup',
+          unit: 'pcs',
+          volumeMl: null,
+          isGallon: false,
+          quantity: 9,
+        },
       ],
     };
     const svc = stub({ ordersForDepot: async () => [bought] });
     const out = await svc.resellerRollup('d1', '2026-05', ['reseller-1', 'reseller-2']);
-    expect(out.rows[0]).toMatchObject({ customerId: 'reseller-1', volumeQty: 3, orderCount: 1 });
+    // The order still counts (orderCount 1) but contributes 0 gallons: neither line
+    // is flagged isGallon, and "Galon 19L" sold by the botol is not a gallon.
+    expect(out.rows[0]).toMatchObject({ customerId: 'reseller-1', volumeQty: 0, orderCount: 1 });
     expect(out.rows[1]).toMatchObject({
       customerId: 'reseller-2',
       volumeQty: 0,

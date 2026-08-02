@@ -17,7 +17,15 @@ function order(over: OrderOverrides): OrderRecord {
     status: over.status ?? OrderStatus.DELIVERED,
     total: 0,
     driverName: null,
-    items: [{ productName: 'Galon 19L', unit: 'galon', quantity: over.qty ?? 0 }],
+    items: [
+      {
+        productName: 'Galon 19L',
+        unit: 'galon',
+        volumeMl: 19000,
+        isGallon: true,
+        quantity: over.qty ?? 0,
+      },
+    ],
     createdAt: new Date(over.createdAt),
   } as unknown as OrderRecord;
 }

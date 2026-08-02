@@ -53,6 +53,8 @@ export class ProductController {
       sku: dto.sku,
       description: dto.description ?? null,
       unit: dto.unit,
+      volumeMl: dto.volumeMl ?? null,
+      isGallon: dto.isGallon ?? false,
       basePrice: dto.basePrice,
       imageUrl: dto.imageUrl ?? null,
       images: dto.images ?? [],

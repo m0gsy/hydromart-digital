@@ -5,6 +5,10 @@ export interface ProductRecord {
   sku: string;
   description: string | null;
   unit: string;
+  /** Fill volume in millilitres (19000 = 19L galon). Null for non-liquid lines. */
+  volumeMl: number | null;
+  /** Refillable galon line. Separate from volumeMl — a 600ml bottle has volume too. */
+  isGallon: boolean;
   basePrice: number;
   imageUrl: string | null;
   /** Additional gallery images beyond the primary imageUrl. */
@@ -29,6 +33,8 @@ export interface CreateProductData {
   sku: string;
   description: string | null;
   unit: string;
+  volumeMl: number | null;
+  isGallon: boolean;
   basePrice: number;
   imageUrl: string | null;
   images: string[];
