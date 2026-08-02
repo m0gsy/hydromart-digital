@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, PayloadTooLargeException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  PayloadTooLargeException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -705,9 +710,11 @@ describe('DepotController', () => {
     update: jest.fn(),
     deactivate: jest.fn(),
   };
-  const c = new DepotController(svc as never);
+  const storage = { put: jest.fn() };
+  const c = new DepotController(svc as never, storage as never);
   beforeEach(() => {
     jest.clearAllMocks();
+    storage.put.mockResolvedValue({ url: 'https://cdn.example/qris/abc.png', key: 'qris/abc.png' });
     svc.listMine.mockResolvedValue([{ id: DEPOT }]);
     // browse/get now map through PublicDepotView, so the stubs have to return real rows.
     svc.browse.mockResolvedValue({
@@ -756,10 +763,13 @@ describe('DepotController', () => {
     const owned = await c.internalOwned('owner-1');
     expect(owned).toEqual({ depotIds: [DEPOT] });
     // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
-    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1' });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: 'owner-1' });
-    svc.get.mockResolvedValueOnce({ ownerId: null });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null });
+    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1', ownershipType: 'WARALABA' });
+    expect(await c.internalOwner(DEPOT)).toEqual({
+      ownerId: 'owner-1',
+      ownershipType: 'WARALABA',
+    });
+    svc.get.mockResolvedValueOnce({ ownerId: null, ownershipType: 'HKP' });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null, ownershipType: 'HKP' });
     await c.manage({} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);
@@ -857,11 +867,26 @@ describe('DepotController', () => {
         c.uploadQris(ID, file({ size: 6 * 1024 * 1024 }) as never),
       ).rejects.toBeInstanceOf(PayloadTooLargeException);
     });
-    it('persists a deterministic url on the happy path', async () => {
+    it('stores the file and persists the ABSOLUTE url the storage returns', async () => {
       await c.uploadQris(ID, file() as never);
-      expect(svc.update).toHaveBeenCalledWith(ID, {
-        paymentQrisImageUrl: `/uploads/qris/${ID}.png`,
+      expect(storage.put).toHaveBeenCalledWith({
+        body: Buffer.from('x'),
+        contentType: 'image/png',
+        ext: 'png',
       });
+      expect(svc.update).toHaveBeenCalledWith(ID, {
+        paymentQrisImageUrl: 'https://cdn.example/qris/abc.png',
+      });
+    });
+
+    // Unreachable object storage is infrastructure, not a bad request — and the depot must
+    // NOT be left pointing at an image that was never written.
+    it('answers 503 and writes nothing when storage is down', async () => {
+      storage.put.mockRejectedValueOnce(new Error('endpoint unreachable'));
+      await expect(c.uploadQris(ID, file() as never)).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+      expect(svc.update).not.toHaveBeenCalled();
     });
   });
 });

@@ -24,4 +24,34 @@ export const envValidationSchema = Joi.object({
   // Shared service-to-service secret authenticating the low-stock alert call to crm's
   // internal notification endpoint. Blank = alerting disabled (fail-open).
   INTERNAL_SERVICE_KEY: optionalSecret(16),
+  // Static-QRIS image storage (design 4b). Mirrors product/auth/delivery-service.
+  STORAGE_LOCAL_DIR: Joi.string().default('./var/uploads'),
+  // Public base URL the uploaded QRIS is reachable at. Local: returned URLs are
+  // `${STORAGE_PUBLIC_BASE_URL}/uploads/<key>`. In production it MUST be a real public
+  // origin — the CUSTOMER's payment screen loads this image, so a localhost value bakes
+  // an unreachable QRIS into every order.
+  STORAGE_PUBLIC_BASE_URL: Joi.string()
+    .uri()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
+      otherwise: Joi.string().uri().default('http://localhost:3007'),
+    }),
+  STORAGE_DRIVER: Joi.string().valid('local', 's3').default('local'),
+  STORAGE_S3_ENDPOINT: Joi.string()
+    .uri()
+    .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_REGION: Joi.string().default('auto'),
+  STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
+  STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
+  STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().when('STORAGE_DRIVER', {
+    is: 's3',
+    then: Joi.required(),
+  }),
 });

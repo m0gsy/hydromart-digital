@@ -21,12 +21,19 @@ export interface DepotLocation {
  * order stamped with no depot is invisible to every queue and reserves no stock,
  * which is worse than asking the customer to try again.
  */
+/** Who owns a depot, and whether it is meant to have an owner at all. */
+export interface DepotOwnership {
+  ownerId: string | null;
+  ownershipType: 'WARALABA' | 'HKP';
+}
+
 export interface DepotDirectoryPort {
   listActiveDepots(): Promise<DepotLocation[] | null>;
   /**
-   * Franchise owner of one depot, for crediting a completed order. Ownership is not part
-   * of the public depot projection, so this reads the internal-key route. Null when the
-   * depot has no owner, or when depot-service is unreachable (caller skips the push).
+   * Ownership of one depot, for crediting a completed order. Not part of the public depot
+   * projection, so this reads the internal-key route. Null when depot-service is unreachable
+   * or the key is unset (caller skips the push). An HKP depot legitimately has no owner; a
+   * WARALABA depot with `ownerId: null` is a data defect the caller logs.
    */
-  findOwnerId(depotId: string): Promise<string | null>;
+  findOwner(depotId: string): Promise<DepotOwnership | null>;
 }

@@ -976,6 +976,8 @@ export interface DepotPayload {
   code: string;
   name: string;
   ownershipType: string;
+  // Required by depot-service for WARALABA; null clears it on a company-owned depot.
+  ownerId: string | null;
   address: string;
   city: string;
   province: string;

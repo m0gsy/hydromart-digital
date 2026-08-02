@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { DepotDirectoryPort, DepotLocation } from '../../application/ports/depot-directory.port';
+import {
+  DepotDirectoryPort,
+  DepotLocation,
+  DepotOwnership,
+} from '../../application/ports/depot-directory.port';
 
 interface DepotResponse {
   id: string;
@@ -59,7 +63,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
     }
   }
 
-  async findOwnerId(depotId: string): Promise<string | null> {
+  async findOwner(depotId: string): Promise<DepotOwnership | null> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) return null;
     const url = `${this.config.depotServiceUrl}/api/v1/depots/internal/${depotId}/owner`;
@@ -73,8 +77,8 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
       if (!res.ok) {
         throw new Error(`depot-service responded ${res.status}`);
       }
-      const body = (await res.json()) as { ownerId?: string | null };
-      return body.ownerId ?? null;
+      const body = (await res.json()) as Partial<DepotOwnership>;
+      return { ownerId: body.ownerId ?? null, ownershipType: body.ownershipType ?? 'HKP' };
     } catch (error) {
       this.logger.warn(`Depot owner lookup failed for ${depotId}: ${(error as Error).message}`);
       return null;

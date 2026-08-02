@@ -45,6 +45,22 @@ describe('toDepotPayload', () => {
   it('rejects a non-positive service radius', () => {
     expect(toDepotPayload({ ...valid, serviceRadiusKm: '0' }).ok).toBe(false);
   });
+
+  it('rejects a franchise depot with no owner', () => {
+    expect(toDepotPayload({ ...valid, ownershipType: 'WARALABA' })).toEqual({
+      ok: false,
+      error: 'A franchise depot must have an owner.',
+    });
+    expect(toDepotPayload({ ...valid, ownershipType: 'WARALABA', ownerId: '  ' }).ok).toBe(false);
+  });
+
+  it('sends the owner for a franchise depot and clears it for a company one', () => {
+    const franchise = toDepotPayload({ ...valid, ownershipType: 'WARALABA', ownerId: 'owner-9' });
+    expect(franchise.ok && franchise.value.ownerId).toBe('owner-9');
+    // Owner picked, then the type flipped back to HKP: the stale owner must not be sent.
+    const central = toDepotPayload({ ...valid, ownerId: 'owner-9' });
+    expect(central.ok && central.value.ownerId).toBeNull();
+  });
 });
 
 describe('resolveDeliveryDepot', () => {

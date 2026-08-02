@@ -6,11 +6,13 @@ import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosp
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
 import { DepotMap } from '@/components/dashboard/depot-map';
+import { OwnerSelect } from '@/components/hq/owner-select';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
+import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canManageDepots } from '@/lib/roles';
@@ -20,7 +22,6 @@ import type { DepotAdmin, Page } from '@/lib/types';
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
 
 /** 4b — static-QRIS image uploader (replaces the old raw-URL text field). Upload is immediate
@@ -59,7 +60,7 @@ function QrisUploader({
     }
   }
 
-  const src = qrisUrl ? (qrisUrl.startsWith('http') ? qrisUrl : `${BASE_URL}${qrisUrl}`) : null;
+  const src = mediaUrl(qrisUrl);
 
   return (
     <div className="border-t border-app pt-3">
@@ -129,6 +130,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     code: d.code,
     name: d.name,
     ownershipType: d.ownershipType,
+    ownerId: d.ownerId ?? '',
     address: d.address,
     city: d.city,
     province: d.province,
@@ -187,6 +189,9 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
             <option value="WARALABA">WARALABA</option>
           </select>
         </Field>
+        {form.ownershipType === 'WARALABA' && (
+          <OwnerSelect value={form.ownerId} onChange={set('ownerId')} id="d-owner-ops" />
+        )}
         <Field label={t('dashboard.depots.city')} htmlFor="d-city">
           <Input id="d-city" value={form.city} onChange={set('city')} placeholder="Jakarta Pusat" />
         </Field>

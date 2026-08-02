@@ -168,6 +168,7 @@ export const dashB = {
     assignToCourier: 'Assign to courier',
     chipAssign: 'Needs assignment',
     chipProcess: 'Processing',
+    backlog: '{n} open orders',
     title: 'Order queue',
     scopedBefore: 'Queue for ',
     scopedAfter: ' (from switcher).',

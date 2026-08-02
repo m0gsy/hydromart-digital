@@ -22,6 +22,8 @@ export interface DepotForm {
   code: string;
   name: string;
   ownershipType: string;
+  /** Franchise owner account id. Required for WARALABA, ignored for HKP. */
+  ownerId: string;
   address: string;
   city: string;
   province: string;
@@ -40,6 +42,7 @@ export const EMPTY_DEPOT_FORM: DepotForm = {
   code: '',
   name: '',
   ownershipType: 'HKP',
+  ownerId: '',
   address: '',
   city: '',
   province: '',
@@ -79,6 +82,12 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
   if (form.ownershipType !== 'WARALABA' && form.ownershipType !== 'HKP') {
     return { ok: false, error: 'Pick an ownership type.' };
   }
+  // A franchise depot with no owner books its revenue — and HQ's commission — to nobody,
+  // silently. depot-service rejects it too; this is the same rule stated early.
+  const owner = form.ownerId.trim();
+  if (form.ownershipType === 'WARALABA' && !owner) {
+    return { ok: false, error: 'A franchise depot must have an owner.' };
+  }
   const lat = numOrNull(form.lat);
   if (lat === null || lat < -90 || lat > 90) return { ok: false, error: 'Latitude must be between -90 and 90.' };
   const lng = numOrNull(form.lng);
@@ -89,6 +98,8 @@ export function toDepotPayload(form: DepotForm): { ok: true; value: DepotPayload
   const value: DepotPayload = {
     ...text,
     ownershipType: form.ownershipType,
+    // HKP is company-owned: any owner picked before switching type is cleared, not carried.
+    ownerId: form.ownershipType === 'WARALABA' ? owner : null,
     lat,
     lng,
     deliveryFee,

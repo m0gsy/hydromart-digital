@@ -1,8 +1,14 @@
 import { DepotService } from '../../src/application/services/depot.service';
 import { OwnershipType } from '../../src/domain/inventory';
-import { DepotNotFoundError, DuplicateDepotCodeError } from '../../src/domain/errors';
+import {
+  DepotNotFoundError,
+  DuplicateDepotCodeError,
+  FranchiseOwnerRequiredError,
+} from '../../src/domain/errors';
 import { CreateDepotData } from '../../src/application/ports/depot.repository';
 import { InMemoryDepotRepository } from '../support/fakes';
+
+const OWNER = '11111111-1111-4111-8111-111111111111';
 
 const base = (over: Partial<CreateDepotData> = {}): CreateDepotData => ({
   code: over.code ?? 'JKT-01',
@@ -53,7 +59,12 @@ describe('DepotService', () => {
       base({ code: 'A1', name: 'Depot Alpha', ownershipType: OwnershipType.HKP }),
     );
     await service.create(
-      base({ code: 'B1', name: 'Depot Beta', ownershipType: OwnershipType.WARALABA }),
+      base({
+        code: 'B1',
+        name: 'Depot Beta',
+        ownershipType: OwnershipType.WARALABA,
+        ownerId: OWNER,
+      }),
     );
     const hidden = await service.create(base({ code: 'C1', name: 'Depot Gamma' }));
     await service.deactivate(hidden.id);
@@ -79,13 +90,47 @@ describe('DepotService', () => {
   });
 
   it('persists ownerId on create and update', async () => {
-    const owner = '11111111-1111-4111-8111-111111111111';
-    const d = await service.create(base({ ownerId: owner }));
-    expect(d.ownerId).toBe(owner);
+    const d = await service.create(base({ ownerId: OWNER }));
+    expect(d.ownerId).toBe(OWNER);
 
     const next = '22222222-2222-4222-8222-222222222222';
     const updated = await service.update(d.id, { ownerId: next });
     expect(updated.ownerId).toBe(next);
+  });
+
+  // A WARALABA depot with no owner books its revenue and HQ's commission to nobody —
+  // order-service credits the ledger by Depot.ownerId. Rejected at the door, both ways in.
+  it('refuses to create a franchise depot without an owner', async () => {
+    await expect(
+      service.create(base({ ownershipType: OwnershipType.WARALABA })),
+    ).rejects.toBeInstanceOf(FranchiseOwnerRequiredError);
+  });
+
+  it('refuses to turn a depot into a franchise, or orphan one, through update', async () => {
+    const central = await service.create(base({ code: 'HKP-1' }));
+    await expect(
+      service.update(central.id, { ownershipType: OwnershipType.WARALABA }),
+    ).rejects.toBeInstanceOf(FranchiseOwnerRequiredError);
+
+    const franchise = await service.create(
+      base({ code: 'WLB-1', ownershipType: OwnershipType.WARALABA, ownerId: OWNER }),
+    );
+    await expect(service.update(franchise.id, { ownerId: null })).rejects.toBeInstanceOf(
+      FranchiseOwnerRequiredError,
+    );
+
+    // Naming the owner in the same patch is what makes the flip legal.
+    const flipped = await service.update(central.id, {
+      ownershipType: OwnershipType.WARALABA,
+      ownerId: OWNER,
+    });
+    expect(flipped.ownerId).toBe(OWNER);
+    // And a franchise depot handed back to head office may drop its owner in one patch.
+    const handedBack = await service.update(franchise.id, {
+      ownershipType: OwnershipType.HKP,
+      ownerId: null,
+    });
+    expect(handedBack.ownerId).toBeNull();
   });
 
   it('round-trips per-depot payment destination fields through create and read', async () => {

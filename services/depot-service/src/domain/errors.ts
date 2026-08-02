@@ -16,6 +16,20 @@ export class DuplicateDepotCodeError extends DomainError {
   }
 }
 
+/**
+ * A WARALABA depot without an owner is invisible to the whole money path: order-service
+ * credits SALE_SETTLEMENT/COMMISSION to `Depot.ownerId`, so a null owner means the depot's
+ * revenue is never booked for anyone and HQ commission is never taken. Company-owned (HKP)
+ * depots have no owner by design and are unaffected.
+ */
+export class FranchiseOwnerRequiredError extends DomainError {
+  readonly code = 'FRANCHISE_OWNER_REQUIRED';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('A franchise (WARALABA) depot must have an owner.');
+  }
+}
+
 export class InventoryItemNotFoundError extends DomainError {
   readonly code = 'INVENTORY_ITEM_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

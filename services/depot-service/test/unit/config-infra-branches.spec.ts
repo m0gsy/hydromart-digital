@@ -52,6 +52,43 @@ describe('DepotConfigService', () => {
     expect(svc.isProduction).toBe(true);
     delete env.NODE_ENV;
   });
+
+  it('defaults QRIS storage to local disk and strips a trailing slash from the public base', () => {
+    expect(svc.storageDriver).toBe('local');
+    expect(svc.storageLocalDir).toBe('./var/uploads');
+    expect(svc.storagePublicBaseUrl).toBe('http://localhost:3007');
+
+    env.STORAGE_PUBLIC_BASE_URL = 'https://cdn.example/bucket//';
+    expect(svc.storagePublicBaseUrl).toBe('https://cdn.example/bucket');
+    delete env.STORAGE_PUBLIC_BASE_URL;
+  });
+
+  it('reads the S3 block when the driver is s3', () => {
+    Object.assign(env, {
+      STORAGE_DRIVER: 's3',
+      STORAGE_S3_ENDPOINT: 'https://nos.jkt-1.neo.id',
+      STORAGE_S3_BUCKET: 'hydromart-depots',
+      STORAGE_S3_ACCESS_KEY_ID: 'k',
+      STORAGE_S3_SECRET_ACCESS_KEY: 's',
+    });
+    expect(svc.storageDriver).toBe('s3');
+    expect(svc.s3).toEqual({
+      endpoint: 'https://nos.jkt-1.neo.id',
+      region: 'auto',
+      bucket: 'hydromart-depots',
+      accessKeyId: 'k',
+      secretAccessKey: 's',
+    });
+    for (const k of [
+      'STORAGE_DRIVER',
+      'STORAGE_S3_ENDPOINT',
+      'STORAGE_S3_BUCKET',
+      'STORAGE_S3_ACCESS_KEY_ID',
+      'STORAGE_S3_SECRET_ACCESS_KEY',
+    ]) {
+      delete env[k];
+    }
+  });
 });
 
 describe('PrismaService lifecycle', () => {

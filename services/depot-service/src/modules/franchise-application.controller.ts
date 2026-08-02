@@ -11,6 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { Can, Public } from '@hydromart/platform';
 
@@ -46,10 +47,12 @@ export class FranchiseApplicationController {
    * checklist) is set server-side, and the response is a receipt rather than the record,
    * so an anonymous submitter can neither pre-verify themselves nor read the pipeline.
    *
-   * ponytail: no rate limit beyond the global per-IP throttle and no captcha. Add one if
-   * the queue starts collecting junk; a human reviews every row today.
+   * Throttled far below the global per-IP allowance: this is the one unauthenticated
+   * route that writes rows a human then has to read, and nobody applies for five depots
+   * in an hour. ponytail: no captcha — add one only if the queue starts collecting junk.
    */
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Submit a franchise application (public)' })

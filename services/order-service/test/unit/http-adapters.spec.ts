@@ -165,26 +165,39 @@ describe('DepotDirectoryHttpAdapter', () => {
   });
 
   it('reads the depot owner over the internal-key route', async () => {
-    fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9' } }));
-    const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1');
-    expect(out).toBe('owner-9');
+    fetchMock.mockResolvedValue(res({ body: { ownerId: 'owner-9', ownershipType: 'WARALABA' } }));
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1');
+    expect(out).toEqual({ ownerId: 'owner-9', ownershipType: 'WARALABA' });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://depot:3007/api/v1/depots/internal/d1/owner');
     expect(init.headers['x-internal-key']).toBe(KEY);
   });
 
-  it('returns null for an ownerless depot, a non-2xx, and a missing internal key', async () => {
-    fetchMock.mockResolvedValueOnce(res({ body: {} }));
-    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1')).toBeNull();
+  it('reports an ownerless franchise depot rather than flattening it to null', async () => {
+    fetchMock.mockResolvedValue(res({ body: { ownerId: null, ownershipType: 'WARALABA' } }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toEqual({
+      ownerId: null,
+      ownershipType: 'WARALABA',
+    });
+  });
 
+  it('returns null for a non-2xx and a missing internal key', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 404 }));
-    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwnerId('d1')).toBeNull();
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toBeNull();
 
     fetchMock.mockClear();
     expect(
-      await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwnerId('d1'),
+      await new DepotDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' })).findOwner('d1'),
     ).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('defaults a body without an ownership type to a company depot', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    expect(await new DepotDirectoryHttpAdapter(makeConfig()).findOwner('d1')).toEqual({
+      ownerId: null,
+      ownershipType: 'HKP',
+    });
   });
 });
 

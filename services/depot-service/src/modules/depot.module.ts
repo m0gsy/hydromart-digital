@@ -54,6 +54,8 @@ import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.pris
 import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
+import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
+import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { DepotController } from './depot.controller';
 import { HierarchyController } from './hierarchy.controller';
 import { HIERARCHY_REPOSITORY } from '../application/ports/hierarchy.repository';
@@ -148,6 +150,14 @@ const providers: Provider[] = [
     useClass: OperationalReportPrismaRepository,
   },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
+  {
+    provide: DEPOT_TOKENS.Storage,
+    useFactory: (config: DepotConfigService) =>
+      config.storageDriver === 's3'
+        ? new S3StorageAdapter(config)
+        : new LocalDiskStorageAdapter(config),
+    inject: [DepotConfigService],
+  },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

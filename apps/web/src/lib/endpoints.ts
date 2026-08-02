@@ -636,11 +636,12 @@ export const endpoints = {
       return `/depots/api/v1/depots/nearby?${p.toString()}`;
     },
     // Admin listing incl. inactive depots (create/update/deactivate target these).
-    manage: (q: { page?: number; limit?: number; search?: string } = {}) => {
+    manage: (q: { page?: number; limit?: number; search?: string; ownershipType?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.search) p.set('search', q.search);
+      if (q.ownershipType) p.set('ownershipType', q.ownershipType);
       const qs = p.toString();
       return `/depots/api/v1/depots/manage${qs ? `?${qs}` : ''}`;
     },
@@ -909,8 +910,11 @@ export const endpoints = {
       return `/forecast/api/v1/forecast/churn${qs ? `?${qs}` : ''}`;
     },
   },
-  // HQ franchise-application approvals queue (depot-service, HEAD_OFFICE/SUPER_ADMIN).
+  // HQ franchise-application approvals queue (depot-service, HEAD_OFFICE/SUPER_ADMIN),
+  // plus the one public route: a prospective partner submitting an application.
   franchiseApps: {
+    // Public (no token) and throttled to 3/hour per IP by depot-service.
+    submit: '/depots/api/v1/franchise-applications',
     list: (q: { page?: number; limit?: number; stage?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));

@@ -11,6 +11,22 @@ export function formatIDR(amount: number): string {
 }
 
 /**
+ * Indonesian mobile in whatever form a person types it -> strict E.164 (`+628…`).
+ * Everything else on the platform stores the local `08…` form, but the franchise
+ * application DTO validates `^\+628\d{7,11}$`, so the form converts rather than
+ * making an applicant learn a format. Returns the input untouched when it is not a
+ * recognizable Indonesian mobile — the server rejects it and says why.
+ */
+export function toIndonesianE164(input: string): string {
+  const digits = input.replace(/[\s-().]/g, '');
+  if (/^\+628\d+$/.test(digits)) return digits;
+  if (/^628\d+$/.test(digits)) return `+${digits}`;
+  if (/^08\d+$/.test(digits)) return `+62${digits.slice(1)}`;
+  if (/^8\d+$/.test(digits)) return `+62${digits}`;
+  return input.trim();
+}
+
+/**
  * Name -> URL slug, matching the shape product-service validates
  * (`^[a-z0-9]+(?:-[a-z0-9]+)*$`): lowercase, runs of anything else become one hyphen,
  * no leading or trailing hyphen. Returns '' for a name with nothing sluggable in it,
@@ -46,4 +62,19 @@ export function normalizePhone(input: string): string {
   if (trimmed.startsWith('0')) return trimmed;
   if (trimmed.startsWith('62')) return `+${trimmed}`;
   return trimmed;
+}
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+/**
+ * Absolute URL for a stored media path (QRIS image, upload…). Anything already absolute is
+ * returned untouched — that is what the storage adapters hand back now. Legacy rows still
+ * hold a service-relative path, and those only resolve against the gateway; rendering them
+ * raw is what broke the QRIS on the customer's payment screen while the console (which did
+ * prepend) looked fine.
+ */
+export function mediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }

@@ -1,6 +1,6 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import {
@@ -97,6 +97,7 @@ function money(value: number): number {
 @Injectable()
 export class OrderService {
   private static readonly MAX_LIMIT = 100;
+  private readonly logger = new Logger(OrderService.name);
 
   constructor(
     @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
@@ -638,8 +639,19 @@ export class OrderService {
    */
   private async postFranchiseRevenue(order: OrderRecord): Promise<void> {
     if (!order.depotId || !(order.total > 0)) return;
-    const franchiseOwnerId = await this.depotDirectory.findOwnerId(order.depotId);
-    if (!franchiseOwnerId) return;
+    const ownership = await this.depotDirectory.findOwner(order.depotId);
+    if (!ownership) return;
+    const franchiseOwnerId = ownership.ownerId;
+    if (!franchiseOwnerId) {
+      // An HKP depot has no owner by design; a WARALABA one without an owner means this
+      // order's revenue and HQ's commission are booked for nobody. Never fail silently.
+      if (ownership.ownershipType === 'WARALABA') {
+        this.logger.error(
+          `Franchise depot ${order.depotId} has no owner: revenue for order ${order.orderNumber} was not booked to any ledger.`,
+        );
+      }
+      return;
+    }
     await this.franchiseRevenue.orderCompleted({
       orderId: order.id,
       orderNumber: order.orderNumber,

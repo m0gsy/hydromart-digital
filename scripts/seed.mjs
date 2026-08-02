@@ -82,13 +82,13 @@ const DEPOTS = [
     paymentBankName: 'BCA', paymentBankAccountNumber: '1234567890', paymentBankAccountHolder: 'PT Hydromart Cikini',
   },
   {
-    code: 'BDG-01', name: 'Depot Dago', ownershipType: 'WARALABA',
+    code: 'BDG-01', name: 'Depot Dago', ownershipType: 'WARALABA', ownerPhone: '+6281100000009',
     address: 'Jl. Ir. H. Djuanda No. 100', city: 'Bandung', province: 'Jawa Barat',
     lat: -6.8895, lng: 107.6131, serviceRadiusKm: 6, deliveryFee: 1000, minOrderAmount: 15000,
     paymentBankName: 'Mandiri', paymentBankAccountNumber: '2345678901', paymentBankAccountHolder: 'Waralaba Dago Sejahtera',
   },
   {
-    code: 'SBY-01', name: 'Depot Gubeng', ownershipType: 'WARALABA',
+    code: 'SBY-01', name: 'Depot Gubeng', ownershipType: 'WARALABA', ownerPhone: '+6281100000010',
     address: 'Jl. Raya Gubeng No. 25', city: 'Surabaya', province: 'Jawa Timur',
     lat: -7.2657, lng: 112.7521, serviceRadiusKm: 6, deliveryFee: 1000, minOrderAmount: 15000,
     paymentBankName: 'BRI', paymentBankAccountNumber: '3456789012', paymentBankAccountHolder: 'Waralaba Gubeng Jaya',
@@ -105,6 +105,10 @@ const STAFF = [
   { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu' },
   { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu' },
   { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart' },
+  // Owners of the two WARALABA depots below. depot-service refuses to create a franchise
+  // depot without one, so these are invited BEFORE the depots (see main()).
+  { phone: '+6281100000009', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Dago' },
+  { phone: '+6281100000010', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Gubeng' },
 ];
 
 // Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for
@@ -145,11 +149,24 @@ async function seedProducts(catBySlug) {
   return new Map(rows(ok(await api('GET', '/products/api/v1/products?limit=100'), 'relist products')).map((p) => [p.sku, p.id]));
 }
 
-async function seedDepots() {
+// The franchise owners must exist before their depots do. Invited on their own here (not
+// depot-locked, so no depotId needed); seedStaff re-invites them idempotently later.
+async function seedFranchiseOwners() {
+  const byPhone = new Map();
+  for (const s of STAFF.filter((s) => s.role === 'FRANCHISE_OWNER')) {
+    const owner = ok(await api('POST', '/auth/api/v1/auth/staff/invite', s), `invite owner ${s.phone}`);
+    byPhone.set(s.phone, owner.id);
+    console.log(`+ staff ${s.role} ${s.phone}`);
+  }
+  return byPhone;
+}
+
+async function seedDepots(ownerByPhone) {
   const existing = new Map(rows(ok(await api('GET', '/depots/api/v1/depots/manage?limit=100'), 'list depots')).map((d) => [d.code, d.id]));
   for (const d of DEPOTS) {
     if (existing.has(d.code)) continue;
-    const created = ok(await api('POST', '/depots/api/v1/depots', { ...d, operatingHours: HOURS, holidays: [] }), `create depot ${d.code}`);
+    const { ownerPhone, ...depot } = d;
+    const created = ok(await api('POST', '/depots/api/v1/depots', { ...depot, ownerId: ownerByPhone.get(ownerPhone) ?? null, operatingHours: HOURS, holidays: [] }), `create depot ${d.code}`);
     existing.set(d.code, created.id);
     console.log(`+ depot ${d.code}`);
   }
@@ -206,7 +223,8 @@ async function main() {
   console.log(`Seeding ${GATEWAY} ...`);
   const catBySlug = await seedCategories();
   const productBySku = await seedProducts(catBySlug);
-  const depotByCode = await seedDepots();
+  const ownerByPhone = await seedFranchiseOwners();
+  const depotByCode = await seedDepots(ownerByPhone);
   await seedStock(depotByCode, productBySku);
   await seedStaff(depotByCode);
   await seedEmployees(depotByCode);

@@ -170,6 +170,7 @@ export const dashB = {
     assignToCourier: 'Tugaskan ke kurir',
     chipAssign: 'Perlu ditugaskan',
     chipProcess: 'Diproses',
+    backlog: '{n} pesanan belum selesai',
     title: 'Antrean pesanan',
     scopedBefore: 'Antrean untuk ',
     scopedAfter: ' (dari switcher).',

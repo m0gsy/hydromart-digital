@@ -196,10 +196,13 @@ describe('depot-scoped guards and by-id getters', () => {
 
   it('patches a franchise application without touching an unsent checklist', async () => {
     const update = jest.fn().mockResolvedValue({});
-    const apps = new FranchiseApplicationService({
-      findById: async () => ({ id: 'fa-1', stage: FranchiseAppStage.PENDING, checklist: {} }),
-      update,
-    } as never);
+    const apps = new FranchiseApplicationService(
+      {
+        findById: async () => ({ id: 'fa-1', stage: FranchiseAppStage.PENDING, checklist: {} }),
+        update,
+      } as never,
+      { findByCode: async () => null } as never,
+    );
     await apps.patch('fa-1', { stage: FranchiseAppStage.SURVEY });
     expect(update).toHaveBeenCalledWith('fa-1', {
       stage: FranchiseAppStage.SURVEY,

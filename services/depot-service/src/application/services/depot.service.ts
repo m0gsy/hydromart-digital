@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { OwnershipType } from '../../domain/inventory';
-import { DepotNotFoundError, DuplicateDepotCodeError } from '../../domain/errors';
+import {
+  DepotNotFoundError,
+  DuplicateDepotCodeError,
+  FranchiseOwnerRequiredError,
+} from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
 import {
   CreateDepotData,
@@ -67,6 +71,9 @@ export class DepotService {
   }
 
   async create(data: CreateDepotData): Promise<DepotRecord> {
+    if (data.ownershipType === OwnershipType.WARALABA && !data.ownerId) {
+      throw new FranchiseOwnerRequiredError();
+    }
     if (await this.depots.findByCode(data.code)) {
       throw new DuplicateDepotCodeError();
     }
@@ -74,7 +81,14 @@ export class DepotService {
   }
 
   async update(id: string, patch: UpdateDepotData): Promise<DepotRecord> {
-    await this.get(id, false);
+    const current = await this.get(id, false);
+    // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
+    // naming an owner, or clearing the owner of a franchise depot, both break the money path.
+    const ownershipType = patch.ownershipType ?? current.ownershipType;
+    const ownerId = patch.ownerId === undefined ? current.ownerId : patch.ownerId;
+    if (ownershipType === OwnershipType.WARALABA && !ownerId) {
+      throw new FranchiseOwnerRequiredError();
+    }
     if (patch.code) {
       const owner = await this.depots.findByCode(patch.code);
       if (owner && owner.id !== id) {

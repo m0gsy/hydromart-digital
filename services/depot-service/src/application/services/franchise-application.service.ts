@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import {
   ApplicationAlreadyDecidedError,
+  DuplicateDepotCodeError,
   FranchiseApplicationNotFoundError,
 } from '../../domain/errors';
 import {
@@ -13,6 +14,7 @@ import {
   isTerminalStage,
 } from '../../domain/franchise-application';
 import { buildPage, Page } from '../pagination';
+import { DepotRepository } from '../ports/depot.repository';
 import {
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
@@ -49,9 +51,21 @@ export class FranchiseApplicationService {
   constructor(
     @Inject(DEPOT_TOKENS.FranchiseApplicationRepository)
     private readonly applications: FranchiseApplicationRepository,
+    @Inject(DEPOT_TOKENS.DepotRepository)
+    private readonly depots: DepotRepository,
   ) {}
 
-  create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord> {
+  /**
+   * A code already worn by a live depot is rejected at submit, not at approval: approve()
+   * hands its proposed code straight to the depot onboard form, which would then fail
+   * DuplicateDepotCodeError after a human had already reviewed the whole application.
+   * Two PENDING applications may still propose the same code — nothing is provisioned yet,
+   * and HQ deciding between two candidates for one area is the queue doing its job.
+   */
+  async create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord> {
+    if (await this.depots.findByCode(data.proposedCode)) {
+      throw new DuplicateDepotCodeError();
+    }
     return this.applications.create(data);
   }
 
