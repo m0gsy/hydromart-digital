@@ -74,7 +74,7 @@ published on `127.0.0.1:5432`. Each Prisma schema reads its own
 `.github/workflows/ci.yml`'s integration job), so every URL must point at
 `localhost:5432` with your **prod** `POSTGRES_PASSWORD`.
 
-**Verify schema state first.** Some of these migrations add *unique* indexes
+**Verify schema state first.** Some of these migrations add _unique_ indexes
 (one active payment per order, one primary address per customer, …). If the live
 data already violates one, `db:migrate:prod` aborts partway through while building
 that index. Check before you migrate:
@@ -159,7 +159,7 @@ certs. Without the profile the stack stays on plain HTTP `:3000`/`:8080`.
 1. **DNS** — point two records at your VPS's public IP:
    `app.your-domain.com` (web) and `api.your-domain.com` (gateway). Any names
    work; they just have to resolve to this host.
-2. **Firewall** — open `80` + `443`, and *close* `3000`/`8080` to the public so
+2. **Firewall** — open `80` + `443`, and _close_ `3000`/`8080` to the public so
    visitors only reach Caddy:
    ```bash
    ufw allow 80/tcp && ufw allow 443/tcp
@@ -217,13 +217,67 @@ actually restores (a backup you have never restored is not a backup). Both run
 from **host cron**, not the `scheduler` container:
 
 ```cron
-# /etc/crontab (or `crontab -e`) on the VPS — paths assume /opt/hydromart
+# `crontab -e` as the deploy user. NOTE: these paths are illustrative — the live box
+# checks the repo out at /home/hydromart/hydromart, not /opt/hydromart. Use the real
+# one, or cron fails silently into a log nobody reads.
 0 3 * * *  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/backup-db.sh      >> /var/log/hydromart-backup.log 2>&1
 0 4 * * 1  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
+*/5 * * * * cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/watchdog.sh        >> /var/log/hydromart-watchdog.log 2>&1
 ```
 
-**Why host cron and not the `scheduler` container:** the drill spins an *ephemeral
-scratch Postgres* (`docker run` + `docker exec`) to restore into. The scheduler
+### Docker daemon config — `live-restore` is load-bearing
+
+Copy [`ops/docker-daemon.json`](ops/docker-daemon.json) to `/etc/docker/daemon.json` and
+`sudo systemctl reload docker` (a reload, not a restart — containers keep running).
+
+On 2026-08-02 at 17:48 WIB dockerd 29.6.1 died mid-deploy with
+
+```text
+fatal error: concurrent map iteration and map write
+  github.com/moby/buildkit/solver.(*subBuilder).EachValue      solver/jobs.go:359
+  github.com/moby/buildkit/solver/llbsolver.loadProxyNetwork   llbsolver/network.go:51
+docker.service: Main process exited, code=exited, status=2/INVALIDARGUMENT
+```
+
+A Go `fatal error` cannot be recovered, so the whole daemon went down and took all 25
+containers with it — that is the "everything `Exited (0)` at the same instant" nobody
+could explain. systemd restarted dockerd two seconds later, and the new daemon logged
+`stopping restart-manager` for every container rather than restarting it, which is why
+`restart: unless-stopped` rescued nothing. No OOM, no reboot: the box had been up 17
+days and had 13 GB available.
+
+The trigger is our own build concurrency. `rebuild-stale.sh` runs `docker compose build`
+over a batch of 4, and BuildKit solves those jobs in parallel against shared solver
+state — that is the map being iterated and written at once. Rare (once in 30 days), and
+it fires exactly when a full rebuild is running, i.e. during a deploy.
+
+`live-restore` is the answer to the class, not to this one bug: containers keep running
+while dockerd is absent, so a daemon crash costs a failed build instead of a dead site.
+Keep the engine current too (this is a BuildKit bug, and BuildKit ships inside it).
+
+### Watchdog (host cron) — install this, it is not optional
+
+[`scripts/watchdog.sh`](scripts/watchdog.sh) converges the stack every 5 minutes and
+dumps diagnostics for anything it finds stopped.
+
+On 2026-08-02 nineteen containers sat `Exited (0)` for four hours with RAM and disk
+fine. `restart: unless-stopped` does not rescue that state: exit 0 under that policy
+means the container was stopped _deliberately_ (a `docker stop`/`compose stop`, or a
+daemon shutdown), and Docker honours the stop until something asks for the container
+again. The only thing that ever asked was a deploy — which runs when someone merges,
+not when prod falls over. The watchdog is what asks in between.
+
+It also writes `.deploy/incident-<timestamp>.log` with each stopped container's exit
+code, `OOMKilled` flag, last 40 log lines, and the daemon's recent `stop`/`die`/`kill`
+events. We still do not know what issued the original stop — the daemon's event buffer
+had rolled over by the time anyone looked. That report is how a second occurrence gets
+a cause instead of a guess, so read it before restarting anything by hand.
+
+A crash loop is reported separately: if a container is still down 20s after the
+converge, the watchdog exits 1 and alerts with "still down" rather than "recovered".
+
+**Why host cron and not the `scheduler` container:** the drill spins an _ephemeral
+scratch Postgres_ (`docker run` + `docker exec`) to restore into. The scheduler
 container is busybox `crond` with no Docker CLI and no Docker socket — giving it
 one would mean mounting the host socket into a long-running container (a privilege
 escalation) just for a weekly job. The host already owns the Docker daemon and

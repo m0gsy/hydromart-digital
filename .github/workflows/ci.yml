@@ -82,6 +82,12 @@ jobs:
       - name: Validate Prisma schemas
         run: npm run db:validate
 
+      # The deploy scripts decide, from a file list alone, whether prod is touched at
+      # all — and a wrong answer there ships as "DEPLOY OK" with nothing deployed.
+      # These helpers need no Docker, so they are gated here like any other logic.
+      - name: Deploy-script helpers self-check
+        run: bash scripts/lib/deploy-common.test.sh
+
       - name: Typecheck
         run: npm run typecheck
 

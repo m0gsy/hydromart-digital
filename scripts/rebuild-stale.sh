@@ -16,20 +16,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Overridable so a local run can layer an extra overlay (e.g. dropping redis's host
-# port when another project already publishes 6379) without editing this file.
-# Caddy sits behind `profiles: ["tls"]`, so a plain compose call excludes it: never
-# started, never converged, absent from `ps`. That is how a "successful" deploy left
-# 80/443 dead for four hours while the gateway answered fine on 8080. Enable the
-# profile only when a domain is configured, so the documented bare-IP (no-TLS) path
-# still works and does not try to bind 80/443 without a hostname.
-TLS_PROFILE=""
-if [ -n "${WEB_DOMAIN:-}" ] || grep -qsE '^WEB_DOMAIN=.+' .env; then
-  TLS_PROFILE="--profile tls"
-fi
-COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml $TLS_PROFILE}"
+# COMPOSE (incl. the tls profile that keeps Caddy visible) comes from here.
+. scripts/lib/deploy-common.sh
+
 # ponytail: 4 fits the current 16GB/8vCPU VPS (a build peaks ~1.5GB). Lower it to
 # 1-2 if the host is ever downsized again.
+#
+# Parallel builds are also what tripped the dockerd crash on 2026-08-02 ("concurrent
+# map iteration and map write" in BuildKit's solver — see DEPLOY.md), so this number is
+# a race window as well as a memory knob. The daemon-side answer is `live-restore`,
+# which keeps prod serving through a crash; drop this to 1 if the panic ever repeats
+# and the engine has no fix yet — a full `--all` rebuild then runs well past the
+# deploy workflow's 40m command_timeout, so raise that too.
 BATCH="${BATCH:-4}"
 
 # Services still on old images (current as of the last deploy: auth product order

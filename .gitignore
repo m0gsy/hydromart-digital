@@ -56,6 +56,10 @@ ops/alertmanager.webhook-url
 # Claude Code personal settings
 .claude/settings.local.json
 
+# Deploy state on the VPS: last-good SHA + watchdog incident dumps (host-local, and
+# the dumps can contain container logs).
+.deploy/
+
 # Local UAT harness (throwaway run artefacts, not part of the product)
 .uat/
 uat.json
