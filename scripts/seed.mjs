@@ -61,13 +61,18 @@ const CATEGORIES = [
   { name: 'Aksesoris', slug: 'aksesoris', sortOrder: 3 },
 ];
 
+// isGallon and volumeMl are set EXPLICITLY, never inferred from the unit label.
+// isGallon drives the per-galon delivery fee; a seeded galon without it prices at
+// zero delivery. volumeMl feeds the depot water-meter reconciliation — null means
+// "unmeasured" there, which is correct for accessories and honest for a dus whose
+// pack size we do not model.
 const PRODUCTS = [
-  { sku: 'AIR-GALON-19L', name: 'Air Galon 19L (Isi Ulang)', unit: 'Galon 19L', basePrice: 20000, cat: 'air-galon' },
-  { sku: 'GALON-BARU-19L', name: 'Galon 19L + Air (Baru)', unit: 'Galon 19L', basePrice: 65000, cat: 'air-galon' },
-  { sku: 'AIR-BTL-600', name: 'Air Botol 600ml (Dus isi 24)', unit: 'Dus', basePrice: 48000, cat: 'air-kemasan' },
-  { sku: 'AIR-BTL-1500', name: 'Air Botol 1500ml (Dus isi 12)', unit: 'Dus', basePrice: 54000, cat: 'air-kemasan' },
-  { sku: 'AIR-CUP-240', name: 'Air Gelas 240ml (Dus isi 48)', unit: 'Dus', basePrice: 22000, cat: 'air-kemasan' },
-  { sku: 'ACC-POMPA', name: 'Pompa Galon Manual', unit: 'Pcs', basePrice: 25000, cat: 'aksesoris' },
+  { sku: 'AIR-GALON-19L', name: 'Air Galon 19L (Isi Ulang)', unit: 'Galon 19L', volumeMl: 19000, isGallon: true, basePrice: 20000, cat: 'air-galon' },
+  { sku: 'GALON-BARU-19L', name: 'Galon 19L + Air (Baru)', unit: 'Galon 19L', volumeMl: 19000, isGallon: true, basePrice: 65000, cat: 'air-galon' },
+  { sku: 'AIR-BTL-600', name: 'Air Botol 600ml (Dus isi 24)', unit: 'Dus', volumeMl: 14400, isGallon: false, basePrice: 48000, cat: 'air-kemasan' },
+  { sku: 'AIR-BTL-1500', name: 'Air Botol 1500ml (Dus isi 12)', unit: 'Dus', volumeMl: 18000, isGallon: false, basePrice: 54000, cat: 'air-kemasan' },
+  { sku: 'AIR-CUP-240', name: 'Air Gelas 240ml (Dus isi 48)', unit: 'Dus', volumeMl: 11520, isGallon: false, basePrice: 22000, cat: 'air-kemasan' },
+  { sku: 'ACC-POMPA', name: 'Pompa Galon Manual', unit: 'Pcs', volumeMl: null, isGallon: false, basePrice: 25000, cat: 'aksesoris' },
 ];
 
 const HOURS = Object.fromEntries(
@@ -141,7 +146,8 @@ async function seedProducts(catBySlug) {
   for (const p of PRODUCTS) {
     if (existing.has(p.sku)) continue;
     ok(await api('POST', '/products/api/v1/products', {
-      name: p.name, sku: p.sku, unit: p.unit, basePrice: p.basePrice, categoryId: catBySlug.get(p.cat),
+      name: p.name, sku: p.sku, unit: p.unit, volumeMl: p.volumeMl, isGallon: p.isGallon,
+      basePrice: p.basePrice, categoryId: catBySlug.get(p.cat),
     }), `create product ${p.sku}`);
     console.log(`+ product ${p.sku}`);
   }

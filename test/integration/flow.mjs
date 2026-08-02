@@ -86,7 +86,10 @@ async function createProduct(staff, basePrice = 20000) {
   const sku = `ITEST-${Date.now()}-${Math.floor(Math.random() * 1e4)}`;
   const res = await api('POST', '/products/api/v1/products', {
     token: staff,
-    body: { name: 'Integration Galon 19L', sku, unit: 'galon', basePrice },
+    // isGallon must be explicit: the per-galon delivery fee is charged off this flag,
+    // not off the unit label, so a galon seeded without it prices at zero delivery
+    // (which is exactly what the fee assertion below catches).
+    body: { name: 'Integration Galon 19L', sku, unit: 'galon', volumeMl: 19000, isGallon: true, basePrice },
   });
   ok(res, 'create product');
   assert(res.body.id, `no product id: ${JSON.stringify(res.body)}`);
