@@ -32,6 +32,7 @@ import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
 import {
+  CreateOrderData,
   CreateOrderItemData,
   DeliveryAddressSnapshot,
   OrderQuery,
@@ -212,31 +213,22 @@ export class OrderService {
     }
     const total = money(subtotal + deliveryFee - discount);
 
-    // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves
-    // no dangling order. Keyed by a pre-generated id. Every order has a depot now, so
-    // this always runs; reserve fails OPEN except on a genuine shortfall
-    // (throws InsufficientStockError).
-    const orderId = randomUUID();
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       depot.id,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId,
+        depotId: depot.id,
+        subtotal,
+        deliveryFee,
+        discount,
+        total,
+        deliveryWindow: input.deliveryWindow ?? null,
+        ...input.deliveryAddress,
+        items,
+      },
       authorization,
     );
-
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId,
-      depotId: depot.id,
-      subtotal,
-      deliveryFee,
-      discount,
-      total,
-      deliveryWindow: input.deliveryWindow ?? null,
-      ...input.deliveryAddress,
-      items,
-    });
     await this.cart.clear(customerId);
 
     // Record the redemption now that the order exists. Idempotent per order and
@@ -342,26 +334,21 @@ export class OrderService {
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);
 
-    const orderId = randomUUID();
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       depot.id,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId,
+        depotId: depot.id,
+        subtotal,
+        deliveryFee,
+        discount,
+        total,
+        ...address,
+        items,
+      },
       '',
     );
-
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId,
-      depotId: depot.id,
-      subtotal,
-      deliveryFee,
-      discount,
-      total,
-      ...address,
-      items,
-    });
 
     await this.notification.notify(
       'ORDER_RECEIVED',
@@ -394,41 +381,36 @@ export class OrderService {
     assertDepotAccess(user, input.depotId);
 
     const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
-    const orderId = randomUUID();
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       input.depotId,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId: input.customerId ?? ANONYMOUS_CUSTOMER_ID,
+        depotId: input.depotId,
+        status: OrderStatus.COMPLETED,
+        isWalkIn: true,
+        subtotal,
+        deliveryFee: 0,
+        discount: 0,
+        total: subtotal,
+        // The address snapshot columns are NOT NULL and are read by the receipt, the order
+        // detail sheet and the driver app. For a counter sale they say who bought and where
+        // they took delivery — at the counter.
+        recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
+        phone: input.customerPhone?.trim() || '-',
+        addressLine: 'Ambil langsung di depot',
+        city: '-',
+        province: '-',
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+        notes: null,
+        items,
+      },
       authorization,
     );
-
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId: input.customerId ?? ANONYMOUS_CUSTOMER_ID,
-      depotId: input.depotId,
-      status: OrderStatus.COMPLETED,
-      isWalkIn: true,
-      subtotal,
-      deliveryFee: 0,
-      discount: 0,
-      total: subtotal,
-      // The address snapshot columns are NOT NULL and are read by the receipt, the order
-      // detail sheet and the driver app. For a counter sale they say who bought and where
-      // they took delivery — at the counter.
-      recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
-      phone: input.customerPhone?.trim() || '-',
-      addressLine: 'Ambil langsung di depot',
-      city: '-',
-      province: '-',
-      postalCode: null,
-      latitude: null,
-      longitude: null,
-      notes: null,
-      items,
-    });
 
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
@@ -734,6 +716,33 @@ export class OrderService {
     // ledger before, so every owner balance and the HQ release queue read an empty
     // table. Fail-open and idempotent on the payout side (keyed by order id).
     await this.postFranchiseRevenue(updated).catch(() => {});
+  }
+
+  /**
+   * Reserves the depot's stock, then writes the order — the one order-creating step every
+   * path shares (checkout, scheduled subscription runs, counter sales).
+   *
+   * Reserving first is deliberate: a shortfall must reject before any row exists. What was
+   * missing is the other half — a create that throws (a DB blip, a constraint) left the hold
+   * standing with no order to ever release it, so the depot silently lost that stock until
+   * opname. The compensating release only ever undoes a hold this call itself placed.
+   */
+  private async reserveThenCreate(
+    depotId: string,
+    data: Omit<CreateOrderData, 'id'>,
+    authorization: string,
+  ): Promise<OrderRecord> {
+    const id = randomUUID();
+    const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    await this.inventory.reserve(depotId, id, lines, authorization);
+    try {
+      return await this.orders.create({ ...data, id });
+    } catch (error) {
+      // Fail-open like every other inventory call: what the caller must see is why the
+      // order could not be written, never a release that also failed on the way out.
+      await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      throw error;
+    }
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */

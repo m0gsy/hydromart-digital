@@ -62,4 +62,18 @@ describe('printReceipt', () => {
     expect(html).not.toContain('Tunai');
     expect(html).not.toContain('Kembali');
   });
+
+  // The counter screen branches on this: a blocked popup has to be reported to the cashier,
+  // who otherwise watches the sale succeed with no struk to hand over.
+  it('reports a blocked popup instead of failing silently', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    expect(printReceipt(order, { cashReceived: 50000, change: 10000 })).toBe(false);
+  });
+
+  it('reports success when the print window opened', () => {
+    vi.spyOn(window, 'open').mockReturnValue({
+      document: { write: vi.fn(), close: vi.fn() },
+    } as unknown as Window);
+    expect(printReceipt(order)).toBe(true);
+  });
 });

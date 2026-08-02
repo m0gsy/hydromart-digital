@@ -26,7 +26,7 @@ import { computeEffective } from '@/lib/pricing';
 import { printReceipt } from '@/lib/receipt';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Product, ResolvedPrice } from '@/lib/types';
+import type { InventoryItem, Order, Page, Product, ResolvedPrice } from '@/lib/types';
 
 /**
  * Counter sale: the customer is standing at the depot, pays cash, takes the galon.
@@ -42,12 +42,35 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
   const [busy, setBusy] = useState(false);
+  // The sale just recorded, kept so its receipt can be printed again — the print window is a
+  // popup and a blocked one used to lose the struk with the form already cleared.
+  const [lastSale, setLastSale] = useState<{
+    order: Order;
+    cash: { cashReceived: number; change: number };
+  } | null>(null);
 
   const catalog = useAsync<Page<Product>>(
     () => api.get(endpoints.products.browse({ limit: 100 })),
     [depotId],
   );
-  const products = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
+  // What this depot can actually hand over. The counter used to list the whole catalogue,
+  // so a cashier could ring up a product this depot never stocks and only find out when the
+  // reservation bounced — with the buyer already standing there.
+  const stock = useAsync<InventoryItem[]>(
+    () => api.get(endpoints.inventory.lines(depotId), true),
+    [depotId],
+  );
+  const availableById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const line of stock.data ?? []) {
+      if (line.productId) map.set(line.productId, line.available);
+    }
+    return map;
+  }, [stock.data]);
+  const products = useMemo(
+    () => (catalog.data?.items ?? []).filter((p) => (availableById.get(p.id) ?? 0) > 0),
+    [catalog.data, availableById],
+  );
   const ids = products.map((p) => p.id);
   const resolved = useAsync<ResolvedPrice[]>(
     () => (ids.length ? api.get(endpoints.inventory.prices(depotId, ids)) : Promise.resolve([])),
@@ -123,7 +146,11 @@ function WalkIn({ depotId }: { depotId: string }) {
       toast('Pesanan tersimpan, pembayaran belum tercatat — selesaikan dari antrian pesanan.', 'error');
     }
 
-    printReceipt(order, { cashReceived, change: cashReceived - order.total });
+    const receipt = { cashReceived, change: cashReceived - order.total };
+    setLastSale({ order, cash: receipt });
+    if (!printReceipt(order, receipt)) {
+      toast('Struk tidak bisa dibuka — izinkan popup, lalu tekan "Cetak ulang struk".', 'error');
+    }
     setQty({});
     setName('');
     setPhone('');
@@ -131,12 +158,28 @@ function WalkIn({ depotId }: { depotId: string }) {
     setBusy(false);
   }
 
-  if (catalog.loading) return <Skeleton className="h-64" />;
+  if (catalog.loading || stock.loading) return <Skeleton className="h-64" />;
+  // Stock is not decoration here — it decides what may be sold, so a stock list that failed
+  // to load must not render as "this depot sells nothing".
   if (catalog.error) return <ErrorState message={catalog.error} onRetry={catalog.reload} />;
+  if (stock.error) return <ErrorState message={stock.error} onRetry={stock.reload} />;
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader title="Penjualan di depot" subtitle="Pembeli datang langsung, bayar tunai." />
+
+      {lastSale && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm">
+            Penjualan terakhir <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
+            <Money amount={lastSale.order.total} />
+          </p>
+          <Button variant="ghost" onClick={() => printReceipt(lastSale.order, lastSale.cash)}>
+            <Printer size={18} className="mr-1" />
+            Cetak ulang struk
+          </Button>
+        </Card>
+      )}
 
       <Card className="divide-y divide-[color:var(--border)] p-0">
         {products.map((p) => (
@@ -150,12 +193,18 @@ function WalkIn({ depotId }: { depotId: string }) {
             <QuantityStepper
               value={qty[p.id] ?? 0}
               min={0}
-              max={999}
+              // Never let the counter ring up more than the depot holds: the reservation
+              // would reject the whole sale after the buyer already agreed to it.
+              max={availableById.get(p.id) ?? 0}
               onChange={(next) => setQty((q) => ({ ...q, [p.id]: next }))}
             />
           </div>
         ))}
-        {products.length === 0 && <p className="p-6 text-center text-sm text-muted">Belum ada produk.</p>}
+        {products.length === 0 && (
+          <p className="p-6 text-center text-sm text-muted">
+            Tidak ada produk siap jual di depot ini. Isi stok dulu lewat Inventory.
+          </p>
+        )}
       </Card>
 
       <Card className="space-y-3 p-4">

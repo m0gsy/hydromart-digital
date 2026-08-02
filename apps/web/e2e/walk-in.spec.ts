@@ -86,21 +86,41 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     (r) => r.url().includes('/orders/api/v1/orders/walk-in') && r.request().method() === 'POST',
     { timeout: 20_000 },
   );
+  // The sale is only half the flow: the money leg has to settle too. Asserting the confirm
+  // response is how this test proves it, without hand-rolling an authenticated API call —
+  // the run used to pass with the payment left PENDING and nobody the wiser.
+  const paymentConfirm = page.waitForResponse(
+    (r) =>
+      /\/payments\/api\/v1\/payments\/[^/]+\/confirm$/.test(new URL(r.url()).pathname) &&
+      r.request().method() === 'POST',
+    { timeout: 20_000 },
+  );
   await page.getByRole('button', { name: /Simpan & cetak struk/i }).click();
 
+  // Anything other than 2xx here is a defect, not an environment gap: the depot, its stock
+  // and the price were all read from this same running stack moments ago.
   const posted = await salePost;
-  expect(posted.status()).toBeLessThan(500); // never a server crash
-  if (posted.ok()) {
-    const order = await posted.json();
-    expect(order.isWalkIn).toBe(true);
-    expect(order.status).toBe('COMPLETED');
-    expect(order.deliveryFee).toBe(0);
+  expect(posted.ok(), `walk-in POST answered ${posted.status()}: ${await posted.text()}`).toBe(true);
+  const order = await posted.json();
+  expect(order.isWalkIn).toBe(true);
+  expect(order.status).toBe('COMPLETED');
+  expect(order.deliveryFee).toBe(0);
 
-    const receipt = await popup;
-    if (receipt) {
-      await expect(receipt.getByText(/Tunai/)).toBeVisible({ timeout: 10_000 });
-      await expect(receipt.getByText(/Kembali/)).toBeVisible();
-      await receipt.close();
-    }
-  }
+  const confirmed = await paymentConfirm;
+  expect(
+    confirmed.ok(),
+    `payment confirm answered ${confirmed.status()}: ${await confirmed.text()}`,
+  ).toBe(true);
+  const payment = await confirmed.json();
+  expect(payment.status).toBe('PAID');
+  expect(payment.method).toBe('CASH');
+  // The change printed on the struk has to be the change recorded on the payment.
+  expect(payment.cashReceived).toBe(total + 50_000);
+  expect(payment.changeGiven).toBe(50_000);
+
+  const receipt = await popup;
+  expect(receipt, 'the receipt window never opened').not.toBeNull();
+  await expect(receipt!.getByText(/Tunai/)).toBeVisible({ timeout: 10_000 });
+  await expect(receipt!.getByText(/Kembali/)).toBeVisible();
+  await receipt!.close();
 });

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 import { Sheet } from '@/components/overlay';
-import { Badge, Button, Field, Money } from '@/components/ui';
+import { Badge, Button, Field, Input, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -23,14 +23,25 @@ function PaymentSettle({ order }: { order: Order }) {
   const { data, reload } = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(order.id), true), [order.id]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cash, setCash] = useState('');
   const payment = data?.items[0];
+  const isCash = payment?.method === 'CASH';
 
   async function confirm() {
     if (!payment) return;
     setBusy(true);
     setError(null);
+    // Cash settled here (a counter sale whose payment leg failed, or a COD handed over)
+    // carries the note the buyer got change from. Confirming without it left cashReceived
+    // null on the row, so the printed change was recorded nowhere.
+    const received = Number(cash.replace(/\D/g, '')) || 0;
     try {
-      await api.post(endpoints.payments.confirm(payment.id), undefined, true);
+      await api.post(
+        endpoints.payments.confirm(payment.id),
+        isCash && received > 0 ? { cashReceived: received } : undefined,
+        true,
+      );
+      setCash('');
       reload();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal konfirmasi pembayaran.');
@@ -51,6 +62,21 @@ function PaymentSettle({ order }: { order: Order }) {
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}
         </p>
+      )}
+      {canConfirm && pending && isCash && (
+        <Field
+          label="Uang tunai diterima (opsional)"
+          htmlFor={`settle-cash-${payment.id}`}
+          hint="Diisi = kembalian ikut tercatat pada pembayaran."
+        >
+          <Input
+            id={`settle-cash-${payment.id}`}
+            value={cash}
+            onChange={(e) => setCash(e.target.value)}
+            inputMode="numeric"
+            placeholder="50000"
+          />
+        </Field>
       )}
       {canConfirm && pending && (
         <Button onClick={confirm} loading={busy}>

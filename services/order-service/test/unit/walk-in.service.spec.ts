@@ -218,6 +218,40 @@ describe('OrderService.walkInSale', () => {
     expect(orders.rows).toHaveLength(1);
   });
 
+  // The hold is placed before the row exists, so a create that throws used to leave the
+  // depot short by that quantity with no order anywhere to ever release it.
+  it('releases the stock hold when the order row cannot be written', async () => {
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    orders.create = async () => {
+      throw new Error('unique constraint');
+    };
+    await expect(
+      service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 2 }] }),
+    ).rejects.toThrow('unique constraint');
+
+    expect(inventory.releaseCalls).toHaveLength(1);
+    expect(inventory.releaseCalls[0]).toMatchObject({
+      depotId: DEPOT,
+      orderId: inventory.reserveCalls[0].orderId,
+    });
+    expect(inventory.releaseCalls[0].items[0].quantity).toBe(2);
+  });
+
+  // The create error is what the cashier must see. A release that also fails on the way out
+  // would otherwise replace it with a misleading depot-service message.
+  it('surfaces the create error even when the compensating release fails', async () => {
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    orders.create = async () => {
+      throw new Error('unique constraint');
+    };
+    inventory.release = async () => {
+      throw new Error('depot-service down');
+    };
+    await expect(
+      service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] }),
+    ).rejects.toThrow('unique constraint');
+  });
+
   it('cannot be advanced or re-completed afterwards', async () => {
     const order = await sell(1);
     await expect(
