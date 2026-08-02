@@ -96,6 +96,24 @@ describe('OrderService.walkInSale', () => {
     });
   };
 
+  // A counter sale is water leaving the depot exactly like a delivered order, so it
+  // must carry the same volume snapshot — otherwise the day's meter reconciliation
+  // reports every walk-in litre as unaccounted-for.
+  it('snapshots the catalog volume and galon flag onto the counter-sale line', async () => {
+    const product = catalog.seed({
+      id: randomUUID(),
+      basePrice: 20000,
+      unit: 'Galon 19L',
+      volumeMl: 19000,
+      isGallon: true,
+    });
+    const order = await service.walkInSale(operator, {
+      depotId: DEPOT,
+      lines: [{ productId: product.id, quantity: 4 }],
+    });
+    expect(order.items[0]).toMatchObject({ volumeMl: 19000, isGallon: true, quantity: 4 });
+  });
+
   it('completes the sale immediately with no delivery fee', async () => {
     const order = await sell(2);
 

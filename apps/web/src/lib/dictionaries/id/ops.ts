@@ -25,6 +25,7 @@ export const ops = {
     inventory: 'Inventori',
     returns: 'Retur galon',
     wastage: 'Susut & kerusakan',
+    meter: 'Meteran air',
     notifications: 'Notifikasi ops',
     forecast: 'Perkiraan',
     depots: 'Depot',

@@ -373,6 +373,18 @@ export const endpoints = {
       if (date) p.set('date', date);
       return `/orders/api/v1/reports/depot-daily?${p}`;
     },
+    // Depot water-meter reading. The SAME path serves the morning (openingM3) and the
+    // evening (closingM3) write — one partial upsert, not two endpoints.
+    meterSave: (depotId: string, date: string) => `/orders/api/v1/reports/meter/${depotId}/${date}`,
+    meterDay: (depotId: string, date: string) => `/orders/api/v1/reports/meter/${depotId}/${date}`,
+    // Daily variance history for the chart. Window defaults to the trailing 30 days.
+    meterHistory: (depotId: string, q: { from?: string; to?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
+      const qs = p.toString();
+      return `/orders/api/v1/reports/meter/${depotId}${qs ? `?${qs}` : ''}`;
+    },
     // Depot weekly ops report (design 7d Laporan mingguan). Window defaults to trailing 7 days.
     depotWeekly: (depotId: string, q: { from?: string; to?: string } = {}) => {
       const p = new URLSearchParams({ depotId });

@@ -16,6 +16,8 @@ interface ProductRow {
   sku: string;
   description: string | null;
   unit: string;
+  volumeMl: number | null;
+  isGallon: boolean;
   basePrice: { toNumber(): number };
   imageUrl: string | null;
   images: string[];

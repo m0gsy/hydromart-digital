@@ -21,7 +21,7 @@ export class NotificationHttpAdapter implements NotificationPort {
     event: string,
     phone: string,
     vars: Record<string, string>,
-    customerId: string,
+    customerId: string | null,
     _authorization: string,
   ): Promise<void> {
     const internalKey = this.config.internalServiceKey;

@@ -8,6 +8,8 @@ interface ProductResponse {
   name: string;
   sku: string;
   unit: string;
+  volumeMl: number | null;
+  isGallon: boolean;
   basePrice: number;
   active: boolean;
 }
@@ -46,6 +48,10 @@ export class ProductCatalogHttpAdapter implements ProductCatalogPort {
         name: body.name,
         sku: body.sku,
         unit: body.unit,
+        // ?? on both: a product-service still on the pre-volume schema omits these
+        // fields entirely, and an undefined volumeMl must read as "unmeasured", not NaN.
+        volumeMl: body.volumeMl ?? null,
+        isGallon: body.isGallon ?? false,
         basePrice: body.basePrice,
         active: body.active,
       };

@@ -20,6 +20,8 @@ interface ProductForm {
   name: string;
   sku: string;
   unit: string;
+  volumeMl: string;
+  isGallon: boolean;
   basePrice: string;
   categoryId: string;
   description: string;
@@ -28,12 +30,29 @@ interface ProductForm {
 
 function formFrom(p: Product): ProductForm {
   return {
-    name: p.name, sku: p.sku, unit: p.unit, basePrice: String(p.basePrice),
-    categoryId: p.categoryId ?? '', description: p.description ?? '', active: p.active,
+    name: p.name,
+    sku: p.sku,
+    unit: p.unit,
+    basePrice: String(p.basePrice),
+    volumeMl: p.volumeMl != null ? String(p.volumeMl) : '',
+    isGallon: p.isGallon ?? false,
+    categoryId: p.categoryId ?? '',
+    description: p.description ?? '',
+    active: p.active,
   };
 }
 
-const EMPTY: ProductForm = { name: '', sku: '', unit: 'pcs', basePrice: '', categoryId: '', description: '', active: true };
+const EMPTY: ProductForm = {
+  name: '',
+  sku: '',
+  unit: 'pcs',
+  volumeMl: '',
+  isGallon: false,
+  basePrice: '',
+  categoryId: '',
+  description: '',
+  active: true,
+};
 
 function ProductEditor({
   product,
@@ -50,7 +69,8 @@ function ProductEditor({
   const [form, setForm] = useState<ProductForm>(product ? formFrom(product) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const set = (k: keyof ProductForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof ProductForm) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
     if (!form.name.trim()) return setError(t('hq.catalog.needName'));
@@ -63,6 +83,10 @@ function ProductEditor({
         name: form.name.trim(),
         sku: form.sku.trim(),
         unit: form.unit.trim() || 'pcs',
+        // Blank stays null: an unmeasured product is reported as unmeasured in the
+        // depot meter reconciliation, never counted as zero litres.
+        volumeMl: form.volumeMl.trim() === '' ? null : Number(form.volumeMl),
+        isGallon: form.isGallon,
         basePrice: price,
         categoryId: form.categoryId || null,
         description: form.description.trim() || null,
@@ -83,7 +107,9 @@ function ProductEditor({
 
   return (
     <Card className="flex flex-col gap-4 p-5">
-      <h2 className="text-lg font-bold">{product ? t('hq.catalog.editorEdit') : t('hq.catalog.editorNew')}</h2>
+      <h2 className="text-lg font-bold">
+        {product ? t('hq.catalog.editorEdit') : t('hq.catalog.editorNew')}
+      </h2>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('hq.catalog.fields.name')}>
           <Input value={form.name} onChange={set('name')} />
@@ -92,11 +118,43 @@ function ProductEditor({
           <Input value={form.sku} onChange={set('sku')} />
         </Field>
         <Field label={t('hq.catalog.fields.price')}>
-          <Input inputMode="numeric" value={form.basePrice} onChange={set('basePrice')} placeholder="20000" />
+          <Input
+            inputMode="numeric"
+            value={form.basePrice}
+            onChange={set('basePrice')}
+            placeholder="20000"
+          />
         </Field>
         <Field label={t('hq.catalog.fields.unit')}>
           <Input value={form.unit} onChange={set('unit')} placeholder="galon / dus / pcs" />
         </Field>
+        <Field label={t('hq.catalog.fields.volumeMl')}>
+          <Input
+            inputMode="numeric"
+            value={form.volumeMl}
+            onChange={set('volumeMl')}
+            placeholder="19000"
+          />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={form.isGallon}
+            onChange={(e) => setForm((f) => ({ ...f, isGallon: e.target.checked }))}
+          />
+          {t('hq.catalog.fields.isGallon')}
+        </label>
+        {/* The flag replaced a unit-label heuristic, so forgetting to tick it now costs
+            real money: the per-galon delivery fee is charged off this flag alone. Warn,
+            never auto-tick — a "Tutup Galon" sold by the galon is exactly the line that
+            must stay unticked, and silently deciding for the operator is how the old
+            string matching went wrong in the first place. */}
+        {!form.isGallon && /galon/i.test(form.unit) && (
+          <p className="text-xs text-[color:var(--warning)]">{t('hq.catalog.gallonUnticked')}</p>
+        )}
+        {form.isGallon && form.volumeMl.trim() === '' && (
+          <p className="text-xs text-muted">{t('hq.catalog.gallonNoVolume')}</p>
+        )}
         <Field label={t('hq.catalog.fields.category')}>
           <select value={form.categoryId} onChange={set('categoryId')} className={inputClass}>
             <option value="">{t('hq.catalog.noCategory')}</option>
@@ -110,14 +168,23 @@ function ProductEditor({
         {product && (
           <Field label={t('hq.catalog.fields.active')}>
             <label className="flex items-center gap-2 py-2 text-sm">
-              <input type="checkbox" checked={form.active} onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))} />
+              <input
+                type="checkbox"
+                checked={form.active}
+                onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
+              />
               {t('hq.catalog.fields.active')}
             </label>
           </Field>
         )}
       </div>
       <Field label={t('hq.catalog.fields.description')}>
-        <textarea rows={2} value={form.description} onChange={set('description')} className={inputClass} />
+        <textarea
+          rows={2}
+          value={form.description}
+          onChange={set('description')}
+          className={inputClass}
+        />
       </Field>
       {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex gap-2">
@@ -291,7 +358,9 @@ export default function HqCatalogPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
-  const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 }), true));
+  const catalog = useAsync<Page<Product>>(() =>
+    api.get(endpoints.products.browse({ limit: 100 }), true),
+  );
   const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories));
 
   const products = catalog.data?.items ?? [];
@@ -306,7 +375,9 @@ export default function HqCatalogPage() {
             <p className="text-sm text-muted">{t('hq.catalog.subtitle')}</p>
           </div>
         </div>
-        {editing === undefined && <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>}
+        {editing === undefined && (
+          <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>
+        )}
       </div>
 
       {editing !== undefined && (

@@ -71,6 +71,10 @@ export interface Product {
   sku: string;
   description: string | null;
   unit: string;
+  /** Fill volume in millilitres (19000 = 19L). Null = unmeasured, not zero litres. */
+  volumeMl: number | null;
+  /** Refillable galon line: drives the per-galon delivery fee and gallon counts. */
+  isGallon: boolean;
   basePrice: number;
   imageUrl: string | null;
   /** Additional gallery images beyond the primary imageUrl. Gallery = [imageUrl, ...images]. */
@@ -2038,6 +2042,57 @@ export interface InventoryWastageSummary {
   to: string | null;
   totalLossIdr?: number;
   byItem: InventoryWastageItem[];
+}
+
+// ── Depot water-meter reconciliation (order-service) ──
+
+/** One day's dial readings, in cubic metres. Litres are always derived. */
+export interface MeterReading {
+  depotId: string;
+  date: string;
+  openingM3: number;
+  closingM3: number | null;
+  sourceOpeningM3: number | null;
+  sourceClosingM3: number | null;
+  openedBy: string;
+  openedAt: string;
+  closedBy: string | null;
+  closedAt: string | null;
+  alertedAt: string | null;
+  note: string | null;
+}
+
+/**
+ * Meter vs sales for one day. Every nullable field is null for a REASON — the day is
+ * not closed yet, nothing was delivered to price the gap with, the raw-water meter was
+ * not read. Render those as "—", never as 0.
+ */
+export interface MeterReconciliation {
+  depotId: string;
+  date: string;
+  reading: MeterReading | null;
+  meterLiters: number | null;
+  soldLiters: number;
+  /** Order lines with no recorded volume; the variance excludes them. */
+  unmeasuredLines: number;
+  gallonsDelivered: number;
+  revenueIdr: number;
+  varianceLiters: number | null;
+  varianceGallons: number | null;
+  varianceIdr: number | null;
+  roYieldPct: number | null;
+  referenceVolumeMl: number;
+  toleranceLiters: number;
+  overTolerance: boolean;
+}
+
+export interface MeterHistoryRow {
+  day: string;
+  meterLiters: number | null;
+  soldLiters: number;
+  varianceLiters: number | null;
+  varianceGallons: number | null;
+  roYieldPct: number | null;
 }
 
 // ── Depot-manager console (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b) ──

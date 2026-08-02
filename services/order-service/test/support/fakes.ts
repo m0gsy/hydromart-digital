@@ -877,6 +877,8 @@ export class FakeProductCatalog implements ProductCatalogPort {
       name: 'Air Galon 19L',
       sku: 'AIR-19L',
       unit: 'Galon 19L',
+      volumeMl: 19000,
+      isGallon: true,
       basePrice: 20000,
       active: true,
       ...product,

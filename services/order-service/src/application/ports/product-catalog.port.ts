@@ -4,6 +4,10 @@ export interface CatalogProduct {
   name: string;
   sku: string;
   unit: string;
+  /** Fill volume in millilitres (19000 = 19L galon). Null for non-liquid lines. */
+  volumeMl: number | null;
+  /** Refillable galon line — drives the per-galon delivery fee. */
+  isGallon: boolean;
   basePrice: number;
   active: boolean;
 }

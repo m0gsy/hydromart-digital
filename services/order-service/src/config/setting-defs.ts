@@ -54,6 +54,31 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 50,
     envDefault: 5,
   },
+  // Divisor that turns a water-meter variance in litres into "setara galon". Nominal
+  // fill volume, not the physical one: it only exists to express a leftover in a unit
+  // an operator thinks in. Per-depot because a depot that sells 15L as its main line
+  // wants its leftovers counted in 15L units.
+  {
+    key: 'meterReferenceVolumeMl',
+    label: 'Isi galon acuan (rekonsiliasi meteran)',
+    type: 'int',
+    unit: 'ml',
+    min: 1000,
+    max: 100000,
+    envDefault: 19000,
+  },
+  // Litres, not rupiah, on purpose: the rupiah figure is null on a day with no
+  // delivered galon (nothing to derive a per-galon price from), and an alert that
+  // goes quiet exactly when a depot sold nothing is the wrong alert.
+  {
+    key: 'meterVarianceToleranceLiters',
+    label: 'Ambang selisih meteran air',
+    type: 'int',
+    unit: 'liter',
+    min: 0,
+    max: 100000,
+    envDefault: 200,
+  },
   {
     key: 'stalledHours',
     label: 'Batas pesanan mandek di depot',

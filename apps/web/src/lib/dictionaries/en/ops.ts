@@ -23,6 +23,7 @@ export const ops = {
     inventory: 'Inventory',
     returns: 'Gallon returns',
     wastage: 'Wastage & damage',
+    meter: 'Water meter',
     notifications: 'Ops notifications',
     forecast: 'Forecast',
     depots: 'Depots',

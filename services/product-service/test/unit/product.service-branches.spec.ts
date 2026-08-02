@@ -12,6 +12,8 @@ const base = (over: Partial<{ name: string; sku: string; categoryId: string | nu
   sku: over.sku ?? 'AIR-19L',
   description: null,
   unit: 'Galon 19L',
+  volumeMl: 19000,
+  isGallon: true,
   basePrice: 20000,
   imageUrl: null,
   images: [],

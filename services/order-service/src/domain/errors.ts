@@ -116,6 +116,27 @@ export class CatalogUnavailableError extends DomainError {
   }
 }
 
+/**
+ * A water meter only counts up. A closing reading below its opening means a typo
+ * or a swapped pair, and accepting it would report a negative day of production.
+ */
+export class MeterReadingBackwardsError extends DomainError {
+  readonly code = 'ORDER_METER_READING_BACKWARDS';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(which: 'produksi' | 'air baku') {
+    super(`Angka meteran ${which} akhir tidak boleh lebih kecil dari angka awal.`);
+  }
+}
+
+/** A closing-only write for a day whose opening reading was never entered. */
+export class MeterReadingNotOpenedError extends DomainError {
+  readonly code = 'ORDER_METER_READING_NOT_OPENED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Meteran awal hari ini belum dicatat, jadi meteran akhir belum bisa disimpan.');
+  }
+}
+
 /** BR-006: cancellation is only allowed before a driver is assigned. */
 export class OrderNotCancellableError extends DomainError {
   readonly code = 'ORDER_NOT_CANCELLABLE';

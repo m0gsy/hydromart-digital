@@ -14,6 +14,10 @@ export enum NotificationEvent {
   // Operational (not customer-facing): fired by depot-service when a stock line crosses
   // below its minimum. Recipient is an ops/warehouse number, not the customer.
   STOCK_LOW = 'STOCK_LOW',
+  // Operational (not customer-facing): fired by order-service when a depot's daily
+  // water-meter reading diverges from the litres its recorded sales account for.
+  // Tokens: {{depot}}, {{date}}, {{variance}}, {{gallons}}. Recipient is the ops number.
+  METER_VARIANCE = 'METER_VARIANCE',
   // Operational (not customer-facing): fired by delivery-service when a courier
   // reports a HIGH-severity field incident (design 4b). Tokens: {{severity}},
   // {{category}}, {{note}}. Recipient is the ops number.
@@ -53,6 +57,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
+  [NotificationEvent.METER_VARIANCE]:
+    '💧 Selisih meteran air depot {{depot}} tanggal {{date}}: {{variance}} liter (± {{gallons}} galon) dibanding penjualan tercatat. Mohon dicek.',
   [NotificationEvent.COURIER_INCIDENT]:
     '🚨 Insiden {{severity}} dilaporkan kurir — {{category}}: {{note}}. Mohon segera ditindaklanjuti.',
   [NotificationEvent.CUSTOMER_REGISTERED]:
@@ -77,6 +83,7 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
 // staff-targeted events here as they are introduced.
 export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.STOCK_LOW,
+  NotificationEvent.METER_VARIANCE,
   NotificationEvent.COURIER_INCIDENT,
   // HR events go to staff, so they belong in the ops feed, not a customer inbox. The
   // employee's own leave decisions included — the recipient is an employee either way.
