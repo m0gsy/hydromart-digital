@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Logger } from '@nestjs/common';
+
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import {
@@ -1483,7 +1485,7 @@ describe('OrderService franchise revenue on completion', () => {
     minOrderAmount: null,
   };
 
-  async function build(withOwner: boolean) {
+  async function build(withOwner: boolean, ownershipType?: 'WARALABA' | 'HKP') {
     const orders = new InMemoryOrderRepository();
     const cart = new InMemoryCartRepository();
     const catalog = new FakeProductCatalog();
@@ -1491,6 +1493,7 @@ describe('OrderService franchise revenue on completion', () => {
     const revenue = new FakeFranchiseRevenue();
     depots.depots = [depot];
     if (withOwner) depots.owners.set(depot.id, 'owner-9');
+    if (ownershipType) depots.ownershipTypes.set(depot.id, ownershipType);
     const cartService = new CartService(cart, catalog);
     const service = new OrderService(
       orders,
@@ -1514,8 +1517,10 @@ describe('OrderService franchise revenue on completion', () => {
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     await cartService.setItem('cust-rev', product.id, 3, false);
     const order = await service.checkout('cust-rev', { deliveryAddress: routedAddress });
-    return { service, order, revenue };
+    return { service, order, revenue, depots };
   }
+
+  afterEach(() => jest.restoreAllMocks());
 
   async function complete(service: OrderService, orderId: string): Promise<void> {
     for (const s of [
@@ -1557,8 +1562,25 @@ describe('OrderService franchise revenue on completion', () => {
     });
   });
 
-  it('posts nothing when the depot has no franchise owner', async () => {
-    const { service, order, revenue } = await build(false);
+  it('posts nothing, and says nothing, for a company-owned depot', async () => {
+    const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { service, order, revenue } = await build(false, 'HKP');
+    await complete(service, order.id);
+    expect(revenue.posted).toHaveLength(0);
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it('logs the defect when a FRANCHISE depot has no owner, instead of dropping the revenue silently', async () => {
+    const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const { service, order, revenue } = await build(false, 'WARALABA');
+    await complete(service, order.id);
+    expect(revenue.posted).toHaveLength(0);
+    expect(logged).toHaveBeenCalledWith(expect.stringContaining(order.orderNumber));
+  });
+
+  it('posts nothing when the depot directory is unreachable at completion time', async () => {
+    const { service, order, revenue, depots } = await build(true);
+    depots.unreachable = true; // after checkout routed the order, so only the owner lookup fails
     await complete(service, order.id);
     expect(revenue.posted).toHaveLength(0);
   });

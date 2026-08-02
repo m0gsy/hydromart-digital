@@ -6,6 +6,7 @@ import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosp
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
 import { DepotMap } from '@/components/dashboard/depot-map';
+import { OwnerSelect } from '@/components/hq/owner-select';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
@@ -129,6 +130,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     code: d.code,
     name: d.name,
     ownershipType: d.ownershipType,
+    ownerId: d.ownerId ?? '',
     address: d.address,
     city: d.city,
     province: d.province,
@@ -187,6 +189,9 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
             <option value="WARALABA">WARALABA</option>
           </select>
         </Field>
+        {form.ownershipType === 'WARALABA' && (
+          <OwnerSelect value={form.ownerId} onChange={set('ownerId')} id="d-owner-ops" />
+        )}
         <Field label={t('dashboard.depots.city')} htmlFor="d-city">
           <Input id="d-city" value={form.city} onChange={set('city')} placeholder="Jakarta Pusat" />
         </Field>

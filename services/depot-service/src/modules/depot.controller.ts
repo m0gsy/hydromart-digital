@@ -22,6 +22,7 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagg
 
 import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
+import { OwnershipType } from '../domain/inventory';
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
@@ -93,9 +94,13 @@ export class DepotController {
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id/owner')
   @ApiOperation({ summary: 'Franchise owner of one depot (internal service auth)' })
-  async internalOwner(@Param('id', ParseUUIDPipe) id: string): Promise<{ ownerId: string | null }> {
+  async internalOwner(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ ownerId: string | null; ownershipType: OwnershipType }> {
     const depot = await this.depots.get(id, false);
-    return { ownerId: depot.ownerId };
+    // ownershipType rides along so the caller can tell "company depot, nobody to credit"
+    // from "franchise depot missing its owner" — the second one is a defect worth logging.
+    return { ownerId: depot.ownerId, ownershipType: depot.ownershipType };
   }
 
   // Admin listing includes inactive depots (public browse is active-only), so a

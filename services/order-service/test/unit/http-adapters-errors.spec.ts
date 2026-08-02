@@ -148,7 +148,7 @@ describe('an outbound call that hangs is aborted and still settles', () => {
       'depot-directory.listActiveDepots',
       () => new DepotDirectoryHttpAdapter(cfg()).listActiveDepots(),
     ],
-    ['depot-directory.findOwnerId', () => new DepotDirectoryHttpAdapter(cfg()).findOwnerId('d1')],
+    ['depot-directory.findOwner', () => new DepotDirectoryHttpAdapter(cfg()).findOwner('d1')],
     ['depot-pricing.getPrices', () => new DepotPricingHttpAdapter(cfg()).getPrices('d1', ['p1'])],
     [
       'forecast.ingestCompletedOrder',

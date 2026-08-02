@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Buildings, Storefront } from '@phosphor-icons/react';
 
+import { OwnerSelect } from '@/components/hq/owner-select';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
@@ -15,6 +16,7 @@ function formFromDepot(d: DepotAdmin): DepotForm {
     code: d.code,
     name: d.name,
     ownershipType: d.ownershipType,
+    ownerId: d.ownerId ?? '',
     address: d.address,
     city: d.city,
     province: d.province,
@@ -105,6 +107,10 @@ export function DepotForm({
           </RadioCard>
         </div>
       </div>
+
+      {form.ownershipType === 'WARALABA' && (
+        <OwnerSelect value={form.ownerId} onChange={set('ownerId')} />
+      )}
 
       <Field label={t('hq.depots.form.address')} htmlFor="d-addr">
         <Input id="d-addr" value={form.address} onChange={set('address')} placeholder="Jl. Cikini Raya No. 1" />

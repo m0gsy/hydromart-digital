@@ -756,10 +756,13 @@ describe('DepotController', () => {
     const owned = await c.internalOwned('owner-1');
     expect(owned).toEqual({ depotIds: [DEPOT] });
     // Owner lookup for the franchise revenue push: both an owned and an ownerless depot.
-    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1' });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: 'owner-1' });
-    svc.get.mockResolvedValueOnce({ ownerId: null });
-    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null });
+    svc.get.mockResolvedValueOnce({ ownerId: 'owner-1', ownershipType: 'WARALABA' });
+    expect(await c.internalOwner(DEPOT)).toEqual({
+      ownerId: 'owner-1',
+      ownershipType: 'WARALABA',
+    });
+    svc.get.mockResolvedValueOnce({ ownerId: null, ownershipType: 'HKP' });
+    expect(await c.internalOwner(DEPOT)).toEqual({ ownerId: null, ownershipType: 'HKP' });
     await c.manage({} as never);
     expect(svc.browse).toHaveBeenLastCalledWith({}, false);
     await c.mine(user);

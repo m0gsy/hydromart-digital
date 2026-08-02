@@ -44,6 +44,7 @@ import {
 import {
   DepotDirectoryPort,
   DepotLocation,
+  DepotOwnership,
 } from '../../src/application/ports/depot-directory.port';
 import {
   FranchiseRevenuePort,
@@ -601,11 +602,18 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
   unreachable = false;
   /** depotId -> franchise owner; unset means the depot has no owner (or lookup failed). */
   owners = new Map<string, string>();
+  /** depotId -> ownership type; unset reads as the company-owned default. */
+  ownershipTypes = new Map<string, 'WARALABA' | 'HKP'>();
   async listActiveDepots(): Promise<DepotLocation[] | null> {
     return this.unreachable ? null : this.depots.map((d) => ({ ...d }));
   }
-  async findOwnerId(depotId: string): Promise<string | null> {
-    return this.unreachable ? null : (this.owners.get(depotId) ?? null);
+  async findOwner(depotId: string): Promise<DepotOwnership | null> {
+    if (this.unreachable) return null;
+    const ownerId = this.owners.get(depotId) ?? null;
+    return {
+      ownerId,
+      ownershipType: this.ownershipTypes.get(depotId) ?? (ownerId ? 'WARALABA' : 'HKP'),
+    };
   }
 }
 
