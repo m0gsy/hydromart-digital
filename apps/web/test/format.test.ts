@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIDR, normalizePhone, slugify, toIndonesianE164 } from '@/lib/format';
+import { formatIDR, mediaUrl, normalizePhone, slugify, toIndonesianE164 } from '@/lib/format';
 
 describe('toIndonesianE164', () => {
   it('accepts every form an Indonesian applicant actually types', () => {
@@ -50,5 +50,21 @@ describe('normalizePhone', () => {
   });
   it('strips spaces and dashes before deciding', () => {
     expect(normalizePhone('62 812-3456-7890')).toBe('+6281234567890');
+  });
+});
+
+describe('mediaUrl', () => {
+  it('passes an absolute URL through and resolves a legacy relative path against the gateway', () => {
+    expect(mediaUrl('https://cdn.example/qris/a.png')).toBe('https://cdn.example/qris/a.png');
+    expect(mediaUrl('http://cdn.example/a.png')).toBe('http://cdn.example/a.png');
+    // The bug this exists for: rendered raw, this path 404s on the customer's payment screen.
+    expect(mediaUrl('/uploads/qris/a.png')).toBe('http://localhost:8080/uploads/qris/a.png');
+    expect(mediaUrl('uploads/qris/a.png')).toBe('http://localhost:8080/uploads/qris/a.png');
+  });
+
+  it('returns null for an unset image so callers render their empty state', () => {
+    expect(mediaUrl(null)).toBeNull();
+    expect(mediaUrl(undefined)).toBeNull();
+    expect(mediaUrl('')).toBeNull();
   });
 });

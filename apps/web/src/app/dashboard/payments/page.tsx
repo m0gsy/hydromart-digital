@@ -7,6 +7,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -14,7 +15,6 @@ import { canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin } from '@/lib/types';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
 
 /** One payment-method row. Enablement is derived from whether it is configured — there
@@ -70,11 +70,7 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
     }
   }
 
-  const src = depot.paymentQrisImageUrl
-    ? depot.paymentQrisImageUrl.startsWith('http')
-      ? depot.paymentQrisImageUrl
-      : `${BASE_URL}${depot.paymentQrisImageUrl}`
-    : null;
+  const src = mediaUrl(depot.paymentQrisImageUrl);
 
   return (
     <Card className="flex flex-col gap-3 p-5">

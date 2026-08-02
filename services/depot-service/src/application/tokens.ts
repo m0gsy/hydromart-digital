@@ -21,4 +21,5 @@ export const DEPOT_TOKENS = {
   HuddleRepository: Symbol('HuddleRepository'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),
+  Storage: Symbol('Storage'),
 } as const;

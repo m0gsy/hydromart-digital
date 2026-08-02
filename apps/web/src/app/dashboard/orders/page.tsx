@@ -296,6 +296,10 @@ function QueueBody() {
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);
   const inProcess = useMemo(() => items.filter(IN_PROCESS), [items]);
   const list = group === 'assign' ? needAssign : inProcess;
+  // Assignment itself stays PREPARING-only: the order state machine allows
+  // PREPARING → DRIVER_ASSIGNED and nothing else, so a wider "needs assigning" tab would
+  // offer couriers the server refuses. The header carries the honest total instead.
+  const backlog = needAssign.length + inProcess.length;
   const selected = items.find((o) => o.id === selectedId) ?? null;
 
   // Land on the group that actually has work. The default tab only holds PREPARING
@@ -315,9 +319,14 @@ function QueueBody() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <ClipboardText size={24} weight="fill" className="text-brand-500" />
         <h1 className="text-2xl font-bold">{t('dashB.orders.title')}</h1>
+        {/* The whole open backlog, not just the assignable slice: CREATED/CONFIRMED are the
+            depot's work too, and counting only PREPARING made the queue look shorter than it is. */}
+        {backlog > 0 && (
+          <Badge tone="warning">{t('dashB.orders.backlog', { n: backlog })}</Badge>
+        )}
       </div>
 
       <p className="text-[12.5px] text-[color:var(--text-muted)]">

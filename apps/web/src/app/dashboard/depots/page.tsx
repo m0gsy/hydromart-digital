@@ -12,6 +12,7 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skel
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, toDepotPayload, type DepotForm } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
+import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canManageDepots } from '@/lib/roles';
@@ -21,7 +22,6 @@ import type { DepotAdmin, Page } from '@/lib/types';
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
 
 /** 4b — static-QRIS image uploader (replaces the old raw-URL text field). Upload is immediate
@@ -60,7 +60,7 @@ function QrisUploader({
     }
   }
 
-  const src = qrisUrl ? (qrisUrl.startsWith('http') ? qrisUrl : `${BASE_URL}${qrisUrl}`) : null;
+  const src = mediaUrl(qrisUrl);
 
   return (
     <div className="border-t border-app pt-3">

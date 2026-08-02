@@ -7,12 +7,15 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
+  Logger,
   Param,
   ParseUUIDPipe,
   Patch,
   PayloadTooLargeException,
   Post,
   Query,
+  ServiceUnavailableException,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -23,6 +26,8 @@ import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagg
 import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { OwnershipType } from '../domain/inventory';
+import { DEPOT_TOKENS } from '../application/tokens';
+import { StoragePort } from '../application/ports/storage.port';
 import { DepotService, NearbyDepot } from '../application/services/depot.service';
 import { DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
@@ -52,7 +57,12 @@ interface UploadedImage {
 @ApiTags('Depots')
 @Controller({ path: 'depots', version: '1' })
 export class DepotController {
-  constructor(private readonly depots: DepotService) {}
+  private readonly logger = new Logger(DepotController.name);
+
+  constructor(
+    private readonly depots: DepotService,
+    @Inject(DEPOT_TOKENS.Storage) private readonly storage: StoragePort,
+  ) {}
 
   // Anonymous browse: the trimmed projection only. Serving the whole DepotRecord here
   // published every depot's bank account to the open internet — see PublicDepotView.
@@ -217,9 +227,22 @@ export class DepotController {
     if (file.size > QRIS_MAX_BYTES) {
       throw new PayloadTooLargeException('file exceeds 5MB');
     }
-    // TODO wire object storage — persist file.buffer via a StoragePort and store its
-    // public URL. Until then we record a deterministic path so the config UI has a value.
-    const url = `/uploads/qris/${id}.${ext}`;
+    // The stored URL is ABSOLUTE and public: the customer's payment screen renders it with
+    // no console base URL to prepend. This used to record `/uploads/qris/<id>.<ext>` without
+    // writing the file anywhere, so every QRIS was a broken image on both sides.
+    let url: string;
+    try {
+      ({ url } = await this.storage.put({
+        body: file.buffer,
+        contentType: file.mimetype,
+        ext,
+      }));
+    } catch (error) {
+      this.logger.error(`QRIS upload failed for depot ${id}: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        'Penyimpanan gambar sedang tidak tersedia. Coba lagi sebentar lagi.',
+      );
+    }
     return this.depots.update(id, { paymentQrisImageUrl: url });
   }
 

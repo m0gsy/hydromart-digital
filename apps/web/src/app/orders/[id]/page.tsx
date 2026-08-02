@@ -19,7 +19,7 @@ import { useToast } from '@/components/toast';
 import { Button, ErrorState, LinkButton, Money, RadioCard, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTime, mediaUrl } from '@/lib/format';
 import { isCancellable, tone } from '@/lib/order-status';
 import { PAYMENT_METHODS, needsPayment } from '@/lib/payments';
 import { useT } from '@/lib/locale-context';
@@ -366,7 +366,7 @@ function OrderDetailInner({ id }: { id: string }) {
                   (depot.paymentQrisImageUrl ? (
                     <div className="flex flex-col items-center gap-2 rounded-2xl border border-app p-4">
                       <img
-                        src={depot.paymentQrisImageUrl}
+                        src={mediaUrl(depot.paymentQrisImageUrl) ?? undefined}
                         alt={`QRIS ${depot.name}`}
                         className="h-56 w-56 rounded-xl object-contain"
                       />

@@ -63,3 +63,18 @@ export function normalizePhone(input: string): string {
   if (trimmed.startsWith('62')) return `+${trimmed}`;
   return trimmed;
 }
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
+
+/**
+ * Absolute URL for a stored media path (QRIS image, upload…). Anything already absolute is
+ * returned untouched — that is what the storage adapters hand back now. Legacy rows still
+ * hold a service-relative path, and those only resolve against the gateway; rendering them
+ * raw is what broke the QRIS on the customer's payment screen while the console (which did
+ * prepend) looked fine.
+ */
+export function mediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
