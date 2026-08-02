@@ -128,7 +128,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'franchise',
     items: [
       { href: '/hq/applications', labelKey: 'applications', icon: FileText, ready: true },
-      { href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: false },
+      { href: '/hq/franchise', labelKey: 'franchise', icon: Buildings, ready: true },
     ],
   },
   {

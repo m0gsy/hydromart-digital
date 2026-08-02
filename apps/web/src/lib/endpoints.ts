@@ -636,11 +636,12 @@ export const endpoints = {
       return `/depots/api/v1/depots/nearby?${p.toString()}`;
     },
     // Admin listing incl. inactive depots (create/update/deactivate target these).
-    manage: (q: { page?: number; limit?: number; search?: string } = {}) => {
+    manage: (q: { page?: number; limit?: number; search?: string; ownershipType?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.search) p.set('search', q.search);
+      if (q.ownershipType) p.set('ownershipType', q.ownershipType);
       const qs = p.toString();
       return `/depots/api/v1/depots/manage${qs ? `?${qs}` : ''}`;
     },
