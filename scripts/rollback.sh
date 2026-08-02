@@ -7,17 +7,12 @@
 # scripts/restore-db.sh from the pre-deploy backup (deploy.sh takes one first).
 set -euo pipefail
 
-COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+cd "$(dirname "$0")/.."
+. scripts/lib/deploy-common.sh
+
 STATE_DIR=".deploy"
-GATEWAY_HEALTH="${GATEWAY_HEALTH:-http://localhost:8080/health}"
 
 log() { echo "[rollback] $*"; }
-svc_of() {
-  case "$1" in
-    services/*/*) echo "$1" | cut -d/ -f2 | sed 's/-service$//' ;;
-    apps/*/*)     echo "$1" | cut -d/ -f2 ;;
-  esac
-}
 
 TARGET="${1:-$(cat "$STATE_DIR/prev-sha" 2>/dev/null || true)}"
 [ -z "$TARGET" ] && { echo "no rollback target (pass a SHA or run a deploy first)"; exit 2; }
@@ -28,15 +23,32 @@ log "rolling back $CUR → $TARGET"
 CHANGED="$(git diff --name-only "$TARGET" "$CUR")"
 git reset --hard "$TARGET"
 
-if echo "$CHANGED" | grep -qE '^packages/'; then
-  log "shared package differs → full rebuild"
+if needs_full_rebuild "$CHANGED"; then
+  log "shared package or root build input differs → full rebuild"
   bash scripts/rebuild-stale.sh --all
 else
   mapfile -t SERVICES < <(echo "$CHANGED" | while read -r f; do svc_of "$f"; done | sort -u | grep -v '^$' || true)
-  [ "${#SERVICES[@]}" -eq 0 ] && { log "no service code differs — nothing to rebuild"; exit 0; }
-  log "rebuilding: ${SERVICES[*]}"
-  bash scripts/rebuild-stale.sh "${SERVICES[@]}"
+  if [ "${#SERVICES[@]}" -eq 0 ]; then
+    # Same trap deploy.sh used to have: "no service differs" is not "nothing to do".
+    # A rollback runs because the stack is unhealthy, so exiting here left it exactly
+    # as broken as it was found — and reported success doing it.
+    log "no service image differs — converging only"
+  else
+    log "rebuilding: ${SERVICES[*]}"
+    bash scripts/rebuild-stale.sh "${SERVICES[@]}"
+  fi
 fi
 
-for _ in $(seq 1 30); do curl -fsS "$GATEWAY_HEALTH" >/dev/null 2>&1 && { log "ROLLBACK OK → $TARGET"; echo "$TARGET" > "$STATE_DIR/last-good-sha"; exit 0; }; sleep 2; done
-log "!! still unhealthy after rollback to $TARGET — manual intervention needed"; exit 1
+log "converging the full stack"
+converge
+
+# Same gate as the deploy: gateway alone answering 200 is what let 19 stopped
+# containers pass for a healthy stack.
+if health_ok; then
+  log "ROLLBACK OK → $TARGET"
+  echo "$TARGET" > "$STATE_DIR/last-good-sha"
+  exit 0
+fi
+log "!! still unhealthy after rollback to $TARGET — manual intervention needed"
+alert "rollback to $TARGET did not restore the stack — manual intervention needed"
+exit 1
