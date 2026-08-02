@@ -154,6 +154,11 @@ services:
       # Franchise revenue push on order completion (design 6a). Blank disables it silently.
       PAYOUT_SERVICE_URL: http://payout:3016
       ORDER_DELIVERY_FEE: 5000
+      # Water-meter variance alert (staff ops feed via crm). Reuses the ONE ops
+      # number DEPOT_ALERT_PHONE rather than adding a third variable to keep in
+      # sync — delivery already borrows it the same way. Blank = alerting silent,
+      # the same fail-open convention as the low-stock alert.
+      ORDER_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3004/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

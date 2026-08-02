@@ -18,7 +18,16 @@ cd "$(dirname "$0")/.."
 
 # Overridable so a local run can layer an extra overlay (e.g. dropping redis's host
 # port when another project already publishes 6379) without editing this file.
-COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml}"
+# Caddy sits behind `profiles: ["tls"]`, so a plain compose call excludes it: never
+# started, never converged, absent from `ps`. That is how a "successful" deploy left
+# 80/443 dead for four hours while the gateway answered fine on 8080. Enable the
+# profile only when a domain is configured, so the documented bare-IP (no-TLS) path
+# still works and does not try to bind 80/443 without a hostname.
+TLS_PROFILE=""
+if [ -n "${WEB_DOMAIN:-}" ] || grep -qsE '^WEB_DOMAIN=.+' .env; then
+  TLS_PROFILE="--profile tls"
+fi
+COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml $TLS_PROFILE}"
 # ponytail: 4 fits the current 16GB/8vCPU VPS (a build peaks ~1.5GB). Lower it to
 # 1-2 if the host is ever downsized again.
 BATCH="${BATCH:-4}"
