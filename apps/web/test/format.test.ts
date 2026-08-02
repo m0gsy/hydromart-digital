@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatIDR, normalizePhone, slugify } from '@/lib/format';
+import { formatIDR, normalizePhone, slugify, toIndonesianE164 } from '@/lib/format';
+
+describe('toIndonesianE164', () => {
+  it('accepts every form an Indonesian applicant actually types', () => {
+    expect(toIndonesianE164('081234567890')).toBe('+6281234567890');
+    expect(toIndonesianE164('0812-3456-7890')).toBe('+6281234567890');
+    expect(toIndonesianE164('+62 812 3456 7890')).toBe('+6281234567890');
+    expect(toIndonesianE164('6281234567890')).toBe('+6281234567890');
+    expect(toIndonesianE164('81234567890')).toBe('+6281234567890');
+  });
+
+  it('leaves anything unrecognizable alone so the server rejects it with a reason', () => {
+    expect(toIndonesianE164(' +1 555 0100 ')).toBe('+1 555 0100');
+    expect(toIndonesianE164('bukan nomor')).toBe('bukan nomor');
+  });
+});
 
 describe('slugify', () => {
   it('produces the shape product-service accepts', () => {

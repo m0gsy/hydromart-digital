@@ -38,12 +38,7 @@ export function Footer() {
       heading: t('auth.footer.help'),
       links: [
         { label: t('auth.footer.howToOrder'), href: '/help' },
-        // ponytail: mailto until there is a public franchise-application page; the
-        // application pipeline itself is staff-side only (/hq/applications).
-        {
-          label: t('auth.footer.becomePartner'),
-          href: 'mailto:hello@hydromart-digital.com?subject=Kemitraan%20depot%20Hydromart',
-        },
+        { label: t('auth.footer.becomePartner'), href: '/waralaba' },
         { label: 'hello@hydromart-digital.com', href: 'mailto:hello@hydromart-digital.com' },
       ],
     },

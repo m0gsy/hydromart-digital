@@ -11,6 +11,22 @@ export function formatIDR(amount: number): string {
 }
 
 /**
+ * Indonesian mobile in whatever form a person types it -> strict E.164 (`+628…`).
+ * Everything else on the platform stores the local `08…` form, but the franchise
+ * application DTO validates `^\+628\d{7,11}$`, so the form converts rather than
+ * making an applicant learn a format. Returns the input untouched when it is not a
+ * recognizable Indonesian mobile — the server rejects it and says why.
+ */
+export function toIndonesianE164(input: string): string {
+  const digits = input.replace(/[\s-().]/g, '');
+  if (/^\+628\d+$/.test(digits)) return digits;
+  if (/^628\d+$/.test(digits)) return `+${digits}`;
+  if (/^08\d+$/.test(digits)) return `+62${digits.slice(1)}`;
+  if (/^8\d+$/.test(digits)) return `+62${digits}`;
+  return input.trim();
+}
+
+/**
  * Name -> URL slug, matching the shape product-service validates
  * (`^[a-z0-9]+(?:-[a-z0-9]+)*$`): lowercase, runs of anything else become one hyphen,
  * no leading or trailing hyphen. Returns '' for a name with nothing sluggable in it,

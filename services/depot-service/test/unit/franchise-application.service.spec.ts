@@ -6,8 +6,10 @@ import {
 } from '../../src/domain/franchise-application';
 import {
   ApplicationAlreadyDecidedError,
+  DuplicateDepotCodeError,
   FranchiseApplicationNotFoundError,
 } from '../../src/domain/errors';
+import { DepotRepository } from '../../src/application/ports/depot.repository';
 import {
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
@@ -69,13 +71,42 @@ const APP = (
   ...over,
 });
 
+/** Only findByCode matters here — create() checks the proposed code against live depots. */
+function depotsWithCodes(...codes: string[]): DepotRepository {
+  return {
+    findByCode: async (code: string) =>
+      codes.includes(code) ? ({ id: `d-${code}`, code } as never) : null,
+  } as unknown as DepotRepository;
+}
+
 describe('FranchiseApplicationService', () => {
   let repo: InMemoryApplicationRepository;
   let service: FranchiseApplicationService;
 
   beforeEach(() => {
     repo = new InMemoryApplicationRepository();
-    service = new FranchiseApplicationService(repo);
+    service = new FranchiseApplicationService(repo, depotsWithCodes());
+  });
+
+  it('refuses a code a live depot already wears, before a human reviews the application', async () => {
+    const taken = new FranchiseApplicationService(repo, depotsWithCodes('DPK-01'));
+    await expect(taken.create(APP({ proposedCode: 'DPK-01' }))).rejects.toBeInstanceOf(
+      DuplicateDepotCodeError,
+    );
+    expect(repo.rows).toHaveLength(0);
+    // A free code still goes through on the same service.
+    await expect(taken.create(APP({ proposedCode: 'DPK-02' }))).resolves.toMatchObject({
+      proposedCode: 'DPK-02',
+    });
+  });
+
+  it('allows two pending applications to propose the same code', async () => {
+    // Nothing is provisioned yet; picking between two candidates for one area is what
+    // the queue is for.
+    await service.create(APP({ applicantName: 'Rudi' }));
+    await expect(service.create(APP({ applicantName: 'Sari' }))).resolves.toMatchObject({
+      applicantName: 'Sari',
+    });
   });
 
   it('lists the queue oldest-first (highest SLA age at the top)', async () => {
