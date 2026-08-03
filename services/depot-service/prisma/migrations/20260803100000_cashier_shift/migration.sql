@@ -3,7 +3,10 @@
 CREATE TYPE "CashierShiftStatus" AS ENUM ('OPEN', 'CLOSED');
 
 CREATE TABLE "cashier_shifts" (
-  "id"           UUID NOT NULL DEFAULT gen_random_uuid(),
+  -- No database default: Prisma's @default(uuid()) is generated client-side, so a DB
+  -- default here reads as schema drift against the model. Every other table in this
+  -- schema does the same.
+  "id"           UUID NOT NULL,
   "depotId"      UUID NOT NULL,
   "cashierId"    UUID NOT NULL,
   "cashierName"  TEXT NOT NULL,
