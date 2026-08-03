@@ -60,6 +60,7 @@ describe('DepotInventoryController.import', () => {
         {
           itemType: InventoryItemType.GALON,
           productId: null,
+          sku: null,
           label: 'Galon 19L',
           unit: 'unit',
           quantity: 0,

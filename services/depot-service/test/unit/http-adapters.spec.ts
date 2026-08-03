@@ -180,6 +180,26 @@ describe('ProductCatalogHttpAdapter', () => {
     });
   });
 
+  it('resolves a product by exact sku, ignoring a search hit that merely contains it', async () => {
+    fetchMock.mockResolvedValue(
+      jsonRes(200, { items: [{ ...product, id: 'p2', sku: 'AIR-19L-XL' }, product] }),
+    );
+    await expect(new ProductCatalogHttpAdapter(makeConfig()).findBySku('AIR-19L')).resolves.toEqual({
+      status: 'found',
+      product,
+    });
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://products:3003/api/v1/products?search=AIR-19L&limit=20',
+    );
+  });
+
+  it('reports a sku no product carries as missing', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [] }));
+    await expect(
+      new ProductCatalogHttpAdapter(makeConfig()).findBySku('TIDAK-ADA'),
+    ).resolves.toEqual({ status: 'missing' });
+  });
+
   it('reports unavailable without calling out when no product-service url is set', async () => {
     await expect(
       new ProductCatalogHttpAdapter(makeConfig({ productServiceUrl: '' })).find('p1'),

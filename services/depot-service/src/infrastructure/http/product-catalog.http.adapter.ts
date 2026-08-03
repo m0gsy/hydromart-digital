@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DepotConfigService } from '../../config/depot-config.service';
 import {
   CatalogLookup,
+  CatalogProduct,
   ProductCatalogPort,
 } from '../../application/ports/product-catalog.port';
 
@@ -32,15 +33,50 @@ export class ProductCatalogHttpAdapter implements ProductCatalogPort {
   constructor(private readonly config: DepotConfigService) {}
 
   async find(productId: string): Promise<CatalogLookup> {
+    return this.lookup(productId, `/api/v1/products/${productId}`, (body) =>
+      this.toProduct(body as ProductResponse),
+    );
+  }
+
+  async findBySku(sku: string): Promise<CatalogLookup> {
+    // The catalog has no by-SKU route; search is the closest thing, and it matches on name
+    // as well. So the SKU is re-checked here — "AIR-19" must not import as "AIR-19L".
+    return this.lookup(
+      sku,
+      `/api/v1/products?search=${encodeURIComponent(sku)}&limit=20`,
+      (body) => {
+        const hit = ((body as { items?: ProductResponse[] }).items ?? []).find(
+          (p) => p.sku.toLowerCase() === sku.trim().toLowerCase(),
+        );
+        return hit ? this.toProduct(hit) : null;
+      },
+    );
+  }
+
+  private toProduct(body: ProductResponse): CatalogProduct {
+    return {
+      id: body.id,
+      name: body.name,
+      sku: body.sku,
+      unit: body.unit,
+      active: body.active,
+    };
+  }
+
+  private async lookup(
+    subject: string,
+    path: string,
+    pick: (body: unknown) => CatalogProduct | null,
+  ): Promise<CatalogLookup> {
     const base = this.config.productServiceUrl;
     if (!base) {
-      this.logger.debug(`Catalog lookup skipped for ${productId} (no PRODUCT_SERVICE_URL)`);
+      this.logger.debug(`Catalog lookup skipped for ${subject} (no PRODUCT_SERVICE_URL)`);
       return { status: 'unavailable' };
     }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ProductCatalogHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(`${base}/api/v1/products/${productId}`, {
+      const res = await fetch(`${base}${path}`, {
         headers: { accept: 'application/json' },
         signal: controller.signal,
       });
@@ -50,19 +86,10 @@ export class ProductCatalogHttpAdapter implements ProductCatalogPort {
       if (!res.ok) {
         throw new Error(`product-service responded ${res.status}`);
       }
-      const body = (await res.json()) as ProductResponse;
-      return {
-        status: 'found',
-        product: {
-          id: body.id,
-          name: body.name,
-          sku: body.sku,
-          unit: body.unit,
-          active: body.active,
-        },
-      };
+      const product = pick(await res.json());
+      return product ? { status: 'found', product } : { status: 'missing' };
     } catch (error) {
-      this.logger.warn(`Catalog lookup for ${productId} failed: ${(error as Error).message}`);
+      this.logger.warn(`Catalog lookup for ${subject} failed: ${(error as Error).message}`);
       return { status: 'unavailable' };
     } finally {
       clearTimeout(timer);

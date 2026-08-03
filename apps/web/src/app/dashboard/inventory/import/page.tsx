@@ -17,6 +17,9 @@ const COLUMNS: ImportColumn[] = [
   { key: 'quantity', example: '100', parse: intCell },
   { key: 'minimumStock', example: '20', parse: intCell },
   { key: 'sellPrice', example: '', parse: intCell },
+  // Either identifies the product on a PRODUK row. `sku` is the one a human can actually
+  // type; productId stays for files exported from elsewhere and wins if both are filled.
+  { key: 'sku', example: 'AIR-19L', text: true },
   { key: 'productId', example: '', text: true },
 ];
 
@@ -32,7 +35,7 @@ export default function ImportInventoryPage() {
   return (
     <CsvImport
       title="Import Stok"
-      description="Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi productId; baris stok mentah harus mengosongkannya."
+      description="Unggah Excel atau CSV untuk membuat banyak baris stok sekaligus. Baris PRODUK wajib mengisi sku (kode produk di katalog) atau productId; baris stok mentah harus mengosongkan keduanya. Nama dan satuan baris PRODUK diambil dari katalog, apa pun yang ditulis di kolom label."
       columns={COLUMNS}
       endpoint={endpoints.inventory.import(selectedId)}
       templateName="stok"

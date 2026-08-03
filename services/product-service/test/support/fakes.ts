@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 
+import {
+  ProductChanged,
+  StockNotifierPort,
+} from '../../src/application/ports/stock-notifier.port';
 import { ProductConfigService } from '../../src/config/product-config.service';
 import {
   CategoryRecord,
@@ -83,6 +87,19 @@ export class InMemoryProductRepository implements ProductRepository {
     const rec = this.rows.find((r) => r.id === id)!;
     Object.assign(rec, patch, { updatedAt: nextDate() });
     return { ...rec };
+  }
+}
+
+export class FakeStockNotifier implements StockNotifierPort {
+  changes: ProductChanged[] = [];
+  /** Set to prove a depot-service outage never fails a catalog edit. */
+  throws = false;
+
+  async productChanged(change: ProductChanged): Promise<void> {
+    if (this.throws) {
+      throw new Error('depot-service unreachable');
+    }
+    this.changes.push(change);
   }
 }
 

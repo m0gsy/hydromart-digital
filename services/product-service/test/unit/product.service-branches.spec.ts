@@ -4,7 +4,11 @@ import {
   DuplicateSkuError,
   ProductNotFoundError,
 } from '../../src/domain/errors';
-import { InMemoryCategoryRepository, InMemoryProductRepository } from '../support/fakes';
+import {
+  FakeStockNotifier,
+  InMemoryCategoryRepository,
+  InMemoryProductRepository,
+} from '../support/fakes';
 
 const base = (over: Partial<{ name: string; sku: string; categoryId: string | null }> = {}) => ({
   categoryId: over.categoryId ?? null,
@@ -22,12 +26,14 @@ const base = (over: Partial<{ name: string; sku: string; categoryId: string | nu
 describe('ProductService.update branches', () => {
   let products: InMemoryProductRepository;
   let categories: InMemoryCategoryRepository;
+  let notifier: FakeStockNotifier;
   let service: ProductService;
 
   beforeEach(() => {
     products = new InMemoryProductRepository();
     categories = new InMemoryCategoryRepository();
-    service = new ProductService(products, categories);
+    notifier = new FakeStockNotifier();
+    service = new ProductService(products, categories, notifier);
   });
 
   it('updates without touching sku or category', async () => {

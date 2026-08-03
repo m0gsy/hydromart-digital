@@ -1000,7 +1000,9 @@ describe('InventoryPrismaRepository', () => {
     inventoryItem.findMany.mockResolvedValue([item]);
     const out = await repo.listForDepot('depot-1', {});
     expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1' },
+      // hidden:false is not optional — it is what keeps a line whose catalog product was
+      // switched off off the operator's list while internal lookups can still settle it.
+      where: { depotId: 'depot-1', hidden: false },
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
     });
     expect(out).toHaveLength(1);
@@ -1015,7 +1017,7 @@ describe('InventoryPrismaRepository', () => {
       lowStockOnly: true,
     } as never);
     expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK },
+      where: { depotId: 'depot-1', hidden: false, itemType: InventoryItemType.PRODUK },
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
     });
     expect(out.map((i) => i.id)).toEqual(['it-2']);

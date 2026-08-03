@@ -26,4 +26,10 @@ export type CatalogLookup =
 export interface ProductCatalogPort {
   /** Resolve one product by id. Never throws — transport failure is `unavailable`. */
   find(productId: string): Promise<CatalogLookup>;
+  /**
+   * Resolve one product by its SKU, so an import file can identify a product by the code
+   * printed on the shelf instead of a UUID nobody can type. Exact match only: a catalog
+   * search that merely *contains* the code is not the product the operator meant.
+   */
+  findBySku(sku: string): Promise<CatalogLookup>;
 }

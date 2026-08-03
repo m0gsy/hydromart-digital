@@ -4,6 +4,8 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -34,6 +36,7 @@ import {
   ListInventoryQueryDto,
   ListStockMovementsQueryDto,
   OpnameStockDto,
+  ProductChangedDto,
   UpdateInventoryItemDto,
   WastageQueryDto,
 } from './dto/inventory.dto';
@@ -67,6 +70,7 @@ export class DepotInventoryController {
       {
         itemType: dto.itemType,
         productId: dto.productId ?? null,
+        sku: dto.sku ?? null,
         label: dto.label,
         unit: dto.unit,
         quantity: dto.quantity ?? 0,
@@ -90,6 +94,7 @@ export class DepotInventoryController {
       dto.rows.map((row) => ({
         itemType: row.itemType,
         productId: row.productId ?? null,
+        sku: row.sku ?? null,
         label: row.label,
         unit: row.unit,
         quantity: row.quantity ?? 0,
@@ -207,6 +212,23 @@ export class DepotInventoryController {
 @Controller({ path: 'inventory', version: '1' })
 export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
+
+  // Pushed by product-service when a product is renamed or switched off, so the lines
+  // that copied its name do not keep showing the old one. Declared before ':itemId' so
+  // the static segment wins the route match.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/product-changed')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Apply a catalog rename/deactivation to every depot line for that product (internal)',
+  })
+  productChanged(
+    @Body() dto: ProductChangedDto,
+  ): Promise<{ renamed: number; hidden: number }> {
+    return this.inventory.applyProductChange(dto);
+  }
 
   // Declared before ':itemId' so the static segment wins the route match.
   @Can('inventoryRead')

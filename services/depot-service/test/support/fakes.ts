@@ -229,6 +229,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       ...data,
       reserved: 0,
       sellPrice: data.sellPrice ?? null,
+      hidden: false,
       id: randomUUID(),
       createdAt: now,
       updatedAt: now,
@@ -262,9 +263,24 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       )
       .map((x) => ({ productId: x.productId as string, sellPrice: x.sellPrice as number }));
   }
+  async renameByProductId(productId: string, label: string, unit: string): Promise<number> {
+    const hits = this.items.filter((x) => x.productId === productId);
+    hits.forEach((x) => Object.assign(x, { label, unit }));
+    return hits.length;
+  }
+  async setHiddenByProductId(productId: string, hidden: boolean): Promise<number> {
+    const hits = this.items.filter((x) => x.productId === productId);
+    hits.forEach((x) => Object.assign(x, { hidden }));
+    return hits.length;
+  }
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     return this.items
-      .filter((x) => x.depotId === depotId && (!filter.itemType || x.itemType === filter.itemType))
+      .filter(
+        (x) =>
+          x.depotId === depotId &&
+          !x.hidden &&
+          (!filter.itemType || x.itemType === filter.itemType),
+      )
       .filter(
         (x) =>
           !filter.lowStockOnly ||
@@ -437,6 +453,14 @@ export class FakeProductCatalog implements ProductCatalogPort {
       return { status: 'unavailable' };
     }
     const product = this.products.get(productId);
+    return product ? { status: 'found', product } : { status: 'missing' };
+  }
+
+  async findBySku(sku: string): Promise<CatalogLookup> {
+    if (this.unavailable) {
+      return { status: 'unavailable' };
+    }
+    const product = [...this.products.values()].find((p) => p.sku === sku);
     return product ? { status: 'found', product } : { status: 'missing' };
   }
 }

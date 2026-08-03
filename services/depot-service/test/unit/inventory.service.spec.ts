@@ -312,10 +312,153 @@ describe('InventoryService', () => {
       expect(line.unit).toBe('unit');
     });
 
+    // An import file identifies a product by the code printed on the shelf. Requiring a
+    // UUID was why the CSV wizard was, in practice, unusable.
+    it('resolves a row that carries a sku instead of an id', async () => {
+      const line = await inventory.createLine(
+        depotId,
+        {
+          itemType: InventoryItemType.PRODUK,
+          sku: 'AIR-19L',
+          label: 'apa saja',
+          unit: 'x',
+          quantity: 7,
+          minimumStock: 0,
+        },
+        ACTOR,
+      );
+      expect(line.productId).toBe(PRODUCT_ID);
+      expect(line.label).toBe('Air Galon 19L');
+      expect(line.quantity).toBe(7);
+    });
+
+    it('refuses a sku the catalog does not have', async () => {
+      await expect(
+        inventory.createLine(
+          depotId,
+          {
+            itemType: InventoryItemType.PRODUK,
+            sku: 'TIDAK-ADA',
+            label: 'x',
+            unit: 'x',
+            quantity: 0,
+            minimumStock: 0,
+          },
+          ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(CatalogProductNotFoundError);
+    });
+
+    // With only a SKU there is no id to fall back to, so this one cannot fail open.
+    it('refuses a sku row when the catalog is unreachable', async () => {
+      catalog.unavailable = true;
+      await expect(
+        inventory.createLine(
+          depotId,
+          {
+            itemType: InventoryItemType.PRODUK,
+            sku: 'AIR-19L',
+            label: 'x',
+            unit: 'x',
+            quantity: 0,
+            minimumStock: 0,
+          },
+          ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(CatalogProductNotFoundError);
+    });
+
     it('never asks the catalog about a raw stock line', async () => {
       catalog.unavailable = true; // would fail the lookup if one were made
       const line = await inventory.createLine(depotId, raw(), ACTOR);
       expect(line.label).toBe('Galon 19L');
+    });
+  });
+
+  // A line copies the product's name when it is opened, so the catalog has to push its
+  // edits here or every depot keeps showing a name the catalog stopped using.
+  describe('a catalog change reaches the lines that copied it', () => {
+    it('renames the line in every depot at once', async () => {
+      const second = await new DepotService(depotRepo).create({
+        code: 'JKT-02',
+        name: 'Depot Menteng',
+        ownershipType: OwnershipType.HKP,
+        address: 'b',
+        city: 'Jakarta',
+        province: 'DKI Jakarta',
+        lat: -6.2,
+        lng: 106.8,
+        serviceRadiusKm: 5,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+        ownerId: null,
+        operatingHours: {},
+        holidays: [],
+      });
+      await produkLine(PRODUCT_ID, 10);
+      await inventory.createLine(
+        second.id,
+        { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'x', unit: 'x', quantity: 1, minimumStock: 0 },
+        ACTOR,
+      );
+
+      const result = await inventory.applyProductChange({
+        productId: PRODUCT_ID,
+        name: 'Air Galon 19,2L',
+        unit: 'Galon',
+        active: true,
+      });
+
+      expect(result.renamed).toBe(2);
+      const labels = [
+        ...(await inventory.listForDepot(depotId, {})),
+        ...(await inventory.listForDepot(second.id, {})),
+      ].map((i) => i.label);
+      expect(labels).toEqual(['Air Galon 19,2L', 'Air Galon 19,2L']);
+    });
+
+    // Hidden, not deleted: the movement ledger is the depot's record of what it sold, and
+    // an order placed before the product was switched off still has to settle.
+    it('hides the line from the operator but keeps it settleable', async () => {
+      const line = await produkLine(PRODUCT_ID, 10);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+
+      await inventory.applyProductChange({
+        productId: PRODUCT_ID,
+        name: 'Air Galon 19L',
+        unit: 'Galon',
+        active: false,
+      });
+
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(0);
+      const settled = await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
+      expect(settled.consumed).toEqual([PRODUCT_ID]);
+      expect((await inventory.get(line.id)).quantity).toBe(8);
+    });
+
+    it('brings the line back when the product is switched on again', async () => {
+      await produkLine(PRODUCT_ID, 10);
+      const change = { productId: PRODUCT_ID, name: 'Air Galon 19L', unit: 'Galon' };
+      await inventory.applyProductChange({ ...change, active: false });
+      await inventory.applyProductChange({ ...change, active: true });
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(1);
+    });
+
+    // product-service pushes every change and cannot know which products a depot stocks.
+    it('is a no-op for a product no depot stocks', async () => {
+      await expect(
+        inventory.applyProductChange({
+          productId: '99999999-9999-4999-8999-999999999999',
+          name: 'x',
+          unit: 'x',
+          active: true,
+        }),
+      ).resolves.toEqual({ renamed: 0, hidden: 0 });
     });
   });
 

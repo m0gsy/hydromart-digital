@@ -40,6 +40,8 @@ import { DepotConfigService } from '../../config/depot-config.service';
 export interface CreateLineInput {
   itemType: InventoryItemType;
   productId?: string | null;
+  /** Alternative to productId on import rows: the catalog SKU, resolved to an id. */
+  sku?: string | null;
   label: string;
   unit: string;
   quantity: number;
@@ -163,7 +165,24 @@ export class InventoryService {
     if (!(await this.depots.findById(depotId, false))) {
       throw new DepotNotFoundError();
     }
-    const productId = input.productId ?? null;
+    let productId = input.productId ?? null;
+    let { label, unit } = input;
+
+    // An import file may name the product by SKU — the code printed on the shelf — instead
+    // of a UUID. Resolved first, before the PRODUK-needs-a-product check below, because a
+    // SKU-only row legitimately arrives with no id at all.
+    if (productId === null && input.sku && isProductLine(input.itemType)) {
+      const bySku = await this.catalog.findBySku(input.sku);
+      if (bySku.status !== 'found') {
+        // Including 'unavailable': with only a SKU there is nothing to fall back to, and
+        // importing the row without an id would create a line no order could ever match.
+        throw new CatalogProductNotFoundError();
+      }
+      productId = bySku.product.id;
+      label = bySku.product.name;
+      unit = bySku.product.unit;
+    }
+
     // PRODUK lines must reference a product; raw stock lines must not.
     if (isProductLine(input.itemType) !== (productId !== null)) {
       throw new ProductLineRequiresProductError();
@@ -177,8 +196,7 @@ export class InventoryService {
     // the product was deactivated), and a label that never matched the catalog in the
     // first place. If the catalog is unreachable we take the typed label — depot work
     // does not stop because product-service is down.
-    let { label, unit } = input;
-    if (productId !== null) {
+    if (productId !== null && productId === (input.productId ?? null)) {
       const lookup = await this.catalog.find(productId);
       if (lookup.status === 'missing') {
         throw new CatalogProductNotFoundError();
@@ -213,6 +231,30 @@ export class InventoryService {
       return this.toView(updated);
     }
     return this.toView(item);
+  }
+
+  /**
+   * Applies a catalog edit to every depot line for that product. Pushed by
+   * product-service rather than polled: a line copies the product's name when it is
+   * opened, so without this a rename left every depot reading a name the catalog had
+   * already stopped using.
+   *
+   * Deactivation hides the lines instead of deleting them — the movement ledger is the
+   * depot's record of what it once sold, and an order already in flight still settles
+   * against the line, which internal lookups can still see.
+   *
+   * A product no depot stocks is a no-op returning zeros, not an error: product-service
+   * pushes every change and cannot know which ones matter here.
+   */
+  async applyProductChange(change: {
+    productId: string;
+    name: string;
+    unit: string;
+    active: boolean;
+  }): Promise<{ renamed: number; hidden: number }> {
+    const renamed = await this.inventory.renameByProductId(change.productId, change.name, change.unit);
+    const hidden = await this.inventory.setHiddenByProductId(change.productId, !change.active);
+    return { renamed, hidden };
   }
 
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<ItemView[]> {
