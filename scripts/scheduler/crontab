@@ -15,3 +15,8 @@
 # console lets HR pick a time to the minute, and an hourly sweep would make "kirim jam 9"
 # arrive at 10. Nothing is sent twice — publishedAt is the latch.
 */15 * * * * sh /scripts/sweep.sh announcements/publish-due hr:3018
+# Broadcast campaigns (B-17): send the next batch for every campaign still SENDING. The
+# send endpoint only CLAIMS the campaign now — this sweep is what actually messages
+# customers. Every 2 minutes: staff press "kirim" and expect it to be moving, not to wait
+# an hour. Each tick is bounded and resumable, so an interrupted sweep loses nothing.
+*/2 * * * * sh /scripts/sweep.sh campaigns/internal/process-sending crm:3012

@@ -9,12 +9,22 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
-import { CampaignService } from '../application/services/campaign.service';
+import {
+  CampaignService,
+  CampaignSweepResult,
+} from '../application/services/campaign.service';
 import {
   CampaignDto,
   CampaignListDto,
@@ -63,9 +73,32 @@ export class CampaignController {
 
   @Can('campaignWrite')
   @Post(':id/send')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Dispatch a draft campaign to all recipients (FR-094)' })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Queue a draft campaign for broadcast (FR-094)',
+    description:
+      'Returns as soon as the campaign is claimed. Delivery runs on the scheduler sweep — poll GET /campaigns/:id for progress. This used to send every recipient inside the request and time out at the proxy on any real list (B-17).',
+  })
   async send(@Param('id', ParseUUIDPipe) id: string): Promise<CampaignDto> {
     return CampaignDto.from(await this.campaigns.send(id));
+  }
+
+  /**
+   * The broadcast worker, driven by the scheduler sidecar (crond has no JWT to present).
+   * @Public() bypasses the global JWT guard; InternalAuthGuard is then the sole,
+   * fail-closed auth — the same shape as every other internal sweep in the repo.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/process-sending')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Continue every campaign still broadcasting (internal service auth)',
+    description:
+      'Bounded per tick and resumable: whatever is not reached stays PENDING for the next sweep.',
+  })
+  processSending(): Promise<CampaignSweepResult> {
+    return this.campaigns.processSending();
   }
 }

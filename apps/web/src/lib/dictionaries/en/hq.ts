@@ -1022,7 +1022,9 @@ export const hq = {
     schedule: 'Schedule',
     needTitle: 'Title is required.',
     needMessage: 'Message is required.',
-    sent: 'Broadcast sent',
+    // B-17: delivery runs on the scheduler sweep now, so "sent" would be a claim we
+    // cannot make at this point. Progress is visible on the campaign itself.
+    sent: 'Broadcast queued — delivery is running now',
     scheduled: 'Broadcast scheduled (sample)',
     error: 'Failed to send the broadcast',
     scheduleUnsupported: 'Scheduling is not supported yet.',

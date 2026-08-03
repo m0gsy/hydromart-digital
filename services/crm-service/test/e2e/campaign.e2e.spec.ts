@@ -26,6 +26,9 @@ describe('Campaign HTTP flows (e2e)', () => {
   let customerToken: string;
   let driverToken: string;
   const directory = new FakeCustomerDirectory();
+  // B-17: the sweep is what messages people now, so the e2e needs to see the transport.
+  const whatsapp = new FakeWhatsappBroadcast();
+  const internalKey = () => ({ 'x-internal-key': 'test-internal-key' });
 
   beforeAll(async () => {
     // Joi validationSchema validates process.env (not load()), and INTERNAL_SERVICE_KEY
@@ -62,7 +65,7 @@ describe('Campaign HTTP flows (e2e)', () => {
       .overrideProvider(CRM_TOKENS.NotificationRepository)
       .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CRM_TOKENS.WhatsappBroadcast)
-      .useValue(new FakeWhatsappBroadcast())
+      .useValue(whatsapp)
       .overrideProvider(CRM_TOKENS.CustomerDirectory)
       .useValue(directory)
       .compile();
@@ -118,12 +121,31 @@ describe('Campaign HTTP flows (e2e)', () => {
     campaignId = res.body.id;
   });
 
-  it('sends the campaign: DRAFT -> SENT and returns counts', async () => {
+  // B-17: the send endpoint claims and returns; the scheduler sweep delivers. Asserting
+  // SENT straight out of the POST would be asserting the old blocking behaviour back.
+  it('queues the campaign: DRAFT -> SENDING, 202, nobody messaged yet', async () => {
     const res = await request(server())
       .post(`/api/v1/campaigns/${campaignId}/send`)
       .set(auth(marketingToken))
+      .expect(202);
+    expect(res.body).toMatchObject({ status: 'SENDING' });
+    expect(whatsapp.sent).toHaveLength(0);
+  });
+
+  it('rejects the sweep endpoint without the internal key, then delivers with it', async () => {
+    await request(server()).post('/api/v1/campaigns/internal/process-sending').expect(401);
+
+    const res = await request(server())
+      .post('/api/v1/campaigns/internal/process-sending')
+      .set(internalKey())
       .expect(200);
-    expect(res.body).toMatchObject({ status: 'SENT', sentCount: 1, failedCount: 0 });
+    expect(res.body).toMatchObject({ campaigns: 1, sent: 1, failed: 0, completed: 1 });
+
+    const after = await request(server())
+      .get(`/api/v1/campaigns/${campaignId}`)
+      .set(auth(marketingToken))
+      .expect(200);
+    expect(after.body).toMatchObject({ status: 'SENT', sentCount: 1, failedCount: 0 });
   });
 
   it('creates a campaign from an attribute segment (FR-087)', async () => {

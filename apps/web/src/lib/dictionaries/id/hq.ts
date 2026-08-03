@@ -1026,7 +1026,7 @@ export const hq = {
     schedule: 'Jadwalkan',
     needTitle: 'Judul wajib diisi.',
     needMessage: 'Pesan wajib diisi.',
-    sent: 'Broadcast dikirim',
+    sent: 'Broadcast masuk antrean — pengiriman sedang berjalan',
     scheduled: 'Broadcast dijadwalkan (contoh)',
     error: 'Gagal mengirim broadcast',
     scheduleUnsupported: 'Penjadwalan belum didukung.',

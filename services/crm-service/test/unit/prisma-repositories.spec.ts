@@ -43,10 +43,13 @@ describe('CampaignPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
   };
   const campaignRecipient = {
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    groupBy: jest.fn(),
   };
   const prisma = {
     campaign,
@@ -129,13 +132,67 @@ describe('CampaignPrismaRepository', () => {
     expect(result.items[0].recipients).toEqual([]);
   });
 
-  it('markSending flips status to SENDING', async () => {
-    campaign.update.mockResolvedValue(campaignRow());
-    await repo.markSending('camp-1');
-    expect(campaign.update).toHaveBeenCalledWith({
-      where: { id: 'camp-1' },
+  // B-17: the DRAFT predicate must be in the WHERE. `update({ where: { id } })` let two
+  // simultaneous sends both claim and both broadcast, over WhatsApp, unsendably.
+  it('markSending claims only a DRAFT campaign and reports whether it won', async () => {
+    campaign.updateMany.mockResolvedValue({ count: 1 });
+    expect(await repo.markSending('camp-1')).toBe(true);
+    expect(campaign.updateMany).toHaveBeenCalledWith({
+      where: { id: 'camp-1', status: 'DRAFT' },
       data: { status: 'SENDING' },
     });
+  });
+
+  it('markSending reports false when somebody else already claimed it', async () => {
+    campaign.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.markSending('camp-1')).toBe(false);
+  });
+
+  it('findSending returns oldest-first and never loads recipients wholesale', async () => {
+    campaign.findMany.mockResolvedValue([campaignRow()]);
+    const out = await repo.findSending(5);
+    expect(campaign.findMany).toHaveBeenCalledWith({
+      where: { status: 'SENDING' },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    });
+    expect(out[0].recipients).toEqual([]);
+  });
+
+  it('claimRecipients moves PENDING rows then reads back only what it moved', async () => {
+    campaignRecipient.findMany
+      .mockResolvedValueOnce([{ id: 'r-1' }, { id: 'r-2' }])
+      .mockResolvedValueOnce([recipientRow()]);
+    campaignRecipient.updateMany.mockResolvedValue({ count: 1 });
+
+    const claimed = await repo.claimRecipients('camp-1', 200);
+    expect(campaignRecipient.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['r-1', 'r-2'] }, status: 'PENDING' },
+      data: { status: 'SENDING' },
+    });
+    // Read back on SENDING, not on the id list: a row a concurrent tick took is excluded.
+    expect(campaignRecipient.findMany).toHaveBeenLastCalledWith({
+      where: { id: { in: ['r-1', 'r-2'] }, status: 'SENDING' },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(claimed).toHaveLength(1);
+  });
+
+  it('claimRecipients short-circuits when nothing is pending', async () => {
+    campaignRecipient.findMany.mockResolvedValueOnce([]);
+    expect(await repo.claimRecipients('camp-1', 200)).toEqual([]);
+    expect(campaignRecipient.updateMany).not.toHaveBeenCalled();
+  });
+
+  // A claimed-but-unfinished recipient is outstanding work. Counting SENDING as done
+  // would let a sweep that died mid-batch finalise the campaign and strand those rows.
+  it('tally counts SENDING as still pending', async () => {
+    campaignRecipient.groupBy.mockResolvedValue([
+      { status: 'PENDING', _count: { _all: 3 } },
+      { status: 'SENDING', _count: { _all: 2 } },
+      { status: 'SENT', _count: { _all: 7 } },
+    ]);
+    expect(await repo.tally('camp-1')).toEqual({ pending: 5, sent: 7, failed: 0 });
   });
 
   it('recordRecipientResult persists a recipient outcome', async () => {
