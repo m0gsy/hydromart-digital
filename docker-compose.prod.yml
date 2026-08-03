@@ -590,6 +590,17 @@ services:
       - ./scripts/scheduler/crontab:/etc/crontabs/root:ro
       - ./scripts/scheduler:/scripts:ro
     command: ["sh", "/scripts/entrypoint.sh"]
+    # H-38: crond keeps running whether or not its jobs do anything, so `running` said
+    # nothing about whether sweeps were happening. This asserts a sweep has SUCCEEDED
+    # recently — the busiest job runs every 5 minutes. With the deploy gate now requiring
+    # `healthy` (H-32), a scheduler that has quietly stopped sweeping fails a deploy
+    # instead of riding along unnoticed.
+    healthcheck:
+      test: ["CMD", "sh", "/scripts/healthcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Prometheus scrapes every service's /metrics (enableMetrics()). Bound to
   # loopback only — reach the UI via SSH tunnel, never expose to the internet.

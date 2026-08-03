@@ -104,6 +104,11 @@ jobs:
       - name: Deploy-script helpers self-check
         run: bash scripts/lib/deploy-common.test.sh
 
+      # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
+      # is stubbed — so it is gated here like any other logic.
+      - name: Scheduler sweep self-check
+        run: bash scripts/scheduler/sweep.test.sh
+
       # H-49: a service added to compose without a scrape target is a service no alert
       # can fire about. hr-service was in exactly that state from the day it shipped.
       - name: Prometheus targets match compose
