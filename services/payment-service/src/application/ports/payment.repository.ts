@@ -18,6 +18,8 @@ export interface PaymentRecord {
   refundApproval: RefundApproval;
   cashReceived: number | null;
   changeGiven: number | null;
+  /** Depot whose drawer took the money; set only for a counter sale. */
+  depotId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +32,7 @@ export interface CreatePaymentData {
   reference: string | null;
   instruction: string | null;
   gatewayData: string | null;
+  depotId?: string | null;
 }
 
 export interface PaymentStatusPatch {
@@ -91,5 +94,11 @@ export interface PaymentRepository {
   aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]>;
   /** Sum of PAID cash payments over the given orders — the courier's COD deposit due. */
   sumCashCollected(orderIds: string[]): Promise<CashCollectedSummary>;
+  /**
+   * Sum of PAID cash a depot took over a window, by `paidAt` — what should be in that
+   * drawer. Bounded by settlement time, not creation: a sale rung up before the shift and
+   * settled during it is cash this cashier is holding.
+   */
+  sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 }

@@ -37,6 +37,21 @@ describe('OrderConfigService', () => {
     expect(cfg.forecastServiceUrl).toBe('http://forecast:3014');
   });
 
+  // Both are counter-void settings. The timezone decides which calendar day a sale belongs
+  // to; the URL decides whether the refund can be made at all.
+  it('defaults the counter-void timezone and payment URL, and honours overrides', () => {
+    const bare = buildTestConfig();
+    expect(bare.counterVoidTimeZone).toBe('Asia/Jakarta');
+    expect(bare.paymentServiceUrl).toBe('');
+
+    const set = buildTestConfig({
+      PRICING_TZ: 'Asia/Makassar',
+      PAYMENT_SERVICE_URL: 'http://payment:3005//',
+    });
+    expect(set.counterVoidTimeZone).toBe('Asia/Makassar');
+    expect(set.paymentServiceUrl).toBe('http://payment:3005');
+  });
+
   it('defaults optional coordination URLs and the internal key to empty', () => {
     const cfg = buildTestConfig();
     expect(cfg.recommendationServiceUrl).toBe('');

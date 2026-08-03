@@ -70,6 +70,23 @@ export class AdjustPointsDto {
   reason!: string;
 }
 
+/** Reversing a sale: the order says how much to take back, so no amount is accepted. */
+export class ReverseEarnDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiProperty({ example: 'Penjualan konter dibatalkan.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reason!: string;
+}
+
 export class RewardPointsDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()

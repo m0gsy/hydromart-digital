@@ -101,6 +101,36 @@ export class InventoryHttpAdapter implements InventoryPort {
     }
   }
 
+  async restock(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    _authorization: string,
+  ): Promise<void> {
+    const headers = this.internalHeaders();
+    if (!headers || items.length === 0) {
+      return;
+    }
+    const url = `${this.config.depotServiceUrl}/api/v1/depots/${depotId}/inventory/restock`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), InventoryHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ orderId, items }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`depot-service responded ${res.status}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Stock restock skipped for order ${orderId}: ${(error as Error).message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async release(
     depotId: string,
     orderId: string,

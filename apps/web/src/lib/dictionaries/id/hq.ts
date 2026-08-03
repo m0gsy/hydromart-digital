@@ -266,6 +266,7 @@ export const hq = {
       depotSubscriptions: 'Langganan depot',
       depotDisputes: 'Sengketa depot',
       walkInSale: 'Penjualan di konter',
+      cashierShift: 'Shift kasir',
       hierarchyAdmin: 'Hierarki pembinaan',
       depotCrmWrite: 'Impor pelanggan depot',
       resellerView: 'Lihat agen / reseller',

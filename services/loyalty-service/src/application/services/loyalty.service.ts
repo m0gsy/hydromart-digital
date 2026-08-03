@@ -160,6 +160,27 @@ export class LoyaltyService {
    * Manual signed correction (staff). Positive counts toward lifetime/tier; the
    * balance may never go negative.
    */
+  /**
+   * Takes back exactly what an order awarded, when that sale is reversed.
+   *
+   * Scoped by order rather than by an amount the caller supplies: this service owns the
+   * per-depot earn rate, so it is the only place that knows what the order actually earned,
+   * and a caller recomputing it would claw back the wrong number at every depot that
+   * overrode the rate. A sale that never earned (anonymous, or below the threshold) is a
+   * no-op, not an error.
+   */
+  async reverseEarnForOrder(
+    customerId: string,
+    orderId: string,
+    reason: string,
+  ): Promise<LoyaltyAccountRecord> {
+    const earn = await this.repo.findEarnByOrder(orderId);
+    if (!earn || earn.points <= 0) {
+      return this.getAccount(customerId);
+    }
+    return this.adjust(customerId, -earn.points, reason);
+  }
+
   async adjust(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
     const account = await this.getAccount(customerId);
     const newBalance = account.pointsBalance + points;

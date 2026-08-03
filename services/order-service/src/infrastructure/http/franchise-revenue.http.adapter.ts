@@ -56,4 +56,31 @@ export class FranchiseRevenueHttpAdapter implements FranchiseRevenuePort {
       clearTimeout(timer);
     }
   }
+
+  async orderVoided(orderId: string, reason: string): Promise<void> {
+    const { payoutServiceUrl, internalServiceKey } = this.config;
+    if (!payoutServiceUrl || !internalServiceKey) {
+      this.logger.debug(`Franchise revenue reversal skipped (payout disabled): ${orderId}`);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FranchiseRevenueHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(`${payoutServiceUrl}/api/v1/payout/revenue/internal/void`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderId, reason }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`payout-service responded ${res.status}`);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Franchise revenue reversal failed for ${orderId}: ${(error as Error).message}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

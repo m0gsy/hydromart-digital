@@ -16,6 +16,8 @@ export const DEPOT_TOKENS = {
   RosterRepository: Symbol('RosterRepository'),
   DepotTargetRepository: Symbol('DepotTargetRepository'),
   CashbookRepository: Symbol('CashbookRepository'),
+  CashierShiftRepository: Symbol('CashierShiftRepository'),
+  DepotCash: Symbol('DepotCash'),
   DisputeRepository: Symbol('DisputeRepository'),
   MaintenanceRepository: Symbol('MaintenanceRepository'),
   WholesaleTierRepository: Symbol('WholesaleTierRepository'),

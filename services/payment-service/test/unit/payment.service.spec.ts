@@ -291,4 +291,55 @@ describe('PaymentService', () => {
       expect(await service.cashCollected([])).toEqual({ total: 0, count: 0 });
     });
   });
+
+  describe('voidForOrder', () => {
+    it('refunds a settled counter sale straight through, never via the approval queue', async () => {
+      const orderId = randomUUID();
+      const payment = await initiate(PaymentMethod.CASH, 45000, orderId);
+      await service.confirm(payment.id, 'cashier-1', 50000);
+
+      const voided = await service.voidForOrder(orderId, 'Salah ukuran', 'order-service');
+
+      expect(voided?.status).toBe(PaymentStatus.REFUNDED);
+      expect(voided?.refundApproval).toBe(RefundApproval.NONE);
+      expect(voided?.refundedAmount).toBe(45000);
+    });
+
+    // A PENDING counter payment collected nothing, so there is nothing to hand back —
+    // refunding it would report money returned that never arrived.
+    it('fails an unsettled payment rather than refunding it', async () => {
+      const orderId = randomUUID();
+      await initiate(PaymentMethod.CASH, 45000, orderId);
+
+      const voided = await service.voidForOrder(orderId, 'Batal', 'order-service');
+
+      expect(voided?.status).toBe(PaymentStatus.FAILED);
+      expect(voided?.refundedAmount).toBeNull();
+    });
+
+    // The sale was recorded and the money leg never landed — exactly what the cashier is
+    // cleaning up. Not an error, and the void must still go through.
+    it('reports null when the order never had an active payment', async () => {
+      expect(await service.voidForOrder(randomUUID(), 'Batal', 'order-service')).toBeNull();
+    });
+
+    it('drops the sale out of the depot cash total once reversed', async () => {
+      const orderId = randomUUID();
+      const depotId = randomUUID();
+      const payment = await service.initiate(customer, {
+        orderId,
+        method: PaymentMethod.CASH,
+        amount: 45000,
+        depotId,
+      });
+      await service.confirm(payment.id, 'cashier-1', 45000);
+      expect((await service.depotCashCollected(depotId, {})).total).toBe(45000);
+
+      await service.voidForOrder(orderId, 'Batal', 'order-service');
+
+      // This is what makes the cashier's drawer add up: the reversed sale stops counting
+      // toward what they are expected to hold.
+      expect((await service.depotCashCollected(depotId, {})).total).toBe(0);
+    });
+  });
 });

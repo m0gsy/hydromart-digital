@@ -142,6 +142,7 @@ export const order: typeof base = {
     DELIVERED: 'Delivered',
     COMPLETED: 'Completed',
     CANCELLED: 'Cancelled',
+    VOIDED: 'Voided at the counter',
   },
   progress: {
     placed: 'Placed',
@@ -160,6 +161,7 @@ export const order: typeof base = {
     DELIVERED: 'Your order has arrived',
     COMPLETED: 'Order complete — thank you!',
     CANCELLED: 'Order cancelled',
+    VOIDED: 'Counter sale voided',
   },
   toast: {
     added: 'Added to cart',

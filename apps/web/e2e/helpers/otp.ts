@@ -8,10 +8,17 @@ import { execSync } from 'node:child_process';
 // Override the log command per environment:
 //   E2E_OTP_LOG_CMD   full command whose stdout is the auth log (wins if set)
 //   E2E_AUTH_CONTAINER container name for `docker logs` (default hydromart-auth-1)
+//   E2E_OTP_LOG_TAIL  how many trailing log lines to read (default 5000)
 // CI (compose-managed) sets E2E_OTP_LOG_CMD='docker compose logs --no-color auth'.
+//
+// `--tail` is not a tidiness flag, it is the correctness of this helper: a stack left up
+// for days logs tens of MB, execSync then blows its maxBuffer, and the partial output it
+// hands back is the OLDEST bytes — so the newest-match search below picks a days-old code
+// and every login fails with a 401 that names nothing. Read the end of the log only.
 function logCmd(): string {
   if (process.env.E2E_OTP_LOG_CMD) return process.env.E2E_OTP_LOG_CMD;
-  return `docker logs ${process.env.E2E_AUTH_CONTAINER ?? 'hydromart-auth-1'}`;
+  const tail = process.env.E2E_OTP_LOG_TAIL ?? '5000';
+  return `docker logs --tail ${tail} ${process.env.E2E_AUTH_CONTAINER ?? 'hydromart-auth-1'}`;
 }
 
 /** Normalise the login-form phone (e.g. "81100000001") to the E.164 form the log prints. */
@@ -48,7 +55,15 @@ function safeExec(cmd: string): string {
     return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 });
   } catch (e: unknown) {
     // `docker logs` writes app output to stderr; a non-zero exit still carries it.
-    const err = e as { stdout?: string; stderr?: string };
+    const err = e as { stdout?: string; stderr?: string; code?: string };
+    // ENOBUFS is different in kind: what survived is the START of the log, so the "newest
+    // match" below would be an expired code and the failure would surface as a bare 401.
+    // Say so instead of returning a lie.
+    if (err.code === 'ENOBUFS')
+      throw new Error(
+        `the auth log overflowed the read buffer, so only its oldest lines came back and any OTP ` +
+          `found there is stale. Lower E2E_OTP_LOG_TAIL or point E2E_OTP_LOG_CMD at a bounded read. Command: ${cmd}`,
+      );
     return `${err.stdout ?? ''}${err.stderr ?? ''}`;
   }
 }

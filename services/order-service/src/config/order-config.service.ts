@@ -137,4 +137,20 @@ export class OrderConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  /**
+   * Timezone that decides which calendar day a counter sale belongs to, and therefore
+   * whether it can still be voided at the till. Mirrors depot-service's PRICING_TZ: the
+   * cashier's day is the depot's day, not UTC's.
+   */
+  /**
+   * Where a voided counter sale's refund is sent. Blank = a counter sale cannot be voided
+   * at all, which is the honest failure: without it the order would be marked reversed while
+   * payment-service still held the money.
+   */
+  get paymentServiceUrl(): string {
+    return this.config.get<string>('PAYMENT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  get counterVoidTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
+  }
 }

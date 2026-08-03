@@ -69,6 +69,21 @@ export class OrderRevenueDto {
   completedAt?: string;
 }
 
+/**
+ * Reversing a counter sale. No amount is accepted: what comes back is read off the original
+ * ledger rows, so a commission-scheme change since the sale cannot alter what is reversed.
+ */
+export class VoidOrderRevenueDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiProperty({ example: 'Pembeli salah pilih ukuran galon.' })
+  @IsString()
+  @MaxLength(255)
+  reason!: string;
+}
+
 export class LedgerQueryDto {
   @ApiPropertyOptional({ minimum: 1, default: 1 })
   @Type(() => Number)

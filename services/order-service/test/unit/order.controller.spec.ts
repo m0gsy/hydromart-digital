@@ -16,6 +16,7 @@ function makeService(): Mocked {
   return {
     checkout: jest.fn().mockResolvedValue({ id: 'o1' }),
     walkInSale: jest.fn().mockResolvedValue({ id: 'w1', isWalkIn: true }),
+    voidCounterSale: jest.fn().mockResolvedValue({ id: 'w1', status: 'VOIDED' }),
     expireAbandoned: jest.fn().mockResolvedValue({ cancelled: 3 }),
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
@@ -87,7 +88,19 @@ describe('OrderController', () => {
       customerId: null,
       customerName: null,
       customerPhone: null,
+      voucherCode: null,
     });
+  });
+
+  // `now` comes from the controller, not the client: a cashier who could name the moment
+  // could reopen yesterday's drawer.
+  it('walk-in void: stamps the server clock and forwards the reason + token', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const before = Date.now();
+    await controller.voidWalkIn(staff, 'ord-1', { reason: 'Salah ukuran' } as never, 'Bearer t');
+    const [user, id, reason, now, authorization] = service.voidCounterSale.mock.calls[0];
+    expect([user, id, reason, authorization]).toEqual([staff, 'ord-1', 'Salah ukuran', 'Bearer t']);
+    expect((now as Date).getTime()).toBeGreaterThanOrEqual(before);
   });
 
   it('walk-in: passes an identified buyer through', async () => {

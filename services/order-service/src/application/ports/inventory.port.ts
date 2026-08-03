@@ -29,6 +29,17 @@ export interface InventoryPort {
     items: SoldLine[],
     authorization: string,
   ): Promise<void>;
+  /**
+   * Puts back stock a voided counter sale had already consumed. Fails OPEN like `consume`:
+   * the buyer has the money back and the goods on the counter, and a depot-service blip must
+   * not leave the order un-voided. Opname reconciles a missed put-back.
+   */
+  restock(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void>;
   /** Releases an order's stock holds on cancellation. Fails OPEN. */
   release(
     depotId: string,

@@ -361,4 +361,22 @@ export class WalkInSaleDto {
   @IsString()
   @MaxLength(30)
   customerPhone?: string;
+
+  @ApiPropertyOptional({
+    example: 'HEMAT10',
+    description: "Voucher from the buyer's wallet. Requires customerId — a voucher has an owner.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  voucherCode?: string;
+}
+
+/** Reversing a counter sale. The reason is required: a short drawer needs its account. */
+export class VoidSaleDto {
+  @ApiProperty({ example: 'Pembeli salah pilih ukuran galon.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reason!: string;
 }

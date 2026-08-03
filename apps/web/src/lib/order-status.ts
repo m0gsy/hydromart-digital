@@ -22,6 +22,9 @@ const LABELS: Record<OrderStatus, string> = {
   DELIVERED: 'Delivered',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+  // Not "cancelled": this sale happened and was reversed at the till. The two have to stay
+  // tellable apart wherever an order is shown.
+  VOIDED: 'Voided at the counter',
 };
 
 export function statusLabel(status: OrderStatus): string {
@@ -30,7 +33,7 @@ export function statusLabel(status: OrderStatus): string {
 
 /** Progress through the fulfilment flow as a 0..1 fraction. */
 export function statusProgress(status: OrderStatus): number {
-  if (status === 'CANCELLED') return 0;
+  if (status === 'CANCELLED' || status === 'VOIDED') return 0;
   const idx = ORDER_FLOW.indexOf(status);
   if (idx < 0) return 0;
   return (idx + 1) / ORDER_FLOW.length;
@@ -59,7 +62,9 @@ export function staffCanAdvance(status: OrderStatus): boolean {
 
 /** Whether an order still needs the customer to pay. */
 export function tone(status: OrderStatus): 'active' | 'done' | 'cancelled' {
-  if (status === 'CANCELLED') return 'cancelled';
+  // A void reads as cancelled here on purpose: both are off-track and neither is revenue.
+  // The distinction that matters lives in the label, not the colour.
+  if (status === 'CANCELLED' || status === 'VOIDED') return 'cancelled';
   if (status === 'COMPLETED' || status === 'DELIVERED') return 'done';
   return 'active';
 }

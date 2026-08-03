@@ -263,6 +263,7 @@ export const hq = {
       depotSubscriptions: 'Depot subscriptions',
       depotDisputes: 'Depot disputes',
       walkInSale: 'Counter sale',
+      cashierShift: 'Cashier shift',
       hierarchyAdmin: 'Supervision hierarchy',
       depotCrmWrite: 'Import depot customers',
       resellerView: 'View resellers',

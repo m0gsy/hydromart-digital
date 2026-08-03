@@ -18,11 +18,18 @@ import {
   OutOfServiceAreaError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
+  AnonymousVoucherNotAllowedError,
+  ShippingVoucherAtCounterError,
+  NoOpenShiftError,
+  NotACounterSaleError,
+  OrderAlreadyVoidedError,
+  VoidWindowClosedError,
 } from '../../domain/errors';
 import {
   OrderStatus,
   canTransition,
   isCancellable,
+  isVoidableOn,
   notificationEventFor,
 } from '../../domain/order-status';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
@@ -32,6 +39,7 @@ import { OrderConfigService } from '../../config/order-config.service';
 import { Page, buildPage } from '../pagination';
 import { CartRepository } from '../ports/cart.repository';
 import {
+  CreateOrderData,
   CreateOrderItemData,
   DeliveryAddressSnapshot,
   OrderQuery,
@@ -48,6 +56,8 @@ import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
+import { CashierShiftPort } from '../ports/cashier-shift.port';
+import { PaymentReversalPort } from '../ports/payment-reversal.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
@@ -65,6 +75,8 @@ export interface WalkInSaleInput {
   customerId?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
+  /** Voucher from the buyer's own wallet; only meaningful once they are identified. */
+  voucherCode?: string | null;
 }
 
 export interface CheckoutInput {
@@ -122,6 +134,10 @@ export class OrderService {
     private readonly forecastCoordination: ForecastCoordinationPort,
     @Inject(ORDER_TOKENS.FranchiseRevenue)
     private readonly franchiseRevenue: FranchiseRevenuePort,
+    @Inject(ORDER_TOKENS.CashierShift)
+    private readonly cashierShift: CashierShiftPort,
+    @Inject(ORDER_TOKENS.PaymentReversal)
+    private readonly paymentReversal: PaymentReversalPort,
   ) {}
 
   /**
@@ -212,31 +228,22 @@ export class OrderService {
     }
     const total = money(subtotal + deliveryFee - discount);
 
-    // Reserve stock BEFORE creating the order so an insufficient-stock reject leaves
-    // no dangling order. Keyed by a pre-generated id. Every order has a depot now, so
-    // this always runs; reserve fails OPEN except on a genuine shortfall
-    // (throws InsufficientStockError).
-    const orderId = randomUUID();
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       depot.id,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId,
+        depotId: depot.id,
+        subtotal,
+        deliveryFee,
+        discount,
+        total,
+        deliveryWindow: input.deliveryWindow ?? null,
+        ...input.deliveryAddress,
+        items,
+      },
       authorization,
     );
-
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId,
-      depotId: depot.id,
-      subtotal,
-      deliveryFee,
-      discount,
-      total,
-      deliveryWindow: input.deliveryWindow ?? null,
-      ...input.deliveryAddress,
-      items,
-    });
     await this.cart.clear(customerId);
 
     // Record the redemption now that the order exists. Idempotent per order and
@@ -342,26 +349,21 @@ export class OrderService {
     const discount = money(Math.min(subtotal, subtotal * discountRate));
     const total = money(subtotal + deliveryFee - discount);
 
-    const orderId = randomUUID();
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       depot.id,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId,
+        depotId: depot.id,
+        subtotal,
+        deliveryFee,
+        discount,
+        total,
+        ...address,
+        items,
+      },
       '',
     );
-
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId,
-      depotId: depot.id,
-      subtotal,
-      deliveryFee,
-      discount,
-      total,
-      ...address,
-      items,
-    });
 
     await this.notification.notify(
       'ORDER_RECEIVED',
@@ -392,47 +394,151 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // Before anything is priced or held: cash is about to change hands, and it has to land
+    // in a drawer somebody has opened in their own name and will count at the end.
+    if (!(await this.cashierShift.hasOpenShift(input.depotId, authorization))) {
+      throw new NoOpenShiftError();
+    }
 
     const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
-    const orderId = randomUUID();
+    const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
+    const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
+    const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
+
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
-    await this.inventory.reserve(
+    const order = await this.reserveThenCreate(
       input.depotId,
-      orderId,
-      items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      {
+        orderNumber: OrderService.newOrderNumber(),
+        customerId,
+        depotId: input.depotId,
+        status: OrderStatus.COMPLETED,
+        isWalkIn: true,
+        subtotal,
+        deliveryFee: 0,
+        discount,
+        total: money(subtotal - discount),
+        // The address snapshot columns are NOT NULL and are read by the receipt, the order
+        // detail sheet and the driver app. For a counter sale they say who bought and where
+        // they took delivery — at the counter.
+        recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
+        phone: input.customerPhone?.trim() || '-',
+        addressLine: 'Ambil langsung di depot',
+        city: '-',
+        province: '-',
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+        notes: null,
+        items,
+      },
       authorization,
     );
 
-    const order = await this.orders.create({
-      id: orderId,
-      orderNumber: OrderService.newOrderNumber(),
-      customerId: input.customerId ?? ANONYMOUS_CUSTOMER_ID,
-      depotId: input.depotId,
-      status: OrderStatus.COMPLETED,
-      isWalkIn: true,
-      subtotal,
-      deliveryFee: 0,
-      discount: 0,
-      total: subtotal,
-      // The address snapshot columns are NOT NULL and are read by the receipt, the order
-      // detail sheet and the driver app. For a counter sale they say who bought and where
-      // they took delivery — at the counter.
-      recipientName: input.customerName?.trim() || 'Pelanggan walk-in',
-      phone: input.customerPhone?.trim() || '-',
-      addressLine: 'Ambil langsung di depot',
-      city: '-',
-      province: '-',
-      postalCode: null,
-      latitude: null,
-      longitude: null,
-      notes: null,
-      items,
-    });
-
+    // Record the redemption now that the order exists — idempotent per order, fail-open,
+    // exactly as at checkout.
+    if (voucherCode) {
+      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, 0, authorization);
+    }
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
+  }
+
+  /**
+   * Undoes a counter sale at the till: wrong item, wrong quantity, buyer changed their mind
+   * before leaving. The goods come back over the counter and the money goes back with them.
+   *
+   * Only a counter sale, and only on the day it was sold. A delivery order has left the depot
+   * and belongs to the refund queue; a sale from a previous day belongs to a shift somebody
+   * has already counted and signed off, and reversing into it would move settled money.
+   *
+   * The status write is the gate: it is guarded on COMPLETED in the database itself, so two
+   * cashiers hitting void on the same sale cannot both restock and refund it. Everything
+   * after that write fails OPEN — by then the buyer already has their goods and their money,
+   * and a depot-service or loyalty blip must not leave the sale standing as revenue.
+   */
+  async voidCounterSale(
+    user: AuthenticatedUser,
+    orderId: string,
+    reason: string,
+    now: Date,
+    authorization = '',
+  ): Promise<OrderRecord> {
+    const order = await this.getAny(orderId);
+    if (!order.isWalkIn) throw new NotACounterSaleError();
+    assertDepotAccess(user, order.depotId);
+    if (order.status === OrderStatus.VOIDED) throw new OrderAlreadyVoidedError();
+    if (!isVoidableOn(order.createdAt, now, this.config.counterVoidTimeZone)) {
+      throw new VoidWindowClosedError();
+    }
+
+    // The money first, and fail CLOSED on it. An order marked reversed while payment-service
+    // still holds the payment PAID would read as revenue the depot no longer has AND as cash
+    // the cashier can never account for at close.
+    await this.paymentReversal.voidForOrder(orderId, reason);
+
+    const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now);
+
+    // From here on nothing may fail the call. The money is back and the order is reversed;
+    // reporting "gagal membatalkan" now would be a lie the cashier acts on, so a hiccup in
+    // any of these is logged and reconciled (opname for stock, the ledger for the rest).
+    if (order.depotId) {
+      await this.inventory
+        .restock(
+          order.depotId,
+          orderId,
+          order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          authorization,
+        )
+        .catch(() => {});
+    }
+    // The franchise owner's ledger is a separate book that this service already wrote to at
+    // completion — excluding the order from reports does not touch it, so it has to be
+    // backed out explicitly or the owner keeps credit for money handed back to the buyer.
+    await this.franchiseRevenue.orderVoided(orderId, reason).catch(() => {});
+    // Points are money in the buyer's hands too, so they are taken back as well. Demand and
+    // recommendations need no undoing — they fall out of every report with the status.
+    if (order.customerId !== ANONYMOUS_CUSTOMER_ID) {
+      await this.loyalty
+        .reversePoints(order.customerId, orderId, `Penjualan konter ${order.orderNumber} dibatalkan`)
+        .catch(() => {});
+    }
+    return voided;
+  }
+
+  /**
+   * What comes off a counter sale: the buyer's membership tier plus, if they handed one over,
+   * a voucher from their own wallet. Both are read by customer id over the internal path —
+   * the call carries the CASHIER's token, so anything token-scoped would price the cashier.
+   *
+   * An anonymous sale gets neither: there is no wallet and no tier to read, and pretending
+   * otherwise would be the cashier's benefit applied to a stranger. Membership fails OPEN
+   * (0 rate), the voucher fails CLOSED — a voucher the buyer handed over must be honoured or
+   * the sale must stop, never silently dropped at full price with the buyer watching.
+   */
+  private async counterDiscount(
+    customerId: string,
+    depotId: string,
+    subtotal: number,
+    voucherCode: string | null,
+  ): Promise<number> {
+    if (customerId === ANONYMOUS_CUSTOMER_ID) {
+      if (voucherCode) throw new AnonymousVoucherNotAllowedError();
+      return 0;
+    }
+    const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
+    let voucherDiscount = 0;
+    if (voucherCode) {
+      // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
+      // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
+      const quote = await this.promo.quoteFor(voucherCode, customerId, subtotal, 0);
+      if (quote.discountType === 'FREE_SHIPPING') throw new ShippingVoucherAtCounterError();
+      voucherDiscount = quote.discount;
+    }
+    // Same ceiling as checkout: the stack can wipe out the goods, never go past them.
+    return money(Math.min(subtotal, money(subtotal * membershipRate) + voucherDiscount));
   }
 
   /**
@@ -734,6 +840,33 @@ export class OrderService {
     // ledger before, so every owner balance and the HQ release queue read an empty
     // table. Fail-open and idempotent on the payout side (keyed by order id).
     await this.postFranchiseRevenue(updated).catch(() => {});
+  }
+
+  /**
+   * Reserves the depot's stock, then writes the order — the one order-creating step every
+   * path shares (checkout, scheduled subscription runs, counter sales).
+   *
+   * Reserving first is deliberate: a shortfall must reject before any row exists. What was
+   * missing is the other half — a create that throws (a DB blip, a constraint) left the hold
+   * standing with no order to ever release it, so the depot silently lost that stock until
+   * opname. The compensating release only ever undoes a hold this call itself placed.
+   */
+  private async reserveThenCreate(
+    depotId: string,
+    data: Omit<CreateOrderData, 'id'>,
+    authorization: string,
+  ): Promise<OrderRecord> {
+    const id = randomUUID();
+    const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
+    await this.inventory.reserve(depotId, id, lines, authorization);
+    try {
+      return await this.orders.create({ ...data, id });
+    } catch (error) {
+      // Fail-open like every other inventory call: what the caller must see is why the
+      // order could not be written, never a release that also failed on the way out.
+      await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      throw error;
+    }
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */

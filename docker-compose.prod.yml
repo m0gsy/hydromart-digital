@@ -147,6 +147,9 @@ services:
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_SERVICE_URL: http://depot:3007
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      # Voiding a counter sale refunds through here. Without it a void is refused rather
+      # than recorded against money payment-service still holds.
+      PAYMENT_SERVICE_URL: http://payment:3005
       CUSTOMER_SERVICE_URL: http://customer:3002
       PROMO_SERVICE_URL: http://promo:3010
       REFERRAL_SERVICE_URL: http://referral:3011
@@ -236,6 +239,9 @@ services:
       # in a container means every lookup fails and validation quietly stops happening.
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
+      # Closing a cashier's shift reads that depot's takings from here. Without it a shift
+      # can be opened but never closed — no drawer is ever settled against a guess.
+      PAYMENT_SERVICE_URL: http://payment:3005
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

@@ -96,6 +96,7 @@ model Depot {
   shiftAssignments       ShiftAssignment[]
   depotTargets           DepotTarget[]
   cashbookEntries        CashbookEntry[]
+  cashierShifts          CashierShift[]
   orderDisputes          OrderDispute[]
   maintenanceItems       MaintenanceItem[]
   wholesaleTiers         WholesaleTier[]
@@ -587,6 +588,41 @@ model CashbookEntry {
 
   @@index([depotId, occurredAt])
   @@map("cashbook_entries")
+}
+
+enum CashierShiftStatus {
+  OPEN
+  CLOSED
+}
+
+/// One cashier's turn at the counter, from the float they started with to the cash they
+/// counted at the end. Counter sales are refused while nobody has a shift open: without
+/// one, the money in the drawer belongs to no named person and no shortfall has an owner.
+model CashierShift {
+  id           String             @id @default(uuid()) @db.Uuid
+  depotId      String             @db.Uuid
+  depot        Depot              @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  cashierId    String             @db.Uuid
+  cashierName  String
+  status       CashierShiftStatus @default(OPEN)
+  /// Change money in the drawer before the first sale.
+  openingFloat Int
+  openedAt     DateTime           @default(now())
+
+  closedAt     DateTime?
+  /// What the cashier physically counted at close.
+  countedCash  Int?
+  /// openingFloat + PAID cash this depot took during the shift, computed server-side.
+  expectedCash Int?
+  /// countedCash − expectedCash. Negative = short.
+  variance     Int?
+  note         String?
+
+  // One OPEN shift per cashier per depot — enforced by a partial unique index in the
+  // migration (Prisma cannot express `WHERE status = 'OPEN'` here).
+  @@index([depotId, status])
+  @@index([cashierId, status])
+  @@map("cashier_shifts")
 }
 
 /// Kind of customer order dispute (design 15c).

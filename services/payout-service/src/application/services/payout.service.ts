@@ -100,6 +100,50 @@ export class PayoutService {
     return { recorded: true, revenue: input.amountIdr, commission, commissionPct: pct };
   }
 
+  /**
+   * Backs out an order's revenue and commission when the sale is reversed at the counter.
+   *
+   * Compensating rows rather than deletions: the ledger is append-only, and a franchise
+   * owner questioning their balance has to be able to see that a sale landed and was undone,
+   * not find a gap where it used to be. Both rows mirror the originals exactly — including
+   * the commission percentage that applied then, which is read back off the ledger rather
+   * than recomputed, so a scheme change since the sale cannot alter what is reversed.
+   *
+   * Idempotent by sourceRef, and a no-op for an order that never posted.
+   */
+  async reverseOrderRevenue(orderId: string, reason: string): Promise<{ reversed: boolean }> {
+    const sale = await this.ledger.findBySourceRef(`order:${orderId}:SALE`);
+    if (!sale) return { reversed: false };
+    if (await this.ledger.findBySourceRef(`order:${orderId}:VOID_SALE`)) {
+      return { reversed: false };
+    }
+
+    const occurredAt = new Date();
+    await this.ledger.create({
+      franchiseOwnerId: sale.franchiseOwnerId,
+      depotId: sale.depotId,
+      type: 'SALE_SETTLEMENT',
+      amount: -sale.amount,
+      description: `Pembatalan: ${sale.description} (${reason})`,
+      sourceRef: `order:${orderId}:VOID_SALE`,
+      occurredAt,
+    });
+    const commission = await this.ledger.findBySourceRef(`order:${orderId}:COMMISSION`);
+    if (commission) {
+      await this.ledger.create({
+        franchiseOwnerId: commission.franchiseOwnerId,
+        depotId: commission.depotId,
+        type: 'COMMISSION',
+        // The original is a debit (negative), so giving it back is a credit.
+        amount: -commission.amount,
+        description: `Pembatalan: ${commission.description}`,
+        sourceRef: `order:${orderId}:VOID_COMMISSION`,
+        occurredAt,
+      });
+    }
+    return { reversed: true };
+  }
+
   /** Current scheme percentage for a depot; 0 when the depot has no scheme yet. */
   private async commissionPctFor(depotId: string | null): Promise<number> {
     if (!depotId) return 0;

@@ -54,4 +54,30 @@ export class LoyaltyCoordinationHttpAdapter implements LoyaltyCoordinationPort {
       clearTimeout(timer);
     }
   }
+
+  async reversePoints(customerId: string, orderId: string, reason: string): Promise<void> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      this.logger.warn(`No internal service key; skipped loyalty reversal for order ${orderId}`);
+      return;
+    }
+    const url = `${this.config.loyaltyServiceUrl}/api/v1/loyalty/internal/reverse-earn`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LoyaltyCoordinationHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ customerId, orderId, reason }),
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`loyalty-service responded ${res.status}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Loyalty reversal skipped for order ${orderId}: ${(error as Error).message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

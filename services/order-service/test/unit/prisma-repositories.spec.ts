@@ -4,6 +4,7 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
+import { OrderAlreadyVoidedError } from '../../src/domain/errors';
 
 // Unit-tests the order-service Prisma repositories against per-model jest.fn() mocks of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma
@@ -198,16 +199,19 @@ describe('OrderPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
     aggregate: jest.fn(),
   };
   const orderReview = { create: jest.fn(), findUnique: jest.fn(), aggregate: jest.fn() };
   const orderItem = { groupBy: jest.fn() };
+  const orderStatusHistory = { create: jest.fn() };
   const $queryRaw = jest.fn();
   const prisma = {
     order,
     orderReview,
     orderItem,
+    orderStatusHistory,
     $queryRaw,
   } as unknown as PrismaService;
   const repo = new OrderPrismaRepository(prisma);
@@ -665,6 +669,36 @@ describe('OrderPrismaRepository', () => {
     expect(order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ distinct: ['customerId'], orderBy: { createdAt: 'desc' } }),
     );
+  });
+
+  describe('voidWalkIn', () => {
+    const at = new Date('2026-08-03T09:00:00Z');
+
+    // The guard lives in the WHERE, not only in the service: two cashiers hitting void on
+    // the same sale would otherwise both restock and both refund it.
+    it('flips only a COMPLETED counter sale, and appends the reason to history', async () => {
+      order.updateMany.mockResolvedValue({ count: 1 });
+      order.findUnique.mockResolvedValue(orderRow());
+
+      await repo.voidWalkIn('ord-1', 'Salah ukuran', 'cashier-1', at);
+
+      expect(order.updateMany).toHaveBeenCalledWith({
+        where: { id: 'ord-1', status: 'COMPLETED', isWalkIn: true },
+        data: { status: 'VOIDED', voidedAt: at, voidReason: 'Salah ukuran' },
+      });
+      expect(orderStatusHistory.create).toHaveBeenCalledWith({
+        data: { orderId: 'ord-1', status: 'VOIDED', changedBy: 'cashier-1', note: 'Salah ukuran' },
+      });
+    });
+
+    it('rejects the second void and writes no history for it', async () => {
+      order.updateMany.mockResolvedValue({ count: 0 });
+
+      await expect(repo.voidWalkIn('ord-1', 'Lagi', 'cashier-2', at)).rejects.toBeInstanceOf(
+        OrderAlreadyVoidedError,
+      );
+      expect(orderStatusHistory.create).not.toHaveBeenCalled();
+    });
   });
 
   it('records a refund amount on an order', async () => {

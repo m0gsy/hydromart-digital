@@ -10,7 +10,10 @@ export type OrderStatus =
   | 'ON_DELIVERY'
   | 'DELIVERED'
   | 'COMPLETED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  /** A counter sale reversed at the till the same day. Distinct from CANCELLED: that is an
+   * order that never happened, this is one that happened and was undone. */
+  | 'VOIDED';
 
 export type PaymentMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'EWALLET' | 'VA';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED';
@@ -2134,6 +2137,29 @@ export interface CashbookEntry {
   actorId: string;
   createdAt: string;
 }
+/** One cashier's turn at the counter (depot-service). */
+export interface CashierShift {
+  id: string;
+  depotId: string;
+  cashierId: string;
+  cashierName: string;
+  status: 'OPEN' | 'CLOSED';
+  openingFloat: number;
+  openedAt: string;
+  closedAt: string | null;
+  countedCash: number | null;
+  /** Float + cash taken, computed server-side. Null while the shift is open. */
+  expectedCash: number | null;
+  /** Counted − expected. Negative = short. */
+  variance: number | null;
+  note: string | null;
+}
+
+export interface CashierShiftBoard {
+  open: CashierShift[];
+  closed: CashierShift[];
+}
+
 export interface CashbookResponse {
   entries: CashbookEntry[];
   summary: { inIdr: number; outIdr: number; netIdr: number };

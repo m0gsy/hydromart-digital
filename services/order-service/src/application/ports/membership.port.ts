@@ -14,4 +14,11 @@ export interface MembershipPort {
    * global ladder.
    */
   getDiscountRate(authorization: string, depotId?: string | null): Promise<number>;
+
+  /**
+   * The same rate for a named customer, over the internal service path. A counter sale is
+   * rung up on the cashier's token, so the token cannot say whose tier to price — asking
+   * by token there would hand the buyer the CASHIER's discount. Fails OPEN the same way.
+   */
+  getDiscountRateFor(customerId: string, depotId?: string | null): Promise<number>;
 }

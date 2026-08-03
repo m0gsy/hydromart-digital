@@ -618,6 +618,53 @@ export class InventoryService {
   }
 
   /**
+   * Puts back stock a reversed counter sale had already taken out.
+   *
+   * An ADJUSTMENT rather than a negative SALE, and with no orderId on the movement: the
+   * unique (item, order) index already holds the sale's own row, and overwriting or
+   * duplicating it would erase the fact that the sale happened. The reason names the order
+   * so the two rows read as a pair in the movement log.
+   *
+   * Not idempotent here on purpose. Order-service guards the void on the order's status, so
+   * a second attempt never reaches this — one guard, on the fact that decides it.
+   */
+  async restockForOrder(
+    depotId: string,
+    orderId: string,
+    items: { productId: string; quantity: number }[],
+    actorId: string,
+  ): Promise<{ orderId: string; depotId: string; restocked: string[]; skipped: string[] }> {
+    if (!(await this.depots.findById(depotId, false))) {
+      throw new DepotNotFoundError();
+    }
+    const restocked: string[] = [];
+    const skipped: string[] = [];
+    for (const { productId, quantity } of items) {
+      if (quantity <= 0) {
+        continue;
+      }
+      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      if (!line) {
+        skipped.push(productId);
+        continue;
+      }
+      const next = line.quantity + quantity;
+      await this.inventory.applyMovement(line.id, next, {
+        itemId: line.id,
+        type: StockMovementType.ADJUSTMENT,
+        delta: quantity,
+        quantityBefore: line.quantity,
+        quantityAfter: next,
+        reason: `Void order ${orderId}`,
+        actorId,
+        orderId: null,
+      });
+      restocked.push(productId);
+    }
+    return { orderId, depotId, restocked, skipped };
+  }
+
+  /**
    * Procurement goods-receipt: append a RECEIPT movement of `quantity` to the depot's
    * raw stock line for `itemType` (Air/Galon/Tutup/Segel singleton, productId null).
    * Called in-process by PurchaseOrderService.receive — a direct method call, no HTTP.

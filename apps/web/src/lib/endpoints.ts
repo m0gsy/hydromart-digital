@@ -155,6 +155,8 @@ export const endpoints = {
   },
   orders: {
     walkIn: '/orders/api/v1/orders/walk-in',
+    // Undo a counter sale at the till (same day only).
+    voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
     checkout: '/orders/api/v1/orders/checkout',
     list: '/orders/api/v1/orders',
     get: (id: string) => `/orders/api/v1/orders/${id}`,
@@ -815,6 +817,15 @@ export const endpoints = {
       return `/depots/api/v1/cashbook?${p}`;
     },
     create: '/depots/api/v1/cashbook',
+  },
+  // Counter chain of custody: who is on the till and what their drawer settled at.
+  cashierShifts: {
+    open: '/depots/api/v1/cashier-shifts',
+    current: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`,
+    list: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts?depotId=${encodeURIComponent(depotId)}`,
+    close: (id: string) => `/depots/api/v1/cashier-shifts/${id}/close`,
   },
   disputes: {
     list: (q: { depotId: string; status?: string }) => {
