@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
+import { ArrowUUpLeft, Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
 
 import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
@@ -59,6 +59,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
   // and the server refuses anyway if there really is no shift.
   const [shiftOpen, setShiftOpen] = useState<boolean | undefined>(undefined);
+  const [voiding, setVoiding] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
   // The sale just recorded, kept so its receipt can be printed again — the print window is a
   // popup and a blocked one used to lose the struk with the form already cleared.
   const [lastSale, setLastSale] = useState<{
@@ -221,6 +223,29 @@ function WalkIn({ depotId }: { depotId: string }) {
     setBusy(false);
   }
 
+  /**
+   * Undo the sale still on screen. The server does the whole reversal — refund, restock,
+   * points — so this only reports it and clears the card; there is nothing to unwind here
+   * if it fails, which is why the failure leaves the sale exactly where it was.
+   */
+  async function voidSale() {
+    if (!lastSale) return;
+    setBusy(true);
+    try {
+      await api.post(endpoints.orders.voidWalkIn(lastSale.order.id), { reason: voidReason.trim() }, true);
+      toast(`Penjualan ${lastSale.order.orderNumber} dibatalkan.`);
+      setLastSale(null);
+      setVoiding(false);
+      setVoidReason('');
+      // Stock came back, so what the counter may sell changed with it.
+      await stock.reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Gagal membatalkan penjualan.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (catalog.loading || stock.loading) return <Skeleton className="h-64" />;
   // Stock is not decoration here — it decides what may be sold, so a stock list that failed
   // to load must not render as "this depot sells nothing".
@@ -239,13 +264,48 @@ function WalkIn({ depotId }: { depotId: string }) {
             Penjualan terakhir <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
             <Money amount={lastSale.order.total} />
           </p>
-          <Button
-            variant="ghost"
-            onClick={() => printReceipt(lastSale.order, lastSale.cash, lastSale.method)}
-          >
-            <Printer size={18} className="mr-1" />
-            Cetak ulang struk
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => printReceipt(lastSale.order, lastSale.cash, lastSale.method)}
+            >
+              <Printer size={18} className="mr-1" />
+              Cetak ulang struk
+            </Button>
+            {/* Only the sale still on screen can be voided from here. Anything older is a
+                different day's drawer or someone else's shift — that goes through refunds. */}
+            <Button variant="ghost" onClick={() => setVoiding(true)} disabled={busy}>
+              <ArrowUUpLeft size={18} className="mr-1" />
+              Batalkan penjualan
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {lastSale && voiding && (
+        <Card className="space-y-3 p-4">
+          <div>
+            <p className="font-semibold">Batalkan {lastSale.order.orderNumber}?</p>
+            <p className="text-sm text-muted">
+              Uang dikembalikan ke pembeli, barang masuk stok lagi, dan poin ditarik kembali.
+            </p>
+          </div>
+          <Field label="Alasan" htmlFor="wi-void-reason" hint="Wajib — laci akan berkurang sebesar penjualan ini.">
+            <Input
+              id="wi-void-reason"
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="Pembeli salah pilih ukuran galon"
+            />
+          </Field>
+          <div className="flex gap-2">
+            <Button onClick={() => void voidSale()} disabled={busy || !voidReason.trim()}>
+              Ya, batalkan
+            </Button>
+            <Button variant="ghost" onClick={() => setVoiding(false)} disabled={busy}>
+              Tidak jadi
+            </Button>
+          </div>
         </Card>
       )}
 

@@ -53,6 +53,18 @@ export class StaffInitiatePaymentDto extends InitiatePaymentDto {
   depotId?: string;
 }
 
+/** Counter void: reverse whatever payment the order has, named by the order. */
+export class VoidForOrderDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiProperty({ example: 'Pembeli salah pilih ukuran galon.' })
+  @IsString()
+  @MaxLength(255)
+  reason!: string;
+}
+
 /** Shift close: how much cash one depot took over the shift window. */
 export class DepotCashQueryDto {
   @ApiProperty({ format: 'uuid' })

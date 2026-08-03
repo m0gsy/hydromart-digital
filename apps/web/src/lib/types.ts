@@ -10,7 +10,10 @@ export type OrderStatus =
   | 'ON_DELIVERY'
   | 'DELIVERED'
   | 'COMPLETED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  /** A counter sale reversed at the till the same day. Distinct from CANCELLED: that is an
+   * order that never happened, this is one that happened and was undone. */
+  | 'VOIDED';
 
 export type PaymentMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'EWALLET' | 'VA';
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'REFUNDED';

@@ -24,6 +24,7 @@ describe('PaymentController', () => {
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
     depotCashCollected: jest.fn(),
+    voidForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
     getForCustomer: jest.fn(),
     confirm: jest.fn(),
@@ -103,6 +104,13 @@ describe('PaymentController', () => {
       from: new Date(ISO),
       to: new Date(ISO),
     });
+  });
+
+  // The actor is the service, not a person: a counter void must not need a MANAGER at the
+  // depot, and `refundIssue` rightly excludes whoever took the cash.
+  it('voidForOrder is attributed to order-service, not a token holder', async () => {
+    await controller.voidForOrder({ orderId: 'order-9', reason: 'Salah ukuran' } as never);
+    expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');
   });
 
   it('cashCollected forwards the order ids', async () => {

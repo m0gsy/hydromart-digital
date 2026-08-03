@@ -142,6 +142,8 @@ export const endpoints = {
   },
   orders: {
     walkIn: '/orders/api/v1/orders/walk-in',
+    // Undo a counter sale at the till (same day only).
+    voidWalkIn: (id: string) => `/orders/api/v1/orders/walk-in/${id}/void`,
     checkout: '/orders/api/v1/orders/checkout',
     list: '/orders/api/v1/orders',
     get: (id: string) => `/orders/api/v1/orders/${id}`,

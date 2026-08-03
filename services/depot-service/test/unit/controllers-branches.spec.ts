@@ -1162,6 +1162,7 @@ describe('Inventory controllers', () => {
     listMovementsForDepot: jest.fn(),
     listForDepot: jest.fn(),
     consumeForOrder: jest.fn(),
+    restockForOrder: jest.fn(),
     reserveForOrder: jest.fn(),
     releaseForOrder: jest.fn(),
     listLowStock: jest.fn(),
@@ -1260,6 +1261,8 @@ describe('Inventory controllers', () => {
     expect(inventory.reserveForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
     await depotC.release(DEPOT, { orderId: 'o', items: [] } as never);
     expect(inventory.releaseForOrder).toHaveBeenCalledWith(DEPOT, 'o', []);
+    await depotC.restock(DEPOT, { orderId: 'o', items: [] } as never);
+    expect(inventory.restockForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
   });
 
   it('handles low-stock, wastage (with/without dates), get, update, adjust, opname and per-line movements', async () => {

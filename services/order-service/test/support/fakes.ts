@@ -52,6 +52,7 @@ import {
 } from '../../src/application/ports/franchise-revenue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort } from '../../src/application/ports/cashier-shift.port';
+import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
@@ -64,7 +65,7 @@ import {
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
-import { VoucherRejectedError } from '../../src/domain/errors';
+import { OrderAlreadyVoidedError, VoucherRejectedError } from '../../src/domain/errors';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -336,6 +337,23 @@ export class InMemoryOrderRepository implements OrderRepository {
 
   async recordRefund(orderId: string, amount: number): Promise<void> {
     this.refunds.set(orderId, amount);
+  }
+
+  async voidWalkIn(
+    id: string,
+    reason: string,
+    changedBy: string,
+    at: Date,
+  ): Promise<OrderRecord> {
+    const row = this.rows.find((r) => r.id === id);
+    // Mirrors the guarded UPDATE: only a COMPLETED counter sale flips, so a second void
+    // finds nothing to change and is rejected exactly as it is against Postgres.
+    if (!row || row.status !== OrderStatus.COMPLETED || !row.isWalkIn) {
+      throw new OrderAlreadyVoidedError();
+    }
+    row.status = OrderStatus.VOIDED;
+    row.history.push({ status: OrderStatus.VOIDED, changedBy, note: reason, createdAt: at });
+    return { ...row };
   }
 
   async ratingByDepot(range: ReportRange): Promise<DepotRating[]> {
@@ -620,8 +638,15 @@ export class FakeDepotDirectory implements DepotDirectoryPort {
 
 export class FakeFranchiseRevenue implements FranchiseRevenuePort {
   posted: OrderRevenueEvent[] = [];
+  voided: { orderId: string; reason: string }[] = [];
+  /** When set, orderVoided throws it — payout down while a void is in flight. */
+  voidError: Error | null = null;
   async orderCompleted(event: OrderRevenueEvent): Promise<void> {
     this.posted.push(event);
+  }
+  async orderVoided(orderId: string, reason: string): Promise<void> {
+    if (this.voidError) throw this.voidError;
+    this.voided.push({ orderId, reason });
   }
 }
 
@@ -632,6 +657,16 @@ export class FakeCashierShift implements CashierShiftPort {
   async hasOpenShift(depotId: string, authorization: string): Promise<boolean> {
     this.calls.push({ depotId, authorization });
     return this.open;
+  }
+}
+
+export class FakePaymentReversal implements PaymentReversalPort {
+  calls: { orderId: string; reason: string }[] = [];
+  /** When set, voidForOrder throws it — payment-service down while a void is in flight. */
+  error: Error | null = null;
+  async voidForOrder(orderId: string, reason: string): Promise<void> {
+    if (this.error) throw this.error;
+    this.calls.push({ orderId, reason });
   }
 }
 
@@ -713,6 +748,13 @@ export class FakeLoyaltyCoordination implements LoyaltyCoordinationPort {
   ): Promise<number | null> {
     this.calls.push({ customerId, orderId, subtotal, depotId, authorization });
     return this.pointsEarned;
+  }
+  reversals: { customerId: string; orderId: string; reason: string }[] = [];
+  /** When set, reversePoints throws it — loyalty down while a void is in flight. */
+  reverseError: Error | null = null;
+  async reversePoints(customerId: string, orderId: string, reason: string): Promise<void> {
+    if (this.reverseError) throw this.reverseError;
+    this.reversals.push({ customerId, orderId, reason });
   }
 }
 
@@ -810,6 +852,19 @@ export class FakeInventory implements InventoryPort {
     authorization: string,
   ): Promise<void> {
     this.releaseCalls.push({ depotId, orderId, items, authorization });
+  }
+  restockCalls: { depotId: string; orderId: string; items: SoldLine[]; authorization: string }[] =
+    [];
+  /** When set, restock() throws it — depot-service down while a void is in flight. */
+  restockError: Error | null = null;
+  async restock(
+    depotId: string,
+    orderId: string,
+    items: SoldLine[],
+    authorization: string,
+  ): Promise<void> {
+    if (this.restockError) throw this.restockError;
+    this.restockCalls.push({ depotId, orderId, items, authorization });
   }
 }
 

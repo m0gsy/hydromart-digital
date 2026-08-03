@@ -11,7 +11,11 @@ import {
   InsufficientStockError,
   InvalidStatusTransitionError,
   NoOpenShiftError,
+  NotACounterSaleError,
+  OrderAlreadyVoidedError,
+  PaymentReversalFailedError,
   ShippingVoucherAtCounterError,
+  VoidWindowClosedError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
@@ -24,6 +28,7 @@ import {
   FakeForecastCoordination,
   FakeFranchiseRevenue,
   FakeCashierShift,
+  FakePaymentReversal,
   FakeMembership,
   FakeResellerDiscount,
   FakeNotification,
@@ -51,6 +56,7 @@ describe('OrderService.walkInSale', () => {
   let membership: FakeMembership;
   let promo: FakePromo;
   let shift: FakeCashierShift;
+  let paymentReversal: FakePaymentReversal;
   let service: OrderService;
 
   const operator: AuthenticatedUser = {
@@ -76,6 +82,7 @@ describe('OrderService.walkInSale', () => {
     membership = new FakeMembership();
     promo = new FakePromo();
     shift = new FakeCashierShift();
+    paymentReversal = new FakePaymentReversal();
     depots.owners.set(DEPOT, 'owner-1');
     service = new OrderService(
       orders,
@@ -96,6 +103,7 @@ describe('OrderService.walkInSale', () => {
       forecast,
       franchiseRevenue,
       shift,
+      paymentReversal,
     );
   });
 
@@ -356,6 +364,152 @@ describe('OrderService.walkInSale', () => {
       expect(membership.byCustomerCalls).toHaveLength(0);
       expect(order.discount).toBe(0);
       expect(order.total).toBe(order.subtotal);
+    });
+  });
+
+  describe('voiding a counter sale', () => {
+    const NOW = new Date('2026-08-03T04:00:00Z'); // 11:00 Jakarta
+
+    // The sale is created with the fake repo's own clock, so the test pins "today" to it.
+    const soldToday = async (extra: Record<string, unknown> = {}) => {
+      const order = await sell(2, extra);
+      return { order, now: new Date(order.createdAt.getTime() + 60 * 60 * 1000) };
+    };
+
+    it('reverses the sale, puts the stock back and takes the points away', async () => {
+      const customerId = randomUUID();
+      const { order, now } = await soldToday({ customerId, customerPhone: '0812' });
+
+      const voided = await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
+
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+      expect(inventory.restockCalls[0]).toMatchObject({ depotId: DEPOT, orderId: order.id });
+      expect(inventory.restockCalls[0].items[0].quantity).toBe(2);
+      expect(paymentReversal.calls[0]).toEqual({ orderId: order.id, reason: 'Salah ukuran' });
+      // The owner's ledger is a separate book: excluding the order from reports does not
+      // touch it, so it has to be backed out explicitly.
+      expect(franchiseRevenue.voided[0]).toEqual({ orderId: order.id, reason: 'Salah ukuran' });
+      expect(loyalty.reversals[0]).toMatchObject({ customerId, orderId: order.id });
+      // The reason is the till's own account of a drawer that will now be short.
+      expect(voided.history.at(-1)).toMatchObject({ status: OrderStatus.VOIDED, note: 'Salah ukuran' });
+    });
+
+    it('asks loyalty nothing for an anonymous sale — it never earned anything', async () => {
+      const { order, now } = await soldToday();
+      await service.voidCounterSale(operator, order.id, 'Batal', now);
+      expect(loyalty.reversals).toHaveLength(0);
+      expect(inventory.restockCalls).toHaveLength(1);
+    });
+
+    // Everything after the status write is fail-open: the buyer already has the goods and
+    // the money back, so a depot-service blip must not leave the sale standing as revenue.
+    // Reporting "gagal membatalkan" once the money is back and the order reversed would be
+    // a lie the cashier acts on — they would try again, or hand the goods back twice.
+    it('reports success when the restock fails, and stays voided', async () => {
+      const { order, now } = await soldToday();
+      inventory.restockError = new Error('depot-service down');
+
+      const voided = await service.voidCounterSale(operator, order.id, 'Batal', now);
+
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+      expect(orders.rows[0].status).toBe(OrderStatus.VOIDED);
+    });
+
+    it('stays voided when the franchise ledger cannot be corrected', async () => {
+      const { order, now } = await soldToday();
+      franchiseRevenue.voidError = new Error('payout down');
+      const voided = await service.voidCounterSale(operator, order.id, 'Batal', now);
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+    });
+
+    it('stays voided when loyalty cannot take the points back', async () => {
+      const { order, now } = await soldToday({ customerId: randomUUID(), customerPhone: '0812' });
+      loyalty.reverseError = new Error('loyalty down');
+      const voided = await service.voidCounterSale(operator, order.id, 'Batal', now);
+      expect(voided.status).toBe(OrderStatus.VOIDED);
+    });
+
+    // A sale from a previous day belongs to a shift somebody already counted and signed off.
+    it('refuses a sale from another day, in the depot timezone', async () => {
+      const { order } = await soldToday();
+      const tomorrow = new Date(order.createdAt.getTime() + 24 * 60 * 60 * 1000);
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Batal', tomorrow),
+      ).rejects.toBeInstanceOf(VoidWindowClosedError);
+      expect(inventory.restockCalls).toHaveLength(0);
+    });
+
+    it('refuses a delivery order — that is what the refund queue is for', async () => {
+      const delivery = await orders.create({
+        orderNumber: 'HM-DEL-1',
+        customerId: randomUUID(),
+        depotId: DEPOT,
+        status: OrderStatus.COMPLETED,
+        subtotal: 10000,
+        deliveryFee: 5000,
+        discount: 0,
+        total: 15000,
+        recipientName: 'Budi',
+        phone: '0812',
+        addressLine: 'Jl. Test',
+        city: '-',
+        province: '-',
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+        notes: null,
+        items: [],
+      });
+      await expect(
+        service.voidCounterSale(operator, delivery.id, 'Batal', NOW),
+      ).rejects.toBeInstanceOf(NotACounterSaleError);
+    });
+
+    // Two cashiers hitting void on the same sale: only the first may restock and refund it.
+    it('refuses a second void, and does not restock twice', async () => {
+      const { order, now } = await soldToday();
+      await service.voidCounterSale(operator, order.id, 'Batal', now);
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Batal lagi', now),
+      ).rejects.toBeInstanceOf(OrderAlreadyVoidedError);
+      expect(inventory.restockCalls).toHaveLength(1);
+    });
+
+    // The money leg fails CLOSED, and it runs first: a sale marked reversed while
+    // payment-service still holds the cash is revenue the depot does not have AND cash the
+    // cashier can never account for.
+    it('keeps the sale standing when the money cannot be given back', async () => {
+      const { order, now } = await soldToday();
+      paymentReversal.error = new PaymentReversalFailedError();
+
+      await expect(
+        service.voidCounterSale(operator, order.id, 'Batal', now),
+      ).rejects.toBeInstanceOf(PaymentReversalFailedError);
+
+      expect(orders.rows[0].status).toBe(OrderStatus.COMPLETED);
+      expect(inventory.restockCalls).toHaveLength(0);
+      expect(loyalty.reversals).toHaveLength(0);
+    });
+
+    it('refunds before it reverses — never the other way round', async () => {
+      const { order, now } = await soldToday();
+      await service.voidCounterSale(operator, order.id, 'Batal', now);
+      // The guarded UPDATE would have rejected a second void; the refund landing first is
+      // what makes the failure above recoverable by simply retrying.
+      expect(paymentReversal.calls).toHaveLength(1);
+      expect(orders.rows[0].status).toBe(OrderStatus.VOIDED);
+    });
+
+    it('refuses a depot-locked operator voiding another depot sale', async () => {
+      const { order, now } = await soldToday();
+      await expect(
+        service.voidCounterSale(
+          { ...operator, depotId: '22222222-2222-4222-8222-222222222222' },
+          order.id,
+          'Batal',
+          now,
+        ),
+      ).rejects.toThrow();
     });
   });
 

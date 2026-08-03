@@ -256,6 +256,29 @@ export class PaymentService {
   }
 
   /**
+   * Gives back the money for a counter sale being voided at the till.
+   *
+   * Called service-to-service by order-service, not by the cashier's token: reversing a
+   * counter sale must not need a MANAGER standing at the depot, and `refundIssue` (rightly)
+   * excludes the person who took the cash. A PENDING payment is failed rather than refunded
+   * — nothing was ever collected to give back.
+   *
+   * Returns null when the order has no active payment: the sale was recorded and the money
+   * leg never landed, which is exactly the case the cashier is now cleaning up.
+   */
+  async voidForOrder(orderId: string, reason: string, changedBy: string): Promise<PaymentRecord | null> {
+    const active = await this.payments.findActiveByOrder(orderId);
+    if (!active) return null;
+    if (active.status === PaymentStatus.PENDING) {
+      return this.fail(active.id, changedBy);
+    }
+    // Straight to REFUNDED, never the HQ approval queue: a counter void hands cash back
+    // across the counter there and then, and parking it for approval would mean the buyer
+    // has walked out with money the system still thinks it holds.
+    return this.executeRefund(active, changedBy, reason, RefundApproval.NONE);
+  }
+
+  /**
    * What a depot's drawer should hold for a window: its PAID cash, by settlement time.
    * The cashier's shift close is measured against this, so it is deliberately the same
    * question `cashCollected` answers for a courier — asked by depot instead of by order.

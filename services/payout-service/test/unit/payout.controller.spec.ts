@@ -15,6 +15,7 @@ describe('PayoutController', () => {
     recordOrderRevenue: jest
       .fn()
       .mockResolvedValue({ recorded: true, revenue: 240000, commission: 12000, commissionPct: 5 }),
+    reverseOrderRevenue: jest.fn().mockResolvedValue({ reversed: true }),
   };
   const controller = new PayoutController(payout as unknown as PayoutService);
   const user = { sub: 'owner-1' } as AuthenticatedUser;
@@ -55,6 +56,13 @@ describe('PayoutController', () => {
       orderNumber: 'HM-1',
       occurredAt: new Date('2026-07-28T03:04:05.000Z'),
     });
+  });
+
+  // No amount is accepted: what comes back is read off the original ledger rows, so a
+  // commission-scheme change since the sale cannot alter what is reversed.
+  it('voidRevenue forwards only the order and the reason', async () => {
+    await controller.voidRevenue({ orderId: 'o1', reason: 'Salah ukuran' } as never);
+    expect(payout.reverseOrderRevenue).toHaveBeenCalledWith('o1', 'Salah ukuran');
   });
 
   it('recordRevenue nulls the optionals and leaves the timestamp to the service', async () => {

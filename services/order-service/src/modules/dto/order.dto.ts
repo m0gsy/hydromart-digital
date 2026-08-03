@@ -371,3 +371,12 @@ export class WalkInSaleDto {
   @MaxLength(40)
   voucherCode?: string;
 }
+
+/** Reversing a counter sale. The reason is required: a short drawer needs its account. */
+export class VoidSaleDto {
+  @ApiProperty({ example: 'Pembeli salah pilih ukuran galon.' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reason!: string;
+}

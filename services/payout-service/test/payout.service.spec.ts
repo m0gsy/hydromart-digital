@@ -72,7 +72,9 @@ class FakeLedger implements LedgerRepository {
 }
 
 class FakeSchemes implements CommissionSchemeRepository {
-  constructor(private readonly current: { depotId: string; pct: number }[] = []) {}
+  // Mutable: a reversal has to prove it reverses what was CHARGED, not what the scheme
+  // says today, so a test needs to move the rate between the sale and the void.
+  constructor(public current: { depotId: string; pct: number }[] = []) {}
   async listCurrent(): Promise<CommissionSchemeRecord[]> {
     return this.current.map((c, i) => ({
       id: `cs-${i}`,
@@ -349,5 +351,80 @@ describe('PayoutService.recordOrderRevenue', () => {
 
     expect(ledger.entries[0].description).toContain(order.orderId);
     expect(ledger.entries[0].occurredAt).toEqual(completedAt);
+  });
+
+  describe('reverseOrderRevenue', () => {
+    const build = (pct = 5) =>
+      new PayoutService(
+        new FakeLedger(),
+        new FakeWithdrawals(),
+        new FakeSchemes([{ depotId: 'depot-1', pct }]),
+      );
+
+    it('backs out both rows and leaves the owner exactly where they started', async () => {
+      const ledger = new FakeLedger();
+      const svc = new PayoutService(
+        ledger,
+        new FakeWithdrawals(),
+        new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      );
+      await svc.recordOrderRevenue(order);
+      expect(await ledger.balanceFor('owner-a')).toBe(228000);
+
+      expect(await svc.reverseOrderRevenue(order.orderId, 'Salah ukuran')).toEqual({
+        reversed: true,
+      });
+
+      // Compensating rows, not deletions: the sale still shows in the ledger, undone.
+      expect(ledger.entries.map((e) => [e.type, e.amount])).toEqual([
+        ['SALE_SETTLEMENT', 240000],
+        ['COMMISSION', -12000],
+        ['SALE_SETTLEMENT', -240000],
+        ['COMMISSION', 12000],
+      ]);
+      expect(await ledger.balanceFor('owner-a')).toBe(0);
+    });
+
+    // The reversal reads the ORIGINAL rows, so a scheme that changed after the sale cannot
+    // hand back a different commission than the one actually taken.
+    it('reverses what was charged, not what the current scheme would charge', async () => {
+      const ledger = new FakeLedger();
+      const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
+      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes);
+      await svc.recordOrderRevenue(order);
+
+      schemes.current = [{ depotId: 'depot-1', pct: 20 }];
+      await svc.reverseOrderRevenue(order.orderId, 'Batal');
+
+      expect(ledger.entries.at(-1)).toMatchObject({ type: 'COMMISSION', amount: 12000 });
+      expect(await ledger.balanceFor('owner-a')).toBe(0);
+    });
+
+    it('is a no-op for an order that never posted, and for one already reversed', async () => {
+      const svc = build();
+      expect(await svc.reverseOrderRevenue('nothing-here', 'Batal')).toEqual({ reversed: false });
+
+      const ledger = new FakeLedger();
+      const live = new PayoutService(
+        ledger,
+        new FakeWithdrawals(),
+        new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      );
+      await live.recordOrderRevenue(order);
+      await live.reverseOrderRevenue(order.orderId, 'Batal');
+      expect(await live.reverseOrderRevenue(order.orderId, 'Batal')).toEqual({ reversed: false });
+      expect(ledger.entries).toHaveLength(4);
+    });
+
+    it('writes no commission reversal when none was charged', async () => {
+      const ledger = new FakeLedger();
+      const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+      await svc.recordOrderRevenue({ ...order, depotId: null });
+
+      await svc.reverseOrderRevenue(order.orderId, 'Batal');
+
+      expect(ledger.entries.map((e) => e.type)).toEqual(['SALE_SETTLEMENT', 'SALE_SETTLEMENT']);
+      expect(await ledger.balanceFor('owner-a')).toBe(0);
+    });
   });
 });

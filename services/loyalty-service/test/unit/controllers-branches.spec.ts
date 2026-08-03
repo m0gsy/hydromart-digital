@@ -68,6 +68,7 @@ describe('LoyaltyController (delegation)', () => {
       alreadyEarned: false,
     })),
     adjust: jest.fn(async () => account()),
+    reverseEarnForOrder: jest.fn(async () => account()),
     reward: jest.fn(async () => account()),
     runExpiry: jest.fn(async () => ({ lotsExpired: 0, pointsExpired: 0 })),
     countMembers: jest.fn(async () => 42),
@@ -110,6 +111,21 @@ describe('LoyaltyController (delegation)', () => {
   it('standingFor() answers against the requested depot ladder', async () => {
     await ctrl.standingFor('cust-9', { depotId: 'd1' });
     expect(loyalty.getStanding).toHaveBeenCalledWith('cust-9', 'd1');
+  });
+
+  // Scoped by order, never by an amount the caller names: this service owns the per-depot
+  // earn rate, so a caller recomputing it would claw back the wrong number.
+  it('reverseEarn() takes back what the named order earned', async () => {
+    await ctrl.reverseEarn({
+      customerId: 'cust-1',
+      orderId: 'order-9',
+      reason: 'Penjualan konter dibatalkan',
+    } as never);
+    expect(loyalty.reverseEarnForOrder).toHaveBeenCalledWith(
+      'cust-1',
+      'order-9',
+      'Penjualan konter dibatalkan',
+    );
   });
 
   it('myTransactions() maps the ledger page', async () => {

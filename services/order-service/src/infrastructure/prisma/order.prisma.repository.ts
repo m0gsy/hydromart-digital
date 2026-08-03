@@ -3,6 +3,7 @@ import { depotWhere } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
+import { OrderAlreadyVoidedError } from '../../domain/errors';
 import {
   CreateOrderData,
   CreateReviewData,
@@ -94,6 +95,13 @@ interface OrderRow {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * Statuses that never count as business: an order that never happened (CANCELLED) and a
+ * counter sale that was reversed at the till with the money handed back (VOIDED). Every
+ * revenue, customer-value and depot report filters both out through this one list.
+ */
+const VOID_LIKE = [DbOrderStatus.CANCELLED, DbOrderStatus.VOIDED];
 
 const INCLUDE = {
   items: true,
@@ -357,14 +365,19 @@ export class OrderPrismaRepository implements OrderRepository {
     return this.toRecord(row);
   }
 
-  /** Non-cancelled orders in the window; the shared filter for every report. */
+  /**
+   * Orders that really stand, in the window; the shared filter for every report.
+   *
+   * VOIDED is excluded alongside CANCELLED: a voided counter sale was reversed at the till
+   * and the money handed back, so counting it would report revenue the depot does not have.
+   */
   private reportWhere(range: ReportRange) {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),
     };
     return {
-      status: { not: DbOrderStatus.CANCELLED },
+      status: { notIn: VOID_LIKE },
       ...(range.from || range.to ? { createdAt } : {}),
     };
   }
@@ -459,6 +472,23 @@ export class OrderPrismaRepository implements OrderRepository {
       depotId: r.depotId as string,
       refunded: r._sum.refundedAmount ? r._sum.refundedAmount.toNumber() : 0,
     }));
+  }
+
+  async voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord> {
+    // Guarded on COMPLETED in the WHERE, not just in the service: two cashiers hitting void
+    // on the same sale would otherwise both restock it. The second update matches no row.
+    const { count } = await this.prisma.order.updateMany({
+      where: { id, status: DbOrderStatus.COMPLETED, isWalkIn: true },
+      data: { status: DbOrderStatus.VOIDED, voidedAt: at, voidReason: reason },
+    });
+    if (count === 0) {
+      throw new OrderAlreadyVoidedError();
+    }
+    await this.prisma.orderStatusHistory.create({
+      data: { orderId: id, status: DbOrderStatus.VOIDED, changedBy, note: reason },
+    });
+    const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
+    return this.toRecord(row!);
   }
 
   async recordRefund(orderId: string, amount: number): Promise<void> {
@@ -592,7 +622,7 @@ export class OrderPrismaRepository implements OrderRepository {
 
   async customerLifetime(customerId: string): Promise<CustomerLifetime> {
     const agg = await this.prisma.order.aggregate({
-      where: { customerId, status: { not: DbOrderStatus.CANCELLED } },
+      where: { customerId, status: { notIn: VOID_LIKE } },
       _sum: { total: true },
       _count: { _all: true },
       _min: { createdAt: true },
@@ -610,7 +640,7 @@ export class OrderPrismaRepository implements OrderRepository {
     // One aggregate row per customer who has ordered at this depot (CANCELLED excluded).
     const grouped = await this.prisma.order.groupBy({
       by: ['customerId'],
-      where: { depotId, status: { not: DbOrderStatus.CANCELLED } },
+      where: { depotId, status: { notIn: VOID_LIKE } },
       _count: { _all: true },
       _sum: { total: true },
       _min: { createdAt: true },

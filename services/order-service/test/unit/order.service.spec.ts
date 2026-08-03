@@ -33,6 +33,7 @@ import {
   FakeForecastCoordination,
   FakeFranchiseRevenue,
   FakeCashierShift,
+  FakePaymentReversal,
   FakeMembership,
   FakeResellerDiscount,
   FakeNotification,
@@ -128,6 +129,7 @@ describe('OrderService', () => {
       forecast,
       franchiseRevenue,
       new FakeCashierShift(),
+      new FakePaymentReversal(),
     );
   });
 
@@ -1440,6 +1442,7 @@ describe('OrderService', () => {
       forecast,
       franchiseRevenue,
       new FakeCashierShift(),
+      new FakePaymentReversal(),
     );
     depots.depots = [
       {
@@ -1563,6 +1566,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeForecastCoordination(),
       revenue,
       new FakeCashierShift(),
+      new FakePaymentReversal(),
     );
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     await cartService.setItem('cust-rev', product.id, 3, false);

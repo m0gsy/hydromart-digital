@@ -19,6 +19,13 @@ export enum OrderStatus {
   DELIVERED = 'DELIVERED',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
+  /**
+   * A counter sale undone at the till the same day: wrong item, wrong quantity, buyer
+   * changed their mind before leaving. Distinct from CANCELLED, which is an order that
+   * never happened — a void is a sale that happened and was reversed, and the two must
+   * stay tellable apart in the day's book.
+   */
+  VOIDED = 'VOIDED',
 }
 
 /** Legal next states for each status. Empty array = terminal. */
@@ -40,8 +47,13 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   [OrderStatus.PICKED_UP]: [OrderStatus.ON_DELIVERY, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.ON_DELIVERY]: [OrderStatus.DELIVERED, OrderStatus.PREPARING, OrderStatus.CANCELLED],
   [OrderStatus.DELIVERED]: [OrderStatus.COMPLETED],
+  // COMPLETED stays terminal even though a counter sale can be voided out of it. The void
+  // is NOT an edge here on purpose: an edge would let ANY completed order be voided,
+  // including a delivered one, which must go through the refund queue instead. The counter
+  // path writes VOIDED directly, the same way a walk-in is born COMPLETED.
   [OrderStatus.COMPLETED]: [],
   [OrderStatus.CANCELLED]: [],
+  [OrderStatus.VOIDED]: [],
 };
 
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
@@ -83,6 +95,10 @@ export function notificationEventFor(status: OrderStatus): string | null {
       return 'ORDER_COMPLETED';
     case OrderStatus.CANCELLED:
       return 'ORDER_CANCELLED';
+    // A void is settled face to face at the counter — the buyer is standing there getting
+    // their money back. A WhatsApp about it minutes later is noise, not news.
+    case OrderStatus.VOIDED:
+      return null;
     default:
       return null;
   }
@@ -95,6 +111,20 @@ export function isEditable(status: OrderStatus): boolean {
     status !== OrderStatus.ON_DELIVERY &&
     status !== OrderStatus.DELIVERED &&
     status !== OrderStatus.COMPLETED &&
-    status !== OrderStatus.CANCELLED
+    status !== OrderStatus.CANCELLED &&
+    status !== OrderStatus.VOIDED
   );
+}
+
+/**
+ * Whether a counter sale may still be undone at the till: same calendar day in the depot's
+ * timezone, which is the day the cashier will reconcile.
+ *
+ * Deliberately not "within N hours". A sale at 21:00 and a sale at 09:00 the next morning
+ * are four hours apart but belong to two different drawers, and voiding backwards into a
+ * shift somebody already counted and signed off is exactly what this prevents.
+ */
+export function isVoidableOn(soldAt: Date, now: Date, timeZone: string): boolean {
+  const day = (d: Date) => d.toLocaleDateString('en-CA', { timeZone });
+  return day(soldAt) === day(now);
 }

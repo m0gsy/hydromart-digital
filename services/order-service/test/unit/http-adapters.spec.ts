@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { HTTP_STATUS } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../src/config/order-config.service';
-import { InsufficientStockError, VoucherRejectedError } from '../../src/domain/errors';
+import {
+  InsufficientStockError,
+  PaymentReversalFailedError,
+  VoucherRejectedError,
+} from '../../src/domain/errors';
 import type { OrderRecord } from '../../src/application/ports/order.repository';
 import { InventoryHttpAdapter } from '../../src/infrastructure/http/inventory.http.adapter';
 import { DepotDirectoryHttpAdapter } from '../../src/infrastructure/http/depot-directory.http.adapter';
@@ -18,6 +22,7 @@ import { ReferralCoordinationHttpAdapter } from '../../src/infrastructure/http/r
 import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/http/recommendation-coordination.http.adapter';
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
+import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
 // branches, fail-open catch, response parsing) against a mocked global.fetch — the
@@ -120,6 +125,33 @@ describe('InventoryHttpAdapter', () => {
     await expect(a.reserve('d1', 'o1', items, '')).resolves.toBeUndefined();
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
     await expect(a.reserve('d1', 'o1', items, '')).resolves.toBeUndefined();
+  });
+
+  it('restock: puts a voided sale back, skipping without key or items', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new InventoryHttpAdapter(makeConfig()).restock('d1', 'o1', items, '');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://depot:3007/api/v1/depots/d1/inventory/restock',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    await new InventoryHttpAdapter(makeConfig()).restock('d1', 'o1', [] as never, '');
+    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).restock(
+      'd1',
+      'o1',
+      items,
+      '',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Fail OPEN like consume: the buyer has the goods and the money back by now, and a
+  // depot-service blip must not leave the order un-voided. Opname reconciles a miss.
+  it('restock: fails open on non-2xx and on an unreachable depot-service', async () => {
+    const a = new InventoryHttpAdapter(makeConfig());
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 503 }));
+    await expect(a.restock('d1', 'o1', items, '')).resolves.toBeUndefined();
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(a.restock('d1', 'o1', items, '')).resolves.toBeUndefined();
   });
 
   it('release: happy path + skips without key', async () => {
@@ -326,6 +358,32 @@ describe('LoyaltyCoordinationHttpAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // Named by order, never by an amount: loyalty-service owns the per-depot earn rate, so a
+  // figure computed here would claw back the wrong number at every depot that overrode it.
+  it('reverses by order over the internal route', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new LoyaltyCoordinationHttpAdapter(makeConfig()).reversePoints('c1', 'o1', 'Batal');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://loyalty:3009/api/v1/loyalty/internal/reverse-earn');
+    const sent = init as { headers: Record<string, string>; body: string };
+    expect(sent.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(sent.body)).toEqual({ customerId: 'c1', orderId: 'o1', reason: 'Batal' });
+  });
+
+  // Fail OPEN, unlike the refund: the buyer already has their money back by the time this
+  // runs, and blocking the void on a loyalty outage strands the sale mid-reversal.
+  it('never throws — no key, non-2xx, or unreachable all resolve', async () => {
+    const adapter = new LoyaltyCoordinationHttpAdapter(makeConfig({ internalServiceKey: '' }));
+    await expect(adapter.reversePoints('c1', 'o1', 'x')).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const live = new LoyaltyCoordinationHttpAdapter(makeConfig());
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(live.reversePoints('c1', 'o1', 'x')).resolves.toBeUndefined();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(live.reversePoints('c1', 'o1', 'x')).resolves.toBeUndefined();
+  });
+
   it('returns the points loyalty actually awarded, and null when the body carries none', async () => {
     fetchMock.mockResolvedValue(res({ ok: true, body: { pointsEarned: 42 } }));
     await expect(
@@ -523,6 +581,108 @@ describe('CashierShiftHttpAdapter', () => {
   it('fails CLOSED on an unparseable body', async () => {
     fetchMock.mockResolvedValue(res({ ok: true, throwJson: true }));
     expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(false);
+  });
+});
+
+// The only outbound call here that must throw rather than log-and-continue: this IS the
+// money. A silent failure would mark a sale reversed while payment-service still holds it.
+describe('PaymentReversalHttpAdapter', () => {
+  const reversal = (over: Partial<Record<string, unknown>> = {}) =>
+    new PaymentReversalHttpAdapter(makeConfig({ paymentServiceUrl: 'http://payment:3005', ...over }));
+
+  it('posts the order and reason with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await reversal().voidForOrder('order-1', 'Salah ukuran');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payment:3005/api/v1/payments/internal/void-for-order');
+    const sent = init as { headers: Record<string, string>; body: string };
+    expect(sent.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(sent.body)).toEqual({ orderId: 'order-1', reason: 'Salah ukuran' });
+  });
+
+  it.each([
+    ['payment-service is unconfigured', { paymentServiceUrl: '' }],
+    ['there is no internal key', { internalServiceKey: '' }],
+  ])('throws rather than skip when %s', async (_label, over) => {
+    await expect(reversal(over).voidForOrder('order-1', 'x')).rejects.toBeInstanceOf(
+      PaymentReversalFailedError,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws on a non-2xx', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(reversal().voidForOrder('order-1', 'x')).rejects.toBeInstanceOf(
+      PaymentReversalFailedError,
+    );
+  });
+
+  it('throws when payment-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(reversal().voidForOrder('order-1', 'x')).rejects.toBeInstanceOf(
+      PaymentReversalFailedError,
+    );
+  });
+});
+
+// Both of these exist because a counter sale runs on the CASHIER's token: quoting or
+// pricing by token there would answer about the cashier, not the buyer.
+describe('counter-sale reads that name the buyer', () => {
+  it('membership: reads the named customer over the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { discountRate: 0.05 } }));
+    const rate = await new MembershipHttpAdapter(makeConfig()).getDiscountRateFor('cust-9', 'd1');
+    expect(rate).toBe(0.05);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://loyalty:3009/api/v1/loyalty/accounts/cust-9?depotId=d1');
+    expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('membership: falls back to the global ladder with no depot, and fails open at 0', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { discountRate: 0.03 } }));
+    await new MembershipHttpAdapter(makeConfig()).getDiscountRateFor('cust-9');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://loyalty:3009/api/v1/loyalty/accounts/cust-9');
+
+    // Fail OPEN: an always-on benefit must never block a sale.
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(
+      new MembershipHttpAdapter(makeConfig()).getDiscountRateFor('cust-9'),
+    ).resolves.toBe(0);
+    await expect(
+      new MembershipHttpAdapter(makeConfig({ internalServiceKey: '' })).getDiscountRateFor('c'),
+    ).resolves.toBe(0);
+  });
+
+  it('promo: quotes the named wallet over the internal route', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { discount: 5000, discountType: 'PERCENT' } }));
+    const quote = await new PromoHttpAdapter(makeConfig()).quoteFor('HEMAT', 'cust-9', 40000, 0);
+    expect(quote).toEqual({ discount: 5000, discountType: 'PERCENT' });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://promo:3010/api/v1/vouchers/quote/internal');
+    expect(JSON.parse((init as { body: string }).body)).toEqual({
+      code: 'HEMAT',
+      customerId: 'cust-9',
+      subtotal: 40000,
+      shippingFee: 0,
+    });
+  });
+
+  // Fail CLOSED: a voucher the buyer handed over must be honoured or the sale must stop —
+  // never silently dropped at full price with them watching.
+  it('promo: rejects rather than charge full price when the quote cannot be made', async () => {
+    await expect(
+      new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).quoteFor('X', 'c', 1, 0),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValue(res({ ok: false, status: 422, body: { message: 'Minimum belum' } }));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quoteFor('X', 'c', 1, 0),
+    ).rejects.toThrow('Minimum belum');
+
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      new PromoHttpAdapter(makeConfig()).quoteFor('X', 'c', 1, 0),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
   });
 });
 

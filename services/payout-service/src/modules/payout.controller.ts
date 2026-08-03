@@ -19,7 +19,12 @@ import {
 } from '../application/services/payout.service';
 import { LedgerEntryRecord, WithdrawalRecord } from '../domain/ledger';
 import { Page } from '../application/pagination';
-import { LedgerQueryDto, OrderRevenueDto, RequestWithdrawalDto } from './dto/payout.dto';
+import {
+  LedgerQueryDto,
+  OrderRevenueDto,
+  RequestWithdrawalDto,
+  VoidOrderRevenueDto,
+} from './dto/payout.dto';
 
 // Owner-scoped: every endpoint reads the caller's own franchise ledger (user.sub).
 @ApiTags('Payout')
@@ -74,5 +79,17 @@ export class PayoutController {
       orderNumber: dto.orderNumber ?? null,
       occurredAt: dto.completedAt ? new Date(dto.completedAt) : undefined,
     });
+  }
+
+  // The other half: a counter sale reversed at the till has to give the revenue and the
+  // commission back, or the owner is paid for money that was handed to the buyer.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('revenue/internal/void')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Back out a voided order's revenue + commission (internal service auth)" })
+  voidRevenue(@Body() dto: VoidOrderRevenueDto): Promise<{ reversed: boolean }> {
+    return this.payout.reverseOrderRevenue(dto.orderId, dto.reason);
   }
 }

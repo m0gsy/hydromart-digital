@@ -315,6 +315,14 @@ export interface OrderRepository {
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord>;
+  /**
+   * Reverses a counter sale: stamps VOIDED with the reason and appends the history row.
+   *
+   * Its own method rather than a status transition — VOIDED is deliberately not an edge out
+   * of COMPLETED, or every delivered order could be voided past the refund queue. Guarded
+   * on the current status so a double-void writes nothing.
+   */
+  voidWalkIn(id: string, reason: string, changedBy: string, at: Date): Promise<OrderRecord>;
   /** Revenue/order counts bucketed by day or month (CANCELLED excluded). FR-095/096. */
   salesSeries(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesBucket[]>;
   /** Highest-spending customers in the window (CANCELLED excluded). FR-097. */

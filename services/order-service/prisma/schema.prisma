@@ -26,6 +26,9 @@ enum OrderStatus {
   DELIVERED
   COMPLETED
   CANCELLED
+  /// A counter sale reversed at the till the same day. Kept apart from CANCELLED: that is
+  /// an order that never happened, this is one that happened and was undone.
+  VOIDED
 }
 
 /// A line in a customer's active cart. One row per (customer, product).
@@ -93,6 +96,11 @@ model Order {
   /// Amount refunded on this order, set by payment-service when a refund settles.
   /// Null = no refund. Powers per-depot refund reconciliation (22a).
   refundedAmount Decimal? @db.Decimal(12, 2)
+
+  /// Counter void: when the sale was reversed and why. The reason is not optional in
+  /// practice — a drawer that is short by a voided sale needs the till's own account of it.
+  voidedAt     DateTime?
+  voidReason   String?
 
   items   OrderItem[]
   history OrderStatusHistory[]

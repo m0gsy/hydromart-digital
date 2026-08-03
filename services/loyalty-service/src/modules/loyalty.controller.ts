@@ -24,6 +24,7 @@ import {
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   PointsTransactionDto,
+  ReverseEarnDto,
   RewardPointsDto,
   TierScopeQueryDto,
 } from './dto/loyalty.dto';
@@ -131,6 +132,21 @@ export class LoyaltyController {
   async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(
       await this.loyalty.reward(dto.customerId, dto.points, dto.reason),
+    );
+  }
+
+  // Voiding a counter sale has to take back the points it awarded, and the cashier who
+  // voids it is not a MANAGER — the staff `adjust` route above is out of their reach on
+  // purpose. Scoped by order, never by an amount the caller names: this service owns the
+  // per-depot earn rate, so only it knows what that sale really earned.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/reverse-earn')
+  @ApiOperation({ summary: "Take back a reversed order's points (internal service auth)" })
+  async reverseEarn(@Body() dto: ReverseEarnDto): Promise<LoyaltyAccountDto> {
+    return LoyaltyAccountDto.from(
+      await this.loyalty.reverseEarnForOrder(dto.customerId, dto.orderId, dto.reason),
     );
   }
 

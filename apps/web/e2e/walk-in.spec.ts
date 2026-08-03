@@ -143,11 +143,26 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   await expect(receipt!.getByText(/Kembali/)).toBeVisible();
   await receipt!.close();
 
-  // Close the drawer on the sale just made. The expected total is computed server-side from
-  // the payments themselves, so counting float + this sale exactly must come out even —
-  // proving the shift really measured the cash it took and not a number the page sent.
+  // Undo the sale, then close on the float alone. This is the whole reversal proved by its
+  // effect on the money: if the refund had not landed, the drawer would still expect it and
+  // the close below would report a shortfall instead of balancing.
+  await page.getByRole('button', { name: /Batalkan penjualan/i }).click();
+  await page.getByLabel(/Alasan/i).fill('E2E: pembeli batal');
+  const voided = page.waitForResponse(
+    (r) => /\/orders\/api\/v1\/orders\/walk-in\/[^/]+\/void$/.test(new URL(r.url()).pathname),
+    { timeout: 20_000 },
+  );
+  await page.getByRole('button', { name: /Ya, batalkan/i }).click();
+  const voidRes = await voided;
+  expect(voidRes.ok(), `void answered ${voidRes.status()}: ${await voidRes.text()}`).toBe(true);
+  expect((await voidRes.json()).status).toBe('VOIDED');
+
+  // The expected total is computed server-side from the payments themselves. With the sale
+  // reversed the drawer is back to its float, so counting exactly that must balance — and
+  // it only can if the refund really settled. A stale PAID payment would show up here as a
+  // shortfall the size of the sale.
   await page.getByRole('button', { name: /Tutup shift/i }).click();
-  await page.getByLabel(/Uang tunai dihitung/i).fill(String(200_000 + total));
+  await page.getByLabel(/Uang tunai dihitung/i).fill('200000');
   const closed = page.waitForResponse(
     (r) => /\/cashier-shifts\/[^/]+\/close$/.test(new URL(r.url()).pathname),
     { timeout: 20_000 },
@@ -159,6 +174,6 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   );
   const shift = await closeRes.json();
   expect(shift.status).toBe('CLOSED');
-  expect(shift.expectedCash).toBe(200_000 + total);
+  expect(shift.expectedCash).toBe(200_000);
   expect(shift.variance).toBe(0);
 });

@@ -38,6 +38,7 @@ import {
   OrderValueDto,
   RatingBatchDto,
   UpdateOrderStatusDto,
+  VoidSaleDto,
   WalkInSaleDto,
 } from './dto/order.dto';
 
@@ -107,6 +108,21 @@ export class OrderController {
       },
       authorization,
     );
+  }
+
+  // Declared with the other 'walk-in' routes, before any ':id' route, so the static
+  // segment is never read as an order id.
+  @Can('walkInSale')
+  @Post('walk-in/:id/void')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reverse a counter sale at the till (same day only)' })
+  voidWalkIn(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VoidSaleDto,
+    @Headers('authorization') authorization?: string,
+  ): Promise<OrderRecord> {
+    return this.orders.voidCounterSale(user, id, dto.reason, new Date(), authorization);
   }
 
   @Roles(Role.SUPER_ADMIN)

@@ -21,11 +21,15 @@ import {
   AnonymousVoucherNotAllowedError,
   ShippingVoucherAtCounterError,
   NoOpenShiftError,
+  NotACounterSaleError,
+  OrderAlreadyVoidedError,
+  VoidWindowClosedError,
 } from '../../domain/errors';
 import {
   OrderStatus,
   canTransition,
   isCancellable,
+  isVoidableOn,
   notificationEventFor,
 } from '../../domain/order-status';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
@@ -53,6 +57,7 @@ import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
 import { CashierShiftPort } from '../ports/cashier-shift.port';
+import { PaymentReversalPort } from '../ports/payment-reversal.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
@@ -131,6 +136,8 @@ export class OrderService {
     private readonly franchiseRevenue: FranchiseRevenuePort,
     @Inject(ORDER_TOKENS.CashierShift)
     private readonly cashierShift: CashierShiftPort,
+    @Inject(ORDER_TOKENS.PaymentReversal)
+    private readonly paymentReversal: PaymentReversalPort,
   ) {}
 
   /**
@@ -437,6 +444,68 @@ export class OrderService {
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
+  }
+
+  /**
+   * Undoes a counter sale at the till: wrong item, wrong quantity, buyer changed their mind
+   * before leaving. The goods come back over the counter and the money goes back with them.
+   *
+   * Only a counter sale, and only on the day it was sold. A delivery order has left the depot
+   * and belongs to the refund queue; a sale from a previous day belongs to a shift somebody
+   * has already counted and signed off, and reversing into it would move settled money.
+   *
+   * The status write is the gate: it is guarded on COMPLETED in the database itself, so two
+   * cashiers hitting void on the same sale cannot both restock and refund it. Everything
+   * after that write fails OPEN — by then the buyer already has their goods and their money,
+   * and a depot-service or loyalty blip must not leave the sale standing as revenue.
+   */
+  async voidCounterSale(
+    user: AuthenticatedUser,
+    orderId: string,
+    reason: string,
+    now: Date,
+    authorization = '',
+  ): Promise<OrderRecord> {
+    const order = await this.getAny(orderId);
+    if (!order.isWalkIn) throw new NotACounterSaleError();
+    assertDepotAccess(user, order.depotId);
+    if (order.status === OrderStatus.VOIDED) throw new OrderAlreadyVoidedError();
+    if (!isVoidableOn(order.createdAt, now, this.config.counterVoidTimeZone)) {
+      throw new VoidWindowClosedError();
+    }
+
+    // The money first, and fail CLOSED on it. An order marked reversed while payment-service
+    // still holds the payment PAID would read as revenue the depot no longer has AND as cash
+    // the cashier can never account for at close.
+    await this.paymentReversal.voidForOrder(orderId, reason);
+
+    const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now);
+
+    // From here on nothing may fail the call. The money is back and the order is reversed;
+    // reporting "gagal membatalkan" now would be a lie the cashier acts on, so a hiccup in
+    // any of these is logged and reconciled (opname for stock, the ledger for the rest).
+    if (order.depotId) {
+      await this.inventory
+        .restock(
+          order.depotId,
+          orderId,
+          order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          authorization,
+        )
+        .catch(() => {});
+    }
+    // The franchise owner's ledger is a separate book that this service already wrote to at
+    // completion — excluding the order from reports does not touch it, so it has to be
+    // backed out explicitly or the owner keeps credit for money handed back to the buyer.
+    await this.franchiseRevenue.orderVoided(orderId, reason).catch(() => {});
+    // Points are money in the buyer's hands too, so they are taken back as well. Demand and
+    // recommendations need no undoing — they fall out of every report with the status.
+    if (order.customerId !== ANONYMOUS_CUSTOMER_ID) {
+      await this.loyalty
+        .reversePoints(order.customerId, orderId, `Penjualan konter ${order.orderNumber} dibatalkan`)
+        .catch(() => {});
+    }
+    return voided;
   }
 
   /**

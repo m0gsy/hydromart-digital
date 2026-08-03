@@ -40,6 +40,27 @@ describe('LoyaltyService', () => {
     expect(result.account.lifetimePoints).toBe(60);
   });
 
+  describe('reverseEarnForOrder', () => {
+    it('takes back exactly what that order earned', async () => {
+      const orderId = randomUUID();
+      await service.earnForOrder('cust-1', orderId, 60000);
+
+      const account = await service.reverseEarnForOrder('cust-1', orderId, 'Konter dibatalkan');
+
+      expect(account.pointsBalance).toBe(0);
+      expect(repo.txns.filter((t) => t.type === PointsTxnType.ADJUST)).toHaveLength(1);
+    });
+
+    // An anonymous counter sale, or one below the earn threshold, never awarded anything.
+    // Reversing it is a no-op, not an error — the void must not fail on it.
+    it('is a no-op for an order that never earned', async () => {
+      await service.earnForOrder('cust-1', randomUUID(), 60000);
+      const account = await service.reverseEarnForOrder('cust-1', randomUUID(), 'Batal');
+      expect(account.pointsBalance).toBe(60);
+      expect(repo.txns.filter((t) => t.type === PointsTxnType.ADJUST)).toHaveLength(0);
+    });
+  });
+
   it('is idempotent per order — a repeat earn is a no-op', async () => {
     const orderId = randomUUID();
     await service.earnForOrder('cust-1', orderId, 60000);
