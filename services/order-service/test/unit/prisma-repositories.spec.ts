@@ -524,10 +524,18 @@ describe('OrderPrismaRepository', () => {
 
   it('applies a status transition and appends history (no driver name)', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
-    const out = await repo.applyStatus('ord-1', OrderStatus.CONFIRMED, 'admin-1', 'ok');
+    const out = await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CREATED,
+      OrderStatus.CONFIRMED,
+      'admin-1',
+      'ok',
+    );
     expect(out.status).toBe(OrderStatus.CONFIRMED);
+    // H-4: the status the caller read is part of the WHERE, so a transition computed
+    // against a stale row matches nothing instead of overwriting the newer one.
     expect(order.update).toHaveBeenCalledWith({
-      where: { id: 'ord-1' },
+      where: { id: 'ord-1', status: OrderStatus.CREATED },
       data: {
         status: OrderStatus.CONFIRMED,
         history: { create: { status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
@@ -542,7 +550,14 @@ describe('OrderPrismaRepository', () => {
       driverName: 'Joko',
       status: 'DRIVER_ASSIGNED',
     });
-    await repo.applyStatus('ord-1', OrderStatus.DRIVER_ASSIGNED, null, null, 'Joko');
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CONFIRMED,
+      OrderStatus.DRIVER_ASSIGNED,
+      null,
+      null,
+      'Joko',
+    );
     expect(order.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ driverName: 'Joko' }) }),
     );

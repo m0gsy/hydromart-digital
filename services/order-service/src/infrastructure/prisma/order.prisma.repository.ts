@@ -3,7 +3,11 @@ import { depotWhere } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
-import { DuplicateCheckoutError, OrderAlreadyVoidedError } from '../../domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  StaleOrderStatusError,
+} from '../../domain/errors';
 import {
   CreateOrderData,
   CreateReviewData,
@@ -379,6 +383,7 @@ export class OrderPrismaRepository implements OrderRepository {
 
   async applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
@@ -386,17 +391,26 @@ export class OrderPrismaRepository implements OrderRepository {
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord> {
-    const row = await this.prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        ...(driverName != null ? { driverName } : {}),
-        ...(driverPhone != null ? { driverPhone } : {}),
-        ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
-        history: { create: { status, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
+    // `status: from` in the WHERE is the guard (H-4). No match means the order moved
+    // under us; P2025 becomes StaleOrderStatusError so the loser is told, not ignored.
+    const row = await this.prisma.order
+      .update({
+        where: { id, status: from },
+        data: {
+          status,
+          ...(driverName != null ? { driverName } : {}),
+          ...(driverPhone != null ? { driverPhone } : {}),
+          ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
+          history: { create: { status, changedBy, note } },
+        },
+        include: INCLUDE,
+      })
+      .catch((error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2025') {
+          throw new StaleOrderStatusError();
+        }
+        throw error;
+      });
     return this.toRecord(row);
   }
 

@@ -23,6 +23,20 @@ export class DuplicateCheckoutError extends DomainError {
   }
 }
 
+/**
+ * The order moved on between being read and being written (H-4).
+ *
+ * 409, not 422: the transition the caller asked for was legal when they asked. Somebody
+ * else got there first, and re-reading the order will show them what actually happened.
+ */
+export class StaleOrderStatusError extends DomainError {
+  readonly code = 'ORDER_STATUS_STALE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This order was already updated by someone else. Reload and try again.');
+  }
+}
+
 export class EmptyCartError extends DomainError {
   readonly code = 'ORDER_CART_EMPTY';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

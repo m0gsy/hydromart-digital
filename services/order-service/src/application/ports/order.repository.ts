@@ -314,8 +314,17 @@ export interface OrderRepository {
    * driverPhone (at DRIVER_ASSIGNED) and estimatedArrivalAt (at ON_DELIVERY) when given —
    * each is written only when non-null, so a later transition never clobbers a snapshot.
    */
+  /**
+   * Moves an order to `status`, but only from the `from` it was read at (H-4).
+   *
+   * The compare-and-set is the whole point: the legality check runs against a row read
+   * moments earlier, and two staff — or a courier and the stall sweep — acting together
+   * would otherwise both pass it and both write, running the completion fan-out twice.
+   * A caller that loses gets StaleOrderStatusError, not a silent overwrite.
+   */
   applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,

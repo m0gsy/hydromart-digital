@@ -722,6 +722,7 @@ export class OrderService {
     }
     const cancelled = await this.orders.applyStatus(
       order.id,
+      order.status,
       OrderStatus.CANCELLED,
       customerId,
       reason ?? null,
@@ -772,6 +773,7 @@ export class OrderService {
       for (const order of stale) {
         const cancelled = await this.orders.applyStatus(
           order.id,
+          order.status,
           OrderStatus.CANCELLED,
           changedBy,
           sweep.note,
@@ -986,6 +988,7 @@ export class OrderService {
     }
     const updated = await this.orders.applyStatus(
       order.id,
+      order.status,
       to,
       changedBy,
       note ?? null,

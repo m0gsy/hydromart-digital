@@ -21,6 +21,7 @@ import {
   OutOfServiceAreaError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
+  StaleOrderStatusError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
@@ -199,6 +200,54 @@ describe('OrderService', () => {
     expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6}$/);
     expect(order.recipientName).toBe('Budi');
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
+  });
+
+  // H-4. Transitions were read-check-write: the legality check ran against a row read
+  // moments earlier, so two staff acting together both passed it and both wrote. The
+  // second write also re-ran the completion fan-out — stock consumed twice, points
+  // awarded twice, franchise revenue posted twice.
+  describe('concurrent status transitions', () => {
+    const advance = async (order: { id: string }, to: OrderStatus) =>
+      service.updateStatus(order.id, to, 'staff', undefined, 'Bearer tok');
+
+    it('lets one of two simultaneous transitions win and tells the other', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      const results = await Promise.allSettled([
+        advance(order, OrderStatus.CONFIRMED),
+        advance(order, OrderStatus.CANCELLED),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const loser = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect(loser.reason).toBeInstanceOf(StaleOrderStatusError);
+    });
+
+    it('runs the completion fan-out once when COMPLETED is applied twice', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+      ]) {
+        await advance(order, s);
+      }
+
+      const results = await Promise.allSettled([
+        advance(order, OrderStatus.COMPLETED),
+        advance(order, OrderStatus.COMPLETED),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      // The consume is the depot's stock leaving. Twice would be a real shortfall.
+      expect(inventory.calls).toHaveLength(1);
+      expect(loyalty.calls).toHaveLength(1);
+    });
   });
 
   // B-13. A double-tapped Bayar, or a retry after the proxy gave up on a request the

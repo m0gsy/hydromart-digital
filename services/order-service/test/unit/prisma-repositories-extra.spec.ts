@@ -182,7 +182,16 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
       items: [],
       history: [],
     });
-    await repo.applyStatus('o1', 'DRIVER_ASSIGNED' as never, 'staff', null, 'Budi', null, null);
+    await repo.applyStatus(
+      'o1',
+      'ON_DELIVERY' as never,
+      'DRIVER_ASSIGNED' as never,
+      'staff',
+      null,
+      'Budi',
+      null,
+      null,
+    );
     const data = order.update.mock.calls.at(-1)?.[0].data;
     expect(data).toMatchObject({ driverName: 'Budi' });
     expect(data.driverPhone).toBeUndefined();

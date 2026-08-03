@@ -46,7 +46,7 @@ describe('ReportService', () => {
     const cancelled = await repo.create(
       orderData({ customerId: CUST_B, depotId: DEPOT_B, total: 999999 }),
     );
-    await repo.applyStatus(cancelled.id, OrderStatus.CANCELLED, null, null);
+    await repo.applyStatus(cancelled.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
     // An unrouted order counts for sales/customers but never for top-depots.
     await repo.create(orderData({ customerId: CUST_A, depotId: null, total: 5000 }));
   });
@@ -69,7 +69,7 @@ describe('ReportService', () => {
     const live = await repo.create(orderData({ depotId: DEPOT_A, total: 40000 }));
     await repo.recordRefund(live.id, 40000);
     const cancelledRefunded = await repo.create(orderData({ depotId: DEPOT_B, total: 15000 }));
-    await repo.applyStatus(cancelledRefunded.id, OrderStatus.CANCELLED, null, null);
+    await repo.applyStatus(cancelledRefunded.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
     await repo.recordRefund(cancelledRefunded.id, 15000);
 
     const { items } = await reports.refundsByDepot({});
@@ -226,7 +226,7 @@ describe('ReportService', () => {
       r.rows.find((x) => x.id === o.id)!.status = OrderStatus.DELIVERED;
       r.rows.find((x) => x.id === o.id)!.createdAt = at(1);
     }
-    await r.applyStatus(c1.id, OrderStatus.CANCELLED, null, null);
+    await r.applyStatus(c1.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
     r.rows.find((x) => x.id === c1.id)!.createdAt = at(2);
 
     const rep = await svc.depotDaily(depot, day);
@@ -361,7 +361,7 @@ describe('ReportService', () => {
       orderData({ depotId: depot, customerId: custY, total: 99999 }),
     );
     r.rows.find((x) => x.id === cancelled.id)!.createdAt = new Date('2026-05-11T00:00:00.000Z');
-    await r.applyStatus(cancelled.id, OrderStatus.CANCELLED, null, null);
+    await r.applyStatus(cancelled.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
     const other = await r.create(orderData({ depotId: depot, customerId: custX, total: 70000 }));
     r.rows.find((x) => x.id === other.id)!.createdAt = new Date('2026-06-02T00:00:00.000Z');
 

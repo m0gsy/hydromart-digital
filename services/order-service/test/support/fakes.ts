@@ -68,6 +68,7 @@ import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.p
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
+  StaleOrderStatusError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 
@@ -265,6 +266,7 @@ export class InMemoryOrderRepository implements OrderRepository {
 
   async applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
@@ -272,7 +274,10 @@ export class InMemoryOrderRepository implements OrderRepository {
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
   ): Promise<OrderRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // The compare-and-set the real repository does in its WHERE (H-4): a caller writing
+    // from a status the order has already left claims nothing.
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleOrderStatusError();
     row.status = status;
     if (driverName != null) row.driverName = driverName;
     if (driverPhone != null) row.driverPhone = driverPhone;
