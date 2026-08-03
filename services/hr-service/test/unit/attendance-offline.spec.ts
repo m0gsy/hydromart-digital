@@ -30,7 +30,6 @@ function punchAt(capturedAt?: Date): FacePunch {
   return {
     image: Buffer.from('x'),
     photoUrl: null,
-    live: true,
     lat: -6.2,
     lng: 106.8,
     capturedAt: capturedAt ?? null,
@@ -109,7 +108,7 @@ function make(
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => ({ score: 0.9, matched: true, live: true }),
+    verify: async () => ({ score: 0.9, matched: true }),
   };
   const employees = {
     findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,

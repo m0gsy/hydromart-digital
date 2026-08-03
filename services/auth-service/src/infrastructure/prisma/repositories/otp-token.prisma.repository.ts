@@ -57,11 +57,14 @@ export class OtpTokenPrismaRepository implements OtpTokenRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async incrementAttempts(id: string): Promise<void> {
-    await this.prisma.otpToken.update({
-      where: { id },
+  async claimAttempt(id: string, maxAttempts: number): Promise<boolean> {
+    // One conditional UPDATE: the row itself decides whether a guess was left. `update()`
+    // on the id alone would let concurrent verifies each increment past the limit.
+    const { count } = await this.prisma.otpToken.updateMany({
+      where: { id, consumedAt: null, attempts: { lt: maxAttempts } },
       data: { attempts: { increment: 1 } },
     });
+    return count > 0;
   }
 
   async markConsumed(id: string, consumedAt: Date): Promise<void> {

@@ -100,10 +100,11 @@ services:
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
       # `console` only prints the code to the container log — real customers can
-      # never receive it. Set OTP_DELIVERY_CHANNEL to `zenziva` (Indonesian SMS
-      # provider in use) or `sms` (generic gateway) in .env, plus that channel's
-      # credentials below, before taking real signups.
-      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:-console}
+      # never receive it, and anyone who can read logs can sign in as anyone. The
+      # service refuses to boot on it in production: set OTP_DELIVERY_CHANNEL to
+      # `zenziva` (Indonesian SMS provider in use) or `sms` (generic gateway) in
+      # .env, plus that channel's credentials below.
+      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:?set OTP_DELIVERY_CHANNEL=zenziva|sms (console is dev-only)}
       ZENZIVA_BASE_URL: ${ZENZIVA_BASE_URL:-https://console.zenziva.net}
       ZENZIVA_USERKEY: ${ZENZIVA_USERKEY:-}
       ZENZIVA_PASSKEY: ${ZENZIVA_PASSKEY:-}

@@ -2,6 +2,12 @@ import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 /**
+ * The only way to run the log-printing OTP channel under NODE_ENV=production. Exists for
+ * the E2E stack, which is production-parity by design and scrapes codes from the auth log.
+ */
+export const CONSOLE_ACK = 'yes-this-prints-login-codes-to-the-log';
+
+/**
  * Boot-time validation of environment variables. The application refuses to start
  * with missing or malformed configuration (fail fast — no silent misconfiguration).
  */
@@ -20,7 +26,15 @@ export const envValidationSchema = Joi.object({
   OTP_LENGTH: Joi.number().integer().min(4).max(8).default(6),
   OTP_MAX_ATTEMPTS: Joi.number().integer().positive().default(5),
   OTP_RESEND_COOLDOWN_SECONDS: Joi.number().integer().positive().default(60),
+  // `console` writes the login code into the container log, where anyone who can read logs
+  // can sign in as any customer. It is a dev channel, so production must name a real one —
+  // fail at boot rather than run a whole deploy quietly broadcasting OTPs.
+  //
+  // The one exception is the E2E stack, which runs NODE_ENV=production on purpose (prod
+  // parity) and reads codes back from the auth log. It says so out loud via OTP_CONSOLE_ACK
+  // below; the value is deliberately unpleasant so nobody sets it out of habit.
   OTP_DELIVERY_CHANNEL: Joi.string().valid('console', 'sms', 'zenziva').default('console'),
+  OTP_CONSOLE_ACK: Joi.string().allow('').default(''),
   OTP_PEPPER: requiredSecret(16),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
@@ -92,4 +106,16 @@ export const envValidationSchema = Joi.object({
       ZENZIVA_USERKEY: Joi.string().required(),
       ZENZIVA_PASSKEY: Joi.string().required(),
     }),
-  });
+  })
+  // H-26: production must name a real channel. `console` only prints the code into the
+  // container log, so a deploy left on it is one log read away from signing in as any
+  // customer — and the prod compose used to fall back to it silently.
+  .when(
+    Joi.object({
+      NODE_ENV: Joi.valid('production').required(),
+      OTP_CONSOLE_ACK: Joi.invalid(CONSOLE_ACK),
+    }).unknown(),
+    // `.invalid()`, not `.valid()`: a `when` branch is concat'ed onto the base key, and
+    // concat UNIONS allowed values — so re-listing sms/zenziva would leave console allowed.
+    { then: Joi.object({ OTP_DELIVERY_CHANNEL: Joi.invalid('console').required() }) },
+  );

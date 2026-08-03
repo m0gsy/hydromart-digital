@@ -32,7 +32,6 @@ const user: AuthenticatedUser = {
 const punch: FacePunch = {
   image: Buffer.from('x'),
   photoUrl: null,
-  live: true,
   lat: -6.2,
   lng: 106.8,
 };
@@ -112,7 +111,7 @@ function make(
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => opts.verify ?? { score: 0.9, matched: true, live: true },
+    verify: async () => opts.verify ?? { score: 0.9, matched: true },
   };
   const employees = {
     findByAuthSubjectId: async () =>
@@ -148,10 +147,8 @@ describe('AttendanceService', () => {
     await expect(svc.checkIn(user, punch, AT_0810)).rejects.toThrow(BadRequestException);
   });
 
-  it('rejects a failed liveness and a non-match', async () => {
-    const dead = make({ verify: { score: 0.9, matched: true, live: false } });
-    await expect(dead.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(BadRequestException);
-    const nomatch = make({ verify: { score: 0.1, matched: false, live: true } });
+  it('rejects a non-match', async () => {
+    const nomatch = make({ verify: { score: 0.1, matched: false } });
     await expect(nomatch.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(UnauthorizedException);
   });
 
@@ -213,7 +210,7 @@ describe('AttendanceService — supervisor with no home depot', () => {
     };
     const verifier: FaceVerifier = {
       enroll: async () => ({ vector: [1, 0], quality: 1 }),
-      verify: async () => ({ score: 0.9, matched: true, live: true }),
+      verify: async () => ({ score: 0.9, matched: true }),
     };
     const employees = {
       findByAuthSubjectId: async () =>

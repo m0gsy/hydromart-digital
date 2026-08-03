@@ -79,7 +79,6 @@ export class AttendanceController {
     return {
       image: decodeBase64Image(dto.image),
       photoUrl: dto.photoUrl ?? null,
-      live: dto.live ?? false,
       lat: dto.lat,
       lng: dto.lng,
       capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,

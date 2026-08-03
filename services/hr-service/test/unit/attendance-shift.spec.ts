@@ -20,7 +20,7 @@ import { AttendanceService } from '../../src/application/services/attendance.ser
 import { HrConfigService } from '../../src/config/hr-config.service';
 
 const user: AuthenticatedUser = { sub: 'u1', role: 'STAFF_DEPOT' as never, phone: '08', depotId: 'd1' };
-const punch = { image: Buffer.from('x'), photoUrl: null, live: true, lat: 0, lng: 0 };
+const punch = { image: Buffer.from('x'), photoUrl: null, lat: 0, lng: 0 };
 
 /** 2026-08-03 is a Monday. 08:10 Jakarta = 01:10 UTC. */
 const MONDAY_0810 = new Date('2026-08-03T01:10:00.000Z');
@@ -66,7 +66,7 @@ function make(opts: {
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => ({ score: 0.9, matched: true, live: true }),
+    verify: async () => ({ score: 0.9, matched: true }),
   };
   const employees = {
     findByAuthSubjectId: async () =>

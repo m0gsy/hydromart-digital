@@ -37,7 +37,11 @@ services:
       # A 60s cooldown / low throttler would 429 later logins. Test stack only.
       OTP_RESEND_COOLDOWN_SECONDS: 1
       RATE_LIMIT_MAX: 1000
+      # This stack runs NODE_ENV=production for parity, and the E2E reads OTP codes back
+      # from this container's log. auth-service refuses the console channel in production
+      # unless the deploy says so explicitly (H-26). Test stack only — never in prod .env.
       OTP_DELIVERY_CHANNEL: console
+      OTP_CONSOLE_ACK: yes-this-prints-login-codes-to-the-log
       OTP_PEPPER: itest-otp-pepper-0123456789
       CRM_SERVICE_URL: http://crm:3012
     healthcheck:

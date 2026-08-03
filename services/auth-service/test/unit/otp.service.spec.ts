@@ -115,6 +115,23 @@ describe('OtpService', () => {
     );
   });
 
+  // B-4: the limit has to hold for guesses, not for rounds of guesses. Ten requests that
+  // arrive together used to all read attempts=0, all pass the check, and all reach the
+  // (deliberately slow) hash compare — five free guesses on a six-digit login code.
+  it('does not hand out more guesses than the limit when the requests arrive together', async () => {
+    const customer = activeCustomer();
+    await service.issue(customer, OtpPurpose.LOGIN);
+    const compare = jest.spyOn(crypto, 'verifySecret');
+
+    const results = await Promise.allSettled(
+      Array.from({ length: 10 }, () => service.verify(customer, OtpPurpose.LOGIN, '000000')),
+    );
+
+    expect(compare).toHaveBeenCalledTimes(5); // OTP_MAX_ATTEMPTS, not 10
+    expect(otpRepo.rows[0].attempts).toBe(5);
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+  });
+
   it('rejects an expired code', async () => {
     const customer = activeCustomer();
     await service.issue(customer, OtpPurpose.LOGIN);

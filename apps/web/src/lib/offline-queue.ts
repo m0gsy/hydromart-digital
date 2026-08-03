@@ -27,7 +27,6 @@ export type JobKind = 'hrPunch' | 'shiftCheckIn' | 'pod';
 export interface HrPunchPayload {
   mode: 'in' | 'out';
   image: string;
-  live: boolean;
   lat: number;
   lng: number;
 }

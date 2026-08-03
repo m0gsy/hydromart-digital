@@ -54,22 +54,22 @@ describe('NeoFaceProvider', () => {
   it('verify maps NEO verified/similarity to matched/score (percent → 0..1)', async () => {
     mockFetch(() => ({ body: { status: '200', verified: true, similarity: '92.5' } }));
     const neo = new NeoFaceProvider(makeConfig());
-    const res = await neo.verify(Buffer.from('p'), [], true, identity);
-    expect(res).toEqual({ score: 0.925, matched: true, live: true });
+    const res = await neo.verify(Buffer.from('p'), [], identity);
+    expect(res).toEqual({ score: 0.925, matched: true });
   });
 
   it('verify reports no match (not an error) when NEO returns 411 Face Not Verified', async () => {
     // A genuine non-match uses a non-2xx status but still carries verified:false.
     mockFetch(() => ({ status: 200, body: { status: '411', verified: false, similarity: 0 } }));
     const neo = new NeoFaceProvider(makeConfig());
-    const res = await neo.verify(Buffer.from('p'), [], false, identity);
-    expect(res).toEqual({ score: 0, matched: false, live: false });
+    const res = await neo.verify(Buffer.from('p'), [], identity);
+    expect(res).toEqual({ score: 0, matched: false });
   });
 
   it('throws ServiceUnavailable on a NEO error status', async () => {
     mockFetch(() => ({ body: { status: '400', status_message: 'face not found' } }));
     const neo = new NeoFaceProvider(makeConfig());
-    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
   });
@@ -77,7 +77,7 @@ describe('NeoFaceProvider', () => {
   it('throws when the token is not configured', async () => {
     mockFetch(() => ({ body: {} }));
     const neo = new NeoFaceProvider(makeConfig(''));
-    await expect(neo.verify(Buffer.from('p'), [], true, identity)).rejects.toBeInstanceOf(
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
   });
@@ -89,7 +89,6 @@ describe('NeoFaceProvider', () => {
     const fractional = await new NeoFaceProvider(makeConfig()).verify(
       Buffer.from('p'),
       [],
-      true,
       identity,
     );
     expect(fractional.score).toBeCloseTo(0.42);
@@ -98,7 +97,6 @@ describe('NeoFaceProvider', () => {
     const missing = await new NeoFaceProvider(makeConfig()).verify(
       Buffer.from('p'),
       [],
-      true,
       identity,
     );
     expect(missing.score).toBe(0);
@@ -144,7 +142,7 @@ describe('NeoFaceProvider', () => {
   it('requires an identity (userId)', async () => {
     mockFetch(() => ({ body: { status: '200' } }));
     const neo = new NeoFaceProvider(makeConfig());
-    await expect(neo.verify(Buffer.from('p'), [], true, undefined)).rejects.toBeInstanceOf(
+    await expect(neo.verify(Buffer.from('p'), [], undefined)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
   });

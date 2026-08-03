@@ -81,13 +81,15 @@ export class OtpService {
     if (record.expiresAt.getTime() <= now.getTime()) {
       throw new OtpInvalidError('The verification code has expired.');
     }
-    if (record.attempts >= policy.maxAttempts) {
+    // Claim the guess BEFORE comparing, in one conditional write. Read-check-then-increment
+    // around a ~100ms bcrypt compare let N parallel requests all read attempts=0, all pass
+    // the check and all get a free guess — the limit then bounded rounds, not guesses.
+    if (!(await this.otpTokens.claimAttempt(record.id, policy.maxAttempts))) {
       throw new OtpMaxAttemptsError();
     }
 
     const matches = await this.crypto.verifySecret(code, record.codeHash);
     if (!matches) {
-      await this.otpTokens.incrementAttempts(record.id);
       if (record.attempts + 1 >= policy.maxAttempts) {
         throw new OtpMaxAttemptsError();
       }
