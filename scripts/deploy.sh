@@ -30,11 +30,13 @@ bash scripts/backup-db.sh
 git fetch origin "$BRANCH"
 NEW_SHA="$(git rev-parse "origin/$BRANCH")"
 
-# Decide which services to rebuild BEFORE moving the working tree.
+# Decide which services to rebuild BEFORE moving the working tree. The diff is computed
+# unconditionally now — --all changes what gets rebuilt, not whether the incoming commit
+# carries migrations.
+CHANGED="$(git diff --name-only "$PREV_SHA" "$NEW_SHA")"
 if [ "${1:-}" = "--all" ]; then
   SERVICES=(--all)
 else
-  CHANGED="$(git diff --name-only "$PREV_SHA" "$NEW_SHA")"
   if needs_full_rebuild "$CHANGED"; then
     log "shared package or root build input changed → full rebuild"
     SERVICES=(--all)
@@ -44,6 +46,40 @@ else
 fi
 
 git reset --hard "$NEW_SHA"
+
+# B-20 — schema before code, enforced instead of remembered.
+#
+# Migration execution used to be a separate manual button in the Deploy workflow, so a
+# merge carrying both a migration and the code that reads it shipped the code now and the
+# schema whenever someone remembered. New containers then ran against the old schema.
+#
+# This runs AFTER the reset because the migration files only exist in the incoming tree,
+# and BEFORE any container is rebuilt or started, so the new code never meets the old
+# schema. If it fails, the tree goes back and the running stack is never touched at all.
+#
+# Direction of the remaining risk is deliberate: a later health failure rolls the CODE
+# back to $PREV_SHA and leaves the schema ahead of it. That is the repo's own convention
+# (a column ships one release before its reader) and is the survivable half.
+MIGRATIONS="$(pending_migrations "$CHANGED")"
+if [ -n "$MIGRATIONS" ]; then
+  log "incoming commit adds migrations:"
+  echo "$MIGRATIONS" | sed 's/^/  /'
+  if [ "${DEPLOY_MIGRATE:-apply}" = "apply" ]; then
+    log "applying them before any container starts on the new code"
+    # The backup at the top of this script is minutes old — do not take a second one.
+    if ! MIGRATE_SKIP_BACKUP=1 bash scripts/migrate-prod.sh; then
+      log "!! migration FAILED — restoring the tree to $PREV_SHA, running stack untouched"
+      git reset --hard "$PREV_SHA"
+      alert "deploy aborted: migration failed on $NEW_SHA (stack still serving $PREV_SHA)"
+      exit 1
+    fi
+  else
+    log "!! DEPLOY_MIGRATE=${DEPLOY_MIGRATE} — refusing to start new code against an un-migrated schema"
+    log "   apply them yourself (bash scripts/migrate-prod.sh), then re-run this deploy"
+    git reset --hard "$PREV_SHA"
+    exit 1
+  fi
+fi
 
 if [ "${SERVICES[0]:-}" = "--all" ]; then
   log "rebuilding ALL services"
