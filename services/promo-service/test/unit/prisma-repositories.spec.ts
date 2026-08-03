@@ -3,6 +3,7 @@ import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promo
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
 import { VoucherRequestPrismaRepository } from '../../src/infrastructure/prisma/voucher-request.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
+import { VoucherNotFoundError } from '../../src/domain/errors';
 import { VoucherRequestStatus } from '../../src/domain/voucher-request';
 
 describe('PromotionPrismaRepository', () => {
@@ -287,6 +288,86 @@ describe('VoucherPrismaRepository', () => {
     expect(voucherGrant.create).toHaveBeenCalledWith({ data: { voucherId: 'v-1', customerId: 'c-1' } });
   });
 });
+// H-1: the burn that the voucher caps actually rest on. The row is locked FOR UPDATE, the
+// counts are read INSIDE that lock, and `decide` gets to reject before anything is
+// written — so two customers spending the last use of a voucher cannot both win.
+describe('VoucherPrismaRepository.redeemAtomic', () => {
+  const tx = {
+    $queryRaw: jest.fn(),
+    voucherRedemption: { count: jest.fn(), aggregate: jest.fn(), create: jest.fn() },
+    voucher: { update: jest.fn() },
+  };
+  const prisma = {
+    $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+  } as unknown as PrismaService;
+  const repo = new VoucherPrismaRepository(prisma);
+  const input = {
+    voucherId: '11111111-1111-4111-8111-111111111111',
+    voucherCode: 'HEMAT10',
+    customerId: 'cust-1',
+    orderId: 'ord-1',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    tx.$queryRaw.mockResolvedValue([{ usedCount: 3 }]);
+    tx.voucherRedemption.count.mockResolvedValue(1);
+    tx.voucherRedemption.aggregate.mockResolvedValue({ _sum: { discountApplied: 5000 } });
+    tx.voucherRedemption.create.mockResolvedValue({
+      id: 'r-1',
+      voucherId: input.voucherId,
+      voucherCode: 'HEMAT10',
+      customerId: 'cust-1',
+      orderId: 'ord-1',
+      discountApplied: 2000,
+      createdAt: new Date('2026-08-03'),
+    });
+  });
+
+  it('decides against the counts read under the lock, then burns', async () => {
+    const seen: unknown[] = [];
+    const out = await repo.redeemAtomic(input, (counts) => {
+      seen.push(counts);
+      return 2000;
+    });
+
+    expect(seen).toEqual([{ usedCount: 3, customerRedemptions: 1, burned: 5000 }]);
+    expect(out).toMatchObject({ id: 'r-1', discountApplied: 2000 });
+    // The counter moves by an increment, not an absolute read back from before the lock.
+    expect(tx.voucher.update).toHaveBeenCalledWith({
+      where: { id: input.voucherId },
+      data: { usedCount: { increment: 1 } },
+    });
+  });
+
+  it('treats a voucher that vanished under the lock as not found', async () => {
+    tx.$queryRaw.mockResolvedValue([]);
+    await expect(repo.redeemAtomic(input, () => 2000)).rejects.toBeInstanceOf(VoucherNotFoundError);
+    expect(tx.voucherRedemption.create).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when decide rejects the burn', async () => {
+    const boom = new Error('usage limit reached');
+    await expect(
+      repo.redeemAtomic(input, () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(tx.voucherRedemption.create).not.toHaveBeenCalled();
+    expect(tx.voucher.update).not.toHaveBeenCalled();
+  });
+
+  it('reads a never-redeemed voucher as zero burned, not null', async () => {
+    tx.voucherRedemption.aggregate.mockResolvedValue({ _sum: { discountApplied: null } });
+    const seen: { burned: number }[] = [];
+    await repo.redeemAtomic(input, (counts) => {
+      seen.push(counts);
+      return 2000;
+    });
+    expect(seen[0].burned).toBe(0);
+  });
+});
+
 
 describe('VoucherRequestPrismaRepository', () => {
   const model = {
