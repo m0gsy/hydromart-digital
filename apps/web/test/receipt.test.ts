@@ -36,7 +36,7 @@ const order = {
   updatedAt: '2026-07-29T03:00:00.000Z',
 } as unknown as Order;
 
-function capture(cash?: { cashReceived: number; change: number }): string {
+function capture(cash?: { cashReceived: number; change: number }, method?: string): string {
   let html = '';
   const write = vi.fn((chunk: string) => {
     html = chunk;
@@ -44,7 +44,7 @@ function capture(cash?: { cashReceived: number; change: number }): string {
   vi.spyOn(window, 'open').mockReturnValue({
     document: { write, close: vi.fn() },
   } as unknown as Window);
-  printReceipt(order, cash);
+  printReceipt(order, cash, method);
   return html;
 }
 
@@ -61,5 +61,28 @@ describe('printReceipt', () => {
     const html = capture();
     expect(html).not.toContain('Tunai');
     expect(html).not.toContain('Kembali');
+  });
+
+  // A QRIS sale has no tender rows at all, so without the method line the struk would not
+  // say how it was paid — and would read exactly like an unpaid one.
+  it('names the method on a non-cash counter sale', () => {
+    const html = capture(undefined, 'QRIS');
+    expect(html).toContain('Metode');
+    expect(html).toContain('QRIS');
+    expect(html).not.toContain('Kembali');
+  });
+
+  // The counter screen branches on this: a blocked popup has to be reported to the cashier,
+  // who otherwise watches the sale succeed with no struk to hand over.
+  it('reports a blocked popup instead of failing silently', () => {
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    expect(printReceipt(order, { cashReceived: 50000, change: 10000 })).toBe(false);
+  });
+
+  it('reports success when the print window opened', () => {
+    vi.spyOn(window, 'open').mockReturnValue({
+      document: { write: vi.fn(), close: vi.fn() },
+    } as unknown as Window);
+    expect(printReceipt(order)).toBe(true);
   });
 });

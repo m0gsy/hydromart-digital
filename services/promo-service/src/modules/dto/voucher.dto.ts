@@ -121,6 +121,16 @@ export class QuoteVoucherDto {
   shippingFee?: number;
 }
 
+/**
+ * Counter sale: the wallet being quoted belongs to the buyer standing at the depot, not to
+ * the staff token making the call, so the customer must be named explicitly.
+ */
+export class InternalQuoteVoucherDto extends QuoteVoucherDto {
+  @ApiProperty({ format: 'uuid', description: 'Customer whose wallet the voucher lives in.' })
+  @IsUUID()
+  customerId!: string;
+}
+
 /** Spec 5h: grant a voucher to a specific customer's wallet. */
 export class GrantVoucherDto {
   @ApiProperty({ format: 'uuid', description: 'Customer to grant the voucher to.' })

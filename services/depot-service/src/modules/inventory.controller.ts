@@ -189,6 +189,20 @@ export class DepotInventoryController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
+  @Post('restock')
+  @ApiOperation({
+    summary: 'Put back stock a voided counter sale had taken out (internal service auth)',
+  })
+  restock(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: ConsumeStockDto,
+  ): Promise<{ orderId: string; depotId: string; restocked: string[]; skipped: string[] }> {
+    return this.inventory.restockForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
+  }
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
   @Post('release')
   @ApiOperation({
     summary: "Release an order's PRODUK stock holds on cancellation (internal service auth)",

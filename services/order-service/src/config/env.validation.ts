@@ -44,6 +44,12 @@ export const envValidationSchema = Joi.object({
   // Ops WhatsApp number for staff-facing alerts (meter variance). Blank = alerting off,
   // same fail-open convention depot-service uses for its low-stock alert.
   ORDER_ALERT_PHONE: Joi.string().allow('').default(''),
+  // Which calendar day a counter sale belongs to, for the same-day void window. Same name
+  // and default as depot-service so both agree on when the till's day ends.
+  PRICING_TZ: Joi.string().default('Asia/Jakarta'),
+  // Where a voided counter sale's refund goes. Blank = voiding is unavailable, which beats
+  // marking a sale reversed while payment-service still holds the money.
+  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

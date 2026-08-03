@@ -43,6 +43,8 @@ export interface InitiatePaymentInput {
   amount: number;
   /** Counter sale: the buyer is at the depot, so no courier hands anything over. */
   atCounter?: boolean;
+  /** Depot whose drawer takes the money. Counter sales only. */
+  depotId?: string | null;
 }
 
 export interface ListPaymentsInput {
@@ -107,6 +109,9 @@ export class PaymentService {
       reference: null,
       instruction: this.offlineInstruction(input.method, input.atCounter ?? false),
       gatewayData: null,
+      // Only a counter sale names a depot: that drawer is answerable for this cash at
+      // shift close. A delivery order's payment belongs to the order's depot, not a till.
+      depotId: input.depotId ?? null,
     };
 
     if (!isOnlineMethod(input.method)) {
@@ -248,6 +253,38 @@ export class PaymentService {
    */
   async cashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
     return this.payments.sumCashCollected(orderIds);
+  }
+
+  /**
+   * Gives back the money for a counter sale being voided at the till.
+   *
+   * Called service-to-service by order-service, not by the cashier's token: reversing a
+   * counter sale must not need a MANAGER standing at the depot, and `refundIssue` (rightly)
+   * excludes the person who took the cash. A PENDING payment is failed rather than refunded
+   * — nothing was ever collected to give back.
+   *
+   * Returns null when the order has no active payment: the sale was recorded and the money
+   * leg never landed, which is exactly the case the cashier is now cleaning up.
+   */
+  async voidForOrder(orderId: string, reason: string, changedBy: string): Promise<PaymentRecord | null> {
+    const active = await this.payments.findActiveByOrder(orderId);
+    if (!active) return null;
+    if (active.status === PaymentStatus.PENDING) {
+      return this.fail(active.id, changedBy);
+    }
+    // Straight to REFUNDED, never the HQ approval queue: a counter void hands cash back
+    // across the counter there and then, and parking it for approval would mean the buyer
+    // has walked out with money the system still thinks it holds.
+    return this.executeRefund(active, changedBy, reason, RefundApproval.NONE);
+  }
+
+  /**
+   * What a depot's drawer should hold for a window: its PAID cash, by settlement time.
+   * The cashier's shift close is measured against this, so it is deliberately the same
+   * question `cashCollected` answers for a courier — asked by depot instead of by order.
+   */
+  async depotCashCollected(depotId: string, range: DateRange): Promise<CashCollectedSummary> {
+    return this.payments.sumDepotCash(depotId, range);
   }
 
   /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */

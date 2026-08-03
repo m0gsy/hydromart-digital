@@ -89,6 +89,71 @@ export class ResellerVoucherNotAllowedError extends DomainError {
   }
 }
 
+/* ---------- Counter void ---------- */
+
+/** Only a counter sale is voided at the till; a delivery order goes through refunds. */
+export class NotACounterSaleError extends DomainError {
+  readonly code = 'ORDER_NOT_A_COUNTER_SALE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Hanya penjualan konter yang bisa dibatalkan di kasir. Pesanan antar lewat proses refund.');
+  }
+}
+
+/** The sale belongs to a day already reconciled — reversing it would move settled money. */
+export class VoidWindowClosedError extends DomainError {
+  readonly code = 'ORDER_VOID_WINDOW_CLOSED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Penjualan ini bukan hari ini, jadi tidak bisa dibatalkan di kasir. Ajukan refund.');
+  }
+}
+
+/** The money could not be given back, so the sale must keep standing. */
+export class PaymentReversalFailedError extends DomainError {
+  readonly code = 'ORDER_PAYMENT_REVERSAL_FAILED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Pembayaran belum bisa dikembalikan, jadi penjualan tidak dibatalkan. Coba lagi sebentar.');
+  }
+}
+
+/** Two cashiers voiding the same sale: only the first may restock and refund it. */
+export class OrderAlreadyVoidedError extends DomainError {
+  readonly code = 'ORDER_ALREADY_VOIDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Penjualan ini sudah dibatalkan.');
+  }
+}
+
+/** No open cashier shift: the cash would enter a drawer nobody is answerable for. */
+export class NoOpenShiftError extends DomainError {
+  readonly code = 'ORDER_NO_OPEN_SHIFT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Buka shift kasir dulu sebelum mencatat penjualan di konter.');
+  }
+}
+
+/** A voucher lives in one buyer's wallet — an anonymous counter sale has none to spend. */
+export class AnonymousVoucherNotAllowedError extends DomainError {
+  readonly code = 'ORDER_ANONYMOUS_VOUCHER_FORBIDDEN';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Enter the buyer’s phone number first — a voucher belongs to an account.');
+  }
+}
+
+/** Nothing is delivered at the counter, so a free-shipping voucher would burn for nothing. */
+export class ShippingVoucherAtCounterError extends DomainError {
+  readonly code = 'ORDER_SHIPPING_VOUCHER_AT_COUNTER';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This voucher only waives delivery, and a counter sale has none. Keep it for a delivery order.');
+  }
+}
+
 /** The fulfilling depot cannot hold enough stock for the order (oversell prevention). */
 export class InsufficientStockError extends DomainError {
   readonly code = 'ORDER_INSUFFICIENT_STOCK';

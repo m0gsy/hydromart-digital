@@ -9,6 +9,7 @@ import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { ApprovalController } from '../../src/modules/approval.controller';
 import { CashbookController } from '../../src/modules/cashbook.controller';
+import { CashierShiftController } from '../../src/modules/cashier-shift.controller';
 import { DisputeController } from '../../src/modules/dispute.controller';
 import { DepotTargetController } from '../../src/modules/depot-target.controller';
 import { DepotController } from '../../src/modules/depot.controller';
@@ -97,6 +98,56 @@ describe('ApprovalController', () => {
     expect(svc.decide).toHaveBeenLastCalledWith(ID, 'APPROVE', null, 'user-1');
     await c.decide(ID, { decision: 'HOLD', note: 'n' } as never, user);
     expect(svc.decide).toHaveBeenLastCalledWith(ID, 'HOLD', 'n', 'user-1');
+  });
+});
+
+describe('CashierShiftController', () => {
+  const svc = { open: jest.fn(), current: jest.fn(), list: jest.fn(), close: jest.fn() };
+  const c = new CashierShiftController(svc as never);
+  beforeEach(() => jest.clearAllMocks());
+
+  // The token has no display name, so the shift row records the phone — the identifier a
+  // depot will still recognise months later when the drawer is questioned.
+  it('opens under the caller phone, falling back to their id', async () => {
+    await c.open({ depotId: DEPOT, openingFloat: 100 } as never, {
+      sub: 'user-1',
+      phone: '0812',
+    } as never);
+    expect(svc.open).toHaveBeenCalledWith(
+      { depotId: DEPOT, openingFloat: 100 },
+      { id: 'user-1', name: '0812' },
+    );
+    await c.open({ depotId: DEPOT, openingFloat: 100 } as never, {
+      sub: 'user-1',
+      phone: null,
+    } as never);
+    expect(svc.open).toHaveBeenLastCalledWith(expect.anything(), { id: 'user-1', name: 'user-1' });
+  });
+
+  it('asks for the caller own shift, never the depot at large', async () => {
+    await c.current({ depotId: DEPOT } as never, { sub: 'user-1' } as never);
+    expect(svc.current).toHaveBeenCalledWith(DEPOT, 'user-1');
+  });
+
+  it('lists the depot shifts', async () => {
+    await c.list({ depotId: DEPOT } as never);
+    expect(svc.list).toHaveBeenCalledWith(DEPOT);
+  });
+
+  // A cashier closes their own drawer. Closing somebody else's is a finance act, and
+  // KEPALA_DEPOT deliberately does NOT get it: they stand at the same till, so letting
+  // them settle a colleague's drawer would put the count and the cash in one pair of hands.
+  it('grants close-anyone only to depot finance roles', async () => {
+    await c.close(ID, { countedCash: 1 } as never, { sub: 'u1', role: 'MANAGER' } as never);
+    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
+      id: 'u1',
+      canCloseAnyShift: true,
+    });
+    await c.close(ID, { countedCash: 1 } as never, { sub: 'u2', role: 'KEPALA_DEPOT' } as never);
+    expect(svc.close).toHaveBeenLastCalledWith(ID, { countedCash: 1 }, {
+      id: 'u2',
+      canCloseAnyShift: false,
+    });
   });
 });
 
@@ -1111,6 +1162,7 @@ describe('Inventory controllers', () => {
     listMovementsForDepot: jest.fn(),
     listForDepot: jest.fn(),
     consumeForOrder: jest.fn(),
+    restockForOrder: jest.fn(),
     reserveForOrder: jest.fn(),
     releaseForOrder: jest.fn(),
     listLowStock: jest.fn(),
@@ -1209,6 +1261,8 @@ describe('Inventory controllers', () => {
     expect(inventory.reserveForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
     await depotC.release(DEPOT, { orderId: 'o', items: [] } as never);
     expect(inventory.releaseForOrder).toHaveBeenCalledWith(DEPOT, 'o', []);
+    await depotC.restock(DEPOT, { orderId: 'o', items: [] } as never);
+    expect(inventory.restockForOrder).toHaveBeenCalledWith(DEPOT, 'o', [], 'order-service');
   });
 
   it('handles low-stock, wastage (with/without dates), get, update, adjust, opname and per-line movements', async () => {

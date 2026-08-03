@@ -18,4 +18,15 @@ export interface LoyaltyCoordinationPort {
     depotId: string | null,
     authorization: string,
   ): Promise<number | null>;
+
+  /**
+   * Takes back the points a reversed sale awarded. Named by order, never by an amount:
+   * loyalty-service owns the per-depot earn rate, so a figure computed here would claw back
+   * the wrong number at every depot that overrode it.
+   *
+   * Fails OPEN like the award. The buyer already has their money back by the time this runs,
+   * and blocking the void on a loyalty outage would leave the goods, the cash and the order
+   * in three different states.
+   */
+  reversePoints(customerId: string, orderId: string, reason: string): Promise<void>;
 }

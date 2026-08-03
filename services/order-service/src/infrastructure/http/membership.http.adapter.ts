@@ -20,16 +20,32 @@ export class MembershipHttpAdapter implements MembershipPort {
 
   async getDiscountRate(authorization: string, depotId: string | null = null): Promise<number> {
     if (!authorization) return 0;
+    return this.read(this.url('me', depotId), { authorization });
+  }
+
+  /**
+   * The buyer's rate on a counter sale. The call carries the cashier's token, so /me would
+   * answer with the cashier's own tier — the buyer has to be named. Internal key, same
+   * fail-open contract.
+   */
+  async getDiscountRateFor(customerId: string, depotId: string | null = null): Promise<number> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) return 0;
+    return this.read(this.url(`accounts/${encodeURIComponent(customerId)}`, depotId), {
+      'x-internal-key': internalServiceKey,
+    });
+  }
+
+  private url(path: string, depotId: string | null): string {
     const scope = depotId ? `?depotId=${encodeURIComponent(depotId)}` : '';
-    const url = `${this.config.loyaltyServiceUrl}/api/v1/loyalty/me${scope}`;
+    return `${this.config.loyaltyServiceUrl}/api/v1/loyalty/${path}${scope}`;
+  }
+
+  private async read(url: string, headers: Record<string, string>): Promise<number> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), MembershipHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers: { authorization },
-        signal: controller.signal,
-      });
+      const res = await fetch(url, { method: 'GET', headers, signal: controller.signal });
       if (!res.ok) {
         throw new Error(`loyalty-service responded ${res.status}`);
       }

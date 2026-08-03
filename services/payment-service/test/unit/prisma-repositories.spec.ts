@@ -234,6 +234,31 @@ describe('PaymentPrismaRepository', () => {
     expect(await repo.sumCashCollected(['order-1'])).toEqual({ total: 0, count: 0 });
   });
 
+  // Bounded by paidAt, not createdAt: a sale rung up before the shift but settled during it
+  // is cash this cashier is holding, and their count has to include it.
+  it('sumDepotCash aggregates one depot PAID cash by settlement time', async () => {
+    const from = new Date('2026-08-03T01:00:00.000Z');
+    const to = new Date('2026-08-03T09:00:00.000Z');
+    model.aggregate.mockResolvedValue({ _sum: { amount: 1_250_000 }, _count: { _all: 9 } });
+
+    expect(await repo.sumDepotCash('depot-1', { from, to })).toEqual({ total: 1_250_000, count: 9 });
+    expect(model.aggregate).toHaveBeenCalledWith({
+      where: {
+        depotId: 'depot-1',
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+        paidAt: { gte: from, lte: to },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+  });
+
+  it('sumDepotCash reports zero for a depot that took nothing', async () => {
+    model.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
+    expect(await repo.sumDepotCash('depot-1', {})).toEqual({ total: 0, count: 0 });
+  });
+
   it('update applies the patch and returns the mapped row', async () => {
     model.update.mockResolvedValue(fullRow());
     const patch = {

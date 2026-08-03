@@ -24,15 +24,50 @@ export class PromoHttpAdapter implements PromoPort {
     shippingFee: number,
     authorization: string,
   ): Promise<{ discount: number; discountType?: string }> {
-    const url = `${this.config.promoServiceUrl}/api/v1/vouchers/quote`;
+    return this.postQuote(
+      `${this.config.promoServiceUrl}/api/v1/vouchers/quote`,
+      { authorization },
+      { code, subtotal, shippingFee },
+      code,
+    );
+  }
+
+  async quoteFor(
+    code: string,
+    customerId: string,
+    subtotal: number,
+    shippingFee: number,
+  ): Promise<{ discount: number; discountType?: string }> {
+    const { internalServiceKey } = this.config;
+    if (!internalServiceKey) {
+      // Fail CLOSED like every other quote failure: a counter sale must not silently drop
+      // the buyer's voucher and charge full price because a key is missing.
+      this.logger.warn(`Voucher quote skipped for ${code}: no internal service key`);
+      throw new VoucherRejectedError('The voucher service is unavailable. Try again shortly.');
+    }
+    return this.postQuote(
+      `${this.config.promoServiceUrl}/api/v1/vouchers/quote/internal`,
+      { 'x-internal-key': internalServiceKey },
+      { code, customerId, subtotal, shippingFee },
+      code,
+    );
+  }
+
+  /** The one wire call behind both quotes — same fail-closed contract, different caller identity. */
+  private async postQuote(
+    url: string,
+    auth: Record<string, string>,
+    payload: Record<string, unknown>,
+    code: string,
+  ): Promise<{ discount: number; discountType?: string }> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), PromoHttpAdapter.TIMEOUT_MS);
     let res: Response;
     try {
       res = await fetch(url, {
         method: 'POST',
-        headers: { 'content-type': 'application/json', authorization },
-        body: JSON.stringify({ code, subtotal, shippingFee }),
+        headers: { 'content-type': 'application/json', ...auth },
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
     } catch (error) {

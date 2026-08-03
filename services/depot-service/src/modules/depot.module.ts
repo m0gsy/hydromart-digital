@@ -23,6 +23,7 @@ import { PurchaseOrderService } from '../application/services/purchase-order.ser
 import { RosterService } from '../application/services/roster.service';
 import { DepotTargetService } from '../application/services/depot-target.service';
 import { CashbookService } from '../application/services/cashbook.service';
+import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { DisputeService } from '../application/services/dispute.service';
 import { MaintenanceService } from '../application/services/maintenance.service';
 import { WholesaleTierService } from '../application/services/wholesale-tier.service';
@@ -54,6 +55,8 @@ import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.pris
 import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
+import { DepotCashHttpAdapter } from '../infrastructure/http/depot-cash.http.adapter';
+import { CashierShiftPrismaRepository } from '../infrastructure/prisma/cashier-shift.prisma.repository';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { DepotController } from './depot.controller';
@@ -76,6 +79,7 @@ import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
 import { DepotTargetController } from './depot-target.controller';
 import { CashbookController } from './cashbook.controller';
+import { CashierShiftController } from './cashier-shift.controller';
 import { DisputeController } from './dispute.controller';
 import { MaintenanceController } from './maintenance.controller';
 import { WholesaleTierController } from './wholesale-tier.controller';
@@ -112,6 +116,7 @@ const providers: Provider[] = [
   RosterService,
   DepotTargetService,
   CashbookService,
+  CashierShiftService,
   DisputeService,
   MaintenanceService,
   WholesaleTierService,
@@ -139,6 +144,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.RosterRepository, useClass: RosterPrismaRepository },
   { provide: DEPOT_TOKENS.DepotTargetRepository, useClass: DepotTargetPrismaRepository },
   { provide: DEPOT_TOKENS.CashbookRepository, useClass: CashbookPrismaRepository },
+  { provide: DEPOT_TOKENS.CashierShiftRepository, useClass: CashierShiftPrismaRepository },
   { provide: DEPOT_TOKENS.DisputeRepository, useClass: DisputePrismaRepository },
   { provide: DEPOT_TOKENS.MaintenanceRepository, useClass: MaintenancePrismaRepository },
   { provide: DEPOT_TOKENS.WholesaleTierRepository, useClass: WholesaleTierPrismaRepository },
@@ -150,6 +156,7 @@ const providers: Provider[] = [
     useClass: OperationalReportPrismaRepository,
   },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
+  { provide: DEPOT_TOKENS.DepotCash, useClass: DepotCashHttpAdapter },
   {
     provide: DEPOT_TOKENS.Storage,
     useFactory: (config: DepotConfigService) =>
@@ -185,6 +192,7 @@ const providers: Provider[] = [
     RosterController,
     DepotTargetController,
     CashbookController,
+    CashierShiftController,
     DisputeController,
     MaintenanceController,
     WholesaleTierController,

@@ -55,6 +55,7 @@ export function isHq(role: string | null | undefined): boolean {
 
 export const canViewDashboard = (role: string | null | undefined) => can('dashboard', role);
 export const canRecordWalkInSale = (role: string | null | undefined) => can('walkInSale', role);
+export const canRunCashierShift = (role: string | null | undefined) => can('cashierShift', role);
 // Reading the dial at opening and closing is the operator's job, so meterWrite is
 // broader than walkInSale/inventoryWrite — it includes STAFF_DEPOT.
 export const canRecordMeterReading = (role: string | null | undefined) => can('meterWrite', role);

@@ -54,6 +54,25 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);
   }
 
+  // No shift, no sale — the server refuses the counter outright. Opening one is part of the
+  // flow now, so the test walks it rather than seeding around it.
+  const openShift = page.getByRole('button', { name: /Buka shift/i });
+  if (await openShift.isVisible().catch(() => false)) {
+    await page.getByLabel(/Uang kembalian awal/i).fill('200000');
+    const opened = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname.endsWith('/depots/api/v1/cashier-shifts') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+    await openShift.click();
+    const shiftRes = await opened;
+    expect(shiftRes.ok(), `opening a shift answered ${shiftRes.status()}: ${await shiftRes.text()}`).toBe(
+      true,
+    );
+  }
+  await expect(page.getByText(/Shift terbuka/i)).toBeVisible({ timeout: 15_000 });
+
   // No products seeded for this depot → nothing to sell; that's an environment gap.
   // 30s, not 10: the depot switcher resolves the depot and THEN fetches its inventory, two round
   // trips through the gateway. Under the full serial suite that outran 10s and the test skipped
@@ -86,21 +105,75 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     (r) => r.url().includes('/orders/api/v1/orders/walk-in') && r.request().method() === 'POST',
     { timeout: 20_000 },
   );
+  // The sale is only half the flow: the money leg has to settle too. Asserting the confirm
+  // response is how this test proves it, without hand-rolling an authenticated API call —
+  // the run used to pass with the payment left PENDING and nobody the wiser.
+  const paymentConfirm = page.waitForResponse(
+    (r) =>
+      /\/payments\/api\/v1\/payments\/[^/]+\/confirm$/.test(new URL(r.url()).pathname) &&
+      r.request().method() === 'POST',
+    { timeout: 20_000 },
+  );
   await page.getByRole('button', { name: /Simpan & cetak struk/i }).click();
 
+  // Anything other than 2xx here is a defect, not an environment gap: the depot, its stock
+  // and the price were all read from this same running stack moments ago.
   const posted = await salePost;
-  expect(posted.status()).toBeLessThan(500); // never a server crash
-  if (posted.ok()) {
-    const order = await posted.json();
-    expect(order.isWalkIn).toBe(true);
-    expect(order.status).toBe('COMPLETED');
-    expect(order.deliveryFee).toBe(0);
+  expect(posted.ok(), `walk-in POST answered ${posted.status()}: ${await posted.text()}`).toBe(true);
+  const order = await posted.json();
+  expect(order.isWalkIn).toBe(true);
+  expect(order.status).toBe('COMPLETED');
+  expect(order.deliveryFee).toBe(0);
 
-    const receipt = await popup;
-    if (receipt) {
-      await expect(receipt.getByText(/Tunai/)).toBeVisible({ timeout: 10_000 });
-      await expect(receipt.getByText(/Kembali/)).toBeVisible();
-      await receipt.close();
-    }
-  }
+  const confirmed = await paymentConfirm;
+  expect(
+    confirmed.ok(),
+    `payment confirm answered ${confirmed.status()}: ${await confirmed.text()}`,
+  ).toBe(true);
+  const payment = await confirmed.json();
+  expect(payment.status).toBe('PAID');
+  expect(payment.method).toBe('CASH');
+  // The change printed on the struk has to be the change recorded on the payment.
+  expect(payment.cashReceived).toBe(total + 50_000);
+  expect(payment.changeGiven).toBe(50_000);
+
+  const receipt = await popup;
+  expect(receipt, 'the receipt window never opened').not.toBeNull();
+  await expect(receipt!.getByText(/Tunai/)).toBeVisible({ timeout: 10_000 });
+  await expect(receipt!.getByText(/Kembali/)).toBeVisible();
+  await receipt!.close();
+
+  // Undo the sale, then close on the float alone. This is the whole reversal proved by its
+  // effect on the money: if the refund had not landed, the drawer would still expect it and
+  // the close below would report a shortfall instead of balancing.
+  await page.getByRole('button', { name: /Batalkan penjualan/i }).click();
+  await page.getByLabel(/Alasan/i).fill('E2E: pembeli batal');
+  const voided = page.waitForResponse(
+    (r) => /\/orders\/api\/v1\/orders\/walk-in\/[^/]+\/void$/.test(new URL(r.url()).pathname),
+    { timeout: 20_000 },
+  );
+  await page.getByRole('button', { name: /Ya, batalkan/i }).click();
+  const voidRes = await voided;
+  expect(voidRes.ok(), `void answered ${voidRes.status()}: ${await voidRes.text()}`).toBe(true);
+  expect((await voidRes.json()).status).toBe('VOIDED');
+
+  // The expected total is computed server-side from the payments themselves. With the sale
+  // reversed the drawer is back to its float, so counting exactly that must balance — and
+  // it only can if the refund really settled. A stale PAID payment would show up here as a
+  // shortfall the size of the sale.
+  await page.getByRole('button', { name: /Tutup shift/i }).click();
+  await page.getByLabel(/Uang tunai dihitung/i).fill('200000');
+  const closed = page.waitForResponse(
+    (r) => /\/cashier-shifts\/[^/]+\/close$/.test(new URL(r.url()).pathname),
+    { timeout: 20_000 },
+  );
+  await page.getByRole('button', { name: /Tutup & hitung selisih/i }).click();
+  const closeRes = await closed;
+  expect(closeRes.ok(), `closing the shift answered ${closeRes.status()}: ${await closeRes.text()}`).toBe(
+    true,
+  );
+  const shift = await closeRes.json();
+  expect(shift.status).toBe('CLOSED');
+  expect(shift.expectedCash).toBe(200_000);
+  expect(shift.variance).toBe(0);
 });

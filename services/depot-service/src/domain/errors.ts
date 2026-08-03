@@ -8,6 +8,52 @@ export class DepotNotFoundError extends DomainError {
   }
 }
 
+/* ---------- Cashier shift ---------- */
+
+/** The cash a closing shift is measured against could not be read. Never guess it. */
+export class CashTotalUnavailableError extends DomainError {
+  readonly code = 'SHIFT_CASH_TOTAL_UNAVAILABLE';
+  // 422, matching how an unreachable promo-service already rejects a checkout: the caller
+  // asked for something that cannot be honoured right now, and must not retry blindly.
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Cash taken this shift cannot be read right now, so the shift cannot be closed. Try again shortly.');
+  }
+}
+
+export class ShiftAlreadyOpenError extends DomainError {
+  readonly code = 'SHIFT_ALREADY_OPEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('You already have an open shift at this depot. Close it before opening another.');
+  }
+}
+
+export class ShiftNotFoundError extends DomainError {
+  readonly code = 'SHIFT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Shift not found.');
+  }
+}
+
+export class ShiftAlreadyClosedError extends DomainError {
+  readonly code = 'SHIFT_ALREADY_CLOSED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This shift is already closed.');
+  }
+}
+
+/** A shift belongs to the cashier who opened it — nobody else counts their drawer. */
+export class ShiftNotYoursError extends DomainError {
+  readonly code = 'SHIFT_NOT_YOURS';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('This shift belongs to another cashier.');
+  }
+}
+
 export class DuplicateDepotCodeError extends DomainError {
   readonly code = 'DEPOT_CODE_TAKEN';
   readonly status = HTTP_STATUS.CONFLICT;

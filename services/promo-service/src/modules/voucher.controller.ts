@@ -28,6 +28,7 @@ import {
   BrowseQueryDto,
   CreateVoucherDto,
   GrantVoucherDto,
+  InternalQuoteVoucherDto,
   MyVoucherDto,
   QuoteVoucherDto,
   RedeemVoucherDto,
@@ -81,6 +82,19 @@ export class VoucherController {
     @Body() dto: QuoteVoucherDto,
   ): Promise<QuoteResult> {
     return this.vouchers.quote(dto.code, user.sub, dto.subtotal, dto.shippingFee ?? 0);
+  }
+
+  // Same preview, for an order the buyer is not the caller of: a counter sale is rung up on
+  // the cashier's token, and quoting against that token would price the CASHIER's wallet.
+  // Internal-key only — a customer must never be able to quote someone else's voucher.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('quote/internal')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Preview a named customer's voucher discount (internal service auth)" })
+  quoteFor(@Body() dto: InternalQuoteVoucherDto): Promise<QuoteResult> {
+    return this.vouchers.quote(dto.code, dto.customerId, dto.subtotal, dto.shippingFee ?? 0);
   }
 
   // System-to-system call from order-service at checkout, authenticated by the shared

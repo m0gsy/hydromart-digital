@@ -58,6 +58,10 @@ model Payment {
   gatewayData  String?
   paidAt       DateTime?
   failedAt     DateTime?
+  /// Depot that took the money, set only for a counter sale. A delivery order's payment
+  /// is not booked against a depot here — the order already carries that. Without it the
+  /// cash in one depot's drawer cannot be told apart from the network's.
+  depotId      String?       @db.Uuid
 
   /// COD only: cash the customer handed over and the change given back, recorded
   /// at confirm time (design 7a). Null for online/transfer settlements.
@@ -76,6 +80,8 @@ model Payment {
   @@index([orderId])
   @@index([customerId])
   @@index([status])
+  // Closing a cashier's shift sums this depot's PAID cash over the shift window.
+  @@index([depotId, method, status, paidAt])
   @@index([refundApproval])
   // Audit DB-1: a partial UNIQUE index enforcing one active (PENDING/PAID) payment
   // per order is added by migration 20260718140500_payment_one_active_per_order

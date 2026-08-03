@@ -281,6 +281,61 @@ describe('InventoryService', () => {
     expect(moves[0].reason).toBe('Order order-1');
   });
 
+  describe('restockForOrder', () => {
+    it('puts a voided counter sale back on the shelf', async () => {
+      const line = await produkLine(PRODUCT_ID, 100);
+      await inventory.consumeForOrder(depotId, 'order-v', [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+      expect((await inventory.get(line.id)).quantity).toBe(97);
+
+      const result = await inventory.restockForOrder(
+        depotId,
+        'order-v',
+        [{ productId: PRODUCT_ID, quantity: 3 }],
+        ACTOR,
+      );
+
+      expect(result.restocked).toEqual([PRODUCT_ID]);
+      expect((await inventory.get(line.id)).quantity).toBe(100);
+    });
+
+    // An ADJUSTMENT with no orderId: the unique (item, order) index already holds the sale's
+    // own row, and reusing that key would erase the fact that the sale ever happened.
+    it('leaves the original SALE movement intact beside the put-back', async () => {
+      const line = await produkLine(PRODUCT_ID, 50);
+      await inventory.consumeForOrder(depotId, 'order-w', [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      await inventory.restockForOrder(depotId, 'order-w', [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+
+      const moves = await inventory.movements(line.id);
+      const sale = moves.find((m) => m.type === StockMovementType.SALE);
+      const back = moves.find((m) => m.type === StockMovementType.ADJUSTMENT);
+      expect(sale?.delta).toBe(-2);
+      expect(back?.delta).toBe(2);
+      expect(back?.reason).toBe('Void order order-w');
+    });
+
+    it('skips a product this depot does not stock and a zero line, never erroring', async () => {
+      const unstocked = '99999999-9999-9999-9999-999999999999';
+      await produkLine(PRODUCT_ID, 10);
+      const result = await inventory.restockForOrder(
+        depotId,
+        'order-x',
+        [
+          { productId: unstocked, quantity: 1 },
+          { productId: PRODUCT_ID, quantity: 0 },
+        ],
+        ACTOR,
+      );
+      expect(result.restocked).toEqual([]);
+      expect(result.skipped).toEqual([unstocked]);
+    });
+
+    it('rejects a depot that does not exist', async () => {
+      await expect(
+        inventory.restockForOrder('11111111-1111-4111-8111-111111111119', 'o', [], ACTOR),
+      ).rejects.toBeInstanceOf(DepotNotFoundError);
+    });
+  });
+
   it('skips products the depot does not stock, never erroring', async () => {
     const unstocked = '99999999-9999-9999-9999-999999999999';
     const result = await inventory.consumeForOrder(

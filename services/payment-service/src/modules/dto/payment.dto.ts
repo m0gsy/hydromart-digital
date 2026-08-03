@@ -43,6 +43,44 @@ export class StaffInitiatePaymentDto extends InitiatePaymentDto {
   @ApiProperty({ format: 'uuid', description: 'Customer the payment belongs to.' })
   @IsUUID()
   customerId!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: "Depot whose drawer takes the money — what the cashier's shift is measured against.",
+  })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
+/** Counter void: reverse whatever payment the order has, named by the order. */
+export class VoidForOrderDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  orderId!: string;
+
+  @ApiProperty({ example: 'Pembeli salah pilih ukuran galon.' })
+  @IsString()
+  @MaxLength(255)
+  reason!: string;
+}
+
+/** Shift close: how much cash one depot took over the shift window. */
+export class DepotCashQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'Start of the window (inclusive).' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ format: 'date-time', description: 'End of the window (inclusive).' })
+  @IsOptional()
+  @IsDateString()
+  @IsNotBefore('from')
+  to?: string;
 }
 
 export class ListPaymentsQueryDto {

@@ -24,6 +24,7 @@ import {
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   PointsTransactionDto,
+  ReverseEarnDto,
   RewardPointsDto,
   TierScopeQueryDto,
 } from './dto/loyalty.dto';
@@ -59,6 +60,25 @@ export class LoyaltyController {
   ): Promise<LoyaltyAccountDto> {
     const { account, tier, discountRate } = await this.loyalty.getStanding(
       user.sub,
+      query.depotId ?? null,
+    );
+    return LoyaltyAccountDto.from(account, tier, discountRate);
+  }
+
+  // Counter sale: staff ring up the purchase, so the buyer's tier cannot come from the
+  // token — that token belongs to the cashier, and /me would quote the cashier's own
+  // discount. Internal-key only, never a customer-reachable route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('accounts/:customerId')
+  @ApiOperation({ summary: "Read a named customer's standing (internal service auth)" })
+  async standingFor(
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+    @Query() query: TierScopeQueryDto,
+  ): Promise<LoyaltyAccountDto> {
+    const { account, tier, discountRate } = await this.loyalty.getStanding(
+      customerId,
       query.depotId ?? null,
     );
     return LoyaltyAccountDto.from(account, tier, discountRate);
@@ -112,6 +132,21 @@ export class LoyaltyController {
   async reward(@Body() dto: RewardPointsDto): Promise<LoyaltyAccountDto> {
     return LoyaltyAccountDto.from(
       await this.loyalty.reward(dto.customerId, dto.points, dto.reason),
+    );
+  }
+
+  // Voiding a counter sale has to take back the points it awarded, and the cashier who
+  // voids it is not a MANAGER — the staff `adjust` route above is out of their reach on
+  // purpose. Scoped by order, never by an amount the caller names: this service owns the
+  // per-depot earn rate, so only it knows what that sale really earned.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/reverse-earn')
+  @ApiOperation({ summary: "Take back a reversed order's points (internal service auth)" })
+  async reverseEarn(@Body() dto: ReverseEarnDto): Promise<LoyaltyAccountDto> {
+    return LoyaltyAccountDto.from(
+      await this.loyalty.reverseEarnForOrder(dto.customerId, dto.orderId, dto.reason),
     );
   }
 

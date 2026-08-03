@@ -16,4 +16,13 @@ export interface OrderRevenueEvent {
  */
 export interface FranchiseRevenuePort {
   orderCompleted(event: OrderRevenueEvent): Promise<void>;
+  /**
+   * Backs the revenue and commission out again when a counter sale is reversed. Without it
+   * the franchise owner keeps being credited for money that was handed back to the buyer.
+   *
+   * Fails OPEN like the push, and is idempotent on the payout side. No amount is sent: the
+   * figures come off the original ledger rows, so a commission-scheme change since the sale
+   * cannot alter what is reversed.
+   */
+  orderVoided(orderId: string, reason: string): Promise<void>;
 }

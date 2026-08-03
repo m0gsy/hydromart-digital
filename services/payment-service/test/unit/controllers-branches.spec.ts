@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from '@hydromart/platform';
 // pass-through, query→Date mapping branches) with a mocked service. No Nest DI.
 
 const user = { sub: 'user-1' } as AuthenticatedUser;
+const ISO = '2026-08-03T01:00:00.000Z';
 
 describe('PaymentController', () => {
   const svc = {
@@ -22,6 +23,8 @@ describe('PaymentController', () => {
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
+    depotCashCollected: jest.fn(),
+    voidForOrder: jest.fn(),
     listRefundQueue: jest.fn(),
     getForCustomer: jest.fn(),
     confirm: jest.fn(),
@@ -86,6 +89,28 @@ describe('PaymentController', () => {
   it('revenueByMethod passes undefined when the window is absent', async () => {
     await controller.revenueByMethod({} as never);
     expect(svc.revenueByMethod).toHaveBeenCalledWith({ from: undefined, to: undefined });
+  });
+
+  // Shift close reads this. An open window means "everything so far", which is what a
+  // depot's running total is before anyone has closed anything.
+  it('depotCash forwards the window, open at both ends when unbounded', async () => {
+    await controller.depotCash({ depotId: 'depot-1' } as never);
+    expect(svc.depotCashCollected).toHaveBeenCalledWith('depot-1', {
+      from: undefined,
+      to: undefined,
+    });
+    await controller.depotCash({ depotId: 'depot-1', from: ISO, to: ISO } as never);
+    expect(svc.depotCashCollected).toHaveBeenLastCalledWith('depot-1', {
+      from: new Date(ISO),
+      to: new Date(ISO),
+    });
+  });
+
+  // The actor is the service, not a person: a counter void must not need a MANAGER at the
+  // depot, and `refundIssue` rightly excludes whoever took the cash.
+  it('voidForOrder is attributed to order-service, not a token holder', async () => {
+    await controller.voidForOrder({ orderId: 'order-9', reason: 'Salah ukuran' } as never);
+    expect(svc.voidForOrder).toHaveBeenCalledWith('order-9', 'Salah ukuran', 'order-service');
   });
 
   it('cashCollected forwards the order ids', async () => {

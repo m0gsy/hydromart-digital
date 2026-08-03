@@ -141,6 +141,7 @@ export const order = {
     DELIVERED: 'Tiba',
     COMPLETED: 'Selesai',
     CANCELLED: 'Dibatalkan',
+    VOIDED: 'Dibatalkan di kasir',
   },
   progress: {
     placed: 'Dipesan',
@@ -159,6 +160,7 @@ export const order = {
     DELIVERED: 'Pesananmu sudah tiba',
     COMPLETED: 'Pesanan selesai — terima kasih!',
     CANCELLED: 'Pesanan dibatalkan',
+    VOIDED: 'Penjualan konter dibatalkan',
   },
   toast: {
     added: 'Ditambahkan ke keranjang',

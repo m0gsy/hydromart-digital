@@ -11,9 +11,17 @@ function esc(s: string): string {
  * Printable order receipt / invoice (11e). Opens a clean print window built from the
  * order data and triggers the browser print dialog — "download PDF" is the browser's
  * own print-to-PDF. ponytail: no PDF library; a bespoke template + window.print covers
- * the ask with zero dependency. Falls back to no-op if the popup is blocked.
+ * the ask with zero dependency.
+ *
+ * Returns false when the popup was blocked. The counter sale depends on that answer: a
+ * blocked popup used to swallow the receipt silently, so the cashier watched the sale
+ * succeed and the buyer walked off with nothing to hand back over.
  */
-export function printReceipt(order: Order, cash?: { cashReceived: number; change: number }): void {
+export function printReceipt(
+  order: Order,
+  cash?: { cashReceived: number; change: number },
+  method?: string,
+): boolean {
   const rows = order.items
     .map(
       (it) =>
@@ -28,6 +36,9 @@ export function printReceipt(order: Order, cash?: { cashReceived: number; change
     ? `<tr><td>Tunai</td><td class="r">${formatIDR(cash.cashReceived)}</td></tr>` +
       `<tr><td>Kembali</td><td class="r">${formatIDR(cash.change)}</td></tr>`
     : '';
+  // A non-cash counter sale has no tender rows, so without this the struk would not say how
+  // it was paid at all — and a QRIS sale looks identical to an unpaid one.
+  const methodRow = method ? `<tr><td>Metode</td><td class="r">${esc(method)}</td></tr>` : '';
 
   const html = `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <title>Struk ${esc(order.orderNumber)}</title>
@@ -54,6 +65,7 @@ export function printReceipt(order: Order, cash?: { cashReceived: number; change
     <tr><td>Ongkir</td><td class="r">${formatIDR(order.deliveryFee)}</td></tr>
     ${discount}
     <tr><td class="total">Total</td><td class="r total">${formatIDR(order.total)}</td></tr>
+    ${methodRow}
     ${cashRows}
   </tfoot>
 </table>
@@ -62,7 +74,8 @@ export function printReceipt(order: Order, cash?: { cashReceived: number; change
 </body></html>`;
 
   const w = window.open('', '_blank', 'width=480,height=640');
-  if (!w) return;
+  if (!w) return false;
   w.document.write(html);
   w.document.close();
+  return true;
 }
