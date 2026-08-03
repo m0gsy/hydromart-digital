@@ -358,8 +358,10 @@ export default function HqCatalogPage() {
   const { t } = useT();
   const { toast } = useToast();
   const [editing, setEditing] = useState<Product | null | undefined>(undefined);
+  // The admin list, not the shop's: it keeps deactivated products visible so the
+  // "tidak tersedia" row below is reachable and the editor can switch one back on.
   const catalog = useAsync<Page<Product>>(() =>
-    api.get(endpoints.products.browse({ limit: 100 }), true),
+    api.get(endpoints.products.browseAll({ limit: 100 }), true),
   );
   const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories));
 

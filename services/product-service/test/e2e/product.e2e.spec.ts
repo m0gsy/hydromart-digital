@@ -102,6 +102,40 @@ describe('Product HTTP flows (e2e)', () => {
       .expect(400);
   });
 
+  // Two things at once: 'all' must not be parsed as a product id, and a deactivated
+  // product must stay visible to the console — losing sight of one is how a product
+  // that was only switched off looked deleted, with no way to switch it back on.
+  it('keeps a deactivated product out of public browse but in the admin list', async () => {
+    const created = await request(server())
+      .post('/api/v1/products')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Galon Pensiun', sku: 'GAL-OFF', unit: 'Galon', basePrice: 21000 })
+      .expect(201);
+
+    await request(server())
+      .delete(`/api/v1/products/${created.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    const shop = await request(server()).get('/api/v1/products?search=GAL-OFF').expect(200);
+    expect(shop.body.total).toBe(0);
+
+    const console_ = await request(server())
+      .get('/api/v1/products/all?search=GAL-OFF')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(console_.body.items).toHaveLength(1);
+    expect(console_.body.items[0]).toMatchObject({ sku: 'GAL-OFF', active: false });
+  });
+
+  it('forbids the admin product list for a customer (403) and anonymous (401)', async () => {
+    await request(server()).get('/api/v1/products/all').expect(401);
+    await request(server())
+      .get('/api/v1/products/all')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
   it('returns 404 for a missing product', async () => {
     await request(server())
       .get('/api/v1/products/11111111-1111-1111-1111-111111111111')
