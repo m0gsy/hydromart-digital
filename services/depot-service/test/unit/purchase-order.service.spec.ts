@@ -14,6 +14,8 @@ import {
 import {
   buildTestConfig,
   FakeLowStockAlert,
+  FakeProductCatalog,
+  FakeUntrackedSaleAlert,
   InMemoryApprovalRepository,
   InMemoryDepotRepository,
   InMemoryInventoryRepository,
@@ -47,6 +49,8 @@ describe('PurchaseOrderService', () => {
       inventoryRepo,
       depotRepo,
       new FakeLowStockAlert(),
+      new FakeUntrackedSaleAlert(),
+      new FakeProductCatalog(),
       approvals,
       config,
     );

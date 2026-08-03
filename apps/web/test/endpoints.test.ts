@@ -17,6 +17,10 @@ describe('endpoints', () => {
     );
   });
 
+  it('opens a depot stock line on the depot-scoped path', () => {
+    expect(endpoints.inventory.create('d1')).toBe('/depots/api/v1/depots/d1/inventory');
+  });
+
   // The console's list. Same query, different path: this one keeps deactivated products,
   // which is the only way a console can switch one back on.
   it('builds the admin product browse on its own path', () => {

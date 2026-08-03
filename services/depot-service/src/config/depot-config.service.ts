@@ -53,6 +53,10 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  /** Catalog read for PRODUK line validation. Blank = accept lines unvalidated. */
+  get productServiceUrl(): string {
+    return this.config.get<string>('PRODUCT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Shared secret sent as x-internal-key on the crm internal notification call. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

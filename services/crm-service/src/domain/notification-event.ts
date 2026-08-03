@@ -14,6 +14,11 @@ export enum NotificationEvent {
   // Operational (not customer-facing): fired by depot-service when a stock line crosses
   // below its minimum. Recipient is an ops/warehouse number, not the customer.
   STOCK_LOW = 'STOCK_LOW',
+  // Operational (not customer-facing): fired by depot-service when an order sold a
+  // product the depot has no stock line for. The sale went through and nothing was
+  // deducted, so the ledger will not show it — this warning is the only trace.
+  // Tokens: {{depot}}, {{order}}, {{count}}. Recipient is the ops number.
+  STOCK_UNTRACKED = 'STOCK_UNTRACKED',
   // Operational (not customer-facing): fired by order-service when a depot's daily
   // water-meter reading diverges from the litres its recorded sales account for.
   // Tokens: {{depot}}, {{date}}, {{variance}}, {{gallons}}. Recipient is the ops number.
@@ -57,6 +62,8 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
     'Halo {{name}}, pesanan {{orderNumber}} telah dibatalkan. Bila sudah ada pembayaran, dana dikembalikan sesuai metode pembayaranmu. Hubungi kami bila butuh bantuan.',
   [NotificationEvent.STOCK_LOW]:
     '⚠️ Stok menipis di depot {{depot}}: {{item}} tinggal {{quantity}} (minimum {{minimum}}). Segera lakukan pengisian ulang.',
+  [NotificationEvent.STOCK_UNTRACKED]:
+    '⚠️ Pesanan {{order}} di depot {{depot}} memuat {{count}} produk yang belum punya baris stok. Penjualannya tetap jalan, tapi stoknya TIDAK berkurang. Mohon buatkan baris stoknya.',
   [NotificationEvent.METER_VARIANCE]:
     '💧 Selisih meteran air depot {{depot}} tanggal {{date}}: {{variance}} liter (± {{gallons}} galon) dibanding penjualan tercatat. Mohon dicek.',
   [NotificationEvent.COURIER_INCIDENT]:
@@ -83,6 +90,7 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationEvent, string> = {
 // staff-targeted events here as they are introduced.
 export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.STOCK_LOW,
+  NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
   NotificationEvent.COURIER_INCIDENT,
   // HR events go to staff, so they belong in the ops feed, not a customer inbox. The

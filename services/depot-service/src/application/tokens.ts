@@ -2,6 +2,8 @@ export const DEPOT_TOKENS = {
   DepotRepository: Symbol('DepotRepository'),
   InventoryRepository: Symbol('InventoryRepository'),
   LowStockAlert: Symbol('LowStockAlert'),
+  UntrackedSaleAlert: Symbol('UntrackedSaleAlert'),
+  ProductCatalog: Symbol('ProductCatalog'),
   PricingRuleRepository: Symbol('PricingRuleRepository'),
   GallonReturnRepository: Symbol('GallonReturnRepository'),
   GallonIssueRepository: Symbol('GallonIssueRepository'),

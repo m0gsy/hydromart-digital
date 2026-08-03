@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ImportSummary, runImport } from '@hydromart/platform';
 
@@ -10,6 +10,7 @@ import {
   isProductLine,
 } from '../../domain/inventory';
 import {
+  CatalogProductNotFoundError,
   DepotNotFoundError,
   DuplicateInventoryLineError,
   InsufficientStockError,
@@ -29,6 +30,8 @@ import {
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
+import { ProductCatalogPort } from '../ports/product-catalog.port';
+import { UntrackedSaleAlertPort } from '../ports/untracked-sale-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
 import { ApprovalType, needsApproval } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
@@ -86,9 +89,14 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(DEPOT_TOKENS.LowStockAlert) private readonly lowStockAlert: LowStockAlertPort,
+    @Inject(DEPOT_TOKENS.UntrackedSaleAlert)
+    private readonly untrackedSaleAlert: UntrackedSaleAlertPort,
+    @Inject(DEPOT_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     private readonly approvals: ApprovalService,
     private readonly config: DepotConfigService,
   ) {}
+
+  private readonly logger = new Logger(InventoryService.name);
 
   private toView(item: InventoryItemRecord): ItemView {
     const sellable = available(item.quantity, item.reserved);
@@ -164,12 +172,29 @@ export class InventoryService {
       throw new DuplicateInventoryLineError();
     }
 
+    // A PRODUK line is named by the catalog, not by whoever typed the CSV. Two bugs die
+    // here: a line pointing at a product that does not exist (the id was hand-typed, or
+    // the product was deactivated), and a label that never matched the catalog in the
+    // first place. If the catalog is unreachable we take the typed label — depot work
+    // does not stop because product-service is down.
+    let { label, unit } = input;
+    if (productId !== null) {
+      const lookup = await this.catalog.find(productId);
+      if (lookup.status === 'missing') {
+        throw new CatalogProductNotFoundError();
+      }
+      if (lookup.status === 'found') {
+        label = lookup.product.name;
+        unit = lookup.product.unit;
+      }
+    }
+
     const item = await this.inventory.create({
       depotId,
       itemType: input.itemType,
       productId,
-      label: input.label,
-      unit: input.unit,
+      label,
+      unit,
       quantity: 0,
       minimumStock: input.minimumStock,
       sellPrice: input.sellPrice ?? null,
@@ -452,7 +477,8 @@ export class InventoryService {
     actorId: string,
     authorization = '',
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
-    if (!(await this.depots.findById(depotId, false))) {
+    const depot = await this.depots.findById(depotId, false);
+    if (!depot) {
       throw new DepotNotFoundError();
     }
     const consumed: string[] = [];
@@ -497,6 +523,27 @@ export class InventoryService {
         );
       }
       consumed.push(productId);
+    }
+    // A product with no stock line here was still sold — nothing was deducted and the
+    // shelf empties with the ledger none the wiser. The sale stands (a customer's order
+    // must not fail over missing paperwork), so the depot gets told instead. Warned at
+    // consume, not at reserve: every path — online checkout and counter sale alike —
+    // funnels through here exactly once, so this is the one place it cannot double-fire
+    // or be skipped.
+    if (skipped.length > 0) {
+      // Guarded, unlike the low-stock alert: by this point stock is already deducted and
+      // the order is completing, so a throwing notifier would fail a write that has
+      // partly happened. The warning is a consequence of the sale, never a condition.
+      try {
+        await this.untrackedSaleAlert.emit(
+          { depotId, depotName: depot.name, orderId, productIds: skipped },
+          authorization,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Untracked-sale alert for order ${orderId} failed: ${(error as Error).message}`,
+        );
+      }
     }
     return { orderId, depotId, consumed, skipped };
   }

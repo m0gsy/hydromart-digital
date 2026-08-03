@@ -54,6 +54,8 @@ import { HandoverPrismaRepository } from '../infrastructure/prisma/handover.pris
 import { OperationalReportPrismaRepository } from '../infrastructure/prisma/operational-report.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { LowStockAlertHttpAdapter } from '../infrastructure/http/low-stock-alert.http.adapter';
+import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
+import { UntrackedSaleAlertHttpAdapter } from '../infrastructure/http/untracked-sale-alert.http.adapter';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { DepotController } from './depot.controller';
@@ -150,6 +152,8 @@ const providers: Provider[] = [
     useClass: OperationalReportPrismaRepository,
   },
   { provide: DEPOT_TOKENS.LowStockAlert, useClass: LowStockAlertHttpAdapter },
+  { provide: DEPOT_TOKENS.UntrackedSaleAlert, useClass: UntrackedSaleAlertHttpAdapter },
+  { provide: DEPOT_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   {
     provide: DEPOT_TOKENS.Storage,
     useFactory: (config: DepotConfigService) =>

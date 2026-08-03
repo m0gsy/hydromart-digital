@@ -704,6 +704,9 @@ export const endpoints = {
       const qs = p.toString();
       return `/depots/api/v1/depots/${depotId}/inventory${qs ? `?${qs}` : ''}`;
     },
+    // Open a stock line for one depot (staff). A PRODUK line carries the catalog
+    // productId; depot-service names it from the catalog and refuses an unknown id.
+    create: (depotId: string) => `/depots/api/v1/depots/${depotId}/inventory`,
     import: (depotId: string) => `/depots/api/v1/depots/${depotId}/inventory/import`,
     adjust: (itemId: string) => `/depots/api/v1/inventory/${itemId}/adjust`,
     opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,

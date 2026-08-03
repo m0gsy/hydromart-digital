@@ -229,6 +229,10 @@ services:
       DEPOT_SERVICE_PORT: 3007
       DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
+      # Read when a PRODUK stock line is opened, to validate the product id and take the
+      # catalog's own name for it. Unset here would silently fall back to localhost, which
+      # in a container means every lookup fails and validation quietly stops happening.
+      PRODUCT_SERVICE_URL: http://products:3003
       DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on

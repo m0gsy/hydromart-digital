@@ -27,9 +27,11 @@ import type {
   DepotStockMovement,
   InventoryItem,
   Page,
+  Product,
   StockMovement,
   StockMovementType,
 } from '@/lib/types';
+import { NewLineForm } from './new-line-form';
 
 function num(v: string): number | null {
   const n = Number(v);
@@ -653,20 +655,43 @@ function InventoryBody() {
   const [view, setView] = useState<'stock' | 'movements'>('stock');
   const [opnameOpen, setOpnameOpen] = useState(false);
   const [picker, setPicker] = useState(false);
+  // `undefined` = form closed; a string (possibly empty) = open, optionally pre-picked.
+  const [newLine, setNewLine] = useState<string | undefined>(undefined);
 
+  // Every line for the depot, filtered client-side below. Fetching the low-stock subset
+  // from the server made "menipis · N" and the missing-product check read off a list that
+  // had already been narrowed, and re-fetched on every toggle for a list of at most 100.
   const lines = useAsync<InventoryItem[]>(
-    () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: lowOnly }), true) : Promise.resolve([])),
-    [scopedId, lowOnly],
+    () => (scopedId ? api.get(endpoints.inventory.lines(scopedId), true) : Promise.resolve([])),
+    [scopedId],
+  );
+
+  // The catalog, to spot products this depot never opened a line for. Those still sell —
+  // the sale just never touches stock — so the operator is shown exactly which ones.
+  const catalog = useAsync<Page<Product>>(
+    () => api.get(endpoints.products.browse({ limit: 100 })),
+    [],
   );
 
   // The depot label — the selected depot, or the first when "All" is active.
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
 
   const all = lines.data ?? [];
-  const visible = all.filter((i) =>
-    typeFilter === 'all' ? true : typeFilter === 'produk' ? i.itemType === 'PRODUK' : i.itemType !== 'PRODUK',
+  const visible = all.filter(
+    (i) =>
+      (typeFilter === 'all'
+        ? true
+        : typeFilter === 'produk'
+          ? i.itemType === 'PRODUK'
+          : i.itemType !== 'PRODUK') &&
+      (!lowOnly || i.lowStock),
   );
   const lowCount = all.filter((i) => i.lowStock).length;
+
+  // Active catalog products with no line here. They are sellable and untracked: the order
+  // goes through, the ledger never moves. depot-service also alerts on the sale itself.
+  const tracked = new Set(all.map((i) => i.productId).filter(Boolean));
+  const untracked = (catalog.data?.items ?? []).filter((p) => !tracked.has(p.id));
 
   // Toggle a row's inline detail; re-clicking the same mode/receipt collapses it.
   function openRow(id: string, mode: ActionMode, receipt: boolean) {
@@ -695,9 +720,14 @@ function InventoryBody() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWriteInventory(customer?.role) && (
-            <LinkButton href="/dashboard/inventory/import" variant="secondary">
-              Import Excel
-            </LinkButton>
+            <>
+              <Button variant="secondary" onClick={() => setNewLine((v) => (v === undefined ? '' : undefined))}>
+                <Plus size={16} weight="bold" /> Tambah baris
+              </Button>
+              <LinkButton href="/dashboard/inventory/import" variant="secondary">
+                Import Excel
+              </LinkButton>
+            </>
           )}
           <div className="flex overflow-hidden rounded-full border border-app text-sm font-semibold">
             {(['stock', 'movements'] as const).map((v) => (
@@ -738,6 +768,48 @@ function InventoryBody() {
           </strong>{' '}
           (dari switcher).
         </p>
+      )}
+
+      {canWrite && newLine !== undefined && scopedId && (
+        <NewLineForm
+          key={newLine}
+          depotId={scopedId}
+          existing={all}
+          preselectProductId={newLine || undefined}
+          onCancel={() => setNewLine(undefined)}
+          onDone={() => {
+            setNewLine(undefined);
+            lines.reload();
+          }}
+        />
+      )}
+
+      {canWrite && untracked.length > 0 && newLine === undefined && (
+        <Card className="flex flex-col gap-2 border-l-4 border-l-[color:var(--warning)] p-4">
+          <p className="text-sm font-semibold">
+            {untracked.length} produk katalog belum punya baris stok di depot ini
+          </p>
+          <p className="text-xs text-muted">
+            Produk ini tetap bisa dipesan pelanggan, tapi stoknya tidak pernah berkurang dan
+            tidak pernah kehabisan. Buatkan baris stoknya supaya ikut terhitung.
+          </p>
+          <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+            {untracked.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                <span className="min-w-0 truncate text-sm">
+                  {p.name} <span className="text-xs text-muted">· {p.sku}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setNewLine(p.id)}
+                  className="shrink-0 text-xs font-semibold text-brand-700 hover:underline"
+                >
+                  Buat baris stok
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       <div className="flex flex-wrap gap-2">

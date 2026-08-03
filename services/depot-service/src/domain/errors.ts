@@ -46,6 +46,14 @@ export class DuplicateInventoryLineError extends DomainError {
   }
 }
 
+export class CatalogProductNotFoundError extends DomainError {
+  readonly code = 'INVENTORY_CATALOG_PRODUCT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('That product is not in the catalog (or is no longer active).');
+  }
+}
+
 export class ProductLineRequiresProductError extends DomainError {
   readonly code = 'INVENTORY_PRODUCT_REQUIRED';
   readonly status = HTTP_STATUS.BAD_REQUEST;
