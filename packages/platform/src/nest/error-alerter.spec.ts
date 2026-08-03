@@ -18,6 +18,7 @@ describe('alertServerError', () => {
 
   afterEach(() => {
     process.env = { ...env };
+    jest.useRealTimers();
     jest.restoreAllMocks();
   });
 
@@ -63,7 +64,7 @@ describe('alertServerError', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('honours ALERT_DEDUPE_SECONDS, and ignores a nonsense value', async () => {
+  it('honours ALERT_DEDUPE_SECONDS, and ignores a nonsense value', () => {
     process.env.ALERT_DEDUPE_SECONDS = '0';
     alert({ path: '/api/v1/zero' });
     alert({ path: '/api/v1/zero' });
@@ -73,12 +74,15 @@ describe('alertServerError', () => {
     alert({ path: '/api/v1/nan' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
-    // A real window: the second alert only gets through once it has elapsed.
+    // A real window: the second alert only gets through once it has elapsed. Fake timers,
+    // not a 10ms sleep — the dedupe reads Date.now(), so a runner that stalled between the
+    // two calls let the "throttled" one through and failed the run on nothing.
+    jest.useFakeTimers();
     process.env.ALERT_DEDUPE_SECONDS = '0.01';
     alert({ path: '/api/v1/short' });
     alert({ path: '/api/v1/short' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    await new Promise((r) => setTimeout(r, 20));
+    jest.advanceTimersByTime(20);
     alert({ path: '/api/v1/short' });
     expect(fetchMock).toHaveBeenCalledTimes(4);
   });
