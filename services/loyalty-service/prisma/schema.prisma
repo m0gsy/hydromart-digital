@@ -135,6 +135,11 @@ model ServiceSetting {
   updatedBy String   @map("updated_by")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // H-11: also two PARTIAL unique indexes, added in migration
+  // 20260803160000_service_settings_unique and invisible to Prisma, which cannot express a
+  // WHERE on an index: one key per depot, and one key globally. A plain @@unique here would
+  // not constrain the GLOBAL rows — depotId is null on those and Postgres treats every NULL
+  // as distinct. The repository upserts against them by catching the violation.
   @@index([scope, depotId])
   @@map("service_settings")
 }
