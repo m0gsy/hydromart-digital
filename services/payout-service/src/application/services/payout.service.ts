@@ -221,26 +221,24 @@ export class PayoutService {
     bankAccountRef: string,
   ): Promise<WithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
-    const balance = await this.ledger.balanceFor(ownerId);
-    if (amount > balance) throw new InsufficientBalanceError(balance, amount);
 
+    // B-8: the balance check and the two writes happen together, serialized per owner.
+    // Reading the balance here and writing afterwards let two concurrent requests both
+    // pass the same check and overdraw, and a crash between the withdrawal row and its
+    // debit left a PROCESSING payout with the balance untouched.
     const reference = withdrawalReference(new Date());
-    const withdrawal = await this.withdrawals.create({
+    const outcome = await this.withdrawals.withdrawWithDebit({
       franchiseOwnerId: ownerId,
       amount,
       bankAccountRef,
       reference,
       status: 'PROCESSING',
-    });
-    // Post the matching debit so the balance drops immediately.
-    await this.ledger.create({
-      franchiseOwnerId: ownerId,
-      depotId: null,
-      type: 'WITHDRAWAL',
-      amount: -amount,
       description: `Pencairan saldo · ${reference}`,
     });
-    return withdrawal;
+    if (!outcome.ok) {
+      throw new InsufficientBalanceError(outcome.balance, amount);
+    }
+    return outcome.withdrawal;
   }
 }
 

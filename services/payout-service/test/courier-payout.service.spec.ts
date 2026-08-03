@@ -3,6 +3,7 @@ import {
   InvalidEarningRuleError,
   InvalidWithdrawalAmountError,
 } from '../src/domain/errors';
+import type { WithdrawalStatus } from '../src/domain/ledger';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
 import type { CourierLedgerEntryType } from '../src/domain/courier-earning';
 import type {
@@ -14,6 +15,7 @@ import type {
 } from '../src/application/ports/courier-ledger.repository';
 import type {
   CourierWithdrawalRecord,
+  CourierWithdrawalOutcome,
   CourierWithdrawalRepository,
   CreateCourierWithdrawalData,
 } from '../src/application/ports/courier-withdrawal.repository';
@@ -93,6 +95,43 @@ class FakeCourierLedger implements CourierLedgerRepository {
 
 class FakeCourierWithdrawals implements CourierWithdrawalRepository {
   created: CreateCourierWithdrawalData[] = [];
+
+  // Reads the same ledger fake the real one aggregates over, so the balance cannot drift
+  // into a second source of truth.
+  constructor(private readonly ledger?: FakeCourierLedger) {}
+
+  // Single-threaded stand-in for the advisory-locked withdraw (B-8/B-10): the check and
+  // both writes are one step, a short balance writes nothing, and the debit carries the
+  // sourceRef that makes a retry a no-op instead of a second debit.
+  async withdrawWithDebit(input: {
+    courierId: string;
+    amount: number;
+    bankAccountRef: string;
+    reference: string;
+    status: WithdrawalStatus;
+    description: string;
+  }): Promise<CourierWithdrawalOutcome> {
+    const balance = (await this.ledger?.balanceFor(input.courierId)) ?? 0;
+    if (input.amount > balance) return { ok: false, balance };
+
+    const withdrawal = await this.create({
+      courierId: input.courierId,
+      amount: input.amount,
+      bankAccountRef: input.bankAccountRef,
+      reference: input.reference,
+      status: input.status,
+    });
+    await this.ledger?.create({
+      courierId: input.courierId,
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -input.amount,
+      description: input.description,
+      sourceRef: `withdrawal:${input.reference}`,
+    });
+    return { ok: true, withdrawal };
+  }
+
   async create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord> {
     this.created.push(data);
     return {
@@ -129,7 +168,7 @@ describe('CourierPayoutService', () => {
 
   beforeEach(() => {
     ledger = new FakeCourierLedger();
-    withdrawals = new FakeCourierWithdrawals();
+    withdrawals = new FakeCourierWithdrawals(ledger);
     service = new CourierPayoutService(ledger, withdrawals);
   });
 

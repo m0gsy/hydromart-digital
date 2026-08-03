@@ -288,6 +288,59 @@ describe('money DTOs coerce what an HTTP client actually sends', () => {
   });
 });
 
+describe('CourierLedgerPrismaRepository.create races (B-10)', () => {
+  const P2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+  const entry = {
+    id: 'e-1', courierId: 'c1', depotId: null, type: 'EARNING', amount: '8000',
+    description: 'Ongkir', sourceRef: 'earning:d1', occurredAt: new Date(), createdAt: new Date(),
+  };
+  const data = {
+    courierId: 'c1', depotId: null, type: 'EARNING' as never, amount: 8000,
+    description: 'Ongkir', sourceRef: 'earning:d1',
+  };
+
+  // The callers guard with findBySourceRef, which is check-then-insert: two concurrent
+  // pushes of the same delivery both find nothing and both insert. The unique index stops
+  // the double credit — this makes losing that race a no-op instead of a 500.
+  it('returns the winner’s row when a concurrent push already inserted it', async () => {
+    const model = {
+      create: jest.fn().mockRejectedValue(P2002),
+      findUnique: jest.fn().mockResolvedValue(entry),
+    };
+    const repo = new CourierLedgerPrismaRepository({ courierLedgerEntry: model } as never);
+
+    const result = await repo.create(data);
+
+    expect(result.id).toBe('e-1');
+    expect(result.amount).toBe(8000);
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { sourceRef: 'earning:d1' } });
+  });
+
+  it('rethrows a unique violation it cannot resolve, rather than inventing a row', async () => {
+    const model = {
+      create: jest.fn().mockRejectedValue(P2002),
+      findUnique: jest.fn().mockResolvedValue(null),
+    };
+    const repo = new CourierLedgerPrismaRepository({ courierLedgerEntry: model } as never);
+    await expect(repo.create(data)).rejects.toBe(P2002);
+  });
+
+  it('rethrows any other failure untouched — only duplicates are absorbed', async () => {
+    const boom = Object.assign(new Error('connection lost'), { code: 'P1001' });
+    const model = { create: jest.fn().mockRejectedValue(boom), findUnique: jest.fn() };
+    const repo = new CourierLedgerPrismaRepository({ courierLedgerEntry: model } as never);
+    await expect(repo.create(data)).rejects.toBe(boom);
+    expect(model.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('does not try to dedupe a write that carries no idempotency key', async () => {
+    const model = { create: jest.fn().mockRejectedValue(P2002), findUnique: jest.fn() };
+    const repo = new CourierLedgerPrismaRepository({ courierLedgerEntry: model } as never);
+    await expect(repo.create({ ...data, sourceRef: undefined } as never)).rejects.toBe(P2002);
+    expect(model.findUnique).not.toHaveBeenCalled();
+  });
+});
+
 describe('CourierLedgerPrismaRepository edges', () => {
   it('reads a rule whose tiers relation was not included as having no tiers', async () => {
     const ruleModel = {
