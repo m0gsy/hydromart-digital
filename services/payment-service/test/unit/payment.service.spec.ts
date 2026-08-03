@@ -126,6 +126,77 @@ describe('PaymentService', () => {
     expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 45000 }]);
   });
 
+  // B-9: refund read the payment, checked isRefundable, called the GATEWAY, and only then
+  // wrote — on `id` alone, with no status predicate. Two concurrent refunds both passed the
+  // check and both sent money back. These pin the two halves of the fix: the claim happens
+  // before anything is spent, and a caller that loses the claim spends nothing.
+  it('claims the payment before calling the gateway, never after', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+
+    const order: string[] = [];
+    const realClaim = repo.updateIfStatus.bind(repo);
+    jest.spyOn(repo, 'updateIfStatus').mockImplementation(async (...args) => {
+      order.push('claim');
+      return realClaim(...args);
+    });
+    jest.spyOn(gateway, 'refund').mockImplementation(async (reference, amount) => {
+      order.push('gateway');
+      return { reference: `RFN-${reference}`, raw: JSON.stringify({ refunded: amount }) };
+    });
+
+    await service.refund(payment.id, 'finance');
+
+    expect(order).toEqual(['claim', 'gateway']);
+  });
+
+  it('does not pay a customer twice when a second refund loses the claim', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+
+    await service.refund(payment.id, 'finance', 'first');
+    expect(gateway.refunds).toHaveLength(1);
+
+    // The loser must be refused, and above all must not reach the gateway a second time.
+    await expect(service.refund(payment.id, 'finance', 'second')).rejects.toBeInstanceOf(
+      PaymentNotRefundableError,
+    );
+    expect(gateway.refunds).toHaveLength(1);
+  });
+
+  // The single-threaded path can never reach this: by the time a second refund runs, the
+  // isRefundable check already rejects it. Losing the CLAIM is the genuinely concurrent
+  // case — two callers past that check at the same time — so it is forced here. Without
+  // this branch the second caller would fall through and refund again.
+  it('refuses a caller that passed the check but lost the claim to a racer', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+    jest.spyOn(repo, 'updateIfStatus').mockResolvedValue(null);
+
+    await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
+      PaymentNotRefundableError,
+    );
+    expect(gateway.refunds).toHaveLength(0);
+  });
+
+  it('hands the claim back when the gateway refuses, so the refund can be retried', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+    gateway.throwOnRefund = true;
+
+    await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
+      GatewayUnavailableError,
+    );
+    // Still refundable: a failed gateway call must not strand the payment as REFUNDED with
+    // the money never sent.
+    expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+
+    gateway.throwOnRefund = false;
+    const retried = await service.refund(payment.id, 'finance');
+    expect(retried.status).toBe(PaymentStatus.REFUNDED);
+    expect(gateway.refunds).toHaveLength(1);
+  });
+
   it('refuses to refund a payment that is not PAID', async () => {
     const payment = await initiate(PaymentMethod.CASH);
     await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(

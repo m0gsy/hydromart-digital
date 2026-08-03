@@ -332,11 +332,28 @@ export class PaymentService {
       refundedAmount: payment.amount,
       refundApproval: approval,
     };
+
+    // B-9: CLAIM FIRST. The status move used to happen after the gateway call and matched
+    // on `id` alone, so two concurrent refunds both passed the isRefundable check and both
+    // sent money back — the customer was paid twice and nothing recorded that it happened.
+    // Moving the row out of a refundable status is what makes exactly one caller the
+    // refunder, and it only counts if it happens before we spend anything.
+    const claimed = await this.payments.updateIfStatus(payment.id, [payment.status], patch);
+    if (!claimed) {
+      throw new PaymentNotRefundableError(payment.status);
+    }
+
     if (isOnlineMethod(payment.method) && payment.reference) {
       try {
         const result = await this.gateway.refund(payment.reference, payment.amount);
         patch.gatewayData = result.raw;
       } catch (error) {
+        // Hand the claim back so a retry is possible. A crash between the claim and this
+        // revert leaves the payment REFUNDED without the money having moved — visible in
+        // reconciliation and fixable, unlike paying the customer a second time.
+        await this.payments
+          .update(payment.id, { status: payment.status, refundedAt: null, refundApproval: payment.refundApproval })
+          .catch(() => {});
         this.logger.error(`Gateway refund failed for ${payment.id}: ${(error as Error).message}`);
         throw new GatewayUnavailableError();
       }
