@@ -49,6 +49,8 @@ describe('DeliveryService', () => {
   let shifts: ShiftService;
   let service: DeliveryService;
   let storage: { put: jest.Mock; remove: jest.Mock };
+  /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
+  let makeStorageless: () => DeliveryService;
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -62,6 +64,8 @@ describe('DeliveryService', () => {
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
     payout = new FakeCourierPayout();
     storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
+    makeStorageless = () =>
+      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
     service = new DeliveryService(
       repo,
       orders,
@@ -538,6 +542,37 @@ describe('DeliveryService', () => {
     // H-22: deleting the row alone left the photo — someone's doorstep, often with them in
     // frame — sitting in the bucket after the record that was supposed to be erased.
     expect(storage.remove).toHaveBeenCalledWith(storageKeyFromUrl(PROOF.photoUrl));
+  });
+
+  // A proof URL that predates the current storage layout has no `pod/` segment to key on.
+  // The row still goes; the object is reported as left behind rather than silently skipped.
+  it('reports a proof url it cannot turn into a storage key', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(
+      driver,
+      d.id,
+      { ...PROOF, photoUrl: 'https://cdn/legacy.jpg', signatureUrl: null },
+      AUTH,
+    );
+
+    expect(storageKeyFromUrl('https://cdn/legacy.jpg')).toBeNull();
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('leaves the objects alone, loudly, when no storage is bound', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(bare.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
   });
 
   it('finishes the sweep even when the bucket refuses one delete', async () => {

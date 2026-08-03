@@ -2,9 +2,10 @@ const send = jest.fn().mockResolvedValue({});
 jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
+  DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ input })),
 }));
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { S3StorageAdapter } from '../../src/infrastructure/storage/s3-storage.adapter';
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
@@ -40,5 +41,13 @@ describe('S3StorageAdapter', () => {
       Body: body,
       ContentType: 'image/jpeg',
     });
+  });
+
+  // H-22: the retention sweep deletes the object, not just the row that pointed at it.
+  it('removes an object by key', async () => {
+    await new S3StorageAdapter(makeConfig()).remove('pod/abc.jpg');
+
+    expect(DeleteObjectCommand).toHaveBeenCalledWith({ Bucket: 'pods', Key: 'pod/abc.jpg' });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });
