@@ -6,9 +6,12 @@ import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
+  AnonymousVoucherNotAllowedError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
+  ShippingVoucherAtCounterError,
+  VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
 import {
@@ -43,6 +46,8 @@ describe('OrderService.walkInSale', () => {
   let franchiseRevenue: FakeFranchiseRevenue;
   let notification: FakeNotification;
   let inventory: FakeInventory;
+  let membership: FakeMembership;
+  let promo: FakePromo;
   let service: OrderService;
 
   const operator: AuthenticatedUser = {
@@ -65,6 +70,8 @@ describe('OrderService.walkInSale', () => {
     franchiseRevenue = new FakeFranchiseRevenue();
     notification = new FakeNotification();
     inventory = new FakeInventory();
+    membership = new FakeMembership();
+    promo = new FakePromo();
     depots.owners.set(DEPOT, 'owner-1');
     service = new OrderService(
       orders,
@@ -74,10 +81,10 @@ describe('OrderService.walkInSale', () => {
       pricing,
       loyalty,
       referral,
-      new FakeMembership(),
+      membership,
       new FakeResellerDiscount(),
       notification,
-      new FakePromo(),
+      promo,
       inventory,
       new CartService(cart, catalog),
       buildTestConfig(),
@@ -250,6 +257,75 @@ describe('OrderService.walkInSale', () => {
     await expect(
       service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] }),
     ).rejects.toThrow('unique constraint');
+  });
+
+  describe('discounts at the counter', () => {
+    // The call carries the CASHIER's token. Reading the tier by token would hand every buyer
+    // whatever discount the person behind the counter happens to have.
+    it('prices the tier against the buyer, never the cashier', async () => {
+      membership.rate = 0.1;
+      const customerId = randomUUID();
+      const order = await sell(2, { customerId, customerPhone: '0812' });
+
+      expect(membership.byCustomerCalls[0]).toEqual({ customerId, depotId: DEPOT });
+      expect(membership.calls).toHaveLength(0);
+      expect(order.discount).toBe(4000);
+      expect(order.total).toBe(36000);
+    });
+
+    it('applies a voucher from the buyer wallet and records the redemption', async () => {
+      promo.quoteDiscount = 5000;
+      const customerId = randomUUID();
+      const order = await sell(2, { customerId, customerPhone: '0812', voucherCode: ' hemat10 ' });
+
+      expect(promo.quoteForCalls[0]).toMatchObject({ code: 'HEMAT10', customerId, subtotal: 40000 });
+      expect(order.discount).toBe(5000);
+      expect(order.total).toBe(35000);
+      expect(promo.redeemCalls[0]).toMatchObject({ code: 'HEMAT10', orderId: order.id });
+    });
+
+    it('stacks the tier and the voucher, capped at the goods', async () => {
+      membership.rate = 0.5;
+      promo.quoteDiscount = 30000;
+      const order = await sell(2, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'BIG' });
+
+      expect(order.discount).toBe(40000);
+      expect(order.total).toBe(0);
+    });
+
+    // Fail CLOSED: a voucher the buyer handed over must be honoured or the sale must stop.
+    it('rejects the sale when the voucher cannot be validated', async () => {
+      promo.rejectQuote = true;
+      await expect(
+        sell(1, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'NOPE' }),
+      ).rejects.toBeInstanceOf(VoucherRejectedError);
+      expect(orders.rows).toHaveLength(0);
+    });
+
+    it('refuses a voucher on an anonymous sale — there is no wallet to spend from', async () => {
+      await expect(sell(1, { voucherCode: 'HEMAT10' })).rejects.toBeInstanceOf(
+        AnonymousVoucherNotAllowedError,
+      );
+      expect(promo.quoteForCalls).toHaveLength(0);
+    });
+
+    it('refuses a free-shipping voucher rather than burn it on a sale with no delivery', async () => {
+      promo.quoteDiscount = 8000;
+      promo.quoteDiscountType = 'FREE_SHIPPING';
+      await expect(
+        sell(1, { customerId: randomUUID(), customerPhone: '0812', voucherCode: 'GRATISONGKIR' }),
+      ).rejects.toBeInstanceOf(ShippingVoucherAtCounterError);
+      expect(orders.rows).toHaveLength(0);
+    });
+
+    it('leaves an anonymous sale at full price and asks loyalty nothing', async () => {
+      membership.rate = 0.2;
+      const order = await sell(1);
+
+      expect(membership.byCustomerCalls).toHaveLength(0);
+      expect(order.discount).toBe(0);
+      expect(order.total).toBe(order.subtotal);
+    });
   });
 
   it('cannot be advanced or re-completed afterwards', async () => {

@@ -64,6 +64,25 @@ export class LoyaltyController {
     return LoyaltyAccountDto.from(account, tier, discountRate);
   }
 
+  // Counter sale: staff ring up the purchase, so the buyer's tier cannot come from the
+  // token — that token belongs to the cashier, and /me would quote the cashier's own
+  // discount. Internal-key only, never a customer-reachable route.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('accounts/:customerId')
+  @ApiOperation({ summary: "Read a named customer's standing (internal service auth)" })
+  async standingFor(
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+    @Query() query: TierScopeQueryDto,
+  ): Promise<LoyaltyAccountDto> {
+    const { account, tier, discountRate } = await this.loyalty.getStanding(
+      customerId,
+      query.depotId ?? null,
+    );
+    return LoyaltyAccountDto.from(account, tier, discountRate);
+  }
+
   @ApiBearerAuth()
   @Get('me/transactions')
   @ApiOperation({ summary: "List the current customer's points ledger" })

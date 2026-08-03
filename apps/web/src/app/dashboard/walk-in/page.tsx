@@ -26,7 +26,17 @@ import { computeEffective } from '@/lib/pricing';
 import { printReceipt } from '@/lib/receipt';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { InventoryItem, Order, Page, Product, ResolvedPrice } from '@/lib/types';
+import type {
+  DepotPaymentPanel,
+  InventoryItem,
+  Order,
+  Page,
+  Product,
+  ResolvedPrice,
+} from '@/lib/types';
+
+/** What a buyer can settle with at the counter. All three are confirmed by the cashier. */
+type CounterMethod = 'CASH' | 'QRIS' | 'TRANSFER';
 
 /**
  * Counter sale: the customer is standing at the depot, pays cash, takes the galon.
@@ -41,12 +51,15 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [cash, setCash] = useState('');
+  const [voucher, setVoucher] = useState('');
+  const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
   // The sale just recorded, kept so its receipt can be printed again — the print window is a
   // popup and a blocked one used to lose the struk with the form already cleared.
   const [lastSale, setLastSale] = useState<{
     order: Order;
-    cash: { cashReceived: number; change: number };
+    cash?: { cashReceived: number; change: number };
+    method: CounterMethod;
   } | null>(null);
 
   const catalog = useAsync<Page<Product>>(
@@ -94,6 +107,22 @@ function WalkIn({ depotId }: { depotId: string }) {
   const cashReceived = Number(cash.replace(/\D/g, '')) || 0;
   const change = cashReceived - total;
 
+  // Where the money goes for QRIS/transfer. Per-depot on purpose: a franchise depot is paid
+  // directly, so the QR the buyer scans has to be that depot's own.
+  const payTo = useAsync<DepotPaymentPanel>(
+    () => api.get(endpoints.depots.paymentInfo(depotId), true),
+    [depotId],
+  );
+  const qrisUrl = payTo.data?.paymentQrisImageUrl ?? null;
+  const bankAccount = payTo.data?.paymentBankAccountNumber ?? null;
+  // A method the depot never configured cannot be taken: the buyer would have nothing to
+  // scan or transfer to, and the cashier would be confirming money that never arrived.
+  const methodReady: Record<CounterMethod, boolean> = {
+    CASH: true,
+    QRIS: !!qrisUrl,
+    TRANSFER: !!bankAccount,
+  };
+
   /** Resolve the buyer by phone, pre-registering them if this is their first purchase. */
   async function resolveCustomerId(): Promise<string | undefined> {
     const trimmed = phone.trim();
@@ -110,7 +139,19 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   async function submit() {
     if (lines.length === 0) return toast('Pilih produk dulu.', 'error');
-    if (cashReceived < total) return toast('Uang tunai kurang dari total.', 'error');
+    if (method === 'CASH' && cashReceived < total) {
+      return toast('Uang tunai kurang dari total.', 'error');
+    }
+    // The depot can change under a selected method (switcher, or the payment info loading
+    // late), and confirming money into an account nobody published is worse than refusing.
+    if (!methodReady[method]) {
+      return toast('Depot ini belum mengatur tujuan pembayaran untuk metode itu.', 'error');
+    }
+    // A voucher is spent from an account. Without a phone there is no account to spend from,
+    // and the server would reject the sale after the buyer already agreed to the price.
+    if (voucher.trim() && !phone.trim()) {
+      return toast('Isi nomor HP pembeli dulu — voucher menempel pada akun.', 'error');
+    }
 
     setBusy(true);
     let order: Order;
@@ -124,6 +165,7 @@ function WalkIn({ depotId }: { depotId: string }) {
           customerId,
           customerName: name.trim() || undefined,
           customerPhone: phone.trim() || undefined,
+          voucherCode: voucher.trim().toUpperCase() || undefined,
         },
         true,
       );
@@ -137,24 +179,32 @@ function WalkIn({ depotId }: { depotId: string }) {
     try {
       const payment = await api.post<{ id: string }>(
         endpoints.payments.initiateStaff,
-        { orderId: order.id, method: 'CASH', amount: order.total, customerId: order.customerId },
+        { orderId: order.id, method, amount: order.total, customerId: order.customerId },
         true,
       );
-      await api.post(endpoints.payments.confirm(payment.id), { cashReceived }, true);
+      // Only a cash payment has change to work out. Sending cashReceived on a QRIS or
+      // transfer would record a handover that never happened.
+      await api.post(
+        endpoints.payments.confirm(payment.id),
+        method === 'CASH' ? { cashReceived } : undefined,
+        true,
+      );
       toast(`Penjualan ${order.orderNumber} tersimpan.`);
     } catch {
       toast('Pesanan tersimpan, pembayaran belum tercatat — selesaikan dari antrian pesanan.', 'error');
     }
 
-    const receipt = { cashReceived, change: cashReceived - order.total };
-    setLastSale({ order, cash: receipt });
-    if (!printReceipt(order, receipt)) {
+    const receipt =
+      method === 'CASH' ? { cashReceived, change: cashReceived - order.total } : undefined;
+    setLastSale({ order, cash: receipt, method });
+    if (!printReceipt(order, receipt, method)) {
       toast('Struk tidak bisa dibuka — izinkan popup, lalu tekan "Cetak ulang struk".', 'error');
     }
     setQty({});
     setName('');
     setPhone('');
     setCash('');
+    setVoucher('');
     setBusy(false);
   }
 
@@ -174,7 +224,10 @@ function WalkIn({ depotId }: { depotId: string }) {
             Penjualan terakhir <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
             <Money amount={lastSale.order.total} />
           </p>
-          <Button variant="ghost" onClick={() => printReceipt(lastSale.order, lastSale.cash)}>
+          <Button
+            variant="ghost"
+            onClick={() => printReceipt(lastSale.order, lastSale.cash, lastSale.method)}
+          >
             <Printer size={18} className="mr-1" />
             Cetak ulang struk
           </Button>
@@ -234,32 +287,96 @@ function WalkIn({ depotId }: { depotId: string }) {
           </Field>
         </div>
 
+        <Field
+          label="Kode voucher (opsional)"
+          htmlFor="wi-voucher"
+          hint="Voucher milik pembeli. Butuh nomor HP; potongan dihitung server saat disimpan."
+        >
+          <Input
+            id="wi-voucher"
+            value={voucher}
+            onChange={(e) => setVoucher(e.target.value.toUpperCase())}
+            placeholder="HEMAT10"
+          />
+        </Field>
+
         <div className="flex items-center justify-between text-sm">
           <span className="font-bold">Total</span>
           <span className="text-lg font-extrabold">
             <Money amount={total} />
           </span>
         </div>
+        {(voucher.trim() || phone.trim()) && (
+          // The counter shows the shelf price. Tier and voucher are priced by the server
+          // against the buyer's own account, so promising a number here could be a lie.
+          <p className="text-xs text-muted">
+            Potongan tier/voucher dihitung saat disimpan dan tercetak di struk.
+          </p>
+        )}
 
-        <Field label="Uang tunai diterima" htmlFor="wi-cash">
-          <Input
-            id="wi-cash"
-            value={cash}
-            onChange={(e) => setCash(e.target.value)}
-            inputMode="numeric"
-            placeholder="50000"
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Metode pembayaran</legend>
+          <div className="flex flex-wrap gap-2">
+            {(['CASH', 'QRIS', 'TRANSFER'] as const).map((m) => (
+              <Button
+                key={m}
+                type="button"
+                variant={method === m ? 'primary' : 'ghost'}
+                disabled={!methodReady[m]}
+                aria-pressed={method === m}
+                onClick={() => setMethod(m)}
+              >
+                {m === 'CASH' ? 'Tunai' : m}
+              </Button>
+            ))}
+          </div>
+          {(!methodReady.QRIS || !methodReady.TRANSFER) && (
+            <p className="text-xs text-muted">
+              Metode yang mati belum diatur depot — isi QRIS/rekening di halaman Depot.
+            </p>
+          )}
+        </fieldset>
+
+        {method === 'QRIS' && qrisUrl && (
+          // A depot-uploaded URL, not a bundled asset — next/image would need the host
+          // whitelisted per depot storage bucket for no gain on a print-once QR.
+          <img
+            src={qrisUrl}
+            alt="Kode QRIS depot untuk dipindai pembeli"
+            className="mx-auto max-h-64 w-auto rounded-xl border border-app"
           />
-        </Field>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">Kembalian</span>
-          <span className={change < 0 ? 'font-bold text-red-600' : 'font-bold'}>
-            <Money amount={Math.max(0, change)} />
-          </span>
-        </div>
+        )}
+        {method === 'TRANSFER' && (
+          <div className="rounded-xl border border-app p-3 text-sm">
+            <p className="font-medium">{payTo.data?.paymentBankName}</p>
+            <p className="font-mono text-lg font-bold">{bankAccount}</p>
+            <p className="text-muted">a.n. {payTo.data?.paymentBankAccountHolder}</p>
+          </div>
+        )}
+
+        {method === 'CASH' && (
+          <Field label="Uang tunai diterima" htmlFor="wi-cash">
+            <Input
+              id="wi-cash"
+              value={cash}
+              onChange={(e) => setCash(e.target.value)}
+              inputMode="numeric"
+              placeholder="50000"
+            />
+          </Field>
+        )}
+        {method === 'CASH' && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted">Kembalian</span>
+            <span className={change < 0 ? 'font-bold text-red-600' : 'font-bold'}>
+              <Money amount={Math.max(0, change)} />
+            </span>
+          </div>
+        )}
 
         <Button className="w-full" onClick={() => void submit()} disabled={busy || lines.length === 0}>
           <Printer size={18} className="mr-1" />
-          Simpan &amp; cetak struk
+          {method === 'CASH' ? 'Simpan & cetak struk' : 'Pembayaran diterima & cetak struk'}
         </Button>
       </Card>
     </div>

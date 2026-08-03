@@ -805,8 +805,14 @@ export class FakeInventory implements InventoryPort {
 export class FakeMembership implements MembershipPort {
   rate = 0;
   calls: { authorization: string; depotId: string | null }[] = [];
+  /** Counter-sale reads, which are by customer id rather than by token. */
+  byCustomerCalls: { customerId: string; depotId: string | null }[] = [];
   async getDiscountRate(authorization: string, depotId: string | null = null): Promise<number> {
     this.calls.push({ authorization, depotId });
+    return this.rate;
+  }
+  async getDiscountRateFor(customerId: string, depotId: string | null = null): Promise<number> {
+    this.byCustomerCalls.push({ customerId, depotId });
     return this.rate;
   }
 }
@@ -843,6 +849,8 @@ export class FakePromo implements PromoPort {
   quoteDiscountType: string | undefined = undefined;
   rejectQuote = false;
   quoteCalls: { code: string; subtotal: number; shippingFee: number }[] = [];
+  /** Counter-sale quotes, which name the buyer instead of riding the caller's token. */
+  quoteForCalls: { code: string; customerId: string; subtotal: number; shippingFee: number }[] = [];
   redeemCalls: { code: string; orderId: string; subtotal: number; shippingFee: number }[] = [];
 
   async quote(
@@ -854,6 +862,16 @@ export class FakePromo implements PromoPort {
   ): Promise<{ discount: number; discountType?: string }> {
     if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
     this.quoteCalls.push({ code, subtotal, shippingFee });
+    return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
+  }
+  async quoteFor(
+    code: string,
+    customerId: string,
+    subtotal: number,
+    shippingFee: number,
+  ): Promise<{ discount: number; discountType?: string }> {
+    if (this.rejectQuote) throw new VoucherRejectedError('Minimum spend not met.');
+    this.quoteForCalls.push({ code, customerId, subtotal, shippingFee });
     return { discount: this.quoteDiscount, discountType: this.quoteDiscountType };
   }
   async redeem(

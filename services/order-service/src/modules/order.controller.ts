@@ -103,6 +103,7 @@ export class OrderController {
         customerId: dto.customerId ?? null,
         customerName: dto.customerName ?? null,
         customerPhone: dto.customerPhone ?? null,
+        voucherCode: dto.voucherCode ?? null,
       },
       authorization,
     );

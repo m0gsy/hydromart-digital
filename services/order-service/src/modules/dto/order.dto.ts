@@ -361,4 +361,13 @@ export class WalkInSaleDto {
   @IsString()
   @MaxLength(30)
   customerPhone?: string;
+
+  @ApiPropertyOptional({
+    example: 'HEMAT10',
+    description: "Voucher from the buyer's wallet. Requires customerId — a voucher has an owner.",
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  voucherCode?: string;
 }

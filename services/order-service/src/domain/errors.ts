@@ -89,6 +89,24 @@ export class ResellerVoucherNotAllowedError extends DomainError {
   }
 }
 
+/** A voucher lives in one buyer's wallet — an anonymous counter sale has none to spend. */
+export class AnonymousVoucherNotAllowedError extends DomainError {
+  readonly code = 'ORDER_ANONYMOUS_VOUCHER_FORBIDDEN';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Enter the buyer’s phone number first — a voucher belongs to an account.');
+  }
+}
+
+/** Nothing is delivered at the counter, so a free-shipping voucher would burn for nothing. */
+export class ShippingVoucherAtCounterError extends DomainError {
+  readonly code = 'ORDER_SHIPPING_VOUCHER_AT_COUNTER';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('This voucher only waives delivery, and a counter sale has none. Keep it for a delivery order.');
+  }
+}
+
 /** The fulfilling depot cannot hold enough stock for the order (oversell prevention). */
 export class InsufficientStockError extends DomainError {
   readonly code = 'ORDER_INSUFFICIENT_STOCK';

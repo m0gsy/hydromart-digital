@@ -18,6 +18,8 @@ import {
   OutOfServiceAreaError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
+  AnonymousVoucherNotAllowedError,
+  ShippingVoucherAtCounterError,
 } from '../../domain/errors';
 import {
   OrderStatus,
@@ -66,6 +68,8 @@ export interface WalkInSaleInput {
   customerId?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
+  /** Voucher from the buyer's own wallet; only meaningful once they are identified. */
+  voucherCode?: string | null;
 }
 
 export interface CheckoutInput {
@@ -381,20 +385,24 @@ export class OrderService {
     assertDepotAccess(user, input.depotId);
 
     const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
+    const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
+    const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
+    const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
+
     // Reserve first: a shortfall must reject before any row exists. Consume then happens in
     // the completion fan-out, exactly as for a delivered order.
     const order = await this.reserveThenCreate(
       input.depotId,
       {
         orderNumber: OrderService.newOrderNumber(),
-        customerId: input.customerId ?? ANONYMOUS_CUSTOMER_ID,
+        customerId,
         depotId: input.depotId,
         status: OrderStatus.COMPLETED,
         isWalkIn: true,
         subtotal,
         deliveryFee: 0,
-        discount: 0,
-        total: subtotal,
+        discount,
+        total: money(subtotal - discount),
         // The address snapshot columns are NOT NULL and are read by the receipt, the order
         // detail sheet and the driver app. For a counter sale they say who bought and where
         // they took delivery — at the counter.
@@ -412,9 +420,47 @@ export class OrderService {
       authorization,
     );
 
+    // Record the redemption now that the order exists — idempotent per order, fail-open,
+    // exactly as at checkout.
+    if (voucherCode) {
+      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, 0, authorization);
+    }
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
+  }
+
+  /**
+   * What comes off a counter sale: the buyer's membership tier plus, if they handed one over,
+   * a voucher from their own wallet. Both are read by customer id over the internal path —
+   * the call carries the CASHIER's token, so anything token-scoped would price the cashier.
+   *
+   * An anonymous sale gets neither: there is no wallet and no tier to read, and pretending
+   * otherwise would be the cashier's benefit applied to a stranger. Membership fails OPEN
+   * (0 rate), the voucher fails CLOSED — a voucher the buyer handed over must be honoured or
+   * the sale must stop, never silently dropped at full price with the buyer watching.
+   */
+  private async counterDiscount(
+    customerId: string,
+    depotId: string,
+    subtotal: number,
+    voucherCode: string | null,
+  ): Promise<number> {
+    if (customerId === ANONYMOUS_CUSTOMER_ID) {
+      if (voucherCode) throw new AnonymousVoucherNotAllowedError();
+      return 0;
+    }
+    const membershipRate = await this.membership.getDiscountRateFor(customerId, depotId);
+    let voucherDiscount = 0;
+    if (voucherCode) {
+      // No delivery fee exists at the counter, so a FREE_SHIPPING voucher would burn a
+      // redemption for nothing. Refuse it rather than spend the buyer's voucher on air.
+      const quote = await this.promo.quoteFor(voucherCode, customerId, subtotal, 0);
+      if (quote.discountType === 'FREE_SHIPPING') throw new ShippingVoucherAtCounterError();
+      voucherDiscount = quote.discount;
+    }
+    // Same ceiling as checkout: the stack can wipe out the goods, never go past them.
+    return money(Math.min(subtotal, money(subtotal * membershipRate) + voucherDiscount));
   }
 
   /**

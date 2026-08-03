@@ -81,6 +81,27 @@ describe('VoucherController', () => {
     expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'user-1', 100000, 5000);
   });
 
+  // Counter sale: the caller is the cashier, so the wallet being quoted must be named
+  // explicitly. Falling back to the token here would price the cashier's own vouchers.
+  it('quoteFor prices the named customer, not the caller', async () => {
+    await controller.quoteFor({
+      code: 'HEMAT',
+      customerId: 'buyer-9',
+      subtotal: 100000,
+    } as unknown as QuoteVoucherDto & { customerId: string });
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 0);
+  });
+
+  it('quoteFor passes the shippingFee through when provided', async () => {
+    await controller.quoteFor({
+      code: 'HEMAT',
+      customerId: 'buyer-9',
+      subtotal: 100000,
+      shippingFee: 5000,
+    } as unknown as QuoteVoucherDto & { customerId: string });
+    expect(vouchers.quote).toHaveBeenCalledWith('HEMAT', 'buyer-9', 100000, 5000);
+  });
+
   it('quote defaults shippingFee to 0 when omitted', async () => {
     await controller.quote(user, {
       code: 'HEMAT',

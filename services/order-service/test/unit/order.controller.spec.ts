@@ -87,6 +87,7 @@ describe('OrderController', () => {
       customerId: null,
       customerName: null,
       customerPhone: null,
+      voucherCode: null,
     });
   });
 

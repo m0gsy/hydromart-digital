@@ -99,6 +99,19 @@ describe('LoyaltyController (delegation)', () => {
     expect(loyalty.getStanding).toHaveBeenCalledWith('cust-1', 'd1');
   });
 
+  // A counter sale is rung up on the cashier's token, so the buyer has to be named. Reading
+  // the tier from the token there would price the CASHIER's discount onto someone else's bill.
+  it('standingFor() reads a named customer rather than the caller', async () => {
+    const out = await ctrl.standingFor('cust-9', {});
+    expect(out.discountRate).toBe(0.05);
+    expect(loyalty.getStanding).toHaveBeenCalledWith('cust-9', null);
+  });
+
+  it('standingFor() answers against the requested depot ladder', async () => {
+    await ctrl.standingFor('cust-9', { depotId: 'd1' });
+    expect(loyalty.getStanding).toHaveBeenCalledWith('cust-9', 'd1');
+  });
+
   it('myTransactions() maps the ledger page', async () => {
     const out = await ctrl.myTransactions(user(), { page: 1, limit: 20 });
     expect(out.items[0]).toMatchObject({ id: 'txn-1', type: PointsTxnType.EARN });
