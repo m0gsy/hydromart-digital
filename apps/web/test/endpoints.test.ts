@@ -17,6 +17,15 @@ describe('endpoints', () => {
     );
   });
 
+  // The console's list. Same query, different path: this one keeps deactivated products,
+  // which is the only way a console can switch one back on.
+  it('builds the admin product browse on its own path', () => {
+    expect(endpoints.products.browseAll({})).toBe('/products/api/v1/products/all');
+    expect(endpoints.products.browseAll({ limit: 100 })).toBe(
+      '/products/api/v1/products/all?limit=100',
+    );
+  });
+
   it('routes the Release 2 loyalty/voucher/referral paths through the gateway', () => {
     expect(endpoints.loyalty.me()).toBe('/loyalty/api/v1/loyalty/me');
     expect(endpoints.loyalty.me('d 1')).toBe('/loyalty/api/v1/loyalty/me?depotId=d%201');

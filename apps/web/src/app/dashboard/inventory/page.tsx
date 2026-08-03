@@ -513,6 +513,7 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState<{ label: string; message: string }[]>([]);
 
   const countedOf = (item: InventoryItem): number | null => {
     const v = counts[item.id];
@@ -530,20 +531,39 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
     }
     setBusy(true);
     setError(null);
-    let ok = 0;
-    let fail = 0;
+    setFailed([]);
+    // One opname call per line — there is no batch endpoint — so a run can end up
+    // half-saved. Track WHICH lines failed: "3 of 10 failed" is useless to someone
+    // holding a clipboard, and reporting only a count made a partial save look total.
+    const saved: string[] = [];
+    const failures: { label: string; message: string }[] = [];
     for (const i of changed) {
       try {
         await api.post(endpoints.inventory.opname(i.id), { countedQuantity: countedOf(i)! }, true);
-        ok += 1;
-      } catch {
-        fail += 1;
+        saved.push(i.id);
+      } catch (err) {
+        failures.push({
+          label: i.label,
+          message: err instanceof ApiError ? err.message : t('opsFix.opname.submitError'),
+        });
       }
     }
     setBusy(false);
-    if (ok > 0) onDone();
-    if (fail > 0) setError(t('opsFix.opname.submitError'));
-    else onClose();
+    if (saved.length > 0) {
+      // Clear only what actually saved. A failed line keeps the counted number on screen,
+      // so a retry never means walking back to the shelf.
+      setCounts((prev) => {
+        const next = { ...prev };
+        for (const id of saved) delete next[id];
+        return next;
+      });
+      onDone();
+    }
+    if (failures.length > 0) {
+      setFailed(failures);
+    } else {
+      onClose();
+    }
   }
 
   return (
@@ -593,6 +613,21 @@ function OpnameSheet({ items, onClose, onDone }: { items: InventoryItem[]; onClo
           {error}
         </p>
       )}
+      {failed.length > 0 && (
+        <div className="rounded-lg bg-[color:var(--danger-bg)] px-3 py-2.5" role="alert">
+          <p className="text-sm font-semibold text-[color:var(--danger)]">
+            {failed.length} baris gagal disimpan — angkanya masih tersimpan di layar, coba
+            lagi.
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {failed.map((f) => (
+              <li key={f.label} className="text-xs text-[color:var(--danger)]">
+                {f.label} — {f.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose} disabled={busy}>
           {t('opsFix.opname.cancel')}
@@ -617,6 +652,7 @@ function InventoryBody() {
   const [entry, setEntry] = useState<Entry>({ mode: 'none', receipt: false });
   const [view, setView] = useState<'stock' | 'movements'>('stock');
   const [opnameOpen, setOpnameOpen] = useState(false);
+  const [picker, setPicker] = useState(false);
 
   const lines = useAsync<InventoryItem[]>(
     () => (scopedId ? api.get(endpoints.inventory.lines(scopedId, { lowStockOnly: lowOnly }), true) : Promise.resolve([])),
@@ -642,11 +678,12 @@ function InventoryBody() {
     setExpandedId(id);
   }
 
-  // ponytail: header buttons act on the first visible line — stock ops are per-line,
-  // there is no depot-wide receive/opname endpoint. Add a line picker if that changes.
-  function headerOpen(mode: ActionMode, receipt: boolean) {
-    const first = visible[0];
-    if (first) openRow(first.id, mode, receipt);
+  // Stock ops are per-line — there is no depot-wide receive endpoint — so the header
+  // button asks which line first. It used to act on visible[0] silently, which put
+  // received stock on whichever item happened to sort to the top.
+  function pickLine(id: string) {
+    setPicker(false);
+    openRow(id, 'adjust', true);
   }
 
   return (
@@ -678,7 +715,11 @@ function InventoryBody() {
           </div>
           {canWrite && view === 'stock' && (
             <>
-              <Button className="bg-brand-600" disabled={visible.length === 0} onClick={() => headerOpen('adjust', true)}>
+              <Button
+                className="bg-brand-600"
+                disabled={visible.length === 0}
+                onClick={() => setPicker((v) => !v)}
+              >
                 <Plus size={16} weight="bold" /> Terima stok
               </Button>
               <Button variant="secondary" disabled={visible.length === 0} onClick={() => setOpnameOpen((v) => !v)}>
@@ -722,14 +763,47 @@ function InventoryBody() {
         <Skeleton className="h-64 w-full" />
       ) : lines.error ? (
         <ErrorState message={lines.error} onRetry={lines.reload} />
+      ) : // The ledger is depot-wide, so it must not hang off the stock filters: filtering
+      // down to a type with no lines used to hide a depot's entire movement history.
+      view === 'movements' ? (
+        scopedId ? (
+          <DepotMovementLedger depotId={scopedId} />
+        ) : (
+          <CenterState title={t('dashboard.inventory.noDepots')} icon={<Package size={40} weight="fill" />}>
+            {t('dashboard.inventory.noDepotsBody')}
+          </CenterState>
+        )
       ) : visible.length === 0 ? (
         <CenterState title={t('dashboard.inventory.noLines')} icon={<Package size={40} weight="fill" />}>
           {lowOnly ? t('dashboard.inventory.noLinesLow') : t('dashboard.inventory.noLinesAll')}
         </CenterState>
-      ) : view === 'movements' ? (
-        <DepotMovementLedger depotId={scopedId!} />
       ) : (
         <>
+          {canWrite && picker && (
+            <Card className="flex flex-col gap-2 p-4">
+              <p className="text-sm font-semibold">Terima stok untuk baris mana?</p>
+              <div className="flex flex-col divide-y divide-[color:var(--border)]">
+                {visible.map((i) => (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() => pickLine(i.id)}
+                    className="flex items-center justify-between gap-3 py-2 text-left text-sm hover:text-brand-700"
+                  >
+                    <span className="min-w-0 truncate font-medium">{i.label}</span>
+                    <span className="shrink-0 text-xs tabular-nums text-muted">
+                      {i.quantity} {i.unit}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <Button variant="ghost" onClick={() => setPicker(false)}>
+                  Batal
+                </Button>
+              </div>
+            </Card>
+          )}
           {canWrite && opnameOpen && (
             <OpnameSheet items={visible} onClose={() => setOpnameOpen(false)} onDone={lines.reload} />
           )}
