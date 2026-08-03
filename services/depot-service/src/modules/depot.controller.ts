@@ -23,7 +23,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
+import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { OwnershipType } from '../domain/inventory';
 import { DEPOT_TOKENS } from '../application/tokens';
@@ -42,11 +42,6 @@ import {
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
-const QRIS_ALLOWED: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
 interface UploadedImage {
   buffer: Buffer;
   mimetype: string;
@@ -220,7 +215,11 @@ export class DepotController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
-    const ext = QRIS_ALLOWED[file.mimetype];
+    // H-20: `file.mimetype` is the Content-Type the CLIENT typed into the multipart part.
+    // Trust the bytes instead — the bucket serves whatever lands there straight back to
+    // browsers, so a .html or an .svg wearing an image/jpeg label is a stored XSS.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
     if (!ext) {
       throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
     }
@@ -234,7 +233,7 @@ export class DepotController {
     try {
       ({ url } = await this.storage.put({
         body: file.buffer,
-        contentType: file.mimetype,
+        contentType: SNIFFED_MIME[ext],
         ext,
       }));
     } catch (error) {

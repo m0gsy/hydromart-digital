@@ -7,7 +7,7 @@ import {
   PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { AuthenticatedUser } from '@hydromart/platform';
+import { AuthenticatedUser, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { EmployeeDocument, EmployeeDocumentType } from '../../../prisma/generated/client';
 import { DOCUMENT_REPOSITORY, DocumentRepository } from '../ports/document.repository';
@@ -15,14 +15,6 @@ import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { EmployeeService } from './employee.service';
 
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
-
-/** Scans and PDFs only — an employee file is not a place to park arbitrary binaries. */
-export const ALLOWED_DOCUMENT_TYPES: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-};
 
 export interface UploadedDocumentFile {
   buffer: Buffer;
@@ -60,7 +52,9 @@ export class DocumentService {
     await this.employees.getById(user, input.employeeId); // 404 + depot check
     if (!file) throw new BadRequestException('File dokumen wajib diunggah');
 
-    const ext = ALLOWED_DOCUMENT_TYPES[file.mimetype];
+    // H-20: the multipart Content-Type is whatever the caller typed. An employee file is
+    // read back by HR later, so what it really is has to be decided from its bytes.
+    const ext = sniffFileType(file.buffer);
     if (!ext) {
       throw new BadRequestException('Tipe file tidak didukung (jpeg, png, webp, pdf)');
     }
@@ -74,7 +68,7 @@ export class DocumentService {
     try {
       stored = await this.storage.put({
         body: file.buffer,
-        contentType: file.mimetype,
+        contentType: SNIFFED_MIME[ext],
         ext,
         keyPrefix: 'hr/documents',
       });
@@ -98,7 +92,7 @@ export class DocumentService {
       type: input.type,
       fileUrl: stored.url,
       fileKey: stored.key,
-      mimeType: file.mimetype,
+      mimeType: SNIFFED_MIME[ext],
       sizeBytes: file.size,
       version: (previous?.version ?? 0) + 1,
       uploadedBy: user.sub,

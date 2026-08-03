@@ -1158,6 +1158,8 @@ export const hq = {
   apiKeys: {
     title: 'API keys',
     subtitle: 'Service credentials & access scopes',
+    notLive:
+      'No Hydromart endpoint accepts these keys yet. A key here is a record of one you plan to issue — it grants nothing, and its scopes are not enforced anywhere.',
     create: '＋ Create key',
     createTitle: 'Create API key',
     name: 'Name',
@@ -1190,6 +1192,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
+    notLive:
+      'Nothing is delivered to these endpoints yet. Registering one records the subscription; no event has ever been sent, which is why every delivery figure is empty.',
     add: '＋ Endpoint',
     createTitle: 'Add webhook',
     url: 'Endpoint URL',

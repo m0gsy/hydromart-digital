@@ -16,8 +16,12 @@ import { Role, Roles } from '@hydromart/platform';
 import { WebhookService } from '../application/services/webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dto';
 
-// Design 19c — webhook subscriptions. SUPER_ADMIN only. Delivery status/rate are stored
-// fields updated by future delivery attempts (null until a real delivery is recorded).
+// Design 19c — webhook subscriptions. SUPER_ADMIN only.
+//
+// H-30: CRUD only. Nothing in the platform dispatches to these endpoints, so the stored
+// delivery status and success rate are null not because it has been quiet, but because no
+// event has ever been sent. Said plainly here and on the HQ page rather than letting an
+// empty column read as "healthy".
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @Roles(Role.SUPER_ADMIN)
@@ -26,7 +30,10 @@ export class WebhooksController {
   constructor(private readonly webhooks: WebhookService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List webhook endpoints (19c)' })
+  @ApiOperation({
+    summary: 'List webhook endpoints (19c)',
+    description: 'A registry only — no event is dispatched to these endpoints yet.',
+  })
   async list(): Promise<WebhookDto[]> {
     return (await this.webhooks.list()).map((w) => WebhookDto.from(w));
   }

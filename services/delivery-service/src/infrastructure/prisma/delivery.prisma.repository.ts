@@ -394,11 +394,20 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
-  async purgeProofsBefore(cutoff: Date): Promise<number> {
+  async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
+    // Read the URLs before the rows go: once they are deleted there is nothing left to say
+    // which objects in the bucket belonged to them (H-22).
+    const doomed = await this.prisma.proofOfDelivery.findMany({
+      where: { capturedAt: { lt: cutoff } },
+      select: { photoUrl: true, signatureUrl: true },
+    });
     const { count } = await this.prisma.proofOfDelivery.deleteMany({
       where: { capturedAt: { lt: cutoff } },
     });
-    return count;
+    const urls = doomed.flatMap((p) =>
+      [p.photoUrl, p.signatureUrl].filter((u): u is string => !!u),
+    );
+    return { count, urls };
   }
 
   async slaStats(

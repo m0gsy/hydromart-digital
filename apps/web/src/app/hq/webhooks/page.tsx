@@ -62,6 +62,13 @@ export default function HqWebhooksPage() {
         action={<Button onClick={() => setCreating(true)}>{t('hq.webhooks.add')}</Button>}
       />
 
+      {/* H-30: the registry is real, the mechanism is not. An operator handing a partner a
+          key (or a URL) and expecting an integration would be waiting forever, so the page
+          says so rather than looking like a working feature. */}
+      <Card className="border border-[color:var(--warning)] bg-[color:var(--warning-bg)] p-4">
+        <p className="text-sm text-[color:var(--warning)]">{t('hq.webhooks.notLive')}</p>
+      </Card>
+
       {hooks.length === 0 ? (
         <Card className="p-8">
           <p className="text-center text-sm text-muted">{t('hq.webhooks.empty')}</p>

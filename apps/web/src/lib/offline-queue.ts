@@ -2,6 +2,7 @@
 
 import { api, ApiError, uploadFile } from './api';
 import { endpoints } from './endpoints';
+import { getSession } from './session-store';
 
 /**
  * Offline capture queue for the three field surfaces that must not lose work when the
@@ -57,6 +58,13 @@ export type Job =
 export type QueuedJob = Job & {
   id: string;
   capturedAt: string;
+  /**
+   * H-24: who captured it. A depot phone is shared — a courier queues a punch offline,
+   * hands the phone over, the next person signs in, and the flush used to post THEIR
+   * session with the first courier's face frame, filing one person's attendance against
+   * the other. Absent only on jobs queued before this shipped.
+   */
+  owner?: string | null;
   /** Set once the server refused the job for good; it stays until the user discards it. */
   error?: string;
 };
@@ -100,7 +108,8 @@ function tx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => IDBRequ
 }
 
 function emit(): void {
-  listeners.forEach((fn) => fn(cache));
+  const mine = pending();
+  listeners.forEach((fn) => fn(mine));
 }
 
 /** Load the stored queue once per page load. Safe to call repeatedly. */
@@ -118,8 +127,25 @@ export async function hydrate(): Promise<QueuedJob[]> {
   return cache;
 }
 
+/** The signed-in customer id, or null when nobody is signed in on this device. */
+function currentOwner(): string | null {
+  return getSession()?.customer?.id ?? null;
+}
+
+/**
+ * Jobs the signed-in user may see and send. A job left by someone else stays on the
+ * device, invisible and unsent, until they sign back in.
+ *
+ * An `owner`-less job predates H-24 and can only have come from this device's previous
+ * session, so it is still flushed rather than stranded — a window one deploy wide.
+ */
+function ownedByCurrent(job: QueuedJob): boolean {
+  const owner = currentOwner();
+  return job.owner == null || job.owner === owner;
+}
+
 export function pending(): QueuedJob[] {
-  return cache;
+  return cache.filter(ownedByCurrent);
 }
 
 export function subscribe(fn: Listener): () => void {
@@ -212,7 +238,7 @@ export async function runOrQueue<T = unknown>(
     return { outcome: 'sent', result: (await run(job, capturedAt)) as T };
   } catch (e) {
     if (!isOffline(e)) throw e;
-    await put({ ...job, id: crypto.randomUUID(), capturedAt });
+    await put({ ...job, id: crypto.randomUUID(), capturedAt, owner: currentOwner() });
     return { outcome: 'queued' };
   }
 }
@@ -226,7 +252,7 @@ export async function flush(): Promise<void> {
   flushing = (async () => {
     await hydrate();
     for (const job of [...cache]) {
-      if (job.error) continue;
+      if (job.error || !ownedByCurrent(job)) continue;
       try {
         await run(job, job.capturedAt);
         await discard(job.id);

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
   DeliveryAlreadyExistsError,
@@ -40,6 +40,16 @@ import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
+import { StoragePort } from '../ports/storage.port';
+
+/**
+ * The storage key inside a stored proof URL. Both adapters build the URL as
+ * `<public base>[/uploads]/pod/<uuid>.<ext>`, so the key starts at the `pod/` segment.
+ */
+export function storageKeyFromUrl(url: string): string | null {
+  const at = url.indexOf('pod/');
+  return at === -1 ? null : url.slice(at);
+}
 
 export interface AssignInput {
   orderId: string;
@@ -97,6 +107,9 @@ export class DeliveryService {
     private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
     @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
+    // Optional so an environment with storage disabled still boots; the retention sweep
+    // then says out loud that the objects were left behind rather than pretending.
+    @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
   ) {}
 
   /**
@@ -425,21 +438,43 @@ export class DeliveryService {
   }
 
   /**
-   * UU PDP retention sweep: delete proof-of-delivery records older than the
-   * configured window (default 12 months). Invoked by the internal scheduler.
-   * Image files are expired separately by an object-storage bucket lifecycle rule.
-   */
-  /**
-   * Delete proof-of-delivery records older than `cutoff`.
+   * Delete proof-of-delivery records older than `cutoff`, and the photos with them.
    *
    * The window is NOT computed here any more. admin-service owns the retention policy
    * for every dataset and sends the cutoff; deriving it a second time from a depot
    * setting gave the same legal rule two owners that could silently disagree.
+   *
+   * H-22: the row alone was never erasure. The photo is of someone's doorstep, often with
+   * them in frame, and it outlived the record by however long the bucket kept it.
    */
   async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {
-    const purged = await this.deliveries.purgeProofsBefore(cutoff);
+    const { count: purged, urls } = await this.deliveries.purgeProofsBefore(cutoff);
+    for (const url of urls) {
+      const key = storageKeyFromUrl(url);
+      if (!key) {
+        this.logger.warn(`Retention: cannot derive a storage key from ${url}; object left behind`);
+        continue;
+      }
+      if (!this.storage) {
+        this.logger.warn(`Retention: no storage bound; ${key} not deleted`);
+        continue;
+      }
+      try {
+        await this.storage.remove(key);
+      } catch (err) {
+        // The row is already gone; a bucket that refuses one delete must not abort the
+        // sweep for every other customer. Logged so the leftover object is findable.
+        this.logger.error(
+          `Retention: deleted the proof row but not ${key}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
     if (purged > 0) {
-      this.logger.log(`Purged ${purged} proof-of-delivery record(s) older than ${cutoff.toISOString()}`);
+      this.logger.log(
+        `Purged ${purged} proof-of-delivery record(s) and ${urls.length} object(s) older than ${cutoff.toISOString()}`,
+      );
     }
     return { purged };
   }

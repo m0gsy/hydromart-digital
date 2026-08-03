@@ -60,6 +60,7 @@ export { IsIanaTimezone } from './nest/timezone.validator';
 export { enableMetrics } from './nest/metrics';
 export { protectDocs } from './nest/docs-guard';
 export { requiredSecret, optionalSecret } from './config/env-secret';
+export { sniffFileType, SNIFFED_MIME, type SniffedType } from './upload/file-type';
 export {
   SettingType,
   SettingRow,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeliveryService } from '../../src/application/services/delivery.service';
+import { DeliveryService, storageKeyFromUrl } from '../../src/application/services/delivery.service';
 import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DeliveryAlreadyExistsError,
@@ -29,8 +29,9 @@ import {
 
 const AUTH = 'Bearer token';
 const PROOF = {
-  photoUrl: 'https://cdn/x.jpg',
-  signatureUrl: 'https://cdn/sig.png',
+  // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
+  photoUrl: 'https://cdn/pod/x.jpg',
+  signatureUrl: 'https://cdn/pod/sig.png',
   recipientName: 'Budi',
   latitude: -6.9147,
   longitude: 107.6098,
@@ -47,6 +48,7 @@ describe('DeliveryService', () => {
   let payout: FakeCourierPayout;
   let shifts: ShiftService;
   let service: DeliveryService;
+  let storage: { put: jest.Mock; remove: jest.Mock };
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -59,7 +61,16 @@ describe('DeliveryService', () => {
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
     payout = new FakeCourierPayout();
-    service = new DeliveryService(repo, orders, payout, shifts, config, depots);
+    storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
+    service = new DeliveryService(
+      repo,
+      orders,
+      payout,
+      shifts,
+      config,
+      depots,
+      storage as never,
+    );
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
@@ -523,5 +534,21 @@ describe('DeliveryService', () => {
     const later = new Date(capturedAt.getTime() + 366 * 86_400_000);
     expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
     expect((await service.getAny(d.id)).proof).toBeNull();
+
+    // H-22: deleting the row alone left the photo — someone's doorstep, often with them in
+    // frame — sitting in the bucket after the record that was supposed to be erased.
+    expect(storage.remove).toHaveBeenCalledWith(storageKeyFromUrl(PROOF.photoUrl));
+  });
+
+  it('finishes the sweep even when the bucket refuses one delete', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    storage.remove.mockRejectedValueOnce(new Error('bucket unreachable'));
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    // The rows are already gone; one stubborn object must not abort erasure for everyone else.
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
   });
 });

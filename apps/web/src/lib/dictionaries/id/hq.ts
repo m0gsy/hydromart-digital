@@ -1159,6 +1159,8 @@ export const hq = {
   apiKeys: {
     title: 'Kunci API',
     subtitle: 'Kredensial layanan & cakupan akses',
+    notLive:
+      'Belum ada endpoint Hydromart yang menerima kunci ini. Kunci di sini baru catatan rencana — tidak memberi akses apa pun, dan cakupannya belum ditegakkan di mana pun.',
     create: '＋ Buat kunci',
     createTitle: 'Buat kunci API',
     name: 'Nama',
@@ -1192,6 +1194,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
+    notLive:
+      'Belum ada event yang dikirim ke endpoint ini. Mendaftarkannya baru mencatat langganan; karena belum pernah ada pengiriman, semua angka keberhasilan kosong.',
     add: '＋ Endpoint',
     createTitle: 'Tambah webhook',
     url: 'URL endpoint',

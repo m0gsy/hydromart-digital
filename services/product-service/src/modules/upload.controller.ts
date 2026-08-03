@@ -13,7 +13,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import { Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { PRODUCT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
@@ -21,12 +21,6 @@ import { MulterExceptionFilter } from './multer-exception.filter';
 
 const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
-const ALLOWED: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
 /** Admin uploads a product image and gets back a URL to store as `imageUrl`. */
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -46,7 +40,11 @@ export class UploadController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
-    const ext = ALLOWED[file.mimetype];
+    // H-20: `file.mimetype` is the Content-Type the CLIENT typed into the multipart part.
+    // Trust the bytes instead — the bucket serves whatever lands there straight back to
+    // browsers, so a .html or an .svg wearing an image/jpeg label is a stored XSS.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
     if (!ext) {
       throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
     }
@@ -59,7 +57,7 @@ export class UploadController {
     try {
       const { url } = await this.storage.put({
         body: file.buffer,
-        contentType: file.mimetype,
+        contentType: SNIFFED_MIME[ext],
         ext,
       });
       return { url };
