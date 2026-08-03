@@ -53,6 +53,12 @@ export class DepotConfigService {
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }
+  // Closing a cashier's shift asks payment-service what that depot's drawer took. Blank =
+  // the shift cannot be closed at all; a made-up "expected" would accuse a cashier of a
+  // shortfall that only ever existed in the config.
+  get paymentServiceUrl(): string {
+    return this.config.get<string>('PAYMENT_SERVICE_URL', '');
+  }
   /** Shared secret sent as x-internal-key on the crm internal notification call. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

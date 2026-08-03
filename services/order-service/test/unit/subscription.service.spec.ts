@@ -11,6 +11,7 @@ import {
   FakeDepotPricing,
   FakeForecastCoordination,
   FakeFranchiseRevenue,
+  FakeCashierShift,
   FakeInventory,
   FakeLoyaltyCoordination,
   FakeMembership,
@@ -84,6 +85,7 @@ describe('SubscriptionService', () => {
       new FakeRecommendationCoordination(),
       new FakeForecastCoordination(),
       new FakeFranchiseRevenue(),
+      new FakeCashierShift(),
     );
     service = new SubscriptionService(subs, catalog, orderService, buildTestConfig());
   });

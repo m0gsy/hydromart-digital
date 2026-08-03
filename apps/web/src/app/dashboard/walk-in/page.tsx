@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
 
+import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
@@ -54,6 +55,10 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [voucher, setVoucher] = useState('');
   const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
+  // Mirrors the server's own rule: no open shift, no counter sale. Undefined until the bar
+  // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
+  // and the server refuses anyway if there really is no shift.
+  const [shiftOpen, setShiftOpen] = useState<boolean | undefined>(undefined);
   // The sale just recorded, kept so its receipt can be printed again — the print window is a
   // popup and a blocked one used to lose the struk with the form already cleared.
   const [lastSale, setLastSale] = useState<{
@@ -179,7 +184,15 @@ function WalkIn({ depotId }: { depotId: string }) {
     try {
       const payment = await api.post<{ id: string }>(
         endpoints.payments.initiateStaff,
-        { orderId: order.id, method, amount: order.total, customerId: order.customerId },
+        {
+          orderId: order.id,
+          method,
+          amount: order.total,
+          customerId: order.customerId,
+          // Names the drawer this money lands in. Without it the payment is depot-less and
+          // the cashier's shift close would count this sale as never having happened.
+          depotId,
+        },
         true,
       );
       // Only a cash payment has change to work out. Sending cashReceived on a QRIS or
@@ -217,6 +230,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <SectionHeader title="Penjualan di depot" subtitle="Pembeli datang langsung, bayar tunai." />
+
+      <CashierShiftBar depotId={depotId} onChange={(s) => setShiftOpen(!!s)} />
 
       {lastSale && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -374,9 +389,17 @@ function WalkIn({ depotId }: { depotId: string }) {
           </div>
         )}
 
-        <Button className="w-full" onClick={() => void submit()} disabled={busy || lines.length === 0}>
+        <Button
+          className="w-full"
+          onClick={() => void submit()}
+          disabled={busy || lines.length === 0 || shiftOpen === false}
+        >
           <Printer size={18} className="mr-1" />
-          {method === 'CASH' ? 'Simpan & cetak struk' : 'Pembayaran diterima & cetak struk'}
+          {shiftOpen === false
+            ? 'Buka shift dulu'
+            : method === 'CASH'
+              ? 'Simpan & cetak struk'
+              : 'Pembayaran diterima & cetak struk'}
         </Button>
       </Card>
     </div>

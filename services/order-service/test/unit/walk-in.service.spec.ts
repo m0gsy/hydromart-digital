@@ -10,6 +10,7 @@ import {
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
+  NoOpenShiftError,
   ShippingVoucherAtCounterError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
@@ -22,6 +23,7 @@ import {
   FakeRecommendationCoordination,
   FakeForecastCoordination,
   FakeFranchiseRevenue,
+  FakeCashierShift,
   FakeMembership,
   FakeResellerDiscount,
   FakeNotification,
@@ -48,6 +50,7 @@ describe('OrderService.walkInSale', () => {
   let inventory: FakeInventory;
   let membership: FakeMembership;
   let promo: FakePromo;
+  let shift: FakeCashierShift;
   let service: OrderService;
 
   const operator: AuthenticatedUser = {
@@ -72,6 +75,7 @@ describe('OrderService.walkInSale', () => {
     inventory = new FakeInventory();
     membership = new FakeMembership();
     promo = new FakePromo();
+    shift = new FakeCashierShift();
     depots.owners.set(DEPOT, 'owner-1');
     service = new OrderService(
       orders,
@@ -91,6 +95,7 @@ describe('OrderService.walkInSale', () => {
       recommendation,
       forecast,
       franchiseRevenue,
+      shift,
     );
   });
 
@@ -257,6 +262,32 @@ describe('OrderService.walkInSale', () => {
     await expect(
       service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] }),
     ).rejects.toThrow('unique constraint');
+  });
+
+  // Cash entering a drawer nobody has claimed is how a shortfall ends up with no owner.
+  describe('the open-shift gate', () => {
+    it('refuses the sale when the cashier has no shift open', async () => {
+      shift.open = false;
+      await expect(sell(1)).rejects.toBeInstanceOf(NoOpenShiftError);
+    });
+
+    // Refused BEFORE anything is priced or held, or a rejected sale would leave the depot
+    // short by that quantity until the hold expired.
+    it('holds no stock and writes no order when the gate refuses', async () => {
+      shift.open = false;
+      await expect(sell(2)).rejects.toBeInstanceOf(NoOpenShiftError);
+      expect(inventory.reserveCalls).toHaveLength(0);
+      expect(orders.rows).toHaveLength(0);
+    });
+
+    it('asks depot-service about this depot, carrying the caller token', async () => {
+      await service.walkInSale(
+        operator,
+        { depotId: DEPOT, lines: [{ productId: catalog.seed({ id: randomUUID(), basePrice: 20000 }).id, quantity: 1 }] },
+        'Bearer cashier-token',
+      );
+      expect(shift.calls[0]).toEqual({ depotId: DEPOT, authorization: 'Bearer cashier-token' });
+    });
   });
 
   describe('discounts at the counter', () => {

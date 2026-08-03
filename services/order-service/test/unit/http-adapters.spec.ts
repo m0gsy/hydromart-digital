@@ -17,6 +17,7 @@ import { PromoHttpAdapter } from '../../src/infrastructure/http/promo.http.adapt
 import { ReferralCoordinationHttpAdapter } from '../../src/infrastructure/http/referral-coordination.http.adapter';
 import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/http/recommendation-coordination.http.adapter';
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
+import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
 // branches, fail-open catch, response parsing) against a mocked global.fetch — the
@@ -476,6 +477,52 @@ describe('PromoHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, '');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Every branch here decides whether cash may be taken, so every branch has to say NO
+// unless depot-service positively confirms the caller is on the counter.
+describe('CashierShiftHttpAdapter', () => {
+  const shift = (over: Partial<Record<string, unknown>> = {}) =>
+    new CashierShiftHttpAdapter(makeConfig(over));
+
+  it('confirms an open shift and carries the caller token to that depot', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: { id: 'shift-1' } }));
+    expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/cashier-shifts/current?depotId=depot-1');
+    expect((init as { headers: Record<string, string> }).headers.authorization).toBe('Bearer t');
+  });
+
+  // depot-service answering `null` is not a failure: the caller simply is not on the counter.
+  it('reads a null body as "no shift"', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, body: null }));
+    expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(false);
+  });
+
+  it('refuses without a token, and never asks', async () => {
+    expect(await shift().hasOpenShift('depot-1', '')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses when depot-service is unconfigured', async () => {
+    expect(await shift({ depotServiceUrl: '' }).hasOpenShift('depot-1', 'Bearer t')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails CLOSED on a non-2xx', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(false);
+  });
+
+  it('fails CLOSED when depot-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(false);
+  });
+
+  it('fails CLOSED on an unparseable body', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true, throwJson: true }));
+    expect(await shift().hasOpenShift('depot-1', 'Bearer t')).toBe(false);
   });
 });
 

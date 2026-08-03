@@ -14,6 +14,10 @@ export const envValidationSchema = Joi.object({
   // Low-stock alerting via crm-service (optional; blank disables the feature).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
+  // Closing a cashier's shift reads that depot's takings from payment-service. Blank means
+  // shifts can be opened but never closed — deliberate: a shift close that guesses the
+  // expected cash would accuse or absolve a real person on made-up numbers.
+  PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.

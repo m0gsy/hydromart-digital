@@ -44,6 +44,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       refundApproval: RefundApproval.NONE,
       cashReceived: null,
       changeGiven: null,
+      depotId: data.depotId ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -120,6 +121,21 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const matched = this.rows.filter(
       (r) =>
         set.has(r.orderId) && r.method === PaymentMethod.CASH && r.status === PaymentStatus.PAID,
+    );
+    return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
+  }
+
+  async sumDepotCash(
+    depotId: string,
+    range: { from?: Date; to?: Date },
+  ): Promise<CashCollectedSummary> {
+    const matched = this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.method === PaymentMethod.CASH &&
+        r.status === PaymentStatus.PAID &&
+        (!range.from || (r.paidAt !== null && r.paidAt >= range.from)) &&
+        (!range.to || (r.paidAt !== null && r.paidAt <= range.to)),
     );
     return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
   }

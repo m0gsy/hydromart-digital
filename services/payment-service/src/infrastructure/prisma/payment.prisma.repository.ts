@@ -41,6 +41,7 @@ interface PaymentRow {
   refundApproval: string;
   cashReceived: Decimalish | null;
   changeGiven: Decimalish | null;
+  depotId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +71,7 @@ export class PaymentPrismaRepository implements PaymentRepository {
       refundApproval: row.refundApproval as RefundApproval,
       cashReceived: row.cashReceived ? row.cashReceived.toNumber() : null,
       changeGiven: row.changeGiven ? row.changeGiven.toNumber() : null,
+      depotId: row.depotId,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -189,6 +191,20 @@ export class PaymentPrismaRepository implements PaymentRepository {
         orderId: { in: orderIds },
         method: PaymentMethod.CASH,
         status: PaymentStatus.PAID,
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+    return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
+  }
+
+  async sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary> {
+    const agg = await this.prisma.payment.aggregate({
+      where: {
+        depotId,
+        method: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
+        paidAt: { gte: range.from, lte: range.to },
       },
       _sum: { amount: true },
       _count: { _all: true },

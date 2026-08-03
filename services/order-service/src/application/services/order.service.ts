@@ -20,6 +20,7 @@ import {
   ResellerVoucherNotAllowedError,
   AnonymousVoucherNotAllowedError,
   ShippingVoucherAtCounterError,
+  NoOpenShiftError,
 } from '../../domain/errors';
 import {
   OrderStatus,
@@ -51,6 +52,7 @@ import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
 import { FranchiseRevenuePort } from '../ports/franchise-revenue.port';
+import { CashierShiftPort } from '../ports/cashier-shift.port';
 import { ForecastCoordinationPort } from '../ports/forecast-coordination.port';
 import { MembershipPort } from '../ports/membership.port';
 import { ResellerDiscountPort } from '../ports/reseller-discount.port';
@@ -127,6 +129,8 @@ export class OrderService {
     private readonly forecastCoordination: ForecastCoordinationPort,
     @Inject(ORDER_TOKENS.FranchiseRevenue)
     private readonly franchiseRevenue: FranchiseRevenuePort,
+    @Inject(ORDER_TOKENS.CashierShift)
+    private readonly cashierShift: CashierShiftPort,
   ) {}
 
   /**
@@ -383,6 +387,11 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // Before anything is priced or held: cash is about to change hands, and it has to land
+    // in a drawer somebody has opened in their own name and will count at the end.
+    if (!(await this.cashierShift.hasOpenShift(input.depotId, authorization))) {
+      throw new NoOpenShiftError();
+    }
 
     const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
     const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;

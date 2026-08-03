@@ -89,6 +89,15 @@ export class ResellerVoucherNotAllowedError extends DomainError {
   }
 }
 
+/** No open cashier shift: the cash would enter a drawer nobody is answerable for. */
+export class NoOpenShiftError extends DomainError {
+  readonly code = 'ORDER_NO_OPEN_SHIFT';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Buka shift kasir dulu sebelum mencatat penjualan di konter.');
+  }
+}
+
 /** A voucher lives in one buyer's wallet — an anonymous counter sale has none to spend. */
 export class AnonymousVoucherNotAllowedError extends DomainError {
   readonly code = 'ORDER_ANONYMOUS_VOUCHER_FORBIDDEN';

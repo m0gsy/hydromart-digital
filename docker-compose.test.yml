@@ -169,6 +169,8 @@ services:
       DEPOT_DATABASE_URL: postgresql://hydromart:hydromart@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
       DEPOT_ALERT_PHONE: ""
+      # Shift close reads the depot's takings from payment-service.
+      PAYMENT_SERVICE_URL: http://payment:3005
       GALLON_DEPOSIT_IDR: 20000
       STORAGE_PUBLIC_BASE_URL: http://storage.test/qris
     healthcheck:

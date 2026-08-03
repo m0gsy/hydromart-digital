@@ -8,10 +8,17 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser, Public } from '@hydromart/platform';
+import {
+  Can,
+  AuthenticatedUser,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+} from '@hydromart/platform';
 
 import { PaymentService } from '../application/services/payment.service';
 import {
@@ -23,6 +30,7 @@ import { Page } from '../application/pagination';
 import {
   CashCollectedQueryDto,
   ConfirmPaymentDto,
+  DepotCashQueryDto,
   InitiatePaymentDto,
   ListPaymentsQueryDto,
   PaymentWebhookDto,
@@ -60,6 +68,21 @@ export class PaymentController {
   @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
   initiateForCustomer(@Body() dto: StaffInitiatePaymentDto): Promise<PaymentRecord> {
     return this.payments.initiate(dto.customerId, { ...dto, atCounter: true });
+  }
+
+  // Shift close asks this: how much cash should be in THIS depot's drawer right now.
+  // Internal-key only — depot-service is the caller, and the answer decides whether a
+  // cashier is short. Declared before ':id' so the static segment wins.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-cash')
+  @ApiOperation({ summary: "Sum a depot's PAID cash over a window (internal service auth)" })
+  depotCash(@Query() query: DepotCashQueryDto): Promise<CashCollectedSummary> {
+    return this.payments.depotCashCollected(query.depotId, {
+      from: query.from ? new Date(query.from) : undefined,
+      to: query.to ? new Date(query.to) : undefined,
+    });
   }
 
   @Get()

@@ -54,6 +54,25 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
     test.skip(true, `no depot available; depot list said: ${depotCalls.join(' | ') || '(no call)'}`);
   }
 
+  // No shift, no sale — the server refuses the counter outright. Opening one is part of the
+  // flow now, so the test walks it rather than seeding around it.
+  const openShift = page.getByRole('button', { name: /Buka shift/i });
+  if (await openShift.isVisible().catch(() => false)) {
+    await page.getByLabel(/Uang kembalian awal/i).fill('200000');
+    const opened = page.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname.endsWith('/depots/api/v1/cashier-shifts') &&
+        r.request().method() === 'POST',
+      { timeout: 20_000 },
+    );
+    await openShift.click();
+    const shiftRes = await opened;
+    expect(shiftRes.ok(), `opening a shift answered ${shiftRes.status()}: ${await shiftRes.text()}`).toBe(
+      true,
+    );
+  }
+  await expect(page.getByText(/Shift terbuka/i)).toBeVisible({ timeout: 15_000 });
+
   // No products seeded for this depot → nothing to sell; that's an environment gap.
   // 30s, not 10: the depot switcher resolves the depot and THEN fetches its inventory, two round
   // trips through the gateway. Under the full serial suite that outran 10s and the test skipped
@@ -123,4 +142,23 @@ test('records a cash sale at the counter and prints a receipt', async ({ page, c
   await expect(receipt!.getByText(/Tunai/)).toBeVisible({ timeout: 10_000 });
   await expect(receipt!.getByText(/Kembali/)).toBeVisible();
   await receipt!.close();
+
+  // Close the drawer on the sale just made. The expected total is computed server-side from
+  // the payments themselves, so counting float + this sale exactly must come out even —
+  // proving the shift really measured the cash it took and not a number the page sent.
+  await page.getByRole('button', { name: /Tutup shift/i }).click();
+  await page.getByLabel(/Uang tunai dihitung/i).fill(String(200_000 + total));
+  const closed = page.waitForResponse(
+    (r) => /\/cashier-shifts\/[^/]+\/close$/.test(new URL(r.url()).pathname),
+    { timeout: 20_000 },
+  );
+  await page.getByRole('button', { name: /Tutup & hitung selisih/i }).click();
+  const closeRes = await closed;
+  expect(closeRes.ok(), `closing the shift answered ${closeRes.status()}: ${await closeRes.text()}`).toBe(
+    true,
+  );
+  const shift = await closeRes.json();
+  expect(shift.status).toBe('CLOSED');
+  expect(shift.expectedCash).toBe(200_000 + total);
+  expect(shift.variance).toBe(0);
 });

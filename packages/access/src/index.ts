@@ -59,6 +59,9 @@ export const CAPABILITIES = {
   // order-service — record a cash sale at the depot counter. Deliberately narrower than
   // orderQueue: a courier and head office never stand at the till.
   walkInSale: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  // depot-service — open and close a cashier's shift. Exactly the roles that may sell at
+  // the counter: whoever takes the money is who counts the drawer for it.
+  cashierShift: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
   // depot-service — inventory: READ is broader than WRITE (no HEAD_OFFICE on write).
   inventoryRead: [
     'KEPALA_DEPOT',

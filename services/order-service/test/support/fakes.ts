@@ -51,6 +51,7 @@ import {
   OrderRevenueEvent,
 } from '../../src/application/ports/franchise-revenue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
+import { CashierShiftPort } from '../../src/application/ports/cashier-shift.port';
 import { LoyaltyCoordinationPort } from '../../src/application/ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../../src/application/ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../../src/application/ports/recommendation-coordination.port';
@@ -621,6 +622,16 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
   posted: OrderRevenueEvent[] = [];
   async orderCompleted(event: OrderRevenueEvent): Promise<void> {
     this.posted.push(event);
+  }
+}
+
+export class FakeCashierShift implements CashierShiftPort {
+  /** Defaults to open: only the shift tests care, and every other counter test needs one. */
+  open = true;
+  calls: { depotId: string; authorization: string }[] = [];
+  async hasOpenShift(depotId: string, authorization: string): Promise<boolean> {
+    this.calls.push({ depotId, authorization });
+    return this.open;
   }
 }
 

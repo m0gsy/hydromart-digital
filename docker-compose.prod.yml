@@ -230,6 +230,9 @@ services:
       DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
       DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
+      # Closing a cashier's shift reads that depot's takings from here. Without it a shift
+      # can be opened but never closed — no drawer is ever settled against a guess.
+      PAYMENT_SERVICE_URL: http://payment:3005
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

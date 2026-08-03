@@ -43,6 +43,8 @@ export interface InitiatePaymentInput {
   amount: number;
   /** Counter sale: the buyer is at the depot, so no courier hands anything over. */
   atCounter?: boolean;
+  /** Depot whose drawer takes the money. Counter sales only. */
+  depotId?: string | null;
 }
 
 export interface ListPaymentsInput {
@@ -107,6 +109,9 @@ export class PaymentService {
       reference: null,
       instruction: this.offlineInstruction(input.method, input.atCounter ?? false),
       gatewayData: null,
+      // Only a counter sale names a depot: that drawer is answerable for this cash at
+      // shift close. A delivery order's payment belongs to the order's depot, not a till.
+      depotId: input.depotId ?? null,
     };
 
     if (!isOnlineMethod(input.method)) {
@@ -248,6 +253,15 @@ export class PaymentService {
    */
   async cashCollected(orderIds: string[]): Promise<CashCollectedSummary> {
     return this.payments.sumCashCollected(orderIds);
+  }
+
+  /**
+   * What a depot's drawer should hold for a window: its PAID cash, by settlement time.
+   * The cashier's shift close is measured against this, so it is deliberately the same
+   * question `cashCollected` answers for a courier — asked by depot instead of by order.
+   */
+  async depotCashCollected(depotId: string, range: DateRange): Promise<CashCollectedSummary> {
+    return this.payments.sumDepotCash(depotId, range);
   }
 
   /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */

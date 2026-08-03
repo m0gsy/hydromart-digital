@@ -796,6 +796,15 @@ export const endpoints = {
     },
     create: '/depots/api/v1/cashbook',
   },
+  // Counter chain of custody: who is on the till and what their drawer settled at.
+  cashierShifts: {
+    open: '/depots/api/v1/cashier-shifts',
+    current: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`,
+    list: (depotId: string) =>
+      `/depots/api/v1/cashier-shifts?depotId=${encodeURIComponent(depotId)}`,
+    close: (id: string) => `/depots/api/v1/cashier-shifts/${id}/close`,
+  },
   disputes: {
     list: (q: { depotId: string; status?: string }) => {
       const p = new URLSearchParams({ depotId: q.depotId });
