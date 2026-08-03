@@ -70,6 +70,7 @@ describe('SubscriptionPrismaRepository', () => {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
   };
   const prisma = { subscription: model } as unknown as PrismaService;
@@ -161,12 +162,19 @@ describe('SubscriptionPrismaRepository', () => {
       where: { id: 'sub-1' },
       data: { status: 'PAUSED' },
     });
+    const due = new Date('2026-02-01');
     const next = new Date('2026-02-08');
-    await repo.advance('sub-1', next);
-    expect(model.update).toHaveBeenLastCalledWith({
-      where: { id: 'sub-1' },
+    model.updateMany.mockResolvedValue({ count: 1 });
+    // H-3: the schedule only moves from the date the sweep read it at, so one due
+    // delivery advances once however many sweeps are looking at it.
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sub-1', status: 'ACTIVE', nextDeliveryAt: due },
       data: { nextDeliveryAt: next },
     });
+
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(false);
   });
 
   it('summarizes the active network, sorted by subscriber count desc', async () => {

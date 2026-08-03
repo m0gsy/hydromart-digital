@@ -270,6 +270,19 @@ describe('OrderService', () => {
       expect(inventory.releaseCalls).toHaveLength(1);
     });
 
+    // The subscription sweep keys each due delivery the same way (H-3); a re-triggered
+    // sweep must get the delivery it already placed, not a second one.
+    it('returns the same scheduled order when a sweep replays its key', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 2 }];
+
+      const first = await service.placeScheduled(customer, lines, address, 'sub:s1:2026-07-01');
+      const again = await service.placeScheduled(customer, lines, address, 'sub:s1:2026-07-01');
+
+      expect(again.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+
     it('scopes the key to the customer who sent it', async () => {
       const other = randomUUID();
       const product = await addToCart(20000, 2);

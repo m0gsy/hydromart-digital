@@ -162,6 +162,27 @@ describe('SubscriptionService', () => {
     expect((await service.processDue(new Date('2026-08-01T00:00:00Z'))).placed).toBe(0);
   });
 
+  // H-3. The sweep read due rows, placed an order, then advanced the schedule. Two
+  // sweeps overlapping — or an ops trigger fired twice — both saw the same row as due
+  // and each placed a delivery the customer never ordered.
+  it('places one delivery when two sweeps run over the same due subscription', async () => {
+    const p = seedProduct();
+    await service.create(customer, {
+      productId: p.id,
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+
+    const now = new Date('2026-07-13T00:00:00Z');
+    const [a, b] = await Promise.all([service.processDue(now), service.processDue(now)]);
+
+    expect(orders.rows).toHaveLength(1);
+    // Counted by whoever moved the schedule on, so the ops report says one, not two.
+    expect(a.placed + b.placed).toBe(1);
+  });
+
   it('skips a subscription whose address cannot be routed, leaving its schedule alone', async () => {
     const p = seedProduct();
     const sub = await service.create(customer, {
@@ -261,5 +282,21 @@ describe('SubscriptionService', () => {
     // schedule NOT advanced — the sub stays due for the next sweep.
     expect((await service.list(customer))[0].nextDeliveryAt.getTime()).toBe(before);
     expect(sub.status).toBe('ACTIVE');
+  });
+
+  it('logs a non-Error rejection without stopping the sweep', async () => {
+    const p = seedProduct();
+    await service.create(customer, {
+      productId: p.id,
+      quantity: 1,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+      address,
+    });
+    jest.spyOn(orders, 'create').mockRejectedValue('depot-service unreachable');
+
+    await expect(service.processDue(new Date('2026-07-13T00:00:00Z'))).resolves.toEqual({
+      placed: 0,
+    });
   });
 });

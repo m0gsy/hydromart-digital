@@ -587,11 +587,16 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
-  async advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
-    const r = this.rows.find((x) => x.id === id)!;
-    r.nextDeliveryAt = nextDeliveryAt;
+  async advance(id: string, from: Date, to: Date): Promise<boolean> {
+    // The compare-and-set the real repository does in its WHERE: a second sweep holding
+    // the same row finds the schedule already moved and claims nothing.
+    const r = this.rows.find(
+      (x) => x.id === id && x.status === 'ACTIVE' && x.nextDeliveryAt.getTime() === from.getTime(),
+    );
+    if (!r) return false;
+    r.nextDeliveryAt = to;
     r.updatedAt = nextDate();
-    return structuredClone(r);
+    return true;
   }
 
   async networkSummary(): Promise<SubscriptionNetworkSummary> {

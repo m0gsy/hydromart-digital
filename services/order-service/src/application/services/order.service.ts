@@ -358,8 +358,15 @@ export class OrderService {
     customerId: string,
     lines: { productId: string; quantity: number }[],
     address: DeliveryAddressSnapshot,
+    idempotencyKey: string | null = null,
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
+    // H-3: the sweep keys each due delivery, so two overlapping sweeps place one order
+    // between them rather than one each. Same guard as checkout (B-13).
+    const replay = await this.findReplay(customerId, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
     // Fail-closed like checkout. A subscription whose saved address has no map pin
     // cannot be routed and there is nobody to ask, so the sweep skips it with a log
     // (subscription.service isolates each run) instead of placing a lost order.
@@ -380,6 +387,7 @@ export class OrderService {
         deliveryFee,
         discount,
         total,
+        idempotencyKey,
         ...address,
         items,
       },
