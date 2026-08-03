@@ -81,7 +81,6 @@ export class RewardService {
       throw new InsufficientPointsError();
     }
 
-    const newBalance = account.pointsBalance - item.pointsCost;
     const redemption = await this.rewards.redeem({
       accountId: account.id,
       customerId,
@@ -89,11 +88,12 @@ export class RewardService {
       idempotencyKey,
       depotId,
       pointsSpent: item.pointsCost,
-      newBalance,
       reason: `Redeemed ${item.name}`,
       decrementStock: item.stock !== null,
     });
-    return { redemption, pointsBalance: newBalance };
+    // H-2: read the balance back rather than reporting the arithmetic this request did.
+    // The debit was applied by the database, possibly alongside someone else's.
+    return { redemption, pointsBalance: (await this.loyalty.getAccount(customerId)).pointsBalance };
   }
 
   /** The customer's own redemption history — what their cancel button acts on. */
@@ -129,19 +129,20 @@ export class RewardService {
 
     const account = await this.loyalty.getAccount(customerId);
     const item = await this.rewards.findItem(redemption.rewardItemId);
-    const newBalance = account.pointsBalance + redemption.pointsSpent;
     const cancelled = await this.rewards.cancel({
       redemptionId: redemption.id,
       accountId: account.id,
       customerId,
       rewardItemId: redemption.rewardItemId,
       pointsRefunded: redemption.pointsSpent,
-      newBalance,
       reason: `Cancelled ${item?.name ?? 'reward'}`,
       // A deleted or unlimited-stock item has no counter to give back to.
       restoreStock: item != null && item.stock !== null,
     });
-    return { redemption: cancelled, pointsBalance: newBalance };
+    return {
+      redemption: cancelled,
+      pointsBalance: (await this.loyalty.getAccount(customerId)).pointsBalance,
+    };
   }
 
   /** Staff confirms the reward was handed over. Closes the cancellation window. */

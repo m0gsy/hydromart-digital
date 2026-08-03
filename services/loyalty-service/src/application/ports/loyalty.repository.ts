@@ -23,15 +23,22 @@ export interface PointsTransactionRecord {
   createdAt: Date;
 }
 
-/** Atomic account mutation: insert a ledger entry and set the account totals together. */
+/**
+ * Atomic account mutation: insert a ledger entry and move the account totals together.
+ *
+ * H-2: the totals are DELTAS, applied by the database. They used to be absolutes computed
+ * from a balance read outside the transaction, so of two concurrent writes the second
+ * overwrote the first — points earned and then spent in the same second left the customer
+ * with whichever total was written last.
+ */
 export interface AccountMutation {
   accountId: string;
   customerId: string;
+  /** Signed change to the balance. A negative one is refused if the balance cannot cover it. */
   points: number;
   reason: string | null;
-  newBalance: number;
-  newLifetime: number;
-  newTier: MembershipTier;
+  /** Change to lifetimePoints — never negative, a spend does not un-earn a purchase. */
+  lifetimeDelta: number;
 }
 
 export interface EarnMutation extends AccountMutation {
@@ -45,7 +52,6 @@ export interface ExpiryMutation {
   customerId: string;
   /** Positive magnitude of the lot being expired (recorded as a negative EXPIRE entry). */
   points: number;
-  newBalance: number;
 }
 
 export interface LoyaltyRepository {
@@ -59,6 +65,12 @@ export interface LoyaltyRepository {
   recordAdjustment(
     mutation: AccountMutation & { type: PointsTxnType },
   ): Promise<LoyaltyAccountRecord>;
+  /**
+   * Stores the tier the account's authoritative lifetime total earns (H-2). Written after
+   * the increment rather than alongside it, because only then is the lifetime the one the
+   * database actually holds — computing it beforehand promotes off a stale read.
+   */
+  setTier(accountId: string, tier: MembershipTier): Promise<LoyaltyAccountRecord>;
 
   listTransactions(
     customerId: string,

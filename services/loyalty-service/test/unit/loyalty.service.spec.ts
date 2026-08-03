@@ -32,6 +32,49 @@ describe('LoyaltyService', () => {
     expect(repo.accounts).toHaveLength(1);
   });
 
+  // H-2. Every balance write used to be an absolute computed from a read taken outside
+  // the transaction, so of two writes landing together the second erased the first.
+  describe('concurrent point movements', () => {
+    it('keeps both movements when an earn and a correction land together', async () => {
+      await service.reward('cust-1', 100, 'seed');
+
+      await Promise.all([
+        service.earnForOrder('cust-1', randomUUID(), 60000),
+        service.adjust('cust-1', -40, 'manual correction'),
+      ]);
+
+      // 100 + 60 - 40. A stale absolute would leave 160 or 60, depending on who wrote last.
+      expect((await service.getAccount('cust-1')).pointsBalance).toBe(120);
+    });
+
+    it('counts every reward toward lifetime, and promotes off the total the DB holds', async () => {
+      await Promise.all([
+        service.reward('cust-1', 3000, 'referral a'),
+        service.reward('cust-1', 3000, 'referral b'),
+      ]);
+
+      const account = await service.getAccount('cust-1');
+      expect(account.lifetimePoints).toBe(6000);
+      // The tier both writes would have computed from their own stale read is SILVER;
+      // the tier the authoritative 6000 earns is GOLD.
+      expect(account.tier).toBe(MembershipTier.GOLD);
+    });
+
+    it('refuses the correction that the balance cannot cover, even against a stale read', async () => {
+      await service.reward('cust-1', 100, 'seed');
+      const account = await service.getAccount('cust-1');
+
+      // Both corrections were priced against this same balance; only one can be paid.
+      const results = await Promise.allSettled([
+        service.adjust(account.customerId, -100, 'a'),
+        service.adjust(account.customerId, -100, 'b'),
+      ]);
+
+      expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+      expect((await service.getAccount('cust-1')).pointsBalance).toBe(0);
+    });
+  });
+
   it('awards floor(subtotal / rate) points on a completed order (BR-013)', async () => {
     const result = await service.earnForOrder('cust-1', randomUUID(), 60000);
     expect(result.pointsEarned).toBe(60);

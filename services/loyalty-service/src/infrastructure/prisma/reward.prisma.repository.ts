@@ -11,8 +11,22 @@ import {
   RewardRepository,
   UpdateRewardItemData,
 } from '../../application/ports/reward.repository';
+import { InsufficientPointsError } from '../../domain/errors';
 import { PointsTxnType as PrismaTxnType } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
+
+/**
+ * Turns the redeem debit's "no row matched" into the customer's answer (H-2).
+ *
+ * On that transaction P2025 only ever means the `pointsBalance >= cost` predicate failed —
+ * someone spent the points first. Left raw it would be a 500 on an ordinary race.
+ */
+function rejectSpentPoints(error: unknown): never {
+  if ((error as { code?: string })?.code === 'P2025') {
+    throw new InsufficientPointsError();
+  }
+  throw error;
+}
 
 @Injectable()
 export class RewardPrismaRepository implements RewardRepository {
@@ -54,39 +68,44 @@ export class RewardPrismaRepository implements RewardRepository {
   }
 
   async redeem(m: RedeemMutation): Promise<RewardRedemptionRecord> {
-    const [redemption] = await this.prisma.$transaction([
-      this.prisma.rewardRedemption.create({
-        data: {
-          rewardItemId: m.rewardItemId,
-          customerId: m.customerId,
-          pointsSpent: m.pointsSpent,
-          idempotencyKey: m.idempotencyKey,
-          depotId: m.depotId,
-        },
-      }),
-      // Negative ledger entry — lifetimePoints/tier untouched (spend never promotes).
-      this.prisma.pointsTransaction.create({
-        data: {
-          accountId: m.accountId,
-          customerId: m.customerId,
-          type: PrismaTxnType.REDEEM,
-          points: -m.pointsSpent,
-          reason: m.reason,
-        },
-      }),
-      this.prisma.loyaltyAccount.update({
-        where: { id: m.accountId },
-        data: { pointsBalance: m.newBalance },
-      }),
-      ...(m.decrementStock
-        ? [
-            this.prisma.rewardItem.update({
-              where: { id: m.rewardItemId },
-              data: { stock: { decrement: 1 } },
-            }),
-          ]
-        : []),
-    ]);
+    const [redemption] = await this.prisma
+      .$transaction([
+        this.prisma.rewardRedemption.create({
+          data: {
+            rewardItemId: m.rewardItemId,
+            customerId: m.customerId,
+            pointsSpent: m.pointsSpent,
+            idempotencyKey: m.idempotencyKey,
+            depotId: m.depotId,
+          },
+        }),
+        // Negative ledger entry — lifetimePoints/tier untouched (spend never promotes).
+        this.prisma.pointsTransaction.create({
+          data: {
+            accountId: m.accountId,
+            customerId: m.customerId,
+            type: PrismaTxnType.REDEEM,
+            points: -m.pointsSpent,
+            reason: m.reason,
+          },
+        }),
+        // H-2: the debit is conditional and relative. The service's balance check is a read
+        // two concurrent redemptions can both pass; this WHERE is the one they cannot. No
+        // match means P2025 and the whole transaction — redemption row included — rolls back.
+        this.prisma.loyaltyAccount.update({
+          where: { id: m.accountId, pointsBalance: { gte: m.pointsSpent } },
+          data: { pointsBalance: { decrement: m.pointsSpent } },
+        }),
+        ...(m.decrementStock
+          ? [
+              this.prisma.rewardItem.update({
+                where: { id: m.rewardItemId },
+                data: { stock: { decrement: 1 } },
+              }),
+            ]
+          : []),
+      ])
+      .catch(rejectSpentPoints);
     return this.toRecord(redemption);
   }
 
@@ -151,7 +170,7 @@ export class RewardPrismaRepository implements RewardRepository {
       }),
       this.prisma.loyaltyAccount.update({
         where: { id: m.accountId },
-        data: { pointsBalance: m.newBalance },
+        data: { pointsBalance: { increment: m.pointsRefunded } },
       }),
       ...(m.restoreStock
         ? [
