@@ -44,6 +44,7 @@ const AT_DEPOT = { lat: -6.9147, lng: 107.6098 };
 describe('DeliveryService', () => {
   let repo: InMemoryDeliveryRepository;
   let orders: FakeOrderCoordination;
+  let payout: FakeCourierPayout;
   let shifts: ShiftService;
   let service: DeliveryService;
   let urbanSpeedKmph: number;
@@ -57,7 +58,8 @@ describe('DeliveryService', () => {
     urbanSpeedKmph = config.urbanSpeedKmph();
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
-    service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+    payout = new FakeCourierPayout();
+    service = new DeliveryService(repo, orders, payout, shifts, config, depots);
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
@@ -328,6 +330,39 @@ describe('DeliveryService', () => {
       // order-service (loyalty, referral, stock consume) never runs.
       'COMPLETED',
     ]);
+  });
+
+  // H-8. The order used to be marched to DELIVERED and then COMPLETED before the proof
+  // row was written. A proof write that failed left an order closed — stock consumed,
+  // points awarded, courier paid — with no evidence anyone handed over anything.
+  it('writes the proof before it closes the order, and closes nothing if the proof fails', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    jest.spyOn(repo, 'completeWithProof').mockRejectedValue(new Error('storage down'));
+    const before = orders.calls.length;
+
+    await expect(service.complete(driver, d.id, PROOF, AUTH)).rejects.toThrow('storage down');
+
+    // No DELIVERED, no COMPLETED: the order stays where the courier left it.
+    expect(orders.calls).toHaveLength(before);
+  });
+
+  // H-5. The transition check ran against a snapshot, so a courier double-tapping Selesai
+  // — the thing a driver on a bad connection actually does — completed twice, wrote two
+  // proof rows and pushed two earnings for one handover.
+  it('pays for one handover when Selesai is tapped twice', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+
+    const results = await Promise.allSettled([
+      service.complete(driver, d.id, PROOF, AUTH),
+      service.complete(driver, d.id, PROOF, AUTH),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(payout.events).toHaveLength(1);
   });
 
   it('still completes the delivery when the order cannot be closed', async () => {

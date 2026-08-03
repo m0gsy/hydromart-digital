@@ -188,9 +188,17 @@ export interface DeliveryRepository {
     lng: number,
     estimatedArrivalAt?: Date,
   ): Promise<DeliveryRecord>;
-  /** Move the delivery to `status`, set the matching timestamp, append history. */
+  /**
+   * Move the delivery to `status`, set the matching timestamp, append history — but only
+   * from the `from` the caller read it at (H-5).
+   *
+   * The legality check runs against a snapshot. Without the compare-and-set two taps on a
+   * courier's phone, or a driver and a dispatcher acting together, both pass it and both
+   * write; the loser now gets StaleDeliveryStatusError instead of overwriting.
+   */
   applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
@@ -201,9 +209,16 @@ export interface DeliveryRepository {
    * different driver. One row per order (orderId is unique), so the retry reuses it.
    */
   reassign(id: string, driverId: string, changedBy: string, note: string | null): Promise<DeliveryRecord>;
-  /** Record proof of delivery and mark the delivery DELIVERED atomically. */
+  /**
+   * Record proof of delivery and mark the delivery DELIVERED atomically, from `from` only.
+   *
+   * The guard is what stops a re-tapped Selesai paying the courier for one handover twice
+   * (H-5); the proof row and the status move together so neither can exist without the
+   * other (H-8).
+   */
   completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     /** Handover time — server time for a live proof, clamped device time for an offline one. */

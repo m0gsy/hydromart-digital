@@ -6,6 +6,7 @@ import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
+import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import {
   CreateDeliveryData,
   DeliveredRow,
@@ -260,12 +261,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   async applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
     note: string | null,
   ): Promise<DeliveryRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // The compare-and-set the real repository does in its WHERE (H-5).
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleDeliveryStatusError();
     Object.assign(row, timestamps, { status, updatedAt: nextDate() });
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return clone(row);
@@ -290,11 +294,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   async completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
   ): Promise<DeliveryRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // One handover, one proof row, one courier earning — however many times Selesai is
+    // tapped. Same guard the real repository carries (H-5).
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleDeliveryStatusError();
     const now = nextDate();
     row.status = DeliveryStatus.DELIVERED;
     row.deliveredAt = capturedAt;

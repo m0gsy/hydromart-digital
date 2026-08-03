@@ -198,21 +198,40 @@ export class DeliveryService {
       this.config.offlineMaxAgeHours(delivery.depotId),
       delivery.assignedAt,
     );
-    await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
+    // H-8: the proof is written FIRST, and it is what makes the rest legitimate. The order
+    // used to be marched to DELIVERED and then COMPLETED before this line ran, so a proof
+    // write that failed left an order closed, its stock consumed, its points awarded and
+    // its courier paid, with no evidence anyone had handed over anything.
+    //
+    // The status guard rides along: a re-tapped Selesai matches no row and raises rather
+    // than paying the courier twice for one handover (H-5).
+    const completed = await this.deliveries.completeWithProof(
+      id,
+      delivery.status,
+      proof,
+      driverId,
+      capturedAt,
+    );
+    this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
     // staff- or customer-driven. Without this step the order sits at DELIVERED forever and
     // order-service never runs its COMPLETED block — no loyalty points (BR-013), no referral
     // qualification (FR-092) and, worst of all, no stock consume (FR-067..074), so the
     // checkout hold is never settled and sellable stock drifts negative.
-    // Fail-open: the delivery (and the courier's earning) must not roll back if order-service
-    // is unreachable — the order simply stays at DELIVERED, exactly as before, and is logged.
-    try {
-      await this.advanceOrder(delivery.orderId, 'COMPLETED', authorization);
-    } catch {
-      this.logger.error(`Order ${delivery.orderId} delivered but could not be completed`);
+    //
+    // Both advances are fail-open now that they run after the proof: the handover happened
+    // and is recorded, and no order-service outage can un-happen it. A lagging order is
+    // recoverable by hand from the proof; a lost proof is not recoverable at all.
+    for (const status of ['DELIVERED', 'COMPLETED'] as const) {
+      try {
+        await this.advanceOrder(delivery.orderId, status, authorization);
+      } catch {
+        this.logger.error(
+          `Order ${delivery.orderId} has proof of delivery but could not be moved to ${status}`,
+        );
+        break;
+      }
     }
-    const completed = await this.deliveries.completeWithProof(id, proof, driverId, capturedAt);
-    this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
     // delivery must never roll back because its earning push did.
     void this.pushEarning(completed);
@@ -250,6 +269,7 @@ export class DeliveryService {
     await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.FAILED,
       { failedAt: new Date(), failureReason: reason },
       driverId,
@@ -318,6 +338,7 @@ export class DeliveryService {
     await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.FAILED,
       { failedAt: new Date(), failureReason: reason },
       driverId,
@@ -335,6 +356,7 @@ export class DeliveryService {
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
     const updated = await this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.RESCHEDULED,
       {
         rescheduledFor: input.rescheduledFor,
@@ -446,6 +468,7 @@ export class DeliveryService {
     }
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       to,
       eta ? { ...timestamps, estimatedArrivalAt: eta } : timestamps,
       driverId,

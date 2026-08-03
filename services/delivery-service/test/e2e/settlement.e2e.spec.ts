@@ -70,6 +70,7 @@ describe('Cash settlement HTTP flows (e2e)', () => {
     });
     await deliveries.applyStatus(
       delivery.id,
+      DeliveryStatus.ASSIGNED,
       DeliveryStatus.DELIVERED,
       { deliveredAt: new Date() },
       driverId,

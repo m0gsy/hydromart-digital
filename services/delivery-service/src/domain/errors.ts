@@ -37,6 +37,20 @@ export class InvalidDeliveryTransitionError extends DomainError {
 }
 
 /** A driver acted on a delivery that is not theirs. */
+/**
+ * The delivery moved on between being read and being written (H-5).
+ *
+ * 409, not 422: the transition was legal when the courier's phone asked for it. Somebody
+ * else — a second tap, a dispatcher — got there first, and a reload shows what happened.
+ */
+export class StaleDeliveryStatusError extends DomainError {
+  readonly code = 'DELIVERY_STATUS_STALE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This delivery was already updated. Reload and try again.');
+  }
+}
+
 export class NotAssignedDriverError extends DomainError {
   readonly code = 'DELIVERY_NOT_YOUR_DELIVERY';
   readonly status = HTTP_STATUS.FORBIDDEN;
