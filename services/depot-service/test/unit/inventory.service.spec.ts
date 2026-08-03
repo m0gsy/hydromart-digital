@@ -2,16 +2,21 @@ import { InventoryService } from '../../src/application/services/inventory.servi
 import { DepotService } from '../../src/application/services/depot.service';
 import { InventoryItemType, OwnershipType, StockMovementType } from '../../src/domain/inventory';
 import {
+  CatalogProductNotFoundError,
   DepotNotFoundError,
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryLineHasSalesError,
+  InventoryLineNotEmptyError,
   NegativeStockError,
   ProductLineRequiresProductError,
 } from '../../src/domain/errors';
 import {
   buildTestConfig,
   FakeLowStockAlert,
+  FakeProductCatalog,
+  FakeUntrackedSaleAlert,
   InMemoryApprovalRepository,
   InMemoryDepotRepository,
   InMemoryInventoryRepository,
@@ -26,6 +31,8 @@ describe('InventoryService', () => {
   let depotRepo: InMemoryDepotRepository;
   let invRepo: InMemoryInventoryRepository;
   let alerts: FakeLowStockAlert;
+  let untracked: FakeUntrackedSaleAlert;
+  let catalog: FakeProductCatalog;
   let inventory: InventoryService;
   let depotId: string;
 
@@ -35,7 +42,17 @@ describe('InventoryService', () => {
     alerts = new FakeLowStockAlert();
     const config = buildTestConfig();
     const approvals = new ApprovalService(new InMemoryApprovalRepository(), depotRepo, config);
-    inventory = new InventoryService(invRepo, depotRepo, alerts, approvals, config);
+    untracked = new FakeUntrackedSaleAlert();
+    catalog = new FakeProductCatalog();
+    inventory = new InventoryService(
+      invRepo,
+      depotRepo,
+      alerts,
+      untracked,
+      catalog,
+      approvals,
+      config,
+    );
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
       name: 'Depot Cikini',
@@ -53,6 +70,15 @@ describe('InventoryService', () => {
       holidays: [],
     });
     depotId = depot.id;
+    // The catalog knows the product these tests open PRODUK lines for. A line for a
+    // product the catalog has never heard of is refused — that case is tested on its own.
+    catalog.products.set(PRODUCT_ID, {
+      id: PRODUCT_ID,
+      name: 'Air Galon 19L',
+      sku: 'AIR-19L',
+      unit: 'Galon',
+      active: true,
+    });
   });
 
   const raw = () => ({
@@ -263,6 +289,291 @@ describe('InventoryService', () => {
       },
       ACTOR,
     );
+
+  // A PRODUK line points at a catalog product by id. Nothing used to check that the id
+  // led anywhere, so a hand-typed UUID produced a line no order would ever match, and a
+  // hand-typed label drifted from the catalog the moment anyone renamed the product.
+  describe('a PRODUK line is validated and named by the catalog', () => {
+    it('refuses a product the catalog does not have', async () => {
+      const ghost = '77777777-7777-4777-8777-777777777777';
+      await expect(produkLine(ghost, 5)).rejects.toBeInstanceOf(CatalogProductNotFoundError);
+      expect(await invRepo.listForDepot(depotId, {})).toHaveLength(0);
+    });
+
+    it('takes the catalog name and unit over whatever was typed', async () => {
+      const line = await produkLine(PRODUCT_ID, 5);
+      expect(line.label).toBe('Air Galon 19L'); // typed 'Air RO'
+      expect(line.unit).toBe('Galon'); // typed 'unit'
+    });
+
+    // Fail open: product-service being down must not stop a depot from registering stock.
+    it('accepts the typed label when the catalog is unreachable', async () => {
+      catalog.unavailable = true;
+      const line = await produkLine(PRODUCT_ID, 5);
+      expect(line.label).toBe('Air RO');
+      expect(line.unit).toBe('unit');
+    });
+
+    // An import file identifies a product by the code printed on the shelf. Requiring a
+    // UUID was why the CSV wizard was, in practice, unusable.
+    it('resolves a row that carries a sku instead of an id', async () => {
+      const line = await inventory.createLine(
+        depotId,
+        {
+          itemType: InventoryItemType.PRODUK,
+          sku: 'AIR-19L',
+          label: 'apa saja',
+          unit: 'x',
+          quantity: 7,
+          minimumStock: 0,
+        },
+        ACTOR,
+      );
+      expect(line.productId).toBe(PRODUCT_ID);
+      expect(line.label).toBe('Air Galon 19L');
+      expect(line.quantity).toBe(7);
+    });
+
+    it('refuses a sku the catalog does not have', async () => {
+      await expect(
+        inventory.createLine(
+          depotId,
+          {
+            itemType: InventoryItemType.PRODUK,
+            sku: 'TIDAK-ADA',
+            label: 'x',
+            unit: 'x',
+            quantity: 0,
+            minimumStock: 0,
+          },
+          ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(CatalogProductNotFoundError);
+    });
+
+    // With only a SKU there is no id to fall back to, so this one cannot fail open.
+    it('refuses a sku row when the catalog is unreachable', async () => {
+      catalog.unavailable = true;
+      await expect(
+        inventory.createLine(
+          depotId,
+          {
+            itemType: InventoryItemType.PRODUK,
+            sku: 'AIR-19L',
+            label: 'x',
+            unit: 'x',
+            quantity: 0,
+            minimumStock: 0,
+          },
+          ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(CatalogProductNotFoundError);
+    });
+
+    it('never asks the catalog about a raw stock line', async () => {
+      catalog.unavailable = true; // would fail the lookup if one were made
+      const line = await inventory.createLine(depotId, raw(), ACTOR);
+      expect(line.label).toBe('Galon 19L');
+    });
+  });
+
+  // A mis-created line used to be permanent: nothing in any console could remove it.
+  describe('deleting a stock line', () => {
+    it('removes a line that never held stock or sold anything', async () => {
+      const line = await inventory.createLine(
+        depotId,
+        { ...raw(), quantity: 0 },
+        ACTOR,
+      );
+      await inventory.deleteLine(line.id);
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(0);
+    });
+
+    // Deleting a line with stock on it would make the discrepancy disappear rather than
+    // explain it. Count it to zero first — that leaves an OPNAME movement saying so.
+    it('refuses while stock is still on the line', async () => {
+      const line = await inventory.createLine(depotId, raw(), ACTOR);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+    });
+
+    it('refuses while an order still holds units', async () => {
+      const line = await produkLine(PRODUCT_ID, 5);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);
+      await inventory.adjust(line.id, -0, null, ACTOR).catch(() => undefined);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+    });
+
+    // Movements cascade on delete, so a line that ever sold would take the depot's sales
+    // record with it. Those are hidden by deactivating the product, never deleted.
+    it('refuses a line that has recorded sales, even when it is empty now', async () => {
+      const line = await produkLine(PRODUCT_ID, 2);
+      await inventory.consumeForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      expect((await inventory.get(line.id)).quantity).toBe(0);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineHasSalesError);
+    });
+
+    it('refuses an item id that does not exist', async () => {
+      await expect(
+        inventory.deleteLine('99999999-9999-4999-8999-999999999999'),
+      ).rejects.toBeInstanceOf(InventoryItemNotFoundError);
+    });
+  });
+
+  // "Dipesan" was a bare number with nothing behind it: an operator seeing 0 available on a
+  // full shelf had no way to find which orders were holding it.
+  describe('reservation drill-down', () => {
+    it('lists the active holds on a line', async () => {
+      await produkLine(PRODUCT_ID, 10);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+      const [item] = await inventory.listForDepot(depotId, {});
+      const holds = await inventory.listReservations(item.id);
+      expect(holds).toHaveLength(1);
+      expect(holds[0]).toMatchObject({ orderId: ORDER, quantity: 3 });
+    });
+
+    it('refuses an item id that does not exist', async () => {
+      await expect(
+        inventory.listReservations('99999999-9999-4999-8999-999999999999'),
+      ).rejects.toBeInstanceOf(InventoryItemNotFoundError);
+    });
+  });
+
+  // A line copies the product's name when it is opened, so the catalog has to push its
+  // edits here or every depot keeps showing a name the catalog stopped using.
+  describe('a catalog change reaches the lines that copied it', () => {
+    it('renames the line in every depot at once', async () => {
+      const second = await new DepotService(depotRepo).create({
+        code: 'JKT-02',
+        name: 'Depot Menteng',
+        ownershipType: OwnershipType.HKP,
+        address: 'b',
+        city: 'Jakarta',
+        province: 'DKI Jakarta',
+        lat: -6.2,
+        lng: 106.8,
+        serviceRadiusKm: 5,
+        deliveryFee: 5000,
+        minOrderAmount: null,
+        ownerId: null,
+        operatingHours: {},
+        holidays: [],
+      });
+      await produkLine(PRODUCT_ID, 10);
+      await inventory.createLine(
+        second.id,
+        { itemType: InventoryItemType.PRODUK, productId: PRODUCT_ID, label: 'x', unit: 'x', quantity: 1, minimumStock: 0 },
+        ACTOR,
+      );
+
+      const result = await inventory.applyProductChange({
+        productId: PRODUCT_ID,
+        name: 'Air Galon 19,2L',
+        unit: 'Galon',
+        active: true,
+      });
+
+      expect(result.renamed).toBe(2);
+      const labels = [
+        ...(await inventory.listForDepot(depotId, {})),
+        ...(await inventory.listForDepot(second.id, {})),
+      ].map((i) => i.label);
+      expect(labels).toEqual(['Air Galon 19,2L', 'Air Galon 19,2L']);
+    });
+
+    // Hidden, not deleted: the movement ledger is the depot's record of what it sold, and
+    // an order placed before the product was switched off still has to settle.
+    it('hides the line from the operator but keeps it settleable', async () => {
+      const line = await produkLine(PRODUCT_ID, 10);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+
+      await inventory.applyProductChange({
+        productId: PRODUCT_ID,
+        name: 'Air Galon 19L',
+        unit: 'Galon',
+        active: false,
+      });
+
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(0);
+      const settled = await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [{ productId: PRODUCT_ID, quantity: 2 }],
+        ACTOR,
+      );
+      expect(settled.consumed).toEqual([PRODUCT_ID]);
+      expect((await inventory.get(line.id)).quantity).toBe(8);
+    });
+
+    it('brings the line back when the product is switched on again', async () => {
+      await produkLine(PRODUCT_ID, 10);
+      const change = { productId: PRODUCT_ID, name: 'Air Galon 19L', unit: 'Galon' };
+      await inventory.applyProductChange({ ...change, active: false });
+      await inventory.applyProductChange({ ...change, active: true });
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(1);
+    });
+
+    // product-service pushes every change and cannot know which products a depot stocks.
+    it('is a no-op for a product no depot stocks', async () => {
+      await expect(
+        inventory.applyProductChange({
+          productId: '99999999-9999-4999-8999-999999999999',
+          name: 'x',
+          unit: 'x',
+          active: true,
+        }),
+      ).resolves.toEqual({ renamed: 0, hidden: 0 });
+    });
+  });
+
+  // Decision: a product with no stock line still sells — refusing a customer's order over
+  // missing paperwork is worse than an untracked deduction. But it must never be silent.
+  describe('an untracked sale warns the depot', () => {
+    const UNSTOCKED = '88888888-8888-4888-8888-888888888888';
+
+    it('emits one alert naming every product that had no line', async () => {
+      await produkLine(PRODUCT_ID, 100);
+      const result = await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [
+          { productId: PRODUCT_ID, quantity: 2 },
+          { productId: UNSTOCKED, quantity: 3 },
+        ],
+        ACTOR,
+      );
+      expect(result.consumed).toEqual([PRODUCT_ID]);
+      expect(result.skipped).toEqual([UNSTOCKED]);
+      expect(untracked.emitted).toHaveLength(1);
+      expect(untracked.emitted[0]).toMatchObject({
+        depotId,
+        orderId: ORDER,
+        productIds: [UNSTOCKED],
+      });
+    });
+
+    it('stays quiet when every product had a line', async () => {
+      await produkLine(PRODUCT_ID, 100);
+      await inventory.consumeForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 1 }], ACTOR);
+      expect(untracked.emitted).toHaveLength(0);
+    });
+
+    // The warning is a side-effect of the sale, not a condition of it.
+    it('completes the sale even when the alert throws', async () => {
+      untracked.throws = true;
+      await produkLine(PRODUCT_ID, 10);
+      const result = await inventory.consumeForOrder(
+        depotId,
+        ORDER,
+        [
+          { productId: PRODUCT_ID, quantity: 4 },
+          { productId: UNSTOCKED, quantity: 1 },
+        ],
+        ACTOR,
+      );
+      expect(result.consumed).toEqual([PRODUCT_ID]);
+      expect((await inventory.get((await invRepo.listForDepot(depotId, {}))[0].id)).quantity).toBe(6);
+    });
+  });
 
   it('consumes sold quantities from PRODUK lines on order completion', async () => {
     const line = await produkLine(PRODUCT_ID, 100);
@@ -532,6 +843,13 @@ describe('InventoryService', () => {
 
   it('reserves available lines but rejects the whole order if any line is short (all-or-nothing)', async () => {
     const other = '55555555-5555-5555-5555-555555555555';
+    catalog.products.set(other, {
+      id: other,
+      name: 'B',
+      sku: 'B-1',
+      unit: 'unit',
+      active: true,
+    });
     const a = await produkLine(PRODUCT_ID, 10);
     const b = await inventory.createLine(
       depotId,
@@ -655,10 +973,12 @@ describe('InventoryService', () => {
     const summary = await inventory.wastageSummary(depotId);
     expect(summary.totalLossIdr).toBe(25000); // 5 units × 5000; galon has no price
     const byLabel = Object.fromEntries(summary.byItem.map((i) => [i.label, i]));
-    expect(byLabel['Air RO']).toEqual({ label: 'Air RO', qty: 5, lossIdr: 25000 });
+    // 'Air RO' was typed above; the catalog's own name wins on a PRODUK line, which is
+    // the whole point of validating the id — the report reads the same word the catalog does.
+    expect(byLabel['Air Galon 19L']).toEqual({ label: 'Air Galon 19L', qty: 5, lossIdr: 25000 });
     expect(byLabel['Galon 19L']).toEqual({ label: 'Galon 19L', qty: 3 }); // qty only, no lossIdr
     // Sorted by lost quantity, descending.
-    expect(summary.byItem[0].label).toBe('Air RO');
+    expect(summary.byItem[0].label).toBe('Air Galon 19L');
   });
 
   it('returns an empty wastage summary (no priced total) when nothing was adjusted down', async () => {

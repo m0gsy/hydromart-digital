@@ -185,6 +185,12 @@ model InventoryItem {
   /// Per-depot sell price override in IDR (PRODUK lines only). Null = use the
   /// catalog base price. Lets franchise (WARALABA) depots price independently.
   sellPrice    Decimal?          @db.Decimal(12, 2)
+  /// Set when the catalog product behind this line was deactivated. The line is kept —
+  /// its movement history is the depot's record of what it once sold — but hidden from
+  /// the operator list so a product nobody sells any more stops asking to be counted.
+  /// Internal lookups (reserve/consume) ignore the flag: an order already in flight must
+  /// still settle against the line it was placed on.
+  hidden       Boolean           @default(false)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 

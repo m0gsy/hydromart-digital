@@ -12,6 +12,7 @@ import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { CategoryPrismaRepository } from '../infrastructure/prisma/category.prisma.repository';
 import { ProductPrismaRepository } from '../infrastructure/prisma/product.prisma.repository';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
+import { StockNotifierHttpAdapter } from '../infrastructure/http/stock-notifier.http.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../application/ports/storage.port';
 import { CategoryController } from './category.controller';
@@ -25,6 +26,7 @@ const providers: Provider[] = [
   CategoryService,
   { provide: PRODUCT_TOKENS.ProductRepository, useClass: ProductPrismaRepository },
   { provide: PRODUCT_TOKENS.CategoryRepository, useClass: CategoryPrismaRepository },
+  { provide: PRODUCT_TOKENS.StockNotifier, useClass: StockNotifierHttpAdapter },
   {
     provide: PRODUCT_TOKENS.Storage,
     inject: [ProductConfigService],

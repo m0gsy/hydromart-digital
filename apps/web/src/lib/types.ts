@@ -1320,6 +1320,15 @@ export interface InventoryItem {
   lowStock: boolean;
 }
 
+/** An order's live hold on a stock line — what the "dipesan" column is made of. */
+export interface StockReservation {
+  id: string;
+  itemId: string;
+  orderId: string;
+  quantity: number;
+  status: 'ACTIVE' | 'RELEASED' | 'CONSUMED';
+}
+
 // One row in a stock line's append-only movement ledger (10b).
 export type StockMovementType = 'RECEIPT' | 'ADJUSTMENT' | 'OPNAME' | 'SALE';
 

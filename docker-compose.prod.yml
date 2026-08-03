@@ -120,6 +120,8 @@ services:
       <<: *shared
       PRODUCT_SERVICE_PORT: 3003
       PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public
+      # DEPOT_SERVICE_URL comes from *shared (http://depot:3007) — product-service pushes
+      # renames/deactivations there so depot stock lines that copied a name follow it.
       # Object storage for product images. BiznetGio NEO (S3-compatible); per-bucket
       # keys, so product uses its own bucket/creds (see PRODUCT_STORAGE_* in .env).
       STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
@@ -232,6 +234,10 @@ services:
       DEPOT_SERVICE_PORT: 3007
       DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
       CRM_SERVICE_URL: http://crm:3012
+      # Read when a PRODUK stock line is opened, to validate the product id and take the
+      # catalog's own name for it. Unset here would silently fall back to localhost, which
+      # in a container means every lookup fails and validation quietly stops happening.
+      PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       # Closing a cashier's shift reads that depot's takings from here. Without it a shift
       # can be opened but never closed — no drawer is ever settled against a guess.

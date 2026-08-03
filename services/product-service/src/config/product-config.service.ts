@@ -28,6 +28,17 @@ export class ProductConfigService {
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
   }
+  /**
+   * depot-service, told when a product is renamed or switched off so the stock lines that
+   * copied its name follow. Blank disables the push (dev default) — nothing breaks, depot
+   * labels just go stale until the next edit.
+   */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  get internalServiceKey(): string {
+    return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
   get storageLocalDir(): string {
     return this.config.get<string>('STORAGE_LOCAL_DIR', './var/uploads');
   }

@@ -706,6 +706,9 @@ export const endpoints = {
       const qs = p.toString();
       return `/depots/api/v1/depots/${depotId}/inventory${qs ? `?${qs}` : ''}`;
     },
+    // Open a stock line for one depot (staff). A PRODUK line carries the catalog
+    // productId; depot-service names it from the catalog and refuses an unknown id.
+    create: (depotId: string) => `/depots/api/v1/depots/${depotId}/inventory`,
     import: (depotId: string) => `/depots/api/v1/depots/${depotId}/inventory/import`,
     adjust: (itemId: string) => `/depots/api/v1/inventory/${itemId}/adjust`,
     opname: (itemId: string) => `/depots/api/v1/inventory/${itemId}/opname`,
@@ -713,6 +716,10 @@ export const endpoints = {
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
     // Append-only stock movement history for one line (opname/adjust/sale/restock).
     movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    // DELETE — only an empty line that never sold anything; the API refuses the rest.
+    remove: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
+    // The orders behind the "dipesan" column (ACTIVE holds, newest first).
+    reservations: (itemId: string) => `/depots/api/v1/inventory/${itemId}/reservations`,
     depotMovements: (
       depotId: string,
       q: { type?: string; from?: string; to?: string; page?: number; limit?: number } = {},

@@ -32,6 +32,7 @@ interface ItemRow {
   reserved: number;
   minimumStock: number;
   sellPrice: unknown; // Prisma Decimal | null
+  hidden: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,6 +79,36 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return { ...row, type: row.type as StockMovementType };
   }
 
+  async renameByProductId(productId: string, label: string, unit: string): Promise<number> {
+    const { count } = await this.prisma.inventoryItem.updateMany({
+      where: { productId },
+      data: { label, unit },
+    });
+    return count;
+  }
+
+  async deleteLine(itemId: string): Promise<void> {
+    // Movements and reservations cascade (schema onDelete: Cascade). The service only
+    // ever calls this for a line that never sold anything, so no sales history is lost.
+    await this.prisma.inventoryItem.delete({ where: { id: itemId } });
+  }
+
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    const rows = await this.prisma.stockReservation.findMany({
+      where: { itemId, status: ReservationStatus.ACTIVE },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => this.toReservation(r as ReservationRow));
+  }
+
+  async setHiddenByProductId(productId: string, hidden: boolean): Promise<number> {
+    const { count } = await this.prisma.inventoryItem.updateMany({
+      where: { productId },
+      data: { hidden },
+    });
+    return count;
+  }
+
   async create(data: CreateInventoryItemData): Promise<InventoryItemRecord> {
     const row = await this.prisma.inventoryItem.create({ data });
     return this.toItem(row);
@@ -117,7 +148,10 @@ export class InventoryPrismaRepository implements InventoryRepository {
 
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     const rows = await this.prisma.inventoryItem.findMany({
-      where: { depotId, ...(filter.itemType ? { itemType: filter.itemType } : {}) },
+      // Hidden lines are excluded here and here only: this is the operator's list. Every
+      // internal lookup (findLine, findById) still sees them, so an order placed before
+      // the product was switched off can still be reserved, consumed and settled.
+      where: { depotId, hidden: false, ...(filter.itemType ? { itemType: filter.itemType } : {}) },
       orderBy: [{ itemType: 'asc' }, { label: 'asc' }],
     });
     const items = rows.map((r) => this.toItem(r));

@@ -92,10 +92,23 @@ export class CreateInventoryItemDto {
   @IsEnum(InventoryItemType)
   itemType!: InventoryItemType;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Required for PRODUK lines only.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Required for PRODUK lines, unless `sku` is given instead.',
+  })
   @IsOptional()
   @IsUUID()
   productId?: string;
+
+  @ApiPropertyOptional({
+    example: 'AIR-19L',
+    description:
+      'Catalog SKU, resolved to a productId. For import files, so nobody has to type a UUID. Ignored when productId is set.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  sku?: string;
 
   @ApiProperty({ example: 'Galon 19L' })
   @IsString()
@@ -217,6 +230,33 @@ export class OpnameStockDto {
   @IsString()
   @MaxLength(300)
   reason?: string;
+}
+
+/**
+ * What product-service pushes after a catalog edit. Carries the fields a stock line
+ * copied, not the whole product: the line needs a name, a unit, and whether the product
+ * is still sold.
+ */
+export class ProductChangedDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  productId!: string;
+
+  @ApiProperty({ example: 'Air Galon 19L' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  name!: string;
+
+  @ApiProperty({ example: 'Galon' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  unit!: string;
+
+  @ApiProperty({ description: 'False hides every depot line for this product.' })
+  @IsBoolean()
+  active!: boolean;
 }
 
 export class ImportInventoryDto {

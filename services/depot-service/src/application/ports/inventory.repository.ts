@@ -12,6 +12,8 @@ export interface InventoryItemRecord {
   minimumStock: number;
   /** Per-depot price override (PRODUK lines); null = use catalog base price. */
   sellPrice: number | null;
+  /** True once the catalog product was deactivated: kept and settleable, but off the list. */
+  hidden: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -108,6 +110,17 @@ export interface InventoryRepository {
   listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]>;
   listLowStock(depotId?: string): Promise<InventoryItemRecord[]>;
   update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord>;
+  /**
+   * Applies a catalog change to every depot's line for one product at once — a rename
+   * reaches all of them, or none. Returns the number of lines touched.
+   */
+  renameByProductId(productId: string, label: string, unit: string): Promise<number>;
+  /** Hides (or restores) every line for a product when the catalog switches it off/on. */
+  setHiddenByProductId(productId: string, hidden: boolean): Promise<number>;
+  /** Removes a line and, by cascade, its movements and reservations. */
+  deleteLine(itemId: string): Promise<void>;
+  /** ACTIVE holds on one line, newest first — who is holding the "dipesan" units. */
+  listReservations(itemId: string): Promise<ReservationRecord[]>;
   /**
    * Atomically set the new quantity and append the movement row. Returns the updated item.
    */

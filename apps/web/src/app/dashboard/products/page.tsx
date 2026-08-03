@@ -13,7 +13,17 @@ import {
 } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  ErrorState,
+  Field,
+  Input,
+  Money,
+  Skeleton,
+} from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -62,8 +72,11 @@ function toForm(p: Product): ProductForm {
 }
 
 function ProductAdmin() {
+  // The admin listing, not the shop's: a deactivated product stays on screen so it can
+  // be switched back on. The public browse hides it, which made "nonaktifkan" look like
+  // a delete with no undo.
   const products = useAsync<Page<Product>>(
-    () => api.get(endpoints.products.browse({ limit: 100 }), true),
+    () => api.get(endpoints.products.browseAll({ limit: 100 }), true),
     [],
   );
   const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
@@ -154,13 +167,24 @@ function ProductAdmin() {
     }
   };
 
-  const deactivate = async (id: string) => {
+  // Both directions of the same switch: DELETE is the soft delete, PATCH brings it back.
+  const setActive = async (p: Product, active: boolean) => {
     setError(null);
     try {
-      await api.del(endpoints.products.remove(id), true);
+      if (active) {
+        await api.patch(endpoints.products.update(p.id), { active: true }, true);
+      } else {
+        await api.del(endpoints.products.remove(p.id), true);
+      }
       products.reload();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Gagal menonaktifkan produk.');
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : active
+            ? 'Gagal mengaktifkan produk.'
+            : 'Gagal menonaktifkan produk.',
+      );
     }
   };
 
@@ -322,13 +346,16 @@ function ProductAdmin() {
                   {p.sku} · {p.unit}
                 </p>
               </div>
+              <Badge tone={p.active ? 'success' : 'neutral'}>
+                {p.active ? 'Tersedia' : 'Tidak tersedia'}
+              </Badge>
               <Money amount={p.basePrice} className="font-semibold" />
               <div className="flex gap-1.5">
                 <Button variant="secondary" onClick={() => openEdit(p)}>
                   Ubah
                 </Button>
-                <Button variant="secondary" onClick={() => deactivate(p.id)}>
-                  Nonaktifkan
+                <Button variant="secondary" onClick={() => setActive(p, !p.active)}>
+                  {p.active ? 'Nonaktifkan' : 'Aktifkan'}
                 </Button>
               </div>
             </Card>

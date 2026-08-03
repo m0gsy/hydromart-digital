@@ -4,7 +4,11 @@ import {
   DuplicateSkuError,
   ProductNotFoundError,
 } from '../../src/domain/errors';
-import { InMemoryCategoryRepository, InMemoryProductRepository } from '../support/fakes';
+import {
+  FakeStockNotifier,
+  InMemoryCategoryRepository,
+  InMemoryProductRepository,
+} from '../support/fakes';
 
 const base = (over: Partial<{ name: string; sku: string; categoryId: string | null }> = {}) => ({
   categoryId: over.categoryId ?? null,
@@ -22,12 +26,14 @@ const base = (over: Partial<{ name: string; sku: string; categoryId: string | nu
 describe('ProductService', () => {
   let products: InMemoryProductRepository;
   let categories: InMemoryCategoryRepository;
+  let notifier: FakeStockNotifier;
   let service: ProductService;
 
   beforeEach(() => {
     products = new InMemoryProductRepository();
     categories = new InMemoryCategoryRepository();
-    service = new ProductService(products, categories);
+    notifier = new FakeStockNotifier();
+    service = new ProductService(products, categories, notifier);
   });
 
   it('creates a product and returns it', async () => {
@@ -75,5 +81,44 @@ describe('ProductService', () => {
     await service.deactivate(p.id);
     await expect(service.get(p.id, true)).rejects.toBeInstanceOf(ProductNotFoundError);
     await expect(service.get(p.id, false)).resolves.toMatchObject({ id: p.id, active: false });
+  });
+
+  // Depot stock lines copy a product's name and unit when they are opened, so the catalog
+  // has to say when either changes — otherwise every depot keeps showing the old name and
+  // nothing in the system ever notices.
+  describe('tells depot-service when a stock line would go stale', () => {
+    it('pushes a rename with the new name', async () => {
+      const p = await service.create(base({ name: 'Air Galon 19L' }));
+      await service.update(p.id, { name: 'Air Galon 19,2L' });
+      expect(notifier.changes).toEqual([
+        { productId: p.id, name: 'Air Galon 19,2L', unit: p.unit, active: true },
+      ]);
+    });
+
+    it('pushes a deactivation so the lines can be hidden', async () => {
+      const p = await service.create(base());
+      await service.deactivate(p.id);
+      expect(notifier.changes).toEqual([
+        expect.objectContaining({ productId: p.id, active: false }),
+      ]);
+    });
+
+    // A price or a photo is not mirrored by any stock line; pushing on those would make a
+    // busy catalog session hammer depot-service for nothing.
+    it('stays quiet for an edit no stock line mirrors', async () => {
+      const p = await service.create(base());
+      await service.update(p.id, { basePrice: 25000, description: 'baru' });
+      expect(notifier.changes).toHaveLength(0);
+    });
+
+    // The catalog write has already committed by then.
+    it('still returns the updated product when the push fails', async () => {
+      const p = await service.create(base());
+      notifier.throws = true;
+      await expect(service.update(p.id, { name: 'Nama Baru' })).resolves.toMatchObject({
+        name: 'Nama Baru',
+      });
+      await expect(service.deactivate(p.id)).resolves.toMatchObject({ active: false });
+    });
   });
 });

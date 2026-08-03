@@ -92,6 +92,30 @@ export class DuplicateInventoryLineError extends DomainError {
   }
 }
 
+export class CatalogProductNotFoundError extends DomainError {
+  readonly code = 'INVENTORY_CATALOG_PRODUCT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('That product is not in the catalog (or is no longer active).');
+  }
+}
+
+export class InventoryLineNotEmptyError extends DomainError {
+  readonly code = 'INVENTORY_LINE_NOT_EMPTY';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Count the line down to zero before deleting it; stock on hand is not paperwork.');
+  }
+}
+
+export class InventoryLineHasSalesError extends DomainError {
+  readonly code = 'INVENTORY_LINE_HAS_SALES';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This line has recorded sales — hide the product instead, its ledger is history.');
+  }
+}
+
 export class ProductLineRequiresProductError extends DomainError {
   readonly code = 'INVENTORY_PRODUCT_REQUIRED';
   readonly status = HTTP_STATUS.BAD_REQUEST;

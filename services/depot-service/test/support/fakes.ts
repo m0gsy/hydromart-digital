@@ -33,6 +33,15 @@ import {
 } from '../../src/application/ports/inventory.repository';
 import { available, ReservationStatus, StockMovementType } from '../../src/domain/inventory';
 import { LowStockAlert, LowStockAlertPort } from '../../src/application/ports/low-stock-alert.port';
+import {
+  CatalogLookup,
+  CatalogProduct,
+  ProductCatalogPort,
+} from '../../src/application/ports/product-catalog.port';
+import {
+  UntrackedSaleAlert,
+  UntrackedSaleAlertPort,
+} from '../../src/application/ports/untracked-sale-alert.port';
 import { Approval, ApprovalStatus, ApprovalType } from '../../src/domain/approval';
 import {
   ApprovalRepository,
@@ -220,6 +229,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       ...data,
       reserved: 0,
       sellPrice: data.sellPrice ?? null,
+      hidden: false,
       id: randomUUID(),
       createdAt: now,
       updatedAt: now,
@@ -253,9 +263,34 @@ export class InMemoryInventoryRepository implements InventoryRepository {
       )
       .map((x) => ({ productId: x.productId as string, sellPrice: x.sellPrice as number }));
   }
+  async renameByProductId(productId: string, label: string, unit: string): Promise<number> {
+    const hits = this.items.filter((x) => x.productId === productId);
+    hits.forEach((x) => Object.assign(x, { label, unit }));
+    return hits.length;
+  }
+  async setHiddenByProductId(productId: string, hidden: boolean): Promise<number> {
+    const hits = this.items.filter((x) => x.productId === productId);
+    hits.forEach((x) => Object.assign(x, { hidden }));
+    return hits.length;
+  }
+  async deleteLine(itemId: string): Promise<void> {
+    this.items = this.items.filter((x) => x.id !== itemId);
+    this.moves = this.moves.filter((m) => m.itemId !== itemId);
+    this.reservations = this.reservations.filter((r) => r.itemId !== itemId);
+  }
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    return this.reservations
+      .filter((r) => r.itemId === itemId && r.status === ReservationStatus.ACTIVE)
+      .map((r) => ({ ...r }));
+  }
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     return this.items
-      .filter((x) => x.depotId === depotId && (!filter.itemType || x.itemType === filter.itemType))
+      .filter(
+        (x) =>
+          x.depotId === depotId &&
+          !x.hidden &&
+          (!filter.itemType || x.itemType === filter.itemType),
+      )
       .filter(
         (x) =>
           !filter.lowStockOnly ||
@@ -399,6 +434,44 @@ export class FakeLowStockAlert implements LowStockAlertPort {
 
   async emit(alert: LowStockAlert, authorization: string): Promise<void> {
     this.emitted.push({ alert, authorization });
+  }
+}
+
+export class FakeUntrackedSaleAlert implements UntrackedSaleAlertPort {
+  emitted: UntrackedSaleAlert[] = [];
+  /** Set to make the port throw, proving a failed warning never fails the sale. */
+  throws = false;
+
+  async emit(alert: UntrackedSaleAlert): Promise<void> {
+    if (this.throws) {
+      throw new Error('crm unreachable');
+    }
+    this.emitted.push(alert);
+  }
+}
+
+/**
+ * Catalog stub. `products` holds what the catalog knows; `unavailable` simulates
+ * product-service being down, which must read differently from "no such product".
+ */
+export class FakeProductCatalog implements ProductCatalogPort {
+  products = new Map<string, CatalogProduct>();
+  unavailable = false;
+
+  async find(productId: string): Promise<CatalogLookup> {
+    if (this.unavailable) {
+      return { status: 'unavailable' };
+    }
+    const product = this.products.get(productId);
+    return product ? { status: 'found', product } : { status: 'missing' };
+  }
+
+  async findBySku(sku: string): Promise<CatalogLookup> {
+    if (this.unavailable) {
+      return { status: 'unavailable' };
+    }
+    const product = [...this.products.values()].find((p) => p.sku === sku);
+    return product ? { status: 'found', product } : { status: 'missing' };
   }
 }
 

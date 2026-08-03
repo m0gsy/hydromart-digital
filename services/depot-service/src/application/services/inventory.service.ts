@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { ImportSummary, runImport } from '@hydromart/platform';
 
@@ -10,10 +10,13 @@ import {
   isProductLine,
 } from '../../domain/inventory';
 import {
+  CatalogProductNotFoundError,
   DepotNotFoundError,
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryLineHasSalesError,
+  InventoryLineNotEmptyError,
   NegativeStockError,
   ProductLineRequiresProductError,
 } from '../../domain/errors';
@@ -24,11 +27,14 @@ import {
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
+  ReservationRecord,
   StockMovementRecord,
 } from '../ports/inventory.repository';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
+import { ProductCatalogPort } from '../ports/product-catalog.port';
+import { UntrackedSaleAlertPort } from '../ports/untracked-sale-alert.port';
 import { DEPOT_TOKENS } from '../tokens';
 import { ApprovalType, needsApproval } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
@@ -37,6 +43,8 @@ import { DepotConfigService } from '../../config/depot-config.service';
 export interface CreateLineInput {
   itemType: InventoryItemType;
   productId?: string | null;
+  /** Alternative to productId on import rows: the catalog SKU, resolved to an id. */
+  sku?: string | null;
   label: string;
   unit: string;
   quantity: number;
@@ -86,9 +94,14 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(DEPOT_TOKENS.LowStockAlert) private readonly lowStockAlert: LowStockAlertPort,
+    @Inject(DEPOT_TOKENS.UntrackedSaleAlert)
+    private readonly untrackedSaleAlert: UntrackedSaleAlertPort,
+    @Inject(DEPOT_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     private readonly approvals: ApprovalService,
     private readonly config: DepotConfigService,
   ) {}
+
+  private readonly logger = new Logger(InventoryService.name);
 
   private toView(item: InventoryItemRecord): ItemView {
     const sellable = available(item.quantity, item.reserved);
@@ -155,7 +168,24 @@ export class InventoryService {
     if (!(await this.depots.findById(depotId, false))) {
       throw new DepotNotFoundError();
     }
-    const productId = input.productId ?? null;
+    let productId = input.productId ?? null;
+    let { label, unit } = input;
+
+    // An import file may name the product by SKU — the code printed on the shelf — instead
+    // of a UUID. Resolved first, before the PRODUK-needs-a-product check below, because a
+    // SKU-only row legitimately arrives with no id at all.
+    if (productId === null && input.sku && isProductLine(input.itemType)) {
+      const bySku = await this.catalog.findBySku(input.sku);
+      if (bySku.status !== 'found') {
+        // Including 'unavailable': with only a SKU there is nothing to fall back to, and
+        // importing the row without an id would create a line no order could ever match.
+        throw new CatalogProductNotFoundError();
+      }
+      productId = bySku.product.id;
+      label = bySku.product.name;
+      unit = bySku.product.unit;
+    }
+
     // PRODUK lines must reference a product; raw stock lines must not.
     if (isProductLine(input.itemType) !== (productId !== null)) {
       throw new ProductLineRequiresProductError();
@@ -164,12 +194,28 @@ export class InventoryService {
       throw new DuplicateInventoryLineError();
     }
 
+    // A PRODUK line is named by the catalog, not by whoever typed the CSV. Two bugs die
+    // here: a line pointing at a product that does not exist (the id was hand-typed, or
+    // the product was deactivated), and a label that never matched the catalog in the
+    // first place. If the catalog is unreachable we take the typed label — depot work
+    // does not stop because product-service is down.
+    if (productId !== null && productId === (input.productId ?? null)) {
+      const lookup = await this.catalog.find(productId);
+      if (lookup.status === 'missing') {
+        throw new CatalogProductNotFoundError();
+      }
+      if (lookup.status === 'found') {
+        label = lookup.product.name;
+        unit = lookup.product.unit;
+      }
+    }
+
     const item = await this.inventory.create({
       depotId,
       itemType: input.itemType,
       productId,
-      label: input.label,
-      unit: input.unit,
+      label,
+      unit,
       quantity: 0,
       minimumStock: input.minimumStock,
       sellPrice: input.sellPrice ?? null,
@@ -188,6 +234,54 @@ export class InventoryService {
       return this.toView(updated);
     }
     return this.toView(item);
+  }
+
+  /**
+   * Applies a catalog edit to every depot line for that product. Pushed by
+   * product-service rather than polled: a line copies the product's name when it is
+   * opened, so without this a rename left every depot reading a name the catalog had
+   * already stopped using.
+   *
+   * Deactivation hides the lines instead of deleting them — the movement ledger is the
+   * depot's record of what it once sold, and an order already in flight still settles
+   * against the line, which internal lookups can still see.
+   *
+   * A product no depot stocks is a no-op returning zeros, not an error: product-service
+   * pushes every change and cannot know which ones matter here.
+   */
+  async applyProductChange(change: {
+    productId: string;
+    name: string;
+    unit: string;
+    active: boolean;
+  }): Promise<{ renamed: number; hidden: number }> {
+    const renamed = await this.inventory.renameByProductId(change.productId, change.name, change.unit);
+    const hidden = await this.inventory.setHiddenByProductId(change.productId, !change.active);
+    return { renamed, hidden };
+  }
+
+  /**
+   * Removes a stock line created by mistake. Deliberately narrow: a line that still holds
+   * stock has to be counted to zero first (deleting it would make the discrepancy vanish
+   * instead of explaining it), and a line that ever sold anything is never deletable —
+   * its movements are the depot's sales record. Deactivating the product hides those.
+   */
+  async deleteLine(itemId: string): Promise<void> {
+    const line = await this.require(itemId);
+    if (line.quantity !== 0 || line.reserved !== 0) {
+      throw new InventoryLineNotEmptyError();
+    }
+    const movements = await this.inventory.listMovements(itemId);
+    if (movements.some((m) => m.type === StockMovementType.SALE)) {
+      throw new InventoryLineHasSalesError();
+    }
+    await this.inventory.deleteLine(itemId);
+  }
+
+  /** Who is holding this line's reserved units — the orders behind the "dipesan" column. */
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    await this.require(itemId);
+    return this.inventory.listReservations(itemId);
   }
 
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<ItemView[]> {
@@ -452,7 +546,8 @@ export class InventoryService {
     actorId: string,
     authorization = '',
   ): Promise<{ orderId: string; depotId: string; consumed: string[]; skipped: string[] }> {
-    if (!(await this.depots.findById(depotId, false))) {
+    const depot = await this.depots.findById(depotId, false);
+    if (!depot) {
       throw new DepotNotFoundError();
     }
     const consumed: string[] = [];
@@ -497,6 +592,27 @@ export class InventoryService {
         );
       }
       consumed.push(productId);
+    }
+    // A product with no stock line here was still sold — nothing was deducted and the
+    // shelf empties with the ledger none the wiser. The sale stands (a customer's order
+    // must not fail over missing paperwork), so the depot gets told instead. Warned at
+    // consume, not at reserve: every path — online checkout and counter sale alike —
+    // funnels through here exactly once, so this is the one place it cannot double-fire
+    // or be skipped.
+    if (skipped.length > 0) {
+      // Guarded, unlike the low-stock alert: by this point stock is already deducted and
+      // the order is completing, so a throwing notifier would fail a write that has
+      // partly happened. The warning is a consequence of the sale, never a condition.
+      try {
+        await this.untrackedSaleAlert.emit(
+          { depotId, depotName: depot.name, orderId, productIds: skipped },
+          authorization,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Untracked-sale alert for order ${orderId} failed: ${(error as Error).message}`,
+        );
+      }
     }
     return { orderId, depotId, consumed, skipped };
   }
