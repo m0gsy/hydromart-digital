@@ -46,6 +46,13 @@ export class LedgerPrismaRepository implements LedgerRepository {
     return this.toEntry(row as unknown as LedgerRow);
   }
 
+  async createAll(entries: CreateLedgerEntryData[]): Promise<void> {
+    // One transaction, not createMany: createMany with skipDuplicates would swallow the
+    // very P2002 that tells a retried push it already landed, and without it a partial
+    // failure would still leave half the pair written.
+    await this.prisma.$transaction(entries.map((data) => this.prisma.ledgerEntry.create({ data })));
+  }
+
   async balanceFor(franchiseOwnerId: string): Promise<number> {
     const agg = await this.prisma.ledgerEntry.aggregate({
       where: { franchiseOwnerId },

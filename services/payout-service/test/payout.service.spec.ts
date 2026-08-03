@@ -45,6 +45,24 @@ class FakeLedger implements LedgerRepository {
     this.refs.set(data.sourceRef ?? `no-ref-${this.entries.length}`, row);
     return row;
   }
+  /**
+   * All-or-nothing, like the real transaction (H-7). `failAfter` lets a test cut the
+   * write in half the way a crash would; without the transaction the first entry would
+   * survive on its own.
+   */
+  failAfter: number | null = null;
+  async createAll(entries: CreateLedgerEntryData[]): Promise<void> {
+    const before = [...this.entries];
+    const refsBefore = new Map(this.refs);
+    for (const [i, data] of entries.entries()) {
+      if (this.failAfter !== null && i >= this.failAfter) {
+        this.entries = before;
+        this.refs = refsBefore;
+        throw new Error('ledger write interrupted');
+      }
+      await this.create(data);
+    }
+  }
   refs = new Map<string, LedgerEntryRecord>();
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
     return this.refs.get(sourceRef) ?? null;
@@ -354,6 +372,40 @@ describe('PayoutService.recordOrderRevenue', () => {
     ]);
     // Net of both entries is what the owner can actually withdraw.
     expect(await ledger.balanceFor('owner-a')).toBe(228000);
+  });
+
+  // H-7. The two entries were separate un-transacted writes. A crash between them left
+  // the owner credited for a sale HQ never took its cut of — invisible until somebody
+  // reconciled a month of ledger by hand.
+  it('writes neither entry when the ledger write is cut in half', async () => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
+    ledger.failAfter = 1; // the sale lands, then the process dies before the commission
+
+    await expect(svc.recordOrderRevenue(order)).rejects.toThrow('ledger write interrupted');
+
+    expect(ledger.entries).toHaveLength(0);
+    expect(await ledger.balanceFor('owner-a')).toBe(0);
+  });
+
+  it('backs out the sale and its commission together, or not at all', async () => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
+    await svc.recordOrderRevenue(order);
+    ledger.failAfter = 1;
+
+    await expect(svc.reverseOrderRevenue(order.orderId, 'salah input')).rejects.toThrow();
+
+    // Still exactly the original pair: no half-reversal that shorts the owner.
+    expect(ledger.entries.map((e) => e.type)).toEqual(['SALE_SETTLEMENT', 'COMMISSION']);
   });
 
   it('posts the sale alone when the depot has no commission scheme', async () => {

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
@@ -1840,8 +1840,9 @@ describe('PayrollPrismaRepository', () => {
     await expect(repo.regenerate('pr1', write)).resolves.toBe(out);
     expect(tx(p)).toHaveBeenCalled();
     expect(m(p, 'payrollItem').deleteMany).toHaveBeenCalledWith({ where: { payrollId: 'pr1' } });
+    // H-6: still DRAFT, or the regenerate rewrites numbers somebody has already approved.
     expect(m(p, 'payroll').update).toHaveBeenCalledWith({
-      where: { id: 'pr1' },
+      where: { id: 'pr1', status: 'DRAFT' },
       data: {
         gross: write.gross,
         totalBonus: write.totalBonus,
@@ -1860,14 +1861,33 @@ describe('PayrollPrismaRepository', () => {
     const approvedAt = new Date();
     m(p, 'payroll').update.mockResolvedValue(out);
     const repo = new PayrollPrismaRepository(asService(p));
-    await expect(repo.setStatus('pr1', 'APPROVED', { approvedBy: 'hr', approvedAt })).resolves.toBe(
-      out,
-    );
+    await expect(
+      repo.setStatus('pr1', 'DRAFT', 'APPROVED', { approvedBy: 'hr', approvedAt }),
+    ).resolves.toBe(out);
+    // H-6: the status the caller read is part of the WHERE, so an approval cannot land on
+    // a payroll somebody has already paid.
     expect(m(p, 'payroll').update).toHaveBeenCalledWith({
-      where: { id: 'pr1' },
+      where: { id: 'pr1', status: 'DRAFT' },
       data: { status: 'APPROVED', approvedBy: 'hr', approvedAt },
       include: { items: true },
     });
+  });
+
+  it('setStatus reports a lost status guard as a conflict, not a 500', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').update.mockRejectedValue(Object.assign(new Error('no row'), { code: 'P2025' }));
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.setStatus('pr1', 'DRAFT', 'APPROVED', {})).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('setStatus rethrows any other write failure', async () => {
+    const p = makePrisma();
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    m(p, 'payroll').update.mockRejectedValue(boom);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.setStatus('pr1', 'DRAFT', 'APPROVED', {})).rejects.toBe(boom);
   });
 
   it('list builds where + paginates in a transaction', async () => {

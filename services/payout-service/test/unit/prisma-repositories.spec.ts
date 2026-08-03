@@ -34,6 +34,7 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+
   it('takes a lock keyed on the owner before reading the balance', async () => {
     ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 500 } });
     withdrawal.create.mockResolvedValue({
@@ -187,7 +188,8 @@ describe('LedgerPrismaRepository', () => {
     findUnique: jest.fn(),
     count: jest.fn(),
   };
-  const prisma = { ledgerEntry: model } as unknown as PrismaService;
+  const $transaction = jest.fn((ops: unknown[]) => Promise.resolve(ops));
+  const prisma = { ledgerEntry: model, $transaction } as unknown as PrismaService;
   const repo = new LedgerPrismaRepository(prisma);
 
   const row = {
@@ -202,6 +204,29 @@ describe('LedgerPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+  // H-7: a sale and the commission it owes go in as one unit, or a crash between them
+  // leaves the owner credited for a sale HQ never took its cut of.
+  it('writes a set of entries in one transaction', async () => {
+    const entries = [
+      {
+        franchiseOwnerId: 'own-1',
+        depotId: null,
+        type: 'SALE_SETTLEMENT' as const,
+        amount: 1000,
+        description: 'Penjualan',
+      },
+      {
+        franchiseOwnerId: 'own-1',
+        depotId: null,
+        type: 'COMMISSION' as const,
+        amount: -50,
+        description: 'Komisi',
+      },
+    ];
+    await repo.createAll(entries);
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(model.create).toHaveBeenCalledTimes(2);
+  });
 
   it('creates a ledger entry and maps the amount', async () => {
     model.create.mockResolvedValue(row);
