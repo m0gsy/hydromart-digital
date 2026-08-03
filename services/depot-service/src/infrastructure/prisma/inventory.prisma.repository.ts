@@ -87,6 +87,20 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return count;
   }
 
+  async deleteLine(itemId: string): Promise<void> {
+    // Movements and reservations cascade (schema onDelete: Cascade). The service only
+    // ever calls this for a line that never sold anything, so no sales history is lost.
+    await this.prisma.inventoryItem.delete({ where: { id: itemId } });
+  }
+
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    const rows = await this.prisma.stockReservation.findMany({
+      where: { itemId, status: ReservationStatus.ACTIVE },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows.map((r) => this.toReservation(r as ReservationRow));
+  }
+
   async setHiddenByProductId(productId: string, hidden: boolean): Promise<number> {
     const { count } = await this.prisma.inventoryItem.updateMany({
       where: { productId },

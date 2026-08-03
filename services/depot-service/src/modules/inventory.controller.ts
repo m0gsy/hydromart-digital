@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -26,6 +27,7 @@ import { Page } from '../application/pagination';
 import { PricingService, ResolvedProductPrice } from '../application/services/pricing.service';
 import {
   DepotStockMovementRecord,
+  ReservationRecord,
   StockMovementRecord,
 } from '../application/ports/inventory.repository';
 import {
@@ -248,6 +250,23 @@ export class InventoryController {
       q.from ? new Date(q.from) : undefined,
       q.to ? new Date(q.to) : undefined,
     );
+  }
+
+  @Can('inventoryRead')
+  @Get(':itemId/reservations')
+  @ApiOperation({ summary: 'Active order holds on one stock line (what "dipesan" is)' })
+  reservations(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<ReservationRecord[]> {
+    return this.inventory.listReservations(itemId);
+  }
+
+  @Can('inventoryWrite')
+  @Delete(':itemId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete an empty stock line that never sold anything (staff)',
+  })
+  remove(@Param('itemId', ParseUUIDPipe) itemId: string): Promise<void> {
+    return this.inventory.deleteLine(itemId);
   }
 
   @Can('inventoryRead')

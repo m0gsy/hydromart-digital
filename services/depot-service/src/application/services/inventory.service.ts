@@ -15,6 +15,8 @@ import {
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryLineHasSalesError,
+  InventoryLineNotEmptyError,
   NegativeStockError,
   ProductLineRequiresProductError,
 } from '../../domain/errors';
@@ -25,6 +27,7 @@ import {
   InventoryItemRecord,
   InventoryListFilter,
   InventoryRepository,
+  ReservationRecord,
   StockMovementRecord,
 } from '../ports/inventory.repository';
 import { buildPage, Page } from '../pagination';
@@ -255,6 +258,30 @@ export class InventoryService {
     const renamed = await this.inventory.renameByProductId(change.productId, change.name, change.unit);
     const hidden = await this.inventory.setHiddenByProductId(change.productId, !change.active);
     return { renamed, hidden };
+  }
+
+  /**
+   * Removes a stock line created by mistake. Deliberately narrow: a line that still holds
+   * stock has to be counted to zero first (deleting it would make the discrepancy vanish
+   * instead of explaining it), and a line that ever sold anything is never deletable —
+   * its movements are the depot's sales record. Deactivating the product hides those.
+   */
+  async deleteLine(itemId: string): Promise<void> {
+    const line = await this.require(itemId);
+    if (line.quantity !== 0 || line.reserved !== 0) {
+      throw new InventoryLineNotEmptyError();
+    }
+    const movements = await this.inventory.listMovements(itemId);
+    if (movements.some((m) => m.type === StockMovementType.SALE)) {
+      throw new InventoryLineHasSalesError();
+    }
+    await this.inventory.deleteLine(itemId);
+  }
+
+  /** Who is holding this line's reserved units — the orders behind the "dipesan" column. */
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    await this.require(itemId);
+    return this.inventory.listReservations(itemId);
   }
 
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<ItemView[]> {

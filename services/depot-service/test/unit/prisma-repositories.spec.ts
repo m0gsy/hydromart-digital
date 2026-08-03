@@ -908,6 +908,8 @@ describe('InventoryPrismaRepository', () => {
     findFirst: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    delete: jest.fn(),
   };
   const stockMovement = {
     create: jest.fn(),
@@ -915,7 +917,12 @@ describe('InventoryPrismaRepository', () => {
     findMany: jest.fn(),
     count: jest.fn(),
   };
-  const stockReservation = { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() };
+  const stockReservation = {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+  };
   const $queryRaw = jest.fn();
   // Support both array-form ($transaction([...]) -> Promise.all) and interactive callback form.
   const $transaction = jest
@@ -945,6 +952,46 @@ describe('InventoryPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // A catalog rename has to reach every depot's line for that product in one statement:
+  // renaming them one by one would leave a half-renamed network if it failed midway.
+  it('renames and hides every line for a product, returning the row count', async () => {
+    inventoryItem.updateMany.mockResolvedValue({ count: 3 });
+    expect(await repo.renameByProductId('prod-1', 'Nama Baru', 'Galon')).toBe(3);
+    expect(inventoryItem.updateMany).toHaveBeenCalledWith({
+      where: { productId: 'prod-1' },
+      data: { label: 'Nama Baru', unit: 'Galon' },
+    });
+
+    inventoryItem.updateMany.mockResolvedValue({ count: 2 });
+    expect(await repo.setHiddenByProductId('prod-1', true)).toBe(2);
+    expect(inventoryItem.updateMany).toHaveBeenLastCalledWith({
+      where: { productId: 'prod-1' },
+      data: { hidden: true },
+    });
+  });
+
+  it('deletes a line by id', async () => {
+    inventoryItem.delete.mockResolvedValue(item);
+    await repo.deleteLine('it-1');
+    expect(inventoryItem.delete).toHaveBeenCalledWith({ where: { id: 'it-1' } });
+  });
+
+  // Only ACTIVE holds: a released or consumed one is history, not something still keeping
+  // units off the shelf.
+  it('lists only the active reservations on a line, newest first', async () => {
+    stockReservation.findMany.mockResolvedValue([
+      { id: 'r-1', itemId: 'it-1', orderId: 'o-1', quantity: 2, status: 'ACTIVE' },
+    ]);
+    const out = await repo.listReservations('it-1');
+    expect(stockReservation.findMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', status: ReservationStatus.ACTIVE },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(out).toEqual([
+      { id: 'r-1', itemId: 'it-1', orderId: 'o-1', quantity: 2, status: ReservationStatus.ACTIVE },
+    ]);
+  });
 
   it('creates and maps itemType + numeric sellPrice', async () => {
     inventoryItem.create.mockResolvedValue(item);

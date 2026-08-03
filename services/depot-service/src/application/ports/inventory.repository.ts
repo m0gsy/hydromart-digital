@@ -117,6 +117,10 @@ export interface InventoryRepository {
   renameByProductId(productId: string, label: string, unit: string): Promise<number>;
   /** Hides (or restores) every line for a product when the catalog switches it off/on. */
   setHiddenByProductId(productId: string, hidden: boolean): Promise<number>;
+  /** Removes a line and, by cascade, its movements and reservations. */
+  deleteLine(itemId: string): Promise<void>;
+  /** ACTIVE holds on one line, newest first — who is holding the "dipesan" units. */
+  listReservations(itemId: string): Promise<ReservationRecord[]>;
   /**
    * Atomically set the new quantity and append the movement row. Returns the updated item.
    */

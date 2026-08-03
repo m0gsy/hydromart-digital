@@ -714,6 +714,10 @@ export const endpoints = {
     update: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
     // Append-only stock movement history for one line (opname/adjust/sale/restock).
     movements: (itemId: string) => `/depots/api/v1/inventory/${itemId}/movements`,
+    // DELETE — only an empty line that never sold anything; the API refuses the rest.
+    remove: (itemId: string) => `/depots/api/v1/inventory/${itemId}`,
+    // The orders behind the "dipesan" column (ACTIVE holds, newest first).
+    reservations: (itemId: string) => `/depots/api/v1/inventory/${itemId}/reservations`,
     depotMovements: (
       depotId: string,
       q: { type?: string; from?: string; to?: string; page?: number; limit?: number } = {},

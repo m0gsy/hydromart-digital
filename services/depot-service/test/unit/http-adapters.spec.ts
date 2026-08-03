@@ -207,3 +207,48 @@ describe('ProductCatalogHttpAdapter', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+// Every adapter arms a timer that aborts its own request. Without letting it fire, a
+// dependency that accepts the connection and then hangs would keep a stock movement or a
+// line creation waiting forever instead of failing open.
+describe('an outbound call that hangs is aborted and still settles', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const aborted = new Error('The operation was aborted');
+            aborted.name = 'AbortError';
+            reject(aborted);
+          });
+        }),
+    );
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const cases: [string, () => Promise<unknown>][] = [
+    ['low-stock.emit', () => new LowStockAlertHttpAdapter(makeConfig()).emit(alert(), '')],
+    [
+      'untracked-sale.emit',
+      () =>
+        new UntrackedSaleAlertHttpAdapter(makeConfig()).emit(
+          { depotId: 'd1', depotName: 'D', orderId: 'o1', productIds: ['p1'] },
+          '',
+        ),
+    ],
+    ['product-catalog.find', () => new ProductCatalogHttpAdapter(makeConfig()).find('p1')],
+    ['product-catalog.findBySku', () => new ProductCatalogHttpAdapter(makeConfig()).findBySku('X')],
+  ];
+
+  it.each(cases)('%s', async (_name, run) => {
+    // The handler has to be attached before the timer fires, or the rejection lands unhandled.
+    const settled = run().then(
+      () => 'settled',
+      () => 'settled',
+    );
+    await jest.advanceTimersByTimeAsync(10_000);
+    expect(await settled).toBe('settled');
+    expect(fetchMock).toHaveBeenCalled();
+  });
+});

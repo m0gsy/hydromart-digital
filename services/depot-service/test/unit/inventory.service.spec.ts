@@ -7,6 +7,8 @@ import {
   DuplicateInventoryLineError,
   InsufficientStockError,
   InventoryItemNotFoundError,
+  InventoryLineHasSalesError,
+  InventoryLineNotEmptyError,
   NegativeStockError,
   ProductLineRequiresProductError,
 } from '../../src/domain/errors';
@@ -372,6 +374,67 @@ describe('InventoryService', () => {
       catalog.unavailable = true; // would fail the lookup if one were made
       const line = await inventory.createLine(depotId, raw(), ACTOR);
       expect(line.label).toBe('Galon 19L');
+    });
+  });
+
+  // A mis-created line used to be permanent: nothing in any console could remove it.
+  describe('deleting a stock line', () => {
+    it('removes a line that never held stock or sold anything', async () => {
+      const line = await inventory.createLine(
+        depotId,
+        { ...raw(), quantity: 0 },
+        ACTOR,
+      );
+      await inventory.deleteLine(line.id);
+      expect(await inventory.listForDepot(depotId, {})).toHaveLength(0);
+    });
+
+    // Deleting a line with stock on it would make the discrepancy disappear rather than
+    // explain it. Count it to zero first — that leaves an OPNAME movement saying so.
+    it('refuses while stock is still on the line', async () => {
+      const line = await inventory.createLine(depotId, raw(), ACTOR);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+    });
+
+    it('refuses while an order still holds units', async () => {
+      const line = await produkLine(PRODUCT_ID, 5);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 5 }], ACTOR);
+      await inventory.adjust(line.id, -0, null, ACTOR).catch(() => undefined);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineNotEmptyError);
+    });
+
+    // Movements cascade on delete, so a line that ever sold would take the depot's sales
+    // record with it. Those are hidden by deactivating the product, never deleted.
+    it('refuses a line that has recorded sales, even when it is empty now', async () => {
+      const line = await produkLine(PRODUCT_ID, 2);
+      await inventory.consumeForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 2 }], ACTOR);
+      expect((await inventory.get(line.id)).quantity).toBe(0);
+      await expect(inventory.deleteLine(line.id)).rejects.toBeInstanceOf(InventoryLineHasSalesError);
+    });
+
+    it('refuses an item id that does not exist', async () => {
+      await expect(
+        inventory.deleteLine('99999999-9999-4999-8999-999999999999'),
+      ).rejects.toBeInstanceOf(InventoryItemNotFoundError);
+    });
+  });
+
+  // "Dipesan" was a bare number with nothing behind it: an operator seeing 0 available on a
+  // full shelf had no way to find which orders were holding it.
+  describe('reservation drill-down', () => {
+    it('lists the active holds on a line', async () => {
+      await produkLine(PRODUCT_ID, 10);
+      await inventory.reserveForOrder(depotId, ORDER, [{ productId: PRODUCT_ID, quantity: 3 }], ACTOR);
+      const [item] = await inventory.listForDepot(depotId, {});
+      const holds = await inventory.listReservations(item.id);
+      expect(holds).toHaveLength(1);
+      expect(holds[0]).toMatchObject({ orderId: ORDER, quantity: 3 });
+    });
+
+    it('refuses an item id that does not exist', async () => {
+      await expect(
+        inventory.listReservations('99999999-9999-4999-8999-999999999999'),
+      ).rejects.toBeInstanceOf(InventoryItemNotFoundError);
     });
   });
 

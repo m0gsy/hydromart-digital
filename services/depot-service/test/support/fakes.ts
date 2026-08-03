@@ -273,6 +273,16 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     hits.forEach((x) => Object.assign(x, { hidden }));
     return hits.length;
   }
+  async deleteLine(itemId: string): Promise<void> {
+    this.items = this.items.filter((x) => x.id !== itemId);
+    this.moves = this.moves.filter((m) => m.itemId !== itemId);
+    this.reservations = this.reservations.filter((r) => r.itemId !== itemId);
+  }
+  async listReservations(itemId: string): Promise<ReservationRecord[]> {
+    return this.reservations
+      .filter((r) => r.itemId === itemId && r.status === ReservationStatus.ACTIVE)
+      .map((r) => ({ ...r }));
+  }
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]> {
     return this.items
       .filter(

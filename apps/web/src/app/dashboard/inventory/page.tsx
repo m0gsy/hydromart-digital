@@ -18,6 +18,7 @@ import {
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
+import { computeEffective } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -28,8 +29,10 @@ import type {
   InventoryItem,
   Page,
   Product,
+  ResolvedPrice,
   StockMovement,
   StockMovementType,
+  StockReservation,
 } from '@/lib/types';
 import { NewLineForm } from './new-line-form';
 
@@ -46,7 +49,7 @@ function MovementLog({ item }: { item: InventoryItem }) {
   if (log.loading) return <Skeleton className="h-24 w-full" />;
   if (log.error) return <ErrorState message={log.error} onRetry={log.reload} />;
   if (!log.data || log.data.length === 0)
-    return <p className="py-2 text-sm text-muted">Belum ada pergerakan stok.</p>;
+    return <p className="py-2 text-sm text-muted">{t('opsFix.inv.noMovements')}</p>;
 
   return (
     <ul className="flex flex-col gap-1.5">
@@ -134,7 +137,7 @@ function LineActions({
   async function savePrice(clear: boolean) {
     const parsed = clear ? null : num(value);
     if (!clear && (parsed === null || parsed < 0)) {
-      setError('Isi harga 0 atau lebih, atau hapus override.');
+      setError(t('opsFix.inv.priceInvalid'));
       return;
     }
     setBusy(true);
@@ -144,7 +147,7 @@ function LineActions({
       setMode('none');
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memperbarui harga.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.inv.priceError'));
     } finally {
       setBusy(false);
     }
@@ -153,7 +156,7 @@ function LineActions({
   async function submitStock() {
     const parsed = num(value);
     if (parsed === null) {
-      setError(mode === 'adjust' ? 'Isi angka bulat (boleh negatif).' : 'Isi jumlah 0 atau lebih.');
+      setError(mode === 'adjust' ? t('opsFix.inv.adjustInvalid') : t('opsFix.inv.opnameInvalid'));
       return;
     }
     setBusy(true);
@@ -171,7 +174,7 @@ function LineActions({
       setMode('none');
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Gagal memperbarui stok.');
+      setError(err instanceof ApiError ? err.message : t('opsFix.inv.stockError'));
     } finally {
       setBusy(false);
     }
@@ -181,17 +184,17 @@ function LineActions({
     return (
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => open('adjust')}>
-          Sesuaikan
+          {t('opsFix.inv.adjust')}
         </Button>
         <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('opname')}>
-          Opname
+          {t('opsFix.inv.opname')}
         </Button>
         <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('reorder')}>
           {t('opsFix.reorder.button')}
         </Button>
         {isProduk && (
           <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => open('price')}>
-            Harga
+            {t('opsFix.inv.price')}
           </Button>
         )}
       </div>
@@ -218,7 +221,7 @@ function LineActions({
         )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
-            Batal
+            {t('opsFix.inv.cancel')}
           </Button>
           <Button onClick={saveReorder} loading={busy}>
             {t('opsFix.reorder.save')}
@@ -232,16 +235,16 @@ function LineActions({
     return (
       <div className="flex flex-col gap-2">
         <Field
-          label="Override harga jual (IDR)"
+          label={t('opsFix.inv.priceOverrideTitle')}
           htmlFor={`p-${item.id}`}
-          hint="Kosongkan + Hapus untuk kembali ke harga katalog."
+          hint={t('opsFix.inv.priceOverrideHint')}
         >
           <Input
             id={`p-${item.id}`}
             inputMode="numeric"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="mis. 22000"
+            placeholder={t('opsFix.inv.priceOverridePlaceholder')}
             autoFocus
           />
         </Field>
@@ -252,15 +255,15 @@ function LineActions({
         )}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
-            Batal
+            {t('opsFix.inv.cancel')}
           </Button>
           {item.sellPrice != null && (
             <Button variant="danger" onClick={() => savePrice(true)} loading={busy}>
-              Hapus override
+              {t('opsFix.inv.priceRemove')}
             </Button>
           )}
           <Button onClick={() => savePrice(false)} loading={busy}>
-            Simpan harga
+            {t('opsFix.inv.priceSave')}
           </Button>
         </div>
       </div>
@@ -273,10 +276,10 @@ function LineActions({
       <Field
         label={
           mode === 'opname'
-            ? `Jumlah ${item.unit} hasil opname`
+            ? t('opsFix.inv.opnameLabel', { unit: item.unit })
             : isReceipt
-              ? `Terima ${item.unit} (mis. 10)`
-              : `Sesuaikan ${item.unit} (bertanda, mis. -5)`
+              ? t('opsFix.inv.receiveLabel', { unit: item.unit })
+              : t('opsFix.inv.adjustLabel', { unit: item.unit })
         }
         htmlFor={`v-${item.id}`}
       >
@@ -285,11 +288,21 @@ function LineActions({
           inputMode="numeric"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={mode === 'opname' ? `saat ini ${item.quantity}` : isReceipt ? 'mis. 10' : 'mis. -5 atau 10'}
+          placeholder={
+            mode === 'opname'
+              ? t('opsFix.inv.opnamePlaceholder', { n: item.quantity })
+              : isReceipt
+                ? t('opsFix.inv.receivePlaceholder')
+                : t('opsFix.inv.adjustPlaceholder')
+          }
           autoFocus
         />
       </Field>
-      <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Alasan (opsional)" />
+      <Input
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder={t('opsFix.inv.reasonPlaceholder')}
+      />
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}
@@ -297,12 +310,96 @@ function LineActions({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={() => setMode('none')} disabled={busy}>
-          Batal
+          {t('opsFix.inv.cancel')}
         </Button>
         <Button onClick={submitStock} loading={busy}>
-          {mode === 'opname' ? 'Simpan opname' : isReceipt ? 'Terima stok' : 'Simpan penyesuaian'}
+          {mode === 'opname'
+            ? t('opsFix.inv.saveOpname')
+            : isReceipt
+              ? t('opsFix.inv.receiveStock')
+              : t('opsFix.inv.saveAdjust')}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** The orders behind the "dipesan" number — a bare count left an operator with 0 available
+ *  on a full shelf and nowhere to look. */
+function ReservationList({ item }: { item: InventoryItem }) {
+  const { t } = useT();
+  const holds = useAsync<StockReservation[]>(
+    () => api.get(endpoints.inventory.reservations(item.id), true),
+    [item.id],
+  );
+
+  if (holds.loading) return <Skeleton className="h-10 w-full" />;
+  if (holds.error) return <ErrorState message={holds.error} onRetry={holds.reload} />;
+  const rows = holds.data ?? [];
+  if (rows.length === 0) return <p className="text-sm text-muted">{t('opsFix.inv.reservedNone')}</p>;
+
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((r) => (
+        <li key={r.id} className="flex items-center justify-between gap-3 text-sm">
+          <span className="min-w-0 truncate">{t('opsFix.inv.reservedOrder', { order: r.orderId })}</span>
+          <span className="shrink-0 tabular-nums font-medium">
+            {r.quantity} {item.unit}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Two-step delete: the API refuses a line that holds stock or ever sold, so the only
+ *  thing this guards against is a slip of the mouse on an empty line. */
+function DeleteLine({ item, onDeleted }: { item: InventoryItem; onDeleted: () => void }) {
+  const { t } = useT();
+  const [armed, setArmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(endpoints.inventory.remove(item.id), true);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('opsFix.inv.deleteError'));
+      setArmed(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {armed ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">{t('opsFix.inv.deleteConfirm')}</span>
+          <Button variant="danger" className="px-3 py-1.5 text-xs" onClick={remove} loading={busy}>
+            {t('opsFix.inv.deleteLine')}
+          </Button>
+          <Button variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => setArmed(false)}>
+            {t('opsFix.inv.cancel')}
+          </Button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setArmed(true)}
+          className="self-start text-xs font-semibold text-[color:var(--danger)] hover:underline"
+        >
+          {t('opsFix.inv.deleteLine')}
+        </button>
+      )}
+      {error && (
+        <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -318,6 +415,7 @@ function StockRow({
   canWrite,
   expanded,
   entry,
+  price,
   onOpen,
   onChanged,
 }: {
@@ -325,9 +423,12 @@ function StockRow({
   canWrite: boolean;
   expanded: boolean;
   entry: Entry;
+  /** Resolved sell price for a PRODUK line: the number the customer actually pays. */
+  price?: { effective: number; source: string };
   onOpen: (mode: ActionMode, receipt: boolean) => void;
   onChanged: () => void;
 }) {
+  const { t } = useT();
   return (
     <div className={item.lowStock ? 'bg-[color:var(--danger-bg)]' : undefined}>
       <div className={`${ROW_COLS} py-2.5`}>
@@ -358,28 +459,24 @@ function StockRow({
           {canWrite ? (
             <>
               <Button className="px-3 py-1.5 text-xs" onClick={() => onOpen('adjust', true)}>
-                Terima
+                {t('opsFix.inv.receive')}
               </Button>
               <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => onOpen('adjust', false)}>
-                Sesuaikan
+                {t('opsFix.inv.adjust')}
               </Button>
             </>
           ) : (
-            <span className="text-xs text-[color:var(--text-muted)]">Hanya lihat</span>
+            <span className="text-xs text-[color:var(--text-muted)]">{t('opsFix.inv.readOnly')}</span>
           )}
         </div>
       </div>
 
       {expanded && (
         <div className="flex flex-col gap-3 border-t border-app bg-[color:var(--surface-soft)] px-3 py-3">
-          {item.itemType === 'PRODUK' && (
+          {item.itemType === 'PRODUK' && price && (
             <p className="text-xs text-muted">
-              Harga:{' '}
-              {item.sellPrice != null ? (
-                <Money amount={item.sellPrice} className="font-semibold" />
-              ) : (
-                <span className="font-medium">harga katalog</span>
-              )}
+              {t('opsFix.inv.priceLabel')}: <Money amount={price.effective} className="font-semibold" />{' '}
+              <span>({price.source})</span>
             </p>
           )}
           {canWrite && (
@@ -391,12 +488,21 @@ function StockRow({
               onChanged={onChanged}
             />
           )}
+          {item.reserved > 0 && (
+            <div className="border-t border-app pt-2">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+                {t('opsFix.inv.reservedBy')}
+              </p>
+              <ReservationList item={item} />
+            </div>
+          )}
           <div className="border-t border-app pt-2">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
-              Riwayat stok
+              {t('opsFix.inv.history')}
             </p>
             <MovementLog item={item} />
           </div>
+          {canWrite && <DeleteLine item={item} onDeleted={onChanged} />}
         </div>
       )}
     </div>
@@ -441,20 +547,37 @@ const MOVE_TONE: Record<StockMovementType, { bg: string; fg: string }> = {
 function DepotMovementLedger({ depotId }: { depotId: string }) {
   const { t } = useT();
   const [filter, setFilter] = useState<StockMovementType | 'all'>('all');
+  // Pages accumulate instead of replacing: a busy depot's history used to stop dead at
+  // row 100 with nothing on screen saying so.
+  const [page, setPage] = useState(1);
   const ledger = useAsync<Page<DepotStockMovement>>(
     () =>
       api.get(
         endpoints.inventory.depotMovements(depotId, {
           type: filter === 'all' ? undefined : filter,
-          page: 1,
-          limit: 100,
+          page,
+          limit: 50,
         }),
         true,
       ),
-    [depotId, filter],
+    [depotId, filter, page],
   );
+  const [seen, setSeen] = useState<DepotStockMovement[]>([]);
+  const fetched = ledger.data?.items ?? [];
+  // Page 1 (a fresh filter) replaces; later pages append.
+  const rows = page === 1 ? fetched : [...seen, ...fetched];
+  const hasMore = rows.length < (ledger.data?.total ?? 0);
 
-  const rows = ledger.data?.items ?? [];
+  function changeFilter(next: StockMovementType | 'all') {
+    setSeen([]);
+    setPage(1);
+    setFilter(next);
+  }
+
+  function loadMore() {
+    setSeen(rows);
+    setPage((p) => p + 1);
+  }
   const types: (StockMovementType | 'all')[] = ['all', 'RECEIPT', 'ADJUSTMENT', 'OPNAME', 'SALE'];
 
   return (
@@ -462,12 +585,12 @@ function DepotMovementLedger({ depotId }: { depotId: string }) {
       <p className="text-[12.5px] text-muted">{t('opsFix.ledger.subtitle')}</p>
       <div className="flex flex-wrap gap-2">
         {types.map((ty) => (
-          <Chip key={ty} active={filter === ty} onClick={() => setFilter(ty)}>
+          <Chip key={ty} active={filter === ty} onClick={() => changeFilter(ty)}>
             {ty === 'all' ? t('opsFix.ledger.all') : t(`opsFix.movementType.${ty}`)}
           </Chip>
         ))}
       </div>
-      {ledger.loading ? (
+      {ledger.loading && rows.length === 0 ? (
         <Skeleton className="h-48 w-full" />
       ) : ledger.error ? (
         <ErrorState message={ledger.error} onRetry={ledger.reload} />
@@ -503,6 +626,13 @@ function DepotMovementLedger({ depotId }: { depotId: string }) {
             );
           })}
         </Card>
+      )}
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button variant="secondary" onClick={loadMore} loading={ledger.loading}>
+            {t('opsFix.inv.loadMore')}
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -688,6 +818,36 @@ function InventoryBody() {
   );
   const lowCount = all.filter((i) => i.lowStock).length;
 
+  // Resolved prices for the PRODUK lines on screen: override, winning rule, or the catalog
+  // base. The row used to say only "harga katalog", which never told anyone the number.
+  const pricedIds = all.map((i) => i.productId).filter((id): id is string => id !== null);
+  const resolved = useAsync<ResolvedPrice[]>(
+    () =>
+      scopedId && pricedIds.length
+        ? api.get(endpoints.inventory.prices(scopedId, pricedIds))
+        : Promise.resolve([]),
+    [scopedId, pricedIds.join(',')],
+  );
+  const byProduct = new Map((resolved.data ?? []).map((r) => [r.productId, r]));
+  const catalogById = new Map((catalog.data?.items ?? []).map((p) => [p.id, p]));
+
+  function priceOf(item: InventoryItem): { effective: number; source: string } | undefined {
+    if (!item.productId) return undefined;
+    const base = catalogById.get(item.productId)?.basePrice;
+    if (base === undefined) return undefined;
+    const r = byProduct.get(item.productId);
+    const eff = computeEffective(base, r);
+    return {
+      effective: eff.effective,
+      source:
+        eff.override != null
+          ? t('opsFix.inv.priceFromOverride')
+          : eff.adjustType
+            ? t('opsFix.inv.priceFromRule')
+            : t('opsFix.inv.priceFromCatalog'),
+    };
+  }
+
   // Active catalog products with no line here. They are sellable and untracked: the order
   // goes through, the ledger never moves. depot-service also alerts on the sale itself.
   const tracked = new Set(all.map((i) => i.productId).filter(Boolean));
@@ -716,16 +876,16 @@ function InventoryBody() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Package size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">Inventory</h1>
+          <h1 className="text-2xl font-bold">{t('opsFix.inv.title')}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWriteInventory(customer?.role) && (
             <>
               <Button variant="secondary" onClick={() => setNewLine((v) => (v === undefined ? '' : undefined))}>
-                <Plus size={16} weight="bold" /> Tambah baris
+                <Plus size={16} weight="bold" /> {t('opsFix.inv.addLine')}
               </Button>
               <LinkButton href="/dashboard/inventory/import" variant="secondary">
-                Import Excel
+                {t('opsFix.inv.importExcel')}
               </LinkButton>
             </>
           )}
@@ -750,7 +910,7 @@ function InventoryBody() {
                 disabled={visible.length === 0}
                 onClick={() => setPicker((v) => !v)}
               >
-                <Plus size={16} weight="bold" /> Terima stok
+                <Plus size={16} weight="bold" /> {t('opsFix.inv.receiveStock')}
               </Button>
               <Button variant="secondary" disabled={visible.length === 0} onClick={() => setOpnameOpen((v) => !v)}>
                 <ClipboardText size={16} /> {t('opsFix.opname.open')}
@@ -762,11 +922,7 @@ function InventoryBody() {
 
       {scopedDepot && (
         <p className="text-[12.5px] text-muted">
-          Menampilkan stok untuk{' '}
-          <strong className="text-[color:var(--text)]">
-            {scopedDepot.name} · {scopedDepot.code}
-          </strong>{' '}
-          (dari switcher).
+          {t('opsFix.inv.scopeNote', { depot: `${scopedDepot.name} · ${scopedDepot.code}` })}
         </p>
       )}
 
@@ -787,12 +943,9 @@ function InventoryBody() {
       {canWrite && untracked.length > 0 && newLine === undefined && (
         <Card className="flex flex-col gap-2 border-l-4 border-l-[color:var(--warning)] p-4">
           <p className="text-sm font-semibold">
-            {untracked.length} produk katalog belum punya baris stok di depot ini
+            {t('opsFix.inv.untrackedTitle', { n: untracked.length })}
           </p>
-          <p className="text-xs text-muted">
-            Produk ini tetap bisa dipesan pelanggan, tapi stoknya tidak pernah berkurang dan
-            tidak pernah kehabisan. Buatkan baris stoknya supaya ikut terhitung.
-          </p>
+          <p className="text-xs text-muted">{t('opsFix.inv.untrackedBody')}</p>
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
             {untracked.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-2">
@@ -804,7 +957,7 @@ function InventoryBody() {
                   onClick={() => setNewLine(p.id)}
                   className="shrink-0 text-xs font-semibold text-brand-700 hover:underline"
                 >
-                  Buat baris stok
+                  {t('opsFix.inv.untrackedAction')}
                 </button>
               </li>
             ))}
@@ -814,16 +967,16 @@ function InventoryBody() {
 
       <div className="flex flex-wrap gap-2">
         <Chip active={typeFilter === 'all'} onClick={() => setTypeFilter('all')}>
-          Semua
+          {t('opsFix.inv.filterAll')}
         </Chip>
         <Chip active={typeFilter === 'bahan'} onClick={() => setTypeFilter('bahan')}>
-          Bahan baku
+          {t('opsFix.inv.filterRaw')}
         </Chip>
         <Chip active={typeFilter === 'produk'} onClick={() => setTypeFilter('produk')}>
-          Produk
+          {t('opsFix.inv.filterProduct')}
         </Chip>
         <Chip active={lowOnly} danger onClick={() => setLowOnly((v) => !v)}>
-          <Warning size={12} weight="fill" /> Stok menipis · {lowCount}
+          <Warning size={12} weight="fill" /> {t('opsFix.inv.filterLow')} · {lowCount}
         </Chip>
       </div>
 
@@ -853,7 +1006,7 @@ function InventoryBody() {
         <>
           {canWrite && picker && (
             <Card className="flex flex-col gap-2 p-4">
-              <p className="text-sm font-semibold">Terima stok untuk baris mana?</p>
+              <p className="text-sm font-semibold">{t('opsFix.inv.pickLine')}</p>
               <div className="flex flex-col divide-y divide-[color:var(--border)]">
                 {visible.map((i) => (
                   <button
@@ -871,7 +1024,7 @@ function InventoryBody() {
               </div>
               <div className="flex justify-end">
                 <Button variant="ghost" onClick={() => setPicker(false)}>
-                  Batal
+                  {t('opsFix.inv.cancel')}
                 </Button>
               </div>
             </Card>
@@ -885,12 +1038,12 @@ function InventoryBody() {
               <div
                 className={`${ROW_COLS} border-b border-app bg-[color:var(--surface-soft)] py-2.5 text-xs font-semibold uppercase tracking-wide text-[color:var(--text-muted)]`}
               >
-                <span>Item</span>
-                <span className="text-right">Stok</span>
-                <span className="text-right">Dipesan</span>
-                <span className="text-right">Tersedia</span>
-                <span className="text-right">Min</span>
-                <span className="text-right">Aksi</span>
+                <span>{t('opsFix.inv.colItem')}</span>
+                <span className="text-right">{t('opsFix.inv.colQty')}</span>
+                <span className="text-right">{t('opsFix.inv.colReserved')}</span>
+                <span className="text-right">{t('opsFix.inv.colAvailable')}</span>
+                <span className="text-right">{t('opsFix.inv.colMin')}</span>
+                <span className="text-right">{t('opsFix.inv.colActions')}</span>
               </div>
               <div className="divide-y divide-[color:var(--border)]">
                 {visible.map((item) => (
@@ -900,6 +1053,7 @@ function InventoryBody() {
                     canWrite={canWrite}
                     expanded={expandedId === item.id}
                     entry={entry}
+                    price={priceOf(item)}
                     onOpen={(mode, receipt) => openRow(item.id, mode, receipt)}
                     onChanged={lines.reload}
                   />
