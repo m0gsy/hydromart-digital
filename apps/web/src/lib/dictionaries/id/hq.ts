@@ -1275,8 +1275,11 @@ export const hq = {
     backupTitle: 'Status backup',
     backupNone: 'Belum ada backup',
     backupNote:
-      'Belum ada mesin backup yang terhubung — status ini disimpan & ditampilkan apa adanya, bukan "berhasil" palsu.',
+      'Dilaporkan oleh dump harian dan uji restore mingguan di server. Uji restore itulah yang membuat backup benar-benar ada — dump yang belum pernah dipulihkan baru sebatas asumsi.',
     lastBackup: 'Backup terakhir',
+    drillTitle: 'Uji restore',
+    drillNone: 'Belum pernah diuji',
+    lastDrill: 'Uji terakhir',
     loadError: 'Gagal memuat kebijakan retensi.',
     saveError: 'Gagal menyimpan perubahan.',
     empty: 'Belum ada dataset.',

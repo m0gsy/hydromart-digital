@@ -12,10 +12,28 @@ export interface RetentionPolicyRecord {
   updatedAt: Date;
 }
 
-/** Backup status is READ-ONLY — no backup engine is wired. "NONE" = never run. */
+/**
+ * What the backup and restore-drill jobs last reported (H-37). "NONE" = never run.
+ *
+ * The drill verdict is a separate field from the backup verdict on purpose (H-36): a dump
+ * existing and a dump having been restored are different claims, and only the second one
+ * makes it a backup.
+ */
 export interface BackupStatusRecord {
   status: string;
   lastBackupAt: Date | null;
+  detail: string | null;
+  drillStatus: string;
+  lastDrillAt: Date | null;
+  drillDetail: string | null;
+}
+
+/** One job's outcome. `kind` picks which pair of columns it lands in. */
+export interface RecordBackupRunData {
+  kind: 'BACKUP' | 'DRILL';
+  status: 'OK' | 'FAILED';
+  at: Date;
+  detail: string | null;
 }
 
 /** Update the retention window (and optionally the class) of one dataset row. */
@@ -34,4 +52,6 @@ export interface RetentionRepository {
   updatePolicy(id: string, data: UpdateRetentionData): Promise<RetentionPolicyRecord | null>;
   /** Read the singleton backup status (honest default when never recorded). */
   getBackupStatus(): Promise<BackupStatusRecord | null>;
+  /** Upsert the singleton with one job's outcome, leaving the other job's fields alone. */
+  recordBackupRun(data: RecordBackupRunData): Promise<BackupStatusRecord>;
 }

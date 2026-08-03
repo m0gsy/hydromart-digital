@@ -8,6 +8,7 @@ import { RetentionService } from '../application/services/retention.service';
 import {
   BackupStatusDto,
   PurgePlanEntryDto,
+  RecordBackupRunDto,
   RetentionOverviewDto,
   RetentionPolicyDto,
   UpdateRetentionDto,
@@ -69,6 +70,29 @@ export class RetentionController {
   @ApiOperation({ summary: 'Run the retention sweep (internal service auth)' })
   runPurgeInternal(): Promise<PurgeRunResult> {
     return this.purge.run();
+  }
+
+  /**
+   * H-37 — where scripts/backup-db.sh and scripts/restore-db.sh report what actually
+   * happened. Same internal-key auth as the purge sweep: these are shell jobs on the VPS
+   * with no JWT to present. Recording a FAILED run matters as much as an OK one, because
+   * a failure that only reaches a cron log nobody reads is what makes an unusable backup
+   * look like a working one.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/backup-status')
+  @ApiOperation({ summary: 'Record a backup or restore-drill outcome (internal service auth)' })
+  async recordBackupRun(@Body() dto: RecordBackupRunDto): Promise<BackupStatusDto> {
+    return BackupStatusDto.from(
+      await this.retention.recordBackupRun({
+        kind: dto.kind,
+        status: dto.status,
+        at: new Date(),
+        detail: dto.detail ?? null,
+      }),
+    );
   }
 
   @Put(':id')

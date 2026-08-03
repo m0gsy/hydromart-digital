@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -79,18 +80,54 @@ export class RetentionPolicyDto {
 }
 
 /** Read-only backup status — labeled honestly ("NONE" = no backup engine has run). */
+/**
+ * What the nightly dump and the weekly restore drill last reported (H-37).
+ *
+ * The two verdicts stay separate (H-36): a dump that exists and a dump that has been
+ * restored into a scratch database are different claims, and only the second one is a
+ * backup you can rely on.
+ */
 export class BackupStatusDto {
-  @ApiProperty({ example: 'NONE', description: '"NONE" = no backup engine wired/has run.' })
+  @ApiProperty({ example: 'OK', description: 'NONE = never run | OK | FAILED.' })
   status!: string;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastBackupAt!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: '1.2G, 16 databases' })
+  detail!: string | null;
+  @ApiProperty({ example: 'OK', description: 'Tested-restore verdict: NONE | OK | FAILED.' })
+  drillStatus!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  lastDrillAt!: string | null;
+  @ApiProperty({ type: String, nullable: true, example: '16 databases, 1,204 rows in orders' })
+  drillDetail!: string | null;
 
   static from(record: BackupStatusRecord): BackupStatusDto {
     return {
       status: record.status,
       lastBackupAt: record.lastBackupAt ? record.lastBackupAt.toISOString() : null,
+      detail: record.detail,
+      drillStatus: record.drillStatus,
+      lastDrillAt: record.lastDrillAt ? record.lastDrillAt.toISOString() : null,
+      drillDetail: record.drillDetail,
     };
   }
+}
+
+/** Body of POST /retention/internal/backup-status — posted by the shell jobs on the VPS. */
+export class RecordBackupRunDto {
+  @ApiProperty({ enum: ['BACKUP', 'DRILL'] })
+  @IsIn(['BACKUP', 'DRILL'])
+  kind!: 'BACKUP' | 'DRILL';
+
+  @ApiProperty({ enum: ['OK', 'FAILED'] })
+  @IsIn(['OK', 'FAILED'])
+  status!: 'OK' | 'FAILED';
+
+  @ApiPropertyOptional({ description: 'Size, database count, or the failure. Free text.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  detail?: string;
 }
 
 export class RetentionOverviewDto {

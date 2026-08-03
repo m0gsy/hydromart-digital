@@ -337,14 +337,27 @@ model RetentionPolicy {
   @@map("retention_policies")
 }
 
-/// Last-backup status (Design 19e). SINGLETON: id = "singleton". READ-ONLY — there is NO
-/// backup engine wired, so `status`/`lastBackupAt` are whatever was last recorded (or the
-/// honest "NONE" default). This is never a fabricated "success just now".
+/// Last-backup status (Design 19e). SINGLETON: id = "singleton".
+///
+/// H-37: scripts/backup-db.sh and scripts/restore-db.sh now WRITE this row through
+/// POST /retention/internal/backup-status. Before that the view was read-only with no
+/// writer anywhere — a page that could only ever say "NONE", next to a cron job that had
+/// been dumping the cluster nightly for months.
+///
+/// The drill columns are separate on purpose (H-36): a dump existing and a dump having
+/// been restored successfully are different claims, and only the second one is a backup.
 model BackupStatus {
   id           String    @id @default(uuid())
-  /// Last recorded backup outcome. "NONE" = no backup engine has ever run.
+  /// Last recorded backup outcome: NONE (never run) | OK | FAILED.
   status       String    @default("NONE")
   lastBackupAt DateTime?
+  /// Human-readable detail of the last run — size, database count, or the failure.
+  detail       String?
+  /// Last tested-restore outcome: NONE | OK | FAILED. A backup nobody has restored is
+  /// an assumption, so this is shown beside the backup status rather than folded into it.
+  drillStatus  String    @default("NONE")
+  lastDrillAt  DateTime?
+  drillDetail  String?
   updatedAt    DateTime  @updatedAt
 
   @@map("backup_status")
