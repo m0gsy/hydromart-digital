@@ -20,6 +20,7 @@ import {
   FakeMembership,
   FakeNotification,
   FakePromo,
+  FakeInventory,
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
@@ -119,6 +120,13 @@ describe('Order HTTP flows (e2e)', () => {
       .useValue(new FakeNotification())
       .overrideProvider(ORDER_TOKENS.Promo)
       .useValue(new FakePromo())
+      // Every other cross-service port had a Fake here; Inventory did not, so these flows
+      // ran the real HTTP adapter against a depot-service that does not exist in this
+      // suite. That passed only because reserve failed OPEN — the e2e was proving the
+      // bug, not the flow. With reserve failing closed (B-6b) the gap is now visible, so
+      // the collaborator is stubbed like all the others.
+      .overrideProvider(ORDER_TOKENS.Inventory)
+      .useValue(new FakeInventory())
       .compile();
 
     app = moduleRef.createNestApplication();

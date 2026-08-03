@@ -163,6 +163,25 @@ export class InsufficientStockError extends DomainError {
   }
 }
 
+/**
+ * Stock could not be reserved because depot-service could not be reached or answered
+ * with something other than a verdict (B-6b).
+ *
+ * The same reasoning as CatalogUnavailableError, applied to stock instead of price: if we
+ * cannot confirm the reservation, we do not get to assume it succeeded. Reserve used to
+ * fail OPEN on everything except an explicit 422, so a depot-service outage silently
+ * converted every order placed in that window into an unreserved one — the ledger and the
+ * physical shelf diverged with no error anywhere, and the divergence compounded with the
+ * settle race (B-5).
+ */
+export class StockCheckUnavailableError extends DomainError {
+  readonly code = 'ORDER_STOCK_CHECK_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Could not confirm stock right now. Please try again.');
+  }
+}
+
 /** A cart item references a product that no longer exists or is inactive. */
 export class ProductUnavailableError extends DomainError {
   readonly code = 'ORDER_PRODUCT_UNAVAILABLE';

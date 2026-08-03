@@ -1,4 +1,5 @@
 import { OrderConfigService } from '../../src/config/order-config.service';
+import { StockCheckUnavailableError } from '../../src/domain/errors';
 import type { OrderRecord } from '../../src/application/ports/order.repository';
 import { LoyaltyCoordinationHttpAdapter } from '../../src/infrastructure/http/loyalty-coordination.http.adapter';
 import { NotificationHttpAdapter } from '../../src/infrastructure/http/notification.http.adapter';
@@ -248,13 +249,13 @@ describe('coordination adapters short-circuit when disabled', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('inventory.reserve skips without an internal key', async () => {
-    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve(
-      'd1',
-      'o1',
-      line,
-      '',
-    );
+  // B-6b: this used to assert that reserve SKIPS when the internal key is missing, which
+  // meant a blank config value quietly sold unreserved stock on every order. A missing key
+  // is a deployment fault, so it now rejects the checkout like any other non-verdict.
+  it('inventory.reserve refuses to proceed without an internal key', async () => {
+    await expect(
+      new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve('d1', 'o1', line, ''),
+    ).rejects.toBeInstanceOf(StockCheckUnavailableError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
