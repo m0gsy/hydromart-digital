@@ -21,6 +21,37 @@ fi
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml $TLS_PROFILE}"
 GATEWAY_HEALTH="${GATEWAY_HEALTH:-http://localhost:8080/health}"
 
+# H-31/H-35: registry mode. Compose reads .env itself for interpolation, but these scripts
+# have to KNOW whether images come from a registry — that decides whether a deploy builds
+# on the production box at all. So read that one key here.
+#
+# Unset (the default, and every existing box) keeps the old behaviour exactly: build
+# locally, tag `hydromart-<svc>:local`. Set IMAGE_PREFIX to the registry path prefix (e.g.
+# ghcr.io/owner/hydromart-) and the deploy pulls SHA-tagged images instead.
+if [ -z "${IMAGE_PREFIX:-}" ] && [ -f .env ]; then
+  IMAGE_PREFIX="$(sed -n 's/^IMAGE_PREFIX=//p' .env | tail -1)"
+fi
+export IMAGE_PREFIX="${IMAGE_PREFIX:-}"
+
+# True when this box deploys pre-built images rather than building its own.
+registry_mode() { [ -n "${IMAGE_PREFIX:-}" ]; }
+
+# In registry mode every compose call needs a tag, not just the deploy — the watchdog's
+# `up -d` would otherwise ask for `:local`, which does not exist in the registry, and a
+# recovery would fail exactly when it is needed. HEAD is the deployed commit (deploy.sh
+# resets the tree before it converges), so it is always the right answer here.
+if [ -n "${IMAGE_PREFIX:-}" ] && [ -z "${IMAGE_TAG:-}" ]; then
+  export IMAGE_TAG="$(git rev-parse HEAD 2>/dev/null || echo local)"
+fi
+
+# Pull the SHA-tagged images for one commit, or fail loudly. The tag is the commit, so a
+# miss means the Images workflow has not finished (or failed) for that SHA — which must
+# stop the deploy rather than silently leaving the old containers running.
+pull_images() {
+  export IMAGE_TAG="$1"
+  $COMPOSE pull --quiet
+}
+
 # Map a changed path to the compose service whose IMAGE it invalidates; echo nothing
 # if it invalidates none. services/foo-service/... -> foo ; apps/web/... -> web
 #

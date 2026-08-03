@@ -81,7 +81,20 @@ if [ -n "$MIGRATIONS" ]; then
   fi
 fi
 
-if [ "${SERVICES[0]:-}" = "--all" ]; then
+if registry_mode; then
+  # H-31/H-35: images were built in CI and tagged with this exact commit. Nothing is
+  # compiled on the box that serves customers — no 1.5 GB build peak beside Postgres, no
+  # layers on the production disk, and no repeat of the BuildKit daemon panic that stopped
+  # all 25 containers on 2026-08-02.
+  log "registry mode (IMAGE_PREFIX=$IMAGE_PREFIX) — pulling images tagged $NEW_SHA"
+  if ! pull_images "$NEW_SHA"; then
+    log "!! could not pull images for $NEW_SHA — the Images workflow has not published them"
+    log "   restoring the tree to $PREV_SHA; the running stack was not touched"
+    git reset --hard "$PREV_SHA"
+    alert "deploy aborted: no images published for $NEW_SHA (stack still serving $PREV_SHA)"
+    exit 1
+  fi
+elif [ "${SERVICES[0]:-}" = "--all" ]; then
   log "rebuilding ALL services"
   bash scripts/rebuild-stale.sh --all
 elif [ "${#SERVICES[@]}" -eq 0 ]; then

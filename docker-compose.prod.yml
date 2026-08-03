@@ -83,6 +83,10 @@ services:
 
   auth:
     <<: *svc
+    # H-31/H-35: named so the image can come from a registry instead of being
+    # built on the production box. IMAGE_PREFIX + IMAGE_TAG unset = the old
+    # build-on-the-VPS path, unchanged.
+    image: ${IMAGE_PREFIX:-hydromart-}auth:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/auth-service/Dockerfile }
     environment:
       <<: *shared
@@ -132,6 +136,7 @@ services:
 
   customer:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}customer:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/customer-service/Dockerfile }
     environment:
       <<: *shared
@@ -151,6 +156,7 @@ services:
 
   product:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}product:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/product-service/Dockerfile }
     environment:
       <<: *shared
@@ -175,6 +181,7 @@ services:
 
   order:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}order:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/order-service/Dockerfile }
     environment:
       <<: *shared
@@ -208,6 +215,7 @@ services:
 
   payment:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payment:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payment-service/Dockerfile }
     environment:
       <<: *shared
@@ -226,6 +234,7 @@ services:
 
   delivery:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}delivery:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/delivery-service/Dockerfile }
     environment:
       <<: *shared
@@ -264,6 +273,7 @@ services:
 
   depot:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}depot:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/depot-service/Dockerfile }
     environment:
       <<: *shared
@@ -299,6 +309,7 @@ services:
 
   dashboard:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}dashboard:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/dashboard-service/Dockerfile }
     environment:
       <<: *shared
@@ -315,6 +326,7 @@ services:
 
   loyalty:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}loyalty:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/loyalty-service/Dockerfile }
     environment:
       <<: *shared
@@ -333,6 +345,7 @@ services:
 
   promo:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}promo:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/promo-service/Dockerfile }
     environment:
       <<: *shared
@@ -351,6 +364,7 @@ services:
 
   referral:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}referral:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/referral-service/Dockerfile }
     environment:
       <<: *shared
@@ -368,6 +382,7 @@ services:
 
   crm:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}crm:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/crm-service/Dockerfile }
     environment:
       <<: *shared
@@ -388,6 +403,7 @@ services:
 
   recommendation:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}recommendation:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/recommendation-service/Dockerfile }
     environment:
       <<: *shared
@@ -402,6 +418,7 @@ services:
 
   forecast:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}forecast:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/forecast-service/Dockerfile }
     environment:
       <<: *shared
@@ -417,6 +434,7 @@ services:
 
   payout:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payout:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payout-service/Dockerfile }
     environment:
       <<: *shared
@@ -431,6 +449,7 @@ services:
 
   admin:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}admin:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/admin-service/Dockerfile }
     environment:
       <<: *shared
@@ -462,6 +481,7 @@ services:
 
   hr:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}hr:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/hr-service/Dockerfile }
     environment:
       <<: *shared
@@ -504,6 +524,7 @@ services:
 
   gateway:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}gateway:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     environment:
       <<: *shared
@@ -546,6 +567,7 @@ services:
       retries: 12
 
   web:
+    image: ${IMAGE_PREFIX:-hydromart-}web:${IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
