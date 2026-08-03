@@ -50,6 +50,7 @@ export {
   type DepotScopeStatus,
 } from './nest/depot-scope-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
+export { LOG_REDACT_PATHS, redactPaths } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { GlobalValidationPipe } from './nest/validation.pipe';

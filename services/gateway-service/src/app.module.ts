@@ -25,7 +25,14 @@ import { envValidationSchema } from './config/env.validation';
           pinoHttp: {
             level: isProduction ? 'info' : 'debug',
             transport: isProduction ? undefined : { target: 'pino-pretty' },
-            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            // Mirrors @hydromart/platform's LOG_REDACT_PATHS, deliberately inlined for the
+            // same reason INTERNAL_KEY_HEADER is inlined in gateway.setup.ts: importing the
+            // platform barrel pulls the JWT guard and @nestjs/jwt, which this service does
+            // not declare as a dependency and has no reason to load. Unlike the other 17,
+            // the gateway never receives a legitimate internal key (services call each other
+            // direct, and client-supplied keys are stripped before proxying) — it redacts so
+            // an *injected* value never reaches the logs. Pinned by log-redact.spec.ts.
+            redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-internal-key"]'],
             autoLogging: true,
           },
         };

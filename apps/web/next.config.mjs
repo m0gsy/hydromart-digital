@@ -13,6 +13,12 @@ const nextConfig = {
   // strict CSP needs nonce/'unsafe-inline' tuning against Next's inline bootstrap
   // and must be tested before enforce; terminate CSP + HSTS at the TLS reverse
   // proxy instead (see DEPLOY.md §6). These four are safe to ship as-is.
+  //
+  // Permissions-Policy: `camera=()` is an EMPTY allowlist, which denies the feature to
+  // every origin INCLUDING this one — it is not "only same-origin". Shipping that broke
+  // two live features (HR face check-in needs getUserMedia; driver nav and delivery proof
+  // need geolocation) with no error anywhere but the browser console. `(self)` is the
+  // same-origin-only form we actually wanted. Pinned by test/security-headers.test.ts.
   async headers() {
     return [
       {
@@ -21,7 +27,7 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Permissions-Policy', value: 'camera=(self), microphone=(), geolocation=(self)' },
         ],
       },
     ];

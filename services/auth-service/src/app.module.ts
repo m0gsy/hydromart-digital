@@ -4,6 +4,8 @@ import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
+import { redactPaths } from '@hydromart/platform';
+
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { GlobalValidationPipe } from './common/pipes/validation.pipe';
 import { AuthConfigService } from './config/auth-config.service';
@@ -27,14 +29,9 @@ import { HealthModule } from './modules/health/health.module';
           pinoHttp: {
             level: isProduction ? 'info' : 'debug',
             transport: isProduction ? undefined : { target: 'pino-pretty' },
-            // Never log secrets, credentials or bearer tokens.
-            redact: [
-              'req.headers.authorization',
-              'req.headers.cookie',
-              'req.body.refreshToken',
-              'req.body.idToken',
-              'req.body.code',
-            ],
+            // Never log secrets, credentials or bearer tokens. The shared list covers the
+            // headers every service must hide; the extras here are auth-specific bodies.
+            redact: redactPaths('req.body.refreshToken', 'req.body.idToken', 'req.body.code'),
             autoLogging: true,
           },
         };

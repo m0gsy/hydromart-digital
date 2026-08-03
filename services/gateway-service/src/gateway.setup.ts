@@ -22,6 +22,19 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * router + fallback 404 (which init() registers) in the middleware stack.
  */
 export function configureGateway(app: INestApplication, config: GatewayConfigService): void {
+  const expressApp = app.getHttpAdapter().getInstance() as Express;
+
+  // B-2: express-rate-limit keys on `req.ip`. Behind Caddy every request arrives from
+  // Caddy's address, so without this the socket peer IS the proxy and all traffic from
+  // all users shares ONE counter — the configured limit stops being per-user and becomes
+  // per-deployment. One staff member opening one HQ page could 429 the whole platform.
+  //
+  // `1` = trust exactly one hop (Caddy) and no further, so a client cannot prepend its own
+  // X-Forwarded-For entry and be believed. This is only safe because the gateway's port is
+  // bound to loopback in docker-compose.prod.yml (H-19) — Caddy is the sole path in. If
+  // that port is ever published again, this line becomes a rate-limit bypass.
+  expressApp.set('trust proxy', 1);
+
   app.use(helmet());
   app.enableCors({ origin: config.corsOrigins, credentials: true });
 
@@ -55,7 +68,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     );
   }
 
-  const instance = app.getHttpAdapter().getInstance() as Express;
+  const instance = expressApp;
 
   instance.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() });
