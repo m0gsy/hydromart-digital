@@ -54,7 +54,10 @@ jobs:
           esac
 
       - name: SSH deploy
-        uses: appleboy/ssh-action@v1.2.0
+        # CI-13: pinned by commit, not by the mutable `v1.2.0` tag — this step is handed
+        # the production SSH key, so "whatever that tag points at today" is not a
+        # supply chain we want to inherit.
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
