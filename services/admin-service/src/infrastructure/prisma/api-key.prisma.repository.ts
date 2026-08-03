@@ -57,6 +57,15 @@ export class ApiKeyPrismaRepository implements ApiKeyRepository {
     return this.toRecord(row);
   }
 
+  async findByHash(keyHash: string): Promise<ApiKeyRecord | null> {
+    const row = await this.prisma.apiKey.findUnique({ where: { keyHash } });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async touchLastUsed(id: string, at: Date): Promise<void> {
+    await this.prisma.apiKey.update({ where: { id }, data: { lastUsedAt: at } });
+  }
+
   async rotate(id: string, keyPrefix: string, keyHash: string): Promise<ApiKeyRecord | null> {
     const existing = await this.prisma.apiKey.findUnique({ where: { id } });
     if (!existing) return null;

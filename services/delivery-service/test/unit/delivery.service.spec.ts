@@ -51,6 +51,7 @@ describe('DeliveryService', () => {
   let storage: { put: jest.Mock; remove: jest.Mock };
   /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
   let makeStorageless: () => DeliveryService;
+  let events: { publish: jest.Mock };
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -66,6 +67,7 @@ describe('DeliveryService', () => {
     storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
     makeStorageless = () =>
       new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+    events = { publish: jest.fn().mockResolvedValue(undefined) };
     service = new DeliveryService(
       repo,
       orders,
@@ -74,6 +76,7 @@ describe('DeliveryService', () => {
       config,
       depots,
       storage as never,
+      events as never,
     );
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
@@ -506,6 +509,37 @@ describe('DeliveryService', () => {
     // it on the abandoned attempt's status is what made a rescheduled order undeliverable.
     expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'PREPARING']);
     expect(await repo.countActiveByDriver(driver)).toBe(0);
+  });
+
+  // H-30: the event a partner subscribes to. Published after the handover is recorded, so
+  // a partner integration can never be the reason a delivery fails.
+  it('publishes delivery.delivered once the handover is stored', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    await Promise.resolve();
+
+    expect(events.publish).toHaveBeenCalledTimes(1);
+    const [event, payload] = events.publish.mock.calls[0]!;
+    expect(event).toBe('delivery.delivered');
+    expect(payload).toMatchObject({
+      deliveryId: done.id,
+      orderId: done.orderId,
+      recipientName: PROOF.recipientName,
+    });
+  });
+
+  it('completes normally when no partner fan-out is bound at all', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await bare.pickup(driver, d.id, AUTH);
+    await bare.start(driver, d.id, AUTH);
+
+    await expect(bare.complete(driver, d.id, PROOF, AUTH)).resolves.toMatchObject({
+      status: DeliveryStatus.DELIVERED,
+    });
+    expect(events.publish).not.toHaveBeenCalled();
   });
 
   it("never reveals another driver's delivery (404)", async () => {

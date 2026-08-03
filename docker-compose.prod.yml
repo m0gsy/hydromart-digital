@@ -250,6 +250,9 @@ services:
       OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       # Courier earning push on delivery completion (design 6b, internal key).
       PAYOUT_SERVICE_URL: http://payout:3016
+      # H-30: a completed delivery is reported here for the partner webhook fan-out.
+      # Hardcoded like the other internal URLs — blank would silently publish nothing.
+      ADMIN_SERVICE_URL: http://admin:3017
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
       SHIFT_LENGTH_HOURS: 8

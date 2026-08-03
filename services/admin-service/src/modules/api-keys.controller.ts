@@ -10,11 +10,9 @@ import { ApiKeyDto, CreateApiKeyDto, CreatedApiKeyDto } from './dto/api-key.dto'
 // Design 13d — service API credentials. SUPER_ADMIN only. Create/rotate return the full
 // secret exactly once; the list only ever shows the display-safe prefix.
 //
-// H-30: this is a REGISTRY, not an authentication mechanism. No route in any service
-// accepts one of these keys, nothing checks `scopes`, and `lastUsedAt` is never written —
-// a key handed to a partner today authenticates nothing. Building the guard is easy;
-// deciding which public API it protects is the part nobody has asked for yet, so the
-// surface says what it is instead of implying an integration that does not exist.
+// H-30: these keys authenticate. ApiKeyGuard verifies a presented `x-api-key` against the
+// stored sha256, refuses revoked keys, enforces per-route scopes and stamps `lastUsedAt`.
+// The surface they open is /api/v1/partner/* — a partner's own webhook deliveries.
 @ApiTags('API keys')
 @ApiBearerAuth()
 @Roles(Role.SUPER_ADMIN)
@@ -25,7 +23,9 @@ export class ApiKeysController {
   @Get()
   @ApiOperation({
     summary: 'List service API keys (13d)',
-    description: 'A registry only — no endpoint accepts these keys and no scope is enforced.',
+    description:
+      'Keys authenticate /api/v1/partner/* via the x-api-key header; scopes are enforced ' +
+      'per route (webhooks:read, webhooks:write).',
   })
   async list(): Promise<ApiKeyDto[]> {
     return (await this.keys.list()).map((k) => ApiKeyDto.from(k));

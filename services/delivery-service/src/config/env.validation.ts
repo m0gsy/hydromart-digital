@@ -20,6 +20,9 @@ export const envValidationSchema = Joi.object({
   // crm-service base URL for pushing HIGH field incidents to the ops feed (design 4b).
   // Blank = incident ops alerting disabled (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // admin-service base URL for the partner webhook fan-out (H-30). Blank = a delivery is
+  // still completed, its event is simply never offered to partner endpoints.
+  ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // payout-service base URL for the courier earning push (delivery→payout). Blank = disabled.
   PAYOUT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // WhatsApp number that receives HIGH incident alerts (the ops number). Blank = disabled.

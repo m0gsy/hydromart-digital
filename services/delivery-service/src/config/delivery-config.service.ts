@@ -50,6 +50,10 @@ export class DeliveryConfigService {
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** admin-service base URL for the partner webhook fan-out. Blank = no events published. */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** payout-service base URL for the courier earning push. Blank = disabled (fail-open). */
   get payoutServiceUrl(): string {
     return this.config.get<string>('PAYOUT_SERVICE_URL', '').replace(/\/+$/, '');

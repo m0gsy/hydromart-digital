@@ -120,13 +120,26 @@ export class InMemorySystemSettingsRepository implements SystemSettingsRepositor
 
 export class InMemoryApiKeyRepository implements ApiKeyRepository {
   keys: ApiKeyRecord[] = [];
+  /** id → stored hash. Kept beside the records because a record never exposes its hash. */
+  hashes = new Map<string, string>();
 
   async list(): Promise<ApiKeyRecord[]> {
     return this.keys.map((k) => ({ ...k }));
   }
 
+  async findByHash(keyHash: string): Promise<ApiKeyRecord | null> {
+    const id = [...this.hashes.entries()].find(([, h]) => h === keyHash)?.[0];
+    const found = this.keys.find((k) => k.id === id);
+    return found ? { ...found } : null;
+  }
+
+  async touchLastUsed(id: string, at: Date): Promise<void> {
+    const k = this.keys.find((x) => x.id === id);
+    if (k) k.lastUsedAt = at;
+  }
+
   async create(data: CreateApiKeyData): Promise<ApiKeyRecord> {
-    // The hash is intentionally dropped — records never expose it.
+    // The hash is intentionally dropped from the record — records never expose it.
     const record: ApiKeyRecord = {
       id: randomUUID(),
       name: data.name,
@@ -138,14 +151,16 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
       createdAt: nextDate(),
     };
     this.keys.push(record);
+    this.hashes.set(record.id, data.keyHash);
     return { ...record };
   }
 
-  async rotate(id: string, keyPrefix: string, _keyHash: string): Promise<ApiKeyRecord | null> {
+  async rotate(id: string, keyPrefix: string, keyHash: string): Promise<ApiKeyRecord | null> {
     const k = this.keys.find((x) => x.id === id);
     if (!k) return null;
     k.keyPrefix = keyPrefix;
     k.revokedAt = null;
+    this.hashes.set(k.id, keyHash);
     return { ...k };
   }
 

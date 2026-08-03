@@ -18,10 +18,10 @@ import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dt
 
 // Design 19c — webhook subscriptions. SUPER_ADMIN only.
 //
-// H-30: CRUD only. Nothing in the platform dispatches to these endpoints, so the stored
-// delivery status and success rate are null not because it has been quiet, but because no
-// event has ever been sent. Said plainly here and on the HQ page rather than letting an
-// empty column read as "healthy".
+// H-30: these subscriptions are delivered against. A service reports an event to
+// POST /webhooks/events, one delivery row is queued per subscribed endpoint, and the
+// scheduler sweep sends them signed (X-Hydromart-Signature) with backoff. The stored
+// status and success rate are computed from those attempts.
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @Roles(Role.SUPER_ADMIN)
@@ -32,7 +32,8 @@ export class WebhooksController {
   @Get()
   @ApiOperation({
     summary: 'List webhook endpoints (19c)',
-    description: 'A registry only — no event is dispatched to these endpoints yet.',
+    description:
+      'Subscribed endpoints receive signed POSTs; see /webhooks/deliveries for what was sent.',
   })
   async list(): Promise<WebhookDto[]> {
     return (await this.webhooks.list()).map((w) => WebhookDto.from(w));

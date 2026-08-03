@@ -22,6 +22,11 @@ export interface CreateApiKeyData {
 
 export interface ApiKeyRepository {
   list(): Promise<ApiKeyRecord[]>;
+  /** Authenticate a presented key by its hash. Null when unknown; revoked keys are returned
+   *  so the guard can answer 401 rather than pretending the key never existed. */
+  findByHash(keyHash: string): Promise<ApiKeyRecord | null>;
+  /** Stamp a successful authentication. Best-effort — never blocks the request. */
+  touchLastUsed(id: string, at: Date): Promise<void>;
   create(data: CreateApiKeyData): Promise<ApiKeyRecord>;
   /** Replace prefix+hash for an existing key; null when the id is unknown or revoked. */
   rotate(id: string, keyPrefix: string, keyHash: string): Promise<ApiKeyRecord | null>;

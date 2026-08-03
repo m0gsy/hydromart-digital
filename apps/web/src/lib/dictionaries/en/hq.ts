@@ -1158,8 +1158,8 @@ export const hq = {
   apiKeys: {
     title: 'API keys',
     subtitle: 'Service credentials & access scopes',
-    notLive:
-      'No Hydromart endpoint accepts these keys yet. A key here is a record of one you plan to issue — it grants nothing, and its scopes are not enforced anywhere.',
+    howItWorks:
+      'A key authenticates partner calls to /api/v1/partner/* via the x-api-key header. Scopes are enforced per route (webhooks:read, webhooks:write) and revoking one takes effect on the next request. Last used tells you if anyone is actually calling.',
     create: '＋ Create key',
     createTitle: 'Create API key',
     name: 'Name',
@@ -1192,8 +1192,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
-    notLive:
-      'Nothing is delivered to these endpoints yet. Registering one records the subscription; no event has ever been sent, which is why every delivery figure is empty.',
+    howItWorks:
+      'Subscribed endpoints receive a signed POST per event (X-Hydromart-Signature over the timestamp and body). Failures retry with backoff and are abandoned after six attempts; the success rate below is measured from real attempts.',
     add: '＋ Endpoint',
     createTitle: 'Add webhook',
     url: 'Endpoint URL',

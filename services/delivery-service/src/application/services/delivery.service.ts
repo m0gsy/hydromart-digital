@@ -41,6 +41,7 @@ import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 import { StoragePort } from '../ports/storage.port';
+import { EventPublisherPort } from '../ports/event-publisher.port';
 
 /**
  * The storage key inside a stored proof URL. Both adapters build the URL as
@@ -110,6 +111,9 @@ export class DeliveryService {
     // Optional so an environment with storage disabled still boots; the retention sweep
     // then says out loud that the objects were left behind rather than pretending.
     @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
+    @Optional()
+    @Inject(DELIVERY_TOKENS.EventPublisher)
+    private readonly events?: EventPublisherPort,
   ) {}
 
   /**
@@ -248,7 +252,38 @@ export class DeliveryService {
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
     // delivery must never roll back because its earning push did.
     void this.pushEarning(completed);
+    // H-30: the event partners subscribe to. Fan-out, signing and retries belong to
+    // admin-service; this only reports that the handover happened.
+    void this.publishDelivered(completed, capturedAt, proof.recipientName);
     return completed;
+  }
+
+  /**
+   * Offers `delivery.delivered` to partner webhook subscribers. Fail-open by contract.
+   *
+   * Takes the handover time and recipient as arguments rather than re-reading them off the
+   * record: at the call site both are known and non-null, and defending against a shape
+   * that cannot occur there would only add branches nothing can exercise.
+   */
+  private async publishDelivered(
+    delivery: DeliveryRecord,
+    deliveredAt: Date,
+    recipientName: string,
+  ): Promise<void> {
+    if (!this.events) return;
+    await this.events.publish(
+      'delivery.delivered',
+      {
+        deliveryId: delivery.id,
+        orderId: delivery.orderId,
+        orderNumber: delivery.orderNumber,
+        depotId: delivery.depotId,
+        driverId: delivery.driverId,
+        deliveredAt: deliveredAt.toISOString(),
+        recipientName,
+      },
+      deliveredAt,
+    );
   }
 
   /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */

@@ -152,6 +152,7 @@ services:
       PAYMENT_SERVICE_URL: http://payment:3005
       CRM_SERVICE_URL: http://crm:3012
       PAYOUT_SERVICE_URL: http://payout:3016
+      ADMIN_SERVICE_URL: http://admin:3017
       OPS_ALERT_PHONE: ""
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
