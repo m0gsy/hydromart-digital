@@ -4,7 +4,7 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
-import { OrderAlreadyVoidedError } from '../../src/domain/errors';
+import { DuplicateCheckoutError, OrderAlreadyVoidedError } from '../../src/domain/errors';
 
 // Unit-tests the order-service Prisma repositories against per-model jest.fn() mocks of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma
@@ -323,6 +323,61 @@ describe('OrderPrismaRepository', () => {
       data: expect.objectContaining({ id: 'preset-id' }),
       include: expect.any(Object),
     });
+  });
+
+  // B-13. The unique index is the guard; this is the translation that lets the service
+  // recognise it and answer with the order the winning attempt placed.
+  it('translates the idempotency-key unique violation into DuplicateCheckoutError', async () => {
+    order.create.mockRejectedValue(
+      Object.assign(new Error('unique'), {
+        code: 'P2002',
+        meta: { target: ['customerId', 'idempotencyKey'] },
+      }),
+    );
+    await expect(repo.create(createData)).rejects.toBeInstanceOf(DuplicateCheckoutError);
+  });
+
+  it('rethrows a unique violation on any other column', async () => {
+    // An orderNumber collision (H-12) is ours, not the caller's — swallowing it as a
+    // duplicate checkout would hand the caller somebody else's order.
+    const clash = Object.assign(new Error('unique'), {
+      code: 'P2002',
+      meta: { target: 'orders_orderNumber_key' },
+    });
+    order.create.mockRejectedValue(clash);
+    await expect(repo.create(createData)).rejects.toBe(clash);
+  });
+
+  it('rethrows a non-unique database failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    order.create.mockRejectedValue(boom);
+    await expect(repo.create(createData)).rejects.toBe(boom);
+  });
+
+  it('rethrows a rejection that carries no error object at all', async () => {
+    order.create.mockRejectedValue('connection reset');
+    await expect(repo.create(createData)).rejects.toBe('connection reset');
+  });
+
+  it('rethrows a P2002 that names no column', async () => {
+    const vague = Object.assign(new Error('unique'), { code: 'P2002' });
+    order.create.mockRejectedValue(vague);
+    await expect(repo.create(createData)).rejects.toBe(vague);
+  });
+
+  it('finds the order a previous attempt placed under an idempotency key', async () => {
+    order.findUnique.mockResolvedValue(orderRow());
+    const found = await repo.findByIdempotencyKey('cust-1', 'key-1');
+    expect(found?.id).toBe('ord-1');
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { customerId_idempotencyKey: { customerId: 'cust-1', idempotencyKey: 'key-1' } },
+      include: expect.any(Object),
+    });
+  });
+
+  it('returns null when no attempt has used that key', async () => {
+    order.findUnique.mockResolvedValue(null);
+    await expect(repo.findByIdempotencyKey('cust-1', 'key-1')).resolves.toBeNull();
   });
 
   it('finds an order by id, mapping reviewed=true when a review row exists', async () => {

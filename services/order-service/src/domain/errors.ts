@@ -10,6 +10,19 @@ export class OrderNotFoundError extends DomainError {
   }
 }
 
+/**
+ * A checkout carrying an `Idempotency-Key` this customer has already used (B-13). Raised by
+ * the repository off the unique index, never surfaced to the caller: the service turns it
+ * back into the order the first attempt placed, which is what the retry was asking for.
+ */
+export class DuplicateCheckoutError extends DomainError {
+  readonly code = 'ORDER_DUPLICATE_CHECKOUT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This checkout was already placed.');
+  }
+}
+
 export class EmptyCartError extends DomainError {
   readonly code = 'ORDER_CART_EMPTY';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

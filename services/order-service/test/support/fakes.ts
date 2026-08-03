@@ -65,7 +65,11 @@ import {
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
-import { OrderAlreadyVoidedError, VoucherRejectedError } from '../../src/domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  VoucherRejectedError,
+} from '../../src/domain/errors';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -116,6 +120,8 @@ export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
   reviews: OrderReviewRecord[] = [];
   refunds = new Map<string, number>();
+  /** Stands in for the `orders_customerId_idempotencyKey_key` unique index: `cust\0key` -> orderId. */
+  private readonly byIdempotencyKey = new Map<string, string>();
 
   async findReorderReminderTargets(
     cutoff: Date,
@@ -156,6 +162,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     const { items, ...rest } = data;
     const now = nextDate();
     const opening = rest.status ?? OrderStatus.CREATED;
+    // The unique index is the whole of B-13's in-flight guard, so the fake has to have it
+    // too — without this the concurrency test would pass against a repository that lets
+    // both writes through, which is exactly the bug.
+    const dupeKey = rest.idempotencyKey ? `${rest.customerId}\0${rest.idempotencyKey}` : null;
+    if (dupeKey && this.byIdempotencyKey.has(dupeKey)) {
+      throw new DuplicateCheckoutError();
+    }
     const rec: OrderRecord = {
       ...rest,
       id: rest.id ?? randomUUID(),
@@ -172,11 +185,19 @@ export class InMemoryOrderRepository implements OrderRepository {
       updatedAt: now,
     };
     this.rows.push(rec);
+    if (dupeKey) this.byIdempotencyKey.set(dupeKey, rec.id);
     return structuredClone(rec);
   }
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
+  }
+  async findByIdempotencyKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<OrderRecord | null> {
+    const id = this.byIdempotencyKey.get(`${customerId}\0${idempotencyKey}`);
+    return id ? this.findById(id) : null;
   }
   async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id)!;

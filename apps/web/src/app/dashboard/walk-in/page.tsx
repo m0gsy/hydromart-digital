@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowUUpLeft, Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
 
 import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
@@ -55,6 +55,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   const [voucher, setVoucher] = useState('');
   const [method, setMethod] = useState<CounterMethod>('CASH');
   const [busy, setBusy] = useState(false);
+  /** Idempotency key for the sale being rung up; cleared once it is recorded. */
+  const attemptKey = useRef('');
   // Mirrors the server's own rule: no open shift, no counter sale. Undefined until the bar
   // has looked — the button stays enabled so a slow check never blocks a queue of buyers,
   // and the server refuses anyway if there really is no shift.
@@ -161,6 +163,9 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
 
     setBusy(true);
+    // B-13: one key per till attempt, kept across failed submits. A depot on a flaky link
+    // gets a retried Bayar answered with the sale it already recorded, not a second one.
+    if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
     let order: Order;
     try {
       const customerId = await resolveCustomerId();
@@ -175,7 +180,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           voucherCode: voucher.trim().toUpperCase() || undefined,
         },
         true,
+        { 'Idempotency-Key': attemptKey.current },
       );
+      attemptKey.current = '';
     } catch (e) {
       setBusy(false);
       return toast(e instanceof ApiError ? e.message : 'Gagal menyimpan penjualan.', 'error');

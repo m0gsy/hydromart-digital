@@ -134,6 +134,21 @@ describe('OrderService.walkInSale', () => {
     expect(order.items[0]).toMatchObject({ volumeMl: 19000, isGallon: true, quantity: 4 });
   });
 
+  // B-13 at the till. A cashier on a flaky depot connection taps Bayar again; the goods
+  // only left the counter once, and the drawer has to agree.
+  it('returns the same sale when the till retries with the same Idempotency-Key', async () => {
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    const sale = { depotId: DEPOT, lines: [{ productId: product.id, quantity: 2 }] };
+
+    const first = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+    const retry = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+
+    expect(retry.id).toBe(first.id);
+    expect(orders.rows).toHaveLength(1);
+    // The completion fan-out must not run twice either — that is the stock consume.
+    expect(inventory.calls).toHaveLength(1);
+  });
+
   it('completes the sale immediately with no delivery fee', async () => {
     const order = await sell(2);
 

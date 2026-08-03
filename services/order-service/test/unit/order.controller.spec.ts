@@ -70,6 +70,22 @@ describe('OrderController', () => {
     });
     expect(payload.voucherCode).toBeNull();
     expect(payload.deliveryWindow).toBeNull();
+    expect(payload.idempotencyKey).toBeNull();
+  });
+
+  // B-13: the key only ever arrives as a header, so this hand-off is the whole of the
+  // wiring — if it is dropped here, every guard behind it is dead code.
+  it('checkout: forwards the Idempotency-Key header to the service', async () => {
+    const dto = { deliveryAddress: address } as never;
+    await controller.checkout(customer, dto, 'Bearer t', 'attempt-1');
+    expect(service.checkout.mock.calls[0][1].idempotencyKey).toBe('attempt-1');
+  });
+
+  it('walk-in: forwards the Idempotency-Key header to the service', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 2 }] } as never;
+    await controller.walkIn(staff, dto, 'Bearer t', 'till-1');
+    expect(service.walkInSale.mock.calls[0][1].idempotencyKey).toBe('till-1');
   });
 
   it('walk-in: forwards the lines and nulls the optional buyer fields', async () => {
@@ -89,6 +105,7 @@ describe('OrderController', () => {
       customerName: null,
       customerPhone: null,
       voucherCode: null,
+      idempotencyKey: null,
     });
   });
 

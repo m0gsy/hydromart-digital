@@ -3,7 +3,7 @@ import { depotWhere } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
-import { OrderAlreadyVoidedError } from '../../domain/errors';
+import { DuplicateCheckoutError, OrderAlreadyVoidedError } from '../../domain/errors';
 import {
   CreateOrderData,
   CreateReviewData,
@@ -112,6 +112,19 @@ const INCLUDE = {
   // full — it's bounded (status transitions) and serialized to the order card/timeline.
   review: { select: { id: true } },
 };
+
+/**
+ * A Prisma unique-constraint violation (P2002) naming `field`, detected without importing
+ * the client namespace. Matching the field keeps an unrelated unique from being read as the
+ * one the caller can recover from.
+ */
+function isUniqueViolation(error: unknown, field: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, meta } = error as { code?: string; meta?: { target?: unknown } };
+  if (code !== 'P2002') return false;
+  const target = meta?.target;
+  return Array.isArray(target) ? target.includes(field) : String(target ?? '').includes(field);
+}
 
 @Injectable()
 export class OrderPrismaRepository implements OrderRepository {
@@ -228,21 +241,43 @@ export class OrderPrismaRepository implements OrderRepository {
     // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
     // seed history row has to match the row's real status, not a CREATED it never was.
     const opening = status ?? OrderStatus.CREATED;
-    const row = await this.prisma.order.create({
-      data: {
-        ...(id ? { id } : {}),
-        ...order,
-        status: opening,
-        items: { create: items },
-        history: { create: { status: opening } },
-      },
-      include: INCLUDE,
-    });
-    return this.toRecord(row);
+    try {
+      const row = await this.prisma.order.create({
+        data: {
+          ...(id ? { id } : {}),
+          ...order,
+          status: opening,
+          items: { create: items },
+          history: { create: { status: opening } },
+        },
+        include: INCLUDE,
+      });
+      return this.toRecord(row);
+    } catch (error) {
+      // B-13: the retry lost the race against the attempt that is already committing.
+      // `orders_customerId_idempotencyKey_key` is the only unique this write can violate
+      // that the caller can recover from — an orderNumber collision (H-12) is ours, not
+      // theirs, and must keep surfacing as a failure.
+      if (isUniqueViolation(error, 'idempotencyKey')) {
+        throw new DuplicateCheckoutError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async findByIdempotencyKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<OrderRecord | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
+      include: INCLUDE,
+    });
     return row ? this.toRecord(row) : null;
   }
 

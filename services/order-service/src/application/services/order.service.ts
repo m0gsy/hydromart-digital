@@ -8,6 +8,7 @@ import {
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
+  DuplicateCheckoutError,
   EmptyCartError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
@@ -77,6 +78,8 @@ export interface WalkInSaleInput {
   customerPhone?: string | null;
   /** Voucher from the buyer's own wallet; only meaningful once they are identified. */
   voucherCode?: string | null;
+  /** Client-supplied `Idempotency-Key` — a re-tapped Bayar returns the same sale (B-13). */
+  idempotencyKey?: string | null;
 }
 
 export interface CheckoutInput {
@@ -90,6 +93,12 @@ export interface CheckoutInput {
   voucherCode?: string | null;
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
   deliveryWindow?: string | null;
+  /**
+   * Client-supplied `Idempotency-Key`, one per checkout attempt (B-13). A double tap or a
+   * retry after a timeout carries the same key and gets the order the first attempt placed,
+   * rather than a second one. Absent = no protection, exactly as before.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface ListOrdersInput {
@@ -150,6 +159,16 @@ export class OrderService {
     input: CheckoutInput,
     authorization = '',
   ): Promise<OrderRecord> {
+    // B-13: the cheap half of idempotency — a retry that arrives after the first attempt
+    // committed is answered from the table, before any pricing, reservation or voucher
+    // burn happens. The unique index behind reserveThenCreate covers the other half, the
+    // retry that arrives while the first attempt is still in flight.
+    const idempotencyKey = OrderService.idempotencyKeyOf(input);
+    const replay = await this.findReplay(customerId, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
+
     const lines = await this.cart.findByCustomer(customerId);
     if (lines.length === 0) {
       throw new EmptyCartError();
@@ -239,6 +258,7 @@ export class OrderService {
         discount,
         total,
         deliveryWindow: input.deliveryWindow ?? null,
+        idempotencyKey,
         ...input.deliveryAddress,
         items,
       },
@@ -395,6 +415,13 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // Same replay guard as checkout (B-13). A till on a flaky depot connection is the case
+    // that matters most here: the cashier taps Bayar again and must not sell the goods twice.
+    const idempotencyKey = OrderService.idempotencyKeyOf(input);
+    const replay = await this.findReplay(input.customerId ?? ANONYMOUS_CUSTOMER_ID, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
     // Before anything is priced or held: cash is about to change hands, and it has to land
     // in a drawer somebody has opened in their own name and will count at the end.
     if (!(await this.cashierShift.hasOpenShift(input.depotId, authorization))) {
@@ -416,6 +443,7 @@ export class OrderService {
         depotId: input.depotId,
         status: OrderStatus.COMPLETED,
         isWalkIn: true,
+        idempotencyKey,
         subtotal,
         deliveryFee: 0,
         discount,
@@ -886,8 +914,38 @@ export class OrderService {
       // Fail-open like every other inventory call: what the caller must see is why the
       // order could not be written, never a release that also failed on the way out.
       await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      // B-13, the in-flight half: two taps got past the pre-check together and the unique
+      // index picked a winner. The loser has just handed its stock back and now answers
+      // with the winner's order — one order, one hold, which is what the customer expects
+      // from pressing a button twice.
+      if (error instanceof DuplicateCheckoutError) {
+        const winner = await this.findReplay(data.customerId, data.idempotencyKey);
+        if (winner) {
+          return winner;
+        }
+      }
       throw error;
     }
+  }
+
+  /**
+   * The order a previous attempt with this key already placed, or null (B-13).
+   *
+   * ponytail: the loser of an in-flight race has already burned a voucher use against an
+   * order id that will never exist — a redemption orphan. That costs the customer one use
+   * of one voucher in a rare double-tap, against the alternative of two whole orders; if
+   * that trade ever stops being acceptable, the fix is claiming the key before the burn.
+   */
+  private async findReplay(
+    customerId: string,
+    idempotencyKey: string | null | undefined,
+  ): Promise<OrderRecord | null> {
+    return idempotencyKey ? this.orders.findByIdempotencyKey(customerId, idempotencyKey) : null;
+  }
+
+  /** Blank, whitespace or absent all mean "no key" — and NULL never collides in the index. */
+  private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
+    return input.idempotencyKey?.trim() || null;
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */

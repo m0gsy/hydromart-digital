@@ -102,6 +102,12 @@ model Order {
   voidedAt     DateTime?
   voidReason   String?
 
+  /// Client-supplied `Idempotency-Key` for the request that placed this order. A double
+  /// tap or a retry after a timeout carries the same key and the unique below turns the
+  /// second write into a no-op that returns this same row. Null for order paths with no
+  /// caller to retry them (subscription sweeps).
+  idempotencyKey String?
+
   items   OrderItem[]
   history OrderStatusHistory[]
   review  OrderReview?
@@ -117,6 +123,9 @@ model Order {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([depotId, createdAt])
+  // B-13: one order per (buyer, idempotency key). Postgres treats every NULL as distinct,
+  // so this only binds requests that actually sent a key.
+  @@unique([customerId, idempotencyKey])
   @@map("orders")
 }
 

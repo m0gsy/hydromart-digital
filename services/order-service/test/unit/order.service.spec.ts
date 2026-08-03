@@ -9,6 +9,7 @@ import {
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
+  DuplicateCheckoutError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -198,6 +199,88 @@ describe('OrderService', () => {
     expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6}$/);
     expect(order.recipientName).toBe('Budi');
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
+  });
+
+  // B-13. A double-tapped Bayar, or a retry after the proxy gave up on a request the
+  // server had already committed, used to place a second order — a second hold on the
+  // depot's stock and a second bill for the same water.
+  describe('checkout idempotency', () => {
+    const key = 'checkout-attempt-1';
+
+    it('returns the first order when the same Idempotency-Key is retried', async () => {
+      await addToCart(20000, 2);
+
+      const first = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      // The retry finds an empty cart — checkout clears it — so a service that did not
+      // recognise the key would not merely double-order here, it would throw.
+      const second = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+
+      expect(second.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+      // One order, one hold: the replay must not reserve stock a second time.
+      expect(inventory.reserveCalls).toHaveLength(1);
+    });
+
+    it('places one order when two taps race past the pre-check, and releases the loser hold', async () => {
+      await addToCart(20000, 2);
+
+      const [a, b] = await Promise.all([
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ]);
+
+      expect(orders.rows).toHaveLength(1);
+      expect(a.id).toBe(b.id);
+      expect(a.id).toBe(orders.rows[0].id);
+      // Both taps reserved; the one the unique index rejected handed its stock straight back.
+      expect(inventory.reserveCalls).toHaveLength(2);
+      expect(inventory.releaseCalls).toHaveLength(1);
+      expect(inventory.releaseCalls[0].orderId).not.toBe(a.id);
+    });
+
+    it('still places separate orders when no key is sent', async () => {
+      await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address });
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.rows).toHaveLength(2);
+    });
+
+    it('treats a blank key as no key rather than as one every order shares', async () => {
+      await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: '  ' });
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: '' });
+
+      expect(orders.rows).toHaveLength(2);
+    });
+
+    it('surfaces the conflict when the winning order cannot be read back', async () => {
+      // Losing the race and then finding nothing means the winner is not visible to this
+      // connection. Answering with a fabricated success would be worse than a 409.
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValue(null);
+      jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ).rejects.toBeInstanceOf(DuplicateCheckoutError);
+      // The hold that attempt took is still handed back.
+      expect(inventory.releaseCalls).toHaveLength(1);
+    });
+
+    it('scopes the key to the customer who sent it', async () => {
+      const other = randomUUID();
+      const product = await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      await cartService.setItem(other, product, 1, false);
+
+      const theirs = await service.checkout(other, { deliveryAddress: address, idempotencyKey: key });
+
+      expect(orders.rows).toHaveLength(2);
+      expect(theirs.customerId).toBe(other);
+    });
   });
 
   // The optional arguments every other test in this file happens to fill in, and the

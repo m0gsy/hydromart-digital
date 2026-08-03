@@ -110,6 +110,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   status?: OrderStatus;
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
   isWalkIn?: boolean;
+  /**
+   * Client-supplied key for this checkout attempt (B-13). When set, the write is unique
+   * per (customerId, key) and a retry carrying the same key raises DuplicateCheckoutError
+   * instead of placing a second order.
+   */
+  idempotencyKey?: string | null;
   items: CreateOrderItemData[];
 }
 
@@ -268,6 +274,8 @@ export interface SegmentConditions {
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
+  findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
   assignDepot(id: string, depotId: string): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
