@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { VoucherNotFoundError } from '../../src/domain/errors';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
 import {
@@ -182,6 +183,26 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     const voucher = this.vouchers.find((x) => x.id === m.voucherId)!;
     voucher.usedCount += 1;
     return { ...redemption };
+  }
+
+  /**
+   * Single-threaded stand-in for the locked redeem (H-1). It cannot reproduce the race —
+   * only real Postgres can — but it does enforce the ordering the real one guarantees:
+   * the counts handed to `decide` are read now, and nothing is written if `decide` throws.
+   */
+  async redeemAtomic(
+    input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
+    decide: (counts: { usedCount: number; customerRedemptions: number; burned: number }) => number,
+  ): Promise<VoucherRedemptionRecord> {
+    const voucher = this.vouchers.find((x) => x.id === input.voucherId);
+    if (!voucher) throw new VoucherNotFoundError();
+    const forVoucher = this.redemptions.filter((r) => r.voucherId === input.voucherId);
+    const discountApplied = decide({
+      usedCount: voucher.usedCount,
+      customerRedemptions: forVoucher.filter((r) => r.customerId === input.customerId).length,
+      burned: forVoucher.reduce((sum, r) => sum + r.discountApplied, 0),
+    });
+    return this.recordRedemption({ ...input, discountApplied });
   }
 
   grants: { voucherId: string; customerId: string }[] = [];

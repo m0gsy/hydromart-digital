@@ -565,16 +565,14 @@ describe('PromoHttpAdapter', () => {
       new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer x'),
     ).rejects.toBeInstanceOf(VoucherRejectedError);
   });
-  it('redeem: skips without key + posts on happy path', async () => {
-    await new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem(
-      'X',
-      'c',
-      'o',
-      1,
-      0,
-      '',
-    );
+  // B-6: a blank internal key used to make redeem a no-op, so every voucher was honoured
+  // for free until someone noticed. A config fault is not permission to give away money.
+  it('redeem: refuses without an internal key, posts on the happy path', async () => {
+    await expect(
+      new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem('X', 'c', 'o', 1, 0, ''),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
     expect(fetchMock).not.toHaveBeenCalled();
+
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, '');
     expect(fetchMock).toHaveBeenCalledTimes(1);

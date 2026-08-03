@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { VoucherNotFoundError } from '../../domain/errors';
 import { DiscountType } from '../../domain/voucher';
 import {
   CreateVoucherData,
@@ -166,6 +167,60 @@ export class VoucherPrismaRepository implements VoucherRepository {
       }),
     ]);
     return this.toRedemption(redemption);
+  }
+
+  /**
+   * H-1: serialize redemptions of one voucher so its caps cannot be beaten by sending the
+   * requests at the same time.
+   *
+   * `FOR UPDATE` on the voucher row is the gate. A second redemption of the same code
+   * blocks there until we commit, then re-reads counts that already include ours — so
+   * usageLimit, the per-customer limit and the budget cap are all decided against
+   * committed reality instead of a snapshot taken before the write.
+   *
+   * Same discipline as depot-service's reserveAtomic; only the lock target differs.
+   */
+  async redeemAtomic(
+    input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
+    decide: (counts: { usedCount: number; customerRedemptions: number; burned: number }) => number,
+  ): Promise<VoucherRedemptionRecord> {
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<{ usedCount: number }[]>`
+        SELECT "usedCount" FROM "vouchers" WHERE "id" = ${input.voucherId}::uuid FOR UPDATE`;
+      if (locked.length === 0) throw new VoucherNotFoundError();
+
+      const [customerRedemptions, burnedAgg] = await Promise.all([
+        tx.voucherRedemption.count({
+          where: { voucherId: input.voucherId, customerId: input.customerId },
+        }),
+        tx.voucherRedemption.aggregate({
+          where: { voucherId: input.voucherId },
+          _sum: { discountApplied: true },
+        }),
+      ]);
+
+      // Throws on any cap violation — the transaction rolls back and nothing is burned.
+      const discountApplied = decide({
+        usedCount: Number(locked[0].usedCount),
+        customerRedemptions,
+        burned: Number(burnedAgg._sum.discountApplied ?? 0),
+      });
+
+      const redemption = await tx.voucherRedemption.create({
+        data: {
+          voucherId: input.voucherId,
+          voucherCode: input.voucherCode,
+          customerId: input.customerId,
+          orderId: input.orderId,
+          discountApplied,
+        },
+      });
+      await tx.voucher.update({
+        where: { id: input.voucherId },
+        data: { usedCount: { increment: 1 } },
+      });
+      return this.toRedemption(redemption);
+    });
   }
 
   async grantVoucher(voucherId: string, customerId: string): Promise<boolean> {

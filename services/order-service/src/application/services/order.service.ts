@@ -243,21 +243,22 @@ export class OrderService {
         items,
       },
       authorization,
+      // Burned before the order row is written — see reserveThenCreate. A rejected or
+      // failed burn aborts the checkout instead of handing out an unpaid discount.
+      voucherCode
+        ? (orderId) =>
+            this.promo.redeem(
+              voucherCode,
+              customerId,
+              orderId,
+              subtotal,
+              deliveryFee,
+              authorization,
+            )
+        : undefined,
     );
     await this.cart.clear(customerId);
 
-    // Record the redemption now that the order exists. Idempotent per order and
-    // fail-open — a failure here never unwinds a placed order.
-    if (voucherCode) {
-      await this.promo.redeem(
-        voucherCode,
-        customerId,
-        order.id,
-        subtotal,
-        deliveryFee,
-        authorization,
-      );
-    }
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
     await this.notification.notify(
@@ -434,13 +435,13 @@ export class OrderService {
         items,
       },
       authorization,
+      // Burned before the order row is written, exactly as at checkout (B-6). The counter
+      // path had the same fail-open shape, and the same consequence.
+      voucherCode
+        ? (orderId) => this.promo.redeem(voucherCode, customerId, orderId, subtotal, 0, authorization)
+        : undefined,
     );
 
-    // Record the redemption now that the order exists — idempotent per order, fail-open,
-    // exactly as at checkout.
-    if (voucherCode) {
-      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, 0, authorization);
-    }
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
@@ -851,15 +852,35 @@ export class OrderService {
    * standing with no order to ever release it, so the depot silently lost that stock until
    * opname. The compensating release only ever undoes a hold this call itself placed.
    */
+  /**
+   * Reserve stock, burn the voucher, then write the order — in that order, and all three
+   * abort the checkout if they fail.
+   *
+   * B-6: the voucher used to be redeemed AFTER the order was created, fail-open, with the
+   * discount already applied to the stored total. A failed burn therefore gave the
+   * customer the discount and left the voucher live and reusable, with a comment saying
+   * "a failure here never unwinds a placed order". Fail-open is the wrong default when
+   * the step that failed is the one that makes the discount legitimate.
+   *
+   * The order id is generated here rather than by the database, which is what makes the
+   * correct order possible: the redemption can be keyed to the order before the order row
+   * exists. If the write then fails, the stock is released and the burn is left as an
+   * orphan redemption — a customer losing one voucher use on a failed checkout, which is
+   * recoverable and rare, versus unlimited reuse of a discount that was never paid for.
+   */
   private async reserveThenCreate(
     depotId: string,
     data: Omit<CreateOrderData, 'id'>,
     authorization: string,
+    burnVoucher?: (orderId: string) => Promise<void>,
   ): Promise<OrderRecord> {
     const id = randomUUID();
     const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
     await this.inventory.reserve(depotId, id, lines, authorization);
     try {
+      if (burnVoucher) {
+        await burnVoucher(id);
+      }
       return await this.orders.create({ ...data, id });
     } catch (error) {
       // Fail-open like every other inventory call: what the caller must see is why the
