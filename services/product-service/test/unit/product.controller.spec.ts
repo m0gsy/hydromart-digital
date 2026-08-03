@@ -24,6 +24,14 @@ describe('ProductController', () => {
     expect(service.browse).toHaveBeenCalledWith(query, true);
   });
 
+  // The console's only product list. If this ever filtered to active products the
+  // operator would lose sight of anything deactivated, with no way to switch it back.
+  it('browseAll delegates query with activeOnly=false', async () => {
+    const query: BrowseProductsQueryDto = { page: 1, limit: 100 };
+    await controller.browseAll(query);
+    expect(service.browse).toHaveBeenCalledWith(query, false);
+  });
+
   it('get delegates id with activeOnly=true', async () => {
     await controller.get('p1');
     expect(service.get).toHaveBeenCalledWith('p1', true);

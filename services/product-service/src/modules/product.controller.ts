@@ -34,6 +34,18 @@ export class ProductController {
     return this.products.browse(query, true);
   }
 
+  // Deactivating a product hid it from the only list the console has, so an operator
+  // who unticked "aktif" could never tick it back. Admins get the unfiltered set on
+  // their own route rather than a flag on the public one — nothing extra leaks to the
+  // shop. Declared above `:id` so 'all' is not parsed as a product id.
+  @ApiBearerAuth()
+  @Roles(...ADMIN_ROLES)
+  @Get('all')
+  @ApiOperation({ summary: 'Browse every product, active or not (admin)' })
+  browseAll(@Query() query: BrowseProductsQueryDto): Promise<Page<ProductRecord>> {
+    return this.products.browse(query, false);
+  }
+
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active product by id' })

@@ -1,6 +1,24 @@
 // Public path builders. The gateway strips the first segment and forwards the
 // rest to the owning service, so every path is `/{segment}/api/v1/...`.
 
+interface ProductQuery {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+}
+
+/** Shared by the public product browse and the admin one, which differ only in path. */
+function productQuery(q: ProductQuery): string {
+  const p = new URLSearchParams();
+  if (q.page) p.set('page', String(q.page));
+  if (q.limit) p.set('limit', String(q.limit));
+  if (q.search) p.set('search', q.search);
+  if (q.categoryId) p.set('categoryId', q.categoryId);
+  const qs = p.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const endpoints = {
   auth: {
     register: '/auth/api/v1/auth/register',
@@ -110,15 +128,10 @@ export const endpoints = {
     me: '/customers/api/v1/resellers/me',
   },
   products: {
-    browse: (q: { page?: number; limit?: number; search?: string; categoryId?: string }) => {
-      const p = new URLSearchParams();
-      if (q.page) p.set('page', String(q.page));
-      if (q.limit) p.set('limit', String(q.limit));
-      if (q.search) p.set('search', q.search);
-      if (q.categoryId) p.set('categoryId', q.categoryId);
-      const qs = p.toString();
-      return `/products/api/v1/products${qs ? `?${qs}` : ''}`;
-    },
+    browse: (q: ProductQuery) => `/products/api/v1/products${productQuery(q)}`,
+    // Same list including deactivated products (MANAGER / SUPER_ADMIN). The public
+    // browse hides them, which left the console unable to switch one back on.
+    browseAll: (q: ProductQuery) => `/products/api/v1/products/all${productQuery(q)}`,
     get: (id: string) => `/products/api/v1/products/${id}`,
     // Admin CRUD (MANAGER / SUPER_ADMIN).
     create: '/products/api/v1/products',
