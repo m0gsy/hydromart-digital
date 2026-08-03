@@ -31,6 +31,7 @@ import {
   SalesBucket,
   SegmentConditions,
 } from '../../application/ports/order.repository';
+import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
 
 type Decimalish = { toNumber(): number };
@@ -241,21 +242,26 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, id, status, ...order } = data;
+    const { items, id, status, outbox = [], ...order } = data;
     // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
     // seed history row has to match the row's real status, not a CREATED it never was.
     const opening = status ?? OrderStatus.CREATED;
     try {
-      const row = await this.prisma.order.create({
-        data: {
-          ...(id ? { id } : {}),
-          ...order,
-          status: opening,
-          items: { create: items },
-          history: { create: { status: opening } },
-        },
-        include: INCLUDE,
-      });
+      // H-10: a walk-in is born COMPLETED, so the effects it earns are written with it
+      // rather than at a later transition. One transaction, or neither.
+      const [row] = await this.prisma.$transaction([
+        this.prisma.order.create({
+          data: {
+            ...(id ? { id } : {}),
+            ...order,
+            status: opening,
+            items: { create: items },
+            history: { create: { status: opening } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ]);
       return this.toRecord(row);
     } catch (error) {
       // B-13: the retry lost the race against the attempt that is already committing.
@@ -390,21 +396,28 @@ export class OrderPrismaRepository implements OrderRepository {
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    outbox: OutboxWrite[] = [],
   ): Promise<OrderRecord> {
     // `status: from` in the WHERE is the guard (H-4). No match means the order moved
     // under us; P2025 becomes StaleOrderStatusError so the loser is told, not ignored.
-    const row = await this.prisma.order
-      .update({
-        where: { id, status: from },
-        data: {
-          status,
-          ...(driverName != null ? { driverName } : {}),
-          ...(driverPhone != null ? { driverPhone } : {}),
-          ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
-          history: { create: { status, changedBy, note } },
-        },
-        include: INCLUDE,
-      })
+    //
+    // H-10: the effects the transition earns go in the SAME transaction. The status guard
+    // is what makes that safe to pair — only the winner writes, so only the winner owes.
+    const [row] = await this.prisma
+      .$transaction([
+        this.prisma.order.update({
+          where: { id, status: from },
+          data: {
+            status,
+            ...(driverName != null ? { driverName } : {}),
+            ...(driverPhone != null ? { driverPhone } : {}),
+            ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
+            history: { create: { status, changedBy, note } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ])
       .catch((error: unknown) => {
         if ((error as { code?: string })?.code === 'P2025') {
           throw new StaleOrderStatusError();

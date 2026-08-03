@@ -1,5 +1,7 @@
 import { OrderStatus } from '../../domain/order-status';
 
+import { OutboxWrite } from './outbox.repository';
+
 export interface OrderItemRecord {
   id: string;
   productId: string;
@@ -110,6 +112,12 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   status?: OrderStatus;
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
   isWalkIn?: boolean;
+  /**
+   * Side effects the order owes the moment it exists, written in the same transaction
+   * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
+   * fan-out at creation rather than at a later transition.
+   */
+  outbox?: OutboxWrite[];
   /**
    * Client-supplied key for this checkout attempt (B-13). When set, the write is unique
    * per (customerId, key) and a retry carrying the same key raises DuplicateCheckoutError
@@ -331,6 +339,12 @@ export interface OrderRepository {
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    /**
+     * Side effects this transition earns, written in the SAME transaction as it (H-10).
+     * That is the whole point: an order cannot end up COMPLETED without the stock consume
+     * and the owner credit being owed somewhere durable.
+     */
+    outbox?: OutboxWrite[],
   ): Promise<OrderRecord>;
   /**
    * Reverses a counter sale: stamps VOIDED with the reason and appends the history row.

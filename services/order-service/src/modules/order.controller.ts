@@ -27,6 +27,7 @@ import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, R
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
+import { OutboxService, OutboxSweepResult } from '../application/services/outbox.service';
 import {
   OrderRecord,
   OrderReviewRecord,
@@ -61,7 +62,10 @@ const FULFILMENT_ROLES = [
 @ApiBearerAuth()
 @Controller({ path: 'orders', version: '1' })
 export class OrderController {
-  constructor(private readonly orders: OrderService) {}
+  constructor(
+    private readonly orders: OrderService,
+    private readonly outboxService: OutboxService,
+  ) {}
 
   @Post('checkout')
   @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
@@ -145,6 +149,28 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     return this.orders.voidCounterSale(user, id, dto.reason, new Date(), authorization);
+  }
+
+  /**
+   * H-10: deliver the completion effects that are still owed — the stock consume, the
+   * loyalty award, the referral qualification, the franchise-owner credit. Ops-scheduled,
+   * exactly like expire-abandoned and the subscription sweep; this service runs no cron
+   * daemon of its own.
+   */
+  @Roles(Role.SUPER_ADMIN)
+  @Post('outbox/process')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry the order side effects still owed (admin sweep)' })
+  processOutbox(): Promise<OutboxSweepResult> {
+    return this.outboxService.processDue();
+  }
+
+  /** What the sweep still owes, so a queue that stops draining is visible. */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('outbox/pending')
+  @ApiOperation({ summary: 'Counts of order side effects owed, delivered and given up on' })
+  outboxPending(): Promise<Record<string, number>> {
+    return this.outboxService.pending();
   }
 
   @Roles(Role.SUPER_ADMIN)

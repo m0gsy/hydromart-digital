@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
+import { OutboxService } from '../../src/application/services/outbox.service';
 import {
   BelowMinimumOrderError,
   CatalogUnavailableError,
@@ -44,6 +45,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
 
@@ -92,6 +94,7 @@ describe('OrderService', () => {
   let inventory: FakeInventory;
   let cartService: CartService;
   let service: OrderService;
+  let outbox: OutboxService;
   const customer = randomUUID();
 
   beforeEach(() => {
@@ -112,6 +115,7 @@ describe('OrderService', () => {
     promo = new FakePromo();
     inventory = new FakeInventory();
     cartService = new CartService(cart, catalog);
+    outbox = buildOutbox(orders);
     service = new OrderService(
       orders,
       cart,
@@ -132,6 +136,7 @@ describe('OrderService', () => {
       franchiseRevenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      outbox,
     );
   });
 
@@ -247,6 +252,83 @@ describe('OrderService', () => {
       // The consume is the depot's stock leaving. Twice would be a real shortfall.
       expect(inventory.calls).toHaveLength(1);
       expect(loyalty.calls).toHaveLength(1);
+    });
+  });
+
+  // H-10. Stock consume, the loyalty award, the referral qualification and the
+  // franchise-owner credit were fire-and-forget calls behind a swallowed catch. A
+  // depot-service blip meant the checkout hold was never settled and the depot's sellable
+  // stock drifted down forever; a payout blip meant an owner was never paid for a sale.
+  // Nothing retried, and a log line was the only trace.
+  describe('durable completion effects', () => {
+    const complete = async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+        OrderStatus.COMPLETED,
+      ]) {
+        await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+      }
+      return order;
+    };
+
+    it('keeps owing the stock consume when depot-service is down, and lands it on the sweep', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      const order = await complete();
+
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
+      expect(owed).toMatchObject({ orderId: order.id, status: 'PENDING', attempts: 1 });
+      expect(inventory.calls).toHaveLength(0);
+
+      // depot-service comes back; the sweep settles the hold that completion could not.
+      const consumed: string[] = [];
+      inventory.consume = async (_d, orderId) => {
+        consumed.push(orderId);
+      };
+      const swept = await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+
+      expect(swept.delivered).toBe(1);
+      expect(consumed).toEqual([order.id]);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
+    });
+
+    it('gives up loudly rather than retrying forever', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      await complete();
+
+      // Six attempts, backing off; the seventh sweep would find nothing left to try.
+      let at = Date.now();
+      for (let i = 0; i < 6; i += 1) {
+        at += 60 * 60 * 1000;
+        await outbox.processDue(new Date(at));
+      }
+
+      const row = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
+      expect(row.status).toBe('DEAD');
+      expect(await outbox.pending()).toMatchObject({ DEAD: 1 });
+    });
+
+    it('marks every effect delivered on the happy path', async () => {
+      await complete();
+
+      const rows = orders.outbox!.rows;
+      expect(rows.map((r) => r.topic).sort()).toEqual([
+        'FRANCHISE_REVENUE',
+        'INVENTORY_CONSUME',
+        'LOYALTY_AWARD',
+        'REFERRAL_QUALIFY',
+      ]);
+      expect(rows.every((r) => r.status === 'DONE')).toBe(true);
     });
   });
 
@@ -1588,6 +1670,7 @@ describe('OrderService', () => {
       franchiseRevenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      buildOutbox(orders),
     );
     depots.depots = [
       {
@@ -1712,6 +1795,7 @@ describe('OrderService franchise revenue on completion', () => {
       revenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      buildOutbox(orders),
     );
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     await cartService.setItem('cust-rev', product.id, 3, false);

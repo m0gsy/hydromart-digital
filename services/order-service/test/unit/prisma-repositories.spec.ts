@@ -215,11 +215,17 @@ describe('OrderPrismaRepository', () => {
   const orderItem = { groupBy: jest.fn() };
   const orderStatusHistory = { create: jest.fn() };
   const $queryRaw = jest.fn();
+  // H-10: the order write and its outbox rows go in one transaction. Promise.all so a
+  // rejected op (the P2002 / P2025 cases below) still reaches the repository's catch.
+  const outboxMessage = { create: jest.fn() };
+  const $transaction = jest.fn((ops: unknown[]) => Promise.all(ops));
   const prisma = {
     order,
     orderReview,
     orderItem,
     orderStatusHistory,
+    outboxMessage,
+    $transaction,
     $queryRaw,
   } as unknown as PrismaService;
   const repo = new OrderPrismaRepository(prisma);
@@ -371,6 +377,44 @@ describe('OrderPrismaRepository', () => {
     const vague = Object.assign(new Error('unique'), { code: 'P2002' });
     order.create.mockRejectedValue(vague);
     await expect(repo.create(createData)).rejects.toBe(vague);
+  });
+
+  // H-10: the effects a transition earns are written in the SAME transaction as it, so an
+  // order cannot end up COMPLETED with its stock consume and owner credit owed to nobody.
+  it('writes the outbox rows alongside the status change, in one transaction', async () => {
+    order.update.mockResolvedValue({ ...orderRow(), status: 'COMPLETED' });
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
+      'staff',
+      null,
+      undefined,
+      undefined,
+      undefined,
+      [
+        { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+        { topic: 'FRANCHISE_REVENUE', orderId: 'ord-1' },
+      ],
+    );
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(outboxMessage.create).toHaveBeenCalledTimes(2);
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  it('writes the outbox rows alongside a walk-in, which is born COMPLETED', async () => {
+    order.create.mockResolvedValue(orderRow());
+    await repo.create({
+      ...createData,
+      status: OrderStatus.COMPLETED,
+      isWalkIn: true,
+      outbox: [{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }],
+    });
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
   });
 
   it('finds the order a previous attempt placed under an idempotency key', async () => {

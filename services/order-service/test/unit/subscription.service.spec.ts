@@ -25,6 +25,7 @@ import {
   InMemoryCartRepository,
   InMemoryOrderRepository,
   InMemorySubscriptionRepository,
+  buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
 
@@ -88,6 +89,7 @@ describe('SubscriptionService', () => {
       new FakeFranchiseRevenue(),
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      buildOutbox(orders),
     );
     service = new SubscriptionService(subs, catalog, orderService, buildTestConfig());
   });

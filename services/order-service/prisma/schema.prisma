@@ -282,3 +282,36 @@ model ServiceSetting {
   @@index([scope, depotId])
   @@map("service_settings")
 }
+
+/// H-10: durable outbox for the side effects that MUST happen when an order completes.
+///
+/// Stock consume, the loyalty award, the referral qualification and the franchise-owner
+/// credit were all fire-and-forget HTTP calls behind a `.catch(() => {})`. A depot-service
+/// blip meant the depot's checkout hold was never settled and its sellable stock drifted
+/// down forever; a payout-service blip meant an owner was simply never paid for a sale.
+/// Nothing retried, and the only trace was a log line.
+///
+/// Rows are written in the SAME transaction as the status change that earns them, so an
+/// order can never be COMPLETED without its effects being owed somewhere durable. Every
+/// handler is idempotent on the receiving side (keyed by order id), which is what makes
+/// retrying safe.
+model OutboxMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Which effect this row owes. See OUTBOX_TOPICS in the application layer.
+  topic     String
+  /// The order the effect is for. The handler re-reads it, so nothing here can go stale.
+  orderId   String   @db.Uuid
+  status    String   @default("PENDING")
+  attempts  Int      @default(0)
+  /// Exponential backoff: a claim only picks up rows due at or before now.
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per effect per order: re-running the completion cannot owe it twice.
+  @@unique([topic, orderId])
+  /// The claim predicate.
+  @@index([status, nextAttemptAt])
+  @@map("outbox_messages")
+}

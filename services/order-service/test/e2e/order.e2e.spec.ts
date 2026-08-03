@@ -24,6 +24,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  InMemoryOutboxRepository,
 } from '../support/fakes';
 
 const SECRET = 'test-access-secret-that-is-long-enough-01';
@@ -66,6 +67,11 @@ describe('Order HTTP flows (e2e)', () => {
     process.env.INTERNAL_SERVICE_KEY = INTERNAL_KEY;
     catalog = new FakeProductCatalog();
     catalog.seed({ id: productId, basePrice: 20000 });
+    // H-10: the order repository writes outbox rows in the same transaction, so the two
+    // fakes have to be the same pair the real providers are.
+    const orderRepo = new InMemoryOrderRepository();
+    const outboxRepo = new InMemoryOutboxRepository();
+    orderRepo.outbox = outboxRepo;
 
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -101,7 +107,9 @@ describe('Order HTTP flows (e2e)', () => {
       .overrideProvider(ORDER_TOKENS.CartRepository)
       .useValue(new InMemoryCartRepository())
       .overrideProvider(ORDER_TOKENS.OrderRepository)
-      .useValue(new InMemoryOrderRepository())
+      .useValue(orderRepo)
+      .overrideProvider(ORDER_TOKENS.OutboxRepository)
+      .useValue(outboxRepo)
       .overrideProvider(ORDER_TOKENS.ProductCatalog)
       .useValue(catalog)
       .overrideProvider(ORDER_TOKENS.DepotDirectory)
