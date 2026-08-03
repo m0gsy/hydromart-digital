@@ -98,6 +98,11 @@ jobs:
       - name: Validate Prisma schemas
         run: npm run db:validate
 
+      # B-21: the missing-rollback count drifted from 25-of-98 to 39-of-135 between two
+      # audits because nothing ever checked. Backfilling fixed today; this fixes tomorrow.
+      - name: Every migration has a rollback
+        run: bash scripts/check-rollbacks.sh
+
       # The deploy scripts decide, from a file list alone, whether prod is touched at
       # all — and a wrong answer there ships as "DEPLOY OK" with nothing deployed.
       # These helpers need no Docker, so they are gated here like any other logic.
