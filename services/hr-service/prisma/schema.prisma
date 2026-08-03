@@ -317,8 +317,13 @@ model EmploymentHistory {
 model FaceEmbedding {
   id             String   @id @default(uuid()) @db.Uuid
   employeeId     String   @db.Uuid
-  /// L2-normalized 512-float embedding. Cosine similarity done in-service (no pgvector).
+  /// LEGACY plaintext embedding, kept only so enrolments made before B-19 still verify.
+  /// Written empty on every new enrolment; drop the column once no row has one.
   vector         Float[]
+  /// L2-normalized 512-float embedding, AES-256-GCM (iv||tag||ciphertext). Biometric data
+  /// cannot be reissued after a leak, so it never rests in the clear. Cosine similarity is
+  /// still done in-service on the decrypted vector (no pgvector).
+  vectorEnc      Bytes?
   quality        Float    @default(0)
   sourcePhotoUrl String?
   active         Boolean  @default(true)

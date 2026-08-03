@@ -19,6 +19,8 @@ import { AuditPrismaRepository } from '../../src/infrastructure/prisma/audit.pri
 import { BonusRulePrismaRepository } from '../../src/infrastructure/prisma/bonus-rule.prisma.repository';
 import { EmployeePrismaRepository } from '../../src/infrastructure/prisma/employee.prisma.repository';
 import { FaceEmbeddingPrismaRepository } from '../../src/infrastructure/prisma/face-embedding.prisma.repository';
+import { decryptVector, encryptVector } from '../../src/infrastructure/crypto/face-vector.cipher';
+import { HrConfigService } from '../../src/config/hr-config.service';
 import { HolidayPrismaRepository } from '../../src/infrastructure/prisma/holiday.prisma.repository';
 import { LoanPrismaRepository } from '../../src/infrastructure/prisma/loan.prisma.repository';
 import { PayrollPrismaRepository } from '../../src/infrastructure/prisma/payroll.prisma.repository';
@@ -1624,44 +1626,78 @@ describe('EmployeePrismaRepository', () => {
 });
 
 // ── FaceEmbeddingPrismaRepository ──────────────────────────────────────
+// B-19: the template is biometric data that cannot be reissued, so it is written as
+// AES-256-GCM ciphertext and never as the plaintext Float[] it used to be.
+const faceConfig = { faceEncryptionKey: 'unit-test-face-key' } as HrConfigService;
+
 describe('FaceEmbeddingPrismaRepository', () => {
-  it('create → faceEmbedding.create', async () => {
+  it('create encrypts the vector and leaves the plaintext column empty', async () => {
     const p = makePrisma();
     const out = sentinel();
     m(p, 'faceEmbedding').create.mockResolvedValue(out);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     const data = { employeeId: 'e1', vector: [0.1, 0.2], quality: 0.9, sourcePhotoUrl: null };
     await expect(repo.create(data)).resolves.toBe(out);
-    expect(m(p, 'faceEmbedding').create).toHaveBeenCalledWith({ data });
+
+    const written = m(p, 'faceEmbedding').create.mock.calls[0][0].data;
+    expect(written.vector).toEqual([]);
+    expect(written.vectorEnc).toBeInstanceOf(Buffer);
+    expect(written.vectorEnc.toString('latin1')).not.toContain('0.1');
+    expect(decryptVector(written.vectorEnc, 'unit-test-face-key')).toEqual([0.1, 0.2]);
   });
 
-  it('listActiveByEmployee filters active', async () => {
+  it('create stores no ciphertext for a remote-gallery driver, which has no vector', async () => {
     const p = makePrisma();
-    m(p, 'faceEmbedding').findMany.mockResolvedValue([]);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
-    await repo.listActiveByEmployee('e1');
+    m(p, 'faceEmbedding').create.mockResolvedValue(sentinel());
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await repo.create({ employeeId: 'e1', vector: [], quality: 1, sourcePhotoUrl: null });
+    expect(m(p, 'faceEmbedding').create.mock.calls[0][0].data.vectorEnc).toBeNull();
+  });
+
+  it('listActiveByEmployee filters active and decrypts', async () => {
+    const p = makePrisma();
+    const vectorEnc = encryptVector([0.5, -0.25], 'unit-test-face-key');
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([{ employeeId: 'e1', vector: [], vectorEnc }]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.listActiveByEmployee('e1')).resolves.toEqual([
+      { employeeId: 'e1', vector: [0.5, -0.25], vectorEnc },
+    ]);
     expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', active: true },
     });
   });
 
+  // Enrolments made before B-19 have no ciphertext and must keep verifying.
+  it('reads a legacy plaintext row unchanged', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([
+      { employeeId: 'e1', vector: [0.7], vectorEnc: null },
+    ]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.listActiveByEmployee('e1')).resolves.toEqual([
+      { employeeId: 'e1', vector: [0.7], vectorEnc: null },
+    ]);
+  });
+
   it('listActiveVectorsExcept selects + maps owned vectors', async () => {
     const p = makePrisma();
-    m(p, 'faceEmbedding').findMany.mockResolvedValue([{ employeeId: 'e2', vector: [1, 2] }]);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([
+      { employeeId: 'e2', vector: [], vectorEnc: encryptVector([1, 2], 'unit-test-face-key') },
+    ]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await expect(repo.listActiveVectorsExcept('e1')).resolves.toEqual([
       { employeeId: 'e2', vector: [1, 2] },
     ]);
     expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
       where: { active: true, employeeId: { not: 'e1' } },
-      select: { employeeId: true, vector: true },
+      select: { employeeId: true, vector: true, vectorEnc: true },
     });
   });
 
   it('deactivateForEmployee → updateMany active:false', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').updateMany.mockResolvedValue({ count: 2 });
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await repo.deactivateForEmployee('e1');
     expect(m(p, 'faceEmbedding').updateMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', active: true },

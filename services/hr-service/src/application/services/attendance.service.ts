@@ -18,7 +18,7 @@ import {
   resolveShiftStart,
   shiftIdForDay,
 } from '../../domain/shift-rotation';
-import { uploadFrame } from '../../infrastructure/storage/upload-frame';
+import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
@@ -75,7 +75,7 @@ export class AttendanceService {
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;
     const photoUrl =
-      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
 
     // A punch that reached us within the auto-accept window is indistinguishable from a live
     // one — face and geofence were re-checked here either way, and the clock gap is trivial.
@@ -126,7 +126,7 @@ export class AttendanceService {
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
     const photoUrl =
-      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,

@@ -504,6 +504,9 @@ services:
       HR_FACE_MATCH_THRESHOLD: ${HR_FACE_MATCH_THRESHOLD:-0.62}
       HR_FACE_DUPLICATE_THRESHOLD: ${HR_FACE_DUPLICATE_THRESHOLD:-0.75}
       HR_FACE_MODEL_PATH: ${HR_FACE_MODEL_PATH:-./models/arcface.onnx}
+      # B-19: AES-256-GCM key for the enrolled face templates. `openssl rand -hex 32`.
+      # Changing it makes every existing enrolment undecryptable — employees re-enroll.
+      HR_FACE_ENCRYPTION_KEY: ${HR_FACE_ENCRYPTION_KEY:?set HR_FACE_ENCRYPTION_KEY (openssl rand -hex 32)}
       NEO_FR_ENDPOINT: ${NEO_FR_ENDPOINT:-https://fr.neoapi.id}
       NEO_FR_TOKEN: ${NEO_FR_TOKEN:-}
       NEO_FR_GALLERY_ID: ${NEO_FR_GALLERY_ID:-hydromart-hr}

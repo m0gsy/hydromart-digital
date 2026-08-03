@@ -315,6 +315,9 @@ services:
       # No ArcFace model / object storage in CI — the stub verifier runs the whole
       # attendance flow deterministically and photos are dropped.
       FACE_VERIFIER_DRIVER: stub
+      # B-19: face templates are encrypted at rest; production (which this stack claims to
+      # be) must supply the key. Throwaway value — the test data is throwaway too.
+      HR_FACE_ENCRYPTION_KEY: itest-face-encryption-key-0123456789abcdef
       # 'local' validates and the factory falls through to the no-op adapter
       # (only 's3' builds the real S3 client) — no bucket needed in CI.
       STORAGE_DRIVER: local

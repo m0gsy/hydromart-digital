@@ -33,6 +33,16 @@ export const envValidationSchema = Joi.object({
   HR_FACE_DUPLICATE_THRESHOLD: Joi.number().min(0).max(1).default(0.75),
   HR_FACE_MODEL_PATH: Joi.string().default('./models/arcface.onnx'),
   FACE_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // B-19: key the enrolled face templates are encrypted with at rest (AES-256-GCM).
+  // `openssl rand -hex 32`. Production must supply it — biometrics cannot be reissued
+  // after a leak, so they must never sit in the table (or a backup dump) in the clear.
+  // Rotating it makes existing enrolments undecryptable: employees must re-enroll.
+  HR_FACE_ENCRYPTION_KEY: Joi.string()
+    .allow('')
+    .default('')
+    // `.invalid('')` because a `when` branch is concat'ed onto the base key, and the base
+    // `.allow('')` would otherwise keep an empty key legal in production.
+    .when('NODE_ENV', { is: 'production', then: Joi.string().min(32).invalid('').required() }),
   // order-service base URL + shared internal key for the SALES_TOTAL bonus aggregate.
   // Both empty → SALES rules stay dormant (salesTotal resolves null, never fabricated).
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
