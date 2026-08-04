@@ -513,7 +513,7 @@ describe('OrderPrismaRepository', () => {
     expect(order.findMany).toHaveBeenCalledWith({
       where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: { in: ['depot-1'] } },
       include: expect.any(Object),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 10,
       take: 10,
     });
@@ -525,10 +525,29 @@ describe('OrderPrismaRepository', () => {
   it('searches with an empty where when no filters are given', async () => {
     order.findMany.mockResolvedValue([]);
     order.count.mockResolvedValue(0);
-    await repo.search({ page: 1, limit: 20 });
+    const out = await repo.search({ page: 1, limit: 20 });
     expect(order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: {}, skip: 0, take: 20 }),
     );
+    // A short page is the end of the list, so there is nothing to page on to.
+    expect(out.nextCursor).toBeNull();
+  });
+
+  it('seeks past a cursor instead of skipping an offset, and hands the next one back', async () => {
+    const rows = [
+      { ...orderRow(), id: 'o-1' },
+      { ...orderRow(), id: 'o-2' },
+    ];
+    order.findMany.mockResolvedValue(rows);
+    order.count.mockResolvedValue(50);
+
+    const out = await repo.search({ page: 9, limit: 2, cursor: 'o-0' });
+
+    // `page` is ignored once a cursor is given — honouring both would re-read or skip rows.
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'o-0' }, skip: 1, take: 2 }),
+    );
+    expect(out.nextCursor).toBe('o-2');
   });
 
   it('finds stale orders in the given statuses before a cutoff, oldest first and capped', async () => {

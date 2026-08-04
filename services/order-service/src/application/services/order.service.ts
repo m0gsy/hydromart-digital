@@ -111,6 +111,8 @@ export interface CheckoutInput {
 export interface ListOrdersInput {
   page?: number;
   limit?: number;
+  /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
   status?: OrderStatus;
   depotIds?: readonly string[];
   /** HQ tray of orders that reached no depot (legacy fail-open rows). */
@@ -1195,13 +1197,14 @@ export class OrderService {
     const query: OrderQuery = {
       page,
       limit,
+      cursor: input.cursor,
       customerId: input.customerId,
       status: input.status,
       depotIds: input.depotIds,
       unrouted: input.unrouted,
     };
-    const { items, total } = await this.orders.search(query);
-    return buildPage(items, total, page, limit);
+    const { items, total, nextCursor } = await this.orders.search(query);
+    return buildPage(items, total, page, limit, nextCursor);
   }
 
   /**

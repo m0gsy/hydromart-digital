@@ -90,6 +90,11 @@ export interface DeliveryQuery {
   status?: DeliveryStatus;
   page: number;
   limit: number;
+  /**
+   * Opaque keyset cursor — the previous page's `nextCursor`. Seeks straight to that row
+   * instead of walking every row before it (audit Q-16); `page` is ignored when set.
+   */
+  cursor?: string;
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
@@ -152,7 +157,9 @@ export interface DeliveryRepository {
   ): Promise<ContactState>;
   /** Contact-attempt count + first attempt time, for the no-show gate. */
   contactState(deliveryId: string): Promise<ContactState>;
-  search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }>;
+  search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Order ids the driver DELIVERED with `deliveredAt` in [from, to] — the orders a
    * shift's COD settlement is computed over. payment-service then filters these to

@@ -19,6 +19,12 @@ export interface AuditLogQuery {
   depotId?: string;
   /** Category chip (design 8b): OPNAME/RECEIPT/HARGA/SETORAN/STAF → action substrings. */
   type?: string;
+  /**
+   * Opaque keyset cursor — the previous page's `nextCursor`. The audit log is append-only
+   * and never stops growing, so an OFFSET deep into it walks everything before it
+   * (audit Q-16). `page` is ignored when this is set.
+   */
+  cursor?: string;
 }
 
 /**
@@ -50,5 +56,7 @@ export interface AuditLogRepository {
   deleteOlderThan(cutoff: Date): Promise<number>;
   record(entry: AuditLogEntry): Promise<void>;
   /** HQ list: recent entries, newest first, with actor identity resolved. */
-  list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }>;
+  list(
+    query: AuditLogQuery,
+  ): Promise<{ items: AuditLogListItem[]; total: number; nextCursor: string | null }>;
 }

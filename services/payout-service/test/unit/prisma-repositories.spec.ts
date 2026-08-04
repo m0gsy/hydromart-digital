@@ -320,13 +320,25 @@ describe('LedgerPrismaRepository', () => {
     const result = await repo.listForOwner('own-1', 2, 20);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { franchiseOwnerId: 'own-1' },
-      orderBy: { occurredAt: 'desc' },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       skip: 20, // (2-1)*20
       take: 20,
     });
     expect(model.count).toHaveBeenCalledWith({ where: { franchiseOwnerId: 'own-1' } });
     expect(result.total).toBe(1);
     expect(result.items[0].amount).toBe(5000);
+    // A short page ends the walk: nothing to page on to.
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('seeks past a ledger cursor rather than an offset (audit Q-16)', async () => {
+    model.findMany.mockResolvedValue([row]);
+    model.count.mockResolvedValue(900);
+    const result = await repo.listForOwner('own-1', 45, 1, 'led-0');
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'led-0' }, skip: 1, take: 1 }),
+    );
+    expect(result.nextCursor).toBe(row.id);
   });
 });
 

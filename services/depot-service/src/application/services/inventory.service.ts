@@ -745,8 +745,11 @@ export class InventoryService {
     if (!(await this.depots.findById(depotId, false))) {
       throw new DepotNotFoundError();
     }
-    const { items, total } = await this.inventory.listForDepotMovements(depotId, filter);
-    return buildPage(items, total, filter.page, filter.limit);
+    const { items, total, nextCursor } = await this.inventory.listForDepotMovements(
+      depotId,
+      filter,
+    );
+    return buildPage(items, total, filter.page, filter.limit, nextCursor);
   }
 
   private async require(itemId: string): Promise<InventoryItemRecord> {

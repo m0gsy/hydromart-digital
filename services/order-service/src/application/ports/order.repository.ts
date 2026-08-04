@@ -139,6 +139,13 @@ export interface OrderQuery {
   unrouted?: boolean;
   page: number;
   limit: number;
+  /**
+   * Opaque keyset cursor — the `nextCursor` of the previous page. When present the read
+   * seeks straight to that row instead of walking and discarding every row before it
+   * (audit Q-16); `page` is then ignored. Absent = the page-number behaviour clients have
+   * always had.
+   */
+  cursor?: string;
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
@@ -301,7 +308,7 @@ export interface OrderRepository {
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
-  search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
+  search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.
    * Oldest first and capped at `limit`, so one tick cannot try to load an unbounded

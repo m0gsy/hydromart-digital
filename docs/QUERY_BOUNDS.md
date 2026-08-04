@@ -76,10 +76,16 @@ an index with no entry in the runner.
   web client's `endpoints.ts` is hand-maintained (F-17).
   `scripts/check-api-responses.mjs` holds the line: a new undocumented route fails CI, and
   `--update` re-records the baseline once you have lowered it.
-- **Q-16 — OFFSET pagination.** List endpoints still page with `skip: (page-1) * limit`.
-  Bounded now (page ≤ 1000) and index-backed, so the cost has a ceiling, but a deep page
-  still scans everything before it. Keyset pagination is the real fix and changes the
-  client contract, so it belongs with the frontend work.
+- **Q-16 — OFFSET pagination.** Closed by ADDING a keyset path, not by replacing the
+  page-number one: `pageArgs`/`nextCursor` in `@hydromart/platform`, `cursor?` on the query
+  DTO, `nextCursor` on the response envelope. Live on the six lists that grow without
+  bound — orders, deliveries, stock movements, payments, the auth audit log and the owner
+  ledger. Every one of them orders by `…, id` so a cursor cannot straddle two rows written
+  in the same tick, and ignores `page` while a cursor is set.
+
+  A client that sends no cursor gets exactly what it always got, so nothing in `apps/web`
+  had to change. The remaining paginated lists are small, operator-facing and page-bounded
+  (page ≤ 1000); they can take the same three-line treatment if one of them ever grows.
 - **D-7** is the audit's reference map rather than a finding: the per-service
   `findMany`-without-`take` ratio. It was the targeting data for the work above; the ratio
   is what the middleware now bounds, and the report reads are the ones that got a real

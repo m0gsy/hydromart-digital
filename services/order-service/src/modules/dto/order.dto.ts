@@ -113,12 +113,12 @@ export class CheckoutDto {
 }
 
 export class ListOrdersQueryDto {
-  // Bound the OFFSET skip: page*limit is a keyset-free offset, so an unbounded page
-  // (page=1e6) would make Postgres walk ~100M rows. With limit<=100 and the
-  // (status|depot, createdAt) composite indexes, page<=1000 caps the skip at ~100k
-  // rows (sub-100ms index walk). No list UI paginates past page 1, so this is a pure
-  // DoS guard. ponytail: bounded offset; swap to a cursor param only if an
-  // infinite-scroll UI ever needs to page deeper than this (DB-6).
+  // Bound the OFFSET skip: page*limit is an offset, so an unbounded page (page=1e6)
+  // would make Postgres walk ~100M rows. With limit<=100 and the (status|depot,
+  // createdAt) composite indexes, page<=1000 caps the skip at ~100k rows.
+  //
+  // `cursor` below is the way past that ceiling without an offset at all (audit Q-16):
+  // pass the previous response's `nextCursor` and the read seeks straight to that row.
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
@@ -134,6 +134,16 @@ export class ListOrdersQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Keyset cursor from the previous response (`nextCursor`). Reads the next page ' +
+      'without an OFFSET; `page` is ignored when this is given.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  cursor?: string;
 
   @ApiPropertyOptional({ enum: OrderStatus })
   @IsOptional()

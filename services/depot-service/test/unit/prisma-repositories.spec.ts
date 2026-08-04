@@ -1135,6 +1135,36 @@ describe('InventoryPrismaRepository', () => {
     expect(out[0].type).toBe(StockMovementType.ADJUSTMENT);
   });
 
+  it('seeks past a movement cursor instead of an offset (stock_movements grows fastest)', async () => {
+    stockMovement.findMany.mockResolvedValue([
+      {
+        id: 'mv-9',
+        itemId: 'it-1',
+        type: 'SALE',
+        delta: -1,
+        quantityBefore: 5,
+        quantityAfter: 4,
+        reason: null,
+        actorId: 'staff-1',
+        orderId: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+        item: { label: 'Galon 19L', itemType: 'GALON' },
+      },
+    ]);
+    stockMovement.count.mockResolvedValue(5000);
+
+    const out = await repo.listForDepotMovements('depot-1', {
+      page: 40,
+      limit: 1,
+      cursor: 'mv-8',
+    });
+
+    expect(stockMovement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'mv-8' }, skip: 1, take: 1 }),
+    );
+    expect(out.nextCursor).toBe('mv-9');
+  });
+
   it('lists one page of depot movements with item labels and filters', async () => {
     const from = new Date('2026-07-01T00:00:00.000Z');
     const to = new Date('2026-08-01T00:00:00.000Z');
@@ -1183,13 +1213,14 @@ describe('InventoryPrismaRepository', () => {
         createdAt: true,
         item: { select: { label: true, itemType: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 20,
       take: 20,
     });
     expect(stockMovement.count).toHaveBeenCalledWith({ where });
     expect(out).toEqual({
       total: 21,
+      nextCursor: null,
       items: [
         expect.objectContaining({
           id: 'mv-1',

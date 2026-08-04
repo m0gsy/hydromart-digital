@@ -19,6 +19,16 @@ import { AUDIT_CATEGORIES } from '../../../application/services/audit.service';
 const AUDIT_CATEGORY_KEYS = Object.keys(AUDIT_CATEGORIES);
 
 export class AuditQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Keyset cursor from the previous response (`nextCursor`). Reads the next page ' +
+      'without an OFFSET; `page` is ignored when this is given.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  cursor?: string;
+
   @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere, readAllPages } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
@@ -369,7 +369,9 @@ export class OrderPrismaRepository implements OrderRepository {
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
 
-  async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
+  async search(
+    query: OrderQuery,
+  ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -383,13 +385,18 @@ export class OrderPrismaRepository implements OrderRepository {
       this.prisma.order.findMany({
         where,
         include: INCLUDE,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor is unambiguous: two orders created in the same
+        // millisecond would otherwise be returned twice or skipped between pages.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.order.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
   async findStaleIn(

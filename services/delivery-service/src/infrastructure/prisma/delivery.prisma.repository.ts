@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -204,7 +204,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return { attempts, firstAttemptAt: first?.createdAt ?? null };
   }
 
-  async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
+  async search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
       ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
@@ -214,13 +216,17 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       this.prisma.delivery.findMany({
         where,
         include: INCLUDE,
-        orderBy: { assignedAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor is unambiguous between rows assigned in the same tick.
+        orderBy: [{ assignedAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.delivery.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
   async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {

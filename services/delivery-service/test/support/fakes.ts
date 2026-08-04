@@ -142,16 +142,23 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     return { attempts: mine.length, firstAttemptAt: mine[0]?.createdAt ?? null };
   }
-  async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
+  async search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }> {
     const all = this.rows
       .filter((r) => !query.driverId || r.driverId === query.driverId)
       .filter((r) => !query.depotIds || (r.depotId != null && query.depotIds.includes(r.depotId)))
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
-    const start = (query.page - 1) * query.limit;
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((r) => r.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
     return {
-      items: all.slice(start, start + query.limit).map((r) => clone(r)),
+      items: items.map((r) => clone(r)),
       total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
   async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {

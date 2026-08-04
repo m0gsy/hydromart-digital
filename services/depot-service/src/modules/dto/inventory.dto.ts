@@ -38,6 +38,16 @@ export class ListInventoryQueryDto {
 }
 
 export class ListStockMovementsQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Keyset cursor from the previous response (`nextCursor`). Reads the next page ' +
+      'without an OFFSET; `page` is ignored when this is given.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  cursor?: string;
+
   @ApiPropertyOptional({ enum: StockMovementType })
   @IsOptional()
   @IsEnum(StockMovementType)

@@ -243,7 +243,9 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter((r) => r.createdAt >= from && r.createdAt <= to)
       .reduce((t, r) => t + Math.round(r.total), 0);
   }
-  async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
+  async search(
+    query: OrderQuery,
+  ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {
     const all = this.rows
       .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.status || r.status === query.status)
@@ -255,10 +257,15 @@ export class InMemoryOrderRepository implements OrderRepository {
           (r.depotId != null && query.depotIds.includes(r.depotId)),
       )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    const start = (query.page - 1) * query.limit;
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((r) => r.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
     return {
-      items: all.slice(start, start + query.limit).map((r) => structuredClone(r)),
+      items: items.map((r) => structuredClone(r)),
       total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
   async findStaleIn(

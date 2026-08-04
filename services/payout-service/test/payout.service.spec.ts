@@ -95,8 +95,12 @@ class FakeLedger implements LedgerRepository {
   async sumByType(): Promise<number> {
     return 0;
   }
-  async listForOwner(): Promise<{ items: LedgerEntryRecord[]; total: number }> {
-    return { items: this.entries, total: this.entries.length };
+  async listForOwner(): Promise<{
+    items: LedgerEntryRecord[];
+    total: number;
+    nextCursor: string | null;
+  }> {
+    return { items: this.entries, total: this.entries.length, nextCursor: null };
   }
 }
 

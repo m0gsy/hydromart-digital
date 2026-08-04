@@ -327,7 +327,9 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     }
     this.entries.push(entry);
   }
-  async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+  async list(
+    query: AuditLogQuery,
+  ): Promise<{ items: AuditLogListItem[]; total: number; nextCursor: string | null }> {
     const category = query.type ? AUDIT_CATEGORIES[query.type] : undefined;
     const all = this.entries
       .filter((e) => !query.action || e.action === query.action)
@@ -356,8 +358,16 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
         }),
       )
       .reverse();
-    const start = (query.page - 1) * query.limit;
-    return { items: all.slice(start, start + query.limit), total: all.length };
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((e) => e.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
+    return {
+      items,
+      total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
+    };
   }
   actions(): string[] {
     return this.entries.map((e) => e.action);
