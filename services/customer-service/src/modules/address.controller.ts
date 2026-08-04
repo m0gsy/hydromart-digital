@@ -17,6 +17,7 @@ import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 import { AddressService } from '../application/services/address.service';
 import { AddressRecord } from '../application/ports/address.repository';
 import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
+import { AddressResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Addresses')
 @ApiBearerAuth()
@@ -24,12 +25,14 @@ import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 export class AddressController {
   constructor(private readonly addresses: AddressService) {}
 
+  @ApiOkResponse({ type: AddressResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List my delivery addresses' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<AddressRecord[]> {
     return this.addresses.list(user.sub);
   }
 
+  @ApiOkResponse({ type: AddressResponseDto })
   @Post()
   @ApiOperation({ summary: 'Add a delivery address (max 20, first becomes primary)' })
   create(
@@ -49,6 +52,7 @@ export class AddressController {
     return this.addresses.getOrThrow(user.sub, id);
   }
 
+  @ApiOkResponse({ type: AddressResponseDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Update one of my addresses' })
   update(
@@ -59,6 +63,7 @@ export class AddressController {
     return this.addresses.update(user.sub, id, dto);
   }
 
+  @ApiOkResponse({ type: AddressResponseDto })
   @Post(':id/primary')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set an address as primary' })
@@ -69,6 +74,7 @@ export class AddressController {
     return this.addresses.setPrimary(user.sub, id);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete one of my addresses' })

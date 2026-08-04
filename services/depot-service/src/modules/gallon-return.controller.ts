@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotOwnership } from '@hydromart/platform';
 
@@ -11,6 +11,7 @@ import {
 } from '../application/ports/gallon-return.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonReturnDto, ListReturnsQueryDto } from './dto/gallon-return.dto';
+import { GallonReturnResponseDto, PagedGallonReturnResponseDto } from './dto/responses.generated.dto';
 
 /** Empty-gallon returns / deposit refunds nested under a depot (PRD Module 11). */
 @ApiTags('Gallon returns')
@@ -22,6 +23,7 @@ export class GallonReturnController {
     private readonly depots: DepotService,
   ) {}
 
+  @ApiOkResponse({ type: GallonReturnResponseDto })
   @Can('returnsWrite')
   @Post()
   @ApiOperation({ summary: 'Record an empty-gallon return (staff)' })
@@ -44,6 +46,7 @@ export class GallonReturnController {
   }
 
   // Static `summary` segment declared before the paginated list so the route is unambiguous.
+  @ApiOkResponse({ type: GallonReturnResponseDto })
   @Can('returnsRead')
   @Get('summary')
   @ApiOperation({ summary: "A depot's return totals (count, gallons, deposit refunded)" })
@@ -55,6 +58,7 @@ export class GallonReturnController {
     return this.returns.summary(depotId);
   }
 
+  @ApiOkResponse({ type: PagedGallonReturnResponseDto })
   @Can('returnsRead')
   @Get()
   @ApiOperation({ summary: "List a depot's gallon returns (paginated, newest first)" })

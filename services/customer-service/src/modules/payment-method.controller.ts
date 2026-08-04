@@ -10,13 +10,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { PaymentMethodService } from '../application/services/payment-method.service';
 import { PaymentMethodRecord } from '../application/ports/payment-method.repository';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
+import { PaymentMethodResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Payment methods')
 @ApiBearerAuth()
@@ -24,12 +25,14 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 export class PaymentMethodController {
   constructor(private readonly methods: PaymentMethodService) {}
 
+  @ApiOkResponse({ type: PaymentMethodResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List my saved payment methods' })
   list(@CurrentUser() user: AuthenticatedUser): Promise<PaymentMethodRecord[]> {
     return this.methods.list(user.sub);
   }
 
+  @ApiOkResponse({ type: PaymentMethodResponseDto })
   @Post()
   @ApiOperation({ summary: 'Save a payment method (first becomes default)' })
   create(
@@ -39,6 +42,7 @@ export class PaymentMethodController {
     return this.methods.create(user.sub, dto);
   }
 
+  @ApiOkResponse({ type: PaymentMethodResponseDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Update one of my payment methods' })
   update(
@@ -49,6 +53,7 @@ export class PaymentMethodController {
     return this.methods.update(user.sub, id, dto);
   }
 
+  @ApiOkResponse({ type: PaymentMethodResponseDto })
   @Post(':id/default')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Set a payment method as default' })
@@ -59,6 +64,7 @@ export class PaymentMethodController {
     return this.methods.setDefault(user.sub, id);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete one of my payment methods' })

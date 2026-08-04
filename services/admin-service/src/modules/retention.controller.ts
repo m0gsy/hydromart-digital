@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -13,6 +13,7 @@ import {
   RetentionPolicyDto,
   UpdateRetentionDto,
 } from './dto/retention.dto';
+import { PurgeRunResponseDto } from './dto/responses.generated.dto';
 
 // Design 19e — retention windows per dataset + read-only backup status. SUPER_ADMIN only.
 // Backup status has NO engine wired → it is returned and labeled honestly, never faked.
@@ -26,6 +27,7 @@ export class RetentionController {
     private readonly purge: PurgeService,
   ) {}
 
+  @ApiOkResponse({ type: RetentionOverviewDto })
   @Get()
   @ApiOperation({ summary: 'List retention windows + read-only backup status (19e)' })
   async get(): Promise<RetentionOverviewDto> {
@@ -39,6 +41,7 @@ export class RetentionController {
     };
   }
 
+  @ApiOkResponse({ type: PurgePlanEntryDto, isArray: true })
   @Get('purge-plan')
   @ApiOperation({
     summary: 'What a purge would be allowed to delete today, per dataset (M23-21)',
@@ -48,6 +51,7 @@ export class RetentionController {
     return (await this.retention.purgeCutoffs()).map(PurgePlanEntryDto.from);
   }
 
+  @ApiOkResponse({ type: PurgeRunResponseDto })
   @Post('purge')
   @ApiOperation({
     summary: 'Run the retention sweep now',
@@ -63,6 +67,7 @@ export class RetentionController {
    * crond has no JWT to present. @Public() bypasses the global JWT guard; InternalAuthGuard
    * is then the sole, fail-closed auth.
    */
+  @ApiOkResponse({ type: PurgeRunResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -95,6 +100,7 @@ export class RetentionController {
     );
   }
 
+  @ApiOkResponse({ type: RetentionPolicyDto })
   @Put(':id')
   @ApiOperation({ summary: "Update one dataset's retention window" })
   async update(

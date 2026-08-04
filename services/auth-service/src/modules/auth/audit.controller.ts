@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -7,6 +7,7 @@ import { AuditService } from '../../application/services/audit.service';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { AuditLogDto, AuditQueryDto, DepotAuditQueryDto, IngestAuditDto } from './dto/audit.dto';
+import { Ingest3ResponseDto, List3ResponseDto } from '../dto/responses.generated.dto';
 
 @ApiTags('Audit')
 @ApiBearerAuth()
@@ -16,6 +17,7 @@ export class AuditController {
 
   // HQ audit trail (feature 8a): recent privileged actions across services, newest
   // first. Read is head-office / super-admin only.
+  @ApiOkResponse({ type: List3ResponseDto })
   @Can('hqConsole')
   @Get('auth/audit')
   @ApiOperation({ summary: 'List recent audit entries (HQ, paginated, newest first)' })
@@ -37,6 +39,7 @@ export class AuditController {
   // Depot-scoped audit trail (design 8b): a depot operator/manager sees their own
   // depot's privileged actions. auditRead spans depot roles + HQ. depotId is required
   // by the DTO, so this route can never fan out to the whole network.
+  @ApiOkResponse({ type: List3ResponseDto })
   @Can('auditRead')
   @Get('auth/audit/depot')
   @ApiOperation({ summary: 'List a depot-scoped audit trail (newest first, category chips)' })
@@ -58,6 +61,7 @@ export class AuditController {
   // Service-to-service ingest: another service records a privileged action it
   // performed. @Public() bypasses the JWT guard; InternalAuthGuard (shared key) is
   // then the sole, fail-closed auth.
+  @ApiOkResponse({ type: Ingest3ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

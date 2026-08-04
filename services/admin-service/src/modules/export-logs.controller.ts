@@ -8,13 +8,14 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ExportStatus } from '../domain/export';
 import { ExportLogService } from '../application/services/export-log.service';
 import { ExportLogDto, ExportLogQueryDto, IngestExportLogDto } from './dto/export-log.dto';
+import { List3ResponseDto } from './dto/responses.generated.dto';
 
 // Design 13c — data-export audit log. HEAD_OFFICE + SUPER_ADMIN read (paginated,
 // newest-first, filter by dataset/status). Ingest is service-to-service (internal key).
@@ -24,6 +25,7 @@ import { ExportLogDto, ExportLogQueryDto, IngestExportLogDto } from './dto/expor
 export class ExportLogsController {
   constructor(private readonly exports: ExportLogService) {}
 
+  @ApiOkResponse({ type: List3ResponseDto })
   @Can('hqConsole')
   @Get()
   @ApiOperation({ summary: 'List export log entries (13c, paginated, newest first)' })
@@ -44,6 +46,7 @@ export class ExportLogsController {
 
   // Service-to-service ingest: an export job records its own run. @Public() bypasses the
   // JWT guard; InternalAuthGuard (shared key) is then the sole, fail-closed auth.
+  @ApiOkResponse({ type: ExportLogDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

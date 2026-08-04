@@ -19,6 +19,7 @@ import { ProductService } from '../application/services/product.service';
 import { ProductRecord } from '../application/ports/product.repository';
 import { Page } from '../application/pagination';
 import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { PagedProductResponseDto, ProductResponseDto } from './dto/responses.generated.dto';
 
 const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
@@ -27,6 +28,7 @@ const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 export class ProductController {
   constructor(private readonly products: ProductService) {}
 
+  @ApiOkResponse({ type: PagedProductResponseDto })
   @Public()
   @Get()
   @ApiOperation({ summary: 'Browse the catalog (paginated, active products only)' })
@@ -38,6 +40,7 @@ export class ProductController {
   // who unticked "aktif" could never tick it back. Admins get the unfiltered set on
   // their own route rather than a flag on the public one — nothing extra leaks to the
   // shop. Declared above `:id` so 'all' is not parsed as a product id.
+  @ApiOkResponse({ type: PagedProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Get('all')
@@ -54,6 +57,7 @@ export class ProductController {
     return this.products.get(id, true);
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Post()
@@ -73,6 +77,7 @@ export class ProductController {
     });
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Patch(':id')
@@ -84,6 +89,7 @@ export class ProductController {
     return this.products.update(id, dto);
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Delete(':id')

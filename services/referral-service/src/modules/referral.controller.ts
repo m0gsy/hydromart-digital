@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -25,6 +25,8 @@ import {
   ReferralPageQueryDto,
   ReferralSummaryDto,
 } from './dto/referral.dto';
+import { QualifyResult } from '../application/services/referral.service';
+import { QualifyResponseDto } from './dto/responses.generated.dto';
 
 // Qualification is triggered when the referee's first order completes. It is a
 // system-to-system call from order-service, authenticated by the shared
@@ -43,6 +45,7 @@ export class ReferralController {
 
   // Static `me/...` routes are declared before any `:param` route to avoid capture.
 
+  @ApiOkResponse({ type: ReferralCodeDto })
   @ApiBearerAuth()
   @Get('me/code')
   @ApiOperation({ summary: "Get the current customer's referral code (FR-092, lazy-created)" })
@@ -50,6 +53,7 @@ export class ReferralController {
     return ReferralCodeDto.from(await this.referrals.getOrCreateMyCode(user.sub));
   }
 
+  @ApiOkResponse({ type: ReferralSummaryDto })
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: "Get the current customer's referral summary (code + referrals)" })
@@ -62,6 +66,7 @@ export class ReferralController {
     );
   }
 
+  @ApiOkResponse({ type: ReferralDto })
   @ApiBearerAuth()
   @Post()
   @ApiOperation({ summary: 'Redeem a referral code as a new customer (FR-092)' })
@@ -72,17 +77,19 @@ export class ReferralController {
     return ReferralDto.from(await this.referrals.redeem(user.sub, dto.code));
   }
 
+  @ApiOkResponse({ type: QualifyResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('qualify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Qualify a referee's referral on order completion (internal service auth, idempotent)" })
-  qualify(@Body() dto: QualifyReferralDto) {
+  qualify(@Body() dto: QualifyReferralDto): Promise<QualifyResult> {
     // Reward is awarded via referral's own internal-key call to loyalty (no forwarded token).
     return this.referrals.qualify(dto.customerId, dto.orderId, '');
   }
 
+  @ApiOkResponse({ type: DepotReferralSummaryDto })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('depot-summary')
@@ -91,6 +98,7 @@ export class ReferralController {
     return DepotReferralSummaryDto.from(await this.referrals.depotSummary(query.depotId));
   }
 
+  @ApiOkResponse({ type: ReferralSummaryDto })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('customers/:customerId')

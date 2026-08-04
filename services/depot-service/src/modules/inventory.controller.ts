@@ -14,7 +14,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, ImportSummary } from '@hydromart/platform';
 
@@ -42,6 +42,7 @@ import {
   UpdateInventoryItemDto,
   WastageQueryDto,
 } from './dto/inventory.dto';
+import { ConsumeResponseDto, ImportResponseDto, ItemResponseDto, PagedDepotStockMovementResponseDto, ProductChangedResponseDto, ReleaseResponseDto, ReservationResponseDto, ReserveResponseDto, ResolvedProductPriceResponseDto, RestockResponseDto, StockMovementResponseDto, WastageResponseDto } from './dto/responses.generated.dto';
 
 // SEC-2: reserve/consume/release are service-to-service (order-service on checkout /
 // cancel / completion), NOT end-user actions. They authenticate with the shared
@@ -59,6 +60,7 @@ export class DepotInventoryController {
     private readonly pricing: PricingService,
   ) {}
 
+  @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryWrite')
   @Post()
   @ApiOperation({ summary: 'Add a stock line to a depot (staff)' })
@@ -83,6 +85,7 @@ export class DepotInventoryController {
     );
   }
 
+  @ApiOkResponse({ type: ImportResponseDto })
   @Can('inventoryWrite')
   @Post('import')
   @ApiOperation({ summary: 'Bulk-create stock lines from the CSV wizard (staff)' })
@@ -110,6 +113,7 @@ export class DepotInventoryController {
   // Public price lookup for checkout (order-service). Declared before the ':...'
   // routes so the static 'prices' segment wins. Prices are customer-facing, so no
   // auth — like the public product catalog. productIds is a comma-separated list.
+  @ApiOkResponse({ type: ResolvedProductPriceResponseDto, isArray: true })
   @Public()
   @Get('prices')
   @ApiOperation({
@@ -133,6 +137,7 @@ export class DepotInventoryController {
     return this.pricing.resolvePrices(depotId, ids, new Date(), qty);
   }
 
+  @ApiOkResponse({ type: PagedDepotStockMovementResponseDto })
   @Can('inventoryRead')
   @Get('movements')
   @ApiOperation({ summary: "List a depot's stock movements (paginated, newest first)" })
@@ -154,6 +159,7 @@ export class DepotInventoryController {
     });
   }
 
+  @ApiOkResponse({ type: ItemResponseDto, isArray: true })
   @Can('inventoryRead')
   @Get()
   @ApiOperation({ summary: "List a depot's stock lines (staff)" })
@@ -167,6 +173,7 @@ export class DepotInventoryController {
     });
   }
 
+  @ApiOkResponse({ type: ConsumeResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -181,6 +188,7 @@ export class DepotInventoryController {
     return this.inventory.consumeForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
   }
 
+  @ApiOkResponse({ type: ReserveResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -193,6 +201,7 @@ export class DepotInventoryController {
     return this.inventory.reserveForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
   }
 
+  @ApiOkResponse({ type: RestockResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -207,6 +216,7 @@ export class DepotInventoryController {
     return this.inventory.restockForOrder(depotId, dto.orderId, dto.items, INVENTORY_ACTOR);
   }
 
+  @ApiOkResponse({ type: ReleaseResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -232,6 +242,7 @@ export class InventoryController {
   // Pushed by product-service when a product is renamed or switched off, so the lines
   // that copied its name do not keep showing the old one. Declared before ':itemId' so
   // the static segment wins the route match.
+  @ApiOkResponse({ type: ProductChangedResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -247,6 +258,7 @@ export class InventoryController {
   }
 
   // Declared before ':itemId' so the static segment wins the route match.
+  @ApiOkResponse({ type: ItemResponseDto, isArray: true })
   @Can('inventoryRead')
   @Get('low-stock')
   @ApiOperation({ summary: 'List low-stock lines, optionally for one depot (FR-074)' })
@@ -255,6 +267,7 @@ export class InventoryController {
   }
 
   // Static segment: declared before ':itemId' so it wins the route match.
+  @ApiOkResponse({ type: WastageResponseDto })
   @Can('inventoryRead')
   @Get('wastage')
   @ApiOperation({ summary: 'Depot wastage summary from negative ADJUSTMENT movements' })
@@ -266,6 +279,7 @@ export class InventoryController {
     );
   }
 
+  @ApiOkResponse({ type: ReservationResponseDto, isArray: true })
   @Can('inventoryRead')
   @Get(':itemId/reservations')
   @ApiOperation({ summary: 'Active order holds on one stock line (what "dipesan" is)' })
@@ -273,6 +287,7 @@ export class InventoryController {
     return this.inventory.listReservations(itemId);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('inventoryWrite')
   @Delete(':itemId')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -283,6 +298,7 @@ export class InventoryController {
     return this.inventory.deleteLine(itemId);
   }
 
+  @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryRead')
   @Get(':itemId')
   @ApiOperation({ summary: 'Get a stock line by id (staff)' })
@@ -290,6 +306,7 @@ export class InventoryController {
     return this.inventory.get(itemId);
   }
 
+  @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryWrite')
   @Patch(':itemId')
   @ApiOperation({ summary: 'Update a stock line label/unit/minimum (staff)' })
@@ -300,6 +317,7 @@ export class InventoryController {
     return this.inventory.updateMeta(itemId, dto);
   }
 
+  @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryWrite')
   @Post(':itemId/adjust')
   @ApiOperation({ summary: 'Adjust stock by a signed delta (FR-072, staff)' })
@@ -312,6 +330,7 @@ export class InventoryController {
     return this.inventory.adjust(itemId, dto.delta, dto.reason ?? null, user.sub, authorization);
   }
 
+  @ApiOkResponse({ type: ItemResponseDto })
   @Can('inventoryWrite')
   @Post(':itemId/opname')
   @ApiOperation({ summary: 'Reconcile stock to a physical count (FR-073, staff)' })
@@ -330,6 +349,7 @@ export class InventoryController {
     );
   }
 
+  @ApiOkResponse({ type: StockMovementResponseDto, isArray: true })
   @Can('inventoryRead')
   @Get(':itemId/movements')
   @ApiOperation({ summary: 'Stock movement history for a line (staff)' })

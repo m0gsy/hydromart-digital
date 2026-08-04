@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -17,6 +17,7 @@ import { PdpRepository } from '../application/ports/pdp.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 import { PdpCustomerDto } from './dto/pdp.dto';
+import { CrmDashboardResponseDto, CustomerIdsByDepot2ResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Service-to-service reads (no end-user token). @Public() bypasses the global JWT guard;
@@ -46,6 +47,7 @@ export class InternalController {
     return this.pdp.exportFor(customerId);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Post('internal/pdp-anonymise')
   @HttpCode(204)
   @ApiOperation({
@@ -55,6 +57,7 @@ export class InternalController {
     return this.pdp.anonymise(dto.customerId);
   }
 
+  @ApiOkResponse({ type: CustomerIdsByDepot2ResponseDto })
   @Get('internal/by-depot')
   @ApiOperation({ summary: 'List customerIds whose favourite depot is the given depot (internal)' })
   async customerIdsByDepot(
@@ -65,6 +68,7 @@ export class InternalController {
 
   // dashboard-service pulls per-depot CRM segments + follow-up count for the owner
   // franchise dashboard (Fase 5). Same CRM lifecycle math as the bearer-gated dashboard.
+  @ApiOkResponse({ type: CrmDashboardResponseDto })
   @Get('internal/crm-summary')
   @ApiOperation({ summary: 'Per-depot CRM lifecycle summary (internal service auth)' })
   crmSummary(@Query('depotId', ParseUUIDPipe) depotId: string): Promise<CrmDashboard> {

@@ -9,7 +9,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -29,6 +29,7 @@ import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dt
 export class WebhooksController {
   constructor(private readonly webhooks: WebhookService) {}
 
+  @ApiOkResponse({ type: WebhookDto, isArray: true })
   @Get()
   @ApiOperation({
     summary: 'List webhook endpoints (19c)',
@@ -39,6 +40,7 @@ export class WebhooksController {
     return (await this.webhooks.list()).map((w) => WebhookDto.from(w));
   }
 
+  @ApiOkResponse({ type: WebhookDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a webhook endpoint' })
@@ -46,12 +48,14 @@ export class WebhooksController {
     return WebhookDto.from(await this.webhooks.create(dto));
   }
 
+  @ApiOkResponse({ type: WebhookDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Toggle / edit a webhook endpoint' })
   async update(@Param('id') id: string, @Body() dto: UpdateWebhookDto): Promise<WebhookDto> {
     return WebhookDto.from(await this.webhooks.update(id, dto));
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a webhook endpoint' })

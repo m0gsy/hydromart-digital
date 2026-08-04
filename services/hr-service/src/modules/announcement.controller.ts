@@ -9,12 +9,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AnnouncementService } from '../application/services/announcement.service';
 import { CreateAnnouncementDto, ListAnnouncementDto } from './dto/announcement.dto';
+import { AnnouncementWithTargets } from '../application/ports/announcement.repository';
+import { AnnouncementStats } from '../application/services/announcement.service';
+import { AnnouncementWithTargetsResponseDto, GetByIdResponseDto, MarkRead3ResponseDto, PublishDue3ResponseDto } from './dto/responses.generated.dto';
 
 /** Writing and tracking announcements. Read hrView, write hrAdmin. */
 @ApiTags('HR Announcements')
@@ -30,17 +33,19 @@ export class AnnouncementController {
     return this.announcements.list(q.page, q.pageSize);
   }
 
+  @ApiOkResponse({ type: GetByIdResponseDto })
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'One announcement with its targets and read statistics' })
-  getById(@Param('id', ParseUUIDPipe) id: string) {
+  getById(@Param('id', ParseUUIDPipe) id: string): Promise<AnnouncementWithTargets & AnnouncementStats> {
     return this.announcements.getById(id);
   }
 
+  @ApiOkResponse({ type: AnnouncementWithTargetsResponseDto })
   @Post()
   @Can('hrAdmin')
   @ApiOperation({ summary: 'Write an announcement (sends now unless scheduledAt is in future)' })
-  create(@Body() dto: CreateAnnouncementDto, @CurrentUser() user: AuthenticatedUser) {
+  create(@Body() dto: CreateAnnouncementDto, @CurrentUser() user: AuthenticatedUser): Promise<AnnouncementWithTargets> {
     return this.announcements.create(user, dto);
   }
 
@@ -49,13 +54,14 @@ export class AnnouncementController {
    * expireAbandoned: one sweep, driven from outside, instead of a timer inside every
    * replica racing to send the same notice.
    */
+  @ApiOkResponse({ type: PublishDue3ResponseDto })
   @Post('publish-due')
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @HttpCode(200)
   @ApiOperation({ summary: 'Publish scheduled announcements that are now due (internal)' })
-  publishDue() {
+  publishDue(): Promise<{ published: number }> {
     return this.announcements.publishDue();
   }
 }
@@ -69,14 +75,15 @@ export class SelfAnnouncementController {
 
   @Get()
   @ApiOperation({ summary: 'Announcements addressed to me, newest first' })
-  list(@CurrentUser() user: AuthenticatedUser) {
+  list(@CurrentUser() user: AuthenticatedUser): Promise<(AnnouncementWithTargets & { read: boolean })[]> {
     return this.announcements.listForSelf(user);
   }
 
+  @ApiOkResponse({ type: MarkRead3ResponseDto })
   @Post(':id/read')
   @HttpCode(200)
   @ApiOperation({ summary: 'Mark an announcement read (idempotent)' })
-  markRead(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  markRead(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<{ readAt: Date }> {
     return this.announcements.markRead(user, id);
   }
 }

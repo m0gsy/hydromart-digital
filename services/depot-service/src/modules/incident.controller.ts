@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { IncidentService } from '../application/services/incident.service';
 import { Incident } from '../domain/incident';
 import { CreateIncidentDto, ListIncidentQueryDto, ResolveIncidentDto } from './dto/incident.dto';
+import { IncidentResponseDto } from './dto/responses.generated.dto';
 
 /** Depot operational incidents inbox (design 6b operator + 13b manager). */
 @ApiTags('Incidents')
@@ -15,6 +16,7 @@ import { CreateIncidentDto, ListIncidentQueryDto, ResolveIncidentDto } from './d
 export class IncidentController {
   constructor(private readonly incidents: IncidentService) {}
 
+  @ApiOkResponse({ type: IncidentResponseDto })
   @Post()
   @ApiOperation({ summary: 'Record a depot incident' })
   record(
@@ -35,12 +37,14 @@ export class IncidentController {
     );
   }
 
+  @ApiOkResponse({ type: IncidentResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's incidents (newest first), optional status filter" })
   list(@Query() query: ListIncidentQueryDto): Promise<Incident[]> {
     return this.incidents.list(query.depotId, { status: query.status });
   }
 
+  @ApiOkResponse({ type: IncidentResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get one incident' })
   async get(
@@ -52,6 +56,7 @@ export class IncidentController {
     return incident;
   }
 
+  @ApiOkResponse({ type: IncidentResponseDto })
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve an incident with a resolution note' })
   async resolve(

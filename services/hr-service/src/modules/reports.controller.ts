@@ -1,5 +1,5 @@
 import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
@@ -14,6 +14,8 @@ import {
   PayrollReportQueryDto,
   RangeReportQueryDto,
 } from './dto/reports.dto';
+import { HrDashboard, HrDepotSummary } from '../application/services/analytics.service';
+import { HrDashboardResponseDto, HrDepotResponseDto } from './dto/responses.generated.dto';
 
 /** HR dashboard aggregations + CSV/XLSX exports (?format=xlsx). Read = hrView, depot-scoped. */
 @ApiTags('HR Reports')
@@ -22,15 +24,17 @@ import {
 export class ReportsController {
   constructor(private readonly analytics: AnalyticsService) {}
 
+  @ApiOkResponse({ type: HrDashboardResponseDto })
   @Get('dashboard')
   @Can('hrView')
   @ApiOperation({ summary: 'HR dashboard: headcount, today’s attendance, payroll totals' })
-  dashboard(@Query() q: DashboardQueryDto, @CurrentUser() user: AuthenticatedUser) {
+  dashboard(@Query() q: DashboardQueryDto, @CurrentUser() user: AuthenticatedUser): Promise<HrDashboard> {
     return this.analytics.dashboard(user, q);
   }
 
   // Service-to-service: dashboard-service pulls a per-depot HR summary for the owner
   // franchise dashboard (Fase 5). Internal key auth, same fail-closed path as other services.
+  @ApiOkResponse({ type: HrDepotResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -38,7 +42,7 @@ export class ReportsController {
   @ApiOperation({
     summary: 'Per-depot HR summary: late/absent today, payroll MTD (internal service auth)',
   })
-  depotSummary(@Query('depotId') depotId: string) {
+  depotSummary(@Query('depotId') depotId: string): Promise<HrDepotSummary> {
     return this.analytics.depotSummary(depotId);
   }
 

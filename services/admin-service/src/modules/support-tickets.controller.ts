@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -20,6 +20,7 @@ import {
 export class SupportTicketsController {
   constructor(private readonly tickets: SupportTicketService) {}
 
+  @ApiOkResponse({ type: SupportTicketDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List support tickets (15a, newest first, filterable)' })
   async list(@Query() query: SupportTicketQueryDto): Promise<SupportTicketDto[]> {
@@ -27,24 +28,28 @@ export class SupportTicketsController {
     return rows.map(SupportTicketDto.from);
   }
 
+  @ApiOkResponse({ type: SupportTicketDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get one ticket with its message thread' })
   async get(@Param('id') id: string): Promise<SupportTicketDto> {
     return SupportTicketDto.from(await this.tickets.get(id));
   }
 
+  @ApiOkResponse({ type: SupportTicketDto })
   @Post(':id/reply')
   @ApiOperation({ summary: 'Append a staff reply to a ticket' })
   async reply(@Param('id') id: string, @Body() dto: ReplyTicketDto): Promise<SupportTicketDto> {
     return SupportTicketDto.from(await this.tickets.reply(id, dto.body));
   }
 
+  @ApiOkResponse({ type: SupportTicketDto })
   @Post(':id/assign')
   @ApiOperation({ summary: 'Assign a ticket to a staff member' })
   async assign(@Param('id') id: string, @Body() dto: AssignTicketDto): Promise<SupportTicketDto> {
     return SupportTicketDto.from(await this.tickets.assign(id, dto.assigneeId));
   }
 
+  @ApiOkResponse({ type: SupportTicketDto })
   @Post(':id/resolve')
   @ApiOperation({ summary: 'Mark a ticket resolved' })
   async resolve(@Param('id') id: string): Promise<SupportTicketDto> {

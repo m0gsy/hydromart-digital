@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -14,6 +14,7 @@ import { SystemHealthDto } from './dto/system-health.dto';
 export class SystemHealthController {
   constructor(private readonly health: SystemHealthService) {}
 
+  @ApiOkResponse({ type: SystemHealthDto })
   @Get()
   @ApiOperation({ summary: 'Aggregate per-service health roll-up (real, per-service probe)' })
   async check(): Promise<SystemHealthDto> {

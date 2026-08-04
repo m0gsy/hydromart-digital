@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { PurchaseOrder } from '../domain/purchase-order';
 import { CreatePurchaseOrderDto, PurchaseOrderQueryDto } from './dto/procurement.dto';
+import { PurchaseOrderResponseDto } from './dto/responses.generated.dto';
 
 /** Depot purchase orders (design 7a/9d). Receiving posts a RECEIPT movement per line. */
 @ApiTags('Procurement')
@@ -15,6 +16,7 @@ import { CreatePurchaseOrderDto, PurchaseOrderQueryDto } from './dto/procurement
 export class PurchaseOrderController {
   constructor(private readonly orders: PurchaseOrderService) {}
 
+  @ApiOkResponse({ type: PurchaseOrderResponseDto })
   @Post()
   @ApiOperation({ summary: 'Create a DRAFT purchase order' })
   create(@Body() dto: CreatePurchaseOrderDto): Promise<PurchaseOrder> {
@@ -27,6 +29,7 @@ export class PurchaseOrderController {
     });
   }
 
+  @ApiOkResponse({ type: PurchaseOrderResponseDto, isArray: true })
   @Get()
   @ApiOperation({
     summary: "List a depot's purchase orders (newest first), optional status filter",
@@ -35,6 +38,7 @@ export class PurchaseOrderController {
     return this.orders.list(query.depotId, { status: query.status });
   }
 
+  @ApiOkResponse({ type: PurchaseOrderResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get one purchase order' })
   async get(
@@ -46,6 +50,7 @@ export class PurchaseOrderController {
     return order;
   }
 
+  @ApiOkResponse({ type: PurchaseOrderResponseDto })
   @Post(':id/send')
   @ApiOperation({ summary: 'Send a DRAFT purchase order to the supplier (DRAFT → SENT)' })
   async send(
@@ -56,6 +61,7 @@ export class PurchaseOrderController {
     return this.orders.send(id);
   }
 
+  @ApiOkResponse({ type: PurchaseOrderResponseDto })
   @Post(':id/receive')
   @ApiOperation({
     summary: 'Receive goods (SENT → RECEIVED); posts a RECEIPT per line to inventory',

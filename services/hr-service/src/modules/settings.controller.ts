@@ -1,10 +1,12 @@
 import { Body, Controller, Delete, Get, HttpCode, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { assertCapability, Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { SettingsService } from '../application/services/settings.service';
 import { PutSettingDto, ResetSettingDto } from './dto/settings.dto';
+import { SettingDef } from '../config/setting-defs';
+import { Schema3ResponseDto } from './dto/responses.generated.dto';
 
 /** SalaryConfiguration: attendance/payroll tunables, GLOBAL default + per-depot override. */
 @ApiTags('HR Settings')
@@ -14,12 +16,14 @@ import { PutSettingDto, ResetSettingDto } from './dto/settings.dto';
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
+  @ApiOkResponse({ type: Schema3ResponseDto })
   @Get('schema')
   @ApiOperation({ summary: 'Setting defs + effective values for an optional depot' })
-  schema(@Query('depotId') depotId?: string) {
+  schema(@Query('depotId') depotId?: string): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
     return this.settings.schema(depotId ?? null);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Put()
   @HttpCode(204)
   @ApiOperation({ summary: 'Set a GLOBAL or DEPOT override' })
@@ -36,6 +40,7 @@ export class SettingsController {
     });
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete()
   @HttpCode(204)
   @ApiOperation({ summary: 'Remove an override, falling back to the parent scope' })

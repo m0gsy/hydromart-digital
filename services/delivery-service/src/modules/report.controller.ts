@@ -7,6 +7,8 @@ import { ReportRange } from '../application/ports/delivery.repository';
 import { ReportService } from '../application/services/report.service';
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { DepotTeamReportQueryDto, SlaReportQueryDto } from './dto/report.dto';
+import { DepotSlaReport, DepotTeamReport, SlaReport } from '../application/services/report.service';
+import { DepotSlaReportResponseDto, SlaReportResponseDto } from './dto/responses.generated.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 
@@ -39,22 +41,24 @@ export class ReportController {
     private readonly config: DeliveryConfigService,
   ) {}
 
+  @ApiOkResponse({ type: SlaReportResponseDto })
   @Get('sla')
   @ApiOperation({ summary: 'Delivery SLA: on-time vs breached deliveries and failures (M6)' })
-  sla(@Query() q: SlaReportQueryDto) {
+  sla(@Query() q: SlaReportQueryDto): Promise<SlaReport> {
     return this.reports.sla(toRange(q), q.thresholdMinutes, q.depotIds);
   }
 
+  @ApiOkResponse({ type: DepotSlaReportResponseDto })
   @Get('sla-by-depot')
   @ApiOperation({ summary: 'On-time SLA grouped per depot (HQ network roll-up)' })
-  slaByDepot(@Query() q: SlaReportQueryDto) {
+  slaByDepot(@Query() q: SlaReportQueryDto): Promise<DepotSlaReport> {
     return this.reports.slaByDepot(toRange(q), q.thresholdMinutes);
   }
 
   @Get('depot-team')
   @ApiOperation({ summary: 'Courier and settlement-operator metrics for one depot' })
   @ApiOkResponse({ description: 'Depot-scoped courier and verified-settlement operator metrics.' })
-  depotTeam(@Query() q: DepotTeamReportQueryDto) {
+  depotTeam(@Query() q: DepotTeamReportQueryDto): Promise<DepotTeamReport> {
     const month = monthWindow(new Date(), this.config.businessTimeZone);
     const from = q.from ? new Date(q.from) : month.from;
     const to = q.to ? new Date(q.to) : month.to;

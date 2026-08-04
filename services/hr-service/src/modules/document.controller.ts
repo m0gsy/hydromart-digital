@@ -10,7 +10,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 import { UseGuards } from '@nestjs/common';
@@ -22,6 +22,8 @@ import {
 } from '../application/services/document.service';
 import { RetentionReportDto } from './dto/employee.dto';
 import { ListDocumentDto, UploadDocumentDto } from './dto/document.dto';
+import { EmployeeDocument } from '../../prisma/generated/client';
+import { EmployeeDocumentResponseDto, Purge2ResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Employee personal files. Read hrView, write hrAdmin — a depot operator has no business in
@@ -33,20 +35,23 @@ import { ListDocumentDto, UploadDocumentDto } from './dto/document.dto';
 export class DocumentController {
   constructor(private readonly documents: DocumentService) {}
 
+  @ApiOkResponse({ type: EmployeeDocumentResponseDto, isArray: true })
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s documents (newest version of each type first)' })
-  list(@Query() q: ListDocumentDto, @CurrentUser() user: AuthenticatedUser) {
+  list(@Query() q: ListDocumentDto, @CurrentUser() user: AuthenticatedUser): Promise<EmployeeDocument[]> {
     return this.documents.list(user, q.employeeId);
   }
 
+  @ApiOkResponse({ type: EmployeeDocumentResponseDto })
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'One document, including a superseded version' })
-  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<EmployeeDocument> {
     return this.documents.get(user, id);
   }
 
+  @ApiOkResponse({ type: EmployeeDocumentResponseDto })
   @Post()
   @Can('hrAdmin')
   @ApiConsumes('multipart/form-data')
@@ -58,7 +63,7 @@ export class DocumentController {
     // Typed locally rather than via Express.Multer.File: this is the whole surface the
     // service uses, and it keeps @types/multer out of the dependency list.
     @UploadedFile() file?: UploadedDocumentFile,
-  ) {
+  ): Promise<EmployeeDocument> {
     return this.documents.upload(user, dto, file);
   }
 
@@ -67,6 +72,7 @@ export class DocumentController {
    * employee retention routes). Deletes the stored object AND the row — a KTP left in the
    * bucket is not erased.
    */
+  @ApiOkResponse({ type: Purge2ResponseDto })
   @Post('internal/retention-purge')
   @Public()
   @UseGuards(InternalAuthGuard)

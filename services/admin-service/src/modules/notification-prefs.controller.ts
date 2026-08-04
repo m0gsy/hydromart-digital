@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
@@ -18,12 +18,14 @@ import {
 export class NotificationPrefsController {
   constructor(private readonly prefs: AdminNotificationPrefService) {}
 
+  @ApiOkResponse({ type: AdminNotificationPrefsDto })
   @Get()
   @ApiOperation({ summary: "Read the current user's notification prefs (23a)" })
   async get(@CurrentUser() user: AuthenticatedUser): Promise<AdminNotificationPrefsDto> {
     return AdminNotificationPrefsDto.from(await this.prefs.get(user.sub));
   }
 
+  @ApiOkResponse({ type: AdminNotificationPrefsDto })
   @Put()
   @ApiOperation({ summary: "Replace the current user's notification prefs" })
   async save(

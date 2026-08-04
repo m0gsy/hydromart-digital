@@ -1,11 +1,13 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { FaceService } from '../application/services/face.service';
 import { EnrollFaceDto } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
+import { FaceEmbedding } from '../../prisma/generated/client';
+import { FaceEmbeddingResponseDto } from './dto/responses.generated.dto';
 
 /** Self face-enrollment (PWA): a linked employee enrolls their own face. No @Roles —
  *  ownership is the caller's authSubjectId. Static path sits under the attendance segment. */
@@ -15,9 +17,10 @@ import { decodeBase64Image } from './decode-image';
 export class SelfFaceController {
   constructor(private readonly face: FaceService) {}
 
+  @ApiOkResponse({ type: FaceEmbeddingResponseDto })
   @Post('enroll')
   @ApiOperation({ summary: 'Enroll my own face frames (self)' })
-  enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser) {
+  enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser): Promise<FaceEmbedding> {
     return this.face.enrollSelf(user, dto.images.map(decodeBase64Image));
   }
 }
@@ -29,6 +32,7 @@ export class SelfFaceController {
 export class FaceController {
   constructor(private readonly face: FaceService) {}
 
+  @ApiOkResponse({ type: FaceEmbeddingResponseDto })
   @Post('enroll')
   @Can('hrAdmin')
   @ApiOperation({ summary: 'Enroll aligned face frames (replaces the current set)' })
@@ -36,7 +40,7 @@ export class FaceController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: EnrollFaceDto,
     @CurrentUser() user: AuthenticatedUser,
-  ) {
+  ): Promise<FaceEmbedding> {
     const images = dto.images.map(decodeBase64Image);
     return this.face.enroll(user, id, images, dto.sourcePhotoUrl ?? null);
   }

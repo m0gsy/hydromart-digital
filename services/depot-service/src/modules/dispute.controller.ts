@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { DisputeService } from '../application/services/dispute.service';
 import { OrderDispute } from '../domain/order-dispute';
 import { CreateDisputeDto, ListDisputeQueryDto, ResolveDisputeDto } from './dto/dispute.dto';
+import { OrderDisputeResponseDto } from './dto/responses.generated.dto';
 
 /** Customer order disputes inbox (depot CRM). */
 @ApiTags('Order Disputes')
@@ -15,6 +16,7 @@ import { CreateDisputeDto, ListDisputeQueryDto, ResolveDisputeDto } from './dto/
 export class DisputeController {
   constructor(private readonly disputes: DisputeService) {}
 
+  @ApiOkResponse({ type: OrderDisputeResponseDto })
   @Post()
   @ApiOperation({ summary: 'Raise an order dispute' })
   raise(
@@ -35,12 +37,14 @@ export class DisputeController {
     );
   }
 
+  @ApiOkResponse({ type: OrderDisputeResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's order disputes (newest first), optional status filter" })
   list(@Query() query: ListDisputeQueryDto): Promise<OrderDispute[]> {
     return this.disputes.list(query.depotId, query.status);
   }
 
+  @ApiOkResponse({ type: OrderDisputeResponseDto })
   @Patch(':id/resolve')
   @ApiOperation({ summary: 'Resolve a dispute (refund / resend / reject)' })
   async resolve(

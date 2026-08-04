@@ -21,7 +21,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public, Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
@@ -39,6 +39,7 @@ import {
   PublicDepotView,
   UpdateDepotDto,
 } from './dto/depot.dto';
+import { DepotResponseDto, InternalOwnedResponseDto, InternalOwnerResponseDto, NearbyDepotResponseDto, PagedDepotResponseDto, PagedPublicDepotResponseDto } from './dto/responses.generated.dto';
 
 // Multipart QRIS image (design 4b). Minimal file shape avoids a hard @types/multer dep.
 const QRIS_MAX_BYTES = 5 * 1024 * 1024;
@@ -61,6 +62,7 @@ export class DepotController {
 
   // Anonymous browse: the trimmed projection only. Serving the whole DepotRecord here
   // published every depot's bank account to the open internet — see PublicDepotView.
+  @ApiOkResponse({ type: PagedPublicDepotResponseDto })
   @Public()
   @Get()
   @ApiOperation({ summary: 'Browse depots (paginated, active only)' })
@@ -70,6 +72,7 @@ export class DepotController {
   }
 
   // Static `nearby` segment declared before `:id` so it is not swallowed by the param route.
+  @ApiOkResponse({ type: NearbyDepotResponseDto, isArray: true })
   @Public()
   @Get('nearby')
   @ApiOperation({ summary: 'Find active depots near a coordinate (nearest first)' })
@@ -81,6 +84,7 @@ export class DepotController {
   // can reject a forecast query for a depot they don't own (forecast has no ownership data of
   // its own). No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY. Declared
   // before `:id` so it is not swallowed by that param route.
+  @ApiOkResponse({ type: InternalOwnedResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @Get('internal/owned/:ownerId')
@@ -95,6 +99,7 @@ export class DepotController {
   // Service-to-service: order-service asks who owns the fulfilling depot so a completed
   // order can be credited to that franchise owner's payout ledger. Ownership is kept out
   // of the public depot projection on purpose, hence the internal-key route.
+  @ApiOkResponse({ type: InternalOwnerResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id/owner')
@@ -110,6 +115,7 @@ export class DepotController {
 
   // Admin listing includes inactive depots (public browse is active-only), so a
   // deactivated depot stays reachable to reactivate. Declared before `:id`.
+  @ApiOkResponse({ type: PagedDepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
   @Get('manage')
@@ -120,6 +126,7 @@ export class DepotController {
 
   // Franchise owner's own depots (active + inactive). Declared before `:id` so the
   // static `mine` segment wins the route match.
+  @ApiOkResponse({ type: DepotResponseDto, isArray: true })
   @ApiBearerAuth()
   @Roles(Role.FRANCHISE_OWNER)
   @Get('mine')
@@ -130,6 +137,7 @@ export class DepotController {
 
   // Full record for staff/owner tooling (edit forms, HQ onboarding, payment setup).
   // Declared before ':id' so the static `manage` segment wins the route match.
+  @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotDirectory')
   @Get('manage/:id')
@@ -148,6 +156,7 @@ export class DepotController {
 
   // Where to send money for ONE depot. Any signed-in user (a customer paying for an
   // order needs it), never anonymous and never in bulk.
+  @ApiOkResponse({ type: DepotPaymentInfoView })
   @ApiBearerAuth()
   @Get(':id/payment-info')
   @ApiOperation({ summary: "A depot's payment destination (signed-in callers)" })
@@ -155,6 +164,7 @@ export class DepotController {
     return DepotPaymentInfoView.from(await this.depots.get(id, true));
   }
 
+  @ApiOkResponse({ type: PublicDepotView })
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active depot by id (public projection)' })
@@ -162,6 +172,7 @@ export class DepotController {
     return PublicDepotView.from(await this.depots.get(id, true));
   }
 
+  @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
   @Post()
@@ -189,6 +200,7 @@ export class DepotController {
     });
   }
 
+  @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
   @Patch(':id')
@@ -200,6 +212,7 @@ export class DepotController {
     return this.depots.update(id, dto);
   }
 
+  @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
   @Post(':id/qris')
@@ -245,6 +258,7 @@ export class DepotController {
     return this.depots.update(id, { paymentQrisImageUrl: url });
   }
 
+  @ApiOkResponse({ type: DepotResponseDto })
   @ApiBearerAuth()
   @Can('depotAdmin')
   @Delete(':id')

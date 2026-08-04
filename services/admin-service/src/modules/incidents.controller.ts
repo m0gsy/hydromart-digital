@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -31,6 +31,7 @@ import {
 export class IncidentsController {
   constructor(private readonly incidents: IncidentService) {}
 
+  @ApiOkResponse({ type: IncidentDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List incidents (14c, newest first, filterable by status)' })
   async list(@Query() query: IncidentQueryDto): Promise<IncidentDto[]> {
@@ -38,6 +39,7 @@ export class IncidentsController {
     return rows.map(IncidentDto.from);
   }
 
+  @ApiOkResponse({ type: IncidentDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Open an incident' })
@@ -52,6 +54,7 @@ export class IncidentsController {
     );
   }
 
+  @ApiOkResponse({ type: IncidentDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Append a timeline update and/or resolve an incident' })
   async patch(@Param('id') id: string, @Body() dto: PatchIncidentDto): Promise<IncidentDto> {

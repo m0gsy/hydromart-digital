@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
 import { Can, Public } from '@hydromart/platform';
@@ -28,6 +28,7 @@ import {
   SubmitFranchiseApplicationDto,
   SubmittedApplicationView,
 } from './dto/franchise-application.dto';
+import { ApproveResponseDto, FranchiseApplicationResponseDto, PagedFranchiseApplicationResponseDto } from './dto/responses.generated.dto';
 
 /**
  * HQ franchise-application approvals queue (design 5a/5b). HQ-only: HEAD_OFFICE +
@@ -51,6 +52,7 @@ export class FranchiseApplicationController {
    * route that writes rows a human then has to read, and nobody applies for five depots
    * in an hour. ponytail: no captcha — add one only if the queue starts collecting junk.
    */
+  @ApiOkResponse({ type: SubmittedApplicationView })
   @Public()
   @Throttle({ default: { limit: 3, ttl: 3_600_000 } })
   @Post()
@@ -74,6 +76,7 @@ export class FranchiseApplicationController {
     return SubmittedApplicationView.from(created);
   }
 
+  @ApiOkResponse({ type: PagedFranchiseApplicationResponseDto })
   @Get()
   @ApiOperation({ summary: 'List the approvals queue (oldest-first by SLA age)' })
   list(@Query() query: ListApplicationsQueryDto): Promise<Page<FranchiseApplicationRecord>> {
@@ -84,12 +87,14 @@ export class FranchiseApplicationController {
     });
   }
 
+  @ApiOkResponse({ type: FranchiseApplicationResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get an application detail' })
   get(@Param('id', ParseUUIDPipe) id: string): Promise<FranchiseApplicationRecord> {
     return this.applications.get(id);
   }
 
+  @ApiOkResponse({ type: FranchiseApplicationResponseDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Update stage and/or the document checklist' })
   patch(
@@ -99,6 +104,7 @@ export class FranchiseApplicationController {
     return this.applications.patch(id, { stage: dto.stage, checklist: dto.checklist });
   }
 
+  @ApiOkResponse({ type: ApproveResponseDto })
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → returns the proposed-depot onboard prefill' })
@@ -106,6 +112,7 @@ export class FranchiseApplicationController {
     return this.applications.approve(id);
   }
 
+  @ApiOkResponse({ type: FranchiseApplicationResponseDto })
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject an application' })

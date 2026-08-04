@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotOwnership } from '@hydromart/platform';
 
@@ -11,6 +11,7 @@ import {
 } from '../application/ports/gallon-issue.repository';
 import { Page } from '../application/pagination';
 import { CreateGallonIssueDto, ListIssuesQueryDto } from './dto/gallon-issue.dto';
+import { GallonIssueResponseDto, PagedGallonIssueResponseDto } from './dto/responses.generated.dto';
 
 /** Empty-gallon issues / deposit held nested under a depot (PRD Module 11c). */
 @ApiTags('Gallon issues')
@@ -22,6 +23,7 @@ export class GallonIssueController {
     private readonly depots: DepotService,
   ) {}
 
+  @ApiOkResponse({ type: GallonIssueResponseDto })
   @Can('returnsWrite')
   @Post()
   @ApiOperation({ summary: 'Record an empty-gallon issue (staff)' })
@@ -43,6 +45,7 @@ export class GallonIssueController {
   }
 
   // Static `summary` segment declared before the paginated list so the route is unambiguous.
+  @ApiOkResponse({ type: GallonIssueResponseDto })
   @Can('returnsRead')
   @Get('summary')
   @ApiOperation({ summary: "A depot's issue totals (count, gallons, deposit held)" })
@@ -54,6 +57,7 @@ export class GallonIssueController {
     return this.issues.summary(depotId);
   }
 
+  @ApiOkResponse({ type: PagedGallonIssueResponseDto })
   @Can('returnsRead')
   @Get()
   @ApiOperation({ summary: "List a depot's gallon issues (paginated, newest first)" })

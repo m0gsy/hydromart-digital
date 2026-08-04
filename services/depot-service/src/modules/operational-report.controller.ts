@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -8,6 +8,7 @@ import {
   OperationalReportService,
 } from '../application/services/operational-report.service';
 import { OperationalCostQueryDto } from './dto/operational-report.dto';
+import { OperationalCostReportResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Reports')
 @ApiBearerAuth()
@@ -16,6 +17,7 @@ import { OperationalCostQueryDto } from './dto/operational-report.dto';
 export class OperationalReportController {
   constructor(private readonly reports: OperationalReportService) {}
 
+  @ApiOkResponse({ type: OperationalCostReportResponseDto })
   @Get('operational-costs')
   @ApiOperation({
     summary: 'Depot operational COGS/opex report with explicit source coverage (non-statutory)',

@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -20,6 +20,7 @@ import { ApiKeyDto, CreateApiKeyDto, CreatedApiKeyDto } from './dto/api-key.dto'
 export class ApiKeysController {
   constructor(private readonly keys: ApiKeyService) {}
 
+  @ApiOkResponse({ type: ApiKeyDto, isArray: true })
   @Get()
   @ApiOperation({
     summary: 'List service API keys (13d)',
@@ -31,6 +32,7 @@ export class ApiKeysController {
     return (await this.keys.list()).map((k) => ApiKeyDto.from(k));
   }
 
+  @ApiOkResponse({ type: CreatedApiKeyDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an API key — returns the full secret once' })
@@ -44,12 +46,14 @@ export class ApiKeysController {
     );
   }
 
+  @ApiOkResponse({ type: CreatedApiKeyDto })
   @Post(':id/rotate')
   @ApiOperation({ summary: 'Rotate an API key — returns the new secret once' })
   async rotate(@Param('id') id: string): Promise<CreatedApiKeyDto> {
     return CreatedApiKeyDto.fromSecret(await this.keys.rotate(id));
   }
 
+  @ApiOkResponse({ type: ApiKeyDto })
   @Delete(':id')
   @ApiOperation({ summary: 'Revoke an API key' })
   async revoke(@Param('id') id: string): Promise<ApiKeyDto> {
