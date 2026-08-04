@@ -79,6 +79,36 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     return { presentDays, lateDays, leaveDays };
   }
 
+  /**
+   * The same three counts as `summary`, for a whole set of employees, in one grouped query
+   * (audit S-6). The performance dashboard used to call `summary` per employee — three
+   * counts each, 600 queries for a 200-person depot.
+   */
+  async summaryMany(
+    employeeIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, AttendanceSummary>> {
+    const out = new Map<string, AttendanceSummary>();
+    if (employeeIds.length === 0) return out;
+
+    const rows = await this.prisma.attendance.groupBy({
+      by: ['employeeId', 'status'],
+      where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      const entry = out.get(row.employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
+      // PRESENT and LATE are both days worked; LATE additionally counts as late. Same
+      // arithmetic as summary(), which counts PRESENT+LATE for presentDays.
+      if (row.status === 'PRESENT' || row.status === 'LATE') entry.presentDays += row._count._all;
+      if (row.status === 'LATE') entry.lateDays += row._count._all;
+      if (row.status === 'LEAVE') entry.leaveDays += row._count._all;
+      out.set(row.employeeId, entry);
+    }
+    return out;
+  }
+
   /** M24-17: worked minutes per attended day, so payroll can rate holidays separately. */
   listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]> {
     return this.prisma.attendance.findMany({

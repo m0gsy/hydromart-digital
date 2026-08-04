@@ -87,6 +87,12 @@ export class CrmDashboardDto {
   followUps!: CrmFollowUpDto[];
 }
 
+/** The batch route's row: the same dashboard, plus the depot it belongs to (audit D-6). */
+export class CrmDepotDashboardDto extends CrmDashboardDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+}
+
 export class DepotCrmAddressDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;

@@ -25,6 +25,15 @@ export interface PayrollTotals {
   count: number;
 }
 
+/** One depot's slice of the owner-dashboard summary, before it is shaped for the API. */
+export interface DepotSummaryFacts {
+  lateToday: number;
+  absentToday: number;
+  presentToday: number;
+  payrollMtdNet: number;
+  activeHeadcount: number;
+}
+
 export type AttendanceWithEmployee = Attendance & {
   employee: Pick<Employee, 'employeeCode' | 'fullName'>;
 };
@@ -54,6 +63,16 @@ export interface AnalyticsRepository {
   attendanceByStatus(workDate: Date, depotIds?: readonly string[]): Promise<GroupCount[]>;
   /** Payroll money totals + run count for a period. */
   payrollTotals(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollTotals>;
+  /**
+   * The three depot-summary reads, grouped BY depot in one query each, for the owner
+   * dashboard's whole set of depots (audit S-1). Keyed by depot id; a depot with no rows
+   * is absent from the map rather than zero-filled.
+   */
+  depotSummaryFacts(
+    workDate: Date,
+    periodMonth: string,
+    depotIds: readonly string[],
+  ): Promise<Map<string, DepotSummaryFacts>>;
   /** Payroll runs grouped by `status` for a period. */
   payrollByStatus(periodMonth: string, depotIds?: readonly string[]): Promise<GroupCount[]>;
 

@@ -5,6 +5,7 @@ import { Employee, Prisma } from '../../../prisma/generated/client';
 import {
   AnalyticsRepository,
   AnnouncementWithStats,
+  DepotSummaryFacts,
   AssetWithHolder,
   AttendanceWithEmployee,
   GroupCount,
@@ -80,6 +81,75 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       _count: { _all: true },
     });
     return groups.map((g) => ({ key: g.status, count: g._count._all }));
+  }
+
+  /**
+   * The owner dashboard asks for N depots at once; this answers all of them in three
+   * queries rather than three per depot (audit S-1).
+   *
+   * Attendance and employees carry `depotId`, so those group by it directly. Payroll does
+   * not — its depot is on the employee — and Prisma cannot group by a relation field, so
+   * that one is a raw join. Same numbers as `depotSummary` computed per depot; the test
+   * suite pins that equivalence.
+   */
+  async depotSummaryFacts(
+    workDate: Date,
+    periodMonth: string,
+    depotIds: readonly string[],
+  ): Promise<Map<string, DepotSummaryFacts>> {
+    const out = new Map<string, DepotSummaryFacts>();
+    if (depotIds.length === 0) return out;
+
+    const blank = (): DepotSummaryFacts => ({
+      lateToday: 0,
+      absentToday: 0,
+      presentToday: 0,
+      payrollMtdNet: 0,
+      activeHeadcount: 0,
+    });
+    const at = (depotId: string): DepotSummaryFacts => {
+      const hit = out.get(depotId) ?? blank();
+      out.set(depotId, hit);
+      return hit;
+    };
+    const ids = [...depotIds];
+
+    const [attendance, headcount, payroll] = await Promise.all([
+      this.prisma.attendance.groupBy({
+        by: ['depotId', 'status'],
+        where: { workDate, depotId: { in: ids } },
+        _count: { _all: true },
+      }),
+      this.prisma.employee.groupBy({
+        by: ['depotId'],
+        where: { depotId: { in: ids }, status: 'ACTIVE' },
+        _count: { _all: true },
+      }),
+      this.prisma.$queryRaw<{ depotId: string; net: Prisma.Decimal | null }[]>`
+        SELECT e."depotId" AS "depotId", SUM(p."net") AS "net"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        WHERE p."periodMonth" = ${periodMonth}
+          AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+        GROUP BY e."depotId"
+      `,
+    ]);
+
+    for (const row of attendance) {
+      if (!row.depotId) continue;
+      const facts = at(row.depotId);
+      if (row.status === 'LATE') facts.lateToday += row._count._all;
+      if (row.status === 'ABSENT') facts.absentToday += row._count._all;
+      if (row.status === 'PRESENT') facts.presentToday += row._count._all;
+    }
+    for (const row of headcount) {
+      if (!row.depotId) continue;
+      at(row.depotId).activeHeadcount = row._count._all;
+    }
+    for (const row of payroll) {
+      at(row.depotId).payrollMtdNet = row.net ? Number(row.net) : 0;
+    }
+    return out;
   }
 
   /**

@@ -142,6 +142,26 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     );
   }
 
+  /**
+   * One request for every owned depot (audit S-1). depot-service returns the lines flat,
+   * so they are grouped here by depotId; a depot with nothing low is an empty list, not a
+   * missing key — the dashboard renders a card per depot either way.
+   */
+  async lowStockMany(
+    depotIds: string[],
+    _token: string,
+  ): Promise<Map<string, LowStockLine[]> | null> {
+    if (depotIds.length === 0) return new Map();
+    const params = new URLSearchParams({ depotIds: depotIds.join(',') });
+    const lines = await this.getInternal<LowStockLine[]>(
+      `${this.config.depotServiceUrl}/api/v1/inventory/low-stock?${params.toString()}`,
+    );
+    if (lines === null) return null;
+    const out = new Map<string, LowStockLine[]>(depotIds.map((id) => [id, []]));
+    for (const line of lines) out.get(line.depotId)?.push(line);
+    return out;
+  }
+
   // ponytail: single page of 100 depots — the whole network today. Add pagination
   // to allDepots (and the roll-up fan-out) when the depot count outgrows one page.
   async allDepots(_token: string): Promise<NetworkDepot[] | null> {
@@ -199,6 +219,30 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     return this.getInternal<HrDepotSummary>(
       `${this.config.hrServiceUrl}/api/v1/hr-reports/internal/depot-summary?${params.toString()}`,
     );
+  }
+
+  async hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]> {
+    if (!this.config.hrServiceUrl || depotIds.length === 0) return depotIds.map(() => null);
+    const params = new URLSearchParams({ depotIds: depotIds.join(',') });
+    const rows = await this.getInternal<HrDepotSummary[]>(
+      `${this.config.hrServiceUrl}/api/v1/hr-reports/internal/depot-summaries?${params.toString()}`,
+    );
+    if (rows === null) return depotIds.map(() => null);
+    const byDepot = new Map(rows.map((r) => [r.depotId, r]));
+    return depotIds.map((id) => byDepot.get(id) ?? null);
+  }
+
+  async crmSummaryMany(depotIds: string[]): Promise<(CrmDepotSummary | null)[]> {
+    if (!this.config.customerServiceUrl || depotIds.length === 0) return depotIds.map(() => null);
+    const params = new URLSearchParams({ depotIds: depotIds.join(',') });
+    // The batch route echoes the depot id on each row; the single-depot one does not need
+    // to, because the caller already knows which depot it asked about.
+    const rows = await this.getInternal<(CrmDepotSummary & { depotId: string })[]>(
+      `${this.config.customerServiceUrl}/api/v1/customers/internal/crm-summaries?${params.toString()}`,
+    );
+    if (rows === null) return depotIds.map(() => null);
+    const byDepot = new Map(rows.map((r) => [r.depotId, r]));
+    return depotIds.map((id) => byDepot.get(id) ?? null);
   }
 
   async crmSummary(depotId: string): Promise<CrmDepotSummary | null> {

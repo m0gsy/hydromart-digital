@@ -226,4 +226,74 @@ describe('DashboardSourcesHttpAdapter', () => {
       'http://customer/api/v1/customers/internal/crm-summary?depotId=d1',
     );
   });
+  it('lowStockMany asks depot-service once for the whole set and groups by depot', async () => {
+    const adapter = makeAdapter();
+    fetchMock.mockResolvedValueOnce(
+      okResponse([
+        { itemId: 'i1', depotId: 'd1' },
+        { itemId: 'i2', depotId: 'd2' },
+        { itemId: 'i3', depotId: 'd1' },
+      ]),
+    );
+    const out = await adapter.lowStockMany(['d1', 'd2', 'd3'], 'Bearer t');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://depot/api/v1/inventory/low-stock?depotIds=d1%2Cd2%2Cd3',
+    );
+    expect(out?.get('d1')).toHaveLength(2);
+    // A depot with nothing low is an empty list, not a missing key.
+    expect(out?.get('d3')).toEqual([]);
+  });
+
+  it('lowStockMany short-circuits an empty set and propagates a dead source as null', async () => {
+    const adapter = makeAdapter();
+    expect((await adapter.lowStockMany([], 'Bearer t'))?.size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(errResponse(503));
+    expect(await adapter.lowStockMany(['d1'], 'Bearer t')).toBeNull();
+  });
+
+  it('hrSummaryMany asks once and answers in the order requested', async () => {
+    const adapter = makeAdapter({ hrServiceUrl: 'http://hr' });
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd2', lateToday: 3 }]));
+    const out = await adapter.hrSummaryMany(['d1', 'd2']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://hr/api/v1/hr-reports/internal/depot-summaries?depotIds=d1%2Cd2',
+    );
+    expect(out[0]).toBeNull();
+    expect(out[1]).toMatchObject({ depotId: 'd2' });
+  });
+
+  it('hrSummaryMany yields one null per depot when hr-service is unwired or down', async () => {
+    expect(await makeAdapter().hrSummaryMany(['d1', 'd2'])).toEqual([null, null]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const wired = makeAdapter({ hrServiceUrl: 'http://hr' });
+    expect(await wired.hrSummaryMany([])).toEqual([]);
+    fetchMock.mockResolvedValueOnce(errResponse(500));
+    expect(await wired.hrSummaryMany(['d1'])).toEqual([null]);
+  });
+
+  it('crmSummaryMany asks once and answers in the order requested', async () => {
+    const adapter = makeAdapter({ customerServiceUrl: 'http://customer' });
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd1', counts: {} }]));
+    const out = await adapter.crmSummaryMany(['d1', 'd2']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://customer/api/v1/customers/internal/crm-summaries?depotIds=d1%2Cd2',
+    );
+    expect(out[1]).toBeNull();
+  });
+
+  it('crmSummaryMany yields one null per depot when customer-service is unwired or down', async () => {
+    expect(await makeAdapter().crmSummaryMany(['d1'])).toEqual([null]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    const wired = makeAdapter({ customerServiceUrl: 'http://customer' });
+    expect(await wired.crmSummaryMany([])).toEqual([]);
+    fetchMock.mockResolvedValueOnce(errResponse(500));
+    expect(await wired.crmSummaryMany(['d1'])).toEqual([null]);
+  });
 });

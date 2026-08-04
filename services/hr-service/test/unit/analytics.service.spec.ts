@@ -20,6 +20,7 @@ const manager: AuthenticatedUser = {
 function build(over: Partial<AnalyticsRepository> = {}) {
   const calls: { depotId?: string }[] = [];
   const repo: AnalyticsRepository = {
+    depotSummaryFacts: async () => new Map(),
     headcountByStatus: async (depotId) => {
       calls.push({ depotId: depotId?.[0] });
       return [

@@ -293,8 +293,8 @@ export class InventoryService {
   }
 
   /** Low-stock lines (FR-074), optionally scoped to one depot. */
-  async listLowStock(depotId?: string): Promise<ItemView[]> {
-    const items = await this.inventory.listLowStock(depotId);
+  async listLowStock(depotIds?: string | readonly string[]): Promise<ItemView[]> {
+    const items = await this.inventory.listLowStock(depotIds);
     return items.map((i) => this.toView(i));
   }
 

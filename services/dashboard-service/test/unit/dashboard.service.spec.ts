@@ -246,11 +246,14 @@ describe('DashboardService with every upstream down', () => {
       myDepots: jest.fn().mockResolvedValue(null),
       allDepots: jest.fn().mockResolvedValue(null),
       lowStock: jest.fn().mockResolvedValue(null),
+      lowStockMany: jest.fn().mockResolvedValue(null),
       slaByDepot: jest.fn().mockResolvedValue(null),
       ratingByDepot: jest.fn().mockResolvedValue(null),
       depotMonthly: jest.fn().mockResolvedValue(null),
       operationalCosts: jest.fn().mockResolvedValue(null),
       crmSummary: jest.fn().mockResolvedValue(null),
+      crmSummaryMany: jest.fn().mockResolvedValue([]),
+      hrSummaryMany: jest.fn().mockResolvedValue([]),
     }) as unknown as DashboardSourcesPort;
 
   const range = { from: null, to: null } as never;
@@ -288,6 +291,7 @@ describe('DashboardService when the depots list survives but nothing else does',
       myDepots: jest.fn().mockResolvedValue(depots),
       allDepots: jest.fn().mockResolvedValue(depots),
       lowStock: jest.fn().mockResolvedValue(null),
+      lowStockMany: jest.fn().mockResolvedValue(null),
       slaByDepot: jest.fn().mockResolvedValue(null),
       ratingByDepot: jest.fn().mockResolvedValue(null),
       crmSummary: jest.fn().mockResolvedValue({
@@ -296,7 +300,16 @@ describe('DashboardService when the depots list survives but nothing else does',
         followUps: [],
         repeatRatePct: 0,
       }),
+      crmSummaryMany: jest.fn().mockResolvedValue([
+        {
+          depotId: 'dep-1',
+          counts: { baru: 0, aktif: 0, inactive: 0, total: 0 },
+          followUps: [],
+          repeatRatePct: 0,
+        },
+      ]),
       hrSummary: jest.fn().mockResolvedValue(null),
+      hrSummaryMany: jest.fn().mockResolvedValue([null]),
     }) as unknown as DashboardSourcesPort;
 
   const range = { from: null, to: null } as never;

@@ -73,6 +73,7 @@ function build(opts: {
     patchStatus: async () => ({}) as never,
     recordAdjustment: async () => undefined,
     summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
+    summaryMany: async () => new Map(),
     listWorkedMinutes: async () =>
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),

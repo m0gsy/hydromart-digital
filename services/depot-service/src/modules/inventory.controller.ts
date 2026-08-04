@@ -262,8 +262,18 @@ export class InventoryController {
   @Can('inventoryRead')
   @Get('low-stock')
   @ApiOperation({ summary: 'List low-stock lines, optionally for one depot (FR-074)' })
-  lowStock(@Query('depotId') depotId?: string): Promise<ItemView[]> {
-    return this.inventory.listLowStock(depotId);
+  lowStock(
+    @Query('depotId') depotId?: string,
+    @Query('depotIds') depotIds?: string,
+  ): Promise<ItemView[]> {
+    // `depotIds` (comma-separated) is the batch form the owner dashboard uses — one call
+    // for every depot it owns instead of one per depot (audit S-1). `depotId` stays for
+    // the single-depot console.
+    const many = (depotIds ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.inventory.listLowStock(many.length > 0 ? many : depotId);
   }
 
   // Static segment: declared before ':itemId' so it wins the route match.

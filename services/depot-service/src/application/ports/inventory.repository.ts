@@ -114,7 +114,12 @@ export interface InventoryRepository {
    */
   findPrices(depotId: string, productIds: string[]): Promise<DepotProductPrice[]>;
   listForDepot(depotId: string, filter: InventoryListFilter): Promise<InventoryItemRecord[]>;
-  listLowStock(depotId?: string): Promise<InventoryItemRecord[]>;
+  /**
+   * Lines at or below their minimum, for one depot, several, or the whole network.
+   * The predicate is evaluated in SQL (audit S-13), so the caller never receives rows it
+   * has to filter — and a page bound cannot drop a depot that is actually out of stock.
+   */
+  listLowStock(depotIds?: string | readonly string[]): Promise<InventoryItemRecord[]>;
   update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord>;
   /**
    * Applies a catalog change to every depot's line for one product at once — a rename

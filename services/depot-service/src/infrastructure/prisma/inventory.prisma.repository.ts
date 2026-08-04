@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { nextCursor, pageArgs } from '@hydromart/platform';
 
+import { Prisma } from '../../../prisma/generated/client';
+
 import {
   available,
   InventoryItemType,
@@ -165,16 +167,31 @@ export class InventoryPrismaRepository implements InventoryRepository {
       : items;
   }
 
-  async listLowStock(depotId?: string): Promise<InventoryItemRecord[]> {
-    // quantity <= minimumStock isn't expressible as a plain where on two columns, so filter
-    // the (already small) candidate set of lines that have a minimum set.
-    const rows = await this.prisma.inventoryItem.findMany({
-      where: { minimumStock: { gt: 0 }, ...(depotId ? { depotId } : {}) },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
-    return rows
-      .map((r) => this.toItem(r))
-      .filter((i) => available(i.quantity, i.reserved) <= i.minimumStock);
+  /**
+   * Low stock across one depot, several, or the whole network.
+   *
+   * The comparison is `quantity - reserved <= minimumStock`, which Prisma cannot express
+   * as a where on two columns — so this used to read EVERY line with a minimum set, for
+   * every depot, and filter them in JavaScript (audit S-13). Postgres does the comparison
+   * now, which also means the row bound cannot silently drop a depot that is out of
+   * stock: only the lines that are actually low come back.
+   */
+  async listLowStock(depotIds?: string | readonly string[]): Promise<InventoryItemRecord[]> {
+    const ids =
+      typeof depotIds === 'string' ? [depotIds] : depotIds ? [...depotIds] : undefined;
+    if (ids && ids.length === 0) return [];
+    const scope = ids
+      ? Prisma.sql`AND "depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<ItemRow[]>(Prisma.sql`
+      SELECT * FROM "inventory_items"
+      WHERE "minimumStock" > 0
+        AND ("quantity" - "reserved") <= "minimumStock"
+        ${scope}
+      ORDER BY "depotId" ASC, "itemType" ASC
+    `);
+    return rows.map((r) => this.toItem(r));
   }
 
   async update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord> {

@@ -46,6 +46,25 @@ export class ReportsController {
     return this.analytics.depotSummary(depotId);
   }
 
+  // The batch of the route above: the owner dashboard asks for every depot it owns in one
+  // call instead of one call per depot (audit S-1). Comma-separated ids; the response is
+  // one row per requested id, in the order asked for.
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-summaries')
+  @ApiOperation({
+    summary: 'Per-depot HR summary for MANY depots, one call (internal service auth)',
+  })
+  @ApiOkResponse({ type: HrDepotResponseDto, isArray: true })
+  depotSummaries(@Query('depotIds') depotIds: string): Promise<HrDepotSummary[]> {
+    const ids = (depotIds ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    return this.analytics.depotSummaryMany(ids);
+  }
+
   @Get('employees')
   @Can('hrView')
   @ApiOperation({ summary: 'Employee directory export (CSV or ?format=xlsx)' })

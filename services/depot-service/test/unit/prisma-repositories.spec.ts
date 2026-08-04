@@ -1071,24 +1071,28 @@ describe('InventoryPrismaRepository', () => {
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 
-  it('lists low stock across the network, filtering by available<=min', async () => {
+  it('asks Postgres for the low-stock predicate instead of filtering rows in JS', async () => {
     const low = { ...item, id: 'it-2', quantity: 4, reserved: 2, minimumStock: 3 };
-    inventoryItem.findMany.mockResolvedValue([item, low]);
+    $queryRaw.mockResolvedValue([low]);
     const out = await repo.listLowStock();
-    expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { minimumStock: { gt: 0 } },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
+    // available <= minimumStock is a two-column comparison Prisma cannot express, so the
+    // old shape read every line with a minimum set and filtered them here (audit S-13).
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(inventoryItem.findMany).not.toHaveBeenCalled();
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 
-  it('lists low stock scoped to one depot', async () => {
-    inventoryItem.findMany.mockResolvedValue([]);
+  it('scopes low stock to one depot, or to several in one query', async () => {
+    $queryRaw.mockResolvedValue([]);
     await repo.listLowStock('depot-9');
-    expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { minimumStock: { gt: 0 }, depotId: 'depot-9' },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
+    await repo.listLowStock(['depot-9', 'depot-8']);
+    expect($queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns nothing, and asks nothing, for an empty depot list', async () => {
+    $queryRaw.mockClear();
+    expect(await repo.listLowStock([])).toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('updates an item', async () => {

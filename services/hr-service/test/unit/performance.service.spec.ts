@@ -53,12 +53,17 @@ function build(opts: Opts = {}) {
   };
   const getById = jest.fn(async () => EMPLOYEE);
   const employees = { getById } as unknown as EmployeeService;
+  const oneSummary = () => ({
+    presentDays: opts.presentDays ?? 20,
+    lateDays: opts.lateDays ?? 2,
+    leaveDays: 0,
+  });
   const attendance = {
-    summary: jest.fn(async () => ({
-      presentDays: opts.presentDays ?? 20,
-      lateDays: opts.lateDays ?? 2,
-      leaveDays: 0,
-    })),
+    summary: jest.fn(async () => oneSummary()),
+    // Models the real repository: ONE call for the whole roster, keyed by employee id.
+    summaryMany: jest.fn(
+      async (ids: string[]) => new Map(ids.map((id) => [id, oneSummary()])),
+    ),
   } as unknown as AttendanceRepository;
   const employeesRepo = {
     list: jest.fn(async () => ({
@@ -87,6 +92,8 @@ function build(opts: Opts = {}) {
   return {
     getById,
     attendance,
+    holidays,
+    sales,
     write: () => lastWrite,
     svc: new PerformanceService(
       repo,
@@ -231,6 +238,73 @@ describe('PerformanceService — computed score (C2)', () => {
     expect(write()?.score).toBe(0);
     expect(write()?.attendanceScore).toBe(0);
     expect(write()?.disciplineScore).toBeNull();
+  });
+
+  it('costs the same whether the dashboard scores 2 staff or 40 (audit S-6)', async () => {
+    // The old shape was one attendance summary (three counts), one holiday read and one
+    // sales call PER EMPLOYEE. This pins the new one: a single grouped attendance query,
+    // and holidays/sales resolved once per depot no matter how many people are in it.
+    const roster = Array.from({ length: 40 }, (_, i) => ({
+      ...EMPLOYEE,
+      id: `e${i}`,
+      employeeCode: `EMP-${i}`,
+    })) as Employee[];
+    const { svc, attendance, holidays, sales } = build({ roster, sales: 5_000_000 });
+
+    const rows = await svc.dashboard(user, '2026-07', 'd1');
+
+    expect(rows).toHaveLength(40);
+    expect(attendance.summaryMany).toHaveBeenCalledTimes(1);
+    expect(attendance.summary).not.toHaveBeenCalled();
+    expect(holidays?.listDates).toHaveBeenCalledTimes(1);
+    expect(sales?.depotSales).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves holidays and sales once per depot, not once per roster', async () => {
+    const roster = [
+      { ...EMPLOYEE, id: 'a1', depotId: 'd1' },
+      { ...EMPLOYEE, id: 'a2', depotId: 'd1' },
+      { ...EMPLOYEE, id: 'b1', depotId: 'd2' },
+      { ...EMPLOYEE, id: 'b2', depotId: 'd2' },
+    ] as Employee[];
+    const { svc, holidays, sales } = build({ roster, sales: 1_000 });
+
+    await svc.dashboard(user, '2026-07');
+
+    expect(holidays?.listDates).toHaveBeenCalledTimes(2);
+    expect(sales?.depotSales).toHaveBeenCalledTimes(2);
+  });
+
+  it('scores an employee with no attendance row in the period as zero days', async () => {
+    const { svc, attendance } = build({ roster: [EMPLOYEE] });
+    (attendance.summaryMany as jest.Mock).mockResolvedValueOnce(new Map());
+
+    const [row] = await svc.dashboard(user, '2026-07', 'd1');
+
+    expect(row.inputs.presentDays).toBe(0);
+    expect(row.inputs.lateDays).toBe(0);
+  });
+
+  it('scores a dashboard with no holiday repository wired', async () => {
+    const { svc } = build({ presentDays: 31, lateDays: 0, noHolidays: true, roster: [EMPLOYEE] });
+    const [row] = await svc.dashboard(user, '2026-07', 'd1');
+    expect(row.inputs.workingDays).toBe(31);
+  });
+
+  it('leaves sales unmeasurable for an employee with no home depot', async () => {
+    const homeless = { ...EMPLOYEE, id: 'e9', depotId: null } as unknown as Employee;
+    const { svc, sales } = build({ roster: [homeless], sales: 9_000 });
+    const [row] = await svc.dashboard(user, '2026-07');
+    expect(row.inputs.salesTotal).toBeNull();
+    expect(sales?.depotSales).not.toHaveBeenCalled();
+  });
+
+  it('returns nothing, and asks nothing, for an empty roster', async () => {
+    const { svc, attendance, holidays } = build({ roster: [] });
+
+    expect(await svc.dashboard(user, '2026-07', 'd1')).toEqual([]);
+    expect(attendance.summaryMany).not.toHaveBeenCalled();
+    expect(holidays?.listDates).not.toHaveBeenCalled();
   });
 
   it('ranks the dashboard best first and sinks the unmeasurable to the bottom', async () => {

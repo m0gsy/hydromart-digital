@@ -105,6 +105,13 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   async lowStock(depotId: string, _token: string): Promise<LowStockLine[] | null> {
     return LOW_STOCK[depotId] ?? [];
   }
+  // Counted by the S-1 test: the owner dashboard must reach depot-service ONCE for the
+  // whole set, not once per depot.
+  lowStockManyCalls = 0;
+  async lowStockMany(depotIds: string[], _token: string): Promise<Map<string, LowStockLine[]> | null> {
+    this.lowStockManyCalls += 1;
+    return new Map(depotIds.map((id) => [id, LOW_STOCK[id] ?? []]));
+  }
   async allDepots(_token: string): Promise<NetworkDepot[] | null> {
     // Independent of `orderDown` — depot-service is a distinct source; lets the
     // network test exercise "order down but depots/SLA still list".
@@ -159,7 +166,17 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
   async hrSummary(depotId: string): Promise<HrDepotSummary | null> {
     return { depotId, lateToday: 1, absentToday: 2, presentToday: 5, payrollMtdNet: 3_000_000, activeHeadcount: 8 };
   }
+  hrSummaryManyCalls = 0;
+  async hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]> {
+    this.hrSummaryManyCalls += 1;
+    return Promise.all(depotIds.map((id) => this.hrSummary(id)));
+  }
   async crmSummary(_depotId: string): Promise<CrmDepotSummary | null> {
     return { counts: { baru: 1, aktif: 3, inactive: 2, total: 6 }, repeatRatePct: 50, followUps: [{ customerId: 'c1' }] };
+  }
+  crmSummaryManyCalls = 0;
+  async crmSummaryMany(depotIds: string[]): Promise<(CrmDepotSummary | null)[]> {
+    this.crmSummaryManyCalls += 1;
+    return Promise.all(depotIds.map((id) => this.crmSummary(id)));
   }
 }
