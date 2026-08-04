@@ -59,6 +59,21 @@ function clearSessionCookies(res: Response, secure: boolean): void {
   res.clearCookie(RT_COOKIE, { path: RT_PATH, sameSite: 'lax', secure, httpOnly: true });
 }
 
+// Audit F-4: this router sits on the PUBLIC ingress and had neither a deadline nor a
+// guarded parse. A hung auth-service held an express connection open indefinitely, and
+// any non-JSON body (a proxy's HTML 502) threw a SyntaxError out of an async handler —
+// which in Express 4 is an unhandled rejection, not a 500. Both are closed here.
+const AUTH_TIMEOUT_MS = 10_000;
+
+function parseBody(text: string): unknown {
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 async function callAuth(
   authBase: string,
   path: string,
@@ -67,14 +82,23 @@ async function callAuth(
 ): Promise<{ status: number; data: unknown }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
-  const res = await fetch(`${authBase}${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(opts.body),
-  });
-  const text = await res.text();
-  return { status: res.status, data: text ? JSON.parse(text) : undefined };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${authBase}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(opts.body),
+      signal: controller.signal,
+    });
+    return { status: res.status, data: parseBody(await res.text()) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+/** 503 body for a login/refresh that never reached auth-service — never a stack trace. */
+const UPSTREAM_DOWN = { statusCode: 503, message: 'Layanan masuk sedang tidak tersedia.' };
 
 const isSession = (status: number, data: unknown): data is UpstreamSession =>
   status >= 200 &&
@@ -91,7 +115,13 @@ export function createSessionRouter(authBase: string, secure: boolean): Router {
 
   // OTP verify — the only customer/staff login that yields tokens.
   r.post('/api/v1/auth/otp/verify', json(), async (req, res) => {
-    const { status, data } = await callAuth(authBase, '/api/v1/auth/otp/verify', { body: req.body });
+    let status: number;
+    let data: unknown;
+    try {
+      ({ status, data } = await callAuth(authBase, '/api/v1/auth/otp/verify', { body: req.body }));
+    } catch {
+      return res.status(503).json(UPSTREAM_DOWN);
+    }
     if (isSession(status, data)) {
       setSessionCookies(res, data, secure);
       return res.status(status).json({ customer: data.customer });
@@ -103,9 +133,17 @@ export function createSessionRouter(authBase: string, secure: boolean): Router {
   r.post('/api/v1/auth/token/refresh', json(), async (req, res) => {
     const rt = readCookie(req, RT_COOKIE);
     if (!rt) return res.status(401).json({ statusCode: 401, message: 'No active session.' });
-    const { status, data } = await callAuth(authBase, '/api/v1/auth/token/refresh', {
-      body: { refreshToken: rt },
-    });
+    let status: number;
+    let data: unknown;
+    try {
+      ({ status, data } = await callAuth(authBase, '/api/v1/auth/token/refresh', {
+        body: { refreshToken: rt },
+      }));
+    } catch {
+      // Upstream unreachable is NOT an expired session — clearing the cookies here would
+      // sign every user out on a blip they had nothing to do with.
+      return res.status(503).json(UPSTREAM_DOWN);
+    }
     if (isSession(status, data)) {
       setSessionCookies(res, data, secure);
       return res.status(status).json({ customer: data.customer });

@@ -14,6 +14,11 @@ import {
  */
 @Injectable()
 export class IdentityHttpAdapter implements IdentityPort {
+  // Audit F-3: staff provisioning fails HARD, so a hung auth-service used to hang the
+  // whole bulk import with no error and no row written. A deadline turns it into a
+  // failed row the importer can report.
+  private static readonly TIMEOUT_MS = 8_000;
+
   constructor(private readonly config: HrConfigService) {}
 
   async provisionStaff(input: ProvisionStaffInput): Promise<{ customerId: string }> {
@@ -40,6 +45,7 @@ export class IdentityHttpAdapter implements IdentityPort {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': internalKey },
         body: JSON.stringify(input),
+        signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
       });
     } catch (err) {
       throw new ServiceUnavailableException(

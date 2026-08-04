@@ -13,7 +13,8 @@ let customer: { id: string } | null = null;
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer }) }));
-vi.mock('@/lib/api', () => ({ api: { get, post, del } }));
+// The seed read is `getCached` (audit F-2) — one favourites list per grid, not one per card.
+vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post, del } }));
 
 import { FavoriteButton } from '@/components/favorite-button';
 

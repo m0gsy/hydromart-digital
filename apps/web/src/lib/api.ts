@@ -6,6 +6,18 @@ import type { Session } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
+/**
+ * Audit F-3: every request now carries a deadline. Without one a hung gateway
+ * leaves the caller's spinner up forever — `fetch` has no default timeout and the
+ * browser's own is minutes long. Uploads get a longer budget because a 5 MB photo
+ * on a phone connection legitimately outlives a JSON round-trip.
+ */
+const TIMEOUT_MS = 15_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
+
+/** One automatic retry after a 429, capped so a long Retry-After never freezes the UI. */
+const MAX_RETRY_AFTER_MS = 3_000;
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -24,7 +36,24 @@ function messageFrom(status: number, body: unknown): string {
     if (typeof m === 'string') return m;
   }
   if (status === 0) return 'Cannot reach the server. Check your connection and try again.';
+  if (status === 408) return 'The server took too long to answer. Try again.';
+  if (status === 429) return 'Too many requests right now. Wait a moment and try again.';
   return `Request failed (${status}).`;
+}
+
+/**
+ * Audit F-3: the old code ran `JSON.parse(text)` bare. Any non-JSON body — an HTML
+ * 502 page from the proxy, a truncated response — threw a raw SyntaxError that no
+ * caller catches, so the screen went blank instead of showing the error state.
+ * A body we cannot parse is reported as what it is: the status, with no detail.
+ */
+function parseBody(text: string): unknown {
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 interface RequestOptions {
@@ -35,6 +64,8 @@ interface RequestOptions {
   headers?: Record<string, string>;
   /** internal: prevents an infinite refresh loop */
   _retry?: boolean;
+  /** internal: prevents an infinite 429 retry loop */
+  _rateRetry?: boolean;
 }
 
 // Single-flight refresh: concurrent 401s share one refresh round-trip.
@@ -61,14 +92,41 @@ async function refreshSession(): Promise<Session | null> {
   return refreshing;
 }
 
+/** `fetch` with a hard deadline. An abort surfaces as 408, a transport failure as 0. */
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    // `controller.signal.aborted` distinguishes our deadline from a dropped socket;
+    // the two need different messages because only one is worth retrying immediately.
+    const status = controller.signal.aborted ? 408 : 0;
+    void err;
+    throw new ApiError(status, messageFrom(status, null));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Retry-After is either delta-seconds or an HTTP date; both are honoured, capped. */
+function retryAfterMs(res: Response): number {
+  const raw = res.headers?.get?.('retry-after');
+  if (!raw) return 500;
+  const seconds = Number(raw);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(raw) - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return 500;
+  return Math.min(ms, MAX_RETRY_AFTER_MS);
+}
+
 async function rawRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body } = options;
   const headers: Record<string, string> = { ...options.headers };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
-  let res: Response;
-  try {
-    res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(
+    `${BASE_URL}${path}`,
+    {
       method,
       headers,
       // SEC-4: the session cookie is httpOnly, so it only travels when the browser is
@@ -76,15 +134,21 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
       // bearer from the cookie downstream.
       credentials: 'include',
       body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, messageFrom(0, null));
+    },
+    TIMEOUT_MS,
+  );
+
+  // Audit F-3: the gateway's rate limiter answers 429 with Retry-After. Nothing read
+  // it, so a burst surfaced as "Request failed (429)" on a screen the user had done
+  // nothing wrong on. One automatic wait-and-retry absorbs the common case.
+  if (res.status === 429 && !options._rateRetry) {
+    await new Promise((resolve) => setTimeout(resolve, retryAfterMs(res)));
+    return rawRequest<T>(path, { ...options, _rateRetry: true });
   }
 
   if (res.status === 204) return undefined as T;
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  const data = parseBody(await res.text());
 
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
   return data as T;
@@ -104,6 +168,52 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 }
 
 /**
+ * Audit F-1/F-2: identical GETs fired in the same tick used to be N round-trips.
+ * One favourites list per grid card, one categories call per component that renders
+ * a chip row — every one of them a separate request against a rate limit measured
+ * per minute. Sharing the in-flight promise makes concurrent callers cost one.
+ *
+ * Only in-flight requests are shared, and only for GET. A settled result is dropped
+ * immediately, so a reload button or a read after a mutation still hits the server —
+ * data staleness is never traded for the saving. Reference data that genuinely does
+ * not change mid-session opts into a real TTL via `getCached`.
+ */
+const inflight = new Map<string, Promise<unknown>>();
+const cached = new Map<string, { at: number; value: unknown }>();
+
+const keyOf = (path: string, auth: boolean) => `${auth ? 'a' : 'p'}:${path}`;
+
+function sharedGet<T>(path: string, auth: boolean, ttlMs: number): Promise<T> {
+  const key = keyOf(path, auth);
+
+  if (ttlMs > 0) {
+    const hit = cached.get(key);
+    if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.value as T);
+  }
+
+  const existing = inflight.get(key);
+  if (existing) return existing as Promise<T>;
+
+  const p = request<T>(path, { auth })
+    .then((value) => {
+      // Failures are never cached: an error must be reproducible on the next attempt.
+      if (ttlMs > 0) cached.set(key, { at: Date.now(), value });
+      return value;
+    })
+    .finally(() => {
+      inflight.delete(key);
+    });
+
+  inflight.set(key, p);
+  return p;
+}
+
+/** Drop every cached read. Called after any mutation — see `api.post`/`put`/`patch`/`del`. */
+function invalidate(): void {
+  cached.clear();
+}
+
+/**
  * Multipart upload (always authenticated). The JSON `api` helpers force a JSON
  * Content-Type, so file uploads need this path: it lets the browser set the
  * multipart boundary and attaches the bearer token. No 401 refresh-retry — the
@@ -119,21 +229,20 @@ export async function uploadFile<T = { url: string }>(
   form.append('file', file);
   for (const [key, value] of Object.entries(fields)) form.append(key, value);
 
-  let res: Response;
-  try {
-    res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(
+    `${BASE_URL}${path}`,
+    {
       method: 'POST',
       // SEC-4: httpOnly session cookie carries auth; let the browser set the multipart boundary.
       credentials: 'include',
       body: form,
-    });
-  } catch {
-    throw new ApiError(0, messageFrom(0, null));
-  }
+    },
+    UPLOAD_TIMEOUT_MS,
+  );
 
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : undefined;
+  const data = parseBody(await res.text());
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  invalidate();
   return data as T;
 }
 
@@ -143,19 +252,39 @@ export async function uploadFile<T = { url: string }>(
 function del<T>(path: string, auth?: boolean): Promise<T>;
 function del<T>(path: string, body: unknown, auth?: boolean): Promise<T>;
 function del<T>(path: string, bodyOrAuth?: unknown, auth = false): Promise<T> {
+  invalidate();
   if (typeof bodyOrAuth === 'boolean' || bodyOrAuth === undefined) {
     return request<T>(path, { method: 'DELETE', auth: bodyOrAuth ?? false });
   }
   return request<T>(path, { method: 'DELETE', body: bodyOrAuth, auth });
 }
 
+function mutate<T>(method: string) {
+  // `headers` is how a checkout carries its Idempotency-Key (B-13) — the same key across
+  // every retry of one attempt, so it has to survive this wrapper.
+  return (
+    path: string,
+    body?: unknown,
+    auth = false,
+    headers?: Record<string, string>,
+  ): Promise<T> => {
+    invalidate();
+    return request<T>(path, { method, body, auth, headers });
+  };
+}
+
 export const api = {
-  get: <T>(path: string, auth = false) => request<T>(path, { auth }),
+  get: <T>(path: string, auth = false) => sharedGet<T>(path, auth, 0),
+  /**
+   * GET whose answer is reference data — categories, capability matrices, settings.
+   * Re-reading it on every screen that renders a chip row is the fan-out F-2 named.
+   * Any mutation clears it, so a stale read can only outlive a change made elsewhere.
+   */
+  getCached: <T>(path: string, auth = false, ttlMs = 60_000) => sharedGet<T>(path, auth, ttlMs),
   post: <T>(path: string, body?: unknown, auth = false, headers?: Record<string, string>) =>
-    request<T>(path, { method: 'POST', body, auth, headers }),
-  put: <T>(path: string, body?: unknown, auth = false) =>
-    request<T>(path, { method: 'PUT', body, auth }),
-  patch: <T>(path: string, body?: unknown, auth = false) =>
-    request<T>(path, { method: 'PATCH', body, auth }),
+    mutate<T>('POST')(path, body, auth, headers),
+  put: <T>(path: string, body?: unknown, auth = false) => mutate<T>('PUT')(path, body, auth),
+  patch: <T>(path: string, body?: unknown, auth = false) => mutate<T>('PATCH')(path, body, auth),
   del,
+  invalidate,
 };

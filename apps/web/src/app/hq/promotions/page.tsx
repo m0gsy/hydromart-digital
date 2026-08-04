@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Image as ImageIcon } from '@phosphor-icons/react';
 
+import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -134,14 +135,21 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 // Design 17d — homepage carousel slots. Real: promotions.manage + create/detail.
 export default function HqPromotionsPage() {
   const { t } = useT();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined);
   const { data, error, loading, reload } = useAsync<Promotion[]>(
     () => api.get<Promotion[]>(endpoints.promotions.manage, true),
     [],
   );
 
+  // Audit F-14: this used to swallow the failure and reload, so a rejected delete
+  // (403, 409, network) redrew the same row and read as "nothing happened".
   async function remove(id: string) {
-    await api.del(endpoints.promotions.detail(id), true).catch(() => {});
+    try {
+      await api.del(endpoints.promotions.detail(id), true);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : t('hq.common.actionFailed'), 'error');
+    }
     reload();
   }
 

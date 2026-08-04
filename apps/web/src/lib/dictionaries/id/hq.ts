@@ -120,6 +120,7 @@ export const hq = {
     stub: 'contoh data',
     unavailableSome: 'Sebagian data gagal dimuat ({sources}). Menampilkan yang tersedia.',
     dash: '—',
+    actionFailed: 'Aksi gagal. Coba lagi.',
     export: 'Ekspor',
     save: 'Simpan',
     cancel: 'Batal',

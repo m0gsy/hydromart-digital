@@ -117,6 +117,7 @@ export const hq = {
     stub: 'sample data',
     unavailableSome: 'Some data could not be loaded ({sources}). Showing what is available.',
     dash: '—',
+    actionFailed: 'That action failed. Try again.',
     export: 'Export',
     save: 'Save',
     cancel: 'Cancel',

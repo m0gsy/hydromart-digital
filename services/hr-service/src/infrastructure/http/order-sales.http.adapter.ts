@@ -10,6 +10,7 @@ import { SalesPort } from '../../application/ports/sales.port';
  */
 @Injectable()
 export class OrderSalesHttpAdapter implements SalesPort {
+  private static readonly TIMEOUT_MS = 5_000;
   private readonly logger = new Logger(OrderSalesHttpAdapter.name);
 
   constructor(private readonly config: HrConfigService) {}
@@ -22,7 +23,9 @@ export class OrderSalesHttpAdapter implements SalesPort {
       const res = await fetch(
         `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-sales?${qs}`,
         {
+          // Audit F-3: no deadline meant a hung order-service stalled the whole payroll run.
           headers: { 'x-internal-key': internalKey },
+          signal: AbortSignal.timeout(OrderSalesHttpAdapter.TIMEOUT_MS),
         },
       );
       if (!res.ok) {
