@@ -987,7 +987,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07' },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: { employee: { employeeCode: 'asc' } },
+      orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -998,7 +999,8 @@ describe('AnalyticsPrismaRepository', () => {
     await repo.employeesForReport(['d1']);
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
       where: { depotId: { in: ['d1'] } },
-      orderBy: { employeeCode: 'asc' },
+      orderBy: [{ employeeCode: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1012,7 +1014,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: { not: 'PENDING' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
+      orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1024,7 +1027,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: { employee: { employeeCode: 'asc' } },
+      orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1040,7 +1044,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: 'LATE' },
       include: summary,
-      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
+      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1051,7 +1056,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
       where: { startDate: { lte: to }, endDate: { gte: from }, depotId: { in: ['d1'] } },
       include: summary,
-      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
+      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1063,7 +1069,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: summary,
-      orderBy: { score: 'desc' },
+      orderBy: [{ score: 'desc' }, { id: 'asc' }],
+      take: 500,
     });
     await repo.performanceForReport('2026-07');
     expect(m(p, 'performanceReview').findMany).toHaveBeenLastCalledWith(
@@ -1078,7 +1085,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
       where: { depotId: { in: ['d1'] } },
       include: { holder: { select: { employeeCode: true, fullName: true } } },
-      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+      orderBy: [{ status: 'asc' }, { code: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1089,8 +1097,32 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
       where: { publishedAt: { gte: from, lte: to } },
       include: { targets: true, _count: { select: { reads: true } } },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      take: 500,
     });
+  });
+
+  it('walks an export past the first page with a cursor', async () => {
+    const p = makePrisma();
+    const page = Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` }));
+    m(p, 'employee').findMany.mockResolvedValueOnce(page).mockResolvedValueOnce([{ id: 'e-500' }]);
+    const rows = await new AnalyticsPrismaRepository(asService(p)).employeesForReport(['d1']);
+    expect(rows).toHaveLength(501);
+    expect(m(p, 'employee').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: { id: 'e-499' }, skip: 1 }),
+    );
+  });
+
+  it('refuses an export past the row ceiling rather than cutting the file short', async () => {
+    const p = makePrisma();
+    // Every page full: the export would never end, which is the range that must not be
+    // silently truncated into a payroll file nobody can tell is incomplete.
+    m(p, 'employee').findMany.mockResolvedValue(
+      Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` })),
+    );
+    await expect(
+      new AnalyticsPrismaRepository(asService(p)).employeesForReport(['d1']),
+    ).rejects.toThrow(/melebihi 50000 baris/);
   });
 });
 

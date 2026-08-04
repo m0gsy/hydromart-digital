@@ -12,12 +12,24 @@ import {
 } from '../../domain/meter-reading';
 import { NotificationPort } from '../ports/notification.port';
 import { MeterReadingRepository, UpsertMeterReadingData } from '../ports/meter-reading.repository';
-import { OrderRepository } from '../ports/order.repository';
+import { OrderRecord, OrderRepository } from '../ports/order.repository';
 import { OrderStatus } from '../../domain/order-status';
 import { ORDER_TOKENS } from '../tokens';
 import { gallonQty, isDelivered } from './report.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The sales side of one day, from that day's orders. CANCELLED never counts. */
+function totalsFrom(rows: OrderRecord[]): SoldTotals {
+  const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
+  const { soldLiters, unmeasuredLines } = sumSoldLiters(live.flatMap((r) => r.items));
+  return {
+    soldLiters,
+    unmeasuredLines,
+    gallonsDelivered: live.filter((r) => isDelivered(r.status)).reduce((s, r) => s + gallonQty(r), 0),
+    revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+  };
+}
 
 export interface SaveMeterReadingInput {
   depotId: string;
@@ -98,12 +110,33 @@ export class MeterService {
     return this.reconcileWith(depotId, date, reading);
   }
 
-  /** Per-day rows for the history chart. Days with no reading are simply absent. */
+  /**
+   * Per-day rows for the history chart. Days with no reading are simply absent.
+   *
+   * The window is read ONCE and bucketed by day. It used to call `soldTotals` inside the
+   * loop — one unbounded order read per day on the chart, 92 of them for a quarter, each
+   * pulling that day's orders with the full item/history include (audit H-48).
+   */
   async history(depotId: string, from: string, to: string): Promise<MeterHistoryRow[]> {
     const readings = await this.readings.listForRange(depotId, from, to);
+    if (readings.length === 0) return [];
+
+    const windowStart = new Date(`${from}T00:00:00.000Z`);
+    const windowEnd = new Date(new Date(`${to}T00:00:00.000Z`).getTime() + DAY_MS);
+    const byDay = new Map<string, OrderRecord[]>();
+    for (const order of await this.orders.ordersForDepot(depotId, {
+      from: windowStart,
+      to: windowEnd,
+    })) {
+      const day = order.createdAt.toISOString().slice(0, 10);
+      const bucket = byDay.get(day);
+      if (bucket) bucket.push(order);
+      else byDay.set(day, [order]);
+    }
+
     const rows: MeterHistoryRow[] = [];
     for (const reading of readings) {
-      const totals = await this.soldTotals(depotId, reading.date);
+      const totals = totalsFrom(byDay.get(reading.date) ?? []);
       const result = reconcile({
         depotId,
         date: reading.date,
@@ -146,17 +179,7 @@ export class MeterService {
   private async soldTotals(depotId: string, date: string): Promise<SoldTotals> {
     const from = new Date(`${date}T00:00:00.000Z`);
     const to = new Date(from.getTime() + DAY_MS);
-    const rows = await this.orders.ordersForDepot(depotId, { from, to });
-    const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
-    const { soldLiters, unmeasuredLines } = sumSoldLiters(live.flatMap((r) => r.items));
-    return {
-      soldLiters,
-      unmeasuredLines,
-      gallonsDelivered: live
-        .filter((r) => isDelivered(r.status))
-        .reduce((s, r) => s + gallonQty(r), 0),
-      revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
-    };
+    return totalsFrom(await this.orders.ordersForDepot(depotId, { from, to }));
   }
 
   /**

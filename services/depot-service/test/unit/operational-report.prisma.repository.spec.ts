@@ -1,4 +1,5 @@
 import { InventoryItemType } from '../../src/domain/inventory';
+import { ReportRangeTooLargeError } from '../../src/domain/errors';
 import { OperationalReportPrismaRepository } from '../../src/infrastructure/prisma/operational-report.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
@@ -30,18 +31,62 @@ describe('OperationalReportPrismaRepository', () => {
         createdAt: true,
         item: { select: { itemType: true, label: true } },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
     expect(purchaseOrder.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1', status: 'RECEIVED', receivedAt: { not: null, lt: to } },
       select: { id: true, poNumber: true, receivedAt: true, lines: true },
-      orderBy: [{ receivedAt: 'asc' }, { poNumber: 'asc' }],
+      orderBy: [{ receivedAt: 'asc' }, { poNumber: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
     expect(cashbookEntry.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1', direction: 'OUT', occurredAt: { gte: from, lt: to } },
       select: { id: true, category: true, amountIdr: true, sourceRef: true, occurredAt: true },
-      orderBy: { occurredAt: 'asc' },
+      orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
+  });
+
+  it('walks a window bigger than one page with a cursor', async () => {
+    const page = Array.from({ length: 500 }, (_, i) => ({
+      id: `move-${i}`,
+      itemId: 'item-1',
+      delta: -1,
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+      item: { itemType: InventoryItemType.PRODUK, label: 'Refill 19L' },
+    }));
+    stockMovement.findMany.mockResolvedValueOnce(page).mockResolvedValueOnce([]);
+
+    const result = await repository.load('depot-1', {
+      from: new Date('2026-07-01T00:00:00.000Z'),
+      to: new Date('2026-08-01T00:00:00.000Z'),
+    });
+
+    expect(result.sales).toHaveLength(500);
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: { id: 'move-499' }, skip: 1 }),
+    );
+  });
+
+  it('refuses a window past the row ceiling instead of reporting part of it', async () => {
+    // Every page comes back full: the walk would never end on its own, which is exactly
+    // the range that must not be silently truncated into a plausible-looking day-book.
+    const page = Array.from({ length: 500 }, (_, i) => ({
+      id: `move-${i}`,
+      itemId: 'item-1',
+      delta: -1,
+      createdAt: new Date('2026-07-10T00:00:00.000Z'),
+      item: { itemType: InventoryItemType.PRODUK, label: 'Refill 19L' },
+    }));
+    stockMovement.findMany.mockResolvedValue(page);
+
+    await expect(
+      repository.load('depot-1', {
+        from: new Date('2026-07-01T00:00:00.000Z'),
+        to: new Date('2026-08-01T00:00:00.000Z'),
+      }),
+    ).rejects.toThrow(ReportRangeTooLargeError);
   });
 
   it('maps negative SALE deltas to positive sold units and preserves PO/cashbook identity', async () => {

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere } from '@hydromart/platform';
+import { depotWhere, readAllPages } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
@@ -796,21 +796,24 @@ export class OrderPrismaRepository implements OrderRepository {
     };
     const where = { depotId, ...(range.from || range.to ? { createdAt } : {}) };
 
-    const out: OrderRecord[] = [];
-    let cursor: string | undefined;
-    for (;;) {
-      const rows = await this.prisma.order.findMany({
-        where,
-        include: INCLUDE,
-        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        take: REPORT_PAGE_SIZE,
-        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      });
-      out.push(...rows.map((r) => this.toRecord(r)));
-      if (rows.length < REPORT_PAGE_SIZE) return out;
-      if (out.length >= MAX_REPORT_ORDERS) throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
-      cursor = rows[rows.length - 1].id;
-    }
+    const rows = await readAllPages(
+      ({ take, cursor }) =>
+        this.prisma.order.findMany({
+          where,
+          include: INCLUDE,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      {
+        pageSize: REPORT_PAGE_SIZE,
+        max: MAX_REPORT_ORDERS,
+        onOverflow: () => {
+          throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
+        },
+      },
+    );
+    return rows.map((r) => this.toRecord(r));
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
