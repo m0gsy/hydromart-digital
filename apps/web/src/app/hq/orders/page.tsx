@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ClipboardText } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -74,13 +75,7 @@ export default function HqOrdersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <ClipboardText size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.orders.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.orders.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={ClipboardText} title={t('hq.orders.title')} subtitle={t('hq.orders.subtitle')} />
 
       <div className="flex flex-wrap gap-2">
         <TrayTab active={!tray} onClick={() => setTray(false)}>

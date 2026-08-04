@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Ticket } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -61,21 +62,21 @@ export default function HqVouchersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Ticket size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.vouchers.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.vouchers.subtitle')}</p>
-          </div>
-        </div>
-        <Link
-          href="/hq/forms/voucher"
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
-        >
-          ＋ {t('hq.vouchers.newVoucher')}
-        </Link>
-      </div>
+      <HqPageHeader
+        icon={Ticket}
+        title={t('hq.vouchers.title')}
+        subtitle={t('hq.vouchers.subtitle')}
+        action={
+          <>
+            <Link
+              href="/hq/forms/voucher"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
+            >
+              ＋ {t('hq.vouchers.newVoucher')}
+            </Link>
+          </>
+        }
+      />
 
       {/* Network voucher spend — REAL (promo-service burn-summary = SUM discountApplied) */}
       <Card className="flex flex-col gap-2 p-5">

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Scales, DownloadSimple } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
@@ -85,13 +86,7 @@ export default function HqReconciliationPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Scales size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.reconciliation.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.reconciliation.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Scales} title={t('hq.reconciliation.title')} subtitle={t('hq.reconciliation.subtitle')} />
 
       <div className="max-w-sm">
         <label htmlFor="recon-depot" className="mb-1.5 block text-sm font-medium">

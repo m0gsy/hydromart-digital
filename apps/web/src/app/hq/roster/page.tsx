@@ -2,6 +2,7 @@
 
 import { Truck } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -53,13 +54,7 @@ export default function HqRosterPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Truck size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.roster.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.roster.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Truck} title={t('hq.roster.title')} subtitle={t('hq.roster.subtitle')} />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

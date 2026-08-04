@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { TrendUp } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { BarTrend, CohortGrid } from '@/components/hq/charts';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -42,13 +43,7 @@ export default function HqAnalyticsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <TrendUp size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.analytics.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.analytics.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={TrendUp} title={t('hq.analytics.title')} subtitle={t('hq.analytics.subtitle')} />
 
       {/* Revenue trend — REAL */}
       <Card className="flex flex-col gap-3 p-5">

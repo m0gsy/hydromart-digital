@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { UserCircle } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Input, Money } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -54,13 +55,7 @@ export default function HqCustomersPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <UserCircle size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.customers.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.customers.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={UserCircle} title={t('hq.customers.title')} subtitle={t('hq.customers.subtitle')} />
 
       <form
         onSubmit={(e) => {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { UserGear } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -49,16 +50,16 @@ export default function HqStaffPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <UserGear size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.staff.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.staff.subtitle')}</p>
-          </div>
-        </div>
-        <StaffInvite onSaved={list.reload} />
-      </div>
+      <HqPageHeader
+        icon={UserGear}
+        title={t('hq.staff.title')}
+        subtitle={t('hq.staff.subtitle')}
+        action={
+          <>
+            <StaffInvite onSaved={list.reload} />
+          </>
+        }
+      />
 
       {/* Role filter chips */}
       <div className="flex flex-wrap gap-2">

@@ -14,6 +14,7 @@ import {
   Trophy,
 } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { FavoriteButton } from '@/components/favorite-button';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { Button, Chip, ErrorState, MemberPrice, Money, Skeleton } from '@/components/ui';
@@ -152,8 +153,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           {/* gallery — main image + a thumbnail strip when the product has >1 photo */}
           <div className="flex flex-col gap-3">
             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[24px] bg-[color:var(--surface-soft)]">
+              {/* Audit F-11: the LCP element on the busiest customer screen. */}
               {mainImg ? (
-                <img src={mainImg} alt={product.name} className="h-full w-full object-cover" />
+                <RemoteImage
+                  src={mainImg}
+                  alt={product.name}
+                  priority
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <Drop size={96} weight="thin" className="text-brand-300" />
               )}
@@ -171,7 +178,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                       i === activeImg ? 'border-brand-600' : 'border-transparent hover:border-brand-300'
                     }`}
                   >
-                    <img src={url} alt="" className="h-full w-full object-cover" />
+                    <RemoteImage src={url} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>

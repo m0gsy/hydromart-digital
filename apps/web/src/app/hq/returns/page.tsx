@@ -2,6 +2,7 @@
 
 import { Recycle } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -44,13 +45,7 @@ export default function HqReturnsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Recycle size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.returns.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.returns.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Recycle} title={t('hq.returns.title')} subtitle={t('hq.returns.subtitle')} />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

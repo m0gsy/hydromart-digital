@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Storefront, TreeStructure, UserGear, X } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { AccessDeniedHq } from '@/components/hq/access-denied';
 import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -92,13 +93,7 @@ export default function HqHierarchyPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <TreeStructure size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.hierarchy.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.hierarchy.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={TreeStructure} title={t('hq.hierarchy.title')} subtitle={t('hq.hierarchy.subtitle')} />
 
       {/* ---- Depot -> assistant supervisor. The bottom rung: without it the whole chain
               resolves to nothing, however many superior links are recorded above. ---- */}

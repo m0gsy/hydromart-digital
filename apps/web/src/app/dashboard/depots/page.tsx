@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
 import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
 import { OwnerSelect } from '@/components/hq/owner-select';
@@ -76,7 +77,13 @@ function QrisUploader({
       </div>
       <p className="mb-3 text-xs text-muted">{t('opsFix.qris.hint')}</p>
       {src ? (
-        <img src={src} alt={t('opsFix.qris.alt')} className="mx-auto h-40 w-40 rounded-lg border border-app object-contain" />
+        <RemoteImage
+          src={src}
+          alt={t('opsFix.qris.alt')}
+          width={160}
+          height={160}
+          className="mx-auto h-40 w-40 rounded-lg border border-app object-contain"
+        />
       ) : (
         <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-lg border border-dashed border-app text-xs text-muted">
           {t('opsFix.qris.none')}

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowUUpLeft, Lock, Money as MoneyIcon, Printer } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { CashierShiftBar } from '@/components/dashboard/cashier-shift-bar';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
@@ -422,7 +423,7 @@ function WalkIn({ depotId }: { depotId: string }) {
         {method === 'QRIS' && qrisUrl && (
           // A depot-uploaded URL, not a bundled asset — next/image would need the host
           // whitelisted per depot storage bucket for no gain on a print-once QR.
-          <img
+          <RemoteImage
             src={qrisUrl}
             alt="Kode QRIS depot untuk dipindai pembeli"
             className="mx-auto max-h-64 w-auto rounded-xl border border-app"

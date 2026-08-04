@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, Drop, Plus } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { MemberPrice, Money } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -65,10 +66,9 @@ export function ProductCard({
         {product.imageUrl ? (
           // ponytail: plain img (arbitrary depot-supplied URLs). Swap to next/image
           // with a remote allowlist once image hosts are known.
-          <img
+          <RemoteImage
             src={product.imageUrl}
             alt={product.name}
-            loading="lazy"
             className="h-full w-full object-cover"
           />
         ) : (
