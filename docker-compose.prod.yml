@@ -77,6 +77,10 @@ services:
       # makes every PDP approval error rather than half-complete — hardcoded like the
       # other internal URLs, not an env knob that can be forgotten.
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Inviting staff also opens their employee record in hr-service. Fails closed like the
+      # line above: a blank value makes the invite error rather than create an account
+      # nobody in HR can pay or roster. Hardcoded for the same reason.
+      HR_SERVICE_URL: http://hr:3018
       # Object storage for customer avatar photos. BiznetGio NEO (S3-compatible);
       # per-bucket keys, so auth uses its own bucket/creds (see AUTH_STORAGE_* in .env).
       # Reuse the product bucket+creds if you prefer one bucket — avatars live under

@@ -4,7 +4,10 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsIn,
+  IsISO8601,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -15,6 +18,14 @@ import {
 } from 'class-validator';
 
 import { Role } from '../../../domain/customer/role.enum';
+
+/**
+ * hr-service's own enums, mirrored as plain strings rather than imported: auth-service does
+ * not depend on hr-service's Prisma client, and this DTO only carries the values through.
+ * hr-service validates them again on arrival, where the enum actually lives.
+ */
+const EMPLOYMENT_STATUSES = ['TRAINING', 'PROBATION', 'PERMANENT'] as const;
+const SALARY_TYPES = ['DAILY', 'MONTHLY'] as const;
 
 export class ListStaffQueryDto {
   @ApiPropertyOptional({ default: 1 })
@@ -73,6 +84,43 @@ export class InviteStaffDto {
   @IsString()
   @MaxLength(20)
   plateNumber?: string;
+
+  /*
+   * Employment fields. Required, because inviting somebody now opens their employee record
+   * too — an account with no employee is a person who cannot be paid, rostered or clocked
+   * in, which is the exact half-a-person this release exists to stop creating.
+   *
+   * FRANCHISE_OWNER is the one role that skips the employee record (a business counterpart,
+   * not headcount); the console hides these fields for it and sends the defaults.
+   */
+  @ApiProperty({ example: 'Kurir' })
+  @IsString()
+  @MaxLength(80)
+  position!: string;
+
+  @ApiProperty({ example: '2026-08-04' })
+  @IsISO8601()
+  joinDate!: string;
+
+  @ApiProperty({ enum: EMPLOYMENT_STATUSES, example: 'PROBATION' })
+  @IsIn(EMPLOYMENT_STATUSES)
+  employmentStatus!: string;
+
+  @ApiProperty({ enum: SALARY_TYPES, example: 'MONTHLY' })
+  @IsIn(SALARY_TYPES)
+  salaryType!: string;
+
+  @ApiPropertyOptional({ example: 150000, description: 'Required when salaryType is DAILY.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  dailyRate?: number;
+
+  @ApiPropertyOptional({ example: 4500000, description: 'Required when salaryType is MONTHLY.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monthlyRate?: number;
 }
 
 /**

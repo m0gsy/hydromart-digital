@@ -30,6 +30,8 @@ import { ConsentPrismaRepository } from '../../infrastructure/prisma/repositorie
 import { CapabilityOverridePrismaRepository } from '../../infrastructure/prisma/repositories/capability-override.prisma.repository';
 import { DataSubjectRequestPrismaRepository } from '../../infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../infrastructure/http/customer-data.http.adapter';
+import { HrDirectoryHttpAdapter } from '../../infrastructure/http/hr-directory.http.adapter';
+import { HR_DIRECTORY_PORT } from '../../application/ports/hr-directory.port';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
 import { OtpTokenPrismaRepository } from '../../infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../infrastructure/prisma/repositories/refresh-token.prisma.repository';
@@ -64,6 +66,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.AuditLogRepository, useClass: AuditLogPrismaRepository },
   { provide: AUTH_TOKENS.DataSubjectRequestRepository, useClass: DataSubjectRequestPrismaRepository },
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
+  { provide: HR_DIRECTORY_PORT, useClass: HrDirectoryHttpAdapter },
   { provide: AUTH_TOKENS.ConsentRepository, useClass: ConsentPrismaRepository },
   { provide: AUTH_TOKENS.CapabilityOverrideRepository, useClass: CapabilityOverridePrismaRepository },
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },

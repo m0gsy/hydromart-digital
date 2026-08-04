@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 
 import {
   CustomerNotFoundError,
@@ -15,17 +15,32 @@ import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
+import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
 import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
 import { AuditAction, AuditService } from './audit.service';
 import { SessionInfo, SessionService } from './session.service';
 
-/** One row of a bulk staff invite — the same four fields the single invite takes. */
-export interface ImportStaffRow {
+/** One row of a bulk staff invite — the same fields the single invite takes. */
+export interface ImportStaffRow extends InviteStaffInput {}
+
+/**
+ * A console invite: the account fields, plus the employment ones hr-service needs to open
+ * an employee record for the same person.
+ */
+export interface InviteStaffInput {
   phone: string;
   role: Role;
   fullName?: string;
   depotId?: string;
+  vehicleType?: string;
+  plateNumber?: string;
+  position: string;
+  joinDate: string;
+  employmentStatus: string;
+  salaryType: string;
+  dailyRate?: number;
+  monthlyRate?: number;
 }
 
 /** Account self-service: profile, active sessions, and logout-everywhere (FR-009/010). */
@@ -35,6 +50,9 @@ export class AccountService {
     @Inject(AUTH_TOKENS.CustomerRepository) private readonly customers: CustomerRepository,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    // Optional so every existing construction site (and every spec that does not exercise
+    // the invite path) keeps working; the console path refuses rather than skipping it.
+    @Optional() @Inject(HR_DIRECTORY_PORT) private readonly hr?: HrDirectoryPort,
   ) {}
 
   async getProfile(customerId: string): Promise<PublicCustomer> {
@@ -187,6 +205,51 @@ export class AccountService {
   }
 
   /**
+   * The staff console inviting somebody: the account, and then the employee record that
+   * makes them payable, rosterable and able to clock in.
+   *
+   * Deliberately NOT folded into `inviteStaff`. That one is also what hr-service calls over
+   * the internal key while it is creating an employee — pushing back to hr-service from
+   * there would either loop or write the employee twice. This is the console's entry point;
+   * `inviteStaff` stays the plain account write.
+   *
+   * FRANCHISE_OWNER is skipped: an owner is a business counterpart, not somebody on the
+   * payroll, and giving them an employee row would put them in headcount and rosters.
+   *
+   * Account first, then hr-service, because the employee row needs the account id. A failure
+   * in between leaves an account with no employee — visible as such in the Fase 5
+   * reconciliation rather than silently.
+   */
+  async inviteStaffWithEmployee(input: InviteStaffInput): Promise<PublicCustomer> {
+    const staff = await this.inviteStaff(input.phone, input.role, input.fullName, input.depotId, {
+      vehicleType: input.vehicleType,
+      plateNumber: input.plateNumber,
+    });
+    if (input.role === Role.FRANCHISE_OWNER) {
+      return staff;
+    }
+    if (!this.hr) {
+      throw new ServiceUnavailableException(
+        'hr-service belum dikonfigurasi; undangan staf tidak bisa diproses.',
+      );
+    }
+    await this.hr.provisionEmployee({
+      authSubjectId: staff.id,
+      fullName: staff.fullName ?? input.fullName ?? input.phone,
+      phone: staff.phone,
+      role: input.role,
+      depotId: input.depotId ?? undefined,
+      position: input.position,
+      joinDate: input.joinDate,
+      employmentStatus: input.employmentStatus,
+      salaryType: input.salaryType,
+      dailyRate: input.dailyRate,
+      monthlyRate: input.monthlyRate,
+    });
+    return staff;
+  }
+
+  /**
    * Bulk staff invite (HQ spreadsheet wizard). Every row goes through `inviteStaff`, so an
    * uploaded file has exactly the powers and exactly the validation of the single-invite
    * form — a bad role, a missing depot or an unparseable phone fails THAT row and the rest
@@ -201,7 +264,7 @@ export class AccountService {
       // Looked up BEFORE the write, and with the same normalisation inviteStaff uses —
       // asking afterwards would call every row `updated`.
       const existing = await this.customers.findByPhone(PhoneNumber.create(row.phone).value);
-      const staff = await this.inviteStaff(row.phone, row.role, row.fullName, row.depotId);
+      const staff = await this.inviteStaffWithEmployee(row);
       return { status: existing ? 'updated' : 'created', id: staff.id };
     });
   }

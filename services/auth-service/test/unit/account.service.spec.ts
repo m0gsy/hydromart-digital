@@ -7,6 +7,7 @@ import {
 import { Role } from '../../src/domain/customer/role.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { AccountService } from '../../src/application/services/account.service';
+import type { ProvisionEmployeeInput } from '../../src/application/ports/hr-directory.port';
 import { AuditAction, AuditService } from '../../src/application/services/audit.service';
 import { SessionService } from '../../src/application/services/session.service';
 import {
@@ -20,11 +21,21 @@ import {
   makeCustomer,
 } from '../support/fakes';
 
+/** The employment half every console invite now carries; the values are not what is tested. */
+const EMPLOYMENT = {
+  position: 'Kurir',
+  joinDate: '2026-08-04',
+  employmentStatus: 'PROBATION',
+  salaryType: 'MONTHLY',
+  monthlyRate: 4_500_000,
+} as const;
+
 describe('AccountService', () => {
   let customers: InMemoryCustomerRepository;
   let sessions: SessionService;
   let audit: InMemoryAuditLogRepository;
   let service: AccountService;
+  let hr: { calls: ProvisionEmployeeInput[]; provisionEmployee(i: ProvisionEmployeeInput): Promise<void> };
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
 
@@ -39,7 +50,8 @@ describe('AccountService', () => {
       new FakeClock(),
       buildTestConfig(),
     );
-    service = new AccountService(customers, sessions, new AuditService(audit));
+    hr = { calls: [], provisionEmployee: async (input) => void hr.calls.push(input) };
+    service = new AccountService(customers, sessions, new AuditService(audit), hr);
   });
 
   it('returns the public profile of an existing account', async () => {
@@ -128,15 +140,72 @@ describe('AccountService', () => {
     expect(staff).toMatchObject({ role: Role.HEAD_OFFICE, status: 'ACTIVE' });
   });
 
+  // The mirror image of the HR form: inviting somebody used to create a login and nothing
+  // else, so HR had people who could sign in but could not be paid or rostered.
+  describe('inviteStaffWithEmployee', () => {
+    it('opens the employee record for the account it just created', async () => {
+      const staff = await service.inviteStaffWithEmployee({
+        ...EMPLOYMENT,
+        phone: '+628994440001',
+        role: Role.KEPALA_DEPOT,
+        fullName: 'Rina',
+        depotId: 'depot-1',
+      });
+
+      expect(hr.calls).toEqual([
+        {
+          authSubjectId: staff.id,
+          fullName: 'Rina',
+          phone: staff.phone,
+          role: Role.KEPALA_DEPOT,
+          depotId: 'depot-1',
+          position: EMPLOYMENT.position,
+          joinDate: EMPLOYMENT.joinDate,
+          employmentStatus: EMPLOYMENT.employmentStatus,
+          salaryType: EMPLOYMENT.salaryType,
+          dailyRate: undefined,
+          monthlyRate: EMPLOYMENT.monthlyRate,
+        },
+      ]);
+    });
+
+    // A franchise owner is a business counterpart, not headcount: an employee row would put
+    // them in payroll totals and depot rosters they have no business being in.
+    it('skips the employee record for a franchise owner', async () => {
+      await service.inviteStaffWithEmployee({
+        ...EMPLOYMENT,
+        phone: '+628994440002',
+        role: Role.FRANCHISE_OWNER,
+        fullName: 'Pemilik',
+      });
+
+      expect(hr.calls).toEqual([]);
+    });
+
+    // Fail closed: half a person is worse than a refused invite.
+    it('refuses the invite when hr-service is not configured', async () => {
+      const noHr = new AccountService(customers, sessions, new AuditService(audit));
+
+      await expect(
+        noHr.inviteStaffWithEmployee({
+          ...EMPLOYMENT,
+          phone: '+628994440003',
+          role: Role.HEAD_OFFICE,
+          fullName: 'Kantor',
+        }),
+      ).rejects.toThrow(/hr-service/);
+    });
+  });
+
   // The bulk wizard is the invite path in a loop, so what matters is that one bad row
   // cannot take the file down with it, and that a re-upload reports the truth.
   describe('importStaff', () => {
     it('creates good rows, fails only the bad one, and calls a re-upload updated', async () => {
       const first = await service.importStaff([
-        { phone: '+628990004001', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004001', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
         // Depot-locked with no depot: rejected by inviteStaff, so this row alone fails.
-        { phone: '+628990004002', role: Role.KEPALA_DEPOT, fullName: 'Tanpa Depot' },
-        { phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+        { ...EMPLOYMENT, phone: '+628990004002', role: Role.KEPALA_DEPOT, fullName: 'Tanpa Depot' },
+        { ...EMPLOYMENT, phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
       ]);
 
       expect(first).toMatchObject({ created: 2, updated: 0, failed: 1 });
@@ -145,8 +214,8 @@ describe('AccountService', () => {
 
       // Same file again: the two accounts now exist, so they are promoted, not duplicated.
       const second = await service.importStaff([
-        { phone: '+628990004001', role: Role.FINANCE, fullName: 'Kantor' },
-        { phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
+        { ...EMPLOYMENT, phone: '+628990004001', role: Role.FINANCE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004003', role: Role.STAFF_DEPOT, fullName: 'Joko', depotId: 'depot-1' },
       ]);
       expect(second).toMatchObject({ created: 0, updated: 2, failed: 0 });
       expect(second.results[0].id).toBe(first.results[0].id);

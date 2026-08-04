@@ -178,6 +178,18 @@ export class CreateEmployeeDto {
   contractEndDate?: string;
 }
 
+/**
+ * An account invited from the HQ staff console, arriving over the internal key so HR gets
+ * the employee row that makes them payable and rosterable.
+ *
+ * `authSubjectId` is REQUIRED here and is the idempotency key: inviting the same phone
+ * again is a promotion, never a second employee.
+ */
+export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, ['authSubjectId'] as const) {
+  @IsUUID()
+  authSubjectId!: string;
+}
+
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId
  * (the import gets that back from auth-service, it is never supplied by the file). */
 export class ImportEmployeeRowDto extends OmitType(CreateEmployeeDto, [

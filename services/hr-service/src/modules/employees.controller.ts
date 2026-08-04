@@ -20,6 +20,7 @@ import {
   CreateEmployeeDto,
   ImportEmployeesDto,
   ListEmployeesDto,
+  ProvisionEmployeeDto,
   RetentionReportDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
@@ -70,6 +71,23 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Delete face embeddings of departed staff past the cutoff (internal)' })
   purgeBiometrics(@Body() dto: RetentionReportDto): Promise<{ deleted: number }> {
     return this.employees.purgeBiometrics(new Date(dto.cutoff));
+  }
+
+  /**
+   * The staff console inviting somebody: auth-service has just minted the account and hands
+   * it here so HR is not the last to know. Internal key, same shape as the routes above.
+   *
+   * Idempotent — see EmployeeService.provisionFromInvite. Re-inviting a phone returns the
+   * employee that is already there rather than writing a second one.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/provision')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create (or return) the employee row behind an invited account' })
+  provisionFromInvite(@Body() dto: ProvisionEmployeeDto) {
+    return this.employees.provisionFromInvite(dto);
   }
 
   @Get()

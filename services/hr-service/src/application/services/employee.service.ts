@@ -23,6 +23,18 @@ import { STAFF_IMPORT_ROLES, type HrManagedRole } from '@hydromart/access';
 /** The roles an import may mint an account for — the allowlist auth-service enforces too. */
 const IMPORT_PROVISIONABLE_ROLES: readonly string[] = STAFF_IMPORT_ROLES;
 
+/**
+ * The actor behind an invite that arrived from auth-service over the internal key. Written
+ * to `createdBy` so the row says where it came from, and shaped like the system principal
+ * JwtAuthGuard builds for internal calls, so the depot check is the same no-op it is there.
+ */
+const SYSTEM_ACTOR = {
+  sub: 'system',
+  role: 'SUPER_ADMIN',
+  phone: null,
+  depotId: null,
+} as unknown as AuthenticatedUser;
+
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
 const TRACKED: readonly (keyof Employee)[] = [
   'employmentStatus',
@@ -263,6 +275,36 @@ export class EmployeeService {
     }
     /* istanbul ignore next — loop always returns or throws above */
     throw new BadRequestException('Gagal membuat kode karyawan, coba lagi');
+  }
+
+  /**
+   * The other direction of the same rule: an account invited from the HQ staff console gets
+   * the employee row that makes them a person HR can see, pay and roster.
+   *
+   * Idempotent on `authSubjectId`: inviting the same phone twice is a promotion, never a
+   * second employee. Returns the existing row untouched — the invite is not the place to
+   * overwrite salary or join date somebody in HR has since corrected.
+   *
+   * No `AuthenticatedUser`: the caller is auth-service holding the internal key, so there is
+   * no depot to check the actor against and `createdBy` is null. Every other rule (salary
+   * shape, contract window, department fit, the uniqueness pre-checks) is reused as-is.
+   */
+  async provisionFromInvite(input: CreateEmployeeInput & { authSubjectId: string }): Promise<Employee> {
+    const existing = await this.repo.findByAuthSubjectId(input.authSubjectId);
+    if (existing) {
+      return existing;
+    }
+    // A person may already be in HR from a CSV import that never linked an account; adopt
+    // that row rather than minting a second one for the same phone.
+    const byPhone = await this.repo.findByPhone(input.phone);
+    if (byPhone) {
+      return this.repo.update(
+        byPhone.id,
+        { authSubjectId: input.authSubjectId, role: input.role ?? byPhone.role },
+        [],
+      );
+    }
+    return this.create(SYSTEM_ACTOR, input);
   }
 
   /**
