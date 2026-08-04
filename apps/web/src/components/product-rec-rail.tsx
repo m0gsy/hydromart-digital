@@ -96,7 +96,9 @@ export function ProductRecRail({
   const canFetch = !requiresAuth || !!customer;
 
   const { data, loading, error } = useAsync<Recommendation[]>(
-    () => (canFetch ? api.get<Recommendation[]>(endpoint, requiresAuth) : Promise.resolve([])),
+    // Audit F-13: recommendations change when an order is placed, and placing one is a
+    // mutation — which drops the cache. Nothing else moves them within a minute.
+    () => (canFetch ? api.getCached<Recommendation[]>(endpoint, requiresAuth) : Promise.resolve([])),
     [endpoint, canFetch],
   );
 
