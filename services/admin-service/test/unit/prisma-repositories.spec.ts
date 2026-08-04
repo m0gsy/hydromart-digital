@@ -373,7 +373,7 @@ describe('IncidentPrismaRepository', () => {
     expect(incident.findMany).toHaveBeenCalledWith({
       where: { status: IncidentStatus.ONGOING },
       orderBy: { startedAt: 'desc' },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     expect(recs[0].severity).toBe(IncidentSeverity.CRITICAL);
     expect(recs[0].updates).toHaveLength(1);
@@ -399,7 +399,7 @@ describe('IncidentPrismaRepository', () => {
         affectedService: 'order-service',
         note: null,
       },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
   });
 
@@ -744,7 +744,7 @@ describe('SupportTicketPrismaRepository', () => {
     expect(supportTicket.findMany).toHaveBeenCalledWith({
       where: { status: TicketStatus.OPEN, priority: TicketPriority.HIGH },
       orderBy: { createdAt: 'desc' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     expect(recs[0].priority).toBe(TicketPriority.HIGH);
     expect(recs[0].messages[0].authorType).toBe(TicketAuthorType.CUSTOMER);
@@ -761,10 +761,25 @@ describe('SupportTicketPrismaRepository', () => {
     expect((await repo.findById('t-1'))?.id).toBe('t-1');
     expect(supportTicket.findUnique).toHaveBeenCalledWith({
       where: { id: 't-1' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     supportTicket.findUnique.mockResolvedValueOnce(null);
     expect(await repo.findById('nope')).toBeNull();
+  });
+
+  it('hands back the capped thread in chronological order', async () => {
+    // The query reads newest-first so the cap keeps the recent end of a long thread; the
+    // caller must still see it oldest-first, which is what the reversal is for.
+    const base = row();
+    supportTicket.findUnique.mockResolvedValueOnce({
+      ...base,
+      messages: [
+        { ...base.messages[0], id: 'm-2', body: 'newer', createdAt: new Date('2026-08-02') },
+        { ...base.messages[0], id: 'm-1', body: 'older', createdAt: new Date('2026-08-01') },
+      ],
+    });
+    const ticket = await repo.findById('t-1');
+    expect(ticket?.messages.map((m) => m.body)).toEqual(['older', 'newer']);
   });
 
   it('addStaffMessage appends a STAFF message then re-reads the ticket', async () => {

@@ -9,6 +9,14 @@ import {
 } from '../../application/ports/support-ticket.repository';
 import { PrismaService } from './prisma.service';
 
+/**
+ * A ticket thread is nested inside its ticket, and a Prisma middleware cannot see a nested
+ * include — so the whole conversation loaded with every ticket, on the LIST route too
+ * (audit H-47). Newest-first with a cap, reversed by the mapper: the console shows the tail
+ * of the conversation, which is the part anyone reads.
+ */
+const THREAD_TAIL = { orderBy: { createdAt: 'desc' }, take: 50 } as const;
+
 interface TicketMessageRow {
   id: string;
   ticketId: string;
@@ -43,7 +51,9 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
       ...row,
       priority: row.priority as TicketPriority,
       status: row.status as TicketStatus,
-      messages: row.messages.map((m) => this.toMessage(m)),
+      // THREAD_TAIL reads newest-first so the cap keeps the RECENT messages; the reversal
+      // hands the caller back the chronological order it has always seen.
+      messages: [...row.messages].reverse().map((m) => this.toMessage(m)),
     };
   }
 
@@ -55,7 +65,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
     const rows = await this.prisma.supportTicket.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: THREAD_TAIL },
     });
     return rows.map((r) => this.toRecord(r));
   }
@@ -63,7 +73,7 @@ export class SupportTicketPrismaRepository implements SupportTicketRepository {
   async findById(id: string): Promise<SupportTicketRecord | null> {
     const row = await this.prisma.supportTicket.findUnique({
       where: { id },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: THREAD_TAIL },
     });
     return row ? this.toRecord(row) : null;
   }
