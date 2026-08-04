@@ -12,7 +12,7 @@ import {
   SectionHeader,
   Skeleton,
 } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import {
   EMPLOYEE_STATUS_LABEL,
@@ -32,6 +32,49 @@ const STATUS_TONE: Record<EmployeeStatus, 'success' | 'neutral' | 'danger'> = {
   INACTIVE: 'neutral',
   RESIGNED: 'danger',
 };
+
+/**
+ * Mint the login an employee never got — rows written before "+ Tambah" created accounts,
+ * and the rare write that failed between hr-service and auth-service.
+ *
+ * The server decides: an employee with no jabatan is refused there (there is no role to
+ * create the account with), and the refusal is shown here rather than swallowed.
+ */
+function CreateAccount({ employee, onCreated }: { employee: Employee; onCreated: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(endpoints.hr.createEmployeeAccount(employee.id), {}, true);
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal membuat akun.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() => void run()}
+        className="rounded-lg border border-amber-400 px-2.5 py-1 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-50 disabled:opacity-50"
+      >
+        Belum punya akun · buatkan
+      </button>
+      {error && (
+        <p className="max-w-[220px] text-right text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function EmployeesPage() {
   const { customer } = useAuth();
@@ -122,20 +165,21 @@ export default function EmployeesPage() {
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((e) => (
-            <Link
-              key={e.id}
-              href={`/hr/employees/${e.id}`}
-              className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50"
-            >
-              <div className="min-w-0">
+            <div key={e.id} className="flex items-center justify-between gap-3 p-4">
+              <Link href={`/hr/employees/${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">
                   {e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} ·{' '}
                   {departmentLabel(deptRows, e.departmentId)}
                 </p>
-              </div>
+              </Link>
+              {/* The safety net: a row with no login is somebody who cannot clock in, and
+                  nothing else on this screen would say so. */}
+              {!e.authSubjectId && e.status !== 'RESIGNED' && (
+                <CreateAccount employee={e} onCreated={reload} />
+              )}
               <Badge tone={STATUS_TONE[e.status]}>{EMPLOYEE_STATUS_LABEL[e.status]}</Badge>
-            </Link>
+            </div>
           ))}
         </Card>
       )}

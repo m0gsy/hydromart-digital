@@ -121,6 +121,17 @@ export class EmployeesController {
     return this.employees.anonymiseByAccount(dto.authSubjectId);
   }
 
+  /**
+   * Give an existing employee the login they never had. Backs the reconciliation badge on
+   * `/hr/employees`; idempotent, so clicking twice mints one account.
+   */
+  @Post(':id/account')
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Create the login account for an employee that has none' })
+  createAccount(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employees.createAccountFor(user, id);
+  }
+
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List employees (depot-scoped for depot roles)' })

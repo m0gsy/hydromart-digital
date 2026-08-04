@@ -296,6 +296,32 @@ export class EmployeeService {
   }
 
   /**
+   * Mint the login for an employee row that has none — the "buatkan akun" button on
+   * `/hr/employees`, and the repair path for rows written before this release.
+   *
+   * Idempotent: an employee who already has an account is returned untouched rather than
+   * given a second one.
+   */
+  async createAccountFor(user: AuthenticatedUser, id: string): Promise<Employee> {
+    const employee = await this.getById(user, id); // 404 + depot check
+    if (employee.authSubjectId) {
+      return employee;
+    }
+    if (!employee.role) {
+      throw new BadRequestException(
+        'Karyawan ini belum punya jabatan. Isi jabatannya dulu, baru akunnya bisa dibuat.',
+      );
+    }
+    const { customerId } = await this.identity.provisionManagedStaff({
+      phone: employee.phone,
+      role: employee.role as HrManagedRole,
+      fullName: employee.fullName,
+      depotId: employee.depotId ?? undefined,
+    });
+    return this.repo.update(id, { authSubjectId: customerId, updatedBy: user.sub }, []);
+  }
+
+  /**
    * The other direction of the same rule: an account invited from the HQ staff console gets
    * the employee row that makes them a person HR can see, pay and roster.
    *

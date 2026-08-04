@@ -1193,6 +1193,10 @@ export const endpoints = {
     employee: (id: string) => `/employees/api/v1/employees/${id}`,
     employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
     createEmployee: '/employees/api/v1/employees',
+    // POST: mint the login for an employee row that has none (hrAdmin, idempotent).
+    // Backs the reconciliation badge on /hr/employees.
+    createEmployeeAccount: (employeeId: string) =>
+      `/employees/api/v1/employees/${employeeId}/account`,
     importEmployees: '/employees/api/v1/employees/import',
     updateEmployee: (id: string) => `/employees/api/v1/employees/${id}`,
     bonusRules: (depotId?: string) =>

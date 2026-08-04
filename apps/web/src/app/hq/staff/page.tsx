@@ -60,6 +60,28 @@ export default function HqStaffPage() {
   );
   const depots = depotPage?.items ?? [];
 
+  /**
+   * Accounts that have no employee record behind them.
+   *
+   * The safety net for rows written before the two sides created each other, and for a
+   * write that failed between the two services. Fail-soft: with no HR list the badges
+   * simply do not appear — an unreachable HR service must not make the directory look
+   * broken.
+   */
+  const { data: employees } = useAsync<{ rows: { authSubjectId: string | null }[] } | null>(
+    () =>
+      api
+        .get<{ rows: { authSubjectId: string | null }[] }>(
+          endpoints.hr.employees({ pageSize: 500 }),
+          true,
+        )
+        .catch(() => null),
+    [],
+  );
+  const linked = employees
+    ? new Set(employees.rows.map((r) => r.authSubjectId).filter((id): id is string => !!id))
+    : null;
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -103,6 +125,16 @@ export default function HqStaffPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{s.fullName || s.phone}</p>
                   <p className="truncate text-xs text-muted">{s.phone}</p>
+                  {/* Salary and join date are NEVER guessed: the link prefills only what
+                      this page actually knows, and HR fills in the rest. */}
+                  {linked && !linked.has(s.id) && s.role !== 'FRANCHISE_OWNER' && (
+                    <a
+                      href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}&role=${s.role}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
+                      className="text-xs font-bold text-amber-700 underline"
+                    >
+                      {t('hq.staff.noEmployeeRecord')}
+                    </a>
+                  )}
                 </div>
                 <DepotPicker staff={s} depots={depots} onMoved={list.reload} />
                 <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>

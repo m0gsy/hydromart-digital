@@ -352,6 +352,40 @@ describe('EmployeeService (M1)', () => {
     ).resolves.toEqual({ updated: false });
   });
 
+  // The repair path for rows written before "+ Tambah" minted accounts, and the button
+  // behind the reconciliation badge on /hr/employees.
+  it('creates the missing account for an existing employee, once', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.calls.length = 0;
+
+    const linked = await svc.createAccountFor(hr, e.id);
+    expect(identity.calls).toEqual([
+      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+    ]);
+    expect(linked.authSubjectId).toBe('00000000-0000-4000-8000-000000000002');
+
+    // Clicking twice must not mint a second account.
+    identity.calls.length = 0;
+    await svc.createAccountFor(hr, e.id);
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('refuses to mint an account for an employee with no jabatan', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: undefined,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    unlink(repo, e.id);
+    identity.calls.length = 0;
+
+    await expect(svc.createAccountFor(hr, e.id)).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
   // Moving a courier between depots without touching their title left the ACCOUNT at the
   // old depot — and once the dispatch roster is depot-filtered, that courier simply
   // vanishes from their new depot's dropdown.

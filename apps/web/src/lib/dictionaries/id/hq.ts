@@ -465,6 +465,7 @@ export const hq = {
     delete: 'Hapus',
     deleteConfirm: 'Ketik ulang "{name}" untuk menghapus permanen.',
     deleteFailed: 'Gagal menghapus akun.',
+    noEmployeeRecord: 'Belum ada data karyawan — buatkan',
     form: {
       title: 'Undang / tetapkan peran staf',
       phone: 'Nomor telepon',

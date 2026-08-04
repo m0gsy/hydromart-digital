@@ -462,6 +462,7 @@ export const hq = {
     delete: 'Delete',
     deleteConfirm: 'Type "{name}" again to delete permanently.',
     deleteFailed: 'Could not delete the account.',
+    noEmployeeRecord: 'No HR record yet — create one',
     form: {
       title: 'Invite / assign staff role',
       phone: 'Phone number',
