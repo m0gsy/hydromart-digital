@@ -38,6 +38,10 @@ export class IdentityHttpAdapter implements IdentityPort {
     await this.post('auth/internal/staff/role', input);
   }
 
+  async setStaffActive(customerId: string, active: boolean): Promise<void> {
+    await this.post('auth/internal/staff/status', { customerId, active });
+  }
+
   private async post<T>(path: string, input: unknown): Promise<T> {
     const { url, internalKey } = this.config.authService;
     if (!url || !internalKey) {

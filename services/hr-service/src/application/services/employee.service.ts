@@ -578,8 +578,51 @@ export class EmployeeService {
       // just minted holding this very role.
     }
 
+    // Resigning (or being made inactive) has to reach the LOGIN, or somebody who left on
+    // Friday still opens the app on Monday. Same split as the depot/jabatan push above:
+    // done before the employee write, so a refused call fails the edit rather than leaving
+    // the two records disagreeing.
+    if (input.status !== undefined && input.status !== current.status && current.authSubjectId) {
+      await this.identity.setStaffActive(current.authSubjectId, input.status === 'ACTIVE');
+    }
+
     const history = this.diffHistory(current, data, user.sub);
     return this.repo.update(id, data, history);
+  }
+
+  /**
+   * The other direction: auth-service reports a login switched off (or back on) in the
+   * staff console, and the employee record follows.
+   *
+   * Writes ONLY — no push back to auth-service. `update()` above is the notifying half;
+   * without the split, each service would answer the other's notification with one of its
+   * own and the change would bounce between them forever.
+   *
+   * Silently does nothing for an unknown account: auth-service holds identities that were
+   * never employees (customers, franchise owners), and refusing those would make an
+   * ordinary suspension look broken.
+   */
+  async setActiveInternal(authSubjectId: string, active: boolean): Promise<{ updated: boolean }> {
+    const employee = await this.repo.findByAuthSubjectId(authSubjectId);
+    if (!employee) {
+      return { updated: false };
+    }
+    const status = active ? 'ACTIVE' : 'INACTIVE';
+    if (employee.status === status) {
+      return { updated: false };
+    }
+    // RESIGNED is deliberately NOT overwritten by a plain "switch off": it carries a
+    // reason the console does not know about, and INACTIVE would erase it.
+    if (!active && employee.status === 'RESIGNED') {
+      return { updated: false };
+    }
+    await this.repo.update(
+      employee.id,
+      { status },
+      // Actor is the staff console via auth-service, not a person this service can name.
+      this.diffHistory(employee, { status } as Prisma.EmployeeUpdateInput, 'system'),
+    );
+    return { updated: true };
   }
 
   /**

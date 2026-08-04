@@ -188,6 +188,23 @@ export class Customer {
     this.props.assignedDepotId = depotId;
   }
 
+  /**
+   * Switch the login on or off, and nothing else.
+   *
+   * Its own path rather than `promoteToStaff`, which also writes role and depot: turning
+   * somebody off when they resign must not quietly re-role them, and turning them back on
+   * must not resurrect a depot they no longer work at.
+   *
+   * DELETED is never revived here — that identity has been anonymised, so "activate" would
+   * bring back an account nobody can read back. Re-hiring mints a new one.
+   */
+  setActive(active: boolean): void {
+    if (this.props.status === CustomerStatus.DELETED) {
+      return;
+    }
+    this.props.status = active ? CustomerStatus.ACTIVE : CustomerStatus.SUSPENDED;
+  }
+
   /** Snapshot for persistence mapping. */
   toProps(): CustomerProps {
     return { ...this.props };

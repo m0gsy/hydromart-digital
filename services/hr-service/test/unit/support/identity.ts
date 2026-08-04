@@ -40,6 +40,14 @@ export class FakeIdentity implements IdentityPort {
     this.roleCalls.push(input);
     if (this.error) throw this.error;
   }
+
+  /** Enable/disable pushes from an employment-status change, for the two-way status specs. */
+  readonly activeCalls: { customerId: string; active: boolean }[] = [];
+
+  async setStaffActive(customerId: string, active: boolean): Promise<void> {
+    this.activeCalls.push({ customerId, active });
+    if (this.error) throw this.error;
+  }
 }
 
 export function fakeIdentity(): FakeIdentity {

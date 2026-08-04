@@ -271,6 +271,65 @@ describe('EmployeeService (M1)', () => {
     expect((await svc.getById(hr, e.id)).role).toBe('STAFF_DEPOT');
   });
 
+  // Somebody who resigned on Friday could still open the app on Monday: the employee row
+  // said RESIGNED and the login knew nothing about it.
+  it('switches the login off when the employee stops being active, and back on', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { status: 'RESIGNED' });
+    expect(identity.activeCalls).toEqual([
+      { customerId: '11111111-1111-4111-8111-111111111111', active: false },
+    ]);
+
+    await svc.update(hr, e.id, { status: 'ACTIVE' });
+    expect(identity.activeCalls[1]).toEqual({
+      customerId: '11111111-1111-4111-8111-111111111111',
+      active: true,
+    });
+  });
+
+  // The half auth-service calls: writes, says nothing back. Answering would bounce the same
+  // change between the two services forever.
+  it('mirrors a console switch-off without calling auth-service back', async () => {
+    const { repo, identity, svc } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    identity.activeCalls.length = 0;
+
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', false),
+    ).resolves.toEqual({ updated: true });
+
+    expect(repo.rows[0]?.status).toBe('INACTIVE');
+    expect(identity.activeCalls).toEqual([]);
+  });
+
+  it('leaves RESIGNED alone and reports nothing changed for an account it does not know', async () => {
+    const { repo, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    await svc.update(hr, e.id, { status: 'RESIGNED' });
+
+    // A plain "switch off" must not overwrite a departure with a weaker status.
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', false),
+    ).resolves.toEqual({ updated: false });
+    expect(repo.rows[0]?.status).toBe('RESIGNED');
+
+    // auth-service also holds identities that were never employees.
+    await expect(
+      svc.setActiveInternal('22222222-2222-4222-8222-222222222222', false),
+    ).resolves.toEqual({ updated: false });
+  });
+
   // Moving a courier between depots without touching their title left the ACCOUNT at the
   // old depot — and once the dispatch roster is depot-filtered, that courier simply
   // vanishes from their new depot's dropdown.
@@ -438,6 +497,7 @@ describe('EmployeeService.importMany', () => {
       provisionStaff: async () => ({ customerId: 'auth-same' }),
       provisionManagedStaff: async () => ({ customerId: 'auth-same' }),
       assignRole: async () => {},
+      setStaffActive: async () => {},
     });
 
     await svc.importMany(hr, [row]);

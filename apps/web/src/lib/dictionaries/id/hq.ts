@@ -452,6 +452,9 @@ export const hq = {
     depot: 'Depot penugasan',
     noDepot: 'Tanpa depot',
     depotMoveFailed: 'Gagal memindahkan depot.',
+    activate: 'Aktifkan',
+    deactivate: 'Nonaktifkan',
+    statusChangeFailed: 'Gagal mengubah status akun.',
     form: {
       title: 'Undang / tetapkan peran staf',
       phone: 'Nomor telepon',

@@ -22,6 +22,7 @@ import {
   ListEmployeesDto,
   ProvisionEmployeeDto,
   RetentionReportDto,
+  SetEmployeeActiveDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
 
@@ -88,6 +89,21 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Create (or return) the employee row behind an invited account' })
   provisionFromInvite(@Body() dto: ProvisionEmployeeDto) {
     return this.employees.provisionFromInvite(dto);
+  }
+
+  /**
+   * auth-service reporting that a staff login was switched off or back on in the console.
+   *
+   * Writes only — see EmployeeService.setActiveInternal for why it must not answer back.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mirror a login enable/disable onto the employee record' })
+  setActive(@Body() dto: SetEmployeeActiveDto): Promise<{ updated: boolean }> {
+    return this.employees.setActiveInternal(dto.authSubjectId, dto.active);
   }
 
   @Get()

@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -188,6 +189,15 @@ export class CreateEmployeeDto {
 export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, ['authSubjectId'] as const) {
   @IsUUID()
   authSubjectId!: string;
+}
+
+/** A login switched off (or back on) in the staff console, arriving over the internal key. */
+export class SetEmployeeActiveDto {
+  @IsUUID()
+  authSubjectId!: string;
+
+  @IsBoolean()
+  active!: boolean;
 }
 
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId

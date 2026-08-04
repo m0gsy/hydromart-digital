@@ -17,6 +17,7 @@ import {
   ImportStaffDto,
   InviteStaffDto,
   ListStaffQueryDto,
+  SetStaffActiveConsoleDto,
   SetStaffDepotDto,
 } from './dto/staff.dto';
 import {
@@ -183,6 +184,23 @@ export class AccountController {
     @Body() dto: SetStaffDepotDto,
   ): Promise<PublicCustomerDto> {
     const staff = await this.account.setStaffDepot(id, dto.depotId ?? null);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Switch a staff login off or back on from the console — and carry it to their employee
+   * record. The console had no way to do this at all, which is what made the other
+   * direction (hr-service reporting a resignation) the only one that ever fired.
+   */
+  @Can('staffAdmin')
+  @Patch('auth/staff/:id/status')
+  @ApiOperation({ summary: 'Enable or disable a staff login (and their employee record)' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async setStaffActive(
+    @Param('id') id: string,
+    @Body() dto: SetStaffActiveConsoleDto,
+  ): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffActive(id, dto.active);
     return PublicCustomerDto.from(staff);
   }
 

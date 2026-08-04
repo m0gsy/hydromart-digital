@@ -16,6 +16,15 @@ export interface HrDirectoryPort {
    * second employee.
    */
   provisionEmployee(input: ProvisionEmployeeInput): Promise<void>;
+
+  /**
+   * Carry a switched-off (or switched-back-on) login through to the employee record.
+   *
+   * Only ever called from the CONSOLE path. The endpoint hr-service calls in the other
+   * direction writes without notifying, or the two would keep telling each other about the
+   * same change forever.
+   */
+  setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
 }
 
 export interface ProvisionEmployeeInput {

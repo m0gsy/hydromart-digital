@@ -316,6 +316,36 @@ export class AccountService {
   }
 
   /**
+   * Switch a staff login off (resignation, suspension) or back on, from the console — and
+   * carry it through to their employee record.
+   *
+   * Split in two on purpose, and the same split exists in hr-service. This method writes
+   * AND tells the other side; `setStaffActiveInternal` below only writes, and is what the
+   * other side calls. Without the split each service would answer the other's notification
+   * with a notification of its own, forever.
+   */
+  async setStaffActive(customerId: string, active: boolean): Promise<PublicCustomer> {
+    const staff = await this.setStaffActiveInternal(customerId, active);
+    if (this.hr && staff.role !== Role.FRANCHISE_OWNER) {
+      await this.hr.setEmployeeActive(staff.id, active);
+    }
+    return staff;
+  }
+
+  /** The write half, with no outbound call. Used by the route hr-service calls. */
+  async setStaffActiveInternal(customerId: string, active: boolean): Promise<PublicCustomer> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    if (customer.role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    customer.setActive(active);
+    return toPublicCustomer(await this.customers.save(customer));
+  }
+
+  /**
    * Pre-register an end customer imported by depot staff (bulk import). Creates the
    * identity in PENDING_VERIFICATION so the customer still claims it themselves: the
    * normal `/auth/register` flow re-issues an OTP for a PENDING phone and activates

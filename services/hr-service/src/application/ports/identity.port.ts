@@ -49,6 +49,14 @@ export interface IdentityPort {
    * something, or allowed something they should no longer reach.
    */
   assignRole(input: AssignRoleInput): Promise<void>;
+
+  /**
+   * Switch the login off when somebody resigns or is made inactive, and back on when they
+   * return. Called ONLY from the HR-side write; the endpoint auth-service calls in the
+   * other direction writes without notifying, or the two would bounce the same change
+   * between themselves forever.
+   */
+  setStaffActive(customerId: string, active: boolean): Promise<void>;
 }
 
 export interface AssignRoleInput {

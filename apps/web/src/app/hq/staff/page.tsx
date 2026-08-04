@@ -105,6 +105,7 @@ export default function HqStaffPage() {
                 <Badge tone={active ? 'success' : 'neutral'}>
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>
+                <ActiveToggle staff={s} onChanged={list.reload} />
               </Card>
             );
           })}
@@ -165,6 +166,54 @@ function DepotPicker({
           </option>
         ))}
       </select>
+      {error && (
+        <p className="text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Switch one staff login off or back on.
+ *
+ * The console had no way to do this at all, so a resignation only ever travelled HR → auth.
+ * Switching off here also switches their employee record to INACTIVE (a RESIGNED row keeps
+ * its stronger status — that carries a reason this button does not know).
+ */
+function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => void }) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const active = staff.status === 'ACTIVE';
+
+  // A deleted account is anonymised; there is nothing left to switch back on.
+  if (staff.status === 'DELETED') return null;
+
+  async function toggle() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(endpoints.auth.setStaffActive(staff.id), { active: !active }, true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.staff.statusChangeFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => void toggle()}
+        disabled={busy}
+        className="rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:bg-brand-50 disabled:opacity-50"
+      >
+        {active ? t('hq.staff.deactivate') : t('hq.staff.activate')}
+      </button>
       {error && (
         <p className="text-[11px] font-medium text-red-600" role="alert">
           {error}

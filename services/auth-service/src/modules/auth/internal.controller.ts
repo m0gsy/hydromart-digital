@@ -14,6 +14,7 @@ import {
   ProvisionManagedStaffDto,
   ProvisionStaffDto,
   PurgeBeforeDto,
+  SetStaffActiveDto,
 } from './dto/internal.dto';
 
 /**
@@ -58,6 +59,20 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Create or promote an HR-managed staff account (internal service auth)' })
   async provisionManagedStaff(@Body() dto: ProvisionManagedStaffDto): Promise<PublicCustomerDto> {
     const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * hr-service reporting that somebody resigned (or came back): the login follows.
+   *
+   * Writes only — see AccountService.setStaffActiveInternal. Answering with a push back to
+   * hr-service would bounce the same change between the two services forever.
+   */
+  @Post('staff/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enable/disable a staff login (internal service auth)' })
+  async setStaffActive(@Body() dto: SetStaffActiveDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffActiveInternal(dto.customerId, dto.active);
     return PublicCustomerDto.from(staff);
   }
 

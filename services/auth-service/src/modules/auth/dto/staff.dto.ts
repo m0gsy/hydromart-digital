@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsISO8601,
@@ -133,6 +134,13 @@ export class SetStaffDepotDto {
   @ValidateIf((_, value) => value !== null)
   @IsUUID()
   depotId?: string | null;
+}
+
+/** Console switch: `false` suspends the login (and the employee record), `true` restores it. */
+export class SetStaffActiveConsoleDto {
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  active!: boolean;
 }
 
 /**

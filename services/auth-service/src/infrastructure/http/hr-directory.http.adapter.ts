@@ -18,6 +18,14 @@ export class HrDirectoryHttpAdapter implements HrDirectoryPort {
   constructor(private readonly config: AuthConfigService) {}
 
   async provisionEmployee(input: ProvisionEmployeeInput): Promise<void> {
+    await this.post('employees/internal/provision', input);
+  }
+
+  async setEmployeeActive(authSubjectId: string, active: boolean): Promise<void> {
+    await this.post('employees/internal/status', { authSubjectId, active });
+  }
+
+  private async post(path: string, input: unknown): Promise<void> {
     const { hrUrl, internalKey } = this.config.hrDirectory;
     if (!hrUrl || !internalKey) {
       throw new ServiceUnavailableException(
@@ -29,7 +37,7 @@ export class HrDirectoryHttpAdapter implements HrDirectoryPort {
     const timeout = setTimeout(() => controller.abort(), HrDirectoryHttpAdapter.TIMEOUT_MS);
     let response: Response;
     try {
-      response = await fetch(`${hrUrl.replace(/\/$/, '')}/api/v1/employees/internal/provision`, {
+      response = await fetch(`${hrUrl.replace(/\/$/, '')}/api/v1/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
         body: JSON.stringify(input),

@@ -449,6 +449,9 @@ export const hq = {
     depot: 'Assigned depot',
     noDepot: 'No depot',
     depotMoveFailed: 'Could not move the depot.',
+    activate: 'Activate',
+    deactivate: 'Deactivate',
+    statusChangeFailed: 'Could not change the account status.',
     form: {
       title: 'Invite / assign staff role',
       phone: 'Phone number',

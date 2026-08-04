@@ -35,7 +35,12 @@ describe('AccountService', () => {
   let sessions: SessionService;
   let audit: InMemoryAuditLogRepository;
   let service: AccountService;
-  let hr: { calls: ProvisionEmployeeInput[]; provisionEmployee(i: ProvisionEmployeeInput): Promise<void> };
+  let hr: {
+    calls: ProvisionEmployeeInput[];
+    activeCalls: { authSubjectId: string; active: boolean }[];
+    provisionEmployee(i: ProvisionEmployeeInput): Promise<void>;
+    setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
+  };
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
 
@@ -50,7 +55,13 @@ describe('AccountService', () => {
       new FakeClock(),
       buildTestConfig(),
     );
-    hr = { calls: [], provisionEmployee: async (input) => void hr.calls.push(input) };
+    hr = {
+      calls: [],
+      activeCalls: [],
+      provisionEmployee: async (input) => void hr.calls.push(input),
+      setEmployeeActive: async (authSubjectId, active) =>
+        void hr.activeCalls.push({ authSubjectId, active }),
+    };
     service = new AccountService(customers, sessions, new AuditService(audit), hr);
   });
 
@@ -194,6 +205,59 @@ describe('AccountService', () => {
           fullName: 'Kantor',
         }),
       ).rejects.toThrow(/hr-service/);
+    });
+  });
+
+  // Until now nothing in the console could switch a staff login off at all, so somebody who
+  // resigned on Friday still opened the app on Monday.
+  describe('setStaffActive', () => {
+    it('suspends the login and tells hr-service, then restores both', async () => {
+      const staff = await service.inviteStaff('+628995550001', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+
+      const off = await service.setStaffActive(staff.id, false);
+      expect(off.status).toBe(CustomerStatus.SUSPENDED);
+      expect(hr.activeCalls).toEqual([{ authSubjectId: staff.id, active: false }]);
+
+      const on = await service.setStaffActive(staff.id, true);
+      expect(on.status).toBe(CustomerStatus.ACTIVE);
+      expect(hr.activeCalls[1]).toEqual({ authSubjectId: staff.id, active: true });
+    });
+
+    // The half hr-service calls. If it answered back, the same change would bounce between
+    // the two services forever.
+    it('writes without telling hr-service when hr-service is the caller', async () => {
+      const staff = await service.inviteStaff('+628995550002', Role.KEPALA_DEPOT, 'Rina', 'depot-1');
+
+      const off = await service.setStaffActiveInternal(staff.id, false);
+
+      expect(off.status).toBe(CustomerStatus.SUSPENDED);
+      expect(hr.activeCalls).toEqual([]);
+    });
+
+    it('refuses an unknown account and an end customer', async () => {
+      await expect(service.setStaffActive('11111111-1111-4111-8111-111111111111', false)).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
+      const customer = makeCustomer({ phone: '+628995550003', role: Role.CUSTOMER });
+      customers.seed(customer);
+      await expect(service.setStaffActive(customer.id, false)).rejects.toBeInstanceOf(
+        InvalidStaffRoleError,
+      );
+    });
+
+    // Deleting anonymises the identity; "activate" must not bring back a record nobody can
+    // read. Locks the 0a fix to SUSPENDED only.
+    it('never revives a deleted account', async () => {
+      const deleted = makeCustomer({
+        phone: '+628995550004',
+        role: Role.STAFF_DEPOT,
+        status: CustomerStatus.DELETED,
+      });
+      customers.seed(deleted);
+
+      const result = await service.setStaffActive(deleted.id, true);
+
+      expect(result.status).toBe(CustomerStatus.DELETED);
     });
   });
 

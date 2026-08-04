@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsISO8601,
   IsOptional,
@@ -24,6 +25,17 @@ import { Role } from '../../../domain/customer/role.enum';
  * `ProvisionStaffDto`, one rung wider: a promotion up the supervision chain is ordinary
  * HR work, but the office roles and SUPER_ADMIN stay out of reach of an employee form.
  */
+/** hr-service switching a login off or on when somebody resigns or is re-hired. */
+export class SetStaffActiveDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ example: false, description: 'false suspends the login; true restores it.' })
+  @IsBoolean()
+  active!: boolean;
+}
+
 export class AssignStaffRoleDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
