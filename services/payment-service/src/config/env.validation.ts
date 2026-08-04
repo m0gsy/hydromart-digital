@@ -15,6 +15,12 @@ export const envValidationSchema = Joi.object({
   // Both blank = the callback is disabled (order stays CREATED until staff confirm).
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: optionalSecret(16),
+  // H-29: auth-service holds the audit trail; refunds are recorded to it over the same
+  // internal key. Blank = no trail in this environment (local, tests).
+  AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
+  // default in domain/payment.ts, which is now the only place that number lives.
+  REFUND_HQ_THRESHOLD: Joi.number().integer().positive().optional(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),

@@ -125,11 +125,18 @@ describe('Payment HTTP flows (e2e)', () => {
       .send({ orderId: randomUUID(), method: 'VA', amount: 30000 })
       .expect(201);
     const reference = created.body.reference as string;
-    const signature = createHmac('sha256', webhookSecret).update(`${reference}.PAID`).digest('hex');
+    // Q-15: the HMAC covers every field except `signature`, sorted by key — including
+    // the timestamp, which is what makes a captured callback stop working.
+    const body = { event: 'PAID', reference, timestamp: Date.now() };
+    const canonical = Object.keys(body)
+      .sort()
+      .map((k) => `${k}=${String((body as Record<string, unknown>)[k])}`)
+      .join('&');
+    const signature = createHmac('sha256', webhookSecret).update(canonical).digest('hex');
 
     const hook = await request(server())
       .post('/api/v1/payments/webhook')
-      .send({ reference, event: 'PAID', signature })
+      .send({ ...body, signature })
       .expect(200);
     expect(hook.body.handled).toBe(true);
 
@@ -143,8 +150,15 @@ describe('Payment HTTP flows (e2e)', () => {
   it('rejects a webhook with a forged signature (401)', async () => {
     await request(server())
       .post('/api/v1/payments/webhook')
-      .send({ reference: 'x', event: 'PAID', signature: 'forged' })
+      .send({ reference: 'x', event: 'PAID', timestamp: Date.now(), signature: 'forged' })
       .expect(401);
+  });
+
+  it('rejects a webhook with no timestamp at all (400, before any HMAC work)', async () => {
+    await request(server())
+      .post('/api/v1/payments/webhook')
+      .send({ reference: 'x', event: 'PAID', signature: 'forged' })
+      .expect(400);
   });
 
   it('validates the initiate body (400 on bad amount)', async () => {

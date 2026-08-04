@@ -231,6 +231,11 @@ services:
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET (min 16 chars)}
       ORDER_SERVICE_URL: http://order:3004
+      # Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
+      # default in payment-service/src/domain/payment.ts, which is now the only place the
+      # number lives. It was never set here at all, so nobody could tell whether the
+      # threshold in production was a decision or an accident.
+      REFUND_HQ_THRESHOLD: ${REFUND_HQ_THRESHOLD:-100000}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3005/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

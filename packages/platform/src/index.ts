@@ -35,6 +35,11 @@ export {
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
 export {
+  recordAuditEvent,
+  type AuditEvent,
+  type AuditTrailConfig,
+} from './nest/audit-trail';
+export {
   startCapabilityRefresh,
   httpCapabilityLoader,
   capabilityMatrixStatus,

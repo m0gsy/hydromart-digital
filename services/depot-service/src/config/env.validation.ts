@@ -2,6 +2,9 @@ import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  // H-29: the shared audit trail lives in auth-service; price-override decisions are
+  // recorded to it over the internal key. Blank = no trail in this environment.
+  AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   DEPOT_SERVICE_PORT: Joi.number().port().default(3007),
   DEPOT_DATABASE_URL: Joi.string()
