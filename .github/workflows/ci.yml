@@ -328,7 +328,11 @@ jobs:
       # server, which is faster and needs no extra container).
       - name: Build the web image
         run: |
-          docker buildx build -f apps/web/Dockerfile             --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080             --cache-from type=gha,scope=hydromart-web             --cache-to type=gha,mode=max,scope=hydromart-web             --tag hydromart-web:ci .
+          docker buildx build -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
+            --cache-from type=gha,scope=hydromart-web \
+            --cache-to type=gha,mode=max,scope=hydromart-web \
+            --tag hydromart-web:ci .
 
       - name: Start infra + wait for Postgres
         run: |
@@ -371,7 +375,9 @@ jobs:
           # /health alone can be up while product-service isn't, which 504'd the seed.
           # Audit CI-1: the same cache overlay `integration` writes to, so this second boot
           # pulls layers instead of rebuilding ~18 images cold.
-          COMPOSE_BAKE=true docker compose             -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml             up -d --build --wait --wait-timeout 300
+          COMPOSE_BAKE=true docker compose \
+            -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml \
+            up -d --build --wait --wait-timeout 300
           for i in $(seq 1 45); do
             if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
             sleep 2
