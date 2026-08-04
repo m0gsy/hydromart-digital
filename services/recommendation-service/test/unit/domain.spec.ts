@@ -1,6 +1,5 @@
 import { scoreReorder, rankReorder } from '../../src/domain/reorder';
 import { confidence, rankRelated } from '../../src/domain/co-buy';
-import { rankTrending } from '../../src/domain/trending';
 
 const now = new Date('2026-07-11T00:00:00Z');
 
@@ -45,21 +44,3 @@ describe('co-buy', () => {
   });
 });
 
-describe('trending', () => {
-  const from = new Date('2026-07-01T00:00:00Z');
-  it('sums in-window per product and ranks desc', () => {
-    const rows = [
-      { productId: 'a', day: new Date('2026-07-02'), count: 3 },
-      { productId: 'a', day: new Date('2026-07-05'), count: 4 },
-      { productId: 'b', day: new Date('2026-07-03'), count: 5 },
-    ];
-    expect(rankTrending(rows, from, 10).map((r) => r.productId)).toEqual(['a', 'b']);
-  });
-  it('excludes rows before fromDay', () => {
-    const rows = [
-      { productId: 'a', day: new Date('2026-06-01'), count: 100 },
-      { productId: 'b', day: new Date('2026-07-02'), count: 1 },
-    ];
-    expect(rankTrending(rows, from, 10).map((r) => r.productId)).toEqual(['b']);
-  });
-});

@@ -19,6 +19,9 @@ class FakeSchemes implements CommissionSchemeRepository {
     }
     return [...latest.values()];
   }
+  async currentForDepot(depotId: string): Promise<CommissionSchemeRecord | null> {
+    return (await this.listCurrent()).find((r) => r.depotId === depotId) ?? null;
+  }
   async createMany(rows: CreateCommissionSchemeData[]): Promise<CommissionSchemeRecord[]> {
     const created = rows.map((r) => ({ ...r, id: `s-${this.seq++}`, createdAt: new Date() }));
     this.rows.push(...created);

@@ -265,6 +265,15 @@ describe('DeliveryService', () => {
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverNotOnShiftError);
   });
 
+  // Audit S-17 and its Q-17 baseline row: a ping reads a projection, never the delivery's
+  // full history and proof. Pinned by the fake, which only returns the ping columns.
+  it('a ping does not load the history', async () => {
+    const d = await assign();
+    repo.pingStateCalls = 0;
+    await service.reportLocation(driver, d.id, -6.2, 106.8);
+    expect(repo.pingStateCalls).toBe(1);
+  });
+
   it('records the driver location while active and rejects it after delivery', async () => {
     const d = await assign();
     const pinged = await service.reportLocation(driver, d.id, -6.2, 106.8);

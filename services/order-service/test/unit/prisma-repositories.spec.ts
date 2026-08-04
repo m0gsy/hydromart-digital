@@ -642,30 +642,41 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
-  it('finds reorder-reminder targets (latest order older than cutoff)', async () => {
-    order.groupBy.mockResolvedValue([
-      { customerId: 'cust-old', _max: { createdAt: new Date('2025-12-01') } },
-      { customerId: 'cust-new', _max: { createdAt: new Date('2026-01-10') } },
-      { customerId: 'cust-null', _max: { createdAt: null } },
-    ]);
-    $queryRaw.mockResolvedValue([
-      { customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' },
-    ]);
+  // Audit S-23 and its Q-17 baseline row. The timeline is what ONE order's card renders; a
+  // monthly depot report reads every order that depot took and renders none of them, so it
+  // was hauling a handful of history rows per order for nothing. Same for the stale sweep,
+  // which cancels and releases stock.
+  it('does not include history on the report read', async () => {
+    order.findMany.mockResolvedValue([]);
+    await repo.ordersForDepot('depot-1', {});
+    await repo.findStaleIn([OrderStatus.CREATED], new Date('2026-01-01'), 50);
+    for (const call of order.findMany.mock.calls) {
+      expect(call[0].include).not.toHaveProperty('history');
+      expect(call[0].include).toHaveProperty('items');
+    }
+    expect(order.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  // Audit S-12 and its Q-17 baseline row: the HAVING and the LIMIT belong in the statement.
+  // This used to group the WHOLE order table, ship every customer who has ever ordered back
+  // to Node, and throw all but `limit` of them away here.
+  it('filters the reminder window in SQL', async () => {
+    $queryRaw
+      .mockResolvedValueOnce([{ customerId: 'cust-old' }])
+      .mockResolvedValueOnce([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
     const cutoff = new Date('2026-01-01');
     const out = await repo.findReorderReminderTargets(cutoff, 10);
     expect(out).toEqual([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
-    // DISTINCT ON in Postgres, not Prisma's `distinct`: the latter dedupes the rows the
-    // query returned, so any take (including the default bound) can lose customers.
-    expect($queryRaw).toHaveBeenCalledTimes(1);
+    // Two statements: who is due, then their contact snapshot. Never a groupBy in Node.
+    expect($queryRaw).toHaveBeenCalledTimes(2);
+    expect(order.groupBy).not.toHaveBeenCalled();
     expect(order.findMany).not.toHaveBeenCalled();
   });
 
   it('returns [] and skips the snapshot query when nobody is due', async () => {
-    order.groupBy.mockResolvedValue([
-      { customerId: 'cust-new', _max: { createdAt: new Date('2026-06-01') } },
-    ]);
+    $queryRaw.mockResolvedValueOnce([]);
     expect(await repo.findReorderReminderTargets(new Date('2026-01-01'), 10)).toEqual([]);
-    expect($queryRaw).not.toHaveBeenCalled();
+    expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('creates and maps a review', async () => {

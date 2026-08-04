@@ -11,6 +11,7 @@ import {
   CreateDeliveryData,
   DeliveredRow,
   DeliveryQuery,
+  DeliveryPingState,
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
@@ -119,6 +120,25 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   async findById(id: string): Promise<DeliveryRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? clone(row) : null;
+  }
+  // Audit S-17: the narrow ping read. It returns ONLY the columns the real projection
+  // selects, so a service that starts reading history off it fails here first.
+  pingStateCalls = 0;
+  async findPingState(id: string): Promise<DeliveryPingState | null> {
+    this.pingStateCalls += 1;
+    const row = this.rows.find((r) => r.id === id);
+    return row
+      ? {
+          id: row.id,
+          driverId: row.driverId,
+          status: row.status,
+          depotId: row.depotId,
+          destinationLat: row.destinationLat,
+          destinationLng: row.destinationLng,
+          lastLat: row.lastLat,
+          lastLng: row.lastLng,
+        }
+      : null;
   }
   async findByOrder(orderId: string): Promise<DeliveryRecord | null> {
     const row = this.rows.find((r) => r.orderId === orderId);

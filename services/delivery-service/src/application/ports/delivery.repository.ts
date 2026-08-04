@@ -143,6 +143,18 @@ export interface DepotSlaStats {
   sumMinutes: number;
 }
 
+/** The projection behind `findPingState` — no history, no proof. */
+export interface DeliveryPingState {
+  id: string;
+  driverId: string | null;
+  status: DeliveryStatus;
+  depotId: string | null;
+  destinationLat: number | null;
+  destinationLng: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+}
+
 export interface DeliveryRepository {
   create(data: CreateDeliveryData): Promise<DeliveryRecord>;
   findById(id: string): Promise<DeliveryRecord | null>;
@@ -188,6 +200,13 @@ export interface DeliveryRepository {
     from: Date,
     to: Date,
   ): Promise<DepotCourierActivity[]>;
+  /**
+   * Just enough of a delivery to accept a GPS ping: who owns it, whether it is still
+   * moving, and the coordinates the ETA is computed from (audit S-17). A ping used to read
+   * the whole row — the full status history and the delivery proof — every few seconds,
+   * per courier on the road, only to check a driver id and a status.
+   */
+  findPingState(id: string): Promise<DeliveryPingState | null>;
   /** Overwrite the latest driver position and refresh ETA when one can be estimated. */
   updateLocation(
     id: string,

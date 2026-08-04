@@ -118,6 +118,13 @@ class FakeSchemes implements CommissionSchemeRepository {
       createdAt: new Date('2026-01-01'),
     }));
   }
+  // Audit S-15: the depot's own row, asked for by id — the service no longer reads the
+  // whole table on every completed order. Counted so the baseline row has a test.
+  currentForDepotCalls = 0;
+  async currentForDepot(depotId: string): Promise<CommissionSchemeRecord | null> {
+    this.currentForDepotCalls += 1;
+    return (await this.listCurrent()).find((r) => r.depotId === depotId) ?? null;
+  }
   async createMany(): Promise<CommissionSchemeRecord[]> {
     return [];
   }
@@ -380,14 +387,14 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('credits the sale and debits commission at the depot scheme rate', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(
-      ledger,
-      new FakeWithdrawals(),
-      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
-      payoutTestConfig(),
-    );
+    const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes, payoutTestConfig());
 
     const out = await svc.recordOrderRevenue(order);
+
+    // Audit S-15 + the Q-17 baseline: one read, for this depot. It used to read every
+    // depot's current scheme and pick one out in JavaScript, on every completed order.
+    expect(schemes.currentForDepotCalls).toBe(1);
 
     expect(out).toMatchObject({
       recorded: true,

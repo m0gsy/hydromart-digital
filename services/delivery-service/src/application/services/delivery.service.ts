@@ -442,11 +442,20 @@ export class DeliveryService {
    * previous one — no track history is kept in the MVP.
    */
   async reportLocation(driverId: string, id: string, lat: number, lng: number): Promise<DeliveryRecord> {
-    const delivery = await this.ownedByDriver(driverId, id);
-    if (!isActive(delivery.status)) {
+    // A projection, not the whole delivery (audit S-17): a ping arrives every few seconds
+    // per courier on the road, and it used to drag the full status history and the delivery
+    // proof back with it just to check an id and a status.
+    const state = await this.deliveries.findPingState(id);
+    if (!state) {
+      throw new DeliveryNotFoundError();
+    }
+    if (state.driverId !== driverId) {
+      throw new NotAssignedDriverError();
+    }
+    if (!isActive(state.status)) {
       throw new DeliveryNotActiveError();
     }
-    const eta = await this.estimateArrival({ ...delivery, lastLat: lat, lastLng: lng });
+    const eta = await this.estimateArrival({ ...state, lastLat: lat, lastLng: lng });
     return this.deliveries.updateLocation(id, lat, lng, eta);
   }
 
@@ -555,7 +564,12 @@ export class DeliveryService {
    * no coordinates or no origin can be resolved — the customer UI falls back
    * gracefully. Best-effort: a depot-lookup failure never blocks the transition.
    */
-  private async estimateArrival(delivery: DeliveryRecord): Promise<Date | undefined> {
+  private async estimateArrival(
+    delivery: Pick<
+      DeliveryRecord,
+      'destinationLat' | 'destinationLng' | 'lastLat' | 'lastLng' | 'depotId'
+    >,
+  ): Promise<Date | undefined> {
     if (delivery.destinationLat == null || delivery.destinationLng == null) return undefined;
     let originLat = delivery.lastLat;
     let originLng = delivery.lastLng;
