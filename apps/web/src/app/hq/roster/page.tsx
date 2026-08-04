@@ -6,50 +6,51 @@ import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { deriveRoster, type CourierShift, type RosterRow } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Delivery, DepotAdmin, Page } from '@/lib/types';
 
-// Active-delivery statuses that count toward a courier's current load.
-const ACTIVE: Delivery['status'][] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
-
-type Rider = 'delivering' | 'available' | 'resting';
-
-interface RosterRow {
-  driver: Customer;
-  depotName: string;
-  load: number;
-  state: Rider;
+interface RosterView extends RosterRow {
+  depotLabel: string;
 }
 
-// Design 16c — courier roster. Joins the active-driver directory with live deliveries;
-// load = active deliveries, state derived from delivery status + account status. Real.
+// Design 16c — courier roster. Joins the courier directory with live deliveries and today's
+// shifts: load = active deliveries, depot = the courier's own (their working depot shown
+// alongside when it differs), state = why they can or cannot take a delivery right now.
 export default function HqRosterPage() {
   const { t } = useT();
 
-  const data = useAsync<RosterRow[]>(async () => {
-    const [drivers, deliveries, depotList] = await Promise.all([
+  const data = useAsync<RosterView[]>(async () => {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    const [drivers, deliveries, depotList, shifts] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
       api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
       api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+      api.get<CourierShift[]>(endpoints.deliveries.shiftsOnDuty(since.toISOString()), true),
     ]);
     const depotName = new Map(depotList.items.map((d) => [d.id, d.name]));
-    return drivers.map((driver) => {
-      const own = deliveries.items.filter((d) => d.driverId === driver.id && ACTIVE.includes(d.status));
-      const onDelivery = own.some((d) => d.status === 'ON_DELIVERY' || d.status === 'PICKED_UP');
-      const depotId = own.find((d) => d.depotId)?.depotId ?? null;
-      const state: Rider =
-        driver.status !== 'ACTIVE' ? 'resting' : onDelivery ? 'delivering' : 'available';
+    const named = (id: string | null): string | null => (id ? (depotName.get(id) ?? null) : null);
+
+    return deriveRoster(drivers, deliveries.items, shifts).map((row) => {
+      const home = named(row.depotId);
+      const away = named(row.activeDepotId);
       return {
-        driver,
-        depotName: depotId ? (depotName.get(depotId) ?? t('hq.roster.unknownDepot')) : t('hq.roster.unknownDepot'),
-        load: own.length,
-        state,
+        ...row,
+        depotLabel: away
+          ? t('hq.roster.workingAway', { home: home ?? t('hq.roster.unknownDepot'), away })
+          : (home ?? t('hq.roster.unknownDepot')),
       };
     });
   });
 
   const rows = data.data ?? [];
-  const tone = { delivering: 'brand', available: 'success', resting: 'neutral' } as const;
+  const tone = {
+    delivering: 'brand',
+    available: 'success',
+    resting: 'neutral',
+    offshift: 'warning',
+  } as const;
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,7 +85,7 @@ export default function HqRosterPage() {
                   <td className="px-4 py-3">
                     <span className="font-medium">{r.driver.fullName || r.driver.phone}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted">{r.depotName}</td>
+                  <td className="px-4 py-3 text-muted">{r.depotLabel}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {t('hq.roster.loadCount', { n: r.load })}
                   </td>

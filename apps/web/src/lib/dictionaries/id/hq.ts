@@ -731,6 +731,8 @@ export const hq = {
     delivering: 'Mengantar',
     available: 'Tersedia',
     resting: 'Istirahat',
+    offshift: 'Belum buka shift',
+    workingAway: '{home} (bertugas di {away})',
     unknownDepot: '—',
     empty: 'Belum ada kurir aktif.',
   },

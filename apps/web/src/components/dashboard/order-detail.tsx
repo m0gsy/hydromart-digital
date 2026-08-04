@@ -11,6 +11,7 @@ import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-stat
 import { printReceipt } from '@/lib/receipt';
 import { useAuth } from '@/lib/auth-context';
 import { canConfirmPayment } from '@/lib/roles';
+import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Order, Page, Payment } from '@/lib/types';
 
@@ -94,6 +95,22 @@ function PaymentSettle({ order }: { order: Order }) {
  */
 function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) {
   const drivers = useAsync<Customer[]>(() => api.get(endpoints.auth.drivers, true), []);
+  // Who may actually be handed a delivery right now. delivery-service refuses an
+  // assignment to a courier with no open shift, so offering them here only produced a
+  // rejection after the click — the dropdown says so up front instead.
+  const { data: shifts } = useAsync<CourierShift[]>(() => {
+    const since = new Date();
+    since.setHours(0, 0, 0, 0);
+    return api
+      .get<CourierShift[]>(
+        endpoints.deliveries.shiftsOnDuty(since.toISOString(), order.depotId ?? undefined),
+        true,
+      )
+      // Fail-soft: if the shift view is unreachable the list stays selectable and the
+      // service still has the final say — better than blocking every dispatch.
+      .catch(() => [] as CourierShift[]);
+  }, [order.depotId]);
+  const onDuty = dispatchableDrivers(shifts ?? []);
   // The order's payment (staff read) → a CASH order dispatches with the COD amount the
   // courier collects. Fail-soft: null on error → non-COD.
   const { data: paymentPage } = useAsync<Page<Payment> | null>(
@@ -163,8 +180,9 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
           >
             <option value="">Pilih kurir…</option>
             {drivers.data.map((d) => (
-              <option key={d.id} value={d.id}>
+              <option key={d.id} value={d.id} disabled={shifts != null && !onDuty.has(d.id)}>
                 {d.fullName || d.phone}
+                {shifts != null && !onDuty.has(d.id) ? ' — belum buka shift' : ''}
               </option>
             ))}
           </select>

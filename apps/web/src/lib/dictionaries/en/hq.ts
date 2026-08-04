@@ -728,6 +728,8 @@ export const hq = {
     delivering: 'Delivering',
     available: 'Available',
     resting: 'Resting',
+    offshift: 'Not checked in',
+    workingAway: '{home} (working at {away})',
     unknownDepot: '—',
     empty: 'No active couriers.',
   },
