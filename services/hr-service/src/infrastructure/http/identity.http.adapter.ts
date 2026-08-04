@@ -4,6 +4,7 @@ import { HrConfigService } from '../../config/hr-config.service';
 import {
   AssignRoleInput,
   IdentityPort,
+  ProvisionManagedStaffInput,
   ProvisionStaffInput,
 } from '../../application/ports/identity.port';
 
@@ -17,7 +18,16 @@ export class IdentityHttpAdapter implements IdentityPort {
   constructor(private readonly config: HrConfigService) {}
 
   async provisionStaff(input: ProvisionStaffInput): Promise<{ customerId: string }> {
-    const body = await this.post<{ id?: string }>('auth/internal/staff', input);
+    return this.provision('auth/internal/staff', input);
+  }
+
+  /** The form's route, whose allowlist reaches the supervision chain. See the port doc. */
+  async provisionManagedStaff(input: ProvisionManagedStaffInput): Promise<{ customerId: string }> {
+    return this.provision('auth/internal/staff/managed', input);
+  }
+
+  private async provision(path: string, input: unknown): Promise<{ customerId: string }> {
+    const body = await this.post<{ id?: string }>(path, input);
     if (!body.id) {
       throw new ServiceUnavailableException('auth-service tidak mengembalikan id akun');
     }

@@ -17,6 +17,17 @@ export interface ProvisionStaffInput {
 }
 
 /**
+ * The single-employee form's version. Same call, one rung wider allowlist: a human typing
+ * one name may mint a supervisor, a thousand-row file may not (see ProvisionStaffInput).
+ */
+export interface ProvisionManagedStaffInput {
+  phone: string;
+  role: HrManagedRole;
+  fullName?: string;
+  depotId?: string;
+}
+
+/**
  * Creates (or promotes) the login account behind an employee record, so an imported
  * employee can clock in by phone OTP straight away.
  *
@@ -26,6 +37,9 @@ export interface ProvisionStaffInput {
  */
 export interface IdentityPort {
   provisionStaff(input: ProvisionStaffInput): Promise<{ customerId: string }>;
+
+  /** Provision for the HR form rather than an import file. Fails hard for the same reason. */
+  provisionManagedStaff(input: ProvisionManagedStaffInput): Promise<{ customerId: string }>;
 
   /**
    * Push a jabatan change onto the existing login.

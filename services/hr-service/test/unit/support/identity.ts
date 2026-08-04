@@ -1,6 +1,7 @@
 import {
   AssignRoleInput,
   IdentityPort,
+  ProvisionManagedStaffInput,
   ProvisionStaffInput,
 } from '../../../src/application/ports/identity.port';
 
@@ -21,6 +22,14 @@ export class FakeIdentity implements IdentityPort {
   }
 
   async provisionStaff(input: ProvisionStaffInput): Promise<{ customerId: string }> {
+    return this.record(input);
+  }
+
+  async provisionManagedStaff(input: ProvisionManagedStaffInput): Promise<{ customerId: string }> {
+    return this.record(input as ProvisionStaffInput);
+  }
+
+  private async record(input: ProvisionStaffInput): Promise<{ customerId: string }> {
     this.calls.push(input);
     if (this.error) throw this.error;
     this.seq += 1;

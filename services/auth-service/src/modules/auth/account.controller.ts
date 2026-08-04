@@ -58,7 +58,11 @@ export class AccountController {
 
   // Staff-only: resolve a phone to a customer id for voucher grant. Mirrors the
   // promo-service voucher-write roles (marketing / depot-manager / super-admin).
-  @Roles(Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN)
+  //
+  // HR is here for a different reason: adding an employee promotes the account behind that
+  // phone if one exists, so one mistyped digit turns a customer into a KEPALA_DEPOT. HR has
+  // to be able to see whose number they typed BEFORE they save it.
+  @Roles(Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN, Role.HR)
   @Get('auth/customers/lookup')
   @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
   @ApiOkResponse({ type: PublicCustomerDto })

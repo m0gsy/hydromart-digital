@@ -66,10 +66,13 @@ export class CreateEmployeeDto {
   /**
    * Login role (jabatan). Bounded to `HR_MANAGED_ROLES`, not the whole enum: an employee
    * form must not be a path to a HEAD_OFFICE or SUPER_ADMIN account.
+   *
+   * REQUIRED on create, because creating an employee now mints their login as well and the
+   * account cannot be minted without a role. It stays optional on update — rows written
+   * before this release have `role` null and must not become uneditable.
    */
-  @IsOptional()
   @IsIn(HR_MANAGED_ROLES as readonly string[])
-  role?: HrManagedRole;
+  role!: HrManagedRole;
 
   @IsEnum(EmploymentStatus)
   employmentStatus!: EmploymentStatus;

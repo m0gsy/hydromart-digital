@@ -122,11 +122,20 @@ const baseInput = {
   phone: '0811',
   depotId: DEPOT_A,
   position: 'Kurir',
+  // Required since "+ Tambah" mints the login too: an employee with no jabatan is somebody
+  // the account could not be created for.
+  role: 'STAFF_DEPOT' as const,
   employmentStatus: 'PROBATION' as const,
   joinDate: '2026-01-01',
   salaryType: 'DAILY' as const,
   dailyRate: 50000,
 };
+
+/** A row from before this release: employee exists, account never did. */
+function unlink(repo: FakeRepo, id: string): void {
+  const row = repo.rows.find((r) => r.id === id);
+  if (row) row.authSubjectId = null;
+}
 
 function make() {
   const repo = new FakeRepo();
@@ -138,10 +147,88 @@ describe('EmployeeService (M1)', () => {
   it('mints a sequential HR-#### code and a HIRED history row on create', async () => {
     const { repo, svc } = make();
     const a = await svc.create(hr, baseInput);
-    const b = await svc.create(hr, { ...baseInput, fullName: 'Siti' });
+    const b = await svc.create(hr, { ...baseInput, fullName: 'Siti', phone: '0812' });
     expect(a.employeeCode).toBe('HR-0001');
     expect(b.employeeCode).toBe('HR-0002');
     expect(repo.history[0]).toMatchObject({ changeType: 'HIRED' });
+  });
+
+  // "+ Tambah" used to write an employee row and nothing else, so the person existed in HR
+  // and could not log in anywhere — the single biggest way the two lists disagreed.
+  it('mints the login account when adding an employee, and links it', async () => {
+    const { identity, svc } = make();
+
+    const e = await svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' });
+
+    expect(identity.calls).toEqual([
+      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+    ]);
+    expect(e.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  // Fail hard, like the import path: an employee row with no account is somebody who
+  // cannot clock in, and nothing downstream would notice.
+  it('writes no employee row at all when auth-service refuses', async () => {
+    const { repo, identity, svc } = make();
+    identity.fail(new Error('auth down'));
+
+    await expect(svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' })).rejects.toThrow('auth down');
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  // The pre-check matters more than it looks: without it the NIK collision surfaces at the
+  // employee write, AFTER the account was minted, leaving an orphan staff login nobody
+  // recorded anywhere.
+  it('rejects a duplicate NIK before it provisions anything', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', nik: '3201010101010001' });
+    identity.calls.length = 0;
+
+    await expect(
+      svc.create(hr, {
+        ...baseInput,
+        role: 'STAFF_DEPOT',
+        phone: '0899',
+        nik: '3201010101010001',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('rejects a second employee on a phone that already has one, before provisioning', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    identity.calls.length = 0;
+
+    await expect(svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('rejects a supplied staff code that is already taken, before provisioning', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', employeeCode: 'STAFF-7' });
+    identity.calls.length = 0;
+
+    await expect(
+      svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', phone: '0899', employeeCode: 'staff-7' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
+  // The import provisions before it calls create(); create() must not mint a second one.
+  it('uses the account the caller already provisioned instead of minting another', async () => {
+    const { identity, svc } = make();
+
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    expect(identity.calls).toEqual([]);
+    expect(e.authSubjectId).toBe('11111111-1111-4111-8111-111111111111');
   });
 
   // The gap this closes: a promotion used to change the title and leave the login on the
@@ -170,8 +257,10 @@ describe('EmployeeService (M1)', () => {
   // Used to pass silently: no account, no call, no error — the promotion simply did not
   // happen and nothing said so. A refusal is the only outcome that reaches a human.
   it('refuses a jabatan change for an employee with no login account', async () => {
-    const { identity, svc } = make();
-    const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.roleCalls.length = 0;
 
     await expect(svc.update(hr, e.id, { role: 'KEPALA_DEPOT' })).rejects.toBeInstanceOf(
       BadRequestException,
@@ -218,8 +307,11 @@ describe('EmployeeService (M1)', () => {
   });
 
   it('leaves an employee with no account alone when the edit does not touch the jabatan', async () => {
-    const { identity, svc } = make();
-    const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.roleCalls.length = 0;
+
     await svc.update(hr, e.id, { position: 'Kurir Senior' });
     expect(identity.roleCalls).toHaveLength(0);
   });
@@ -268,7 +360,7 @@ describe('EmployeeService (M1)', () => {
   it('scopes list to a depot manager’s own depot', async () => {
     const { svc } = make();
     await svc.create(hr, baseInput);
-    await svc.create(hr, { ...baseInput, depotId: DEPOT_B });
+    await svc.create(hr, { ...baseInput, phone: '0812', depotId: DEPOT_B });
     const own = await svc.list(manager(DEPOT_A), { page: 1, pageSize: 20 });
     expect(own.total).toBe(1);
     expect(own.rows[0].depotId).toBe(DEPOT_A);
@@ -344,6 +436,7 @@ describe('EmployeeService.importMany', () => {
     // Same phone twice -> auth-service hands back the same account both times.
     const svc = new EmployeeService(repo, {
       provisionStaff: async () => ({ customerId: 'auth-same' }),
+      provisionManagedStaff: async () => ({ customerId: 'auth-same' }),
       assignRole: async () => {},
     });
 
@@ -494,7 +587,12 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
   // has no login, and UPSERT reported `updated` every single time without ever minting one.
   it('UPSERT mints the missing account for a row that was added by hand', async () => {
     const { repo, identity, svc } = make();
-    const byHand = await svc.create(hr, baseInput); // no role, no authSubjectId
+    const byHand = await svc.create(hr, {
+      ...baseInput,
+      role: undefined,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    unlink(repo, byHand.id); // a row from before "+ Tambah" minted accounts
     identity.calls.length = 0;
 
     const summary = await svc.importMany(hr, [{ ...row, position: 'Supervisor' }], 'UPSERT');

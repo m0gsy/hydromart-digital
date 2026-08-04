@@ -97,6 +97,8 @@ const baseInput = {
   phone: '0811',
   depotId: DEPOT_A,
   position: 'Kurir',
+  // "+ Tambah" mints the login too, so a new employee always carries a jabatan.
+  role: 'STAFF_DEPOT' as const,
   employmentStatus: 'PROBATION' as const,
   joinDate: '2026-01-01',
   salaryType: 'DAILY' as const,

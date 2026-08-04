@@ -797,7 +797,14 @@ export function employeeToForm(e: Employee): EmployeeForm {
 /** Validate + coerce the string form into an API payload, mirroring CreateEmployeeDto. */
 export function toEmployeePayload(
   f: EmployeeForm,
+  opts: { creating?: boolean } = {},
 ): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  // Adding an employee mints their login too, and an account cannot be minted without a
+  // role. On edit it stays optional — "" means "leave the jabatan as it is", and rows
+  // written before this release have none at all.
+  if (opts.creating && !f.role) {
+    return { ok: false, error: 'Jabatan (peran login) wajib diisi.' };
+  }
   // Staff above a single depot (Asisten SPV and up) have no home depot — same rule the
   // server enforces, so the form does not demand a value the API would ignore.
   const aboveDepot = f.role === 'ASSISTANT_SUPERVISOR' || f.role === 'SUPERVISOR' || f.role === 'MANAGER';

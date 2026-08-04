@@ -190,6 +190,12 @@ export class EmployeeService {
     this.assertContractWindow(input.joinDate, input.contractEndDate);
     await this.assertDepartmentFits(input.departmentId, input.depotId ?? null);
 
+    // Everything that can reject this row is asked BEFORE auth-service is called, because
+    // the two writes live in two databases with no saga between them (see importMany). A
+    // collision discovered after provisioning would leave a staff login nobody recorded.
+    await this.assertNobodyElseHas(input);
+    const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input));
+
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
       fullName: input.fullName,
       phone: input.phone,
@@ -206,7 +212,7 @@ export class EmployeeService {
       bankAccount: input.bankAccount ?? null,
       emergencyName: input.emergencyName ?? null,
       emergencyPhone: input.emergencyPhone ?? null,
-      authSubjectId: input.authSubjectId ?? null,
+      authSubjectId: authSubjectId ?? null,
       photoUrl: input.photoUrl ?? null,
       supervisorId: input.supervisorId ?? null,
       shiftId: input.shiftId ?? null,
@@ -257,6 +263,47 @@ export class EmployeeService {
     }
     /* istanbul ignore next — loop always returns or throws above */
     throw new BadRequestException('Gagal membuat kode karyawan, coba lagi');
+  }
+
+  /**
+   * The three keys that make this row somebody who already exists. Asked before the remote
+   * call, so a duplicate costs a rejected form rather than an orphaned staff account.
+   *
+   * The wording matters: `importMany` classifies "sudah dipakai" as a duplicate row
+   * (`skipped`), which is exactly what re-uploading a corrected file should produce.
+   */
+  private async assertNobodyElseHas(input: CreateEmployeeInput): Promise<void> {
+    const code = input.employeeCode?.trim().toUpperCase();
+    if (code && (await this.repo.findByEmployeeCode(code))) {
+      throw new BadRequestException('Kode karyawan sudah dipakai');
+    }
+    if (input.nik && (await this.repo.findByNik(input.nik.trim()))) {
+      throw new BadRequestException('NIK sudah dipakai karyawan lain');
+    }
+    if (await this.repo.findByPhone(input.phone)) {
+      throw new BadRequestException('Nomor telepon ini sudah dipakai karyawan lain');
+    }
+  }
+
+  /**
+   * Mint the login that makes this employee a person who can sign in — the whole point of
+   * "+ Tambah" writing to two services at once.
+   *
+   * Fails hard (see IdentityPort): an employee row without an account is somebody who
+   * cannot clock in, and nothing downstream would notice. Only the import path arrives
+   * here with an account already provisioned, and it passes it in.
+   */
+  private async provisionFor(input: CreateEmployeeInput): Promise<string> {
+    if (!input.role) {
+      throw new BadRequestException('Jabatan (peran login) wajib diisi untuk karyawan baru');
+    }
+    const { customerId } = await this.identity.provisionManagedStaff({
+      phone: input.phone,
+      role: input.role,
+      fullName: input.fullName,
+      depotId: input.depotId,
+    });
+    return customerId;
   }
 
   /**
