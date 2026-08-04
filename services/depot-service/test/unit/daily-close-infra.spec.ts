@@ -125,7 +125,11 @@ describe('DailyClosePrismaRepository', () => {
       note: 'ok',
     });
 
-    const arg = depotDailyClose.upsert.mock.calls[0][0];
+    const arg = depotDailyClose.upsert.mock.calls[0][0] as {
+      where: { depotId_businessDate: { depotId: string } };
+      create: { note: string | null };
+      update: { reopenedAt: Date | null; reopenedBy: string | null };
+    };
     expect(arg.where.depotId_businessDate.depotId).toBe('d1');
     expect(arg.update.reopenedAt).toBeNull();
     expect(arg.update.reopenedBy).toBeNull();

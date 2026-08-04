@@ -57,8 +57,15 @@ export interface CreateEmployeeInput {
   /** Optional: staff above a single depot (Asisten SPV and up) belong to no one depot. */
   depotId?: string;
   position: string;
-  /** Login role (jabatan). Setting it on an employee with an account re-roles the login. */
-  role?: HrManagedRole;
+  /**
+   * Login role (jabatan). Setting it on an employee with an account re-roles the login.
+   *
+   * Typed as the whole enum, not `HrManagedRole`: an account invited in the staff console
+   * may be HEAD_OFFICE or FINANCE, and those people are on the payroll too. What HR may
+   * *assign* stays bounded — by the DTOs on the HR-facing routes, where that rule belongs —
+   * but which employees may *exist* is a wider question.
+   */
+  role?: Employee['role'];
   employmentStatus: Employee['employmentStatus'];
   joinDate: string;
   salaryType: SalaryType;
@@ -384,8 +391,10 @@ export class EmployeeService {
       throw new BadRequestException('Jabatan (peran login) wajib diisi untuk karyawan baru');
     }
     const { customerId } = await this.identity.provisionManagedStaff({
+      // Only the HR form reaches here, and its DTO is bounded to HR_MANAGED_ROLES; the wider
+      // enum on the input exists for accounts INVITED elsewhere, which arrive already made.
+      role: input.role as HrManagedRole,
       phone: input.phone,
-      role: input.role,
       fullName: input.fullName,
       depotId: input.depotId,
     });

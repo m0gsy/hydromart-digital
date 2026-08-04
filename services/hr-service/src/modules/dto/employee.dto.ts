@@ -23,6 +23,7 @@ import {
   HR_MANAGED_ROLES,
   STAFF_IMPORT_ROLES,
   type HrManagedRole,
+  type Role,
   type StaffImportRole,
 } from '@hydromart/access';
 
@@ -180,15 +181,56 @@ export class CreateEmployeeDto {
 }
 
 /**
+ * Every role that can be on the payroll — i.e. everyone except an end customer.
+ *
+ * FRANCHISE_OWNER is in the list because the DTO only describes what is *acceptable*;
+ * auth-service never sends one (an owner is a business counterpart, not headcount), and
+ * that decision stays where it is made rather than being duplicated here as a validation
+ * rule somebody would later have to reconcile.
+ */
+const EMPLOYABLE_ROLES = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
+  'FRANCHISE_OWNER',
+  'HEAD_OFFICE',
+  'FINANCE',
+  'HR',
+  'MARKETING',
+  'SUPER_ADMIN',
+] as const satisfies readonly Role[];
+
+/**
  * An account invited from the HQ staff console, arriving over the internal key so HR gets
  * the employee row that makes them payable and rosterable.
  *
  * `authSubjectId` is REQUIRED here and is the idempotency key: inviting the same phone
  * again is a promotion, never a second employee.
  */
-export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, ['authSubjectId'] as const) {
+export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
+  'authSubjectId',
+  'role',
+] as const) {
   @IsUUID()
   authSubjectId!: string;
+
+  /**
+   * WIDER than the form's `HR_MANAGED_ROLES`, deliberately.
+   *
+   * That allowlist bounds what an HR user may ASSIGN as somebody's login role — it must not
+   * also bound which employees may EXIST. A head-office clerk, a finance officer and the
+   * super admin are all on the payroll, and the staff console can invite them; refusing
+   * their employee record made every office invite fail 503 and left the account half-made,
+   * which is the exact failure this release exists to remove.
+   *
+   * CUSTOMER stays out: an end customer is not staff, and this route only ever runs behind
+   * auth-service's own staff-invite path.
+   */
+  @IsIn(EMPLOYABLE_ROLES as readonly string[])
+  role!: string;
 }
 
 /** An account deleted in the staff console; the employee record behind it is scrubbed. */
