@@ -167,10 +167,25 @@ describe('EmployeeService (M1)', () => {
     expect(identity.roleCalls).toHaveLength(1);
   });
 
-  it('leaves the login alone for an employee with no account', async () => {
+  // Used to pass silently: no account, no call, no error — the promotion simply did not
+  // happen and nothing said so. A refusal is the only outcome that reaches a human.
+  it('refuses a jabatan change for an employee with no login account', async () => {
     const { identity, svc } = make();
     const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
-    await svc.update(hr, e.id, { role: 'KEPALA_DEPOT' });
+
+    await expect(svc.update(hr, e.id, { role: 'KEPALA_DEPOT' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(identity.roleCalls).toHaveLength(0);
+    // The employee row must not carry the new jabatan either — that is the disagreement
+    // between title and token this whole change exists to prevent.
+    expect((await svc.getById(hr, e.id)).role).toBe('STAFF_DEPOT');
+  });
+
+  it('leaves an employee with no account alone when the edit does not touch the jabatan', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    await svc.update(hr, e.id, { position: 'Kurir Senior' });
     expect(identity.roleCalls).toHaveLength(0);
   });
 
@@ -438,6 +453,38 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     expect(second).toMatchObject({ updated: 1 });
     expect(repo.rows).toHaveLength(1);
     expect(repo.rows[0]?.phone).toBe('0899');
+  });
+
+  // "Sudah saya upload dari HR kok orangnya tidak kebaca": the row was added by hand, so it
+  // has no login, and UPSERT reported `updated` every single time without ever minting one.
+  it('UPSERT mints the missing account for a row that was added by hand', async () => {
+    const { repo, identity, svc } = make();
+    const byHand = await svc.create(hr, baseInput); // no role, no authSubjectId
+    identity.calls.length = 0;
+
+    const summary = await svc.importMany(hr, [{ ...row, position: 'Supervisor' }], 'UPSERT');
+
+    expect(summary).toMatchObject({ created: 0, updated: 1, failed: 0 });
+    expect(identity.calls).toEqual([
+      { phone: row.phone, role: 'KEPALA_DEPOT', fullName: row.fullName, depotId: DEPOT_A },
+    ]);
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.id).toBe(byHand.id);
+    expect(repo.rows[0]?.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
+    // Said out loud, because "updated" alone reads as "nothing was missing".
+    expect(summary.results[0]?.message).toBe('Akun login dibuat');
+  });
+
+  it('UPSERT still refuses to re-role an account that already exists', async () => {
+    const { identity, svc } = make();
+    await svc.importMany(hr, [row]); // creates employee + account
+    identity.calls.length = 0;
+
+    await svc.importMany(hr, [{ ...row, role: 'STAFF_DEPOT' }], 'UPSERT');
+
+    // One spreadsheet column must not change what somebody may do in 18 services.
+    expect(identity.calls).toEqual([]);
+    expect(identity.roleCalls).toEqual([]);
   });
 
   it('UPSERT creates the row when nothing matches', async () => {

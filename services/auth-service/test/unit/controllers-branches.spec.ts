@@ -75,7 +75,7 @@ describe('AccountController delegation', () => {
 
   it('lists drivers for dispatch', async () => {
     account.listDrivers.mockResolvedValue([publicCustomer({ role: Role.STAFF_DEPOT })]);
-    const drivers = await controller.listDrivers();
+    const drivers = await controller.listDrivers({}, user);
     expect(drivers).toHaveLength(1);
   });
 

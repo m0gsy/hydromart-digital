@@ -126,13 +126,21 @@ export class Customer {
    * Admin action (staff & roles, PRD Module 7): assign a staff role to this account.
    * An invited/promoted staff member is pre-trusted, so a still-pending account is
    * activated immediately (they sign in by phone OTP; no self-verification needed).
+   *
+   * SUSPENDED is lifted too: that is the status a resignation writes, so re-hiring
+   * someone would otherwise leave them locked out with nothing on screen to explain it.
+   * DELETED is NOT lifted — that account's identity has been anonymised, so "hire again"
+   * has to mint a new one rather than resurrect a record nobody can read back.
    */
   promoteToStaff(role: Role, depotId?: string | null): void {
     this.props.role = role;
     if (depotId !== undefined) {
       this.props.assignedDepotId = depotId;
     }
-    if (this.props.status === CustomerStatus.PENDING_VERIFICATION) {
+    if (
+      this.props.status === CustomerStatus.PENDING_VERIFICATION ||
+      this.props.status === CustomerStatus.SUSPENDED
+    ) {
       this.props.status = CustomerStatus.ACTIVE;
     }
   }

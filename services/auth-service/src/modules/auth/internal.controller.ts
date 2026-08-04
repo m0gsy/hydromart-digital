@@ -11,6 +11,7 @@ import {
   LookupCustomerIdsDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
+  ProvisionManagedStaffDto,
   ProvisionStaffDto,
   PurgeBeforeDto,
 } from './dto/internal.dto';
@@ -41,6 +42,21 @@ export class InternalAccountController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create or promote a staff account (internal service auth)' })
   async provisionStaff(@Body() dto: ProvisionStaffDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * The same provisioning, for the single-employee HR form rather than an import file.
+   *
+   * A separate route rather than a wider `ProvisionStaffDto`: widening that one would have
+   * handed the spreadsheet path the supervision roles too, and a file of a thousand rows
+   * is exactly the place those must not be reachable from.
+   */
+  @Post('staff/managed')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create or promote an HR-managed staff account (internal service auth)' })
+  async provisionManagedStaff(@Body() dto: ProvisionManagedStaffDto): Promise<PublicCustomerDto> {
     const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
     return PublicCustomerDto.from(staff);
   }

@@ -98,6 +98,27 @@ describe('HierarchyService.setSuperior', () => {
     );
   });
 
+  // The chain is no longer three levels deep (kurir -> kepala depot -> asisten -> SPV ->
+  // manager -> direktur), so a guard bounded by the resolver's hop count lets the long
+  // ones through. Depth must not decide whether a cycle is caught.
+  it('refuses a loop that closes above the fifth level', async () => {
+    repo.superiorOf.set('e', 'f');
+    repo.superiorOf.set('d', 'e');
+    repo.superiorOf.set('c', 'd');
+    repo.superiorOf.set('b', 'c');
+    repo.superiorOf.set('a', 'b');
+    await expect(service.setSuperior('f', 'a', null)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  // A cycle already in the table (written before the guard existed) must not hang the walk.
+  it('terminates on a pre-existing cycle instead of looping forever', async () => {
+    repo.superiorOf.set('x', 'y');
+    repo.superiorOf.set('y', 'x');
+    await expect(service.setSuperior('z', 'x', null)).resolves.toBeUndefined();
+  });
+
   it('clears a link and reports the shape back', async () => {
     await service.setSuperior('asv-1', 'spv-1', null);
     await service.grantDepot('asv-1', 'd9', null);

@@ -118,12 +118,24 @@ export class AccountService {
   /**
    * Driver roster for dispatch (feature 9b): active couriers only, so staff can
    * pick one by name. Reuses the staff-directory query with a STAFF_DEPOT filter and
-   * keeps only ACTIVE accounts. Non-paginated — a depot has few drivers.
-   * ponytail: single generous page; add real pagination if a depot ever runs 500+ drivers.
+   * keeps only ACTIVE accounts.
+   *
+   * `depotId` is what keeps a dispatcher at depot A from assigning a courier who belongs
+   * to depot B — the controller decides it from the caller, never the client. Omitted only
+   * for HQ, which legitimately sees the whole network.
+   *
+   * Paged to exhaustion rather than one 500-row page: a truncated roster made driver 501
+   * undispatchable and said nothing about it.
    */
-  async listDrivers(): Promise<PublicCustomer[]> {
-    const { items } = await this.customers.listStaff(1, 500, Role.STAFF_DEPOT);
-    return items.map(toPublicCustomer).filter((c) => c.status === CustomerStatus.ACTIVE);
+  async listDrivers(depotId?: string): Promise<PublicCustomer[]> {
+    const PAGE = 200;
+    const drivers: PublicCustomer[] = [];
+    for (let page = 1; ; page += 1) {
+      const { items, total } = await this.customers.listStaff(page, PAGE, Role.STAFF_DEPOT, depotId);
+      drivers.push(...items.map(toPublicCustomer));
+      if (items.length === 0 || drivers.length >= total) break;
+    }
+    return drivers.filter((c) => c.status === CustomerStatus.ACTIVE);
   }
 
   /**

@@ -18,7 +18,10 @@ import {
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
-import type { HrManagedRole } from '@hydromart/access';
+import { STAFF_IMPORT_ROLES, type HrManagedRole } from '@hydromart/access';
+
+/** The roles an import may mint an account for — the allowlist auth-service enforces too. */
+const IMPORT_PROVISIONABLE_ROLES: readonly string[] = STAFF_IMPORT_ROLES;
 
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
 const TRACKED: readonly (keyof Employee)[] = [
@@ -273,15 +276,24 @@ export class EmployeeService {
       async ({ role, supervisorCode: _supervisorCode, ...input }) => {
         const existing = mode === 'UPSERT' ? await this.findForUpsert(input) : null;
         if (existing) {
-          // The login is deliberately left alone. The account already exists, and changing
-          // someone's role — what they may do in 18 services — is not a side effect a
-          // spreadsheet column should have.
+          // An EXISTING login is deliberately left alone. Changing someone's role — what
+          // they may do in 18 services — is not a side effect a spreadsheet column should
+          // have. A MISSING login is a different thing entirely: the row was added by hand,
+          // the person has never been able to sign in, and re-uploading the file reported
+          // `updated` forever without ever fixing it.
+          const link = existing.authSubjectId
+            ? {}
+            : await this.provisionForExisting(existing, { ...input, role });
           // employeeCode is the key we matched ON, never a field to rewrite.
           const updated = await this.update(user, existing.id, {
             ...input,
             employeeCode: undefined,
+            authSubjectId: link.authSubjectId,
+            // Only when the row carried no jabatan at all: that is the role the account we
+            // just minted actually holds, so recording it keeps the two from disagreeing.
+            role: link.authSubjectId && !existing.role ? role : undefined,
           });
-          return { status: 'updated', id: updated.id };
+          return { status: 'updated', id: updated.id, message: link.message };
         }
         const { customerId } = await this.identity.provisionStaff({
           phone: input.phone,
@@ -301,6 +313,33 @@ export class EmployeeService {
     );
     await this.linkSupervisors(user, rows, summary);
     return summary;
+  }
+
+  /**
+   * Mint the login an existing employee row never got, during an UPSERT import.
+   *
+   * The employee record decides the role, not the file: a row already carrying a jabatan
+   * keeps it, and the file's column only speaks for a row that has none. A jabatan above
+   * what an import may provision is reported rather than quietly downgraded — that account
+   * gets made by hand in the HR form, which is the path allowed to reach those roles.
+   */
+  private async provisionForExisting(
+    existing: Employee,
+    row: { phone: string; fullName: string; depotId?: string; role: StaffRole },
+  ): Promise<{ authSubjectId?: string; message?: string }> {
+    const role = (existing.role as StaffRole | null) ?? row.role;
+    if (!IMPORT_PROVISIONABLE_ROLES.includes(role)) {
+      return {
+        message: `Jabatan ${role} tidak bisa dibuatkan akun lewat impor — buat akun lewat form HR`,
+      };
+    }
+    const { customerId } = await this.identity.provisionStaff({
+      phone: row.phone,
+      role,
+      fullName: row.fullName,
+      depotId: row.depotId,
+    });
+    return { authSubjectId: customerId, message: 'Akun login dibuat' };
   }
 
   /** Upsert match, most specific key first. Phone last: it is the only non-unique one. */
@@ -419,12 +458,23 @@ export class EmployeeService {
     // this closes: the title said SPV while the token still said assistant. Done BEFORE
     // the employee write so a rejected re-role (auth down, role not HR-managed) fails the
     // edit outright instead of leaving the two records disagreeing.
-    if (input.role !== undefined && input.role !== current.role && current.authSubjectId) {
-      await this.identity.assignRole({
-        customerId: current.authSubjectId,
-        role: input.role,
-        depotId: input.depotId ?? current.depotId,
-      });
+    if (input.role !== undefined && input.role !== current.role) {
+      if (current.authSubjectId) {
+        await this.identity.assignRole({
+          customerId: current.authSubjectId,
+          role: input.role,
+          depotId: input.depotId ?? current.depotId,
+        });
+      } else if (input.authSubjectId === undefined) {
+        // No account to move the jabatan onto. This used to pass silently: the promotion
+        // did not happen and nothing said so. It stays refused until the person has a
+        // login — `/hr/employees` flags exactly these rows.
+        throw new BadRequestException(
+          'Karyawan ini belum punya akun login, jabatannya belum bisa diubah. Buatkan akun dulu.',
+        );
+      }
+      // The third case — an account being LINKED in this same write — needs no push: it was
+      // just minted holding this very role.
     }
 
     const history = this.diffHistory(current, data, user.sub);

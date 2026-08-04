@@ -5,7 +5,7 @@ import { Request } from 'express';
 import { AccountService } from '../../application/services/account.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, ImportSummary, Roles } from '@hydromart/platform';
+import { Can, ImportSummary, Role as PlatformRole, Roles, isDepotLocked } from '@hydromart/platform';
 import { Role } from '../../domain/customer/role.enum';
 
 import { getRequestContext } from '../../common/http/request-context';
@@ -88,16 +88,33 @@ export class AccountController {
     page: number;
     limit: number;
   }> {
-    let depotId = query.depotId;
-    if (user.role === Role.MANAGER) {
-      const manager = await this.account.getProfile(user.sub);
-      if (!manager.assignedDepotId || (depotId && depotId !== manager.assignedDepotId)) {
-        throw new ForbiddenException('Depot managers may only list staff at their assigned depot.');
-      }
-      depotId = manager.assignedDepotId;
-    }
+    const depotId = await this.scopedDepotFilter(user, query.depotId);
     const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, depotId);
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
+  }
+
+  /**
+   * The depot a staff-facing list must be narrowed to, decided from the CALLER.
+   *
+   * - depot-locked roles (kepala depot, depot staff) and depot managers: their own depot.
+   *   Read from the ACCOUNT, not the token: a depot assigned after sign-in is not in the
+   *   claim yet, and an account with no depot must deny rather than widen to the network.
+   * - everyone else (HQ, direktur, super admin): whatever they asked for, or all.
+   */
+  private async scopedDepotFilter(
+    user: AuthenticatedUser,
+    requested?: string,
+  ): Promise<string | undefined> {
+    const ownDepotOnly =
+      isDepotLocked(user.role as unknown as PlatformRole) || user.role === Role.MANAGER;
+    if (!ownDepotOnly) {
+      return requested;
+    }
+    const self = await this.account.getProfile(user.sub);
+    if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
+      throw new ForbiddenException('Akun ini hanya boleh melihat staf depot yang ditugaskan padanya.');
+    }
+    return self.assignedDepotId;
   }
 
   // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the
@@ -105,10 +122,13 @@ export class AccountController {
   // able to read this, so it also allows the depot dispatch roles.
   @Can('driverRoster')
   @Get('auth/drivers')
-  @ApiOperation({ summary: 'List active drivers (couriers) for dispatch' })
+  @ApiOperation({ summary: 'List active drivers (couriers) for dispatch, scoped to the caller' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
-  async listDrivers(): Promise<PublicCustomerDto[]> {
-    const drivers = await this.account.listDrivers();
+  async listDrivers(
+    @Query() query: { depotId?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PublicCustomerDto[]> {
+    const drivers = await this.account.listDrivers(await this.scopedDepotFilter(user, query.depotId));
     return drivers.map(PublicCustomerDto.from);
   }
 

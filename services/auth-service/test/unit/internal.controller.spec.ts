@@ -5,7 +5,11 @@ import { plainToInstance } from 'class-transformer';
 
 import { Role } from '../../src/domain/customer/role.enum';
 import { InternalAccountController } from '../../src/modules/auth/internal.controller';
-import { LookupCustomerIdsDto, ProvisionStaffDto } from '../../src/modules/auth/dto/internal.dto';
+import {
+  LookupCustomerIdsDto,
+  ProvisionManagedStaffDto,
+  ProvisionStaffDto,
+} from '../../src/modules/auth/dto/internal.dto';
 
 describe('InternalAccountController', () => {
   const account = {
@@ -51,6 +55,34 @@ describe('InternalAccountController', () => {
       'depot-1',
     );
     expect(result).toMatchObject({ id: 'cust-1', role: Role.KEPALA_DEPOT });
+  });
+
+  it('provisions an HR-managed account through the same invite path', async () => {
+    account.inviteStaff.mockResolvedValue({
+      id: 'cust-9',
+      phone: '+628123450000',
+      fullName: 'Rina',
+      email: null,
+      role: Role.SUPERVISOR,
+      status: 'ACTIVE',
+      avatarUrl: null,
+      assignedDepotId: null,
+      createdAt: new Date(),
+    });
+
+    const result = await controller.provisionManagedStaff({
+      phone: '+628123450000',
+      role: Role.SUPERVISOR as never,
+      fullName: 'Rina',
+    });
+
+    expect(account.inviteStaff).toHaveBeenCalledWith(
+      '+628123450000',
+      Role.SUPERVISOR,
+      'Rina',
+      undefined,
+    );
+    expect(result).toMatchObject({ id: 'cust-9', role: Role.SUPERVISOR });
   });
 
   it('passes a pre-register through untouched', async () => {
@@ -121,5 +153,44 @@ describe('ProvisionStaffDto role allowlist', () => {
     '',
   ])('rejects %s', async (role) => {
     expect(await errorsFor(role)).toContain('role');
+  });
+});
+
+// The pair is the point: the same office/superuser roles stay unreachable from BOTH, but
+// the supervision chain is reachable from the form and not from a file.
+describe('ProvisionManagedStaffDto role allowlist', () => {
+  async function errorsFor(role: string): Promise<string[]> {
+    const dto = plainToInstance(ProvisionManagedStaffDto, { phone: '+628123456789', role });
+    return (await validate(dto)).map((e) => e.property);
+  }
+
+  it.each(['STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER'])(
+    'accepts %s',
+    async (role) => {
+      expect(await errorsFor(role)).not.toContain('role');
+    },
+  );
+
+  it.each([
+    'DIREKTUR',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'HEAD_OFFICE',
+    'SUPER_ADMIN',
+    'CUSTOMER',
+    'FRANCHISE_OWNER',
+    '',
+  ])('rejects %s', async (role) => {
+    expect(await errorsFor(role)).toContain('role');
+  });
+
+  // Widening the import DTO would have been the smaller diff and the wrong one.
+  it('leaves the spreadsheet path narrower than the form path', async () => {
+    const viaImport = plainToInstance(ProvisionStaffDto, {
+      phone: '+628123456789',
+      role: 'SUPERVISOR',
+    });
+    expect((await validate(viaImport)).map((e) => e.property)).toContain('role');
   });
 });

@@ -335,6 +335,48 @@ describe('AccountService', () => {
     expect(windowed).toBe(1); // only the January customer
   });
 
+  it('lists drivers of one depot only when a depot is given', async () => {
+    customers.seed(
+      makeCustomer({
+        phone: '+628992220001',
+        role: Role.STAFF_DEPOT,
+        status: CustomerStatus.ACTIVE,
+        assignedDepotId: 'depot-1',
+        fullName: 'Kurir Satu',
+      }),
+    );
+    customers.seed(
+      makeCustomer({
+        phone: '+628992220002',
+        role: Role.STAFF_DEPOT,
+        status: CustomerStatus.ACTIVE,
+        assignedDepotId: 'depot-2',
+        fullName: 'Kurir Dua',
+      }),
+    );
+
+    const atDepot1 = await service.listDrivers('depot-1');
+    expect(atDepot1.map((d) => d.fullName)).toEqual(['Kurir Satu']);
+    expect(await service.listDrivers()).toHaveLength(2);
+  });
+
+  // The old single 500-row page silently truncated: driver 501 was undispatchable and
+  // nothing anywhere said a roster had been cut short.
+  it('walks past the first page instead of cutting the roster off', async () => {
+    for (let i = 0; i < 260; i += 1) {
+      customers.seed(
+        makeCustomer({
+          phone: `+62899333${String(i).padStart(4, '0')}`,
+          role: Role.STAFF_DEPOT,
+          status: CustomerStatus.ACTIVE,
+          assignedDepotId: 'depot-1',
+        }),
+      );
+    }
+
+    expect(await service.listDrivers('depot-1')).toHaveLength(260);
+  });
+
   it('lists only active STAFF_DEPOT accounts for dispatch', async () => {
     customers.seed(
       makeCustomer({
