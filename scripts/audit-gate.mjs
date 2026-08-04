@@ -31,6 +31,11 @@ const ALLOWLIST = {
   'GHSA-qx2v-qp2m-jg93': 'postcss XSS in stringify — next build-time only, trusted CSS',
   'GHSA-6g55-p6wh-862q': 'postcss sourceMappingURL file-read — next build-time only, trusted CSS',
   'GHSA-r28c-9q8g-f849': 'postcss source-map path-traversal — next build-time only, trusted CSS',
+  // Published after the three above: the upstream fix for GHSA-6g55-p6wh-862q turned out
+  // incomplete when `from` is unset. Same package, same reachability argument — it still
+  // needs attacker-controlled CSS at build time, which never reaches `next build`. The only
+  // fix npm offers is next@16 (semver-major), so it waits for a deliberate Next upgrade.
+  'GHSA-fxqj-rqcc-2cmp': 'postcss sourceMappingURL re-fix — next build-time only, trusted CSS',
 
   // sharp@0.34.5 is next's OPTIONAL image-optimization engine. No
   // images.remotePatterns is configured, so only local/bundled assets are
