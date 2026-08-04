@@ -175,6 +175,20 @@ describe('DashboardService', () => {
     expect(result.crm).toEqual({ baru: 2, aktif: 6, inactive: 4, total: 12, followUpCount: 2, repeatRatePct: 50 });
   });
 
+  // Audit S-1 / Q-17 baseline. The old shape asked each source once PER OWNED DEPOT, so an
+  // owner with twelve depots opened this page with thirty-six upstream requests. The number
+  // that matters is that it does not move with the depot count.
+  it('costs three calls for many depots', async () => {
+    const sources = new InMemoryDashboardSources();
+    const service = new DashboardService(sources);
+
+    await service.franchise({}, 'Bearer t');
+
+    expect(sources.lowStockManyCalls).toBe(1);
+    expect(sources.hrSummaryManyCalls).toBe(1);
+    expect(sources.crmSummaryManyCalls).toBe(1);
+  });
+
   it('rolls up every depot with revenue, SLA and low-stock, null SLA when none in range', async () => {
     const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig());
     const result = await service.network({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
