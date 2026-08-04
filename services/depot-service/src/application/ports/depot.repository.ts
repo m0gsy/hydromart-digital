@@ -75,6 +75,14 @@ export type UpdateDepotData = Partial<CreateDepotData & { active: boolean }>;
 export interface DepotRepository {
   search(query: DepotQuery): Promise<{ items: DepotRecord[]; total: number }>;
   findById(id: string, activeOnly: boolean): Promise<DepotRecord | null>;
+  /**
+   * Does this depot exist at all? Asked by the `requireDepot` guard at the top of nearly
+   * every depot-scoped call — 47 call sites (audit S-19) — which used to read the whole
+   * row and throw it away. A depot is never deleted, so a positive answer is remembered
+   * for the life of the process; a negative one always goes to the database, which is what
+   * lets a depot created a second ago be found.
+   */
+  exists(id: string): Promise<boolean>;
   findByCode(code: string): Promise<DepotRecord | null>;
   /** All depots owned by an owner (active and inactive — an owner manages their own). */
   findByOwner(ownerId: string): Promise<DepotRecord[]>;

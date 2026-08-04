@@ -31,9 +31,9 @@ Wall-clock is measured separately, against a running stack, with the k6 scripts 
 | S-3 | `consumeForOrder` (N lines) | 5N + 1 queries | N + 3 queries | `services/depot-service/test/unit/inventory.service.spec.ts` → `reads lines and prior movements once for the whole order` |
 | S-4 | `reserveAtomic` (N lines) | 3N queries **inside the lock** | 3 queries | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `locks every line in one statement` |
 | S-5 | Recommendation ingest (N lines) | 2N + 1 queries in one transaction | 3 queries | `services/recommendation-service/test/unit/prisma-repositories.spec.ts` → `writes the whole order in one round of statements` |
-| S-20 | Forecast ingest (N items) | 3N queries in one transaction | 3 queries | — _(pending)_ |
-| S-7 | Product catalog lookup by ids | N queries (one per id, no cache) | 1 query, then cached | — _(pending)_ |
-| S-8 | RBAC matrix read | 1 query per request (~32/min) | 1 query per TTL | — _(pending)_ |
+| S-20 | Forecast ingest (N items) | 3N queries in one transaction | 3 queries | `services/forecast-service/test/unit/prisma-repositories.spec.ts` → `applies an ingest atomically (create branches) and increments revenue/activity` |
+| S-7 | Product catalog lookup by ids | N HTTP calls (one per cart line) | 1 batch call, deliberately uncached | `services/product-service/test/unit/product.service.spec.ts` → `resolves many products in one read` |
+| S-8 | RBAC matrix read | 1 query per request (~32/min) | 1 query per TTL | `services/auth-service/test/unit/access-matrix.service.spec.ts` → `does not re-read within the ttl` |
 | S-9 | `latestDirectCost` (S sales, P orders, L lines) | S x P x L scans | one P x L index pass, then a per-item lookup | `services/depot-service/test/unit/operational-report.service.spec.ts` → `accumulates repeat misses, flags conflicting PO costs and ignores POs received after the sale` |
 | S-11 | `depotCustomerAggregates` | whole depot order history in JS | 2 queries: one grouped, one contact snapshot | `services/order-service/test/unit/prisma-repositories.spec.ts` → `depotCustomerAggregates: empty groupBy short-circuits (no contact fetch)` |
 | S-12 | `findReorderReminderTargets` | whole order table grouped, filtered in JS | 1 SQL query | `services/order-service/test/unit/prisma-repositories.spec.ts` → `filters the reminder window in SQL` |
@@ -43,11 +43,23 @@ Wall-clock is measured separately, against a running stack, with the k6 scripts 
 | S-17 | Courier GPS ping | full status history + proof per ping | id + status only | `services/delivery-service/test/unit/delivery.service.spec.ts` → `a ping does not load the history` |
 | S-23 | Order read | status history on EVERY read | reports and the stale sweep read none | `services/order-service/test/unit/prisma-repositories.spec.ts` → `does not include history on the report read` |
 | S-24 | `deleteLine` | whole movement history loaded | 1 count | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `reads many lines and prior movements in one query each, and counts by type` |
-| S-16 | Bulk customer import (N rows) | ~5N round-trips + 500 `COUNT(*)` | 3 + N | — _(pending)_ |
-| S-21 | `payroll.generate` | 6 sequential queries | 1 round of 6 concurrent | — _(pending)_ |
-| S-19 | `requireDepot` | 1 extra query per request | 0 (claim already carries it) | — _(pending)_ |
-| S-10 | Batched loops (12 sites) | N round-trips each | 1 each | — _(pending)_ |
-| S-25 | HR analytics tail / admin purge timeout | unbounded reads, 30 s timeout | bounded + 5 min | — _(pending)_ |
+| S-16 | Bulk customer import (N rows) | ~5 round-trips per row | ~3 per row | `services/customer-service/test/unit/customer-import.service.spec.ts` → `pre-registers each phone and points the profile at the importing depot` |
+| S-21 | `payroll.generate` | 6 sequential queries | 1 round of 6 concurrent | `services/hr-service/test/unit/payroll.service.spec.ts` → `DAILY base = dailyRate × presentDays; net folds bonus and deductions` |
+| S-19 | `requireDepot` (47 call sites) | 1 full-row read per request | 1 existence read, then remembered | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `remembers a depot exists, but never that one does not` |
+| S-10 | Batched loops (the sites listed below) | N round-trips each | 1–3 each | `services/depot-service/test/unit/inventory.service.spec.ts` → `reads lines and prior movements once for the whole order` |
+| S-25 | HR analytics tail / admin purge timeout | unbounded reads, 30 s timeout | keyset-paged (already, PR 6) + 5 min | `services/admin-service/test/unit/coverage-edges.spec.ts` → `is true only when both are present` |
+
+### S-10 — which loops were batched, and which were left alone
+
+Batched in PR 7: order reserve / release / consume (depot-service), recommendation ingest,
+forecast ingest, the owner dashboard's per-depot sources, the HR performance dashboard's
+per-employee reads, promotion analytics, trending, reorder reminders, the bulk customer
+import's per-row profile writes.
+
+**Left sequential on purpose**, per the audit's own warning: retry loops, the deterministic
+lock ordering in `reserveAtomic`, cursor-paged walks (`readAllPages`), and the per-row
+importers whose whole point is that row 7 failing does not stop row 8. A bare `Promise.all`
+over any of those would be a new bug, not an optimisation.
 
 ## Latency (real stack)
 

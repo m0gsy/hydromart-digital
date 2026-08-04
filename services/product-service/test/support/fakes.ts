@@ -74,6 +74,10 @@ export class InMemoryProductRepository implements ProductRepository {
   async findById(id: string, activeOnly: boolean): Promise<ProductRecord | null> {
     return this.rows.find((r) => r.id === id && (!activeOnly || r.active)) ?? null;
   }
+  async findActiveByIds(ids: string[]): Promise<ProductRecord[]> {
+    return this.rows.filter((r) => r.active && ids.includes(r.id)).map((r) => ({ ...r }));
+  }
+
   async findBySku(sku: string): Promise<ProductRecord | null> {
     return this.rows.find((r) => r.sku === sku) ?? null;
   }

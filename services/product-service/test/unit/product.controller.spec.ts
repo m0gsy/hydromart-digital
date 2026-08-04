@@ -13,6 +13,7 @@ describe('ProductController', () => {
     create: jest.fn().mockResolvedValue({ id: 'p1' }),
     update: jest.fn().mockResolvedValue({ id: 'p1' }),
     deactivate: jest.fn().mockResolvedValue({ id: 'p1' }),
+    byIds: jest.fn().mockResolvedValue([]),
   };
   const controller = new ProductController(service as unknown as ProductService);
 
@@ -30,6 +31,15 @@ describe('ProductController', () => {
     const query: BrowseProductsQueryDto = { page: 1, limit: 100 };
     await controller.browseAll(query);
     expect(service.browse).toHaveBeenCalledWith(query, false);
+  });
+
+  // Audit S-7: comma-separated ids, blanks dropped. A caller that sends nothing at all
+  // gets an empty list rather than a 500.
+  it('batch splits the id list and asks once', async () => {
+    await controller.batch('p1, p2 ,,p3');
+    expect(service.byIds).toHaveBeenCalledWith(['p1', 'p2', 'p3']);
+    await controller.batch(undefined as unknown as string);
+    expect(service.byIds).toHaveBeenLastCalledWith([]);
   });
 
   it('get delegates id with activeOnly=true', async () => {

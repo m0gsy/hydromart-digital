@@ -814,6 +814,15 @@ describe('OrderService', () => {
     expect(peak).toBeGreaterThanOrEqual(2);
   });
 
+  // The membership rate is documented fail-open, and running it alongside the voucher quote
+  // must not change that: a broken adapter reads as a 0% tier, not a failed checkout.
+  it('prices at zero membership discount when the tier lookup throws', async () => {
+    await addToCart(20000, 2);
+    jest.spyOn(membership, 'getDiscountRate').mockRejectedValue(new Error('loyalty down'));
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(0);
+  });
+
   it('applies a valid voucher discount and records the redemption', async () => {
     await addToCart(20000, 3); // subtotal 60000
     promo.quoteDiscount = 6000;

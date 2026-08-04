@@ -91,6 +91,20 @@ export class DepotPrismaRepository implements DepotRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  /**
+   * Existence only, cached once true (audit S-19). Nothing in the product deletes a depot,
+   * so "it exists" cannot become false; "it does not exist" can become true the moment
+   * somebody creates one, which is why only the positive answer is kept.
+   */
+  private readonly known = new Set<string>();
+
+  async exists(id: string): Promise<boolean> {
+    if (this.known.has(id)) return true;
+    const row = await this.prisma.depot.findUnique({ where: { id }, select: { id: true } });
+    if (row) this.known.add(id);
+    return row !== null;
+  }
+
   async findByCode(code: string): Promise<DepotRecord | null> {
     const row = await this.prisma.depot.findUnique({ where: { code } });
     return row ? this.toRecord(row) : null;

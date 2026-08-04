@@ -73,7 +73,7 @@ export class PurchaseOrderService {
   }
 
   async list(depotId: string, filters: ListPurchaseOrderFilters = {}): Promise<PurchaseOrder[]> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     return this.orders.listForDepot(depotId, filters.status);

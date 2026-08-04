@@ -45,6 +45,8 @@ export type UpdateProductData = Partial<CreateProductData & { active: boolean }>
 export interface ProductRepository {
   search(query: ProductQuery): Promise<{ items: ProductRecord[]; total: number }>;
   findById(id: string, activeOnly: boolean): Promise<ProductRecord | null>;
+  /** Many active products in one read — the batch behind checkout's line resolution (S-7). */
+  findActiveByIds(ids: string[]): Promise<ProductRecord[]>;
   findBySku(sku: string): Promise<ProductRecord | null>;
   create(data: CreateProductData): Promise<ProductRecord>;
   update(id: string, patch: UpdateProductData): Promise<ProductRecord>;

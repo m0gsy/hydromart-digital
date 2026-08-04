@@ -1051,6 +1051,22 @@ export class FakeProductCatalog implements ProductCatalogPort {
     }
     return this.products.get(productId) ?? null;
   }
+  // Audit S-7: the batch the order path uses. Counted, because "one call for the whole
+  // cart" is the claim the baseline makes.
+  batchCalls = 0;
+  async getProducts(productIds: string[]): Promise<Map<string, CatalogProduct>> {
+    this.batchCalls += 1;
+    if (this.throwOnGet) {
+      throw new Error('catalog down');
+    }
+    const found = new Map<string, CatalogProduct>();
+    for (const id of productIds) {
+      const product = this.products.get(id);
+      // The real route returns ACTIVE products only; an inactive one is simply absent.
+      if (product && product.active) found.set(id, product);
+    }
+    return found;
+  }
 }
 
 export function buildTestConfig(overrides: Record<string, string> = {}): OrderConfigService {

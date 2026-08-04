@@ -46,6 +46,32 @@ describe('AccessMatrixService', () => {
     expect(can('approvals', Role.SUPERVISOR)).toBe(true);
   });
 
+  // Audit S-8 and its Q-17 baseline row: sixteen services poll this table on a timer, and
+  // every poll used to be its own SELECT — about thirty reads a minute for the same rows.
+  it('does not re-read within the ttl', async () => {
+    const listAll = jest.spyOn(repo, 'listAll');
+    await service.patch();
+    await service.patch();
+    await service.patch();
+    expect(listAll).toHaveBeenCalledTimes(1);
+
+    // An edit refreshes the cache itself, so the next poll sees it without waiting.
+    await service.set('approvals', [Role.MANAGER], null);
+    expect(await service.patch()).toEqual({ approvals: [Role.MANAGER] });
+    expect(listAll).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-reads once the ttl has passed', async () => {
+    const listAll = jest.spyOn(repo, 'listAll');
+    const now = jest.spyOn(Date, 'now');
+    now.mockReturnValue(1_000);
+    await service.patch();
+    now.mockReturnValue(1_000 + 15_001);
+    await service.patch();
+    expect(listAll).toHaveBeenCalledTimes(2);
+    now.mockRestore();
+  });
+
   it('records who made the change', async () => {
     await service.set('approvals', [Role.MANAGER], 'admin-1');
     expect(repo.rows.get('approvals')?.updatedBy).toBe('admin-1');

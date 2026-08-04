@@ -62,7 +62,7 @@ export class OperationalReportService {
   ) {}
 
   async report(depotId: string, range: OperationalReportRange): Promise<OperationalCostReport> {
-    if (!(await this.depots.findById(depotId, false))) throw new DepotNotFoundError();
+    if (!(await this.depots.exists(depotId))) throw new DepotNotFoundError();
 
     const input = await this.reports.load(depotId, range);
     const receivedPurchaseOrders = [...input.receivedPurchaseOrders].sort(

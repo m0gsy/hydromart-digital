@@ -42,6 +42,18 @@ export class ProfilePrismaRepository implements ProfileRepository {
     return this.toRecord(row);
   }
 
+  async upsertFavoriteDepot(
+    customerId: string,
+    favoriteDepotId: string,
+  ): Promise<CustomerProfileRecord> {
+    const row = await this.prisma.customerProfile.upsert({
+      where: { customerId },
+      create: { customerId, favoriteDepotId },
+      update: { favoriteDepotId },
+    });
+    return this.toRecord(row);
+  }
+
   async updateFavoriteDepot(
     customerId: string,
     favoriteDepotId: string | null,

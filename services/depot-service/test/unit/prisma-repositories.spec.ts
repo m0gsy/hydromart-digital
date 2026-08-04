@@ -273,6 +273,22 @@ describe('DepotPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // Audit S-19 and its Q-17 baseline row: 47 call sites asked "does this depot exist" by
+  // reading the whole row. Nothing deletes a depot, so a yes is remembered; a no always
+  // goes back to the database, which is what lets a depot created a second ago be found.
+  it('remembers a depot exists, but never that one does not', async () => {
+    const fresh = new DepotPrismaRepository(prisma);
+    model.findUnique.mockResolvedValue(null);
+    expect(await fresh.exists('dep-x')).toBe(false);
+    expect(await fresh.exists('dep-x')).toBe(false);
+    expect(model.findUnique).toHaveBeenCalledTimes(2);
+
+    model.findUnique.mockResolvedValue({ id: 'dep-x' });
+    expect(await fresh.exists('dep-x')).toBe(true);
+    expect(await fresh.exists('dep-x')).toBe(true);
+    expect(model.findUnique).toHaveBeenCalledTimes(3);
+  });
+
   it('searches with paging and no filters, mapping decimals/json', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);

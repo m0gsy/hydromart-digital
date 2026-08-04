@@ -165,7 +165,7 @@ export class InventoryService {
   }
 
   async createLine(depotId: string, input: CreateLineInput, actorId: string): Promise<ItemView> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     let productId = input.productId ?? null;
@@ -286,7 +286,7 @@ export class InventoryService {
   }
 
   async listForDepot(depotId: string, filter: InventoryListFilter): Promise<ItemView[]> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     const items = await this.inventory.listForDepot(depotId, filter);
@@ -442,7 +442,7 @@ export class InventoryService {
     _actorId: string,
     authorization = '',
   ): Promise<ReserveResult> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     const reserved: string[] = [];
@@ -527,7 +527,7 @@ export class InventoryService {
     orderId: string,
     items: { productId: string; quantity: number }[],
   ): Promise<{ orderId: string; depotId: string; released: string[] }> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     const released: string[] = [];
@@ -660,7 +660,7 @@ export class InventoryService {
     items: { productId: string; quantity: number }[],
     actorId: string,
   ): Promise<{ orderId: string; depotId: string; restocked: string[]; skipped: string[] }> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     const restocked: string[] = [];
@@ -768,7 +768,7 @@ export class InventoryService {
     depotId: string,
     filter: DepotMovementFilter,
   ): Promise<Page<DepotStockMovementRecord>> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     const { items, total, nextCursor } = await this.inventory.listForDepotMovements(

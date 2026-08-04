@@ -184,6 +184,13 @@ export class InMemoryDepotRepository implements DepotRepository {
     const r = this.rows.find((x) => x.id === id && (!activeOnly || x.active));
     return r ? { ...r } : null;
   }
+  // Audit S-19: the existence check the depot guard uses. Counted, so a test can prove the
+  // guard stopped reading whole rows.
+  existsCalls = 0;
+  async exists(id: string): Promise<boolean> {
+    this.existsCalls += 1;
+    return this.rows.some((x) => x.id === id);
+  }
   async findByCode(code: string): Promise<DepotRecord | null> {
     const r = this.rows.find((x) => x.code === code);
     return r ? { ...r } : null;

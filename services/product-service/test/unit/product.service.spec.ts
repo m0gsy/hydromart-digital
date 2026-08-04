@@ -42,6 +42,19 @@ describe('ProductService', () => {
     expect(p.active).toBe(true);
   });
 
+  // Audit S-7 and its Q-17 baseline row: checkout resolves every cart line in one read.
+  // Inactive or unknown ids are absent rather than fatal — the caller decides what a
+  // missing line means, and one bad id must not fail the whole cart's resolution.
+  it('resolves many products in one read', async () => {
+    const a = await service.create(base({ sku: 'A' }));
+    const b = await service.create(base({ sku: 'B', name: 'B' }));
+    await service.update(b.id, { active: false });
+
+    expect(await service.byIds([])).toEqual([]);
+    const found = await service.byIds([a.id, b.id, '11111111-1111-1111-1111-111111111111']);
+    expect(found.map((p) => p.id)).toEqual([a.id]);
+  });
+
   it('rejects a duplicate SKU', async () => {
     await service.create(base({ sku: 'DUP' }));
     await expect(service.create(base({ sku: 'DUP', name: 'other' }))).rejects.toBeInstanceOf(

@@ -57,7 +57,7 @@ import {
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
-import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
+import { DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
@@ -381,20 +381,18 @@ export class OrderService {
    * to keep the reseller percentage off bulk-priced lines (decided 2026-07-27).
    */
   private async priceLines(
-    depotId: string | null,
+    depotId: string,
     lines: { productId: string; quantity: number }[],
   ): Promise<{ items: CreateOrderItemData[]; subtotal: number; tierPricedTotal: number }> {
     // The depot's overrides and the catalog rows are two different services and neither
     // needs the other's answer, so they are asked at the same time (audit S-22). Waiting
     // for the first before starting the second doubled the latency of every order path.
     const [prices, productById] = await Promise.all([
-      depotId
-        ? this.depotPricing.getPrices(
-            depotId,
-            lines.map((l) => l.productId),
-            lines.map((l) => l.quantity),
-          )
-        : Promise.resolve(new Map<string, DepotPrice>()),
+      this.depotPricing.getPrices(
+        depotId,
+        lines.map((l) => l.productId),
+        lines.map((l) => l.quantity),
+      ),
       this.pricedAll(lines.map((l) => l.productId)),
     ]);
     const items: CreateOrderItemData[] = [];
@@ -1178,30 +1176,30 @@ export class OrderService {
     return picked;
   }
 
-  private async priced(productId: string): Promise<CatalogProduct> {
-    let product;
-    try {
-      product = await this.catalog.getProduct(productId);
-    } catch {
-      throw new CatalogUnavailableError();
-    }
-    if (!product || !product.active) {
-      throw new ProductUnavailableError(productId);
-    }
-    return product;
-  }
-
   /**
-   * Resolve + validate every line's product in ONE parallel fan-out instead of N sequential
-   * awaits (DB-7). Same fail semantics as priced(): CatalogUnavailableError on a fetch
-   * failure, ProductUnavailableError for a missing/inactive product. ponytail: N parallel
-   * HTTP calls, not a product-service bulk endpoint — carts are small; add getProducts(ids)
-   * upstream only if catalog fan-out ever dominates checkout latency.
+   * Resolve + validate every line's product in ONE call (audit S-7; DB-7 before it made the
+   * per-line calls at least concurrent). Same fail semantics as priced():
+   * CatalogUnavailableError on a fetch failure, ProductUnavailableError for a missing or
+   * inactive product — the batch route omits those rather than failing the whole reply, so
+   * the check lives here.
    */
   private async pricedAll(productIds: string[]): Promise<Map<string, CatalogProduct>> {
     const unique = [...new Set(productIds)];
-    const products = await Promise.all(unique.map((id) => this.priced(id)));
-    return new Map(unique.map((id, i) => [id, products[i]]));
+    let found;
+    try {
+      found = await this.catalog.getProducts(unique);
+    } catch {
+      throw new CatalogUnavailableError();
+    }
+    const products = new Map<string, CatalogProduct>();
+    for (const id of unique) {
+      const product = found.get(id);
+      if (!product || !product.active) {
+        throw new ProductUnavailableError(id);
+      }
+      products.set(id, product);
+    }
+    return products;
   }
 
   private async search(
