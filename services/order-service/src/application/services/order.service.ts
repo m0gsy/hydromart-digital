@@ -248,7 +248,13 @@ export class OrderService {
     // rejects instead (the customer picks a depot when the address has no map pin).
     const depot = await this.resolveDepot(input.deliveryAddress, input.depotId);
 
-    const { items, subtotal, tierPricedTotal } = await this.priceLines(depot.id, lines);
+    // Pricing and reseller status are independent of each other — the reseller lookup only
+    // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
+    // wait out seven upstream calls end to end.
+    const [{ items, subtotal, tierPricedTotal }, reseller] = await Promise.all([
+      this.priceLines(depot.id, lines),
+      this.resellerDiscount.get(authorization),
+    ]);
 
     if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
@@ -259,7 +265,6 @@ export class OrderService {
 
     // Reseller pricing (reseller-only): an active reseller with a percent gets a flat
     // discount off subtotal and NO membership/voucher. Fails open (null → normal pricing).
-    const reseller = await this.resellerDiscount.get(authorization);
     const isReseller = reseller?.active === true && reseller.discountPct > 0;
 
     // voucherCode is null for resellers so the later redeem block is skipped too.
@@ -277,8 +282,9 @@ export class OrderService {
       // subtotal. Fails OPEN (0 rate) so a loyalty outage never blocks checkout.
       // Scoped to the fulfilling depot — it is the one absorbing the discount, and it
       // sets both the points needed for a tier and what that tier is worth there.
-      const membershipRate = await this.membership.getDiscountRate(authorization, depot.id);
-      const membershipDiscount = money(subtotal * membershipRate);
+      // Fetched alongside the voucher quote below: the tier rate depends on the depot, the
+      // quote on the cart total, and neither on the other (audit S-2).
+      const membershipRateP = this.membership.getDiscountRate(authorization, depot.id);
 
       // A supplied voucher is validated + priced by the promo-service. Fails CLOSED:
       // an invalid or unreachable voucher rejects checkout (VoucherRejectedError)
@@ -288,15 +294,20 @@ export class OrderService {
       // against the bill component it actually belongs to.
       let voucherValueDiscount = 0;
       let voucherShippingDiscount = 0;
-      if (voucherCode) {
-        // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
-        const quote = await this.promo.quote(
-          voucherCode,
-          customerId,
-          subtotal,
-          deliveryFee,
-          authorization,
-        );
+      // Pass the delivery fee so a FREE_SHIPPING voucher can waive it.
+      const quoteP = voucherCode
+        ? this.promo.quote(voucherCode, customerId, subtotal, deliveryFee, authorization)
+        : Promise.resolve(null);
+      // A rejected voucher must still reject checkout, and a rejected quote must not leave
+      // the membership call unhandled — allSettled, then rethrow the quote's failure.
+      const [membershipSettled, quoteSettled] = await Promise.allSettled([membershipRateP, quoteP]);
+      if (quoteSettled.status === 'rejected') throw quoteSettled.reason;
+      // getDiscountRate is documented fail-open; a rejection here is a bug in the adapter,
+      // not an outage, so it reads as 0 rather than failing a checkout that can be priced.
+      const membershipRate = membershipSettled.status === 'fulfilled' ? membershipSettled.value : 0;
+      const membershipDiscount = money(subtotal * membershipRate);
+      const quote = quoteSettled.value;
+      if (quote) {
         if (quote.discountType === 'FREE_SHIPPING') {
           voucherShippingDiscount = quote.discount;
         } else {
@@ -373,15 +384,19 @@ export class OrderService {
     depotId: string | null,
     lines: { productId: string; quantity: number }[],
   ): Promise<{ items: CreateOrderItemData[]; subtotal: number; tierPricedTotal: number }> {
-    const prices = depotId
-      ? await this.depotPricing.getPrices(
-          depotId,
-          lines.map((l) => l.productId),
-          lines.map((l) => l.quantity),
-        )
-      : new Map<string, DepotPrice>();
-
-    const productById = await this.pricedAll(lines.map((l) => l.productId));
+    // The depot's overrides and the catalog rows are two different services and neither
+    // needs the other's answer, so they are asked at the same time (audit S-22). Waiting
+    // for the first before starting the second doubled the latency of every order path.
+    const [prices, productById] = await Promise.all([
+      depotId
+        ? this.depotPricing.getPrices(
+            depotId,
+            lines.map((l) => l.productId),
+            lines.map((l) => l.quantity),
+          )
+        : Promise.resolve(new Map<string, DepotPrice>()),
+      this.pricedAll(lines.map((l) => l.productId)),
+    ]);
     const items: CreateOrderItemData[] = [];
     let tierPricedTotal = 0;
     for (const line of lines) {

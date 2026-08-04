@@ -923,8 +923,10 @@ describe('InventoryPrismaRepository', () => {
     updateMany: jest.fn(),
     update: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
   };
   const $queryRaw = jest.fn();
+  const $executeRaw = jest.fn();
   // Support both array-form ($transaction([...]) -> Promise.all) and interactive callback form.
   const $transaction = jest
     .fn()
@@ -934,6 +936,7 @@ describe('InventoryPrismaRepository', () => {
     stockMovement,
     stockReservation,
     $queryRaw,
+    $executeRaw,
     $transaction,
   } as unknown as PrismaService;
   const repo = new InventoryPrismaRepository(prisma);
@@ -1285,6 +1288,34 @@ describe('InventoryPrismaRepository', () => {
     expect(await repo.findReservation('it-1', 'ord-2')).toBeNull();
   });
 
+  // Audit S-3/S-24: the batch reads that replaced the per-line walk.
+  it('reads many lines and prior movements in one query each, and counts by type', async () => {
+    inventoryItem.findMany.mockResolvedValue([item]);
+    expect(await repo.findLines('depot-1', InventoryItemType.PRODUK, [])).toEqual([]);
+    const lines = await repo.findLines('depot-1', InventoryItemType.PRODUK, ['prod-1']);
+    expect(lines[0].id).toBe('it-1');
+    expect(inventoryItem.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: { in: ['prod-1'] } },
+    });
+
+    expect(await repo.itemsWithMovementForOrder('ord-1', [])).toEqual(new Set());
+    stockMovement.findMany.mockResolvedValue([{ itemId: 'it-1' }]);
+    expect(await repo.itemsWithMovementForOrder('ord-1', ['it-1', 'it-2'])).toEqual(
+      new Set(['it-1']),
+    );
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith({
+      where: { orderId: 'ord-1', itemId: { in: ['it-1', 'it-2'] } },
+      select: { itemId: true },
+      distinct: ['itemId'],
+    });
+
+    stockMovement.count.mockResolvedValue(2);
+    expect(await repo.countMovements('it-1', StockMovementType.SALE)).toBe(2);
+    expect(stockMovement.count).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', type: StockMovementType.SALE },
+    });
+  });
+
   it('reserveAtomic short-circuits on empty plans', async () => {
     const out = await repo.reserveAtomic([], 'ord-1');
     expect(out).toEqual({ shortfalls: [] });
@@ -1292,17 +1323,29 @@ describe('InventoryPrismaRepository', () => {
   });
 
   it('reserveAtomic reports shortfalls and writes nothing', async () => {
-    $queryRaw.mockResolvedValue([{ quantity: 1, reserved: 1 }]); // available 0
+    $queryRaw.mockResolvedValue([{ id: 'it-1', quantity: 1, reserved: 1 }]); // available 0
     const out = await repo.reserveAtomic([{ itemId: 'it-1', quantity: 2 }], 'ord-1');
     expect(out).toEqual({ shortfalls: [{ itemId: 'it-1', requested: 2, available: 0 }] });
-    expect(inventoryItem.update).not.toHaveBeenCalled();
-    expect(stockReservation.create).not.toHaveBeenCalled();
+    expect($executeRaw).not.toHaveBeenCalled();
+    expect(stockReservation.createMany).not.toHaveBeenCalled();
   });
 
-  it('reserveAtomic increments reserved and creates rows when stock suffices', async () => {
-    $queryRaw.mockResolvedValue([{ quantity: 100, reserved: 0 }]);
-    inventoryItem.update.mockResolvedValue(item);
-    stockReservation.create.mockResolvedValue({ id: 'rs-1' });
+  // A line the lock statement did not return does not exist any more — it must read as
+  // zero sellable, not as unlimited.
+  it('reserveAtomic treats a line that vanished as a shortfall', async () => {
+    $queryRaw.mockResolvedValue([]);
+    const out = await repo.reserveAtomic([{ itemId: 'gone', quantity: 1 }], 'ord-1');
+    expect(out).toEqual({ shortfalls: [{ itemId: 'gone', requested: 1, available: 0 }] });
+  });
+
+  // Audit S-4 and its Q-17 baseline row: this used to be a SELECT ... FOR UPDATE, an UPDATE
+  // and an INSERT PER LINE — 3N statements with every row locked for the whole walk.
+  it('locks every line in one statement', async () => {
+    $queryRaw.mockResolvedValue([
+      { id: 'a', quantity: 100, reserved: 0 },
+      { id: 'b', quantity: 100, reserved: 0 },
+    ]);
+    stockReservation.createMany.mockResolvedValue({ count: 2 });
     const out = await repo.reserveAtomic(
       [
         { itemId: 'b', quantity: 1 },
@@ -1311,20 +1354,16 @@ describe('InventoryPrismaRepository', () => {
       'ord-1',
     );
     expect(out).toEqual({ shortfalls: [] });
-    // Deterministic lock order: sorted a before b.
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'a' },
-      data: { reserved: { increment: 2 } },
-    });
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(2, {
-      where: { id: 'b' },
-      data: { reserved: { increment: 1 } },
-    });
-    expect(stockReservation.create).toHaveBeenCalledWith({
-      data: { itemId: 'a', orderId: 'ord-1', quantity: 2 },
-    });
-    expect(stockReservation.create).toHaveBeenCalledWith({
-      data: { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+    // Three statements for two lines, and the count does not move with the line count.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect($executeRaw).toHaveBeenCalledTimes(1);
+    expect(stockReservation.createMany).toHaveBeenCalledTimes(1);
+    // Deterministic lock order survives: sorted a before b, both in one insert.
+    expect(stockReservation.createMany).toHaveBeenCalledWith({
+      data: [
+        { itemId: 'a', orderId: 'ord-1', quantity: 2 },
+        { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+      ],
     });
   });
 

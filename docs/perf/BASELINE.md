@@ -26,15 +26,15 @@ Wall-clock is measured separately, against a running stack, with the k6 scripts 
 | S-1 | Owner dashboard (N depots owned) | 3N HTTP | 3 HTTP | `services/dashboard-service/test/unit/dashboard.service.spec.ts` → `costs three calls for many depots` |
 | S-6 | HR performance dashboard (N employees, D depots) | ~3N queries + 2D HTTP | 1 query + D HTTP | `services/hr-service/test/unit/performance.service.spec.ts` → `costs the same whether the dashboard scores 2 staff or 40 (audit S-6)` |
 | S-13 | Low-stock listing (network-wide) | every line with a minimum, filtered in JS | 1 SQL comparison | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `scopes low stock to one depot, or to several in one query` |
-| S-2 | Checkout (N cart lines) | 7 sequential HTTP | 5 sequential HTTP | — _(pending)_ |
-| S-22 | `priceLines` (N lines) | 2 sequential HTTP | 1 round of 2 concurrent | — _(pending)_ |
-| S-3 | `consumeForOrder` (N lines) | 5N + 1 queries | N + 3 queries | — _(pending)_ |
-| S-4 | `reserveAtomic` (N lines) | 3N queries **inside the lock** | 3 queries | — _(pending)_ |
+| S-2 | Checkout (N cart lines) | 7 sequential HTTP | 5 sequential HTTP | `services/order-service/test/unit/order.service.spec.ts` → `prices and reseller status are fetched together` |
+| S-22 | `priceLines` (N lines) | 2 sequential HTTP | 1 round of 2 concurrent | same test as S-2 |
+| S-3 | `consumeForOrder` (N lines) | 5N + 1 queries | N + 3 queries | `services/depot-service/test/unit/inventory.service.spec.ts` → `reads lines and prior movements once for the whole order` |
+| S-4 | `reserveAtomic` (N lines) | 3N queries **inside the lock** | 3 queries | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `locks every line in one statement` |
 | S-5 | Recommendation ingest (N lines) | 2N + 1 queries in one transaction | 3 queries | — _(pending)_ |
 | S-20 | Forecast ingest (N items) | 3N queries in one transaction | 3 queries | — _(pending)_ |
 | S-7 | Product catalog lookup by ids | N queries (one per id, no cache) | 1 query, then cached | — _(pending)_ |
 | S-8 | RBAC matrix read | 1 query per request (~32/min) | 1 query per TTL | — _(pending)_ |
-| S-9 | `latestDirectCost` | full movement scan per item | 1 indexed read per item | — _(pending)_ |
+| S-9 | `latestDirectCost` (S sales, P orders, L lines) | S x P x L scans | one P x L index pass, then a per-item lookup | `services/depot-service/test/unit/operational-report.service.spec.ts` → `accumulates repeat misses, flags conflicting PO costs and ignores POs received after the sale` |
 | S-11 | `depotCustomerAggregates` | whole depot order history in JS | 1 grouped query | — _(pending)_ |
 | S-12 | `findReorderReminderTargets` | whole order table grouped, filtered in JS | 1 SQL query | — _(pending)_ |
 | S-14 | Promo analytics | 5 JS passes over full redemption history | 1 grouped query | — _(pending)_ |
@@ -42,7 +42,7 @@ Wall-clock is measured separately, against a running stack, with the k6 scripts 
 | S-18 | `trendingRows` | a year of rows for 10 items | 1 grouped query, limited | — _(pending)_ |
 | S-17 | Courier GPS ping | full status history + proof per ping | id + status only | — _(pending)_ |
 | S-23 | Order read | status history on every read | history only when asked | — _(pending)_ |
-| S-24 | `deleteLine` | whole movement history loaded | 1 count | — _(pending)_ |
+| S-24 | `deleteLine` | whole movement history loaded | 1 count | `services/depot-service/test/unit/prisma-repositories.spec.ts` → `reads many lines and prior movements in one query each, and counts by type` |
 | S-16 | Bulk customer import (N rows) | ~5N round-trips + 500 `COUNT(*)` | 3 + N | — _(pending)_ |
 | S-21 | `payroll.generate` | 6 sequential queries | 1 round of 6 concurrent | — _(pending)_ |
 | S-19 | `requireDepot` | 1 extra query per request | 0 (claim already carries it) | — _(pending)_ |

@@ -143,6 +143,27 @@ export interface InventoryRepository {
   /** True if a movement for this item already recorded the given order (SALE idempotency). */
   hasMovementForOrder(itemId: string, orderId: string): Promise<boolean>;
   listMovements(itemId: string): Promise<StockMovementRecord[]>;
+  /**
+   * How many movements of one type a line has. Asked instead of loading the whole history
+   * to look for a single row (audit S-24) — on a line that has been selling for a year the
+   * history is the biggest thing in the table.
+   */
+  countMovements(itemId: string, type: StockMovementType): Promise<number>;
+  /**
+   * The lines for MANY products at one depot, in one read (audit S-3). Order fulfilment
+   * asked for them one product at a time — five round-trips per cart line before anything
+   * was written.
+   */
+  findLines(
+    depotId: string,
+    itemType: InventoryItemType,
+    productIds: string[],
+  ): Promise<InventoryItemRecord[]>;
+  /**
+   * Which of these lines already carry a movement for this order — the retry check for a
+   * whole order in one read instead of one per line.
+   */
+  itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>>;
   listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,

@@ -329,6 +329,35 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     });
     return { ...rec };
   }
+  // Batch reads (audit S-3/S-24). Counted by the tests that pin the round-trip baseline,
+  // so they track calls rather than just answering.
+  findLinesCalls = 0;
+  async findLines(
+    depotId: string,
+    itemType: InventoryItemType,
+    productIds: string[],
+  ): Promise<InventoryItemRecord[]> {
+    this.findLinesCalls += 1;
+    return this.items
+      .filter(
+        (x) =>
+          x.depotId === depotId &&
+          x.itemType === itemType &&
+          x.productId !== null &&
+          productIds.includes(x.productId),
+      )
+      .map((x) => ({ ...x }));
+  }
+  movementLookupCalls = 0;
+  async itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>> {
+    this.movementLookupCalls += 1;
+    return new Set(
+      this.moves.filter((m) => m.orderId === orderId && itemIds.includes(m.itemId)).map((m) => m.itemId),
+    );
+  }
+  async countMovements(itemId: string, type: StockMovementType): Promise<number> {
+    return this.moves.filter((m) => m.itemId === itemId && m.type === type).length;
+  }
   async hasMovementForOrder(itemId: string, orderId: string): Promise<boolean> {
     return this.moves.some((m) => m.itemId === itemId && m.orderId === orderId);
   }

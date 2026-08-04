@@ -159,6 +159,44 @@ describe('InventoryService', () => {
       ).rejects.toThrow(/ghost \(need 5, have 0\)/);
     });
 
+    // Audit S-3 and its Q-17 baseline row. Fulfilment used to ask for the depot's line and
+    // the retry check one product at a time — five round-trips per cart line before a
+    // single write. The number that matters is that neither read grows with the order.
+    it('reads lines and prior movements once for the whole order', async () => {
+      const productIds = [
+        PRODUCT_ID,
+        '33333333-3333-4333-8333-333333333333',
+        '44444444-4444-4444-8444-444444444444',
+      ];
+      for (const id of productIds) {
+        catalog.products.set(id, {
+          id,
+          name: 'Air Galon 19L',
+          sku: `SKU-${id.slice(0, 4)}`,
+          unit: 'Galon',
+          active: true,
+        });
+        await inventory.createLine(
+          depotId,
+          { ...raw(), itemType: InventoryItemType.PRODUK, productId: id },
+          ACTOR,
+        );
+      }
+      invRepo.findLinesCalls = 0;
+      invRepo.movementLookupCalls = 0;
+
+      const out = await inventory.consumeForOrder(
+        depotId,
+        'ord-batch',
+        productIds.map((productId) => ({ productId, quantity: 1 })),
+        ACTOR,
+      );
+
+      expect(out.consumed).toHaveLength(3);
+      expect(invRepo.findLinesCalls).toBe(1);
+      expect(invRepo.movementLookupCalls).toBe(1);
+    });
+
     it('releasing a product with no line here is a no-op, not an error', async () => {
       const released = await inventory.releaseForOrder(depotId, 'ord-1', [
         { productId: '22222222-2222-4222-8222-222222222222', quantity: 1 },

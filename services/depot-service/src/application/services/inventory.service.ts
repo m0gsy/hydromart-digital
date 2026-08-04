@@ -271,8 +271,9 @@ export class InventoryService {
     if (line.quantity !== 0 || line.reserved !== 0) {
       throw new InventoryLineNotEmptyError();
     }
-    const movements = await this.inventory.listMovements(itemId);
-    if (movements.some((m) => m.type === StockMovementType.SALE)) {
+    // Asking whether ANY sale exists, rather than loading every movement the line ever had
+    // to look for one (audit S-24) — on an old line that is the table's largest partition.
+    if (await this.inventory.countMovements(itemId, StockMovementType.SALE)) {
       throw new InventoryLineHasSalesError();
     }
     await this.inventory.deleteLine(itemId);
@@ -453,11 +454,12 @@ export class InventoryService {
       line: InventoryItemRecord;
     }[] = [];
 
+    const lines = await this.lineIndex(depotId, items);
     for (const { productId, quantity } of items) {
       if (quantity <= 0) {
         continue;
       }
-      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      const line = lines.get(productId);
       if (!line) {
         skipped.push(productId);
         continue;
@@ -503,6 +505,20 @@ export class InventoryService {
   }
 
   /**
+   * The depot's PRODUK line for each product on an order, by productId. One read for the
+   * whole order (audit S-3) — reserve, release and consume all walked the lines one product
+   * at a time, and every one of those walks was a round-trip per cart line.
+   */
+  private async lineIndex(
+    depotId: string,
+    items: { productId: string }[],
+  ): Promise<Map<string, InventoryItemRecord>> {
+    const productIds = [...new Set(items.map((i) => i.productId))];
+    const lines = await this.inventory.findLines(depotId, InventoryItemType.PRODUK, productIds);
+    return new Map(lines.map((line) => [line.productId as string, line]));
+  }
+
+  /**
    * Releases an order's stock holds (on cancellation). Each product maps to the
    * depot's PRODUK line; a released or absent hold is a no-op (idempotent).
    */
@@ -515,8 +531,10 @@ export class InventoryService {
       throw new DepotNotFoundError();
     }
     const released: string[] = [];
+    // One read for every product on the order, not one per product (audit S-3/S-10).
+    const lines = await this.lineIndex(depotId, items);
     for (const { productId } of items) {
-      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      const line = lines.get(productId);
       if (!line) {
         continue;
       }
@@ -552,17 +570,25 @@ export class InventoryService {
     }
     const consumed: string[] = [];
     const skipped: string[] = [];
+    // Two reads for the whole order instead of two per line (audit S-3): the depot's lines
+    // for every product sold, and the set of those lines that already carry a movement for
+    // this order. A ten-line order used to spend fifty round-trips before writing anything.
+    const lines = await this.lineIndex(depotId, items);
+    const alreadyConsumed = await this.inventory.itemsWithMovementForOrder(
+      orderId,
+      [...lines.values()].map((l) => l.id),
+    );
     for (const { productId, quantity } of items) {
       if (quantity <= 0) {
         continue;
       }
-      const line = await this.inventory.findLine(depotId, InventoryItemType.PRODUK, productId);
+      const line = lines.get(productId);
       if (!line) {
         skipped.push(productId);
         continue;
       }
       // Already deducted for this order (retry) — report consumed, don't deduct again.
-      if (await this.inventory.hasMovementForOrder(line.id, orderId)) {
+      if (alreadyConsumed.has(line.id)) {
         consumed.push(productId);
         continue;
       }

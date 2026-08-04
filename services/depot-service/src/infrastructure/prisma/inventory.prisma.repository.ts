@@ -230,6 +230,32 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return rows.map((r) => this.toMovement(r));
   }
 
+  async findLines(
+    depotId: string,
+    itemType: InventoryItemType,
+    productIds: string[],
+  ): Promise<InventoryItemRecord[]> {
+    if (productIds.length === 0) return [];
+    const rows = await this.prisma.inventoryItem.findMany({
+      where: { depotId, itemType, productId: { in: productIds } },
+    });
+    return rows.map((r) => this.toItem(r));
+  }
+
+  async itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>> {
+    if (itemIds.length === 0) return new Set();
+    const rows = await this.prisma.stockMovement.findMany({
+      where: { orderId, itemId: { in: itemIds } },
+      select: { itemId: true },
+      distinct: ['itemId'],
+    });
+    return new Set(rows.map((r) => r.itemId));
+  }
+
+  async countMovements(itemId: string, type: StockMovementType): Promise<number> {
+    return this.prisma.stockMovement.count({ where: { itemId, type } });
+  }
+
   async listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
@@ -325,29 +351,40 @@ export class InventoryPrismaRepository implements InventoryRepository {
       a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0,
     );
     return this.prisma.$transaction(async (tx) => {
+      // One statement locks every line the order touches (audit S-4). It used to be one
+      // SELECT ... FOR UPDATE per line, then an UPDATE and an INSERT per line — 3N
+      // round-trips with the rows LOCKED for the whole walk, so a ten-line order held a
+      // popular product's row across nine other round-trips. ORDER BY inside the statement
+      // keeps the deterministic lock order that stops two orders deadlocking on each other.
+      const locked = await tx.$queryRaw<{ id: string; quantity: number; reserved: number }[]>(
+        Prisma.sql`
+          SELECT "id", "quantity", "reserved" FROM "inventory_items"
+          WHERE "id" IN (${Prisma.join(ordered.map((p) => Prisma.sql`${p.itemId}::uuid`))})
+          ORDER BY "id" FOR UPDATE`,
+      );
+      const byId = new Map(locked.map((row) => [String(row.id), row]));
       const shortfalls: { itemId: string; requested: number; available: number }[] = [];
       for (const p of ordered) {
-        // Row lock: a concurrent reserve on the same line blocks here until we commit,
-        // then re-reads the updated `reserved` — so the last unit can't be double-sold.
-        const rows = await tx.$queryRaw<{ quantity: number; reserved: number }[]>`
-          SELECT "quantity", "reserved" FROM "inventory_items" WHERE "id" = ${p.itemId}::uuid FOR UPDATE`;
-        const sellable = rows.length
-          ? available(Number(rows[0].quantity), Number(rows[0].reserved))
-          : 0;
+        const row = byId.get(p.itemId);
+        // A line that does not exist reads as zero sellable, exactly as before.
+        const sellable = row ? available(Number(row.quantity), Number(row.reserved)) : 0;
         if (sellable < p.quantity) {
           shortfalls.push({ itemId: p.itemId, requested: p.quantity, available: sellable });
         }
       }
       if (shortfalls.length > 0) return { shortfalls }; // nothing written → clean rollback of a read-only txn
-      for (const p of ordered) {
-        await tx.inventoryItem.update({
-          where: { id: p.itemId },
-          data: { reserved: { increment: p.quantity } },
-        });
-        await tx.stockReservation.create({
-          data: { itemId: p.itemId, orderId, quantity: p.quantity },
-        });
-      }
+      // Per-line increments differ, so this is one UPDATE ... FROM (VALUES) rather than an
+      // updateMany. The reservations go in as one insert.
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "inventory_items" AS i
+        SET "reserved" = i."reserved" + v."qty"
+        FROM (VALUES ${Prisma.join(
+          ordered.map((p) => Prisma.sql`(${p.itemId}::uuid, ${p.quantity}::int)`),
+        )}) AS v("id", "qty")
+        WHERE i."id" = v."id"`);
+      await tx.stockReservation.createMany({
+        data: ordered.map((p) => ({ itemId: p.itemId, orderId, quantity: p.quantity })),
+      });
       return { shortfalls: [] };
     });
   }
