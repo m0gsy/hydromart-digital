@@ -12,7 +12,7 @@ import { useCart } from '@/lib/cart-context';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import { SectionHeader } from '@/components/ui';
-import type { Recommendation } from '@/lib/types';
+import type { Cart, Recommendation } from '@/lib/types';
 
 // 1c rec card: mirrors the catalog ProductCard tile, but a Recommendation carries
 // no price, so it drops the price/member chip — name, unit, and a round teal add
@@ -23,7 +23,7 @@ function RailCard({ item }: { item: Recommendation }) {
   const router = useRouter();
   const { t } = useT();
   const { customer } = useAuth();
-  const { bump, refresh } = useCart();
+  const { bump, apply } = useCart();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -35,11 +35,12 @@ function RailCard({ item }: { item: Recommendation }) {
       return;
     }
     setAdding(true);
-    bump(1); // optimistic badge; refresh reconciles
+    bump(1); // optimistic badge until the server's own cart lands
     try {
-      await api.post(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true);
+      // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
+      // replaces the GET that used to follow every single add.
+      apply(await api.post<Cart>(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true));
       setAdded(true);
-      await refresh();
     } catch {
       bump(-1); // roll the badge back on failure
     } finally {

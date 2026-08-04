@@ -25,13 +25,13 @@ import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { memberPrice, useMemberRate } from '@/lib/member';
 import { useAsync } from '@/lib/use-async';
-import type { Category, LoyaltyAccount, NearbyDepot, Product, Recommendation } from '@/lib/types';
+import type { Cart, Category, LoyaltyAccount, NearbyDepot, Product, Recommendation } from '@/lib/types';
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const { customer } = useAuth();
-  const { bump, refresh } = useCart();
+  const { apply } = useCart();
   const rate = useMemberRate();
   const { location } = useLocation();
   const { t } = useT();
@@ -43,7 +43,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
 
   // Category name for the breadcrumb + tint pill — same source the catalog uses.
   const { data: categories } = useAsync<Category[]>(
-    () => api.get<Category[]>(endpoints.products.categories),
+    () => api.getCached<Category[]>(endpoints.products.categories),
     [],
   );
   const category = categories?.find((c) => c.id === product?.categoryId) ?? null;
@@ -100,10 +100,9 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     setAdding(true);
     setAddError(null);
     try {
-      await api.post(endpoints.cart.items, { productId: id, quantity: qty }, true);
+      // Audit F-7: the POST already returns the priced cart; no follow-up GET.
+      apply(await api.post<Cart>(endpoints.cart.items, { productId: id, quantity: qty }, true));
       setAdded(true);
-      bump(qty);
-      await refresh();
     } catch (e) {
       setAddError(e instanceof ApiError ? e.message : t('shop.pdp.addError'));
     } finally {
@@ -310,7 +309,7 @@ function FbtCard({ item }: { item: Recommendation }) {
   const router = useRouter();
   const { t } = useT();
   const { customer } = useAuth();
-  const { bump, refresh } = useCart();
+  const { bump, apply } = useCart();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -322,11 +321,12 @@ function FbtCard({ item }: { item: Recommendation }) {
       return;
     }
     setAdding(true);
-    bump(1); // optimistic badge; refresh reconciles
+    bump(1); // optimistic badge until the server's own cart lands
     try {
-      await api.post(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true);
+      // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
+      // replaces the GET that used to follow every single add.
+      apply(await api.post<Cart>(endpoints.cart.items, { productId: item.productId, quantity: 1 }, true));
       setAdded(true);
-      await refresh();
     } catch {
       bump(-1); // roll the badge back on failure
     } finally {
