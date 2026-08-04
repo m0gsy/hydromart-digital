@@ -40,6 +40,9 @@ services:
       OTP_DELIVERY_CHANNEL: console
       OTP_PEPPER: itest-otp-pepper-0123456789
       CRM_SERVICE_URL: http://crm:3012
+      # Inviting staff also opens their HR record, and that call fails CLOSED — without it
+      # the seed cannot invite anybody, which is exactly how CI caught the gap.
+      HR_SERVICE_URL: http://hr:3018
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -173,6 +176,8 @@ services:
       DEPOT_ALERT_PHONE: ""
       # Shift close reads the depot's takings from payment-service.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # Closing the DAY's books reads the COD couriers deposited from here. Fails closed too.
+      DELIVERY_SERVICE_URL: http://delivery:3006
       GALLON_DEPOSIT_IDR: 20000
       STORAGE_PUBLIC_BASE_URL: http://storage.test/qris
     healthcheck:

@@ -459,6 +459,23 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  // A fact about an order that is not a transition — "priced from the catalog because the
+  // depot was unreachable". Reusing applyStatus would repeat the status on the timeline,
+  // which staff read as something having happened twice.
+  it('appendNote writes a history row without touching the order', async () => {
+    await repo.appendNote('ord-1', OrderStatus.CONFIRMED, 'order-service', 'harga katalog');
+
+    expect(orderStatusHistory.create).toHaveBeenCalledWith({
+      data: {
+        orderId: 'ord-1',
+        status: OrderStatus.CONFIRMED,
+        changedBy: 'order-service',
+        note: 'harga katalog',
+      },
+    });
+    expect(order.update).not.toHaveBeenCalled();
+  });
+
   it('applies a status transition and appends history (no driver name)', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
     const out = await repo.applyStatus('ord-1', OrderStatus.CONFIRMED, 'admin-1', 'ok');
