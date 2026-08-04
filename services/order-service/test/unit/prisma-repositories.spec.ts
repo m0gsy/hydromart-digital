@@ -77,7 +77,8 @@ describe('SubscriptionPrismaRepository', () => {
     updateMany: jest.fn(),
     groupBy: jest.fn(),
   };
-  const prisma = { subscription: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { subscription: model, $queryRaw } as unknown as PrismaService;
   const repo = new SubscriptionPrismaRepository(prisma);
   const row = {
     id: 'sub-1',
@@ -186,7 +187,7 @@ describe('SubscriptionPrismaRepository', () => {
       { productName: 'Galon 19L', frequency: 'WEEKLY', _count: { _all: 2 } },
       { productName: 'Botol 600ml', frequency: 'MONTHLY', _count: { _all: 5 } },
     ]);
-    model.findMany.mockResolvedValue([{ customerId: 'cust-1' }, { customerId: 'cust-2' }]);
+    $queryRaw.mockResolvedValue([{ count: BigInt(2) }]);
     const out = await repo.networkSummary();
     expect(out.activeSubscriptions).toBe(7);
     expect(out.activeSubscribers).toBe(2);
@@ -196,11 +197,14 @@ describe('SubscriptionPrismaRepository', () => {
       where: { status: 'ACTIVE' },
       _count: { _all: true },
     });
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE' },
-      distinct: ['customerId'],
-      select: { customerId: true },
-    });
+    // COUNT(DISTINCT) in Postgres — a page bound must not be able to lower the count.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports zero subscribers when the count query comes back empty', async () => {
+    model.groupBy.mockResolvedValue([]);
+    $queryRaw.mockResolvedValue([]);
+    expect((await repo.networkSummary()).activeSubscribers).toBe(0);
   });
 });
 

@@ -25,12 +25,16 @@ export class CommissionSchemePrismaRepository implements CommissionSchemeReposit
   }
 
   async listCurrent(): Promise<CommissionSchemeRecord[]> {
-    // DISTINCT ON (depotId) taking the newest effectiveDate = each depot's current pct.
-    const rows = await this.prisma.commissionScheme.findMany({
-      orderBy: [{ depotId: 'asc' }, { effectiveDate: 'desc' }],
-      distinct: ['depotId'],
-    });
-    return rows.map((r) => this.toRecord(r as unknown as SchemeRow));
+    // Real DISTINCT ON, in Postgres. Prisma's `distinct` option dedupes the rows the
+    // query returned, so a page bound over the scheme HISTORY would drop whole depots
+    // from this list — and a depot with no current pct is a franchise commission that
+    // silently stops being paid.
+    const rows = await this.prisma.$queryRaw<SchemeRow[]>`
+      SELECT DISTINCT ON ("depotId") *
+      FROM "commission_schemes"
+      ORDER BY "depotId" ASC, "effectiveDate" DESC
+    `;
+    return rows.map((r) => this.toRecord(r));
   }
 
   async createMany(rows: CreateCommissionSchemeData[]): Promise<CommissionSchemeRecord[]> {

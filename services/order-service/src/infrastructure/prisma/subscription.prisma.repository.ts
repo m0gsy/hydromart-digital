@@ -110,11 +110,15 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
         where: { status: 'ACTIVE' },
         _count: { _all: true },
       }),
-      this.prisma.subscription.findMany({
-        where: { status: 'ACTIVE' },
-        distinct: ['customerId'],
-        select: { customerId: true },
-      }),
+      // COUNT(DISTINCT) in Postgres rather than fetching a row per subscriber and
+      // deduping in the client: Prisma's `distinct` runs over the rows the query
+      // returned, so any page bound turns "active subscribers" into "active subscribers
+      // we happened to read" — a headline number that is quietly too low.
+      this.prisma.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT "customerId")::bigint AS count
+        FROM "subscriptions"
+        WHERE "status" = 'ACTIVE'::"SubscriptionStatus"
+      `,
     ]);
     const plans = grouped
       .map((g) => ({
@@ -125,7 +129,7 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
       .sort((a, b) => b.subscribers - a.subscribers);
     return {
       activeSubscriptions: plans.reduce((n, p) => n + p.subscribers, 0),
-      activeSubscribers: distinctCustomers.length,
+      activeSubscribers: Number(distinctCustomers[0]?.count ?? 0),
       plans,
     };
   }
