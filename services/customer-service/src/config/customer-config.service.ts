@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BUSINESS_TIME_ZONE } from '@hydromart/platform';
 
 /** Typed accessor over validated configuration. */
 @Injectable()
@@ -64,5 +65,10 @@ export class CustomerConfigService {
       activeDays: Number(this.config.get<string>('CRM_ACTIVE_DAYS', '30')),
       followUpDays: Number(this.config.get<string>('CRM_FOLLOWUP_DAYS', '60')),
     };
+  }
+
+  /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

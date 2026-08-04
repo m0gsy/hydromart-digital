@@ -136,6 +136,14 @@ export class InMemoryOrderRepository implements OrderRepository {
   /** Stands in for the `orders_customerId_idempotencyKey_key` unique index: `cust\0key` -> orderId. */
   private readonly byIdempotencyKey = new Map<string, string>();
 
+  /** Mirrors the Postgres sequence: strictly increasing, never repeated (H-12). */
+  private orderSeq = 1_000_000;
+
+  async nextOrderSequence(): Promise<number> {
+    this.orderSeq += 1;
+    return this.orderSeq;
+  }
+
   async findReorderReminderTargets(
     cutoff: Date,
     limit: number,

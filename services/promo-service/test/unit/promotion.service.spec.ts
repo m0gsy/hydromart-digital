@@ -9,6 +9,11 @@ import {
 import { isPromotionLiveAt } from '../../src/domain/promotion';
 import { PromotionService } from '../../src/application/services/promotion.service';
 import { InMemoryVoucherRepository } from '../support/fakes';
+import { PromoConfigService } from '../../src/config/promo-config.service';
+/** Only `businessTimeZone` is read; WIB pinned so a UTC-bucket regression (H-16) fails here. */
+const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
+  ({ businessTimeZone: timeZone }) as PromoConfigService;
+
 
 // Minimal in-memory repo whose findActive reuses the pure domain predicate, so
 // the date-window filter is exercised through the service exactly as in prod.
@@ -67,7 +72,7 @@ describe('PromotionService date-window filter', () => {
 
   beforeEach(() => {
     repo = new InMemoryPromotionRepository();
-    service = new PromotionService(repo, new InMemoryVoucherRepository(), new FakeOrderValues());
+    service = new PromotionService(repo, new InMemoryVoucherRepository(), new FakeOrderValues(), promoTestConfig());
   });
 
   it('excludes a promotion whose endsAt is in the past', async () => {
@@ -140,8 +145,9 @@ describe('PromotionService analytics', () => {
       promotionRepo: PromotionRepository,
       voucherRepo: InMemoryVoucherRepository,
       orderValueSource: FakeOrderValues,
+      config: PromoConfigService,
     ) => PromotionService & AnalyticsService;
-    service = new PromotionServiceWithAnalytics(promotions, vouchers, orderValues);
+    service = new PromotionServiceWithAnalytics(promotions, vouchers, orderValues, promoTestConfig());
   });
 
   async function createPromotion(voucherCode: string | null) {
@@ -199,7 +205,11 @@ describe('PromotionService analytics', () => {
     expect(orderValues.calls).toEqual([]);
   });
 
-  it('aggregates all-time usage, UTC buckets, savings, affected orders, and sorted customers', async () => {
+  // H-16: the daily strip buckets on the WIB calendar day now. Two of these fixtures sit
+  // in the 17:00–23:59 UTC band, which is the NEXT WIB day — 2026-07-15T23:59:59Z is
+  // 06:59 WIB on the 16th, and 2026-07-21T23:59:59Z is 06:59 WIB on the 22nd. The old
+  // UTC buckets put them a day early, which is exactly the reported-numbers bug.
+  it('aggregates all-time usage, WIB buckets, savings, affected orders, and sorted customers', async () => {
     const voucher = await createVoucher();
     const promotion = await createPromotion(voucher.code);
     const redemptions = [
@@ -238,12 +248,12 @@ describe('PromotionService analytics', () => {
     expect(result.grossAffectedOrderValueIdr).toBe(150_000);
     expect(result.orderValueSource).toBe('ok');
     expect(result.dailyUses).toEqual([
-      { day: '2026-07-16', uses: 1 },
+      { day: '2026-07-16', uses: 2 },
       { day: '2026-07-17', uses: 0 },
       { day: '2026-07-18', uses: 0 },
       { day: '2026-07-19', uses: 0 },
       { day: '2026-07-20', uses: 0 },
-      { day: '2026-07-21', uses: 1 },
+      { day: '2026-07-21', uses: 0 },
       { day: '2026-07-22', uses: 2 },
     ]);
     expect(result.topCustomers).toEqual([

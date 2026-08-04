@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BUSINESS_TIME_ZONE } from '@hydromart/platform';
 
 @Injectable()
 export class PromoConfigService {
@@ -39,5 +40,10 @@ export class PromoConfigService {
   }
   get orderServiceUrl(): string {
     return this.config.getOrThrow<string>('ORDER_SERVICE_URL').replace(/\/+$/, '');
+  }
+
+  /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

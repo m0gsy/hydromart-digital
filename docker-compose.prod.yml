@@ -27,6 +27,11 @@ x-shared: &shared
   # take the whole stack down. Set both in .env to open /docs.
   DOCS_USER: ${DOCS_USER:-}
   DOCS_PASSWORD: ${DOCS_PASSWORD:-}
+  # H-16: ONE business timezone for the whole platform. Every service reckons its day and
+  # month boundaries from this, and the scheduler's cron clock follows it too — so a
+  # "daily" number cannot mean 00:00 WIB on one screen and 07:00 WIB on another. Shared
+  # rather than per-service precisely because the split is what caused the disagreement.
+  PRICING_TZ: ${PRICING_TZ:-Asia/Jakarta}
 
 x-svc: &svc
   restart: unless-stopped
@@ -597,7 +602,12 @@ services:
   # else calls them). Hourly: place due subscription orders. Daily 08:00: refill
   # reminders. Auths with the shared INTERNAL_SERVICE_KEY over the internal network;
   # alpine's busybox crond, no extra image build. Disable with `docker compose ...
-  # up -d --scale scheduler=0`. Shift schedule times by setting TZ (e.g. TZ: Asia/Jakarta).
+  # up -d --scale scheduler=0`.
+  #
+  # H-16: TZ used to default to UTC while every sweep time in the crontab is written as
+  # an Indonesian business hour — the 08:00 "time to refill" nudge went out at 15:00 WIB,
+  # and the 03:30 retention purge ran at 10:30 WIB, in the middle of the working day. It
+  # now follows the same PRICING_TZ the services use, so one variable moves all of them.
   scheduler:
     <<: *svc
     image: alpine:3.20
@@ -605,7 +615,7 @@ services:
     cpus: 0.25
     environment:
       <<: *shared
-      TZ: ${SCHEDULER_TZ:-UTC}
+      TZ: ${SCHEDULER_TZ:-${PRICING_TZ:-Asia/Jakarta}}
     depends_on:
       order: { condition: service_healthy }
     volumes:

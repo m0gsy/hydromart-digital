@@ -93,7 +93,21 @@ class FakeCourierLedger implements CourierLedgerRepository {
   }
 }
 
+import { PayoutConfigService } from '../src/config/payout-config.service';
+
+/** Only `businessTimeZone` is read; WIB is pinned so the peak-hour test cannot inherit
+ * the host's zone and pass against a UTC-offset regression (H-16). */
+const courierTestConfig = (timeZone = 'Asia/Jakarta'): PayoutConfigService =>
+  ({ businessTimeZone: timeZone }) as PayoutConfigService;
+
 class FakeCourierWithdrawals implements CourierWithdrawalRepository {
+  private seq = 100_000;
+  /** Mirrors the Postgres sequence: strictly increasing, never repeated (H-13). */
+  async nextReferenceSequence(): Promise<number> {
+    this.seq += 1;
+    return this.seq;
+  }
+
   created: CreateCourierWithdrawalData[] = [];
 
   // Reads the same ledger fake the real one aggregates over, so the balance cannot drift
@@ -169,7 +183,7 @@ describe('CourierPayoutService', () => {
   beforeEach(() => {
     ledger = new FakeCourierLedger();
     withdrawals = new FakeCourierWithdrawals(ledger);
-    service = new CourierPayoutService(ledger, withdrawals);
+    service = new CourierPayoutService(ledger, withdrawals, courierTestConfig());
   });
 
   it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
@@ -244,7 +258,7 @@ describe('CourierPayoutService', () => {
     it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
       await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
       const w = await service.requestWithdrawal(COURIER, 8000, 'BCA ···· 4821');
-      expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
+      expect(w.reference).toMatch(/^WD-\d{8}-\d{4,}$/);
       expect(withdrawals.created).toHaveLength(1);
       expect(await ledger.balanceFor(COURIER)).toBe(0);
       expect((await service.summary(COURIER)).recentWithdrawals).toHaveLength(1);

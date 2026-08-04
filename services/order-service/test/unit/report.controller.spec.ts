@@ -96,7 +96,9 @@ describe('ReportController', () => {
     await controller.depotDaily({ depotId: 'd1' } as never);
     const [depotId, date] = service.depotDaily.mock.calls[0];
     expect(depotId).toBe('d1');
-    expect(date).toBe(new Date().toISOString().slice(0, 10));
+    // The default moved into the service (H-16): "today" has to be the WIB today, and
+    // only the service knows the configured zone. The controller passes the gap through.
+    expect(date).toBeUndefined();
     await controller.depotDaily({ depotId: 'd1', date: '2026-03-03' } as never);
     expect(service.depotDaily).toHaveBeenLastCalledWith('d1', '2026-03-03');
   });

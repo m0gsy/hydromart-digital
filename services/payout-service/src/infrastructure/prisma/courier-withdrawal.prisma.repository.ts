@@ -8,6 +8,7 @@ import {
   CreateCourierWithdrawalData,
 } from '../../application/ports/courier-withdrawal.repository';
 import { PrismaService } from './prisma.service';
+import { nextReferenceSequence } from './reference-sequence';
 
 interface WithdrawalRow {
   id: string;
@@ -23,6 +24,10 @@ interface WithdrawalRow {
 @Injectable()
 export class CourierWithdrawalPrismaRepository implements CourierWithdrawalRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  nextReferenceSequence(): Promise<number> {
+    return nextReferenceSequence(this.prisma);
+  }
 
   private toWithdrawal(row: WithdrawalRow): CourierWithdrawalRecord {
     return {

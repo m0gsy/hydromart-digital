@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SettingsCache } from '@hydromart/platform';
+import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
@@ -150,7 +150,12 @@ export class OrderConfigService {
   get paymentServiceUrl(): string {
     return this.config.get<string>('PAYMENT_SERVICE_URL', '').replace(/\/+$/, '');
   }
-  get counterVoidTimeZone(): string {
-    return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
+  /**
+   * The one business timezone (H-16). Every day/month boundary this service reckons —
+   * the counter void window, the order number's date part, the daily/monthly reports —
+   * comes from here, so they cannot disagree about which day it is.
+   */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

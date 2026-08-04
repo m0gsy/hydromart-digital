@@ -22,6 +22,11 @@ import {
   InMemoryPromotionRepository,
   InMemoryVoucherRepository,
 } from '../support/fakes';
+import { PromoConfigService } from '../../src/config/promo-config.service';
+/** Only `businessTimeZone` is read; WIB pinned so a UTC-bucket regression (H-16) fails here. */
+const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
+  ({ businessTimeZone: timeZone }) as PromoConfigService;
+
 
 class FakeOrderValues {
   async findOrderValues(): Promise<{ orderId: string; totalIdr: number }[] | null> {
@@ -51,6 +56,7 @@ describe('PromotionService branch gaps', () => {
       repo,
       new InMemoryVoucherRepository(),
       new FakeOrderValues() as never,
+      promoTestConfig(),
     );
   });
 

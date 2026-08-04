@@ -1,6 +1,16 @@
 import { OrderRecord, OrderRepository } from '../../src/application/ports/order.repository';
 import { ReportService } from '../../src/application/services/report.service';
 import { OrderStatus } from '../../src/domain/order-status';
+import { localMonthKey } from '@hydromart/platform';
+import { OrderConfigService } from '../../src/config/order-config.service';
+/**
+ * The service reads only `businessTimeZone` off the config. WIB is pinned here on
+ * purpose: every day/month boundary in these reports used to be built from UTC (H-16),
+ * and a test that inherits the host's zone cannot catch that coming back.
+ */
+const reportTestConfig = (timeZone = 'Asia/Jakarta'): OrderConfigService =>
+  ({ businessTimeZone: timeZone }) as OrderConfigService;
+
 
 interface OrderOverrides {
   customerId: string;
@@ -34,7 +44,9 @@ describe('ReportService.resellerRollup', () => {
   it('sums gallons this month and previous month per reseller, with order count + last order', async () => {
     const repo = {
       ordersForDepot: jest.fn(async (_depotId: string, range: { from: Date; to: Date }) => {
-        const isJuly = range.from.getUTCMonth() === 6; // 0-based: July = 6
+        // The window is reckoned in WIB (H-16), so July starts at 2026-06-30T17:00Z —
+        // `getUTCMonth()` on the boundary instant reads June and picked the wrong list.
+        const isJuly = localMonthKey(range.from) === '2026-07';
         if (isJuly) {
           return [
             order({ customerId: 'r1', qty: 5, createdAt: '2026-07-03T00:00:00Z', id: 'a' }),
@@ -52,7 +64,7 @@ describe('ReportService.resellerRollup', () => {
         return [order({ customerId: 'r1', qty: 4, createdAt: '2026-06-10T00:00:00Z' })];
       }),
     };
-    const svc = new ReportService(repo as unknown as OrderRepository);
+    const svc = new ReportService(repo as unknown as OrderRepository, reportTestConfig());
 
     const out = await svc.resellerRollup('d1', '2026-07', ['r1']);
 
@@ -67,7 +79,7 @@ describe('ReportService.resellerRollup', () => {
 
   it('returns no rows when customerIds is empty', async () => {
     const repo = { ordersForDepot: jest.fn() };
-    const svc = new ReportService(repo as unknown as OrderRepository);
+    const svc = new ReportService(repo as unknown as OrderRepository, reportTestConfig());
     const out = await svc.resellerRollup('d1', '2026-07', []);
     expect(out.rows).toEqual([]);
     expect(repo.ordersForDepot).not.toHaveBeenCalled();

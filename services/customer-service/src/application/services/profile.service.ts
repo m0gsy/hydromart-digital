@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { localDayKey } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { LoyaltyRewardPort } from '../ports/loyalty-reward.port';
@@ -65,10 +66,11 @@ export class ProfileService {
    * business wants those rewarded every year.
    */
   async runBirthdayRewards(authorization: string, now: Date = new Date()): Promise<BirthdayRewardResult> {
-    const month = now.getUTCMonth() + 1;
-    const day = now.getUTCDate();
-    const year = now.getUTCFullYear();
-    const date = now.toISOString().slice(0, 10);
+    // H-16: "today" was the UTC date, so the sweep — which the scheduler fires in the
+    // early WIB morning — rewarded YESTERDAY's birthdays for seven hours every day, and
+    // stamped them under the wrong year on 1 January.
+    const date = localDayKey(now, this.config.businessTimeZone);
+    const [year, month, day] = date.split('-').map(Number);
 
     if (!this.config.loyaltyServiceUrl) {
       this.logger.warn('Birthday promo skipped: LOYALTY_SERVICE_URL not configured');

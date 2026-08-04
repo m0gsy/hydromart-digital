@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { money } from '@hydromart/platform';
 
 import {
   CashShortError,
@@ -61,10 +62,6 @@ export interface WebhookPayload {
   reference: string;
   event: WebhookEvent;
   signature: string;
-}
-
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 @Injectable()

@@ -704,6 +704,22 @@ describe('OrderPrismaRepository', () => {
     expect(monthly).toEqual([{ period: '2026-01', orderCount: 3, revenue: 0 }]);
   });
 
+  // H-14: these four raw reports excluded only CANCELLED while every Prisma-built report
+  // beside them excluded VOIDED too — so a voided counter sale still counted as revenue
+  // and still put its buyer in a retention cohort. The status list is bound as a
+  // parameter, so asserting on the call's values is what proves the predicate.
+  it.each([
+    ['salesSeries', (r: typeof repo) => r.salesSeries('daily', {})],
+    ['retentionCohort', (r: typeof repo) => r.retentionCohort({})],
+    ['audienceReach', (r: typeof repo) => r.audienceReach()],
+    ['segmentEstimate', (r: typeof repo) => r.segmentEstimate({})],
+  ])('excludes both CANCELLED and VOIDED from %s', async (_name, run) => {
+    $queryRaw.mockResolvedValue([]);
+    await run(repo);
+    const values = ($queryRaw.mock.calls.at(-1)?.[0] as { values: unknown[] }).values;
+    expect(values).toEqual(expect.arrayContaining(['CANCELLED', 'VOIDED']));
+  });
+
   it('ranks top customers by revenue', async () => {
     order.groupBy.mockResolvedValue([
       { customerId: 'cust-1', _sum: { total: dec(500000) }, _count: { _all: 4 } },

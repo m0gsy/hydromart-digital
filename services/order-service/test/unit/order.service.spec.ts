@@ -202,7 +202,9 @@ describe('OrderService', () => {
     expect(order.deliveryFee).toBe(5000 * 3); // Rp 5000/galon × 3 galons
     expect(order.total).toBe(46000 + 5000 * 3);
     expect(order.items).toHaveLength(2);
-    expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6}$/);
+    // 6+ digits, not exactly 6: the suffix is a counter now, and truncating it back to
+    // six would put the collision it was built to remove straight back in.
+    expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6,}$/);
     expect(order.recipientName).toBe('Budi');
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
   });
@@ -425,6 +427,34 @@ describe('OrderService', () => {
       expect(orders.rows).toHaveLength(2);
       expect(theirs.customerId).toBe(other);
     });
+
+  // H-12: the suffix used to be randomInt(0, 1e6) against a UNIQUE column, so a
+  // collision was a failed checkout for a real customer — ~40% of days at 1,000
+  // orders/day. A counter cannot collide, so this asserts distinctness directly
+  // rather than sampling a probability.
+  it('never issues the same order number twice, even under concurrent checkout', async () => {
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    const numbers = await Promise.all(
+      Array.from({ length: 25 }, async (_, i) => {
+        const buyer = `cust-seq-${i}`;
+        await cartService.setItem(buyer, product.id, 1, false);
+        return (await service.checkout(buyer, { deliveryAddress: address })).orderNumber;
+      }),
+    );
+    expect(new Set(numbers).size).toBe(numbers.length);
+  });
+
+  // H-16: the date part came from getUTC*, so every order placed between 00:00 and
+  // 07:00 WIB was stamped with the previous day.
+  it('stamps the WIB calendar date, not the UTC one', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-03T19:00:00Z')); // 02:00 WIB, 4 Aug
+    try {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      expect(order.orderNumber.slice(0, 11)).toBe('HM-20260804');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   // The optional arguments every other test in this file happens to fill in, and the
