@@ -46,12 +46,16 @@ export const endpoints = {
     sessions: '/auth/api/v1/sessions',
     revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,
     // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
-    staff: (q: { page?: number; limit?: number; role?: string; depotId?: string } = {}) => {
+    staff: (
+      q: { page?: number; limit?: number; role?: string; depotId?: string; search?: string } = {},
+    ) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
       if (q.role) p.set('role', q.role);
       if (q.depotId) p.set('depotId', q.depotId);
+      // Audit F-12: name/phone substring, matched by auth-service over the whole directory.
+      if (q.search) p.set('search', q.search);
       const qs = p.toString();
       return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
     },
@@ -168,7 +172,14 @@ export const endpoints = {
     // Staff queue across all customers; depotId scopes to one depot (switcher).
     // unrouted=true is the HQ tray of orders that reached no depot at all.
     manage: (
-      q: { page?: number; limit?: number; status?: string; depotId?: string; unrouted?: boolean } = {},
+      q: {
+        page?: number;
+        limit?: number;
+        status?: string;
+        depotId?: string;
+        unrouted?: boolean;
+        orderNumber?: string;
+      } = {},
     ) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
@@ -176,6 +187,8 @@ export const endpoints = {
       if (q.status) p.set('status', q.status);
       if (q.depotId) p.set('depotId', q.depotId);
       if (q.unrouted) p.set('unrouted', 'true');
+      // Audit F-12: order-number substring, matched by order-service over the whole table.
+      if (q.orderNumber) p.set('orderNumber', q.orderNumber);
       const qs = p.toString();
       return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
     },

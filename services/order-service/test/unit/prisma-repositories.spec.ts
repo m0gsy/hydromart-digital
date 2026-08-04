@@ -522,6 +522,26 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  // Audit F-12: HQ global search used to pull a page of orders and match the number in
+  // the browser, so anything older than the last twenty was unfindable.
+  it('matches an order-number term in the query, trimmed and case-insensitive', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    await repo.search({ orderNumber: ' hm-2026 ', page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderNumber: { contains: 'hm-2026', mode: 'insensitive' } },
+      }),
+    );
+  });
+
+  it('omits the order-number predicate when the term is blank', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    await repo.search({ orderNumber: '  ', page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+
   it('searches with an empty where when no filters are given', async () => {
     order.findMany.mockResolvedValue([]);
     order.count.mockResolvedValue(0);

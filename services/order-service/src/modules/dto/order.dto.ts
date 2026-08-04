@@ -166,6 +166,14 @@ export class ListOrdersQueryDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   unrouted?: boolean;
+
+  // Audit F-12: HQ global search used to pull a page of orders and match order numbers
+  // in the browser, so it only ever found the twenty most recent.
+  @ApiPropertyOptional({ description: 'Case-insensitive substring of the order number.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  orderNumber?: string;
 }
 
 /** HQ fills in the fulfilling depot of an order that has none. */

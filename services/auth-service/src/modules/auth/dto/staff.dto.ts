@@ -42,6 +42,14 @@ export class ListStaffQueryDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+
+  // Audit F-12: the HQ global search used to pull 100 staff rows per keystroke and
+  // filter them in the browser, so it could only ever find someone on the first page.
+  @ApiPropertyOptional({ description: 'Case-insensitive substring of name or phone.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  search?: string;
 }
 
 export class InviteStaffDto {

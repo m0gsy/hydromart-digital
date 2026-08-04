@@ -29,7 +29,14 @@ export interface CustomerRepository {
    * Staff directory (PRD Module 7): non-customer accounts, newest first, paginated.
    * Excludes DELETED accounts; filters to one role when given.
    */
-  listStaff(page: number, limit: number, role?: Role, depotId?: string): Promise<{ items: Customer[]; total: number }>;
+  listStaff(
+    page: number,
+    limit: number,
+    role?: Role,
+    depotId?: string,
+    /** Case-insensitive substring matched against name or phone (audit F-12). */
+    search?: string,
+  ): Promise<{ items: Customer[]; total: number }>;
   /**
    * HQ metric: count of end-customer (role CUSTOMER, non-DELETED) accounts created
    * in the optional [from, to] window. Both bounds inclusive-of-start / exclusive-of-end.

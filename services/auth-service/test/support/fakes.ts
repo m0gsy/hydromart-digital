@@ -190,11 +190,20 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     limit: number,
     role?: Role,
     depotId?: string,
+    search?: string,
   ): Promise<{ items: Customer[]; total: number }> {
+    const term = search?.trim().toLowerCase();
     const all = [...this.rows.values()]
       .filter((p) => p.status !== CustomerStatus.DELETED)
       .filter((p) => (role ? p.role === role : p.role !== Role.CUSTOMER))
       .filter((p) => (depotId ? p.assignedDepotId === depotId : true))
+      // Models the repository's OR predicate, so a search test cannot pass against
+      // a repository that ignores the term.
+      .filter((p) =>
+        term
+          ? (p.fullName ?? '').toLowerCase().includes(term) || p.phone.toLowerCase().includes(term)
+          : true,
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const items = all
       .slice((page - 1) * limit, page * limit)

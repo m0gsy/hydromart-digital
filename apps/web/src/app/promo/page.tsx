@@ -50,6 +50,34 @@ function useCountdown(target: string | null): Remaining | null {
   };
 }
 
+/**
+ * Audit F-16: `useCountdown` used to live on the page component, so a one-second tick
+ * re-rendered the ENTIRE promo screen — hero, voucher list, product grid — sixty times
+ * a minute to move four digits. The interval lives in this leaf now; nothing above it
+ * re-renders.
+ */
+function HeroCountdown({ endsAt }: { endsAt: string }) {
+  const { t } = useT();
+  const countdown = useCountdown(endsAt);
+
+  if (countdown?.ended) {
+    return <span className="text-sm font-extrabold text-white/90">{t('customerFix.promo.ended')}</span>;
+  }
+  return (
+    <>
+      <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/70">
+        {t('customerFix.promo.endsIn')}
+      </div>
+      <div className="flex gap-2.5">
+        <CountdownBox value={countdown?.days ?? 0} label={t('customerFix.promo.dayLabel')} />
+        <CountdownBox value={countdown?.hours ?? 0} label={t('customerFix.promo.hourLabel')} />
+        <CountdownBox value={countdown?.mins ?? 0} label={t('customerFix.promo.minLabel')} />
+        <CountdownBox value={countdown?.secs ?? 0} label={t('customerFix.promo.secLabel')} />
+      </div>
+    </>
+  );
+}
+
 function CountdownBox({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex min-w-[62px] flex-col items-center rounded-xl bg-white/15 px-2 py-2">
@@ -114,7 +142,6 @@ export default function PromoPage() {
   const vouchers = (promos ?? []).filter((p) => p.voucherCode);
   const products = productPage?.items ?? [];
 
-  const countdown = useCountdown(hero?.endsAt ?? null);
   const title = hero?.title ?? t('customerFix.promo.heroFallbackTitle');
   const subtitle = hero?.subtitle ?? t('customerFix.promo.heroFallbackSubtitle');
   const shopHref = hero?.ctaHref || '/products';
@@ -148,21 +175,7 @@ export default function PromoPage() {
           {/* Countdown — only when the hero promo has an end date */}
           {hero?.endsAt && (
             <div className="mt-6">
-              {countdown?.ended ? (
-                <span className="text-sm font-extrabold text-white/90">{t('customerFix.promo.ended')}</span>
-              ) : (
-                <>
-                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wide text-white/70">
-                    {t('customerFix.promo.endsIn')}
-                  </div>
-                  <div className="flex gap-2.5">
-                    <CountdownBox value={countdown?.days ?? 0} label={t('customerFix.promo.dayLabel')} />
-                    <CountdownBox value={countdown?.hours ?? 0} label={t('customerFix.promo.hourLabel')} />
-                    <CountdownBox value={countdown?.mins ?? 0} label={t('customerFix.promo.minLabel')} />
-                    <CountdownBox value={countdown?.secs ?? 0} label={t('customerFix.promo.secLabel')} />
-                  </div>
-                </>
-              )}
+              <HeroCountdown endsAt={hero.endsAt} />
             </div>
           )}
 

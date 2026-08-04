@@ -392,6 +392,7 @@ export class OrderPrismaRepository implements OrderRepository {
   async search(
     query: OrderQuery,
   ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {
+    const term = query.orderNumber?.trim();
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -400,6 +401,9 @@ export class OrderPrismaRepository implements OrderRepository {
         : query.depotIds
           ? { depotId: depotWhere(query.depotIds) }
           : {}),
+      // Audit F-12: matched over the whole table, not over whatever page the browser
+      // happened to hold. `orderNumber` is already indexed for its unique constraint.
+      ...(term ? { orderNumber: { contains: term, mode: 'insensitive' as const } } : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({
