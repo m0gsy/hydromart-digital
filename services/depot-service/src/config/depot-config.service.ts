@@ -63,6 +63,12 @@ export class DepotConfigService {
   get paymentServiceUrl(): string {
     return this.config.get<string>('PAYMENT_SERVICE_URL', '');
   }
+  // Closing a day's books asks delivery-service what COD the depot accepted. Blank = the
+  // day cannot be closed: counting only the counter cash and calling it the day's takings
+  // is worse than refusing.
+  get deliveryServiceUrl(): string {
+    return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** Shared secret sent as x-internal-key on the crm internal notification call. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

@@ -239,6 +239,8 @@ export const hq = {
       payout: 'Payout & commission',
       staffAdmin: 'Staff & roles',
       staffDelete: 'Delete staff account',
+      dailyClose: 'Close daily books',
+      dailyCloseReopen: 'Reopen daily books',
       driverRoster: 'Driver roster',
       opsNotif: 'Ops notifications',
       tracking: 'Live tracking & dispatch',

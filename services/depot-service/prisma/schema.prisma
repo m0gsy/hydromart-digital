@@ -97,6 +97,7 @@ model Depot {
   depotTargets           DepotTarget[]
   cashbookEntries        CashbookEntry[]
   cashierShifts          CashierShift[]
+  dailyCloses            DepotDailyClose[]
   orderDisputes          OrderDispute[]
   maintenanceItems       MaintenanceItem[]
   wholesaleTiers         WholesaleTier[]
@@ -623,6 +624,40 @@ model CashierShift {
   @@index([depotId, status])
   @@index([cashierId, status])
   @@map("cashier_shifts")
+}
+
+/// One depot's day, declared counted.
+///
+/// A depot's money arrives from two places that never met: counter cash posts itself into
+/// the cashbook when a cashier shift closes, and courier COD lands in delivery-service when
+/// a cashier accepts a deposit. Closing a day is the moment somebody says both were counted
+/// and agrees what the numbers were — which is why the totals are SNAPSHOTTED here rather
+/// than recomputed on read. A later correction must not silently rewrite what was signed off.
+model DepotDailyClose {
+  id              String    @id @default(uuid()) @db.Uuid
+  depotId         String    @db.Uuid
+  depot           Depot     @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  /// The business day, not an instant.
+  businessDate    DateTime  @db.Date
+  closedAt        DateTime
+  closedBy        String    @db.Uuid
+  cashInIdr       Int
+  cashOutIdr      Int
+  /// Counter takings inside cashIn, kept apart so the two money paths stay legible.
+  konterIdr       Int
+  /// COD the cashier accepted that day, read from delivery-service at close time.
+  codDepositedIdr Int
+  /// What the couriers were expected to hand over — the pair is what makes a gap visible.
+  codExpectedIdr  Int
+  note            String?
+  /// Set when HQ reopens the day, cleared when it is closed again.
+  reopenedAt      DateTime?
+  reopenedBy      String?   @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@unique([depotId, businessDate])
+  @@map("depot_daily_closes")
 }
 
 /// Kind of customer order dispute (design 15c).

@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
@@ -45,6 +46,21 @@ export class DisputeSettlementDto {
   @IsString()
   @MaxLength(500)
   note!: string;
+}
+
+/** The window depot-service asks about when it closes a day's books. */
+export class DepositedCodQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: '2026-08-04T00:00:00.000Z' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ example: '2026-08-05T00:00:00.000Z' })
+  @IsISO8601()
+  to!: string;
 }
 
 export class SettlementQueryDto {

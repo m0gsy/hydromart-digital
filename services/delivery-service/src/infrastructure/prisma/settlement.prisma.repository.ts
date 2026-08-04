@@ -4,6 +4,7 @@ import { SettlementStatus } from '../../domain/settlement';
 import {
   CourierShortfall,
   CreateSettlementData,
+  DepositedCod,
   OperatorSettlementStats,
   ResolveSettlementPatch,
   SettlementQuery,
@@ -88,6 +89,28 @@ export class SettlementPrismaRepository implements SettlementRepository {
     });
     // variance is negative for a shortfall; report the positive amount owed.
     return rows.map((r) => ({ driverId: r.driverId, shortfallIdr: Math.abs(r._sum.variance ?? 0) }));
+  }
+
+  /**
+   * Keyed on `verifiedAt`, not `createdAt`: a deposit belongs to the day the cashier
+   * ACCEPTED the cash, which is the day the depot can close its books on. A settlement
+   * submitted late last night and verified this morning is this morning's money.
+   */
+  async depositedInWindow(depotId: string, from: Date, to: Date): Promise<DepositedCod> {
+    const rows = await this.prisma.cashSettlement.aggregate({
+      where: {
+        depotId,
+        status: SettlementStatus.VERIFIED,
+        verifiedAt: { gte: from, lt: to },
+      },
+      _sum: { depositedAmount: true, expectedAmount: true },
+      _count: { _all: true },
+    });
+    return {
+      depositedIdr: rows._sum.depositedAmount ?? 0,
+      expectedIdr: rows._sum.expectedAmount ?? 0,
+      settlements: rows._count._all,
+    };
   }
 
   async verifiedByOperatorInWindow(

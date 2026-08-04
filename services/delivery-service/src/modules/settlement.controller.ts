@@ -1,11 +1,16 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
+import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { SettlementService } from '../application/services/settlement.service';
-import { SettlementRecord } from '../application/ports/settlement.repository';
-import { DisputeSettlementDto, SettlementQueryDto, VerifySettlementDto } from './dto/settlement.dto';
+import { DepositedCod, SettlementRecord } from '../application/ports/settlement.repository';
+import {
+  DepositedCodQueryDto,
+  DisputeSettlementDto,
+  SettlementQueryDto,
+  VerifySettlementDto,
+} from './dto/settlement.dto';
 
 /** Cashier-facing COD settlement: verify or dispute a courier's deposit (design 6a). */
 @ApiTags('Settlements')
@@ -14,6 +19,26 @@ import { DisputeSettlementDto, SettlementQueryDto, VerifySettlementDto } from '.
 @Controller({ path: 'settlements', version: '1' })
 export class SettlementController {
   constructor(private readonly settlements: SettlementService) {}
+
+  /**
+   * COD accepted at a depot in a window, for depot-service's daily close.
+   *
+   * Internal key rather than the cashier capability above: the caller is a machine closing
+   * a day's books, not a person looking at a queue. Declared FIRST so the static `internal`
+   * segment cannot be read as a settlement id.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/deposited')
+  @ApiOperation({ summary: 'COD accepted at one depot in [from, to) (internal service auth)' })
+  deposited(@Query() query: DepositedCodQueryDto): Promise<DepositedCod> {
+    return this.settlements.depositedForDepot(
+      query.depotId,
+      new Date(query.from),
+      new Date(query.to),
+    );
+  }
 
   @Get()
   @ApiOperation({ summary: "A depot's courier settlements, newest first (cashier)" })

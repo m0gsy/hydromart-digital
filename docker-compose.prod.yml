@@ -246,6 +246,10 @@ services:
       # Closing a cashier's shift reads that depot's takings from here. Without it a shift
       # can be opened but never closed — no drawer is ever settled against a guess.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # Closing the DAY's books reads the COD couriers deposited from here. Same fail-closed
+      # rule: counting only the counter cash and calling it the day's takings is worse than
+      # refusing to close.
+      DELIVERY_SERVICE_URL: http://delivery:3006
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

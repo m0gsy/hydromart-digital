@@ -242,6 +242,8 @@ export const hq = {
       payout: 'Payout & komisi',
       staffAdmin: 'Staf & peran',
       staffDelete: 'Hapus akun staf',
+      dailyClose: 'Tutup buku harian',
+      dailyCloseReopen: 'Buka kembali buku harian',
       driverRoster: 'Roster driver',
       opsNotif: 'Notifikasi ops',
       tracking: 'Live tracking & dispatch',

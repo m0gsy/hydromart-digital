@@ -554,6 +554,23 @@ export class InMemorySettlementRepository implements SettlementRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((r) => clone(r));
   }
+  /** COD the cashier accepted in the window — what a depot's daily close counts. */
+  async depositedInWindow(depotId: string, from: Date, to: Date) {
+    const rows = this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.status === 'VERIFIED' &&
+        r.verifiedAt != null &&
+        r.verifiedAt.getTime() >= from.getTime() &&
+        r.verifiedAt.getTime() < to.getTime(),
+    );
+    return {
+      depositedIdr: rows.reduce((s, r) => s + r.depositedAmount, 0),
+      expectedIdr: rows.reduce((s, r) => s + r.expectedAmount, 0),
+      settlements: rows.length,
+    };
+  }
+
   async chargedShortfallByDriver(
     depotId: string,
     from: Date,

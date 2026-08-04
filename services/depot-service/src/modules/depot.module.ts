@@ -24,6 +24,11 @@ import { RosterService } from '../application/services/roster.service';
 import { DepotTargetService } from '../application/services/depot-target.service';
 import { CashbookService } from '../application/services/cashbook.service';
 import { CashierShiftService } from '../application/services/cashier-shift.service';
+import { DailyCloseService } from '../application/services/daily-close.service';
+import { DAILY_CLOSE_REPOSITORY } from '../application/ports/daily-close.repository';
+import { COURIER_COD_PORT } from '../application/ports/courier-cod.port';
+import { DailyClosePrismaRepository } from '../infrastructure/prisma/daily-close.prisma.repository';
+import { CourierCodHttpAdapter } from '../infrastructure/http/courier-cod.http.adapter';
 import { DisputeService } from '../application/services/dispute.service';
 import { MaintenanceService } from '../application/services/maintenance.service';
 import { WholesaleTierService } from '../application/services/wholesale-tier.service';
@@ -82,6 +87,7 @@ import { RosterController } from './roster.controller';
 import { DepotTargetController } from './depot-target.controller';
 import { CashbookController } from './cashbook.controller';
 import { CashierShiftController } from './cashier-shift.controller';
+import { DailyCloseController } from './daily-close.controller';
 import { DisputeController } from './dispute.controller';
 import { MaintenanceController } from './maintenance.controller';
 import { WholesaleTierController } from './wholesale-tier.controller';
@@ -119,6 +125,7 @@ const providers: Provider[] = [
   DepotTargetService,
   CashbookService,
   CashierShiftService,
+  DailyCloseService,
   DisputeService,
   MaintenanceService,
   WholesaleTierService,
@@ -147,6 +154,8 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.DepotTargetRepository, useClass: DepotTargetPrismaRepository },
   { provide: DEPOT_TOKENS.CashbookRepository, useClass: CashbookPrismaRepository },
   { provide: DEPOT_TOKENS.CashierShiftRepository, useClass: CashierShiftPrismaRepository },
+  { provide: DAILY_CLOSE_REPOSITORY, useClass: DailyClosePrismaRepository },
+  { provide: COURIER_COD_PORT, useClass: CourierCodHttpAdapter },
   { provide: DEPOT_TOKENS.DisputeRepository, useClass: DisputePrismaRepository },
   { provide: DEPOT_TOKENS.MaintenanceRepository, useClass: MaintenancePrismaRepository },
   { provide: DEPOT_TOKENS.WholesaleTierRepository, useClass: WholesaleTierPrismaRepository },
@@ -197,6 +206,7 @@ const providers: Provider[] = [
     DepotTargetController,
     CashbookController,
     CashierShiftController,
+    DailyCloseController,
     DisputeController,
     MaintenanceController,
     WholesaleTierController,

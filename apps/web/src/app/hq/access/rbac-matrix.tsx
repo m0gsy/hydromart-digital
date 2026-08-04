@@ -90,6 +90,8 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'depotDirectory',
       'staffAdmin',
       'staffDelete',
+      'dailyClose',
+      'dailyCloseReopen',
       'staffDirectory',
       'hierarchyAdmin',
       'depotCrm',

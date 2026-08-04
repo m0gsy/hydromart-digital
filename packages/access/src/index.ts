@@ -117,6 +117,12 @@ export const CAPABILITIES = {
   // Deliberately NOT staffAdmin — head office holds that, and inviting somebody by mistake
   // is a click away from being fixed while deleting them is not.
   staffDelete: ['SUPER_ADMIN'],
+  // depot-service — declaring a depot's day counted. The depot's own leadership closes it,
+  // because they are the ones who counted the drawer.
+  dailyClose: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // Reopening is head office only: a depot that can reopen its own books can rewrite a
+  // total it already signed off.
+  dailyCloseReopen: ['HEAD_OFFICE', 'SUPER_ADMIN'],
   // depot-service — the supervision hierarchy (which depot belongs to which assistant
   // supervisor, who reports to whom, direct depot grants). Superuser only by decision:
   // this map is what every multi-depot scope resolves from.
