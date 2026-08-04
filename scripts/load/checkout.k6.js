@@ -25,6 +25,15 @@
 //
 // Reads the live catalog once in setup(); needs a seeded product list
 // (scripts/seed.mjs) and the stack up.
+//
+// Audit CI-12 — READ THIS BEFORE RUNNING. The gateway rate-limits by IP (default
+// RATE_LIMIT_MAX=100 per 60s), and a load generator is ONE IP. At 10 VUs this script sends
+// four requests per iteration, so it trips the platform's own limiter within seconds and
+// then measures the limiter. A 429 is a SETUP error here, not a result — the run aborts.
+//
+// Raise the limit on the target for the duration of the run:
+//   RATE_LIMIT_MAX=100000 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d gateway
+// and put it back afterwards. Never point this at production with the real limit in place.
 
 import http from 'k6/http';
 import { check, fail } from 'k6';
@@ -77,6 +86,12 @@ export function setup() {
     );
   }
   const res = http.get(`${BASE}/products/api/v1/products`);
+  if (res.status === 429) {
+    fail(
+      'The gateway rate-limited the very first request (429). Raise RATE_LIMIT_MAX on the ' +
+        'target for the run — otherwise this measures the limiter, not checkout (audit CI-12).',
+    );
+  }
   if (res.status !== 200) fail(`catalog fetch failed: ${res.status} ${res.body}`);
   const body = res.json();
   const rows = Array.isArray(body) ? body : body.rows || body.data || [];
@@ -113,6 +128,11 @@ export default function (data) {
     { headers },
   );
   checkoutLatency.add(res.timings.duration);
+  // A 429 mid-run invalidates every number after it, so it is reported as the setup fault
+  // it is rather than folded into the failure rate (audit CI-12).
+  if (res.status === 429) {
+    fail('Rate-limited mid-run (429) — raise RATE_LIMIT_MAX on the target and re-run.');
+  }
   const ok = check(res, { 'checkout 2xx': (x) => x.status >= 200 && x.status < 300 });
   checkoutOk.add(ok);
   if (!ok) console.error(`checkout ${res.status}: ${res.body}`);

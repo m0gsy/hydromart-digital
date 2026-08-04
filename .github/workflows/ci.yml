@@ -35,6 +35,29 @@ env:
   HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
 jobs:
+  # Audit CI-2: the two Docker jobs build ~18 images and boot the whole stack. For a diff
+  # that cannot touch any of it — a README, a doc, the audit register — that is twenty
+  # minutes of runner time for no signal. `verify` still runs on everything.
+  #
+  # The rule lives in scripts/ci-affected.sh and is self-checked by ci-affected.test.sh
+  # (run in `verify` below), because a wrong "false" here is an untested image reaching
+  # main with a green tick. An undecidable diff answers "true".
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The filter diffs against the merge base, which a shallow clone does not have.
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          echo "docker=$(bash scripts/ci-affected.sh "$BASE")" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE affected=$(bash scripts/ci-affected.sh "$BASE")"
+
   verify:
     runs-on: ubuntu-latest
     # These are only for the unit/e2e gate. The e2e specs call
@@ -85,6 +108,17 @@ jobs:
           npm --version
 
       # Installs all workspaces and generates every Prisma client (postinstall).
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+
       - name: Install
         run: npm ci
 
@@ -118,6 +152,11 @@ jobs:
       # can fire about. hr-service was in exactly that state from the day it shipped.
       - name: Prometheus targets match compose
         run: node scripts/gen-prometheus-targets.mjs --check
+
+      # The affected-only filter below decides whether the Docker jobs run at all, so a
+      # wrong answer there is an untested image merged behind a green tick (audit CI-2).
+      - name: Affected-only filter self-check
+        run: bash scripts/ci-affected.test.sh
 
       # A new CREATE INDEX in a migration locks writes on that table for the whole build.
       # This fails the PR unless the index also has a CONCURRENTLY build in
@@ -168,12 +207,22 @@ jobs:
     # independent of each other and run in parallel — the chain exists so a lockfile,
     # typecheck or unit-test failure stops burning two more runners (each of which pays
     # its own `npm ci` + 16 `prisma generate`) on code that already cannot ship.
-    needs: verify
+    needs: [verify, changes]
+    # Audit CI-2: skipped entirely for a diff that cannot reach an image. GitHub reports a
+    # skipped job as successful, so this does not strand a required check.
+    if: needs.changes.outputs.docker == 'true'
     # Host-side `db:migrate` (run.mjs) applies migrations to the compose Postgres over the
     # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from the
     # workflow-level env above.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      # Audit CI-1: the images were built COLD here and again in `e2e`, with no layer cache
+      # at all — ~18 images, twice per run, from scratch, every time. docker-compose.cache.yml
+      # points every build at a GitHub Actions cache; COMPOSE_BAKE routes the build through
+      # buildx, which is what honours those keys. Layers are shared with `e2e` and with
+      # earlier runs, so only what actually changed rebuilds.
+      - uses: docker/setup-buildx-action@v3
 
       # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
       # so the runner, the Dockerfiles and a developer's shell all agree on one
@@ -188,6 +237,17 @@ jobs:
           want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
           [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
           npm --version
+
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
         run: npm ci
@@ -205,6 +265,9 @@ jobs:
           exit 1
 
       - name: Integration test (build + boot all 15 images, drive core loop)
+        env:
+          COMPOSE_BAKE: 'true'
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
         run: npm run test:integration
 
   # Browser E2E (QG-1): boots the same test backend the integration job uses, serves
@@ -213,7 +276,8 @@ jobs:
   # containerising it — same gateway, no extra image to build.
   e2e:
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [verify, changes]
+    if: needs.changes.outputs.docker == 'true'
     env:
       # Must match docker-compose.test.yml so seed.mjs can mint an admin token the stack trusts.
       JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
@@ -242,8 +306,29 @@ jobs:
           [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
           npm --version
 
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+
       - name: Install
         run: npm ci
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Audit CI-5: apps/web/Dockerfile was never built anywhere in CI — the e2e job runs
+      # `next start` from the source tree instead, so a broken web image only surfaced on
+      # the deploy. It is built here (not booted: the Playwright run still uses the local
+      # server, which is faster and needs no extra container).
+      - name: Build the web image
+        run: |
+          docker buildx build -f apps/web/Dockerfile             --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080             --cache-from type=gha,scope=hydromart-web             --cache-to type=gha,mode=max,scope=hydromart-web             --tag hydromart-web:ci .
 
       - name: Start infra + wait for Postgres
         run: |
@@ -284,7 +369,9 @@ jobs:
             | xargs -n3 docker compose -f docker-compose.yml -f docker-compose.test.yml build
           # --wait blocks until every healthchecked service is healthy — the gateway
           # /health alone can be up while product-service isn't, which 504'd the seed.
-          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build --wait --wait-timeout 300
+          # Audit CI-1: the same cache overlay `integration` writes to, so this second boot
+          # pulls layers instead of rebuilding ~18 images cold.
+          COMPOSE_BAKE=true docker compose             -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml             up -d --build --wait --wait-timeout 300
           for i in $(seq 1 45); do
             if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
             sleep 2

@@ -26,6 +26,15 @@
 //   PERFORMANCE_P95_MS p95 threshold, ms          (3000)
 //
 // Read-only: neither endpoint writes, so this is safe to point at a staging copy of prod.
+//
+// Audit CI-12 — READ THIS BEFORE RUNNING. The gateway rate-limits by IP (default
+// RATE_LIMIT_MAX=100 per 60s). A load generator is ONE IP, so at any useful VU count this
+// script trips the platform's own limiter and then measures the limiter, not the dashboards.
+// A 429 is therefore a SETUP error here, not a result: the run aborts and says so.
+//
+// Raise the limit on the target for the duration of the run:
+//   RATE_LIMIT_MAX=100000 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d gateway
+// and put it back afterwards. Never point this at production with the real limit in place.
 
 import http from 'k6/http';
 import { check, fail } from 'k6';
@@ -66,6 +75,12 @@ export function setup() {
   if (probe.status === 401 || probe.status === 403) {
     fail(`TOKEN cannot read the franchise dashboard (${probe.status}) — needs owner scope.`);
   }
+  if (probe.status === 429) {
+    fail(
+      'The gateway rate-limited the very first request (429). Raise RATE_LIMIT_MAX on the ' +
+        'target for the run — otherwise this measures the limiter, not the dashboards (audit CI-12).',
+    );
+  }
   // A franchise dashboard with no owned depots measures nothing: the whole point is cost
   // per depot. Say so loudly rather than reporting a fast, empty page.
   const owned = probe.status === 200 ? (probe.json('depots') || []).length : 0;
@@ -89,6 +104,11 @@ export default function () {
   const pOk = check(performance, { 'performance 2xx': (r) => r.status >= 200 && r.status < 300 });
 
   dashboardOk.add(fOk && pOk);
+  // A 429 mid-run invalidates every number after it, so it is reported as the setup fault
+  // it is rather than folded into the failure rate (audit CI-12).
+  if (franchise.status === 429 || performance.status === 429) {
+    fail('Rate-limited mid-run (429) — raise RATE_LIMIT_MAX on the target and re-run.');
+  }
   if (!fOk) console.error(`franchise ${franchise.status}: ${franchise.body}`);
   if (!pOk) console.error(`performance ${performance.status}: ${performance.body}`);
 }

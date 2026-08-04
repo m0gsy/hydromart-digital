@@ -9,6 +9,10 @@ COPY packages/platform/package.json ./packages/platform/
 COPY packages/access/package.json ./packages/access/
 COPY services/payout-service/package.json ./services/payout-service/
 COPY tsconfig.base.json ./
+# CI-3: each service's `postinstall` runs this instead of `prisma generate` — it skips
+# when the schema hash and CLI version already match what is on disk. It must land
+# BEFORE `npm ci`, which is what runs postinstall.
+COPY scripts/prisma-generate-if-stale.mjs ./scripts/
 COPY packages/platform ./packages/platform
 COPY packages/access ./packages/access
 COPY services/payout-service/prisma ./services/payout-service/prisma
@@ -27,10 +31,22 @@ COPY services/payout-service/prisma ./services/payout-service/prisma
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --include-workspace-root --prefer-offline \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY services/payout-service ./services/payout-service
-RUN npm run build -w @hydromart/access \
-  && npm run build -w @hydromart/platform \
-  && cd services/payout-service && npx prisma generate && npm run build
-RUN npm prune --omit=dev && mkdir -p /app/services/payout-service/node_modules
+# CI-8: @hydromart/access and @hydromart/platform are ALREADY compiled at this point —
+# `npm ci` runs their `prepare` scripts. Rebuilding them here compiled access three
+# times and platform twice, in every one of the nineteen images.
+RUN cd services/payout-service && npx prisma generate && npm run build
+# CI-6: `npm prune --omit=dev` alone left three build-only trees in the runtime image.
+# The Prisma CLI is the big one (26 MB): `prisma generate` runs in the builder above and
+# the generated client lives under prisma/generated/, so the CLI is never loaded again —
+# production migrations are run from the host by scripts/migrate-prod.sh, not in here.
+# @types and typescript are declaration files a compiled image cannot require at all.
+# Measured on order-service: 155 MB -> 126 MB of node_modules, and the whole app module
+# graph still resolves. `npm prune --workspace` was tried first and changes nothing —
+# npm computes the same tree with or without it.
+# The mkdir keeps the COPY below valid for a service with no nested node_modules.
+RUN npm prune --omit=dev \
+  && rm -rf node_modules/prisma node_modules/.bin/prisma node_modules/@types node_modules/typescript \
+  && mkdir -p /app/services/payout-service/node_modules
 
 FROM node:20-alpine AS runtime
 RUN apk add --no-cache openssl
@@ -38,7 +54,12 @@ ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/node_modules ./node_modules
-COPY --from=builder --chown=app:app /app/packages ./packages
+# CI-7: only the compiled output and its manifest. The runtime never reads the shared
+# packages' src/, test/ or tsconfigs, and shipping them put source in a production image.
+COPY --from=builder --chown=app:app /app/packages/access/dist ./packages/access/dist
+COPY --from=builder --chown=app:app /app/packages/access/package.json ./packages/access/
+COPY --from=builder --chown=app:app /app/packages/platform/dist ./packages/platform/dist
+COPY --from=builder --chown=app:app /app/packages/platform/package.json ./packages/platform/
 COPY --from=builder --chown=app:app /app/services/payout-service/node_modules ./services/payout-service/node_modules
 COPY --from=builder --chown=app:app /app/services/payout-service/dist ./services/payout-service/dist
 COPY --from=builder --chown=app:app /app/services/payout-service/prisma ./services/payout-service/prisma
