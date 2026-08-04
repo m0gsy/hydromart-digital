@@ -289,7 +289,7 @@ describe('FranchiseRevenueHttpAdapter', () => {
 describe('DepotPricingHttpAdapter', () => {
   it('returns empty map for no product ids', async () => {
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', []);
-    expect(out.size).toBe(0);
+    expect(out.prices.size).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -303,14 +303,14 @@ describe('DepotPricingHttpAdapter', () => {
       }),
     );
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1', 'p2']);
-    expect(out.get('p1')).toEqual({ sellPrice: 21000 });
-    expect(out.get('p2')).toEqual({ adjustType: 'PERCENT', value: 10 });
+    expect(out.prices.get('p1')).toEqual({ sellPrice: 21000 });
+    expect(out.prices.get('p2')).toEqual({ adjustType: 'PERCENT', value: 10 });
   });
 
   it('returns empty map (fail open) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1']);
-    expect(out.size).toBe(0);
+    expect(out.prices.size).toBe(0);
   });
 });
 

@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, alertServerError, assertDepotAccess } from '@hydromart/platform';
 
 import {
   BelowMinimumOrderError,
@@ -161,7 +161,7 @@ export class OrderService {
     // rejects instead (the customer picks a depot when the address has no map pin).
     const depot = await this.resolveDepot(input.deliveryAddress, input.depotId);
 
-    const { items, subtotal, tierPricedTotal } = await this.priceLines(depot.id, lines);
+    const { items, subtotal, tierPricedTotal, catalogFallback } = await this.priceLines(depot.id, lines);
 
     if (depot.minOrderAmount !== null && subtotal < depot.minOrderAmount) {
       throw new BelowMinimumOrderError(depot.minOrderAmount);
@@ -245,6 +245,7 @@ export class OrderService {
       authorization,
     );
     await this.cart.clear(customerId);
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
 
     // Record the redemption now that the order exists. Idempotent per order and
     // fail-open — a failure here never unwinds a placed order.
@@ -283,14 +284,22 @@ export class OrderService {
   private async priceLines(
     depotId: string | null,
     lines: { productId: string; quantity: number }[],
-  ): Promise<{ items: CreateOrderItemData[]; subtotal: number; tierPricedTotal: number }> {
-    const prices = depotId
+  ): Promise<{
+    items: CreateOrderItemData[];
+    subtotal: number;
+    tierPricedTotal: number;
+    /** Set when these are catalog prices standing in for the depot's own. */
+    catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
+  }> {
+    const lookup = depotId
       ? await this.depotPricing.getPrices(
           depotId,
           lines.map((l) => l.productId),
           lines.map((l) => l.quantity),
         )
-      : new Map<string, DepotPrice>();
+      : { prices: new Map<string, DepotPrice>(), unavailable: false };
+    const prices = lookup.prices;
+    const catalogFallback = !depotId ? 'NO_DEPOT' : lookup.unavailable ? 'DEPOT_UNREACHABLE' : null;
 
     const productById = await this.pricedAll(lines.map((l) => l.productId));
     const items: CreateOrderItemData[] = [];
@@ -324,7 +333,45 @@ export class OrderService {
       items,
       subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
       tierPricedTotal,
+      catalogFallback,
     };
+  }
+
+  /**
+   * Leave a trace when an order was priced from the catalog instead of from its depot.
+   *
+   * On the order's own timeline, so reconciliation and whoever handles the complaint can
+   * both see it — an order billed at the wrong price that nobody knows about is a money
+   * difference discovered weeks later, at reconciliation, with no way back to the cause.
+   *
+   * Fail-open, like the pricing lookup it reports on: a failure to write the note must not
+   * unwind an order that has already been placed and paid for.
+   */
+  private async markCatalogPricing(
+    order: { id: string; status: OrderStatus; orderNumber: string; depotId: string | null },
+    reason: 'DEPOT_UNREACHABLE' | 'NO_DEPOT',
+  ): Promise<void> {
+    const note =
+      reason === 'DEPOT_UNREACHABLE'
+        ? 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout'
+        : 'Harga dasar katalog dipakai: order tidak terikat depot';
+    try {
+      await this.orders.appendNote(order.id, order.status, 'order-service', note);
+    } catch (err) {
+      this.logger.warn(`Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`);
+    }
+    // Only the unreachable case alerts. An address with no depot is an ordinary,
+    // already-visible state; paging somebody for each one would bury the real outage.
+    if (reason === 'DEPOT_UNREACHABLE') {
+      alertServerError({
+        method: 'POST',
+        path: 'checkout/pricing',
+        status: 200,
+        exception: new Error(
+          `Order ${order.orderNumber} (depot ${order.depotId}) dihargai dari katalog: depot-service tidak terjangkau`,
+        ),
+      });
+    }
   }
 
   /**
@@ -343,7 +390,7 @@ export class OrderService {
     // cannot be routed and there is nobody to ask, so the sweep skips it with a log
     // (subscription.service isolates each run) instead of placing a lost order.
     const depot = await this.resolveDepot(address);
-    const { items, subtotal } = await this.priceLines(depot.id, lines);
+    const { items, subtotal, catalogFallback } = await this.priceLines(depot.id, lines);
     const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
     const discountRate = this.config.subscriptionDiscountRate(depot.id);
     const discount = money(Math.min(subtotal, subtotal * discountRate));
@@ -364,6 +411,7 @@ export class OrderService {
       },
       '',
     );
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
 
     await this.notification.notify(
       'ORDER_RECEIVED',
@@ -400,7 +448,7 @@ export class OrderService {
       throw new NoOpenShiftError();
     }
 
-    const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
+    const { items, subtotal, catalogFallback } = await this.priceLines(input.depotId, input.lines);
     const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
     const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
@@ -441,6 +489,7 @@ export class OrderService {
     if (voucherCode) {
       await this.promo.redeem(voucherCode, customerId, order.id, subtotal, 0, authorization);
     }
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;

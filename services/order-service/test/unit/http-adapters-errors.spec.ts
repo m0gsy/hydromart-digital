@@ -229,7 +229,7 @@ describe('unparseable response bodies', () => {
   it('depot-pricing keeps a row that carries only a tier price', async () => {
     fetchMock.mockResolvedValue(res({ body: [{ productId: 'p1', tierPrice: 5500 }] }));
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1'], [10]);
-    expect(out.get('p1')).toEqual({ tierPrice: 5500 });
+    expect(out.prices.get('p1')).toEqual({ tierPrice: 5500 });
   });
 });
 
@@ -287,6 +287,6 @@ describe('edge-case parsing branches', () => {
       res({ ok: true, body: [{ productId: 'p1', adjustType: 'PERCENT' }] }),
     );
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1']);
-    expect(out.get('p1')).toEqual({ adjustType: 'PERCENT', value: 0 });
+    expect(out.prices.get('p1')).toEqual({ adjustType: 'PERCENT', value: 0 });
   });
 });

@@ -242,6 +242,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     };
   }
 
+  /** History rows written without a transition (catalog-pricing marker, design 4b). */
+  notes: { id: string; status: OrderStatus; changedBy: string; note: string }[] = [];
+
+  async appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void> {
+    this.notes.push({ id, status, changedBy, note });
+  }
+
   async applyStatus(
     id: string,
     status: OrderStatus,
@@ -707,11 +714,14 @@ export class FakeDepotPricing implements DepotPricingPort {
 
   private readonly tiers = new Map<string, { minQty: number; tierPrice: number }>();
 
+  /** Set to mimic depot-service being down: prices still resolve, flagged as not the depot's. */
+  unavailable = false;
+
   async getPrices(
     depotId: string,
     productIds: string[],
     quantities: number[] = [],
-  ): Promise<Map<string, DepotPrice>> {
+  ): Promise<{ prices: Map<string, DepotPrice>; unavailable: boolean }> {
     this.calls.push({ depotId, productIds });
     const forDepot = this.overrides.get(depotId) ?? new Map<string, DepotPrice>();
     const result = new Map<string, DepotPrice>();
@@ -723,7 +733,7 @@ export class FakeDepotPricing implements DepotPricingPort {
       const merged = { ...(row ?? {}), ...tiered };
       if (Object.keys(merged).length > 0) result.set(id, merged);
     });
-    return result;
+    return { prices: this.unavailable ? new Map() : result, unavailable: this.unavailable };
   }
 }
 

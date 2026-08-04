@@ -342,6 +342,13 @@ export class OrderPrismaRepository implements OrderRepository {
     };
   }
 
+  /** A history row and nothing else — the order's status is repeated, not changed. */
+  async appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void> {
+    await this.prisma.orderStatusHistory.create({
+      data: { orderId: id, status, changedBy, note },
+    });
+  }
+
   async applyStatus(
     id: string,
     status: OrderStatus,

@@ -142,6 +142,49 @@ describe('OrderService', () => {
   // The reconciliation reads litres off the ORDER LINE, not the live catalog. If the
   // snapshot ever stops being written, every meter comparison silently reports the
   // whole day's production as unaccounted-for water. These two guard that.
+  // Failing open is still right — nobody should be stopped from buying water because a
+  // pricing service blinked — but the order used to carry no sign it had happened, so a
+  // wrongly-priced order only turned up as a money difference at reconciliation.
+  describe('catalog pricing fallback leaves a trace', () => {
+    it('marks an order priced from the catalog because the depot was unreachable', async () => {
+      await addToCart(20000, 2);
+      pricing.unavailable = true;
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
+    it('says nothing when the depot answered', async () => {
+      await addToCart(20000, 1);
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([]);
+    });
+
+    // Fail-open all the way down: an order already placed and paid for must not unwind
+    // because the marker could not be written.
+    it('still places the order when the marker cannot be written', async () => {
+      await addToCart(20000, 1);
+      pricing.unavailable = true;
+      orders.appendNote = async () => {
+        throw new Error('history table down');
+      };
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address }),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('catalog volume snapshot', () => {
     it('freezes volumeMl and isGallon onto each checked-out line', async () => {
       const galon = catalog.seed({
