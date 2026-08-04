@@ -79,11 +79,12 @@ async function callAuth(
   path: string,
   // Every call site sends a body; `token` is what varies (logout carries one, verify does not).
   opts: { token?: string; body: unknown },
+  timeoutMs: number,
 ): Promise<{ status: number; data: unknown }> {
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${authBase}${path}`, {
       method: 'POST',
@@ -110,7 +111,14 @@ const isSession = (status: number, data: unknown): data is UpstreamSession =>
  * its own json() so non-session `/auth/*` paths fall through to the proxy with their
  * request body untouched (buffering it here would break the proxied stream).
  */
-export function createSessionRouter(authBase: string, secure: boolean): Router {
+export function createSessionRouter(
+  authBase: string,
+  secure: boolean,
+  // Injectable so the abort path can be exercised with real timers — supertest's own
+  // round-trip does not complete under jest's fake ones, and a ten-second wait in the
+  // unit suite is not a test.
+  timeoutMs: number = AUTH_TIMEOUT_MS,
+): Router {
   const r = Router();
 
   // OTP verify — the only customer/staff login that yields tokens.
@@ -118,7 +126,7 @@ export function createSessionRouter(authBase: string, secure: boolean): Router {
     let status: number;
     let data: unknown;
     try {
-      ({ status, data } = await callAuth(authBase, '/api/v1/auth/otp/verify', { body: req.body }));
+      ({ status, data } = await callAuth(authBase, '/api/v1/auth/otp/verify', { body: req.body }, timeoutMs));
     } catch {
       return res.status(503).json(UPSTREAM_DOWN);
     }
@@ -136,9 +144,12 @@ export function createSessionRouter(authBase: string, secure: boolean): Router {
     let status: number;
     let data: unknown;
     try {
-      ({ status, data } = await callAuth(authBase, '/api/v1/auth/token/refresh', {
-        body: { refreshToken: rt },
-      }));
+      ({ status, data } = await callAuth(
+        authBase,
+        '/api/v1/auth/token/refresh',
+        { body: { refreshToken: rt } },
+        timeoutMs,
+      ));
     } catch {
       // Upstream unreachable is NOT an expired session — clearing the cookies here would
       // sign every user out on a blip they had nothing to do with.
@@ -158,7 +169,7 @@ export function createSessionRouter(authBase: string, secure: boolean): Router {
     const rt = readCookie(req, RT_COOKIE);
     if (rt) {
       try {
-        await callAuth(authBase, '/api/v1/auth/logout', { token: at, body: { refreshToken: rt } });
+        await callAuth(authBase, '/api/v1/auth/logout', { token: at, body: { refreshToken: rt } }, timeoutMs);
       } catch {
         /* best-effort revoke; cookies are cleared regardless so the client is signed out */
       }

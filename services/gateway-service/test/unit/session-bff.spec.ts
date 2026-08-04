@@ -114,6 +114,32 @@ describe('createSessionRouter — otp/verify', () => {
     const [, init] = fetchMock.mock.calls[0]!;
     expect((init as { signal?: AbortSignal }).signal).toBeInstanceOf(AbortSignal);
   });
+
+  // The signal is only half the fix — something has to FIRE it. Without the timer the
+  // deadline is a decoration and an auth-service that never answers still holds the
+  // connection open. Real timers with an injected 20ms budget: supertest's own round-trip
+  // does not complete under jest's fake ones.
+  it('aborts the upstream call once the deadline passes, and answers 503', async () => {
+    let aborted = false;
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const { signal } = init as { signal: AbortSignal };
+          signal.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+        }),
+    );
+
+    const app = express();
+    app.use('/auth', createSessionRouter(AUTH_BASE, false, 20));
+    const res = await request(app).post('/auth/api/v1/auth/otp/verify').send({ otp: '000000' });
+
+    expect(aborted).toBe(true);
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ statusCode: 503, message: 'Layanan masuk sedang tidak tersedia.' });
+  });
 });
 
 describe('createSessionRouter — token/refresh', () => {
