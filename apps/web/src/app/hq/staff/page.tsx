@@ -6,8 +6,10 @@ import { UserGear } from '@phosphor-icons/react';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, DepotAdmin, Page } from '@/lib/types';
 
@@ -39,6 +41,8 @@ function initials(c: Customer): string {
 // Design 4a/4b — network staff directory with a role filter and the invite form.
 export default function HqStaffPage() {
   const { t } = useT();
+  // Deleting is SUPER_ADMIN-only; head office sees every other control on the row.
+  const { customer } = useAuth();
   const [roleFilter, setRoleFilter] = useState('');
 
   const list = useAsync<Page<Customer>>(
@@ -106,6 +110,9 @@ export default function HqStaffPage() {
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>
                 <ActiveToggle staff={s} onChanged={list.reload} />
+                {can('staffDelete', customer?.role) && (
+                  <DeleteStaff staff={s} onDeleted={list.reload} />
+                )}
               </Card>
             );
           })}
@@ -214,6 +221,86 @@ function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => 
       >
         {active ? t('hq.staff.deactivate') : t('hq.staff.activate')}
       </button>
+      {error && (
+        <p className="text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Delete a staff account. SUPER_ADMIN only, and it cannot be undone: the identity is
+ * anonymised across every service and the login is closed for good.
+ *
+ * The confirmation is a re-typed name, not a "are you sure?" dialog. Nobody reads those,
+ * and this is the one action in the console with nothing behind it.
+ */
+function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => void }) {
+  const { t } = useT();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const label = staff.fullName || staff.phone;
+
+  if (staff.status === 'DELETED') return null;
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.del(endpoints.auth.deleteStaff(staff.id), true);
+      setOpen(false);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.staff.deleteFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
+      >
+        {t('hq.staff.delete')}
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <p className="text-[11px] font-semibold text-red-700">
+        {t('hq.staff.deleteConfirm', { name: label })}
+      </p>
+      <div className="flex gap-1">
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          aria-label={t('hq.staff.deleteConfirm', { name: label })}
+          className="w-40 rounded-lg border border-app bg-transparent px-2 py-1 text-xs"
+        />
+        <button
+          type="button"
+          disabled={busy || typed.trim() !== label}
+          onClick={() => void remove()}
+          className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-bold text-white disabled:opacity-40"
+        >
+          {t('hq.staff.delete')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted"
+        >
+          {t('hq.staff.form.cancel')}
+        </button>
+      </div>
       {error && (
         <p className="text-[11px] font-medium text-red-600" role="alert">
           {error}

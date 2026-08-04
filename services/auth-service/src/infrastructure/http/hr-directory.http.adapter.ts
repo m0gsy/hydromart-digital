@@ -25,6 +25,10 @@ export class HrDirectoryHttpAdapter implements HrDirectoryPort {
     await this.post('employees/internal/status', { authSubjectId, active });
   }
 
+  async anonymiseEmployee(authSubjectId: string): Promise<void> {
+    await this.post('employees/internal/anonymise', { authSubjectId });
+  }
+
   private async post(path: string, input: unknown): Promise<void> {
     const { hrUrl, internalKey } = this.config.hrDirectory;
     if (!hrUrl || !internalKey) {

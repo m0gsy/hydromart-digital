@@ -238,6 +238,7 @@ export const hq = {
       franchise: 'Franchise dashboard',
       payout: 'Payout & commission',
       staffAdmin: 'Staff & roles',
+      staffDelete: 'Delete staff account',
       driverRoster: 'Driver roster',
       opsNotif: 'Ops notifications',
       tracking: 'Live tracking & dispatch',
@@ -458,6 +459,9 @@ export const hq = {
     activate: 'Activate',
     deactivate: 'Deactivate',
     statusChangeFailed: 'Could not change the account status.',
+    delete: 'Delete',
+    deleteConfirm: 'Type "{name}" again to delete permanently.',
+    deleteFailed: 'Could not delete the account.',
     form: {
       title: 'Invite / assign staff role',
       phone: 'Phone number',

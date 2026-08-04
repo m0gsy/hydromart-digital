@@ -46,7 +46,7 @@ describe('AccountController delegation', () => {
     logoutAll: jest.fn(),
   };
   const tokens = { logout: jest.fn() };
-  const controller = new AccountController(account as never, tokens as never);
+  const controller = new AccountController(account as never, tokens as never, { deleteStaffAccount: jest.fn() } as never);
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' };
 
   beforeEach(() => jest.clearAllMocks());

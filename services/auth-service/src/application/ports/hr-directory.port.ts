@@ -25,6 +25,15 @@ export interface HrDirectoryPort {
    * same change forever.
    */
   setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
+
+  /**
+   * Strip identity from one employee record when HQ deletes their account.
+   *
+   * The per-person form of the departed-staff retention sweep, and it keeps that sweep's
+   * split: biometrics, attendance and performance reviews go; payroll, bonuses, deductions
+   * and loans stay, ownerless, under the 10-year FINANCIAL rule.
+   */
+  anonymiseEmployee(authSubjectId: string): Promise<void>;
 }
 
 export interface ProvisionEmployeeInput {

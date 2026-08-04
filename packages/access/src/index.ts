@@ -113,6 +113,10 @@ export const CAPABILITIES = {
   // auth-service — staff & roles directory. NOT granted to DIREKTUR: minting accounts
   // stays with head office and the superuser.
   staffAdmin: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  // Deleting a staff account: anonymises the identity across services and cannot be undone.
+  // Deliberately NOT staffAdmin — head office holds that, and inviting somebody by mistake
+  // is a click away from being fixed while deleting them is not.
+  staffDelete: ['SUPER_ADMIN'],
   // depot-service — the supervision hierarchy (which depot belongs to which assistant
   // supervisor, who reports to whom, direct depot grants). Superuser only by decision:
   // this map is what every multi-depot scope resolves from.

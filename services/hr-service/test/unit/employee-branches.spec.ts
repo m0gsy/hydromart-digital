@@ -21,6 +21,13 @@ function p2002(target: string): Prisma.PrismaClientKnownRequestError {
 }
 
 class FakeRepo implements EmployeeRepository {
+  /** HQ deleted the account behind this employee (Fase 6). */
+  anonymisedAccounts: string[] = [];
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    this.anonymisedAccounts.push(authSubjectId);
+    return 1;
+  }
+
   /** Retention report: departed rows dormant since before the cutoff. */
   retentionEligible = 0;
   /** Retention enforcement: rows anonymised / embeddings purged, recorded for assertions. */

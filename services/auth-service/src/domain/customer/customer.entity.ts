@@ -198,6 +198,16 @@ export class Customer {
    * DELETED is never revived here — that identity has been anonymised, so "activate" would
    * bring back an account nobody can read back. Re-hiring mints a new one.
    */
+  /**
+   * Soft delete: the account can never sign in again and is filtered out of the staff
+   * directory. Irreversible on purpose — `setActive` and `promoteToStaff` both refuse to
+   * lift DELETED, because by the time this is called the identity has been anonymised and
+   * there is nothing left to bring back.
+   */
+  markDeleted(): void {
+    this.props.status = CustomerStatus.DELETED;
+  }
+
   setActive(active: boolean): void {
     if (this.props.status === CustomerStatus.DELETED) {
       return;

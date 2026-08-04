@@ -68,6 +68,9 @@ export const endpoints = {
     setStaffDepot: (id: string) => `/auth/api/v1/auth/staff/${id}/depot`,
     // PATCH { active }: suspends or restores the login AND their HR record (staffAdmin).
     setStaffActive: (id: string) => `/auth/api/v1/auth/staff/${id}/status`,
+    // DELETE: anonymises the identity across services and closes the login for good
+    // (staffDelete = SUPER_ADMIN). Irreversible.
+    deleteStaff: (id: string) => `/auth/api/v1/auth/staff/${id}`,
     // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
     drivers: '/auth/api/v1/auth/drivers',
   },

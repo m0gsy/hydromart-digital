@@ -38,8 +38,10 @@ describe('AccountService', () => {
   let hr: {
     calls: ProvisionEmployeeInput[];
     activeCalls: { authSubjectId: string; active: boolean }[];
+    anonymised: string[];
     provisionEmployee(i: ProvisionEmployeeInput): Promise<void>;
     setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
+    anonymiseEmployee(authSubjectId: string): Promise<void>;
   };
 
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'jest' };
@@ -61,6 +63,8 @@ describe('AccountService', () => {
       provisionEmployee: async (input) => void hr.calls.push(input),
       setEmployeeActive: async (authSubjectId, active) =>
         void hr.activeCalls.push({ authSubjectId, active }),
+      anonymiseEmployee: async (authSubjectId) => void hr.anonymised.push(authSubjectId),
+      anonymised: [],
     };
     service = new AccountService(customers, sessions, new AuditService(audit), hr);
   });

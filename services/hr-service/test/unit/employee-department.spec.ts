@@ -26,6 +26,13 @@ const baseInput = {
 
 /** Only the calls the department rule touches; the rest throw if the rule strays. */
 class FakeEmployees implements EmployeeRepository {
+  /** HQ deleted the account behind this employee (Fase 6). */
+  anonymisedAccounts: string[] = [];
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    this.anonymisedAccounts.push(authSubjectId);
+    return 1;
+  }
+
   rows: Employee[] = [];
   private seq = 0;
   async count(): Promise<number> {

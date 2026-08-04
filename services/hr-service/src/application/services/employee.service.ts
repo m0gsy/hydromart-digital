@@ -137,6 +137,15 @@ export class EmployeeService {
     return { deleted: await this.repo.anonymiseRetentionEligible(cutoff) };
   }
 
+  /**
+   * One employee scrubbed because HQ deleted their account (Fase 6). Reports what happened
+   * rather than throwing on a miss: auth-service holds identities that were never
+   * employees, and deleting one of those is not a failure.
+   */
+  async anonymiseByAccount(authSubjectId: string): Promise<{ anonymised: number }> {
+    return { anonymised: await this.repo.anonymiseByAuthSubjectId(authSubjectId) };
+  }
+
   /** Biometric purge on its own short window. */
   async purgeBiometrics(cutoff: Date): Promise<{ deleted: number }> {
     return { deleted: await this.repo.purgeFaceEmbeddings(cutoff) };

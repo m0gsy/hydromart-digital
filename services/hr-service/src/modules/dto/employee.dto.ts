@@ -191,6 +191,12 @@ export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, ['authSubj
   authSubjectId!: string;
 }
 
+/** An account deleted in the staff console; the employee record behind it is scrubbed. */
+export class AnonymiseEmployeeDto {
+  @IsUUID()
+  authSubjectId!: string;
+}
+
 /** A login switched off (or back on) in the staff console, arriving over the internal key. */
 export class SetEmployeeActiveDto {
   @IsUUID()

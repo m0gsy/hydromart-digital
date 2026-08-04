@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import {
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
@@ -99,6 +101,93 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       audit as never,
       new ConsentService(new InMemoryConsentRepository()),
     );
+  });
+
+  // HQ deleting a staff account: the same machinery, a different trigger. Every guard here
+  // exists because the action cannot be undone.
+  describe('deleteStaffAccount', () => {
+    const ACTOR = '99999999-9999-4999-8999-999999999999';
+    const TARGET = '11111111-1111-4111-8111-111111111111';
+
+    function makeService(overrides: {
+      role?: string;
+      superAdminTotal?: number;
+      hr?: { anonymiseEmployee: jest.Mock };
+    }) {
+      const saved: { id: string; status: string }[] = [];
+      const makeRow = (id: string) => {
+        const row = { id, role: overrides.role ?? 'KEPALA_DEPOT', status: 'ACTIVE' };
+        return { ...row, markDeleted: () => void (row.status = 'DELETED'), get status() { return row.status; } };
+      };
+      const repo = {
+        findById: jest.fn(async (id: string) => makeRow(id)),
+        listStaff: jest.fn(async () => ({ items: [], total: overrides.superAdminTotal ?? 3 })),
+        save: jest.fn(async (c: { id: string; status: string }) => {
+          saved.push({ id: c.id, status: c.status });
+          return c;
+        }),
+      };
+      return {
+        repo,
+        saved,
+        svc: new DataSubjectService(
+          requests as never,
+          repo as never,
+          customerData as never,
+          audit as never,
+          new ConsentService(new InMemoryConsentRepository()),
+          overrides.hr as never,
+        ),
+      };
+    }
+
+    it('anonymises across services, closes the login, and audits it as an admin action', async () => {
+      const hr = { anonymiseEmployee: jest.fn() };
+      const { svc, saved } = makeService({ hr });
+
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({ deleted: true });
+
+      expect(customerData.anonymise).toHaveBeenCalledWith(TARGET);
+      expect(requests.anonymised).toContain(TARGET);
+      expect(hr.anonymiseEmployee).toHaveBeenCalledWith(TARGET);
+      expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
+      // Its own action: "the owner asked" and "an admin did it" must stay distinguishable.
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'staff.account.deleted', customerId: ACTOR }),
+      );
+    });
+
+    it('refuses to delete the acting account', async () => {
+      const { svc } = makeService({});
+      await expect(svc.deleteStaffAccount(ACTOR, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+    });
+
+    // Deleting the last one would leave a system nobody can administer — including to
+    // undo this.
+    it('refuses to delete the last super admin, but allows one of several', async () => {
+      const last = makeService({ role: 'SUPER_ADMIN', superAdminTotal: 1 });
+      await expect(last.svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      const oneOfMany = makeService({ role: 'SUPER_ADMIN', superAdminTotal: 2 });
+      await expect(oneOfMany.svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+      });
+    });
+
+    // The login is already gone by then; raising here would report a failure for a
+    // deletion that did happen.
+    it('still completes when hr-service cannot be told', async () => {
+      const hr = { anonymiseEmployee: jest.fn(async () => Promise.reject(new Error('hr down'))) };
+      const { svc, saved } = makeService({ hr });
+
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({ deleted: true });
+      expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
+    });
   });
 
   it('refuses a second open request of the same type', async () => {

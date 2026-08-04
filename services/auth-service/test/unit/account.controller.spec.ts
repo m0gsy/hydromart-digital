@@ -11,7 +11,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
     getProfile: jest.fn(),
     listStaff: jest.fn(),
   };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,7 +55,7 @@ describe('AccountController.listDrivers depot scope', () => {
   const otherDepot = '22222222-2222-4222-8222-222222222222';
 
   const account = { getProfile: jest.fn(), listDrivers: jest.fn() };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -113,7 +113,7 @@ describe('AccountController.listDrivers depot scope', () => {
 
 describe('AccountController.importStaff', () => {
   const account = { importStaff: jest.fn() };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   it('hands the rows to the service and returns the summary untouched', async () => {
     const summary = { created: 1, updated: 0, skipped: 0, failed: 0, results: [{ row: 1, status: 'created' }] };
@@ -127,7 +127,7 @@ describe('AccountController.importStaff', () => {
 
 describe('AccountController.lookupByIds', () => {
   const account = { lookupByIds: jest.fn() };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {
     jest.clearAllMocks();

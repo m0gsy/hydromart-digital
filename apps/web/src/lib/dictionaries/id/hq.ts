@@ -241,6 +241,7 @@ export const hq = {
       franchise: 'Dashboard waralaba',
       payout: 'Payout & komisi',
       staffAdmin: 'Staf & peran',
+      staffDelete: 'Hapus akun staf',
       driverRoster: 'Roster driver',
       opsNotif: 'Notifikasi ops',
       tracking: 'Live tracking & dispatch',
@@ -461,6 +462,9 @@ export const hq = {
     activate: 'Aktifkan',
     deactivate: 'Nonaktifkan',
     statusChangeFailed: 'Gagal mengubah status akun.',
+    delete: 'Hapus',
+    deleteConfirm: 'Ketik ulang "{name}" untuk menghapus permanen.',
+    deleteFailed: 'Gagal menghapus akun.',
     form: {
       title: 'Undang / tetapkan peran staf',
       phone: 'Nomor telepon',

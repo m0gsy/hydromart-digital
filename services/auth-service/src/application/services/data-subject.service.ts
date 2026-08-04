@@ -1,10 +1,13 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
+  CustomerNotFoundError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
 } from '../../domain/errors/auth.errors';
+import { Role } from '../../domain/customer/role.enum';
+import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
 import {
   DataSubjectRequestRecord,
   DataSubjectRequestStatus,
@@ -25,6 +28,12 @@ export const PDP_AUDIT = {
   EXPORTED: 'pdp.request.exported',
   DELETED: 'pdp.request.anonymised',
   REJECTED: 'pdp.request.rejected',
+  /**
+   * HQ deleting a staff account. Deliberately NOT `pdp.request.anonymised`: both run the
+   * same machinery, but "the owner asked for it" and "an admin did it" answer different
+   * questions, and an audit that mixes them cannot tell them apart afterwards.
+   */
+  STAFF_DELETED: 'staff.account.deleted',
 } as const;
 
 export interface DataExport {
@@ -59,6 +68,9 @@ export class DataSubjectService {
     @Inject(AUTH_TOKENS.CustomerDataPort) private readonly customerData: CustomerDataPort,
     private readonly audit: AuditService,
     private readonly consents: ConsentService,
+    // Optional so existing construction sites (and the PDP specs) are untouched; the staff
+    // deletion path logs and continues when it is absent rather than half-failing.
+    @Optional() @Inject(HR_DIRECTORY_PORT) private readonly hr?: HrDirectoryPort,
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -137,6 +149,74 @@ export class DataSubjectService {
       metadata: { requestId: id, subject: found.customerId },
     });
     return { request };
+  }
+
+  /**
+   * HQ deleting a staff account (Fase 6). A new TRIGGER for the machinery above, not a
+   * second implementation of it: the same cross-service anonymisation runs, so there is one
+   * definition of what "deleted" means.
+   *
+   * Soft delete. A real row deletion is impossible here — orders, deliveries, payroll and
+   * commissions across a dozen services hold this `customerId` with no foreign key, so
+   * removing the row would leave references nobody can resolve. `DELETED` already refuses
+   * login and is already filtered out of the staff directory.
+   *
+   * Money stays. Payroll, bonuses, deductions and loans keep their rows without an owner,
+   * under the same FINANCIAL retention the departed-staff sweep uses; biometrics,
+   * attendance and performance reviews go, exactly as in that sweep.
+   *
+   * Two guards, both because this cannot be undone: nobody deletes their own account (the
+   * one account guaranteed to be signed in), and the last SUPER_ADMIN cannot be deleted —
+   * that would leave a system nobody can administer, including to undo this.
+   */
+  async deleteStaffAccount(targetId: string, actorId: string): Promise<{ deleted: true }> {
+    if (targetId === actorId) {
+      throw new BadRequestException('Akun sendiri tidak bisa dihapus.');
+    }
+    const target = await this.customers.findById(targetId);
+    if (!target) {
+      throw new CustomerNotFoundError();
+    }
+    if (target.role === Role.SUPER_ADMIN) {
+      const { total } = await this.customers.listStaff(1, 2, Role.SUPER_ADMIN);
+      if (total <= 1) {
+        throw new BadRequestException(
+          'Ini super admin terakhir. Angkat super admin lain dulu sebelum menghapus.',
+        );
+      }
+    }
+
+    // Identity first, status last: an interruption leaves an account that is anonymised but
+    // still ACTIVE — visibly wrong and re-runnable — rather than one that is DELETED with
+    // its name and phone intact, which looks finished and is not.
+    await this.customerData.anonymise(targetId);
+    await this.requests.anonymiseCustomer(targetId, anonymisedIdentity(targetId));
+    if (this.hr && target.role !== Role.FRANCHISE_OWNER) {
+      // The employee half. Fail-soft: the login is already gone, and a raise here would
+      // report failure for a deletion that has in fact happened.
+      try {
+        await this.hr.anonymiseEmployee(targetId);
+      } catch (err) {
+        this.logger.error(
+          `Employee record for ${targetId} not anonymised: ${(err as Error).message}`,
+        );
+      }
+    }
+    const fresh = await this.customers.findById(targetId);
+    if (fresh) {
+      fresh.markDeleted();
+      await this.customers.save(fresh);
+    }
+
+    await this.audit.record({
+      customerId: actorId,
+      action: PDP_AUDIT.STAFF_DELETED,
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+      metadata: { subject: targetId, role: target.role },
+    });
+    return { deleted: true };
   }
 
   /** Refuse with a reason. A refusal without one tells the customer nothing. */

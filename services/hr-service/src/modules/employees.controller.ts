@@ -17,6 +17,7 @@ import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '
 
 import { EmployeeService } from '../application/services/employee.service';
 import {
+  AnonymiseEmployeeDto,
   CreateEmployeeDto,
   ImportEmployeesDto,
   ListEmployeesDto,
@@ -104,6 +105,20 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Mirror a login enable/disable onto the employee record' })
   setActive(@Body() dto: SetEmployeeActiveDto): Promise<{ updated: boolean }> {
     return this.employees.setActiveInternal(dto.authSubjectId, dto.active);
+  }
+
+  /**
+   * HQ deleted a staff account: scrub the employee record behind it. Same split as the
+   * retention sweep — see EmployeePrismaRepository.anonymiseByAuthSubjectId.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Strip identity from the employee behind a deleted account' })
+  anonymiseByAccount(@Body() dto: AnonymiseEmployeeDto): Promise<{ anonymised: number }> {
+    return this.employees.anonymiseByAccount(dto.authSubjectId);
   }
 
   @Get()

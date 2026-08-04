@@ -1,8 +1,9 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
+import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Can, ImportSummary, Role as PlatformRole, Roles, isDepotLocked } from '@hydromart/platform';
@@ -33,6 +34,9 @@ export class AccountController {
   constructor(
     private readonly account: AccountService,
     private readonly tokens: TokenService,
+    // Deleting a staff account runs the same anonymisation the PDP queue does; the trigger
+    // differs, the machinery must not.
+    private readonly dataSubject: DataSubjectService,
   ) {}
 
   @Get('auth/me')
@@ -208,6 +212,22 @@ export class AccountController {
   ): Promise<PublicCustomerDto> {
     const staff = await this.account.setStaffActive(id, dto.active);
     return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Delete a staff account: anonymise the identity everywhere and close the login for good.
+   *
+   * `staffDelete` (SUPER_ADMIN), not `staffAdmin`: head office may invite, and a mistaken
+   * invite is one click from being fixed. This one is not undoable.
+   */
+  @Can('staffDelete')
+  @Delete('auth/staff/:id')
+  @ApiOperation({ summary: 'Delete (anonymise) a staff account — irreversible' })
+  async deleteStaff(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ deleted: true }> {
+    return this.dataSubject.deleteStaffAccount(id, user.sub);
   }
 
   @Can('staffAdmin')

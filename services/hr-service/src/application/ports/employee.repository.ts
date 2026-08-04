@@ -39,6 +39,8 @@ export interface EmployeeRepository {
    * employee row itself survives too — deleting it would orphan those money records.
    */
   anonymiseRetentionEligible(cutoff: Date): Promise<number>;
+  /** Same scrub, one employee, triggered by HQ deleting their login. 0 = no such row. */
+  anonymiseByAuthSubjectId(authSubjectId: string): Promise<number>;
   /**
    * Biometric purge on its own, much shorter window. A face cannot be reissued after a
    * leak, and its only purpose — clocking someone in — ends when they leave.

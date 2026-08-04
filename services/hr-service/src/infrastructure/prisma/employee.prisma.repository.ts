@@ -53,6 +53,38 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return ids.length;
   }
 
+  /**
+   * The same scrub for ONE employee, triggered by HQ deleting their account rather than by
+   * the retention cutoff. Identical split, deliberately: biometrics, attendance and reviews
+   * go; payroll, bonuses, deductions and loans stay ownerless under the 10-year FINANCIAL
+   * rule. Reusing the shape means "deleted" means one thing here, not two.
+   */
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { authSubjectId },
+      select: { id: true },
+    });
+    if (!employee) return 0;
+
+    await this.prisma.$transaction([
+      this.prisma.faceEmbedding.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.attendance.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.performanceReview.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.employee.update({
+        where: { id: employee.id },
+        data: {
+          fullName: EmployeePrismaRepository.REDACTED,
+          phone: '-',
+          email: null,
+          photoUrl: null,
+          authSubjectId: null,
+          status: 'RESIGNED',
+        },
+      }),
+    ]);
+    return 1;
+  }
+
   async purgeFaceEmbeddings(cutoff: Date): Promise<number> {
     const { count } = await this.prisma.faceEmbedding.deleteMany({
       where: {
