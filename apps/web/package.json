@@ -10,6 +10,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "_test_cov_note": "apps/web has no jest coverage gate, but it MUST answer to `npm run test:cov --workspaces` — that is the only test step CI runs. Without this the whole web suite, including the audit F-7/F-13 round-trip ratchets the perf baseline names, never executed in CI.",
+    "test:cov": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install --with-deps chromium"
   },

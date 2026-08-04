@@ -36,9 +36,12 @@ describe('request deadline (F-3)', () => {
   it('a request that never answers is aborted and surfaces as 408, not a hung promise', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('fetch', hangingFetch());
-    const pending = api.get('/slow');
+    // The handler is attached in the same tick the promise is created: `expect(...).rejects`
+    // attaches one turn later, and under fake timers the rejection lands first — vitest
+    // then reports it as an unhandled error even though the assertion passes.
+    const settled = api.get('/slow').catch((e: unknown) => e);
     await vi.advanceTimersByTimeAsync(15_000);
-    await expect(pending).rejects.toMatchObject({ status: 408 });
+    expect(await settled).toMatchObject({ status: 408 });
   });
 });
 
