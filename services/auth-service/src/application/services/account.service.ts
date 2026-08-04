@@ -231,6 +231,28 @@ export class AccountService {
   }
 
   /**
+   * Move a staff account to another depot without touching their role or status.
+   *
+   * Until now the ONLY way to change an account's depot from the console was to re-invite
+   * the same phone number, which happened to overwrite it — a transfer disguised as an
+   * invitation. A depot-locked role still cannot end up with no depot.
+   */
+  async setStaffDepot(customerId: string, depotId: string | null): Promise<PublicCustomer> {
+    const customer = await this.customers.findById(customerId);
+    if (!customer) {
+      throw new CustomerNotFoundError();
+    }
+    if (customer.role === Role.CUSTOMER) {
+      throw new InvalidStaffRoleError();
+    }
+    if (isDepotLocked(customer.role as unknown as PlatformRole) && (depotId ?? '') === '') {
+      throw new StaffDepotRequiredError();
+    }
+    customer.assignDepot(depotId);
+    return toPublicCustomer(await this.customers.save(customer));
+  }
+
+  /**
    * Pre-register an end customer imported by depot staff (bulk import). Creates the
    * identity in PENDING_VERIFICATION so the customer still claims it themselves: the
    * normal `/auth/register` flow re-issues an OTP for a PENDING phone and activates

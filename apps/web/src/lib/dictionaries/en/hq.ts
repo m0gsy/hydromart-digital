@@ -446,6 +446,9 @@ export const hq = {
     filterAll: 'All',
     status: { active: 'Active', inactive: 'Inactive' },
     empty: 'No staff yet. Invite the first one.',
+    depot: 'Assigned depot',
+    noDepot: 'No depot',
+    depotMoveFailed: 'Could not move the depot.',
     form: {
       title: 'Invite / assign staff role',
       phone: 'Phone number',

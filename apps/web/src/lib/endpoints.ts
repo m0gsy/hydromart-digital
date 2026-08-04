@@ -59,6 +59,9 @@ export const endpoints = {
     // Bulk form of the line above: one POST for the whole spreadsheet, with a per-row
     // verdict back, instead of the console firing N invites and counting them itself.
     importStaff: '/auth/api/v1/auth/staff/import',
+    // Move an existing staff account to another depot (PATCH, staffAdmin). Not the invite:
+    // re-inviting the same phone was the old way, and it re-roled them on the way past.
+    setStaffDepot: (id: string) => `/auth/api/v1/auth/staff/${id}/depot`,
     // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
     drivers: '/auth/api/v1/auth/drivers',
   },

@@ -5,11 +5,11 @@ import { UserGear } from '@phosphor-icons/react';
 
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, Page } from '@/lib/types';
+import type { Customer, DepotAdmin, Page } from '@/lib/types';
 
 const FILTER_ROLES = [
   'STAFF_DEPOT',
@@ -46,6 +46,15 @@ export default function HqStaffPage() {
     [roleFilter],
   );
   const items = list.data?.items ?? [];
+  // Fail-soft: with no depot list the rows still render, they just cannot be moved.
+  const { data: depotPage } = useAsync<Page<DepotAdmin> | null>(
+    () =>
+      api
+        .get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true)
+        .catch(() => null),
+    [],
+  );
+  const depots = depotPage?.items ?? [];
 
   return (
     <div className="flex flex-col gap-5">
@@ -91,6 +100,7 @@ export default function HqStaffPage() {
                   <p className="truncate font-semibold">{s.fullName || s.phone}</p>
                   <p className="truncate text-xs text-muted">{s.phone}</p>
                 </div>
+                <DepotPicker staff={s} depots={depots} onMoved={list.reload} />
                 <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
                 <Badge tone={active ? 'success' : 'neutral'}>
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
@@ -99,6 +109,66 @@ export default function HqStaffPage() {
             );
           })}
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Move one staff account between depots, inline on their row.
+ *
+ * Saves on change rather than behind an edit form: it is one field, and the service is the
+ * one that decides whether the move is legal (a depot-locked role may not end up with no
+ * depot). A refusal is shown on the row instead of being swallowed.
+ */
+function DepotPicker({
+  staff,
+  depots,
+  onMoved,
+}: {
+  staff: Customer;
+  depots: DepotAdmin[];
+  onMoved: () => void;
+}) {
+  const { t } = useT();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (depots.length === 0) return null;
+
+  async function move(depotId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(endpoints.auth.setStaffDepot(staff.id), { depotId: depotId || null }, true);
+      onMoved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('hq.staff.depotMoveFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <select
+        aria-label={t('hq.staff.depot')}
+        disabled={busy}
+        value={staff.assignedDepotId ?? ''}
+        onChange={(e) => void move(e.target.value)}
+        className="rounded-lg border border-app bg-transparent px-2 py-1 text-xs font-medium"
+      >
+        <option value="">{t('hq.staff.noDepot')}</option>
+        {depots.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.name}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <p className="text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
       )}
     </div>
   );

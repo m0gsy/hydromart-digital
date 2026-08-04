@@ -449,6 +449,9 @@ export const hq = {
     filterAll: 'Semua',
     status: { active: 'Aktif', inactive: 'Nonaktif' },
     empty: 'Belum ada staf. Undang staf pertama.',
+    depot: 'Depot penugasan',
+    noDepot: 'Tanpa depot',
+    depotMoveFailed: 'Gagal memindahkan depot.',
     form: {
       title: 'Undang / tetapkan peran staf',
       phone: 'Nomor telepon',

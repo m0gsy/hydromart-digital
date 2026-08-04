@@ -335,6 +335,50 @@ describe('AccountService', () => {
     expect(windowed).toBe(1); // only the January customer
   });
 
+  // Before this existed, the only way to move somebody's depot from the console was to
+  // re-invite their phone — which also re-roled them and woke a suspended account up.
+  it('moves a staff account to another depot without touching role or status', async () => {
+    const staff = await service.inviteStaff('+628993330001', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+
+    const moved = await service.setStaffDepot(staff.id, 'depot-2');
+
+    expect(moved).toMatchObject({
+      assignedDepotId: 'depot-2',
+      role: Role.STAFF_DEPOT,
+      status: CustomerStatus.ACTIVE,
+    });
+  });
+
+  it('never leaves a depot-locked account with no depot, and refuses a customer', async () => {
+    const staff = await service.inviteStaff('+628993330002', Role.KEPALA_DEPOT, 'Rina', 'depot-1');
+    await expect(service.setStaffDepot(staff.id, null)).rejects.toBeInstanceOf(
+      StaffDepotRequiredError,
+    );
+
+    const customer = makeCustomer({ phone: '+628993330003', role: Role.CUSTOMER });
+    customers.seed(customer);
+    await expect(service.setStaffDepot(customer.id, 'depot-1')).rejects.toBeInstanceOf(
+      InvalidStaffRoleError,
+    );
+  });
+
+  it('does not reactivate a suspended account when moving its depot', async () => {
+    const suspended = makeCustomer({
+      phone: '+628993330004',
+      role: Role.STAFF_DEPOT,
+      status: CustomerStatus.SUSPENDED,
+      assignedDepotId: 'depot-1',
+    });
+    customers.seed(suspended);
+
+    const moved = await service.setStaffDepot(suspended.id, 'depot-2');
+
+    expect(moved).toMatchObject({
+      assignedDepotId: 'depot-2',
+      status: CustomerStatus.SUSPENDED,
+    });
+  });
+
   it('lists drivers of one depot only when a depot is given', async () => {
     customers.seed(
       makeCustomer({

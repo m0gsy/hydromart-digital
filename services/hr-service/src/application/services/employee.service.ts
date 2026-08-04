@@ -458,14 +458,26 @@ export class EmployeeService {
     // this closes: the title said SPV while the token still said assistant. Done BEFORE
     // the employee write so a rejected re-role (auth down, role not HR-managed) fails the
     // edit outright instead of leaving the two records disagreeing.
-    if (input.role !== undefined && input.role !== current.role) {
+    // A depot move counts as much as a promotion. Sent even when the jabatan is untouched:
+    // leaving the account at the old depot is how a courier disappears from the dispatch
+    // dropdown of the depot they were just moved to.
+    const depotMoved = input.depotId !== undefined && input.depotId !== current.depotId;
+    const roleMoved = input.role !== undefined && input.role !== current.role;
+    if (roleMoved || depotMoved) {
+      const role = (input.role ?? current.role) as HrManagedRole | null;
       if (current.authSubjectId) {
+        if (!role) {
+          // assignRole carries the role the token must end up with; there is none to send.
+          throw new BadRequestException(
+            'Karyawan ini punya akun login tapi belum punya jabatan. Isi jabatannya dulu.',
+          );
+        }
         await this.identity.assignRole({
           customerId: current.authSubjectId,
-          role: input.role,
+          role,
           depotId: input.depotId ?? current.depotId,
         });
-      } else if (input.authSubjectId === undefined) {
+      } else if (roleMoved && input.authSubjectId === undefined) {
         // No account to move the jabatan onto. This used to pass silently: the promotion
         // did not happen and nothing said so. It stays refused until the person has a
         // login — `/hr/employees` flags exactly these rows.

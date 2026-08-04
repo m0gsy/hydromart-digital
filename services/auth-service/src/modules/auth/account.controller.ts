@@ -13,7 +13,12 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { ImportStaffDto, InviteStaffDto, ListStaffQueryDto } from './dto/staff.dto';
+import {
+  ImportStaffDto,
+  InviteStaffDto,
+  ListStaffQueryDto,
+  SetStaffDepotDto,
+} from './dto/staff.dto';
 import {
   MessageResponseDto,
   PublicCustomerDto,
@@ -159,6 +164,22 @@ export class AccountController {
       vehicleType: dto.vehicleType,
       plateNumber: dto.plateNumber,
     });
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Move a staff account to another depot. Separate from the invite: re-inviting the same
+   * phone was the only way to do this, and it carried a role and a reactivation with it.
+   */
+  @Can('staffAdmin')
+  @Patch('auth/staff/:id/depot')
+  @ApiOperation({ summary: "Move a staff account to another depot" })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async setStaffDepot(
+    @Param('id') id: string,
+    @Body() dto: SetStaffDepotDto,
+  ): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffDepot(id, dto.depotId ?? null);
     return PublicCustomerDto.from(staff);
   }
 

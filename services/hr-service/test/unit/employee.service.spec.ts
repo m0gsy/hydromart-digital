@@ -182,6 +182,41 @@ describe('EmployeeService (M1)', () => {
     expect((await svc.getById(hr, e.id)).role).toBe('STAFF_DEPOT');
   });
 
+  // Moving a courier between depots without touching their title left the ACCOUNT at the
+  // old depot — and once the dispatch roster is depot-filtered, that courier simply
+  // vanishes from their new depot's dropdown.
+  it('pushes a depot move onto the login even when the jabatan does not change', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { depotId: DEPOT_B });
+
+    expect(identity.roleCalls).toEqual([
+      {
+        customerId: '11111111-1111-4111-8111-111111111111',
+        role: 'STAFF_DEPOT',
+        depotId: DEPOT_B,
+      },
+    ]);
+  });
+
+  it('says nothing to auth when neither jabatan nor depot moved', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { position: 'Kurir Senior', depotId: DEPOT_A });
+
+    expect(identity.roleCalls).toEqual([]);
+  });
+
   it('leaves an employee with no account alone when the edit does not touch the jabatan', async () => {
     const { identity, svc } = make();
     const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });

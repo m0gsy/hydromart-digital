@@ -10,6 +10,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -72,6 +73,18 @@ export class InviteStaffDto {
   @IsString()
   @MaxLength(20)
   plateNumber?: string;
+}
+
+/**
+ * Move an existing staff account to another depot. `null` clears it, which only staff
+ * above depot level may end up with — the service refuses it for a depot-locked role.
+ */
+export class SetStaffDepotDto {
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  depotId?: string | null;
 }
 
 /**

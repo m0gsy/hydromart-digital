@@ -178,6 +178,16 @@ export class Customer {
     }
   }
 
+  /**
+   * Move a staff account to another depot, and nothing else.
+   *
+   * Deliberately not `promoteToStaff(sameRole, depot)`: that one activates a suspended
+   * account, and a transfer must never be a way to quietly hand somebody their login back.
+   */
+  assignDepot(depotId: string | null): void {
+    this.props.assignedDepotId = depotId;
+  }
+
   /** Snapshot for persistence mapping. */
   toProps(): CustomerProps {
     return { ...this.props };
