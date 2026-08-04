@@ -393,13 +393,56 @@ describe('AnnouncementPrismaRepository', () => {
     m(p, 'announcement').findMany.mockResolvedValue([]);
     const repo = new AnnouncementPrismaRepository(asService(p));
 
-    await repo.listPublished(5);
+    // H-18: the feed query narrows to THIS employee's audience before `take` applies —
+    // the old `where: { publishedAt: { not: null } }` took the newest 50 notices in the
+    // company and let other depots' traffic push a depot's own notice out of the window.
+    await repo.listFeedFor(
+      {
+        employeeId: 'emp-1',
+        depotId: 'depot-1',
+        departmentId: 'dept-1',
+        position: '  Kepala Depot  ',
+      },
+      5,
+    );
     expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
-      where: { publishedAt: { not: null } },
+      where: {
+        publishedAt: { not: null },
+        targets: {
+          some: {
+            OR: [
+              { dimension: 'COMPANY' },
+              { dimension: 'EMPLOYEE', value: 'emp-1' },
+              { dimension: 'DEPOT', value: 'depot-1' },
+              { dimension: 'DEPARTMENT', value: 'dept-1' },
+              { dimension: 'POSITION', value: { equals: 'Kepala Depot', mode: 'insensitive' } },
+            ],
+          },
+        },
+      },
       include: { targets: true },
       orderBy: { publishedAt: 'desc' },
       take: 5,
     });
+
+    // Staff above a single depot have no depotId: the DEPOT clause must be absent, not
+    // `value: null`, or a target with a null value would match them.
+    await repo.listFeedFor(
+      { employeeId: 'emp-2', depotId: null, departmentId: null, position: '' },
+      5,
+    );
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          publishedAt: { not: null },
+          targets: {
+            some: {
+              OR: [{ dimension: 'COMPANY' }, { dimension: 'EMPLOYEE', value: 'emp-2' }],
+            },
+          },
+        },
+      }),
+    );
     await repo.listDue(now);
     expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith({
       where: { publishedAt: null, scheduledAt: { not: null, lte: now } },
