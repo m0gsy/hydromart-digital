@@ -7,8 +7,9 @@ import {
   IsOptional,
   IsPositive,
   IsString,
-  Min,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 import { DiscountType } from '../../domain/voucher';
@@ -78,18 +79,20 @@ export class ProposeVoucherRequestDto {
 }
 
 export class ListVoucherRequestsQueryDto {
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @ApiPropertyOptional({ enum: VoucherRequestStatus, description: 'Filter by decision status.' })

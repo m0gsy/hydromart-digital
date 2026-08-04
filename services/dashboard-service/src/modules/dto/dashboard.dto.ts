@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsISO8601, IsOptional, IsUUID, Matches } from 'class-validator';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class ExecutiveQueryDto {
   @ApiPropertyOptional({ description: 'Range start (ISO 8601), forwarded to reports.' })
@@ -13,6 +13,7 @@ export class ExecutiveQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 

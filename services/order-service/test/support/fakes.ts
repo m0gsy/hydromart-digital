@@ -261,9 +261,17 @@ export class InMemoryOrderRepository implements OrderRepository {
       total: all.length,
     };
   }
-  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(
+    statuses: OrderStatus[],
+    before: Date,
+    limit = 500,
+  ): Promise<OrderRecord[]> {
+    // Models the real repository: oldest first, capped — a test that sweeps a backlog
+    // has to see the same batching production does.
     return this.rows
       .filter((r) => statuses.includes(r.status) && r.createdAt < before)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
       .map((r) => structuredClone(r));
   }
 

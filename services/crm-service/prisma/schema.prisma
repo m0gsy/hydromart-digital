@@ -147,6 +147,9 @@ model Notification {
   opsReads OpsNotificationRead[]
 
   @@index([customerId, createdAt])
+  /// The ops centre feed reads "these event types, newest first" — no customer filter,
+  /// so the index above cannot serve it (audit DB-3).
+  @@index([event, createdAt])
   @@map("notifications")
 }
 

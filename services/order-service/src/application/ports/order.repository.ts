@@ -302,8 +302,12 @@ export interface OrderRepository {
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
   search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
-  /** Orders in any of `statuses` placed before `before` — candidates for the stale sweep. */
-  findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]>;
+  /**
+   * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.
+   * Oldest first and capped at `limit`, so one tick cannot try to load an unbounded
+   * backlog; the next tick continues where this one stopped (audit H-47).
+   */
+  findStaleIn(statuses: OrderStatus[], before: Date, limit?: number): Promise<OrderRecord[]>;
   /**
    * Keyset-paginated COMPLETED orders ordered by (createdAt asc, id asc), for the
    * recommendation-service rebuild feed. `cursor` is opaque (the id of the first

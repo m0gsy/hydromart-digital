@@ -1,6 +1,7 @@
 import { validateSync } from 'class-validator';
 
 import { IsNotBefore } from './date-range.validator';
+import { IsWithinDays, MAX_RANGE_DAYS } from './date-range-span.validator';
 import { IsIanaTimezone } from './timezone.validator';
 import { IsPublicHttpsUrl } from './public-url.validator';
 
@@ -8,6 +9,18 @@ class Range {
   from?: string;
   @IsNotBefore('from')
   to?: string;
+}
+
+class Span {
+  from?: string;
+  @IsWithinDays('from')
+  to?: string;
+}
+
+class ShortSpan {
+  start?: string;
+  @IsWithinDays('start', 7)
+  end?: string;
 }
 
 class Settings {
@@ -38,6 +51,30 @@ describe('IsNotBefore', () => {
   it('stays silent when a bound is absent or unparseable (other decorators own that)', () => {
     expect(errorsFor(Range, { to: '2026-07-01' })).toEqual([]);
     expect(errorsFor(Range, { from: 'not-a-date', to: '2026-07-01' })).toEqual([]);
+  });
+});
+
+describe('IsWithinDays', () => {
+  it('rejects a window wider than the default year', () => {
+    expect(errorsFor(Span, { from: '2020-01-01', to: '2026-01-01' })).toContain('isWithinDays');
+  });
+
+  it('accepts a window exactly at the cap', () => {
+    const from = new Date('2026-01-01T00:00:00.000Z');
+    const to = new Date(from.getTime() + MAX_RANGE_DAYS * 24 * 60 * 60 * 1000);
+    expect(errorsFor(Span, { from: from.toISOString(), to: to.toISOString() })).toEqual([]);
+  });
+
+  it('honours a per-endpoint cap', () => {
+    expect(errorsFor(ShortSpan, { start: '2026-07-01', end: '2026-07-05' })).toEqual([]);
+    expect(errorsFor(ShortSpan, { start: '2026-07-01', end: '2026-07-30' })).toContain(
+      'isWithinDays',
+    );
+  });
+
+  it('stays silent when a bound is absent or unparseable (other decorators own that)', () => {
+    expect(errorsFor(Span, { to: '2026-07-01' })).toEqual([]);
+    expect(errorsFor(Span, { from: 'not-a-date', to: '2026-07-01' })).toEqual([]);
   });
 });
 

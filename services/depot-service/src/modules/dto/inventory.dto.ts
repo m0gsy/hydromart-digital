@@ -22,7 +22,7 @@ import {
 
 import { InventoryItemType, StockMovementType } from '../../domain/inventory';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class ListInventoryQueryDto {
   @ApiPropertyOptional({ enum: InventoryItemType })
@@ -52,13 +52,15 @@ export class ListStockMovementsQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 50, minimum: 1, maximum: 100 })
@@ -84,6 +86,7 @@ export class WastageQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 

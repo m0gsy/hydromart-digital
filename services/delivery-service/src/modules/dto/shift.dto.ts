@@ -4,7 +4,7 @@ import { IsDateString, IsEnum, IsLatitude, IsLongitude, IsOptional, IsUUID } fro
 
 import { ShiftStatus } from '../../domain/shift';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class CheckInDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the courier is checking in at.' })
@@ -66,5 +66,6 @@ export class ListShiftsQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }

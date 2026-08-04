@@ -18,7 +18,7 @@ import {
 
 import { PaymentMethod, PaymentStatus } from '../../domain/payment';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class InitiatePaymentDto {
   @ApiProperty({ format: 'uuid', description: 'The order being paid for.' })
@@ -80,6 +80,7 @@ export class DepotCashQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -94,11 +95,12 @@ export class ListPaymentsQueryDto {
   @IsEnum(PaymentStatus)
   status?: PaymentStatus;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
@@ -120,6 +122,7 @@ export class UnsettledByMethodQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 

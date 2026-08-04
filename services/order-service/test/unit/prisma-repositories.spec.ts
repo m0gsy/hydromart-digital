@@ -4,7 +4,11 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
-import { DuplicateCheckoutError, OrderAlreadyVoidedError } from '../../src/domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  ReportRangeTooLargeError,
+} from '../../src/domain/errors';
 
 // Unit-tests the order-service Prisma repositories against per-model jest.fn() mocks of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma
@@ -523,7 +527,7 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
-  it('finds stale orders in the given statuses before a cutoff', async () => {
+  it('finds stale orders in the given statuses before a cutoff, oldest first and capped', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     const before = new Date('2026-01-05');
     await repo.findStaleIn([OrderStatus.CREATED, OrderStatus.CONFIRMED], before);
@@ -533,7 +537,15 @@ describe('OrderPrismaRepository', () => {
         createdAt: { lt: before },
       },
       include: expect.any(Object),
+      orderBy: { createdAt: 'asc' },
+      take: 500,
     });
+  });
+
+  it('lets the caller shrink the stale-sweep batch', async () => {
+    order.findMany.mockResolvedValue([]);
+    await repo.findStaleIn([OrderStatus.CREATED], new Date('2026-01-05'), 25);
+    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 25 }));
   });
 
   it('short-circuits an empty status list without querying', async () => {
@@ -942,7 +954,7 @@ describe('OrderPrismaRepository', () => {
     expect(await repo.audienceReach()).toBe(0);
   });
 
-  it('lists every order for a depot within a range', async () => {
+  it('lists every order for a depot within a range, one keyset page at a time', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     await repo.ordersForDepot('depot-1', {
       from: new Date('2026-01-01'),
@@ -954,8 +966,27 @@ describe('OrderPrismaRepository', () => {
         createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') },
       },
       include: expect.any(Object),
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
+  });
+
+  it('walks past the first page with a cursor and stops on a short page', async () => {
+    const full = Array.from({ length: 500 }, (_, i) => ({ ...orderRow(), id: `o-${i}` }));
+    order.findMany.mockResolvedValueOnce(full).mockResolvedValueOnce([orderRow()]);
+    const out = await repo.ordersForDepot('depot-1', {});
+    expect(out).toHaveLength(501);
+    expect(order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: { id: 'o-499' }, skip: 1 }),
+    );
+  });
+
+  it('refuses a window bigger than the report ceiling instead of truncating it', async () => {
+    // Every page comes back full, so the walk never terminates on its own — exactly the
+    // shape of "a report over a range nobody should ask for in one response".
+    const full = Array.from({ length: 500 }, (_, i) => ({ ...orderRow(), id: `o-${i}` }));
+    order.findMany.mockResolvedValue(full);
+    await expect(repo.ordersForDepot('depot-1', {})).rejects.toThrow(ReportRangeTooLargeError);
   });
 
   it('estimates a segment size from raw rows (default 0)', async () => {

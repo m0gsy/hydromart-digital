@@ -85,10 +85,11 @@ export class VoidOrderRevenueDto {
 }
 
 export class LedgerQueryDto {
-  @ApiPropertyOptional({ minimum: 1, default: 1 })
+  @ApiPropertyOptional({ minimum: 1, default: 1, maximum: 1000 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page = 1;
 
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 20 })

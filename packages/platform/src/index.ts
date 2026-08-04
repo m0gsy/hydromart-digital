@@ -75,9 +75,18 @@ export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { GlobalValidationPipe } from './nest/validation.pipe';
 export { IsNotBefore } from './nest/date-range.validator';
+export { IsWithinDays, MAX_RANGE_DAYS } from './nest/date-range-span.validator';
 export { IsPublicHttpsUrl } from './nest/public-url.validator';
 export { IsIanaTimezone } from './nest/timezone.validator';
 export { enableMetrics } from './nest/metrics';
+export {
+  DEFAULT_MAX_ROWS,
+  loggedQueryBounds,
+  queryBoundsMiddleware,
+  type QueryBoundsMiddleware,
+  type QueryBoundsOptions,
+  type QueryBoundsParams,
+} from './nest/query-bounds';
 export { protectDocs } from './nest/docs-guard';
 export { requiredSecret, optionalSecret } from './config/env-secret';
 export { sniffFileType, SNIFFED_MIME, type SniffedType } from './upload/file-type';

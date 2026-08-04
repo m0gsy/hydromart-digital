@@ -13,7 +13,7 @@ import { IsUUID } from 'class-validator';
 
 import { CashDirection } from '../../domain/cashbook';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class ListCashbookQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to list cashbook entries for.' })
@@ -29,6 +29,7 @@ export class ListCashbookQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 

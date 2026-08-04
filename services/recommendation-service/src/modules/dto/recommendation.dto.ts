@@ -1,14 +1,25 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMinSize,
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 /* ---------- Query DTOs ---------- */
 
 export class LimitQueryDto {
-  @ApiPropertyOptional({ default: 10, minimum: 1, description: 'Max number of items to return.' })
+  @ApiPropertyOptional({ default: 10, minimum: 1, description: 'Max number of items to return.', maximum: 100 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100)
   @Type(() => Number)
   limit?: number;
 }
@@ -19,26 +30,29 @@ export class TrendingQueryDto {
   @IsUUID()
   depotId?: string;
 
-  @ApiPropertyOptional({ default: 7, minimum: 1, description: 'Trending window, in days.' })
+  @ApiPropertyOptional({ default: 7, minimum: 1, description: 'Trending window, in days.', maximum: 366 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(366)
   @Type(() => Number)
   days?: number;
 
-  @ApiPropertyOptional({ default: 10, minimum: 1, description: 'Max number of items to return.' })
+  @ApiPropertyOptional({ default: 10, minimum: 1, description: 'Max number of items to return.', maximum: 100 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100)
   @Type(() => Number)
   limit?: number;
 }
 
 export class RebuildQueryDto {
-  @ApiPropertyOptional({ default: 100, minimum: 1, description: 'Max orders to pull per feed page.' })
+  @ApiPropertyOptional({ default: 100, minimum: 1, description: 'Max orders to pull per feed page.', maximum: 500 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(500)
   @Type(() => Number)
   limit?: number;
 }

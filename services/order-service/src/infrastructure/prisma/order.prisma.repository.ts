@@ -6,6 +6,7 @@ import { OrderStatus } from '../../domain/order-status';
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
+  ReportRangeTooLargeError,
   StaleOrderStatusError,
 } from '../../domain/errors';
 import {
@@ -33,6 +34,17 @@ import {
 } from '../../application/ports/order.repository';
 import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
+
+/** Rows per keyset page when a report has to walk a whole window (audit H-46). */
+const REPORT_PAGE_SIZE = 500;
+/**
+ * Ceiling on one report's window. ~20k orders is several months for a busy depot and
+ * still fits comfortably in memory; past it the caller is asked to narrow the range
+ * rather than handed a number built from part of it.
+ */
+const MAX_REPORT_ORDERS = 20_000;
+/** Orders one stale-sweep tick will claim. The next tick picks up the rest. */
+const STALE_SWEEP_BATCH = 500;
 
 type Decimalish = { toNumber(): number };
 
@@ -362,11 +374,19 @@ export class OrderPrismaRepository implements OrderRepository {
     return { items: rows.map((r) => this.toRecord(r)), total };
   }
 
-  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(
+    statuses: OrderStatus[],
+    before: Date,
+    limit = STALE_SWEEP_BATCH,
+  ): Promise<OrderRecord[]> {
     if (statuses.length === 0) return [];
+    // Bounded batch, oldest first: the sweep runs on a schedule, so a backlog is drained
+    // over several ticks instead of one tick trying to load every stale order at once.
     const rows = await this.prisma.order.findMany({
       where: { status: { in: statuses }, createdAt: { lt: before } },
       include: INCLUDE,
+      orderBy: { createdAt: 'asc' },
+      take: limit,
     });
     return rows.map((r) => this.toRecord(r));
   }
@@ -759,17 +779,38 @@ export class OrderPrismaRepository implements OrderRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  /**
+   * Every depot report is built from this, and it used to be one unbounded `findMany`
+   * with the full item/history include — the cost of a report was whatever that depot
+   * had ever sold (audit H-46).
+   *
+   * It still returns the whole window, because a report over part of a month is wrong,
+   * not slower. What changed is how: a keyset walk in fixed pages, so peak memory is one
+   * page rather than the result set, and a hard ceiling that REFUSES instead of quietly
+   * returning a partial month.
+   */
   async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),
     };
-    const rows = await this.prisma.order.findMany({
-      where: { depotId, ...(range.from || range.to ? { createdAt } : {}) },
-      include: INCLUDE,
-      orderBy: { createdAt: 'asc' },
-    });
-    return rows.map((r) => this.toRecord(r));
+    const where = { depotId, ...(range.from || range.to ? { createdAt } : {}) };
+
+    const out: OrderRecord[] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const rows = await this.prisma.order.findMany({
+        where,
+        include: INCLUDE,
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: REPORT_PAGE_SIZE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      out.push(...rows.map((r) => this.toRecord(r)));
+      if (rows.length < REPORT_PAGE_SIZE) return out;
+      if (out.length >= MAX_REPORT_ORDERS) throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
+      cursor = rows[rows.length - 1].id;
+    }
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {

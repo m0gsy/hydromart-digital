@@ -43,6 +43,10 @@ model CustomerProfile {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
+  /// The depot CRM lists every customer whose favourite depot is this one, on every
+  /// page open. Without this the query is a sequential scan of the whole customer
+  /// base (audit DB-2); the primary key on customerId does nothing for it.
+  @@index([favoriteDepotId])
   @@map("customer_profiles")
 }
 

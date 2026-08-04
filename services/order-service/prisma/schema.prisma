@@ -115,12 +115,13 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([customerId])
-  @@index([status])
-  @@index([depotId])
   // Reporting + paginated list all filter/sort on createdAt; composites back the
-  // status- and depot-scoped report predicates (audit DB-3).
+  // customer-, status- and depot-scoped predicates (audit DB-3, DB-4). The three
+  // single-column indexes these replaced were redundant: Postgres uses the leftmost
+  // prefix of a composite for the same equality lookups, and every extra index is
+  // another write to maintain on the busiest table in the system.
   @@index([createdAt])
+  @@index([customerId, createdAt])
   @@index([status, createdAt])
   @@index([depotId, createdAt])
   // B-13: one order per (buyer, idempotency key). Postgres treats every NULL as distinct,
