@@ -242,14 +242,32 @@ export class OrderPrismaRepository implements OrderRepository {
       .map((g) => g.customerId)
       .slice(0, limit);
     if (dueIds.length === 0) return [];
-    // One latest order per due customer (distinct + desc) for the phone/name snapshot.
-    const rows = await this.prisma.order.findMany({
-      where: { customerId: { in: dueIds } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
-    return rows;
+    return this.latestContactPerCustomer(dueIds);
+  }
+
+  /**
+   * The phone/name snapshot from each customer's most recent order.
+   *
+   * DISTINCT ON rather than Prisma's `distinct`: that option is applied to the rows the
+   * query returned, so combining it with any `take` — including the default bound every
+   * findMany now carries — can dedupe down to fewer customers than were asked for, and
+   * the missing ones simply have no contact details. Postgres does the dedupe here, so
+   * the result is exactly one row per id.
+   */
+  private latestContactPerCustomer(
+    customerIds: string[],
+    depotId?: string,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
+    const scope = depotId ? Prisma.sql`AND "depotId" = ${depotId}::uuid` : Prisma.empty;
+    return this.prisma.$queryRaw<{ customerId: string; phone: string; recipientName: string }[]>(
+      Prisma.sql`
+        SELECT DISTINCT ON ("customerId") "customerId", "phone", "recipientName"
+        FROM "orders"
+        WHERE "customerId" IN (${Prisma.join(customerIds.map((id) => Prisma.sql`${id}::uuid`))})
+        ${scope}
+        ORDER BY "customerId", "createdAt" DESC
+      `,
+    );
   }
 
   async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
@@ -748,14 +766,10 @@ export class OrderPrismaRepository implements OrderRepository {
       _max: { createdAt: true },
     });
     if (grouped.length === 0) return [];
-    // Latest order per customer (distinct + desc) for the name/phone WA-follow-up snapshot.
+    // Latest order per customer for the name/phone WA-follow-up snapshot — see
+    // latestContactPerCustomer for why this is DISTINCT ON and not Prisma's `distinct`.
     const ids = grouped.map((g) => g.customerId);
-    const contacts = await this.prisma.order.findMany({
-      where: { customerId: { in: ids }, depotId },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
+    const contacts = await this.latestContactPerCustomer(ids, depotId);
     const contactBy = new Map(contacts.map((c) => [c.customerId, c]));
     return grouped.map((g) => ({
       customerId: g.customerId,

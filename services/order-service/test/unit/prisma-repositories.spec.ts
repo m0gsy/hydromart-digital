@@ -625,18 +625,16 @@ describe('OrderPrismaRepository', () => {
       { customerId: 'cust-new', _max: { createdAt: new Date('2026-01-10') } },
       { customerId: 'cust-null', _max: { createdAt: null } },
     ]);
-    order.findMany.mockResolvedValue([
+    $queryRaw.mockResolvedValue([
       { customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' },
     ]);
     const cutoff = new Date('2026-01-01');
     const out = await repo.findReorderReminderTargets(cutoff, 10);
     expect(out).toEqual([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
-    expect(order.findMany).toHaveBeenCalledWith({
-      where: { customerId: { in: ['cust-old'] } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
+    // DISTINCT ON in Postgres, not Prisma's `distinct`: the latter dedupes the rows the
+    // query returned, so any take (including the default bound) can lose customers.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(order.findMany).not.toHaveBeenCalled();
   });
 
   it('returns [] and skips the snapshot query when nobody is due', async () => {
@@ -644,7 +642,7 @@ describe('OrderPrismaRepository', () => {
       { customerId: 'cust-new', _max: { createdAt: new Date('2026-06-01') } },
     ]);
     expect(await repo.findReorderReminderTargets(new Date('2026-01-01'), 10)).toEqual([]);
-    expect(order.findMany).not.toHaveBeenCalled();
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('creates and maps a review', async () => {
@@ -785,7 +783,7 @@ describe('OrderPrismaRepository', () => {
   it('depotCustomerAggregates: empty groupBy short-circuits (no contact fetch)', async () => {
     order.groupBy.mockResolvedValue([]);
     expect(await repo.depotCustomerAggregates('depot-1')).toEqual([]);
-    expect(order.findMany).not.toHaveBeenCalled();
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('depotCustomerAggregates: maps aggregates + latest contact, null sum/contact defaults', async () => {
@@ -806,7 +804,7 @@ describe('OrderPrismaRepository', () => {
       },
     ]);
     // c1 has a latest-order contact snapshot; c2 has none → name/phone default to null.
-    order.findMany.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
+    $queryRaw.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
 
     const out = await repo.depotCustomerAggregates('depot-1');
     expect(out).toEqual([
@@ -829,9 +827,9 @@ describe('OrderPrismaRepository', () => {
         lastOrderAt: new Date('2026-02-01'),
       },
     ]);
-    expect(order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ distinct: ['customerId'], orderBy: { createdAt: 'desc' } }),
-    );
+    // The contact snapshot is one DISTINCT ON query, scoped to this depot.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(order.findMany).not.toHaveBeenCalled();
   });
 
   describe('voidWalkIn', () => {
