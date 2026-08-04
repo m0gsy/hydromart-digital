@@ -31,7 +31,7 @@ const STAFF_ROLES = [
 // even be picked; the commit loop it also hand-rolled now lives behind one endpoint.
 export default function HqStaffImportPage() {
   const depots = useAsync<Page<DepotAdmin>>(() =>
-    api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+    api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
   );
   const depotRows = useMemo(() => depots.data?.items ?? [], [depots.data]);
 

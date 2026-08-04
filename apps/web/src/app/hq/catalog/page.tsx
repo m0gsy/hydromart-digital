@@ -207,7 +207,7 @@ function ProductEditor({
 function CategoryManager({ onChange }: { onChange: () => void }) {
   const { t } = useT();
   const { toast } = useToast();
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categoriesAll, true));
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categoriesAll, true));
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
@@ -363,7 +363,7 @@ export default function HqCatalogPage() {
   const catalog = useAsync<Page<Product>>(() =>
     api.get(endpoints.products.browseAll({ limit: 100 }), true),
   );
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories));
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories));
 
   const products = catalog.data?.items ?? [];
 

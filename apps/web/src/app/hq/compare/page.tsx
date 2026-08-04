@@ -35,7 +35,7 @@ export default function HqComparePage() {
   const { toast } = useToast();
   const range = useMemo(range30, []);
   const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
-  const depotList = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depotList = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
   const [selected, setSelected] = useState<string[]>([]);
 

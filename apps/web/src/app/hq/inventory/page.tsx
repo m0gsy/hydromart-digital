@@ -23,7 +23,7 @@ export default function HqInventoryPage() {
   const { t } = useT();
 
   const data = useAsync<DepotStock[]>(async () => {
-    const list = await api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
+    const list = await api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
     const depots = list.items.filter((d) => d.active);
     return Promise.all(
       depots.map(async (depot) => {

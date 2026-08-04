@@ -62,7 +62,7 @@ export default function HqReportsExportPage() {
   const fromIso = safeIso(from);
   const toIso = safeIso(to, true);
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const dash = useAsync<ExecutiveDashboard>(
     () => api.get(endpoints.dashboard.executive({ from: fromIso, to: toIso }), true),
     [fromIso, toIso],

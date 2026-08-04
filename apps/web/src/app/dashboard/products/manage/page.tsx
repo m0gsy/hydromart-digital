@@ -267,7 +267,7 @@ function ProductsManageBody() {
   const { selected, depots, scopedId } = useDepot();
   const products = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 }), true), []);
   // Same public list the shop's category pills are built from, so the two can't disagree.
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories), []);
   const [creating, setCreating] = useState(false);
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;

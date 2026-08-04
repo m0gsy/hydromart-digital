@@ -36,7 +36,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const [depotId, setDepotId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
   async function submit() {
     if (phone.trim() === '') {

@@ -34,7 +34,7 @@ export default function HqPricingRuleFormPage() {
   const router = useRouter();
 
   const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
   const [productId, setProductId] = useState('');
   const [depotId, setDepotId] = useState('');

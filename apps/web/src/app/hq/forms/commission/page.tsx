@@ -21,7 +21,7 @@ function todayIso(): string {
 export default function HqCommissionFormPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const schemes = useAsync<CommissionScheme[]>(() => api.get(endpoints.commission.schemes, true));
 
   // Local edits: depotId -> new percent string. Undefined = unchanged (shows current).

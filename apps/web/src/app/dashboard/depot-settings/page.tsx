@@ -44,7 +44,7 @@ function Row({ icon, label, hint, value }: { icon: React.ReactNode; label: strin
 function DepotSettingsBody() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
-  const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true), []);
+  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true), []);
 
   const depot = list.data?.items.find((d) => d.id === scopedId) ?? null;
   const depotName = selected?.name ?? depot?.name ?? 'Depot';

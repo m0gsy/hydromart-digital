@@ -47,7 +47,7 @@ export default function HqHierarchyPage() {
     [],
   );
   const depots = useAsync<Page<SupervisedDepot>>(
-    () => api.get(endpoints.depots.manage({ limit: 200 }), true),
+    () => api.getCached(endpoints.depots.manage({ limit: 200 }), true),
     [],
   );
   const detail = useAsync<Described | null>(

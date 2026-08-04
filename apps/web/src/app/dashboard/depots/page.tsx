@@ -1,11 +1,11 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRef, useState } from 'react';
 import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosphor-icons/react';
 
 import { DepotHoursEditor } from '@/components/dashboard/depot-hours-editor';
 import { DepotDetail } from '@/components/dashboard/depot-detail';
-import { DepotMap } from '@/components/dashboard/depot-map';
 import { OwnerSelect } from '@/components/hq/owner-select';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
@@ -18,6 +18,12 @@ import { useT } from '@/lib/locale-context';
 import { canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin, Page } from '@/lib/types';
+
+// Audit F-9: same as /hq — the map is behind a tab, so it loads when that tab does.
+const DepotMap = dynamic(() => import('@/components/dashboard/depot-map').then((m) => m.DepotMap), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full" />,
+});
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -344,7 +350,7 @@ function DepotsBody() {
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const [detail, setDetail] = useState<DepotAdmin | null>(null);
   const [view, setView] = useState<'list' | 'map'>('list');
-  const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];
 
   function closeForm() {

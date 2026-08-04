@@ -41,7 +41,7 @@ function ProductsCatalog() {
     setSearch(query);
   }, [query, categoryId]);
 
-  const categories = useAsync<Category[]>(() => api.get<Category[]>(endpoints.products.categories), []);
+  const categories = useAsync<Category[]>(() => api.getCached<Category[]>(endpoints.products.categories), []);
   const activeCategory = useMemo(
     () => categories.data?.find((c) => c.id === categoryId) ?? null,
     [categories.data, categoryId],

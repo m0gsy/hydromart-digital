@@ -28,7 +28,7 @@ function iconFor(name: string): Icon {
 export function CategoryGrid() {
   const { t } = useT();
   const { data, loading, error } = useAsync<Category[]>(
-    () => api.get<Category[]>(endpoints.products.categories),
+    () => api.getCached<Category[]>(endpoints.products.categories),
     [],
   );
 
@@ -38,10 +38,14 @@ export function CategoryGrid() {
     <section aria-label={t('home.category.aria')}>
       <SectionHeader title={t('home.category.title')} />
       <MotionSection className="flex flex-wrap gap-[14px]">
-        {data.map((cat) => {
+        {data.map((cat, i) => {
           const CatIcon = iconFor(cat.name);
           return (
-            <MotionItem key={cat.id} className="flex-1 basis-[240px]" {...pressable}>
+            <MotionItem
+              key={cat.id}
+              index={i}
+              className={`flex-1 basis-[240px] ${pressable.className}`}
+            >
               <Link
                 href={`/products?category=${cat.id}`}
                 className="surface flex items-center gap-3.5 rounded-full border border-app p-2.5 pr-5 transition-[border-color,box-shadow] hover:border-brand-600 hover:shadow-card"

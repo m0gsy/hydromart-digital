@@ -30,7 +30,7 @@ export function useEffectiveCapabilities(): CapabilityHolders {
   useEffect(() => {
     let alive = true;
     api
-      .get<MatrixResponse>(endpoints.auth.matrix, true)
+      .getCached<MatrixResponse>(endpoints.auth.matrix, true)
       .then((res) => {
         if (!alive || !res.effective) return;
         setCaps({ ...CAPABILITIES, ...res.effective } as CapabilityHolders);

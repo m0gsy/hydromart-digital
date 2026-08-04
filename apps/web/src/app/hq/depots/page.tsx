@@ -42,7 +42,7 @@ export default function HqDepotsPage() {
     }
   }, []);
 
-  const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];
 
   const filtered = useMemo(() => {

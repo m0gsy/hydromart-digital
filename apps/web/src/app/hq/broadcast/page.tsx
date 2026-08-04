@@ -29,7 +29,7 @@ const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 export default function HqBroadcastPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
   const [audience, setAudience] = useState<Audience>('all');
   const [depotId, setDepotId] = useState('');

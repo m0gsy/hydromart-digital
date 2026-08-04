@@ -38,7 +38,7 @@ export default function HqReconciliationPage() {
   const { toast } = useToast();
   const range = useMemo(defaultRange, []);
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.dashboard.executive(range), true));
   const shipping = useAsync<ShippingByDepot>(() => api.get(endpoints.reports.shippingByDepot(range), true));
   const refundsByDepot = useAsync<RefundsByDepot>(() => api.get(endpoints.reports.refundsByDepot(range), true));

@@ -280,7 +280,7 @@ export default function ResellersPage() {
   const depotId = hq ? pickedDepotId : (customer?.assignedDepotId ?? '');
 
   const depotList = useAsync<Page<DepotAdmin>>(
-    () => (hq ? api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true) : Promise.resolve(EMPTY_DEPOTS)),
+    () => (hq ? api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true) : Promise.resolve(EMPTY_DEPOTS)),
     [hq],
   );
 

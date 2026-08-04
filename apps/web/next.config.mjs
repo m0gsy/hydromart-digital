@@ -9,6 +9,13 @@ const nextConfig = {
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   // ponytail: lint runs as its own workspace gate (eslint 8), not inside `next build`.
   eslint: { ignoreDuringBuilds: true },
+  // Audit F-8: 223 files import icons from the @phosphor-icons/react BARREL, which is a
+  // re-export of ~9,000 components. Without this every one of those routes pulls the
+  // whole barrel into its chunk. Next rewrites the barrel import to the individual
+  // module at compile time. Same source, a fraction of the JavaScript.
+  experimental: {
+    optimizePackageImports: ['@phosphor-icons/react'],
+  },
   // Baseline security headers. Deliberately NO Content-Security-Policy here — a
   // strict CSP needs nonce/'unsafe-inline' tuning against Next's inline bootstrap
   // and must be tested before enforce; terminate CSP + HSTS at the TLS reverse

@@ -79,7 +79,7 @@ function ProductAdmin() {
     () => api.get(endpoints.products.browseAll({ limit: 100 }), true),
     [],
   );
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories), []);
 
   const [editing, setEditing] = useState<string | null>(null); // product id, or 'new', or null
   const [form, setForm] = useState<ProductForm>(EMPTY);

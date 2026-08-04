@@ -30,7 +30,7 @@ export default function HqRosterPage() {
     const [drivers, deliveries, depotList] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
       api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
-      api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+      api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
     ]);
     const depotName = new Map(depotList.items.map((d) => [d.id, d.name]));
     return drivers.map((driver) => {
