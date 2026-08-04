@@ -704,6 +704,19 @@ describe('OrderPrismaRepository', () => {
     expect(monthly).toEqual([{ period: '2026-01', orderCount: 3, revenue: 0 }]);
   });
 
+  // H-12: the order number's counter comes from a Postgres sequence now. `?? 0` is the
+  // no-row case — it cannot happen against a real `nextval`, but a 0 suffix is a visible
+  // wrong answer rather than a crash, so it is pinned rather than left to chance.
+  it('reads the order-number counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(1_000_042) }]);
+    expect(await repo.nextOrderSequence()).toBe(1_000_042);
+    const sql = ($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('');
+    expect(sql).toContain("nextval('order_number_seq')");
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextOrderSequence()).toBe(0);
+  });
+
   // H-14: these four raw reports excluded only CANCELLED while every Prisma-built report
   // beside them excluded VOIDED too — so a voided counter sale still counted as revenue
   // and still put its buyer in a retention cohort. The status list is bound as a

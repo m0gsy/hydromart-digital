@@ -52,14 +52,12 @@ export async function recordAuditEvent(
   event: AuditEvent,
   logger: Logger,
 ): Promise<void> {
-  const base = config.authServiceUrl?.replace(/\/+$/, '') ?? '';
+  const base = config.authServiceUrl.replace(/\/+$/, '');
   if (!base || !config.internalServiceKey) {
     // Not configured in this environment (local, tests). Silent: warning on every
     // refund in a dev stack trains people to ignore the log.
     return;
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(`${base}/api/v1/auth/audit/internal`, {
       method: 'POST',
@@ -74,7 +72,8 @@ export async function recordAuditEvent(
         success: event.success ?? true,
         metadata: event.metadata,
       }),
-      signal: controller.signal,
+      // stdlib timeout — no manual timer to create, clear, or leak.
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
       throw new Error(`auth-service responded ${res.status}`);
@@ -84,7 +83,5 @@ export async function recordAuditEvent(
       `Audit entry "${event.action}" was NOT recorded (${(error as Error).message}) — ` +
         `target=${event.target ?? 'n/a'} actor=${event.actorId ?? 'system'}`,
     );
-  } finally {
-    clearTimeout(timer);
   }
 }

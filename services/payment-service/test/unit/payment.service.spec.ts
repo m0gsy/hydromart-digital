@@ -311,6 +311,29 @@ describe('PaymentService', () => {
       });
     });
 
+    it('falls back to the payment id when there is no gateway reference', async () => {
+      const svc = auditedService();
+      // A cash payment never gets a reference — the trail still has to name the subject.
+      const payment = await initiate(PaymentMethod.CASH);
+      await svc.confirm(payment.id, 'kasir');
+      await svc.refund(payment.id, '');
+
+      const settled = entries(fetchMock).find((e) => e.action === 'payment.refund.settled');
+      expect(settled.target).toBe(payment.id);
+      // An empty actor is recorded as a system event, not as an actor named "".
+      expect(settled.actorId).toBeUndefined();
+    });
+
+    it('records a rejection with no reason given', async () => {
+      const svc = auditedService();
+      const payment = await paidOver(150_000);
+      await svc.refund(payment.id, 'finance'); // queued, no reason
+      await svc.rejectRefund(payment.id, 'hq'); // rejected, no reason
+
+      const rejected = entries(fetchMock).find((e) => e.action === 'payment.refund.rejected');
+      expect(rejected.metadata.reason).toBeNull();
+    });
+
     // Fail-open: the money already moved, so the trail must not be able to undo it.
     it('still settles the refund when the audit trail is unreachable', async () => {
       fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));

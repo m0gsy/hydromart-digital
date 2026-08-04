@@ -60,6 +60,13 @@ describe('PayoutConfigService', () => {
     expect(make({}).commissionRate).toBe(0.05);
     expect(make({ PAYOUT_COMMISSION_RATE: '0.12' }).commissionRate).toBe(0.12);
   });
+
+  // H-16: one business timezone for the platform. Unset must land on WIB — an unset
+  // PRICING_TZ used to mean UTC, which is a seven-hour error in every day boundary.
+  it('defaults the business timezone to WIB and honours an override', () => {
+    expect(make({}).businessTimeZone).toBe('Asia/Jakarta');
+    expect(make({ PRICING_TZ: 'Asia/Makassar' }).businessTimeZone).toBe('Asia/Makassar');
+  });
 });
 
 describe('envValidationSchema', () => {

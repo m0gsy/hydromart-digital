@@ -33,15 +33,21 @@ export function zoneOffsetMs(at: Date, timeZone: string = BUSINESS_TIME_ZONE): n
     minute: '2-digit',
     second: '2-digit',
   }).formatToParts(at);
-  const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? '0');
+  // Read into a record rather than `find(...)?.value ?? '0'` per field: every field above
+  // was explicitly requested, so a missing one is impossible — and a `?? '0'` default
+  // would turn an impossible ICU failure into a plausible-looking wrong date rather than
+  // an obviously broken one. A missing field yields NaN here, which fails loudly.
+  const part = Object.fromEntries(
+    parts.map((p) => [p.type, Number(p.value)]),
+  ) as Record<string, number>;
   // `hour` comes back as 24 for midnight under hour12:false in some ICU versions.
   const asIfUtc = Date.UTC(
-    get('year'),
-    get('month') - 1,
-    get('day'),
-    get('hour') % 24,
-    get('minute'),
-    get('second'),
+    part.year,
+    part.month - 1,
+    part.day,
+    part.hour % 24,
+    part.minute,
+    part.second,
   );
   return asIfUtc - Math.floor(at.getTime() / 1000) * 1000;
 }
@@ -59,12 +65,9 @@ export function localMonthKey(at: Date, timeZone: string = BUSINESS_TIME_ZONE): 
 
 /** Local wall-clock hour 0..23 at `at`. */
 export function localHour(at: Date, timeZone: string = BUSINESS_TIME_ZONE): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    hour: '2-digit',
-  }).formatToParts(at);
-  return Number(parts.find((p) => p.type === 'hour')?.value ?? '0') % 24;
+  // Shift the instant by the zone offset and read it as UTC — one primitive instead of a
+  // second Intl format with its own parsing.
+  return new Date(at.getTime() + zoneOffsetMs(at, timeZone)).getUTCHours();
 }
 
 /**

@@ -167,6 +167,13 @@ describe('PriceOverrideService', () => {
       });
     });
 
+    it('records a blank actor as a system event, not as an actor named ""', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.reject(created.id, '');
+      expect(entries()[0].actorId).toBeUndefined();
+    });
+
     // Fail-open: the pricing rule is already created by the time the trail is written.
     it('still approves when the trail is unreachable', async () => {
       fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));

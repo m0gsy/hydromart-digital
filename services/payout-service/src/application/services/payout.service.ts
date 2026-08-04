@@ -1,10 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  BUSINESS_TIME_ZONE,
-  dayStartUtc,
-  localDayKey,
-  startOfLocalMonth,
-} from '@hydromart/platform';
+import { dayStartUtc, localDayKey, startOfLocalMonth } from '@hydromart/platform';
 
 import {
   InsufficientBalanceError,
@@ -294,7 +289,7 @@ function nextPayoutDate(now: Date, timeZone: string): Date {
  * than likely. The date part is the WIB calendar date; it used to be the host's local
  * date, which on a UTC container is the previous day for anything before 07:00 WIB.
  */
-export function withdrawalReference(now: Date, seq: number, timeZone = BUSINESS_TIME_ZONE): string {
+export function withdrawalReference(now: Date, seq: number, timeZone: string): string {
   const ymd = localDayKey(now, timeZone).replace(/-/g, '');
   return `WD-${ymd}-${String(seq).padStart(4, '0')}`;
 }
