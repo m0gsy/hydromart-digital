@@ -99,7 +99,13 @@ export class AccountController {
     limit: number;
   }> {
     const depotId = await this.scopedDepotFilter(user, query.depotId);
-    const result = await this.account.listStaff(query.page ?? 1, query.limit ?? 20, query.role, depotId);
+    const result = await this.account.listStaff(
+      query.page ?? 1,
+      query.limit ?? 20,
+      query.role,
+      depotId,
+      query.search,
+    );
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 

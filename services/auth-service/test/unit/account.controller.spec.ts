@@ -25,7 +25,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
       { sub: 'manager-1', role: Role.MANAGER, phone: '+62811111111' },
     );
 
-    expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, ownDepot);
+    expect(account.listStaff).toHaveBeenCalledWith(1, 20, undefined, ownDepot, undefined);
   });
 
   it('rejects a depot manager requesting another depot', async () => {
@@ -44,7 +44,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
     );
 
     expect(account.getProfile).not.toHaveBeenCalled();
-    expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.STAFF_DEPOT, otherDepot);
+    expect(account.listStaff).toHaveBeenCalledWith(1, 20, Role.STAFF_DEPOT, otherDepot, undefined);
   });
 });
 

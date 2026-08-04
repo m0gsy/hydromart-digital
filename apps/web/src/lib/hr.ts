@@ -837,7 +837,9 @@ export function toEmployeePayload(
   if (f.bankAccount.trim()) value.bankAccount = f.bankAccount.trim();
   if (f.emergencyName.trim()) value.emergencyName = f.emergencyName.trim();
   if (f.emergencyPhone.trim()) value.emergencyPhone = f.emergencyPhone.trim();
-  if (f.supervisorId.trim()) value.supervisorId = f.supervisorId.trim();
+  // supervisorId is deliberately NOT sent any more: the reporting line lives in
+  // depot-service's supervision table, written at /hq/hierarchy. The form field is gone,
+  // and this stops an older cached form value from writing the column behind its back.
   if (f.departmentId.trim()) value.departmentId = f.departmentId.trim();
   if (f.npwp.trim()) value.npwp = f.npwp.trim();
   if (f.bpjsKes.trim()) value.bpjsKes = f.bpjsKes.trim();

@@ -134,7 +134,16 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } 
     },
     findByIdInternal: async (id: string) =>
       id === EMPLOYEE.id ? EMPLOYEE : id === SUPERVISOR.id ? SUPERVISOR : null,
+    // The reporting line resolves by ACCOUNT now, through depot-service's supervision
+    // table — Employee.supervisorId is no longer written or read.
+    findByAuthSubjectId: async (accountId: string) =>
+      accountId === SUPERVISOR.authSubjectId ? SUPERVISOR : null,
   } as unknown as EmployeeService;
+  const supervision = {
+    superiorOf: async (accountId: string) =>
+      accountId === EMPLOYEE.authSubjectId ? SUPERVISOR.authSubjectId : null,
+    setSuperior: async () => {},
+  };
   const config = {
     weeklyOffDays: () => opts.weeklyOff ?? '',
     annualLeaveQuotaDays: () => opts.quota ?? 12,
@@ -150,7 +159,7 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } 
     repo,
     attendanceWrites,
     sent,
-    svc: new LeaveService(repo, attendance, employees, config, holidays, notifications),
+    svc: new LeaveService(repo, attendance, employees, config, holidays, notifications, supervision),
   };
 }
 

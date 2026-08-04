@@ -49,6 +49,7 @@ export {
   depotScopeStatus,
   type DepotScopeStatus,
 } from './nest/depot-scope-resolver';
+export { httpSuperiorResolver, type SuperiorResolver } from './nest/superior-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';

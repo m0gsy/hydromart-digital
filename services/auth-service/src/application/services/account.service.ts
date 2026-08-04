@@ -123,8 +123,9 @@ export class AccountService {
     limit: number,
     role?: Role,
     depotId?: string,
+    search?: string,
   ): Promise<{ items: PublicCustomer[]; total: number; page: number; limit: number }> {
-    const { items, total } = await this.customers.listStaff(page, limit, role, depotId);
+    const { items, total } = await this.customers.listStaff(page, limit, role, depotId, search);
     return { items: items.map(toPublicCustomer), total, page, limit };
   }
 

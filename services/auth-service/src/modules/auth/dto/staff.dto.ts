@@ -52,6 +52,12 @@ export class ListStaffQueryDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+
+  @ApiPropertyOptional({ description: 'Match part of a name or phone number.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
 }
 
 export class InviteStaffDto {

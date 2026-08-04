@@ -441,6 +441,12 @@ export const hq = {
     none: 'Tidak ada',
     saved: 'Tersimpan. Berlaku di seluruh service dalam 60 detik.',
     error: 'Gagal menyimpan. Coba lagi.',
+    search: 'Cari staf',
+    searchHint: 'Ketik nama atau nomor HP',
+    moreResults: '{n} staf lain cocok — persempit pencarian.',
+    linkGrants: 'Tautan ini juga memberi akses depot (rantai Asisten SPV → SPV → Manager).',
+    linkReportsOnly: 'Tautan ini hanya garis pelaporan — tidak menambah depot yang bisa dilihat.',
+    linkNone: 'Belum punya atasan. Semua staf boleh punya atasan, termasuk kurir.',
   },
   staff: {
     title: 'Direktori staf',

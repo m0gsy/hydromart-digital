@@ -45,17 +45,6 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     [],
   );
 
-  // Supervisor candidates: active staff of the chosen depot (self excluded on edit).
-  const supervisors = useAsync<HrPage<Employee>>(
-    () =>
-      form.depotId
-        ? api.get<HrPage<Employee>>(
-            endpoints.hr.employees({ depotId: form.depotId, status: 'ACTIVE', pageSize: 100 }),
-            true,
-          )
-        : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 100 }),
-    [form.depotId],
-  );
 
   const departments = useAsync<Department[]>(
     () => api.get<Department[]>(endpoints.hr.departments(), true),
@@ -230,23 +219,10 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           />
         </Field>
 
-        <Field label="Atasan (opsional)">
-          <select
-            value={form.supervisorId}
-            onChange={(e) => set('supervisorId', e.target.value)}
-            disabled={!form.depotId}
-            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
-          >
-            <option value="">{form.depotId ? 'Tanpa atasan' : 'Pilih depot dulu…'}</option>
-            {supervisors.data?.rows
-              .filter((s) => s.id !== id)
-              .map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} — {s.position}
-                </option>
-              ))}
-          </select>
-        </Field>
+        {/* "Atasan" used to live here and wrote a column nobody else read, so the same
+            person could have one superior in HR and another in the hierarchy map. The
+            reporting line is recorded once, at /hq/hierarchy, and shown read-only on the
+            employee's detail page. */}
         <Field label="Departemen (opsional)">
           <select
             value={form.departmentId}

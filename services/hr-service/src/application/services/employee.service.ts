@@ -18,6 +18,7 @@ import {
 import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department.repository';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
+import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
 import { STAFF_IMPORT_ROLES, type HrManagedRole } from '@hydromart/access';
 
 /** The roles an import may mint an account for — the allowlist auth-service enforces too. */
@@ -112,6 +113,9 @@ export class EmployeeService {
     @Optional()
     @Inject(DEPARTMENT_REPOSITORY)
     private readonly departments?: DepartmentRepository,
+    // Last on purpose: every existing positional construction site keeps working. Absent,
+    // the import's `atasan` column reports "not linked" instead of failing the row.
+    @Optional() @Inject(SUPERVISION_PORT) private readonly supervision?: SupervisionPort,
   ) {}
 
   /**
@@ -179,6 +183,11 @@ export class EmployeeService {
    */
   findByIdInternal(id: string): Promise<Employee | null> {
     return this.repo.findById(id);
+  }
+
+  /** Same, keyed by the login account — how a reporting line resolves now (see Fase 4). */
+  findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
+    return this.repo.findByAuthSubjectId(authSubjectId);
   }
 
   /** Resolve the caller's OWN employee record via the linked auth account (self-service). */
@@ -448,7 +457,7 @@ export class EmployeeService {
    * resolving during row 3 would fail on a manager who only appears at row 40.
    */
   private async linkSupervisors(
-    user: AuthenticatedUser,
+    _user: AuthenticatedUser,
     rows: ImportEmployeeInput[],
     summary: ImportSummary,
   ): Promise<void> {
@@ -463,7 +472,20 @@ export class EmployeeService {
         result.message = `Atasan "${code}" tidak ditemukan, kolom atasan dikosongkan`;
         continue;
       }
-      await this.repo.update(result.id, { supervisorId: supervisor.id, updatedBy: user.sub }, []);
+      // Written to depot-service's supervision table, NOT to Employee.supervisorId: that
+      // table is the single place a reporting line lives now, and it is the one the HQ
+      // hierarchy page and the leave notifications read. Possible only because every
+      // imported employee now has an account (see create()).
+      const employee = await this.repo.findById(result.id);
+      if (!this.supervision || !employee?.authSubjectId || !supervisor.authSubjectId) {
+        result.message = `Atasan "${code}" tidak bisa ditautkan: akun login belum lengkap`;
+        continue;
+      }
+      try {
+        await this.supervision.setSuperior(employee.authSubjectId, supervisor.authSubjectId);
+      } catch (err) {
+        result.message = `Atasan "${code}" ditolak: ${err instanceof Error ? err.message : 'gagal'}`;
+      }
     }
   }
 

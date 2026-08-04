@@ -49,6 +49,24 @@ export class HierarchyController {
     return { depotIds: await this.hierarchy.scopedDepotIds(staffId, role ?? '') };
   }
 
+  /**
+   * The supervision link itself, for services that need to know WHO somebody reports to
+   * rather than which depots they cover — hr-service notifying a leave approver, for one.
+   *
+   * Same internal-key shape as the scope route above, and declared with it so the static
+   * `internal` segment wins over `:staffId`. It exists because this table became the single
+   * place a reporting line is recorded; asking hr-service's own column would read a copy
+   * that no longer gets written.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/describe/:staffId')
+  @ApiOperation({ summary: 'Superior, direct reports and depots recorded for one account' })
+  internalDescribe(@Param('staffId', ParseUUIDPipe) staffId: string) {
+    return this.hierarchy.describe(staffId);
+  }
+
   // Declared before the `:staffId` routes: `depots` is a static segment and must never be
   // read as an account id. This is the ONLY writer of a depot's assistant supervisor —
   // PATCH /depots/:id is `depotAdmin`, and a manager must not redraw their own scope.

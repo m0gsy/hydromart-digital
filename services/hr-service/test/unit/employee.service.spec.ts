@@ -140,7 +140,22 @@ function unlink(repo: FakeRepo, id: string): void {
 function make() {
   const repo = new FakeRepo();
   const identity = fakeIdentity();
-  return { repo, identity, svc: new EmployeeService(repo, identity) };
+  // depot-service's supervision table, where a reporting line lives now.
+  const supervision = {
+    links: [] as { staff: string; superior: string }[],
+    async superiorOf(staff: string) {
+      return supervision.links.find((l) => l.staff === staff)?.superior ?? null;
+    },
+    async setSuperior(staff: string, superior: string) {
+      supervision.links.push({ staff, superior });
+    },
+  };
+  return {
+    repo,
+    identity,
+    supervision,
+    svc: new EmployeeService(repo, identity, undefined, supervision),
+  };
 }
 
 describe('EmployeeService (M1)', () => {
@@ -563,8 +578,11 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     expect(repo.rows).toHaveLength(1);
   });
 
+  // The link now lands in depot-service's supervision table, keyed by ACCOUNT, instead of
+  // Employee.supervisorId — one place a reporting line is recorded, the one /hq/hierarchy
+  // draws and the leave notifications read.
   it('resolves a supervisor who only appears further down the same file', async () => {
-    const { repo, svc } = make();
+    const { repo, supervision, svc } = make();
 
     const summary = await svc.importMany(hr, [
       { ...row, fullName: 'Anak Buah', supervisorCode: 'HR-0002' },
@@ -572,7 +590,11 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     ]);
 
     expect(summary).toMatchObject({ created: 2, failed: 0 });
-    expect(repo.rows[0]?.supervisorId).toBe(repo.rows[1]?.id);
+    expect(supervision.links).toEqual([
+      { staff: repo.rows[0]?.authSubjectId, superior: repo.rows[1]?.authSubjectId },
+    ]);
+    // The old column is left alone: this release stops writing it, the drop comes later.
+    expect(repo.rows[0]?.supervisorId).toBeNull();
   });
 
   it('keeps the row but says so when the supervisor code does not exist', async () => {
