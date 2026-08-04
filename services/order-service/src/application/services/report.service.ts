@@ -75,6 +75,25 @@ export interface DepotCourierDaily {
   codIdr: number;
 }
 
+/**
+ * One order on the daily export. Cancelled rows are carried and flagged rather than
+ * filtered: a file that quietly omits them cannot be reconciled against the till.
+ */
+export interface DepotDailyRow {
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  cancelled: boolean;
+  recipientName: string;
+  driverName: string | null;
+  gallons: number;
+  subtotalIdr: number;
+  deliveryFeeIdr: number;
+  discountIdr: number;
+  totalIdr: number;
+  isWalkIn: boolean;
+}
+
 /** Depot Operator "Laporan harian" composite (design cell 2d). */
 export interface DepotDailyReport {
   depotId: string;
@@ -356,6 +375,40 @@ export class ReportService {
       failedDeliveries: rows.filter((r) => r.status === OrderStatus.CANCELLED).length,
       perCourier: [], // TODO: join delivery-service performance (empty = unavailable, not zero couriers)
     };
+  }
+
+  /**
+   * The same day, order by order, for the "Ekspor" button on the daily report.
+   *
+   * Rows, not totals: the totals are already on screen, and what an export is for is the
+   * arithmetic behind them — which order, which courier, how much, and whether it was
+   * cancelled. Cancelled rows are INCLUDED and marked, because an export that silently
+   * drops them cannot be reconciled against anything.
+   *
+   * Reads the exact window `depotDaily` reads, from the same method, so the file and the
+   * screen can never disagree about which orders belong to the day.
+   */
+  async depotDailyRows(depotId: string, date: string): Promise<DepotDailyRow[]> {
+    const from = new Date(`${date}T00:00:00.000Z`);
+    const to = new Date(from.getTime() + DAY_MS);
+    const rows = await this.orders.ordersForDepot(depotId, { from, to });
+    return rows
+      .slice()
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .map((r) => ({
+        orderNumber: r.orderNumber,
+        createdAt: r.createdAt.toISOString(),
+        status: r.status,
+        cancelled: r.status === OrderStatus.CANCELLED,
+        recipientName: r.recipientName,
+        driverName: r.driverName ?? null,
+        gallons: gallonQty(r),
+        subtotalIdr: Math.round(r.subtotal),
+        deliveryFeeIdr: Math.round(r.deliveryFee),
+        discountIdr: Math.round(r.discount),
+        totalIdr: Math.round(r.total),
+        isWalkIn: r.isWalkIn === true,
+      }));
   }
 
   /**

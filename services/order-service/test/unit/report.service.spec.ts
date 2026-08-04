@@ -240,6 +240,42 @@ describe('ReportService', () => {
     expect(rep.gallonsDamaged).toBeNull();
   });
 
+  // The export behind the button that used to do nothing. It must show the SAME day the
+  // report shows, and it must carry cancelled orders — a file that drops them silently
+  // cannot be reconciled against the till.
+  it('exports the day order by order, cancelled rows included and flagged', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r);
+    const depot = randomUUID();
+    const day = '2026-07-15';
+    const items = [
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
+        unitPrice: 20000,
+        quantity: 2,
+        lineTotal: 40000,
+      },
+    ];
+    const kept = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    const gone = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    const yesterday = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    r.rows.find((x) => x.id === kept.id)!.createdAt = new Date(`${day}T01:00:00.000Z`);
+    r.rows.find((x) => x.id === gone.id)!.createdAt = new Date(`${day}T02:00:00.000Z`);
+    r.rows.find((x) => x.id === yesterday.id)!.createdAt = new Date('2026-07-14T23:00:00.000Z');
+    await r.applyStatus(gone.id, OrderStatus.CANCELLED, null, null);
+
+    const rows = await svc.depotDailyRows(depot, day);
+
+    expect(rows.map((x) => x.orderNumber)).toEqual([kept.orderNumber, gone.orderNumber]);
+    expect(rows[1]).toMatchObject({ cancelled: true, gallons: 2, totalIdr: 40000 });
+    expect(rows[0]).toMatchObject({ cancelled: false, recipientName: kept.recipientName });
+  });
+
   it('composes a depot weekly report: revenueByDay, topProducts and a driverName topCourier', async () => {
     const r = new InMemoryOrderRepository();
     const svc = new ReportService(r);

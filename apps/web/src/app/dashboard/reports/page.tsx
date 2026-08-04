@@ -5,7 +5,8 @@ import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/re
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { downloadCsv, toCsv } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -16,6 +17,95 @@ import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** One order of the exported day, as order-service returns it. */
+interface DailyExportRow {
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  cancelled: boolean;
+  recipientName: string;
+  driverName: string | null;
+  gallons: number;
+  subtotalIdr: number;
+  deliveryFeeIdr: number;
+  discountIdr: number;
+  totalIdr: number;
+  isWalkIn: boolean;
+}
+
+/**
+ * Download the day's orders as CSV. The button used to be `onClick={() => undefined}`.
+ *
+ * Formatting happens here rather than server-side because the console already owns the
+ * CSV rules (separator, BOM for Excel); a rendered file from the API would be a second
+ * copy of those rules to keep in step.
+ */
+function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const rows = await api.get<DailyExportRow[]>(
+        endpoints.reports.depotDailyExport(depotId, date),
+        true,
+      );
+      downloadCsv(
+        `laporan-harian-${date}.csv`,
+        toCsv(
+          [
+            'No. pesanan',
+            'Waktu',
+            'Status',
+            'Dibatalkan',
+            'Penerima',
+            'Kurir',
+            'Galon',
+            'Subtotal',
+            'Ongkir',
+            'Diskon',
+            'Total',
+            'Penjualan konter',
+          ],
+          rows.map((r) => [
+            r.orderNumber,
+            r.createdAt,
+            r.status,
+            r.cancelled ? 'YA' : '',
+            r.recipientName,
+            r.driverName ?? '',
+            r.gallons,
+            r.subtotalIdr,
+            r.deliveryFeeIdr,
+            r.discountIdr,
+            r.totalIdr,
+            r.isWalkIn ? 'YA' : '',
+          ]),
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal mengekspor laporan.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="ghost" onClick={() => void run()} loading={busy}>
+        <Export size={16} weight="bold" /> Ekspor CSV
+      </Button>
+      {error && (
+        <p className="text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -47,9 +137,11 @@ function Harian({ depotId }: { depotId: string }) {
             onChange={(e) => setDate(e.target.value)}
             className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium"
           />
-          <Button variant="ghost" onClick={() => undefined}>
-            <Export size={16} weight="bold" /> Ekspor & tutup buku
-          </Button>
+          <ExportDaily depotId={depotId} date={date} />
+          {/* "Tutup buku" is deliberately NOT here yet. Closing a day has to be recorded
+              somewhere before it can mean anything, and that column ships one release
+              ahead of the code that writes it. A button that does nothing when clicked is
+              worse than one that is honestly absent. */}
         </div>
       </div>
 

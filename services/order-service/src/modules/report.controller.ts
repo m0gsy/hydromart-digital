@@ -105,6 +105,20 @@ export class ReportController {
     return this.reports.depotDaily(q.depotId, q.date ?? new Date().toISOString().slice(0, 10));
   }
 
+  /**
+   * The day's orders, one row each, for the export button on the daily report.
+   *
+   * Returns rows rather than a rendered file: the console already owns CSV formatting (and
+   * the locale that decides the separator), so a server-rendered file would be a second
+   * place to keep those rules in step.
+   */
+  @Roles(...DEPOT_REPORT_ROLES)
+  @Get('depot-daily/export')
+  @ApiOperation({ summary: "The day's orders behind the daily report, one row per order" })
+  depotDailyExport(@Query() q: DepotDailyQueryDto) {
+    return this.reports.depotDailyRows(q.depotId, q.date ?? new Date().toISOString().slice(0, 10));
+  }
+
   @Roles(...DEPOT_REPORT_ROLES)
   @Get('depot-weekly')
   @ApiOperation({ summary: 'Depot weekly operations report (design 7d Laporan mingguan)' })
