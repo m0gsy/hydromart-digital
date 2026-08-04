@@ -17,6 +17,16 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\d{2}:\d{2}$/)
     .default('08:00'),
   HR_LATE_TOLERANCE_MINUTES: Joi.number().integer().min(0).default(15),
+  // Q-13 statutory payroll defaults. Percentages ×100 so the settings store stays
+  // integer-only. These must mirror config/setting-defs.ts envDefault values.
+  HR_BPJS_HEALTH_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(100),
+  HR_BPJS_HEALTH_CEILING_IDR: Joi.number().integer().min(0).default(12_000_000),
+  HR_BPJS_JHT_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(200),
+  HR_BPJS_JP_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(100),
+  HR_BPJS_JP_CEILING_IDR: Joi.number().integer().min(0).default(10_547_400),
+  HR_OCCUPATIONAL_COST_PCT_X100: Joi.number().integer().min(0).default(500),
+  HR_OCCUPATIONAL_COST_CAP_IDR: Joi.number().integer().min(0).default(500_000),
+  HR_NO_NPWP_SURCHARGE_PCT: Joi.number().integer().min(0).max(100).default(20),
   HR_LATE_DEDUCTION_IDR: Joi.number().integer().min(0).default(10000),
   HR_DAILY_RATE_TRAINING_IDR: Joi.number().integer().min(0).default(30000),
   HR_ABSENCE_DEDUCTION_IDR: Joi.number().integer().min(0).default(0),

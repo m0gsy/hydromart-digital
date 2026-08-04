@@ -131,6 +131,20 @@ function build(opts: {
     standardWorkingMinutes: () => 480,
     overtimeMultiplierPct: () => 150,
     overtimeOffDayMultiplierPct: () => 200,
+    // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
+    // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
+    // existing assertions are untouched — while a test that DOES enrol someone gets the
+    // lawful numbers rather than a convenient fiction.
+    statutoryRates: () => ({
+      healthEmployeePct: 1,
+      healthCeilingIdr: 12_000_000,
+      jhtEmployeePct: 2,
+      jpEmployeePct: 1,
+      jpCeilingIdr: 10_547_400,
+      occupationalCostPct: 5,
+      occupationalCostCapIdr: 500_000,
+      noNpwpSurchargePct: 20,
+    }),
   } as unknown as HrConfigService;
   const holidays = opts.noHolidays
     ? undefined

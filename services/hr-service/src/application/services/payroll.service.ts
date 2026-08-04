@@ -21,6 +21,7 @@ import {
 } from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
+import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
@@ -247,6 +248,29 @@ export class PayrollService {
     // Allowances are fixed pay, so they belong in gross next to BASE rather than in the
     // variable bonus total. The payslip still separates them: every item carries its kind.
     const gross = sum(items, 'BASE') + sum(items, 'ALLOWANCE');
+
+    // Statutory deductions (Q-13): BPJS employee shares, then PPh 21 on what is left.
+    // Added LAST, and computed on `gross` (base + allowances) rather than on the running
+    // total, because that is the regulated base — a lateness deduction does not reduce
+    // the wage BPJS is reckoned on, and a bonus is taxed through the annual filing rather
+    // than this month's estimate. Every rate is configuration; see domain/statutory.ts
+    // for what is and is not modelled, including the December reconciliation gap.
+    for (const line of statutoryDeductions(
+      {
+        grossIdr: gross,
+        ptkpStatus: employee.ptkpStatus,
+        // No NPWP on file is the surcharge case, and a blank string is no NPWP.
+        hasNpwp: !!employee.npwp?.trim(),
+        // A BPJS number on file IS the enrolment record — see domain/statutory.ts for
+        // why an unenrolled employee must not be deducted for.
+        enrolledHealth: !!employee.bpjsKes?.trim(),
+        enrolledEmployment: !!employee.bpjsTk?.trim(),
+      },
+      this.config.statutoryRates(employee.depotId),
+    )) {
+      items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr });
+    }
+
     const totalBonus = sum(items, 'BONUS');
     const totalDeduction = sum(items, 'DEDUCTION');
     const write = {
