@@ -1,0 +1,27 @@
+# Trivy ignore list for the runtime BASE image scan in .github/workflows/security.yml.
+#
+# Same rule as scripts/audit-gate.mjs's allowlist: an entry needs a written reason
+# and an upgrade path, and it is deleted the moment upstream ships a fix. This list
+# is the triage record, not a mute button. Anything not listed here still fails CI.
+#
+# What this gate scans is `node:20-alpine` — an image we consume and do not build.
+# We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
+# the affected component. Both are noted per entry.
+
+# openssl heap use-after-free in PKCS7_verify(). Alpine has published 3.5.7-r0;
+# the node:20-alpine tag has not been rebuilt against it yet. Not reachable from
+# this codebase — no service calls PKCS7_verify, and TLS is terminated by Caddy in
+# its own image, not by these containers. Delete this line once the base tag moves.
+CVE-2026-45447
+
+# The next two are npm's OWN bundled dependencies inside the base image
+# (/usr/local/lib/node_modules/npm), not our dependency tree — our copies of both
+# are patched, and scripts/audit-gate.mjs gates that separately.
+#
+# npm is never invoked at runtime: the images run `node dist/main.js`, healthchecks
+# use busybox wget, and migrations run host-side. The real fix is therefore to stop
+# shipping npm in the runtime stage, which is a Dockerfile change and belongs with
+# the image work, not here. Delete both lines when that lands.
+CVE-2026-59873
+CVE-2026-23745
+CVE-2026-13149
