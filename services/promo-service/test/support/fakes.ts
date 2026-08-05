@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { localDayKey } from '@hydromart/platform';
 import { VoucherNotFoundError } from '../../src/domain/errors';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
@@ -167,12 +168,15 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     from: Date,
     to: Date,
     topCustomers: number,
+    timeZone: string,
   ): Promise<RedemptionAnalytics> {
     const rows = this.redemptions.filter((r) => r.voucherId === voucherId);
     const inWindow = rows.filter((r) => r.createdAt >= from && r.createdAt < to);
     const byDay = new Map<string, number>();
     for (const row of inWindow) {
-      const day = row.createdAt.toISOString().slice(0, 10);
+      // The SQL cuts the label with AT TIME ZONE (H-16), so this must too — a fake that
+      // buckets on UTC passes the concurrency of the day boundary it is meant to prove.
+      const day = localDayKey(row.createdAt, timeZone);
       byDay.set(day, (byDay.get(day) ?? 0) + 1);
     }
     const byCustomer = new Map<string, { uses: number; savingsIdr: number }>();

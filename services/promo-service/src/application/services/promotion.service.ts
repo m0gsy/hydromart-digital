@@ -75,7 +75,6 @@ export class PromotionService {
       day: localDayKey(addLocalDays(new Date(firstDayUtc), index, tz), tz),
       uses: 0,
     }));
-    const dayIndex = new Map(dailyUses.map((d, index) => [d.day, index]));
     const empty = (): PromotionAnalytics => ({
       promotionId: promotion.id,
       title: promotion.title,

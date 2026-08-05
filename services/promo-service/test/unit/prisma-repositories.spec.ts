@@ -211,7 +211,7 @@ describe('VoucherPrismaRepository', () => {
 
     const from = new Date('2026-07-16T00:00:00Z');
     const to = new Date('2026-07-23T00:00:00Z');
-    const out = await repo.redemptionAnalytics('v-1', from, to, 10);
+    const out = await repo.redemptionAnalytics('v-1', from, to, 10, 'Asia/Jakarta');
 
     expect(out).toEqual({
       totalUses: 5,
@@ -231,6 +231,12 @@ describe('VoucherPrismaRepository', () => {
         take: 10,
       }),
     );
+    // H-16: the day labels must be cut in the business zone. On UTC every redemption
+    // before 07:00 WIB lands on the previous bar — and the caller labels its buckets
+    // with local day keys, so a UTC label matches none of them and the chart reads zero.
+    const dailySql = $queryRaw.mock.calls[0][0];
+    expect(dailySql.strings.join('')).toContain('AT TIME ZONE');
+    expect(dailySql.values).toContain('Asia/Jakarta');
   });
 
   it('reports zero savings when nothing was ever redeemed', async () => {
@@ -241,7 +247,7 @@ describe('VoucherPrismaRepository', () => {
     voucherRedemption.count.mockResolvedValue(0);
     voucherRedemption.groupBy.mockResolvedValue([]);
     $queryRaw.mockResolvedValue([]);
-    const out = await repo.redemptionAnalytics('v-1', new Date(0), new Date(1), 5);
+    const out = await repo.redemptionAnalytics('v-1', new Date(0), new Date(1), 5, 'Asia/Jakarta');
     expect(out).toMatchObject({ totalUses: 0, totalSavingsIdr: 0, orderIds: [] });
   });
 

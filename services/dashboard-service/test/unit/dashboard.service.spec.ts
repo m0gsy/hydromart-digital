@@ -180,7 +180,7 @@ describe('DashboardService', () => {
   // that matters is that it does not move with the depot count.
   it('costs three calls for many depots', async () => {
     const sources = new InMemoryDashboardSources();
-    const service = new DashboardService(sources);
+    const service = new DashboardService(sources, dashboardTestConfig());
 
     await service.franchise({}, 'Bearer t');
 
