@@ -1,3 +1,4 @@
+import { envValidationSchema } from '../../src/config/env.validation';
 import { buildTestConfig } from '../support/fakes';
 
 // PaymentConfigService is thin but branchy: trailing-slash stripping, the
@@ -54,5 +55,55 @@ describe('PaymentConfigService', () => {
       CORS_ALLOWED_ORIGINS: 'http://a.test, http://b.test ,,',
     });
     expect(config.corsOrigins).toEqual(['http://a.test', 'http://b.test']);
+  });
+});
+
+// H-25: SEC-1 (the client-supplied amount check) is skipped whenever
+// ORDER_SERVICE_URL or INTERNAL_SERVICE_KEY is blank. Production must not be
+// able to boot into that state.
+describe('envValidationSchema — SEC-1 coordination keys', () => {
+  const base = {
+    PAYMENT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
+    JWT_ACCESS_SECRET: 'a'.repeat(32),
+    PAYMENT_WEBHOOK_SECRET: 'b'.repeat(16),
+  };
+
+  it('lets development run with the order callback disabled', () => {
+    const { error, value } = envValidationSchema.validate(base);
+    expect(error).toBeUndefined();
+    expect(value.ORDER_SERVICE_URL).toBe('');
+    expect(value.INTERNAL_SERVICE_KEY).toBe('');
+  });
+
+  it.each([
+    ['ORDER_SERVICE_URL', { INTERNAL_SERVICE_KEY: 'c'.repeat(16) }],
+    ['INTERNAL_SERVICE_KEY', { ORDER_SERVICE_URL: 'http://order:3004' }],
+  ])('refuses to boot production without %s', (missing, present) => {
+    const { error } = envValidationSchema.validate({
+      ...base,
+      NODE_ENV: 'production',
+      ...present,
+    });
+    expect(error?.message).toContain(missing);
+  });
+
+  it('refuses a production value that is explicitly blank', () => {
+    const { error } = envValidationSchema.validate({
+      ...base,
+      NODE_ENV: 'production',
+      ORDER_SERVICE_URL: '',
+      INTERNAL_SERVICE_KEY: '',
+    });
+    expect(error).toBeDefined();
+  });
+
+  it('accepts production with both set', () => {
+    const { error } = envValidationSchema.validate({
+      ...base,
+      NODE_ENV: 'production',
+      ORDER_SERVICE_URL: 'http://order:3004',
+      INTERNAL_SERVICE_KEY: 'c'.repeat(16),
+    });
+    expect(error).toBeUndefined();
   });
 });

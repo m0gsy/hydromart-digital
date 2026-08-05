@@ -13,8 +13,22 @@ export const envValidationSchema = Joi.object({
   PAYMENT_WEBHOOK_SECRET: requiredSecret(16),
   // order-service base URL + shared secret for the payment→order confirm callback.
   // Both blank = the callback is disabled (order stays CREATED until staff confirm).
-  ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
-  INTERNAL_SERVICE_KEY: optionalSecret(16),
+  //
+  // H-25: these two also carry SEC-1. getOrderTotal() returns null — "validation
+  // skipped" — when either is blank, so an unset value does not degrade the
+  // price-tamper guard, it removes it, silently, on the money path. Production
+  // must have both; dev/test may still run with the callback disabled.
+  // `.invalid('')` is what actually forbids the blank: a `when` branch is CONCAT'ed
+  // onto the base key, and the base's `.allow('')` would otherwise survive it.
+  ORDER_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  INTERNAL_SERVICE_KEY: optionalSecret(16).when('NODE_ENV', {
+    is: 'production',
+    then: Joi.string().required().invalid(''),
+  }),
   // H-29: auth-service holds the audit trail; refunds are recorded to it over the same
   // internal key. Blank = no trail in this environment (local, tests).
   AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),

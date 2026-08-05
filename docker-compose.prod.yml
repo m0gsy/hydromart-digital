@@ -754,7 +754,9 @@ services:
       - "127.0.0.1:9093:9093"
 
   # Grafana dashboards over Prometheus. Loopback only (SSH tunnel to view).
-  # Set GRAFANA_ADMIN_PASSWORD in .env; defaults to admin on first boot otherwise.
+  # H-27: GRAFANA_ADMIN_PASSWORD is REQUIRED (`:?`), not defaulted to `admin`.
+  # Loopback binding is a second lock, not a first one — anyone on the box, or on
+  # any SSH tunnel, reached admin/admin. Generate one with scripts/generate-secrets.sh.
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
@@ -763,7 +765,7 @@ services:
     depends_on:
       - prometheus
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env — see scripts/generate-secrets.sh}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro

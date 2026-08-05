@@ -182,8 +182,30 @@ certs. Without the profile the stack stays on plain HTTP `:3000`/`:8080`.
    Caddy gets certs on first request (ports 80/443 must be reachable from the
    internet). Then browse `https://app.your-domain.com`.
 
-The `Caddyfile` at the repo root is a plain reverse-proxy config; edit it to add
-routes, headers (HSTS/CSP), rate limits, etc. as needed.
+**Security headers (H-23).** The `Caddyfile` now sets them, because this proxy is
+the only component that sees TLS:
+
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` on all three
+  hostnames. No `preload` — that is a one-way submission to a browser-vendor list.
+- A **Content-Security-Policy** on the web host, and a `default-src 'none'` one on
+  the API host. `script-src` keeps `'unsafe-inline'`: Next's bootstrap and its
+  hydration payload are un-nonced inline scripts. The strict directives are the
+  ones that earn their keep — `frame-ancestors 'none'`, `object-src 'none'`,
+  `base-uri`, `form-action`.
+- `img-src` allows any `https:` origin (object-storage host is deployment-specific)
+  plus `blob:`/`data:` for camera capture and canvas renders.
+
+**Without the `tls` profile there is no HSTS and no CSP** — nothing else in the
+stack sets them. A bare-IP deploy is a test posture, not a production one.
+
+Changing the API hostname means changing `connect-src` too — it is interpolated
+from `{$API_DOMAIN}`, so setting that variable is enough. Validate any edit before
+restarting:
+
+```bash
+docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 ---
 
