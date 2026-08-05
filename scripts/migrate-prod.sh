@@ -24,4 +24,31 @@ for svc in auth customer product order payment delivery depot loyalty \
   export "$var=postgresql://hydromart:${POSTGRES_PASSWORD}@${HOST}:5432/hydromart_${svc}?schema=public"
 done
 
+# H-33 — a migration is the least reversible thing this repo does, and this script had no
+# backup step at all: the nightly dump could be 23 hours old when a migration ate data.
+# deploy.sh sets MIGRATE_SKIP_BACKUP=1 because it already took one minutes earlier.
+if [ "${MIGRATE_SKIP_BACKUP:-}" = "1" ]; then
+  echo "[migrate] backup skipped — caller already took one"
+else
+  echo "[migrate] backing up first (a migration is not undoable without this)"
+  bash scripts/backup-db.sh
+fi
+
+# B-11 preflight — the partial UNIQUE indexes are CREATE UNIQUE INDEX, so duplicate live
+# rows make `prisma migrate deploy` abort PARTWAY: some services migrated, some not.
+# --preflight only fails on dirty DATA; a missing index is expected here (it is what the
+# pending migration is about to create). Exit 2 means the check itself could not run —
+# advisory, not a reason to block a migration.
+set +e
+bash scripts/verify-indexes.sh --preflight
+PREFLIGHT=$?
+set -e
+if [ "$PREFLIGHT" = "1" ]; then
+  echo "[migrate] ABORTING: live data violates a constraint a pending migration builds." >&2
+  echo "          Resolve the duplicate rows above first — migrating now aborts halfway." >&2
+  exit 1
+elif [ "$PREFLIGHT" != "0" ]; then
+  echo "[migrate] !! could not preflight the schema (exit $PREFLIGHT) — continuing unverified" >&2
+fi
+
 npm run db:migrate

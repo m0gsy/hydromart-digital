@@ -489,6 +489,7 @@ import {
 } from '../../src/application/ports/sla-policy.repository';
 import {
   BackupStatusRecord,
+  RecordBackupRunData,
   RetentionPolicyRecord,
   RetentionRepository,
   UpdateRetentionData,
@@ -567,6 +568,27 @@ export class InMemoryRetentionRepository implements RetentionRepository {
 
   async getBackupStatus(): Promise<BackupStatusRecord | null> {
     return this.backup ? { ...this.backup } : null;
+  }
+
+  /**
+   * Models the real upsert's partial write: a drill result must not blank last night's
+   * backup verdict, and vice versa. A fake that overwrote the whole row would let that
+   * bug through the test suite.
+   */
+  async recordBackupRun(data: RecordBackupRunData): Promise<BackupStatusRecord> {
+    const base: BackupStatusRecord = this.backup ?? {
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    };
+    this.backup =
+      data.kind === 'BACKUP'
+        ? { ...base, status: data.status, lastBackupAt: data.at, detail: data.detail }
+        : { ...base, drillStatus: data.status, lastDrillAt: data.at, drillDetail: data.detail };
+    return { ...this.backup };
   }
 }
 

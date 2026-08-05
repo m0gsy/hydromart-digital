@@ -455,7 +455,7 @@ describe('OnboardingStatePrismaRepository', () => {
 
 describe('RetentionPrismaRepository', () => {
   const retentionPolicy = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
-  const backupStatus = { findUnique: jest.fn() };
+  const backupStatus = { findUnique: jest.fn(), upsert: jest.fn() };
   const prisma = { retentionPolicy, backupStatus } as unknown as PrismaService;
   const repo = new RetentionPrismaRepository(prisma);
 
@@ -482,11 +482,70 @@ describe('RetentionPrismaRepository', () => {
   });
 
   it('getBackupStatus maps the singleton or returns null', async () => {
-    backupStatus.findUnique.mockResolvedValueOnce({ status: 'OK', lastBackupAt: now });
-    expect(await repo.getBackupStatus()).toEqual({ status: 'OK', lastBackupAt: now });
+    backupStatus.findUnique.mockResolvedValueOnce({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'OK',
+      lastDrillAt: now,
+      drillDetail: '16 databases',
+    });
+    expect(await repo.getBackupStatus()).toEqual({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'OK',
+      lastDrillAt: now,
+      drillDetail: '16 databases',
+    });
     expect(backupStatus.findUnique).toHaveBeenCalledWith({ where: { id: 'singleton' } });
     backupStatus.findUnique.mockResolvedValueOnce(null);
     expect(await repo.getBackupStatus()).toBeNull();
+  });
+
+  // H-37/H-36: each job owns one pair of columns. A whole-row write would let Monday's
+  // drill erase Sunday night's backup verdict, which is exactly the kind of silent gap
+  // this card exists to close.
+  it('recordBackupRun BACKUP patches only the backup columns', async () => {
+    backupStatus.upsert.mockResolvedValue({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    });
+    await repo.recordBackupRun({ kind: 'BACKUP', status: 'OK', at: now, detail: '1.2G' });
+    const patch = { status: 'OK', lastBackupAt: now, detail: '1.2G' };
+    expect(backupStatus.upsert).toHaveBeenCalledWith({
+      where: { id: 'singleton' },
+      update: patch,
+      create: { id: 'singleton', ...patch },
+    });
+  });
+
+  it('recordBackupRun DRILL patches only the drill columns', async () => {
+    backupStatus.upsert.mockResolvedValue({
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'FAILED',
+      lastDrillAt: now,
+      drillDetail: 'no rows',
+    });
+    const out = await repo.recordBackupRun({
+      kind: 'DRILL',
+      status: 'FAILED',
+      at: now,
+      detail: 'no rows',
+    });
+    const patch = { drillStatus: 'FAILED', lastDrillAt: now, drillDetail: 'no rows' };
+    expect(backupStatus.upsert).toHaveBeenCalledWith({
+      where: { id: 'singleton' },
+      update: patch,
+      create: { id: 'singleton', ...patch },
+    });
+    expect(out.drillDetail).toBe('no rows');
   });
 });
 

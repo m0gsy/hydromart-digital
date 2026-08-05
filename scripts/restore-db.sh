@@ -6,10 +6,11 @@
 #
 #   restore-db.sh --drill [dump.sql.gz]
 #       NON-DESTRUCTIVE. Spins an ephemeral scratch Postgres container, restores the dump
-#       into it, asserts the data actually loaded (roles + a known table with rows), prints
-#       a report, and tears the container down. Touches nothing in production. Wire to cron
-#       weekly so a broken/empty dump is caught before you need it for real:
-#         0 4 * * 1 /opt/hydromart/scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
+#       into it, and VERIFIES THE RESULT AGAINST THE LIVE CLUSTER (H-36) — same databases,
+#       same table counts, same applied migrations, and real rows in each database's
+#       largest table. Prints a report, records the verdict in admin-service (H-37), and
+#       tears the container down. Touches nothing in production.
+#       Scheduled weekly by `bash scripts/install-host-cron.sh` (Q-10).
 #
 #   restore-db.sh --into-prod [dump.sql.gz]
 #       DESTRUCTIVE real recovery into $PG_CONTAINER. Refuses unless CONFIRM=RESTORE is set.
@@ -22,6 +23,12 @@
 # incoming webhook the services use, packages/platform/.../error-alerter.ts) and any
 # drill failure POSTs to it. Unset = local log only (fine for a manual run).
 set -euo pipefail
+
+# Cron runs this with an absolute path from an arbitrary cwd; the compose helpers resolve
+# their config relative to the repo root.
+cd "$(dirname "$0")/.."
+. scripts/lib/deploy-common.sh
+. scripts/lib/backup-report.sh
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
@@ -53,7 +60,7 @@ SCRATCH="hydromart-restore-drill"
 # too. ponytail: generic message + exit code; the detail is in the drill log the alert
 # tells you to read — richer per-failure messages aren't worth threading through.
 if [ "$MODE" = "--drill" ]; then
-  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; [ "$rc" -ne 0 ] && alert "drill exited $rc, check the drill log"; exit $rc' EXIT
+  trap 'rc=$?; docker rm -f "$SCRATCH" >/dev/null 2>&1 || true; if [ "$rc" -ne 0 ]; then alert "drill exited $rc, check the drill log"; report_backup_run DRILL FAILED "drill exited $rc, see the drill log"; fi; exit $rc' EXIT
 fi
 
 if [ -z "$DUMP" ]; then
@@ -89,17 +96,76 @@ case "$MODE" in
     echo "drill: restoring $DUMP ..."
     gunzip -c "$DUMP" | docker exec -i "$SCRATCH" psql -q -U "$PG_USER" -d postgres >/dev/null
 
-    # Sanity: the dump is a whole-cluster pg_dumpall, so at least the service databases
-    # should exist after restore. Count them and fail the drill if the restore was empty.
-    DBCOUNT=$(docker exec "$SCRATCH" psql -tAX -U "$PG_USER" -d postgres \
-      -c "SELECT count(*) FROM pg_database WHERE datname LIKE 'hydromart%';")
-    DBCOUNT="${DBCOUNT//[[:space:]]/}"
-    echo "drill: restored databases matching 'hydromart%': ${DBCOUNT:-0}"
-    if [ "${DBCOUNT:-0}" -lt 1 ]; then
-      echo "ERROR: drill restore produced no hydromart databases — dump is unusable" >&2
+    # H-36 — the old drill stopped at "at least one database called hydromart* now
+    # exists". A dump that restored the CREATE DATABASE statements and nothing else
+    # passed that, which is how an unusable backup earns a green tick every week.
+    #
+    # What is checked now, per database, against the LIVE cluster:
+    #   1. the database exists in the restore at all
+    #   2. it has the same number of public tables      -> the schema came back
+    #   3. it has the same number of applied migrations -> at the same schema version
+    #   4. its largest live table has rows in the restore -> DATA came back, not just DDL
+    #
+    # Live is the reference because a dump is by definition older than live. Every check
+    # is therefore "restored matches live" for structure and "restored is non-empty" for
+    # data — never an exact row count, which ordinary traffic would fail.
+    live(){ docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]'; }
+    scratch(){ docker exec "$SCRATCH" psql -tAX -U "$PG_USER" -d "$1" -c "$2" 2>/dev/null | tr -d '[:space:]'; }
+
+    TABLES_SQL="SELECT count(*) FROM information_schema.tables WHERE table_schema='public';"
+    MIGRATIONS_SQL="SELECT count(*) FROM \"_prisma_migrations\" WHERE finished_at IS NOT NULL;"
+    # reltuples is the planner's estimate, kept roughly current by autovacuum — good
+    # enough to pick a table worth probing, and it costs production no sequential scan.
+    BIGGEST_SQL="SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind='r' AND c.reltuples > 0 ORDER BY c.reltuples DESC LIMIT 1;"
+
+    LIVE_DBS="$(docker exec "$CONTAINER" psql -tAX -U "$PG_USER" -d postgres -c "SELECT datname FROM pg_database WHERE datname LIKE 'hydromart%' ORDER BY datname;" 2>/dev/null | tr -d '\r')"
+    if [ -z "$LIVE_DBS" ]; then
+      echo "ERROR: the LIVE cluster reports no hydromart databases — nothing to verify a restore against" >&2
       exit 1
     fi
-    echo "drill OK: $DUMP restores cleanly ($DBCOUNT db)"
+
+    DRILL_FAIL=0
+    CHECKED=0
+    PROBED=""
+    for db in $LIVE_DBS; do
+      CHECKED=$((CHECKED + 1))
+      if [ "$(scratch postgres "SELECT count(*) FROM pg_database WHERE datname='$db';")" != "1" ]; then
+        echo "  ❌ $db: missing from the restore" >&2; DRILL_FAIL=1; continue
+      fi
+
+      lt="$(live "$db" "$TABLES_SQL")"; st="$(scratch "$db" "$TABLES_SQL")"
+      if [ "${st:-0}" != "${lt:-0}" ]; then
+        echo "  ❌ $db: ${st:-0} tables restored, live has ${lt:-0}" >&2; DRILL_FAIL=1; continue
+      fi
+
+      lm="$(live "$db" "$MIGRATIONS_SQL")"; sm="$(scratch "$db" "$MIGRATIONS_SQL")"
+      if [ "${sm:-0}" != "${lm:-0}" ]; then
+        echo "  ❌ $db: ${sm:-0} applied migrations restored, live has ${lm:-0}" >&2; DRILL_FAIL=1; continue
+      fi
+
+      # Data probe. An empty database is a legitimate state for a service nobody has used
+      # yet, so it is SKIPPED — never counted as a pass that proves data survived.
+      big="$(live "$db" "$BIGGEST_SQL")"
+      if [ -z "$big" ]; then
+        echo "  ➖ $db: ${lt:-0} tables, no rows live — nothing to probe"
+        continue
+      fi
+      rows="$(scratch "$db" "SELECT count(*) FROM \"$big\";")"
+      if [ "${rows:-0}" -lt 1 ]; then
+        echo "  ❌ $db: $big is EMPTY in the restore but has rows live — schema restored, data did not" >&2
+        DRILL_FAIL=1; continue
+      fi
+      echo "  ✅ $db: ${lt:-0} tables, ${lm:-0} migrations, $big has $rows rows"
+      PROBED="$PROBED $big=$rows"
+    done
+
+    if [ "$DRILL_FAIL" -ne 0 ]; then
+      echo "ERROR: $DUMP does not restore to a usable copy of the live cluster — see the failures above" >&2
+      exit 1
+    fi
+    SUMMARY="$CHECKED databases verified against live;$PROBED"
+    echo "drill OK: $DUMP restores to a usable cluster ($SUMMARY)"
+    report_backup_run DRILL OK "$SUMMARY"
     ;;
 
   --into-prod)

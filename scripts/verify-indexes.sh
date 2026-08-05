@@ -20,10 +20,19 @@
 #
 # Exit: 0 = all indexes present and data clean; 1 = something missing or dirty;
 #       2 = can't reach the Postgres container.
+#
+#   bash scripts/verify-indexes.sh --preflight
+#
+# Same checks, but a MISSING index is reported and does NOT fail — that is the normal
+# state right before the migration that creates it, and migrate-prod.sh runs this on
+# every migration. Only DIRTY data fails, because dirty data is what makes a
+# CREATE UNIQUE INDEX abort halfway through `prisma migrate deploy`.
 set -uo pipefail
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
+PREFLIGHT=0
+[ "${1:-}" = "--preflight" ] && PREFLIGHT=1
 
 ok(){ echo "  ✅ $1"; }
 no(){ echo "  ❌ $1"; }
@@ -38,7 +47,9 @@ index_exists(){
   local svc="$1" idx="$2" got
   got="$(q "$svc" "SELECT 1 FROM pg_indexes WHERE indexname='$idx';")"
   if [ "$got" = "1" ]; then ok "$svc.$idx present"; return 0; fi
-  no "$svc.$idx MISSING — migration not applied to hydromart_$svc"; FAIL=1; return 1
+  no "$svc.$idx MISSING — migration not applied to hydromart_$svc"
+  [ "$PREFLIGHT" = "1" ] || FAIL=1
+  return 1
 }
 
 # data_clean <svc> <label> <count-query>  -> ok/no, bumps FAIL if data violates
@@ -85,7 +96,12 @@ index_exists delivery deliveries_depotId_deliveredAt_idx
 
 echo
 if [ "$FAIL" -eq 0 ]; then
-  echo "PASS — all audit indexes present and data is clean. Safe to run db:migrate:prod."
+  if [ "$PREFLIGHT" = "1" ]; then
+    echo "PREFLIGHT PASS — no live row violates a constraint a pending migration builds."
+    echo "                 (A ❌ MISSING above is expected here: that is what it is about to create.)"
+  else
+    echo "PASS — all audit indexes present and data is clean. Safe to run db:migrate:prod."
+  fi
   exit 0
 fi
 echo "FAIL — see ❌ above. A MISSING index means the migration never reached live PG."

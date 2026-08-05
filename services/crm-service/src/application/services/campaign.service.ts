@@ -28,9 +28,24 @@ import { CRM_TOKENS } from '../tokens';
  * (FR-087) resolved from customer-service via the CustomerDirectoryPort. Segment resolution
  * fails closed (SegmentUnavailableError) so a campaign is never built from an empty audience.
  */
+/** What one broadcast sweep tick got through. Reported to the caller and the logs. */
+export interface CampaignSweepResult {
+  campaigns: number;
+  sent: number;
+  failed: number;
+  completed: number;
+}
+
 @Injectable()
 export class CampaignService {
   private static readonly MAX_LIMIT = 100;
+  /**
+   * B-17 tick budget. Sized so one tick finishes well inside the sweep's own timeout
+   * (SWEEP_TIMEOUT, 600s) even when WhatsApp is slow: 200 recipients at ~1s each still
+   * leaves headroom, and anything left over is simply the next tick's work.
+   */
+  private static readonly BATCH = 200;
+  private static readonly MAX_CAMPAIGNS_PER_SWEEP = 5;
   private readonly logger = new Logger(CampaignService.name);
 
   constructor(
@@ -83,42 +98,82 @@ export class CampaignService {
   }
 
   /**
-   * Dispatch a DRAFT campaign to every PENDING recipient. Idempotent-guarded by the DRAFT
-   * check — a SENT/SENDING campaign is rejected, so a send never runs twice. Each recipient
-   * failure is recorded and tallied rather than aborting the broadcast.
+   * Accept a DRAFT campaign for dispatch and return immediately (B-17).
+   *
+   * This used to send the whole campaign inside the HTTP request: one WhatsApp call plus
+   * one database write per recipient, sequentially. On any real list the proxy timed out
+   * long before the loop did, the caller got a 504, the loop kept running unobserved, and
+   * if the container was recycled the campaign stranded in SENDING with finalize() never
+   * reached — half the customers messaged, no record of which half.
+   *
+   * The claim is now a conditional update (DRAFT is in the WHERE), so two simultaneous
+   * sends cannot both pass the check and broadcast twice. The actual sending is done by
+   * processSending() from the scheduler, against the recipient rows as the queue.
    */
   async send(id: string): Promise<CampaignRecord> {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();
     if (!canSend(campaign.status)) throw new CampaignNotDraftError();
 
-    await this.repo.markSending(id);
+    // canSend() above is courtesy — this is the guard. A read-then-write pair is not one.
+    if (!(await this.repo.markSending(id))) throw new CampaignNotDraftError();
 
-    let sentCount = 0;
-    let failedCount = 0;
-    const pending = campaign.recipients.filter((r) => r.status === RecipientStatus.PENDING);
-    for (const recipient of pending) {
-      const message = renderTemplate(campaign.messageTemplate, {
-        name: recipient.name ?? undefined,
-        phone: recipient.phone,
-      });
-      const result = await this.whatsapp.send(recipient.phone, message);
-      if (result.ok) {
-        sentCount += 1;
-        await this.repo.recordRecipientResult(recipient.id, RecipientStatus.SENT, null, new Date());
-      } else {
-        failedCount += 1;
-        await this.repo.recordRecipientResult(
-          recipient.id,
-          RecipientStatus.FAILED,
-          result.error ?? 'unknown error',
-          null,
+    return this.get(id);
+  }
+
+  /**
+   * Continue every campaign that is mid-broadcast. Called by the scheduler sidecar every
+   * couple of minutes; safe to call at any time and safe to interrupt.
+   *
+   * Bounded on purpose: at most MAX_CAMPAIGNS_PER_SWEEP campaigns and BATCH recipients
+   * each per tick. A tick is a unit of progress, not a promise to finish — an interrupted
+   * sweep leaves the rest of the recipients PENDING, and the next tick picks them up
+   * exactly where this one stopped. That resumability is the whole point of putting the
+   * cursor in the database.
+   */
+  async processSending(): Promise<CampaignSweepResult> {
+    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP);
+    const result: CampaignSweepResult = { campaigns: 0, sent: 0, failed: 0, completed: 0 };
+
+    for (const campaign of campaigns) {
+      result.campaigns += 1;
+      const batch = await this.repo.claimRecipients(campaign.id, CampaignService.BATCH);
+      for (const recipient of batch) {
+        const message = renderTemplate(campaign.messageTemplate, {
+          name: recipient.name ?? undefined,
+          phone: recipient.phone,
+        });
+        const outcome = await this.whatsapp.send(recipient.phone, message);
+        if (outcome.ok) {
+          result.sent += 1;
+          await this.repo.recordRecipientResult(
+            recipient.id,
+            RecipientStatus.SENT,
+            null,
+            new Date(),
+          );
+        } else {
+          result.failed += 1;
+          await this.repo.recordRecipientResult(
+            recipient.id,
+            RecipientStatus.FAILED,
+            outcome.error ?? 'unknown error',
+            null,
+          );
+        }
+      }
+
+      // Counts come from the database, not from this tick's loop — the campaign may have
+      // been carried by several ticks, and only the rows know the whole total.
+      const tally = await this.repo.tally(campaign.id);
+      if (tally.pending === 0) {
+        await this.repo.finalize(campaign.id, tally.sent, tally.failed, new Date());
+        result.completed += 1;
+        this.logger.log(
+          `Campaign ${campaign.id} complete: ${tally.sent} delivered, ${tally.failed} failed`,
         );
       }
     }
-
-    const updated = await this.repo.finalize(id, sentCount, failedCount, new Date());
-    this.logger.log(`Campaign ${id} sent: ${sentCount} delivered, ${failedCount} failed`);
-    return updated;
+    return result;
   }
 }

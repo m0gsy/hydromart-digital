@@ -13,9 +13,19 @@ import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { RetentionOverview, RetentionPolicy } from '@/lib/types';
 
-// Design 19e — retention windows per dataset + read-only backup status. Real admin-service
-// track: GET /retention returns { policies, backup }; PUT /retention/:id edits one window.
-// Backup status has NO engine wired, so it is labeled honestly (never a fake "success").
+// Design 19e — retention windows per dataset + backup status. Real admin-service track:
+// GET /retention returns { policies, backup }; PUT /retention/:id edits one window.
+// H-37: backup and restore-drill status are now WRITTEN by the VPS cron jobs
+// (backup-db.sh / restore-db.sh --drill), so this card reports what actually happened
+// instead of the "NONE" it could only ever show before.
+
+/** OK is green, FAILED is red, never-run stays neutral — a failure must not read as calm. */
+function backupTone(status: string): 'success' | 'danger' | 'neutral' {
+  if (status === 'OK') return 'success';
+  if (status === 'FAILED') return 'danger';
+  return 'neutral';
+}
+
 export default function HqRetentionPage() {
   const { t } = useT();
   const { toast } = useToast();
@@ -121,18 +131,33 @@ export default function HqRetentionPage() {
         </table>
       </Card>
 
+      {/* H-37: both verdicts are written by the cron jobs on the VPS (backup-db.sh and
+          restore-db.sh). FAILED is shown as loudly as OK — a card that can only ever say
+          "no engine wired" is what let a broken backup look the same as a working one. */}
       <Card className="flex flex-col gap-2 p-5">
         <div className="flex items-center justify-between">
           <p className="text-sm font-extrabold">{t('hq.retention.backupTitle')}</p>
-          <Badge tone={backup.status === 'NONE' ? 'neutral' : 'success'}>
+          <Badge tone={backupTone(backup.status)}>
             {backup.status === 'NONE' ? t('hq.retention.backupNone') : backup.status}
           </Badge>
         </div>
         <p className="text-sm text-muted">
           {t('hq.retention.lastBackup')}:{' '}
           {backup.lastBackupAt ? new Date(backup.lastBackupAt).toLocaleString('id-ID') : '—'}
+          {backup.detail ? ` · ${backup.detail}` : ''}
         </p>
-        {/* Honest: there is no backup engine wired in admin-service — the status is stored & shown as-is. */}
+
+        <div className="mt-2 flex items-center justify-between border-t border-line pt-3">
+          <p className="text-sm font-extrabold">{t('hq.retention.drillTitle')}</p>
+          <Badge tone={backupTone(backup.drillStatus)}>
+            {backup.drillStatus === 'NONE' ? t('hq.retention.drillNone') : backup.drillStatus}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted">
+          {t('hq.retention.lastDrill')}:{' '}
+          {backup.lastDrillAt ? new Date(backup.lastDrillAt).toLocaleString('id-ID') : '—'}
+          {backup.drillDetail ? ` · ${backup.drillDetail}` : ''}
+        </p>
         <p className="text-xs text-muted">{t('hq.retention.backupNote')}</p>
       </Card>
 

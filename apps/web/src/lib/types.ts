@@ -1816,10 +1816,18 @@ export interface RetentionPolicy {
   purgeExempt: boolean;
   updatedAt: string;
 }
-/** Read-only. status "NONE" = no backup engine is wired/has run. */
+/**
+ * What the nightly dump and the weekly tested-restore drill last reported (H-37).
+ * "NONE" = that job has never run. The drill verdict is separate from the backup's
+ * because a dump existing and a dump having been restored are different claims.
+ */
 export interface BackupStatus {
   status: string;
   lastBackupAt: string | null;
+  detail: string | null;
+  drillStatus: string;
+  lastDrillAt: string | null;
+  drillDetail: string | null;
 }
 export interface RetentionOverview {
   policies: RetentionPolicy[];

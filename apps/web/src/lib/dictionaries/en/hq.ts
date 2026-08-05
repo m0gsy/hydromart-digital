@@ -1022,7 +1022,9 @@ export const hq = {
     schedule: 'Schedule',
     needTitle: 'Title is required.',
     needMessage: 'Message is required.',
-    sent: 'Broadcast sent',
+    // B-17: delivery runs on the scheduler sweep now, so "sent" would be a claim we
+    // cannot make at this point. Progress is visible on the campaign itself.
+    sent: 'Broadcast queued — delivery is running now',
     scheduled: 'Broadcast scheduled (sample)',
     error: 'Failed to send the broadcast',
     scheduleUnsupported: 'Scheduling is not supported yet.',
@@ -1271,8 +1273,11 @@ export const hq = {
     backupTitle: 'Backup status',
     backupNone: 'No backup yet',
     backupNote:
-      'No backup engine is wired — this status is stored & shown as-is, never a fake "success".',
+      'Reported by the nightly dump and the weekly tested restore on the server. A restore drill is what makes a backup real — a dump nobody has restored is only an assumption.',
     lastBackup: 'Last backup',
+    drillTitle: 'Tested restore',
+    drillNone: 'Never tested',
+    lastDrill: 'Last drill',
     loadError: 'Could not load retention policies.',
     saveError: 'Could not save changes.',
     empty: 'No datasets yet.',

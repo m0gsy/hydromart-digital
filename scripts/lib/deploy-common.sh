@@ -21,6 +21,37 @@ fi
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml $TLS_PROFILE}"
 GATEWAY_HEALTH="${GATEWAY_HEALTH:-http://localhost:8080/health}"
 
+# H-31/H-35: registry mode. Compose reads .env itself for interpolation, but these scripts
+# have to KNOW whether images come from a registry — that decides whether a deploy builds
+# on the production box at all. So read that one key here.
+#
+# Unset (the default, and every existing box) keeps the old behaviour exactly: build
+# locally, tag `hydromart-<svc>:local`. Set IMAGE_PREFIX to the registry path prefix (e.g.
+# ghcr.io/owner/hydromart-) and the deploy pulls SHA-tagged images instead.
+if [ -z "${IMAGE_PREFIX:-}" ] && [ -f .env ]; then
+  IMAGE_PREFIX="$(sed -n 's/^IMAGE_PREFIX=//p' .env | tail -1)"
+fi
+export IMAGE_PREFIX="${IMAGE_PREFIX:-}"
+
+# True when this box deploys pre-built images rather than building its own.
+registry_mode() { [ -n "${IMAGE_PREFIX:-}" ]; }
+
+# In registry mode every compose call needs a tag, not just the deploy — the watchdog's
+# `up -d` would otherwise ask for `:local`, which does not exist in the registry, and a
+# recovery would fail exactly when it is needed. HEAD is the deployed commit (deploy.sh
+# resets the tree before it converges), so it is always the right answer here.
+if [ -n "${IMAGE_PREFIX:-}" ] && [ -z "${IMAGE_TAG:-}" ]; then
+  export IMAGE_TAG="$(git rev-parse HEAD 2>/dev/null || echo local)"
+fi
+
+# Pull the SHA-tagged images for one commit, or fail loudly. The tag is the commit, so a
+# miss means the Images workflow has not finished (or failed) for that SHA — which must
+# stop the deploy rather than silently leaving the old containers running.
+pull_images() {
+  export IMAGE_TAG="$1"
+  $COMPOSE pull --quiet
+}
+
 # Map a changed path to the compose service whose IMAGE it invalidates; echo nothing
 # if it invalidates none. services/foo-service/... -> foo ; apps/web/... -> web
 #
@@ -44,12 +75,46 @@ needs_full_rebuild() {
   echo "$1" | grep -qE '^(packages/|package\.json$|package-lock\.json$|tsconfig\.base\.json$)'
 }
 
+# B-20: migration directories introduced by the incoming diff, one per line, empty if
+# none. Migration execution has always been a separate manual button, so a merge that
+# carries both a migration and the code that reads it deployed the code first and the
+# schema whenever someone remembered — new containers against an old schema. The repo
+# convention (schema ships one release BEFORE its reader) is only safe when something
+# actually checks; this is that something.
+# Takes the newline-separated `git diff --name-only` output.
+pending_migrations() {
+  echo "$1" | grep -oE '^(services|apps)/[^/]+/prisma/migrations/[^/]+' | sort -u
+}
+
 # Every service the compose project defines must be RUNNING. The gateway probe alone is
 # not a deploy gate: gateway is built last, so it can be healthy while every batch
 # before it sits stopped. Prints the stopped names, empty if none.
+#
+# This is the WATCHDOG's question, not the deploy gate's: `up -d` is the remedy for a
+# container that is not running, and it is no remedy at all for one that is running and
+# broken. See unhealthy_services below for the stricter gate.
 stopped_services() {
   $COMPOSE ps --all --format '{{.Service}} {{.State}}' 2>/dev/null |
     awk '$2 != "running" { print $1 }' | sort -u | tr '\n' ' '
+}
+
+# H-32: pure half of the deploy gate, so it can be tested without a Docker daemon.
+# Reads `<service> <state> <health>` lines on stdin and prints the ones that fail.
+#
+# `running` was never the right question. Every app service declares a healthcheck, and a
+# container whose /health has been failing since boot stays `running` the whole time — so
+# the old gate passed a deploy that had just taken the site down, and then wrote that SHA
+# to last-good-sha. A service with NO healthcheck (empty third field) can still only be
+# judged on running, which is what it was before; one that has a healthcheck must say
+# `healthy`, and `starting` fails in a way the retry loop below lets resolve.
+filter_unhealthy() {
+  awk '$2 != "running" { print $1; next } $3 != "" && $3 != "healthy" { print $1 }' |
+    sort -u | tr '\n' ' '
+}
+
+# Services that fail the deploy gate: not running, or running without a healthy verdict.
+unhealthy_services() {
+  $COMPOSE ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null | filter_unhealthy
 }
 
 # Bring the whole project to its declared state. Idempotent: a no-op when everything
@@ -101,7 +166,8 @@ diagnose_stopped() {
   echo "$out"
 }
 
-# Gate: gateway answers AND every service in the project is running.
+# Gate: gateway answers AND every service in the project is running AND every service
+# that declares a healthcheck reports healthy (H-32).
 health_ok() {
   local ok=1 down
   for _ in $(seq 1 30); do
@@ -110,13 +176,15 @@ health_ok() {
   done
   [ "$ok" -eq 0 ] || { echo "[health] !! gateway probe never answered"; return 1; }
 
-  # Give slow starters a moment before declaring the stack incomplete.
-  for _ in $(seq 1 15); do
-    down="$(stopped_services)"
+  # Give slow starters a moment before declaring the stack incomplete. The window is
+  # wider than the old one because `starting` is now a fail: compose healthchecks have
+  # their own start_period and interval, and 60s was not enough for 20 of them to land.
+  for _ in $(seq 1 30); do
+    down="$(unhealthy_services)"
     [ -z "$down" ] && return 0
     sleep 4
   done
-  echo "[health] !! these services are not running: $down"
+  echo "[health] !! these services are not running or not healthy: $down"
   echo "[health] diagnostics written to $(diagnose_stopped)"
   return 1
 }

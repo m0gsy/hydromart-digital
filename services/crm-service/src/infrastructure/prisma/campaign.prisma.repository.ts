@@ -113,11 +113,72 @@ export class CampaignPrismaRepository implements CampaignRepository {
     return { items: rows.map((r) => this.toCampaign(r, [])), total };
   }
 
-  async markSending(id: string): Promise<void> {
-    await this.prisma.campaign.update({
-      where: { id },
+  /**
+   * B-17: the DRAFT predicate lives in the WHERE, not in a prior read. `update({ where:
+   * { id } })` let two simultaneous sends both pass the service's canSend() check and both
+   * broadcast — to real customers, over WhatsApp, with no way to unsend.
+   */
+  async markSending(id: string): Promise<boolean> {
+    const { count } = await this.prisma.campaign.updateMany({
+      where: { id, status: PrismaCampaignStatus.DRAFT },
       data: { status: PrismaCampaignStatus.SENDING },
     });
+    return count === 1;
+  }
+
+  async findSending(limit: number): Promise<CampaignRecord[]> {
+    const rows = await this.prisma.campaign.findMany({
+      where: { status: PrismaCampaignStatus.SENDING },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    // Recipients are claimed in batches by claimRecipients, never loaded wholesale here —
+    // a 50,000-recipient campaign must not be read into memory to decide to continue it.
+    return rows.map((r) => this.toCampaign(r, []));
+  }
+
+  /**
+   * The claim, same shape as the webhook dispatcher's: move the rows first with the
+   * eligibility predicate in the WHERE, then read back only what this call moved. Reading
+   * first and updating after is what lets a slow sweep and the next tick send twice.
+   */
+  async claimRecipients(campaignId: string, limit: number): Promise<CampaignRecipientRecord[]> {
+    const candidates = await this.prisma.campaignRecipient.findMany({
+      where: { campaignId, status: PrismaRecipientStatus.PENDING },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+      select: { id: true },
+    });
+    if (candidates.length === 0) return [];
+
+    const ids = candidates.map((c) => c.id);
+    await this.prisma.campaignRecipient.updateMany({
+      where: { id: { in: ids }, status: PrismaRecipientStatus.PENDING },
+      data: { status: PrismaRecipientStatus.SENDING },
+    });
+    const claimed = await this.prisma.campaignRecipient.findMany({
+      where: { id: { in: ids }, status: PrismaRecipientStatus.SENDING },
+      orderBy: { createdAt: 'asc' },
+    });
+    return claimed.map((r) => this.toRecipient(r));
+  }
+
+  async tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }> {
+    const rows = await this.prisma.campaignRecipient.groupBy({
+      by: ['status'],
+      where: { campaignId },
+      _count: { _all: true },
+    });
+    const of = (s: PrismaRecipientStatus): number =>
+      rows.find((r) => r.status === s)?._count._all ?? 0;
+    return {
+      // A claimed-but-unfinished recipient is still outstanding work, so SENDING counts as
+      // pending — otherwise a sweep that dies mid-batch would finalize the campaign and
+      // strand those rows forever.
+      pending: of(PrismaRecipientStatus.PENDING) + of(PrismaRecipientStatus.SENDING),
+      sent: of(PrismaRecipientStatus.SENT),
+      failed: of(PrismaRecipientStatus.FAILED),
+    };
   }
 
   async recordRecipientResult(

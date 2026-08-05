@@ -5,8 +5,10 @@
   "description": "Hydromart — digital platform for refillable drinking-water depot operations",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.20 <21",
+    "npm": ">=10.8 <11"
   },
+  "packageManager": "npm@10.8.2",
   "workspaces": [
     "services/*",
     "apps/*",

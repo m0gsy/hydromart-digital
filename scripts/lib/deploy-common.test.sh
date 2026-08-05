@@ -27,6 +27,34 @@ no_  "service manifest only" "services/order-service/package.json"
 no_  "compose only"          "docker-compose.prod.yml"
 no_  "service code only"     "$(printf 'services/order-service/src/a.ts\napps/web/x.tsx\n')"
 
+# B-20 — the incoming diff carries a migration, so the deploy must apply it before any
+# container starts on the new code.
+is "migration dir detected" \
+  "$(pending_migrations "$(printf 'services/hr-service/prisma/migrations/0016_x/migration.sql\n')")" \
+  "services/hr-service/prisma/migrations/0016_x"
+is "migration dir deduped across files in one migration" \
+  "$(pending_migrations "$(printf 'services/order-service/prisma/migrations/2026_a/migration.sql\nservices/order-service/prisma/migrations/2026_a/rollback.sql\n')")" \
+  "services/order-service/prisma/migrations/2026_a"
+is "schema edit alone is not a migration" \
+  "$(pending_migrations "services/order-service/prisma/schema.prisma")" ""
+is "ordinary code change carries no migration" \
+  "$(pending_migrations "$(printf 'services/order-service/src/a.ts\ndocker-compose.prod.yml\n')")" ""
+
+# H-32 — the deploy gate reads compose `ps` state AND health. `running` alone passed a
+# container that had been failing its own healthcheck since boot.
+is "running + healthy passes" \
+  "$(printf 'order running healthy\ngateway running healthy\n' | filter_unhealthy)" ""
+is "running but unhealthy fails" \
+  "$(printf 'order running unhealthy\ngateway running healthy\n' | filter_unhealthy)" "order "
+is "still starting fails (the retry loop lets it resolve)" \
+  "$(printf 'order running starting\n' | filter_unhealthy)" "order "
+is "exited fails whatever its last health said" \
+  "$(printf 'order exited healthy\n' | filter_unhealthy)" "order "
+is "no healthcheck declared is judged on running only" \
+  "$(printf 'caddy running \n' | filter_unhealthy)" ""
+is "no healthcheck and not running still fails" \
+  "$(printf 'caddy exited \n' | filter_unhealthy)" "caddy "
+
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 printf 'A=1\nORDER_ALERT_PHONE=\n# C=3\n' > "$tmp/.env.example"
 printf 'A=9\n' > "$tmp/.env"

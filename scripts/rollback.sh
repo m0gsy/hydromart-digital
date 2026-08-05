@@ -23,7 +23,17 @@ log "rolling back $CUR → $TARGET"
 CHANGED="$(git diff --name-only "$TARGET" "$CUR")"
 git reset --hard "$TARGET"
 
-if needs_full_rebuild "$CHANGED"; then
+if registry_mode; then
+  # H-35: the point of immutable SHA tags. Rolling back is pulling the images that were
+  # already built for the target commit — seconds, and byte-identical to what ran before,
+  # rather than a fresh build on a box that is currently unhealthy.
+  log "registry mode — pulling images tagged $TARGET"
+  if ! pull_images "$TARGET"; then
+    log "!! no images published for $TARGET — cannot roll back to it"
+    alert "rollback to $TARGET impossible: no images published for that commit"
+    exit 1
+  fi
+elif needs_full_rebuild "$CHANGED"; then
   log "shared package or root build input differs → full rebuild"
   bash scripts/rebuild-stale.sh --all
 else

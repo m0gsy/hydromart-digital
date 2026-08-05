@@ -30,6 +30,18 @@ x-shared: &shared
 
 x-svc: &svc
   restart: unless-stopped
+  # H-34 — nothing bounded any of the 19 Node containers. One leaking or looping service
+  # could take the whole box with it, and the four-hour outage was reconstructed without
+  # ever being able to rule that out (`docker inspect .State.OOMKilled` was long gone).
+  # A limit turns "the VPS died" into "one container was OOM-killed and restarted", which
+  # is a fact the watchdog's incident dump can read back.
+  #
+  # These are CEILINGS, not reservations — a service idles around 150 MB and nothing is
+  # pre-allocated, so the ceilings deliberately over-commit the 16 GB box. 512 MB is
+  # roughly 3x steady state, which covers the bulk-import and report paths without
+  # letting a runaway grow unbounded. Downsize the host, downsize this number.
+  mem_limit: 512m
+  cpus: 1.0
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_healthy }
@@ -42,6 +54,10 @@ services:
   # Postgres/Redis therefore stay on the host's published 5432/6379 — lock them down
   # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
   postgres:
+    # H-34: the one container that genuinely wants headroom — shared_buffers plus every
+    # service's connections. Given the largest slice on purpose.
+    mem_limit: 2g
+    cpus: 2.0
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
     # B-12: the pool was unbounded on BOTH sides. Prisma defaults to (cpus * 2 + 1)
@@ -59,8 +75,18 @@ services:
       - -c
       - max_connections=150
 
+  # H-34: Redis is currently used by no service (Q-9 — either wire it or remove it, PR 10),
+  # so it gets the smallest ceiling that still lets it boot and answer a healthcheck.
+  redis:
+    mem_limit: 256m
+    cpus: 0.5
+
   auth:
     <<: *svc
+    # H-31/H-35: named so the image can come from a registry instead of being
+    # built on the production box. IMAGE_PREFIX + IMAGE_TAG unset = the old
+    # build-on-the-VPS path, unchanged.
+    image: ${IMAGE_PREFIX:-hydromart-}auth:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/auth-service/Dockerfile }
     environment:
       <<: *shared
@@ -110,6 +136,7 @@ services:
 
   customer:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}customer:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/customer-service/Dockerfile }
     environment:
       <<: *shared
@@ -129,6 +156,7 @@ services:
 
   product:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}product:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/product-service/Dockerfile }
     environment:
       <<: *shared
@@ -153,6 +181,7 @@ services:
 
   order:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}order:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/order-service/Dockerfile }
     environment:
       <<: *shared
@@ -186,6 +215,7 @@ services:
 
   payment:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payment:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payment-service/Dockerfile }
     environment:
       <<: *shared
@@ -204,6 +234,7 @@ services:
 
   delivery:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}delivery:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/delivery-service/Dockerfile }
     environment:
       <<: *shared
@@ -242,6 +273,7 @@ services:
 
   depot:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}depot:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/depot-service/Dockerfile }
     environment:
       <<: *shared
@@ -277,6 +309,7 @@ services:
 
   dashboard:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}dashboard:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/dashboard-service/Dockerfile }
     environment:
       <<: *shared
@@ -293,6 +326,7 @@ services:
 
   loyalty:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}loyalty:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/loyalty-service/Dockerfile }
     environment:
       <<: *shared
@@ -311,6 +345,7 @@ services:
 
   promo:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}promo:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/promo-service/Dockerfile }
     environment:
       <<: *shared
@@ -329,6 +364,7 @@ services:
 
   referral:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}referral:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/referral-service/Dockerfile }
     environment:
       <<: *shared
@@ -346,6 +382,7 @@ services:
 
   crm:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}crm:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/crm-service/Dockerfile }
     environment:
       <<: *shared
@@ -366,6 +403,7 @@ services:
 
   recommendation:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}recommendation:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/recommendation-service/Dockerfile }
     environment:
       <<: *shared
@@ -380,6 +418,7 @@ services:
 
   forecast:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}forecast:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/forecast-service/Dockerfile }
     environment:
       <<: *shared
@@ -395,6 +434,7 @@ services:
 
   payout:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payout:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payout-service/Dockerfile }
     environment:
       <<: *shared
@@ -409,6 +449,7 @@ services:
 
   admin:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}admin:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/admin-service/Dockerfile }
     environment:
       <<: *shared
@@ -440,6 +481,7 @@ services:
 
   hr:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}hr:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/hr-service/Dockerfile }
     environment:
       <<: *shared
@@ -482,6 +524,7 @@ services:
 
   gateway:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}gateway:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     environment:
       <<: *shared
@@ -524,6 +567,7 @@ services:
       retries: 12
 
   web:
+    image: ${IMAGE_PREFIX:-hydromart-}web:${IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -539,6 +583,9 @@ services:
     # H-19, same rule as the gateway above: loopback by default, Caddy is the way in.
     ports:
       - "${PUBLIC_BIND:-127.0.0.1}:3000:3000"
+    # H-34: Next.js SSR holds the biggest working set of any Node container here.
+    mem_limit: 1g
+    cpus: 1.5
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -554,6 +601,8 @@ services:
   scheduler:
     <<: *svc
     image: alpine:3.20
+    mem_limit: 64m
+    cpus: 0.25
     environment:
       <<: *shared
       TZ: ${SCHEDULER_TZ:-UTC}
@@ -563,18 +612,100 @@ services:
       - ./scripts/scheduler/crontab:/etc/crontabs/root:ro
       - ./scripts/scheduler:/scripts:ro
     command: ["sh", "/scripts/entrypoint.sh"]
+    # H-38: crond keeps running whether or not its jobs do anything, so `running` said
+    # nothing about whether sweeps were happening. This asserts a sweep has SUCCEEDED
+    # recently — the busiest job runs every 5 minutes. With the deploy gate now requiring
+    # `healthy` (H-32), a scheduler that has quietly stopped sweeping fails a deploy
+    # instead of riding along unnoticed.
+    healthcheck:
+      test: ["CMD", "sh", "/scripts/healthcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Prometheus scrapes every service's /metrics (enableMetrics()). Bound to
   # loopback only — reach the UI via SSH tunnel, never expose to the internet.
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     volumes:
       - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./ops/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      # H-49: generated from this compose file by scripts/gen-prometheus-targets.mjs and
+      # checked in CI. file_sd, so a regenerated list is picked up without a restart.
+      - ./ops/prometheus-targets.json:/etc/prometheus/targets/hydromart.json:ro
       - prometheus_data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+
+  # H-41 — the four exporters for everything the application cannot report about itself.
+  # Before these, a full disk, a saturated connection pool or an OOM-killed container was
+  # invisible: app metrics simply stop, and a failed scrape is the only signal, after the
+  # fact. All loopback-bound or unpublished; Prometheus reaches them over the compose
+  # network.
+
+  # Host: disk, memory, load, filesystem. The 2026-08-02 outage could not be attributed
+  # because nothing recorded host state at the time it happened.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    # Host /proc, /sys and / mounted in, rather than `network_mode: host` — a host-network
+    # container has no compose DNS name, so Prometheus could not reach it. Memory, load,
+    # disk and filesystem all come from those mounts and are the host's real numbers; the
+    # network counters are the container's, which is the one thing this trade gives up.
+    pid: host
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  # Postgres: connection count against max_connections (B-12's ceiling is only useful if
+  # someone can see it being approached), replication lag, slow-query and deadlock counts.
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATA_SOURCE_NAME: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
+    depends_on:
+      redis: { condition: service_healthy }
+    environment:
+      REDIS_ADDR: redis://redis:6379
+
+  # Containers: per-container memory, CPU and — the one that matters here — the OOM kill
+  # counter. H-34 gives every container a ceiling; this is what tells you one was hit.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
 
   # Routes Prometheus alerts (ops/alert-rules.yml) to ALERT_WEBHOOK_URL. Loopback
   # only. The webhook URL is read from ops/alertmanager.webhook-url (operator
@@ -583,6 +714,8 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
     volumes:
       - ./ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./ops/alertmanager.webhook-url:/etc/alertmanager/webhook-url:ro
@@ -595,6 +728,8 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
     depends_on:
       - prometheus
     environment:
@@ -614,6 +749,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
     profiles: ["tls"]
     depends_on:
       - web
