@@ -427,6 +427,7 @@ describe('OrderService', () => {
       expect(orders.rows).toHaveLength(2);
       expect(theirs.customerId).toBe(other);
     });
+  });
 
   // H-12: the suffix used to be randomInt(0, 1e6) against a UNIQUE column, so a
   // collision was a failed checkout for a real customer — ~40% of days at 1,000
