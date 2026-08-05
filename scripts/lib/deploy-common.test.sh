@@ -127,5 +127,22 @@ for port in 8080 3000; do
   fi
 done
 
+# --- the scheduler's crontab must not arrive as a bind mount ------------------------
+# A bind mount carries the HOST file's ownership. The checkout on the box belongs to the
+# deploy user, so /etc/crontabs/root landed as uid 1000, and busybox crond discards every
+# entry of a crontab it does not see as owned by the user it is for — while still starting,
+# still answering `crontab -l`, and still waking once a minute. Production ran a scheduler
+# that had executed zero sweeps. The entrypoint installs a root-owned copy instead.
+if grep -qE '^\s+- \./scripts/scheduler/crontab:/etc/crontabs' "$COMPOSE_PROD"; then
+  echo "FAIL the crontab is bind-mounted again — busybox crond will ignore every entry"
+  fail=1
+fi
+if grep -q 'chown root:root /etc/crontabs/root' scripts/scheduler/entrypoint.sh; then
+  :
+else
+  echo "FAIL the scheduler entrypoint no longer installs a root-owned crontab"
+  fail=1
+fi
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"
