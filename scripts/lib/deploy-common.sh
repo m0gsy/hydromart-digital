@@ -92,6 +92,31 @@ pending_migrations() {
   echo "$1" | grep -oE '^(services|apps)/[^/]+/prisma/migrations/[^/]+' | sort -u || true
 }
 
+# Which commit the RUNNING containers were built from. deploy.sh writes last-good-sha only
+# after a green health check, so it is the only durable record of what is actually serving.
+# The working tree is not that record: a deploy that dies any time after `git reset --hard`
+# leaves HEAD on the incoming commit with the old images still running, and the next run —
+# diffing HEAD against an identical origin/main — then finds no changed service, rebuilds
+# nothing, passes the gate on the containers that were already up, and writes that SHA to
+# last-good. A failed deploy quietly became a successful no-op, which is the same silence
+# the early `exit 0` used to produce.
+#
+# Falls back to the caller's SHA when the file is missing, empty, or names a commit this
+# checkout does not have (a rolled-back or rewritten history) — that is a first deploy, and
+# it behaves exactly as before.
+rebuild_base() {
+  local file="$1" fallback="$2" sha=""
+  # Guarded rather than `2>/dev/null`'d: the shell reports a failed input redirect itself,
+  # and piping through `cat` to silence it would put a failing command in a pipeline this
+  # function's callers run under `set -o pipefail`.
+  if [ -f "$file" ]; then sha="$(tr -d '[:space:]' < "$file")"; fi
+  if [ -n "$sha" ] && git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+    echo "$sha"
+  else
+    echo "$fallback"
+  fi
+}
+
 # Every service the compose project defines must be RUNNING. The gateway probe alone is
 # not a deploy gate: gateway is built last, so it can be healthy while every batch
 # before it sits stopped. Prints the stopped names, empty if none.
