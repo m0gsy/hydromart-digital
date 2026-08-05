@@ -60,7 +60,6 @@ test('face check-in captures a frame and posts through the cookie session', asyn
     expect(outcome.status()).toBeLessThan(500); // never a server crash
     expect(String(outcome.request().postDataJSON()?.image ?? '')).toContain('data:image');
   }
-  }
 });
 
 // B-15/B-16: a real selfie is far over Express's 100 KB default, and every hop (Caddy,
