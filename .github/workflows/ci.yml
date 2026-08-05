@@ -247,6 +247,16 @@ jobs:
             sleep 5
           done
           [ "$ok" = 1 ] || { echo "db:migrate failed after retries" >&2; exit 1; }
+          # Build in batches of three rather than letting compose build all seventeen at
+          # once. Every image runs a full-monorepo `npm ci` against one shared BuildKit
+          # cache, so building them together is seventeen cold downloads in the same
+          # instant — npm's cacache tmp files collide (EEXIST) and the registry cuts
+          # sockets under the burst (ECONNRESET/ETIMEDOUT). Batched, the first three
+          # populate the cache and the rest hit it warm. The service list comes from the
+          # compose config so a new service cannot quietly slip out of the batching.
+          docker compose -f docker-compose.yml -f docker-compose.test.yml config --format json \
+            | jq -r '.services | to_entries[] | select(.value.build) | .key' \
+            | xargs -n3 docker compose -f docker-compose.yml -f docker-compose.test.yml build
           # --wait blocks until every healthchecked service is healthy — the gateway
           # /health alone can be up while product-service isn't, which 504'd the seed.
           docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build --wait --wait-timeout 300

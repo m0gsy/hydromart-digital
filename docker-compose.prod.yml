@@ -609,7 +609,10 @@ services:
     depends_on:
       order: { condition: service_healthy }
     volumes:
-      - ./scripts/scheduler/crontab:/etc/crontabs/root:ro
+      # Deliberately NOT mounted onto /etc/crontabs/root: a bind mount carries the host
+      # file's ownership, the checkout on the box belongs to the deploy user, and busybox
+      # crond discards every entry of a crontab it does not see as root-owned. The
+      # entrypoint installs a root-owned copy from this same directory instead.
       - ./scripts/scheduler:/scripts:ro
     command: ["sh", "/scripts/entrypoint.sh"]
     # H-38: crond keeps running whether or not its jobs do anything, so `running` said

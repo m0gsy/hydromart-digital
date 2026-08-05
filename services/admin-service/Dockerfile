@@ -16,10 +16,15 @@ COPY services/admin-service/prisma ./services/admin-service/prisma
 # be N x a full `npm ci` download from Indonesia. The mount keeps the npm cache on the
 # builder between images and between runs; it never lands in a layer, so images stay the
 # same size. `npm ci` still deletes node_modules first, so builds remain reproducible.
-# 19 images build at once in CI, each pulling the whole workspace. npm defaults to 2
-# retries / 60s, so one stalled socket under that contention kills the entire build
-# (seen twice: ECONNRESET, then ETIMEDOUT, on different services each time).
-RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root \
+# CI builds these in batches of three now (test/integration/run.mjs and the e2e job), so
+# the first batch fills this cache and the rest read it — `--prefer-offline` then keeps
+# them off the network altogether. Built all at once, each image pulling the whole
+# workspace, they were N cold downloads in the same instant: that is what produced EEXIST
+# in cacache's tmp dir, and then ECONNRESET and ETIMEDOUT on different services each time.
+# sharing=locked stops concurrent writers; it does NOT serialise separate compose builds,
+# which is why the batching is what actually removes the burst. The retry flags below are
+# the last line of defence for whichever batch does have to fetch.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --include-workspace-root --prefer-offline \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY services/admin-service ./services/admin-service
 RUN npm run build -w @hydromart/access \
