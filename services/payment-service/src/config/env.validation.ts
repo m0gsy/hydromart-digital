@@ -29,16 +29,13 @@ export const envValidationSchema = Joi.object({
     is: 'production',
     then: Joi.string().required().invalid(''),
   }),
-  // H-29: auth-service holds the audit trail; refunds are recorded to it over the same
-  // internal key. Blank = no trail in this environment (local, tests).
-  AUTH_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
-  // default in domain/payment.ts, which is now the only place that number lives.
+  // default in domain/payment.ts, which is the only place that number lives — a
+  // `.default()` here would be a second copy of it, free to drift.
   REFUND_HQ_THRESHOLD: Joi.number().integer().positive().optional(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
-  REFUND_HQ_THRESHOLD: Joi.number().integer().positive().default(100000),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
   DEPOT_SERVICE_URL: Joi.string()
@@ -49,7 +46,8 @@ export const envValidationSchema = Joi.object({
   // Q-6: shipped to every service by docker-compose's x-shared, and until now
   // validated by none of them. The capability poller reads it; unset, it fails open
   // and every service silently enforces the compiled RBAC defaults forever — which
-  // looks exactly like "the matrix edit did nothing".
+  // looks exactly like "the matrix edit did nothing". H-29's refund audit trail is
+  // written over this same URL, so in production it is now required, not optional.
   AUTH_SERVICE_URL: Joi.string()
     .uri()
     .allow('')
