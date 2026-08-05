@@ -16,21 +16,18 @@ import { execFileSync } from 'node:child_process';
 // GHSA id -> why it's accepted (no fix without a breaking change; low real risk).
 // Re-check every release; delete the entry the moment a non-breaking fix exists.
 const ALLOWLIST = {
-  // exceljs@4 pulls a vulnerable archiver/zip chain. These CVEs are DoS in the
-  // zip-*write* path; hr-service only GENERATES reports from trusted HR-authored
-  // data (never parses attacker-supplied xlsx), so not reachable. Upgrade path:
-  // exceljs maintained release that bumps archiver>=7, or swap to a lighter xlsx
-  // writer. Overriding the leaves risks exceljs's own zip assumptions, so accept.
-  'GHSA-mh99-v99m-4gvg': 'exceljs>archiver brace-expansion DoS — zip-write path, trusted HR data only',
+  // exceljs@4 pulls a vulnerable archiver/zip chain. This CVE is in v3/v5 with a
+  // `buf` argument; exceljs passes none, and hr-service only GENERATES reports
+  // from trusted HR-authored data (never parses attacker-supplied xlsx).
+  // Moderate, so it does not block the gate anyway — kept as the triage record.
   'GHSA-w5hq-g745-h8pq': 'exceljs>uuid buffer-bounds — v3/v5 with buf arg; exceljs passes no buf',
 
-  // postcss under next: runs only at `next build` on trusted source CSS. The XSS
-  // (style stringify) and path-traversal (sourceMappingURL) advisories need
-  // attacker-controlled CSS, which never reaches the build. Not a runtime dep.
-  // Fix requires overriding next's bundled postcss — deferred to a next bump.
-  'GHSA-qx2v-qp2m-jg93': 'postcss XSS in stringify — next build-time only, trusted CSS',
-  'GHSA-6g55-p6wh-862q': 'postcss sourceMappingURL file-read — next build-time only, trusted CSS',
-  'GHSA-r28c-9q8g-f849': 'postcss source-map path-traversal — next build-time only, trusted CSS',
+  // brace-expansion (GHSA-mh99-v99m-4gvg, GHSA-rgw5-rvv9-x895) and postcss
+  // (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849,
+  // GHSA-fxqj-rqcc-2cmp) were allowlisted here until 2026-08-05. Both are now
+  // FIXED by patch-level `overrides` in the root package.json — 1.1.18 / 2.1.4
+  // and ^8.5.23. Entries deleted rather than kept: an allowlist that outlives
+  // its vuln stops being a triage record.
 
   // sharp@0.34.5 is next's OPTIONAL image-optimization engine. No
   // images.remotePatterns is configured, so only local/bundled assets are
