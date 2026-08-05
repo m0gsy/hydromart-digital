@@ -6,51 +6,52 @@
 # these paths to a branch-protection rule with "Require review from Code Owners"
 # and the rule stops being a memory test.
 #
-# NOTE: the handle below is derived from the repository's git author. If the GitHub
-# login differs, fix it here — GitHub silently ignores an owner it cannot resolve,
-# and an unresolvable CODEOWNERS protects nothing.
+# The handle is the repository owner's GitHub login (verified with `gh auth status`
+# / `gh repo view`, not guessed from the git author name — those differ here).
+# GitHub silently ignores an owner it cannot resolve, so an unverified handle would
+# have made this file decoration.
 
 # Default owner for everything not matched below.
-*                                           @lwahyualdi
+*                                           @m0gsy
 
 # ---- Money -----------------------------------------------------------------
 # Payments, refunds, the franchise ledger, commissions and withdrawals. A defect
 # here moves real IDR and is usually discovered by someone counting cash.
-/services/payment-service/                  @lwahyualdi
-/services/payout-service/                   @lwahyualdi
-/services/promo-service/                    @lwahyualdi
+/services/payment-service/                  @m0gsy
+/services/payout-service/                   @m0gsy
+/services/promo-service/                    @m0gsy
 
 # ---- Stock -----------------------------------------------------------------
 # Reservation, settlement and the movement ledger: an oversell is silent and
 # cumulative, so these paths get the same treatment as money.
-/services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts @lwahyualdi
-/services/depot-service/src/application/services/inventory.service.ts            @lwahyualdi
-/services/order-service/src/application/services/order.service.ts                @lwahyualdi
+/services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts @m0gsy
+/services/depot-service/src/application/services/inventory.service.ts            @m0gsy
+/services/order-service/src/application/services/order.service.ts                @m0gsy
 
 # ---- Payroll and biometrics ------------------------------------------------
 # Payroll computes what people are paid; the face paths hold biometric templates
 # that cannot be reissued if they leak.
-/services/hr-service/src/application/services/payroll.service.ts   @lwahyualdi
-/services/hr-service/src/application/services/attendance.service.ts @lwahyualdi
-/services/hr-service/src/infrastructure/face/                       @lwahyualdi
+/services/hr-service/src/application/services/payroll.service.ts   @m0gsy
+/services/hr-service/src/application/services/attendance.service.ts @m0gsy
+/services/hr-service/src/infrastructure/face/                       @m0gsy
 
 # ---- Authentication and authorization --------------------------------------
 # One capability map backs both the guards and the console; auth-service owns
 # sessions, OTP and the internal-key path.
-/services/auth-service/                     @lwahyualdi
-/packages/access/                           @lwahyualdi
-/packages/platform/src/nest/                @lwahyualdi
+/services/auth-service/                     @m0gsy
+/packages/access/                           @m0gsy
+/packages/platform/src/nest/                @m0gsy
 
 # ---- The 18× multiplier and the edge ---------------------------------------
 # A change in packages/platform reaches every service (audit Q-2); the gateway is
 # the only thing the public internet talks to.
-/packages/platform/                         @lwahyualdi
-/services/gateway-service/                  @lwahyualdi
+/packages/platform/                         @m0gsy
+/services/gateway-service/                  @m0gsy
 
 # ---- Deployment, secrets, security posture ---------------------------------
-/docker-compose.prod.yml                    @lwahyualdi
-/Caddyfile                                  @lwahyualdi
-/scripts/                                   @lwahyualdi
-/.github/workflows/                         @lwahyualdi
-/SECURITY.md                                @lwahyualdi
-/.github/CODEOWNERS                         @lwahyualdi
+/docker-compose.prod.yml                    @m0gsy
+/Caddyfile                                  @m0gsy
+/scripts/                                   @m0gsy
+/.github/workflows/                         @m0gsy
+/SECURITY.md                                @m0gsy
+/.github/CODEOWNERS                         @m0gsy
