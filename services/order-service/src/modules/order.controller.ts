@@ -49,6 +49,7 @@ import {
   VoidSaleDto,
   WalkInSaleDto,
 } from './dto/order.dto';
+import { CartResponseDto, ExpireAbandoned2ResponseDto, InternalCompleted2ResponseDto, InternalConfirm2ResponseDto, InternalDepotCustomers2ResponseDto, InternalDepotSales2ResponseDto, InternalRefund2ResponseDto, InternalTotal2ResponseDto, OrderResponseDto, OrderReviewResponseDto, OrderStatusHistoryResponseDto, PagedOrderResponseDto, RatingResponseDto, RemindStale2ResponseDto } from './dto/responses.generated.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
 const FULFILMENT_ROLES = [
@@ -67,6 +68,7 @@ export class OrderController {
     private readonly outboxService: OutboxService,
   ) {}
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Post('checkout')
   @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
   @ApiHeader({
@@ -107,6 +109,7 @@ export class OrderController {
   }
 
   // Declared before any ':id' route so 'walk-in' is never read as an order id.
+  @ApiOkResponse({ type: OrderResponseDto })
   @Can('walkInSale')
   @Post('walk-in')
   @ApiOperation({ summary: 'Record a cash sale at the depot counter (completed immediately)' })
@@ -138,6 +141,7 @@ export class OrderController {
 
   // Declared with the other 'walk-in' routes, before any ':id' route, so the static
   // segment is never read as an order id.
+  @ApiOkResponse({ type: OrderResponseDto })
   @Can('walkInSale')
   @Post('walk-in/:id/void')
   @HttpCode(HttpStatus.OK)
@@ -161,6 +165,7 @@ export class OrderController {
   @Post('outbox/process')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retry the order side effects still owed (admin sweep)' })
+  @ApiOkResponse({ description: 'Counts for this sweep: claimed, delivered, failed, dead.' })
   processOutbox(): Promise<OutboxSweepResult> {
     return this.outboxService.processDue();
   }
@@ -169,10 +174,12 @@ export class OrderController {
   @Roles(Role.SUPER_ADMIN)
   @Get('outbox/pending')
   @ApiOperation({ summary: 'Counts of order side effects owed, delivered and given up on' })
+  @ApiOkResponse({ description: 'Row counts keyed by outbox status (PENDING, DONE, DEAD).' })
   outboxPending(): Promise<Record<string, number>> {
     return this.outboxService.pending();
   }
 
+  @ApiOkResponse({ type: ExpireAbandoned2ResponseDto })
   @Roles(Role.SUPER_ADMIN)
   @Post('expire-abandoned')
   @ApiOperation({
@@ -191,6 +198,7 @@ export class OrderController {
     );
   }
 
+  @ApiOkResponse({ type: PagedOrderResponseDto })
   @Get()
   @ApiOperation({ summary: "List the current customer's orders" })
   list(
@@ -201,6 +209,7 @@ export class OrderController {
   }
 
   // Static `manage` routes are declared before `:id` so they are not captured by it.
+  @ApiOkResponse({ type: PagedOrderResponseDto })
   @Get('manage')
   @Can('orderQueue')
   @ApiOperation({ summary: 'Staff order queue across all customers, optional status filter' })
@@ -242,6 +251,7 @@ export class OrderController {
     return this.orders.listAll({ ...rest, depotIds });
   }
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Patch('manage/:id/depot')
   @Can('orderQueue')
   @ApiOperation({ summary: 'Staff: assign the fulfilling depot of an order that has none' })
@@ -252,6 +262,7 @@ export class OrderController {
     return this.orders.assignDepot(id, dto.depotId);
   }
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Get('manage/:id')
   @Can('orderQueue')
   @ApiOperation({ summary: 'Staff: read any order by id' })
@@ -268,6 +279,7 @@ export class OrderController {
   // Service-to-service: recommendation-service pulls completed orders for its rebuild
   // backfill. No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY.
   // Declared before `:id` (mirrors `manage`) so it is not captured by that param route.
+  @ApiOkResponse({ type: InternalCompleted2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -316,6 +328,7 @@ export class OrderController {
     };
   }
 
+  @ApiOkResponse({ type: InternalDepotSales2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -332,6 +345,7 @@ export class OrderController {
     };
   }
 
+  @ApiOkResponse({ type: InternalDepotCustomers2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -376,6 +390,7 @@ export class OrderController {
   }
 
   // Ops/scheduler-triggered "time to refill" sweep (internal service auth, spec 5h).
+  @ApiOkResponse({ type: RemindStale2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -393,6 +408,7 @@ export class OrderController {
     );
   }
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's orders" })
   get(
@@ -402,6 +418,7 @@ export class OrderController {
     return this.orders.getForCustomer(user.sub, id);
   }
 
+  @ApiOkResponse({ type: OrderStatusHistoryResponseDto, isArray: true })
   @Get(':id/timeline')
   @ApiOperation({ summary: "Get the status history of one of the customer's orders" })
   async timeline(
@@ -412,6 +429,7 @@ export class OrderController {
     return order.history;
   }
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Post(':id/cancel')
   @ApiOperation({ summary: 'Cancel an order (only before a driver is assigned, BR-006)' })
   cancel(
@@ -423,6 +441,7 @@ export class OrderController {
     return this.orders.cancel(user.sub, id, dto.reason, authorization);
   }
 
+  @ApiOkResponse({ type: CartResponseDto })
   @Post(':id/repeat')
   @ApiOperation({ summary: "Re-add an order's available items back to the cart" })
   repeat(
@@ -432,6 +451,7 @@ export class OrderController {
     return this.orders.repeat(user.sub, id);
   }
 
+  @ApiOkResponse({ type: OrderReviewResponseDto })
   @Get(':id/review')
   @ApiOperation({ summary: "Get the customer's review of an order (null if unrated)" })
   getReview(
@@ -441,6 +461,7 @@ export class OrderController {
     return this.orders.getReview(user.sub, id);
   }
 
+  @ApiOkResponse({ type: OrderReviewResponseDto })
   @Post(':id/review')
   @ApiOperation({ summary: 'Rate a delivered/completed order (spec 7c, one per order)' })
   review(
@@ -459,6 +480,7 @@ export class OrderController {
   // Service-to-service: payment-service confirms an order once its payment settles PAID.
   // No end-user token — authenticated by the shared INTERNAL_SERVICE_KEY. @Public() skips
   // the global JWT guard; InternalAuthGuard is then the sole (fail-closed) auth.
+  @ApiOkResponse({ type: InternalConfirm2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -474,6 +496,7 @@ export class OrderController {
 
   // Records a settled refund amount on the order for per-depot reconciliation (22a).
   // Same internal service-auth path as internal-confirm.
+  @ApiOkResponse({ type: InternalRefund2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -491,6 +514,7 @@ export class OrderController {
   // Service-to-service: payment-service validates a client-supplied payment amount
   // against the authoritative order total before charging (SEC-1, price-tampering).
   // Internal key auth, same fail-closed path as internal-confirm.
+  @ApiOkResponse({ type: InternalTotal2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -505,6 +529,7 @@ export class OrderController {
 
   // Service-to-service: delivery-service reads a courier's mean rating over the orders
   // delivered in a week (design 4c). Internal key auth, same fail-closed path as above.
+  @ApiOkResponse({ type: RatingResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -515,6 +540,7 @@ export class OrderController {
     return this.orders.ratingSummary(dto.orderIds);
   }
 
+  @ApiOkResponse({ type: OrderResponseDto })
   @Patch(':id/status')
   @Roles(...FULFILMENT_ROLES)
   @ApiOperation({ summary: 'Advance an order to the next status (staff, BR-012)' })

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { DataSubjectService, DataExport } from '../../application/services/data-subject.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -11,6 +11,7 @@ import {
   DataSubjectRequestDto,
   RejectDataSubjectRequestDto,
 } from './dto/data-subject.dto';
+import { Approve3ResponseDto, DataExportResponseDto } from '../dto/responses.generated.dto';
 
 /**
  * UU PDP tahap 1 (item 13). Customers raise requests; HEAD OFFICE decides them.
@@ -24,6 +25,7 @@ import {
 export class DataSubjectController {
   constructor(private readonly requests: DataSubjectService) {}
 
+  @ApiOkResponse({ type: DataSubjectRequestDto })
   @Roles(Role.CUSTOMER)
   @Post()
   @ApiOperation({ summary: 'Ask for a copy of your data, or for your account to be deleted' })
@@ -36,6 +38,7 @@ export class DataSubjectController {
     );
   }
 
+  @ApiOkResponse({ type: DataSubjectRequestDto, isArray: true })
   @Roles(Role.CUSTOMER)
   @Get('me')
   @ApiOperation({ summary: 'Your own requests and where each one stands' })
@@ -44,6 +47,7 @@ export class DataSubjectController {
     return rows.map((r) => DataSubjectRequestDto.from(r));
   }
 
+  @ApiOkResponse({ type: DataExportResponseDto })
   @Roles(Role.CUSTOMER)
   @Get('me/export')
   @ApiOperation({
@@ -55,6 +59,7 @@ export class DataSubjectController {
     return this.requests.exportFor(user.sub);
   }
 
+  @ApiOkResponse({ type: DataSubjectRequestDto, isArray: true })
   @Can('pdpRequests')
   @Get()
   @ApiOperation({ summary: 'The PDP queue — pending first, longest wait first' })
@@ -65,6 +70,7 @@ export class DataSubjectController {
     return rows.map((r) => DataSubjectRequestDto.from(r));
   }
 
+  @ApiOkResponse({ type: Approve3ResponseDto })
   @Can('pdpRequests')
   @Post(':id/approve')
   @ApiOperation({
@@ -83,6 +89,7 @@ export class DataSubjectController {
     };
   }
 
+  @ApiOkResponse({ type: DataSubjectRequestDto })
   @Can('pdpRequests')
   @Post(':id/reject')
   @ApiOperation({ summary: 'Refuse the request, with a reason the customer can read' })

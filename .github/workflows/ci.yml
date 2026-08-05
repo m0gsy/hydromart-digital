@@ -119,6 +119,18 @@ jobs:
       - name: Prometheus targets match compose
         run: node scripts/gen-prometheus-targets.mjs --check
 
+      # A new CREATE INDEX in a migration locks writes on that table for the whole build.
+      # This fails the PR unless the index also has a CONCURRENTLY build in
+      # scripts/create-indexes.sh, which is what production runs first (audit H-39).
+      - name: Index build cannot lock production
+        run: node scripts/check-index-concurrency.mjs
+
+      # The OpenAPI document still does not describe most responses (audit D-6). This
+      # does not fix that; it stops it growing — a new route with no declared response
+      # fails here until it has one.
+      - name: API response documentation ratchet
+        run: node scripts/check-api-responses.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

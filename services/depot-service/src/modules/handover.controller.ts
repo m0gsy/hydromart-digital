@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { HandoverService } from '../application/services/handover.service';
 import { ShiftHandover } from '../domain/handover';
 import { CreateHandoverDto, ListHandoverQueryDto } from './dto/handover.dto';
+import { ShiftHandoverResponseDto } from './dto/responses.generated.dto';
 
 /** Shift handover checklist (design 14d). */
 @ApiTags('Shift handovers')
@@ -15,6 +16,7 @@ import { CreateHandoverDto, ListHandoverQueryDto } from './dto/handover.dto';
 export class HandoverController {
   constructor(private readonly handovers: HandoverService) {}
 
+  @ApiOkResponse({ type: ShiftHandoverResponseDto })
   @Post()
   @ApiOperation({ summary: 'Record an (unsigned) shift handover' })
   record(
@@ -35,12 +37,14 @@ export class HandoverController {
     );
   }
 
+  @ApiOkResponse({ type: ShiftHandoverResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's shift handovers (newest first)" })
   list(@Query() query: ListHandoverQueryDto): Promise<ShiftHandover[]> {
     return this.handovers.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: ShiftHandoverResponseDto })
   @Patch(':id/sign')
   @ApiOperation({ summary: 'Sign a shift handover (stamps signedAt)' })
   async sign(

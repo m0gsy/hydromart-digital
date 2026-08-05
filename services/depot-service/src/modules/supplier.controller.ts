@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { SupplierService } from '../application/services/supplier.service';
 import { Supplier } from '../domain/supplier';
 import { CreateSupplierDto, SupplierQueryDto } from './dto/procurement.dto';
+import { SupplierResponseDto } from './dto/responses.generated.dto';
 
 /** Depot supplier directory (design 11b). */
 @ApiTags('Procurement')
@@ -15,6 +16,7 @@ import { CreateSupplierDto, SupplierQueryDto } from './dto/procurement.dto';
 export class SupplierController {
   constructor(private readonly suppliers: SupplierService) {}
 
+  @ApiOkResponse({ type: SupplierResponseDto })
   @Post()
   @ApiOperation({ summary: 'Add a supplier to a depot directory' })
   create(@Body() dto: CreateSupplierDto): Promise<Supplier> {
@@ -28,12 +30,14 @@ export class SupplierController {
     });
   }
 
+  @ApiOkResponse({ type: SupplierResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's suppliers (newest first)" })
   list(@Query() query: SupplierQueryDto): Promise<Supplier[]> {
     return this.suppliers.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: SupplierResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get one supplier' })
   async get(

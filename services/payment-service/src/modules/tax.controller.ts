@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -15,6 +15,7 @@ const TAX_ROLES = [Role.FINANCE, Role.SUPER_ADMIN] as const;
 export class TaxController {
   constructor(private readonly tax: TaxSettingsService) {}
 
+  @ApiOkResponse({ type: TaxSettingsDto })
   @Get()
   @Roles(...TAX_ROLES)
   @ApiOperation({ summary: 'Get the current tax & invoice settings' })
@@ -22,6 +23,7 @@ export class TaxController {
     return TaxSettingsDto.from(await this.tax.get());
   }
 
+  @ApiOkResponse({ type: TaxSettingsDto })
   @Put()
   @Roles(...TAX_ROLES)
   @ApiOperation({ summary: 'Update the tax & invoice settings' })

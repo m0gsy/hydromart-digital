@@ -1,5 +1,5 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, Role } from '@hydromart/platform';
 
@@ -8,6 +8,7 @@ import {
   GallonNetworkService,
   GallonOutstandingRow,
 } from '../application/services/gallon-network.service';
+import { GallonOutstandingRowResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Network gallon rollup (HQ compare 14d + reconciliation 22a). Distinct static path so
@@ -22,6 +23,7 @@ export class GallonNetworkController {
     private readonly depots: DepotService,
   ) {}
 
+  @ApiOkResponse({ type: GallonOutstandingRowResponseDto, isArray: true })
   @Can('returnsRead')
   @Get()
   @ApiOperation({ summary: 'Per-depot outstanding empties + net deposit held (network)' })

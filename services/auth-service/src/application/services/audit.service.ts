@@ -69,18 +69,27 @@ export class AuditService {
     customerId?: string;
     depotId?: string;
     type?: string;
-  }): Promise<{ items: AuditLogListItem[]; total: number; page: number; limit: number }> {
+    /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+    cursor?: string;
+  }): Promise<{
+    items: AuditLogListItem[];
+    total: number;
+    page: number;
+    limit: number;
+    nextCursor: string | null;
+  }> {
     const page = Math.max(1, input.page);
     const limit = Math.min(AuditService.MAX_LIMIT, Math.max(1, input.limit));
-    const { items, total } = await this.auditLog.list({
+    const { items, total, nextCursor } = await this.auditLog.list({
       page,
       limit,
+      cursor: input.cursor,
       action: input.action,
       customerId: input.customerId,
       depotId: input.depotId,
       type: input.type,
     });
-    return { items, total, page, limit };
+    return { items, total, page, limit, nextCursor };
   }
 
   /**

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -16,12 +16,14 @@ import { SaveSecurityPolicyDto, SecurityPolicyDto } from './dto/security-policy.
 export class SecurityPolicyController {
   constructor(private readonly policy: SecurityPolicyService) {}
 
+  @ApiOkResponse({ type: SecurityPolicyDto })
   @Get()
   @ApiOperation({ summary: 'Read the security policy (idle timeout, 2FA, IP allowlist)' })
   async get(): Promise<SecurityPolicyDto> {
     return SecurityPolicyDto.from(await this.policy.get());
   }
 
+  @ApiOkResponse({ type: SecurityPolicyDto })
   @Put()
   @ApiOperation({ summary: 'Replace the security policy' })
   async save(@Body() dto: SaveSecurityPolicyDto): Promise<SecurityPolicyDto> {

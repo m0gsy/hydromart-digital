@@ -1,10 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { ForecastService } from '../application/services/forecast.service';
 import { IngestDto } from './dto/forecast.dto';
+import { Ingest3ResponseDto } from './dto/responses.generated.dto';
 
 // Fired by order-service when an order completes. Authenticated by the shared
 // INTERNAL_SERVICE_KEY, not a JWT — @Public() bypasses the global JWT guard;
@@ -14,6 +15,7 @@ import { IngestDto } from './dto/forecast.dto';
 export class IngestController {
   constructor(private readonly forecasts: ForecastService) {}
 
+  @ApiOkResponse({ type: Ingest3ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

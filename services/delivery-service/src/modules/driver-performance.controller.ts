@@ -1,5 +1,5 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
@@ -8,6 +8,7 @@ import {
   PerformanceService,
 } from '../application/services/performance.service';
 import { PerformanceQueryDto } from './dto/performance.dto';
+import { CourierPerformanceResponseDto } from './dto/responses.generated.dto';
 
 /** Courier weekly performance card — deliveries, rating, SLA, rank vs depot (design 4c). */
 @ApiTags('Driver Performance')
@@ -17,6 +18,7 @@ import { PerformanceQueryDto } from './dto/performance.dto';
 export class DriverPerformanceController {
   constructor(private readonly performance: PerformanceService) {}
 
+  @ApiOkResponse({ type: CourierPerformanceResponseDto })
   @Get()
   @ApiOperation({ summary: "The courier's weekly performance roll-up" })
   weekly(

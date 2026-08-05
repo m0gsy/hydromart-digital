@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
 
@@ -22,6 +22,8 @@ import {
 } from '../domain/errors';
 import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './dto/reseller.dto';
 import { ImportResellersDto } from './dto/customer-import.dto';
+import { Reseller } from '../application/ports/reseller.repository';
+import { ImportResponseDto, ResellerResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Resellers')
 @ApiBearerAuth()
@@ -33,9 +35,10 @@ export class ResellerController {
     private readonly imports: CustomerImportService,
   ) {}
 
+  @ApiOkResponse({ type: ResellerResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List resellers (optionally by depot / active)' })
-  list(@CurrentUser() user: AuthenticatedUser, @Query() q: ListResellerQueryDto) {
+  list(@CurrentUser() user: AuthenticatedUser, @Query() q: ListResellerQueryDto): Promise<Reseller[]> {
     return this.resellers.list(user, { homeDepotId: q.depotId, active: q.active });
   }
 
@@ -53,6 +56,7 @@ export class ResellerController {
     }
   }
 
+  @ApiOkResponse({ type: ImportResponseDto })
   @Post('import')
   @Can('resellerAdmin')
   @ApiOperation({ summary: 'Bulk-import resellers from the CSV wizard (pre-registers new phones)' })

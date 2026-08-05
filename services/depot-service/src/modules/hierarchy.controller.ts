@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
 import {
@@ -11,6 +11,8 @@ import {
 } from '@hydromart/platform';
 
 import { HierarchyService } from '../application/services/hierarchy.service';
+import { HierarchyRepository } from '../application/ports/hierarchy.repository';
+import { InternalOwnedResponseDto } from './dto/responses.generated.dto';
 
 export class SetAssistantDto {
   @IsUUID()
@@ -37,6 +39,7 @@ export class HierarchyController {
   // What every other service calls to scope a supervisor. Internal key auth, not a user
   // token: it is asked on behalf of the caller, by a machine, on every cache miss.
   // Declared FIRST so the static `internal` segment wins over `:staffId`.
+  @ApiOkResponse({ type: InternalOwnedResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -52,6 +55,7 @@ export class HierarchyController {
   // Declared before the `:staffId` routes: `depots` is a static segment and must never be
   // read as an account id. This is the ONLY writer of a depot's assistant supervisor —
   // PATCH /depots/:id is `depotAdmin`, and a manager must not redraw their own scope.
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Put('depots/:depotId/assistant')
   @HttpCode(204)
@@ -64,6 +68,7 @@ export class HierarchyController {
     await this.hierarchy.setDepotAssistant(depotId, dto.assistantSupervisorId, user.sub);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Delete('depots/:depotId/assistant')
   @HttpCode(204)
@@ -78,10 +83,11 @@ export class HierarchyController {
   @Can('hierarchyAdmin')
   @Get(':staffId')
   @ApiOperation({ summary: 'Superior, direct reports and depots recorded for one account' })
-  describe(@Param('staffId', ParseUUIDPipe) staffId: string) {
+  describe(@Param('staffId', ParseUUIDPipe) staffId: string): ReturnType<HierarchyRepository['describe']> {
     return this.hierarchy.describe(staffId);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Put(':staffId/superior')
   @HttpCode(204)
@@ -94,6 +100,7 @@ export class HierarchyController {
     await this.hierarchy.setSuperior(staffId, dto.superiorId, user.sub);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Delete(':staffId/superior')
   @HttpCode(204)
@@ -102,6 +109,7 @@ export class HierarchyController {
     await this.hierarchy.clearSuperior(staffId);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Put(':staffId/depots/:depotId')
   @HttpCode(204)
@@ -114,6 +122,7 @@ export class HierarchyController {
     await this.hierarchy.grantDepot(staffId, depotId, user.sub);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('hierarchyAdmin')
   @Delete(':staffId/depots/:depotId')
   @HttpCode(204)

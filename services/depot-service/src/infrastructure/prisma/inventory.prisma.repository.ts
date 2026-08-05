@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
 
 import {
   available,
@@ -215,7 +216,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
   async listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
-  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number; nextCursor: string | null }> {
     const createdAt =
       filter.from || filter.to
         ? { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lt: filter.to } : {}) }
@@ -241,13 +242,14 @@ export class InventoryPrismaRepository implements InventoryRepository {
           createdAt: true,
           item: { select: { label: true, itemType: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: (filter.page - 1) * filter.limit,
-        take: filter.limit,
+        // `id` last so the cursor is unambiguous between movements in the same tick.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(filter),
       }),
       this.prisma.stockMovement.count({ where }),
     ]);
     return {
+      nextCursor: nextCursor(rows as { id: string }[], filter.limit),
       items: (rows as DepotMovementRow[]).map(({ item, ...row }) => ({
         ...this.toMovement(row),
         itemLabel: item.label,

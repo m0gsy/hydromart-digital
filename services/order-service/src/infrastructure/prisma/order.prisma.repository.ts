@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
 import {
   DuplicateCheckoutError,
   OrderAlreadyVoidedError,
+  ReportRangeTooLargeError,
   StaleOrderStatusError,
 } from '../../domain/errors';
 import {
@@ -33,6 +34,17 @@ import {
 } from '../../application/ports/order.repository';
 import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
+
+/** Rows per keyset page when a report has to walk a whole window (audit H-46). */
+const REPORT_PAGE_SIZE = 500;
+/**
+ * Ceiling on one report's window. ~20k orders is several months for a busy depot and
+ * still fits comfortably in memory; past it the caller is asked to narrow the range
+ * rather than handed a number built from part of it.
+ */
+const MAX_REPORT_ORDERS = 20_000;
+/** Orders one stale-sweep tick will claim. The next tick picks up the rest. */
+const STALE_SWEEP_BATCH = 500;
 
 type Decimalish = { toNumber(): number };
 
@@ -230,14 +242,32 @@ export class OrderPrismaRepository implements OrderRepository {
       .map((g) => g.customerId)
       .slice(0, limit);
     if (dueIds.length === 0) return [];
-    // One latest order per due customer (distinct + desc) for the phone/name snapshot.
-    const rows = await this.prisma.order.findMany({
-      where: { customerId: { in: dueIds } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
-    return rows;
+    return this.latestContactPerCustomer(dueIds);
+  }
+
+  /**
+   * The phone/name snapshot from each customer's most recent order.
+   *
+   * DISTINCT ON rather than Prisma's `distinct`: that option is applied to the rows the
+   * query returned, so combining it with any `take` — including the default bound every
+   * findMany now carries — can dedupe down to fewer customers than were asked for, and
+   * the missing ones simply have no contact details. Postgres does the dedupe here, so
+   * the result is exactly one row per id.
+   */
+  private latestContactPerCustomer(
+    customerIds: string[],
+    depotId?: string,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
+    const scope = depotId ? Prisma.sql`AND "depotId" = ${depotId}::uuid` : Prisma.empty;
+    return this.prisma.$queryRaw<{ customerId: string; phone: string; recipientName: string }[]>(
+      Prisma.sql`
+        SELECT DISTINCT ON ("customerId") "customerId", "phone", "recipientName"
+        FROM "orders"
+        WHERE "customerId" IN (${Prisma.join(customerIds.map((id) => Prisma.sql`${id}::uuid`))})
+        ${scope}
+        ORDER BY "customerId", "createdAt" DESC
+      `,
+    );
   }
 
   async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
@@ -339,7 +369,9 @@ export class OrderPrismaRepository implements OrderRepository {
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
 
-  async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
+  async search(
+    query: OrderQuery,
+  ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -353,20 +385,33 @@ export class OrderPrismaRepository implements OrderRepository {
       this.prisma.order.findMany({
         where,
         include: INCLUDE,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor is unambiguous: two orders created in the same
+        // millisecond would otherwise be returned twice or skipped between pages.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.order.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
-  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(
+    statuses: OrderStatus[],
+    before: Date,
+    limit = STALE_SWEEP_BATCH,
+  ): Promise<OrderRecord[]> {
     if (statuses.length === 0) return [];
+    // Bounded batch, oldest first: the sweep runs on a schedule, so a backlog is drained
+    // over several ticks instead of one tick trying to load every stale order at once.
     const rows = await this.prisma.order.findMany({
       where: { status: { in: statuses }, createdAt: { lt: before } },
       include: INCLUDE,
+      orderBy: { createdAt: 'asc' },
+      take: limit,
     });
     return rows.map((r) => this.toRecord(r));
   }
@@ -728,14 +773,10 @@ export class OrderPrismaRepository implements OrderRepository {
       _max: { createdAt: true },
     });
     if (grouped.length === 0) return [];
-    // Latest order per customer (distinct + desc) for the name/phone WA-follow-up snapshot.
+    // Latest order per customer for the name/phone WA-follow-up snapshot — see
+    // latestContactPerCustomer for why this is DISTINCT ON and not Prisma's `distinct`.
     const ids = grouped.map((g) => g.customerId);
-    const contacts = await this.prisma.order.findMany({
-      where: { customerId: { in: ids }, depotId },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
+    const contacts = await this.latestContactPerCustomer(ids, depotId);
     const contactBy = new Map(contacts.map((c) => [c.customerId, c]));
     return grouped.map((g) => ({
       customerId: g.customerId,
@@ -759,16 +800,40 @@ export class OrderPrismaRepository implements OrderRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  /**
+   * Every depot report is built from this, and it used to be one unbounded `findMany`
+   * with the full item/history include — the cost of a report was whatever that depot
+   * had ever sold (audit H-46).
+   *
+   * It still returns the whole window, because a report over part of a month is wrong,
+   * not slower. What changed is how: a keyset walk in fixed pages, so peak memory is one
+   * page rather than the result set, and a hard ceiling that REFUSES instead of quietly
+   * returning a partial month.
+   */
   async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),
     };
-    const rows = await this.prisma.order.findMany({
-      where: { depotId, ...(range.from || range.to ? { createdAt } : {}) },
-      include: INCLUDE,
-      orderBy: { createdAt: 'asc' },
-    });
+    const where = { depotId, ...(range.from || range.to ? { createdAt } : {}) };
+
+    const rows = await readAllPages(
+      ({ take, cursor }) =>
+        this.prisma.order.findMany({
+          where,
+          include: INCLUDE,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      {
+        pageSize: REPORT_PAGE_SIZE,
+        max: MAX_REPORT_ORDERS,
+        onOverflow: () => {
+          throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
+        },
+      },
+    );
     return rows.map((r) => this.toRecord(r));
   }
 

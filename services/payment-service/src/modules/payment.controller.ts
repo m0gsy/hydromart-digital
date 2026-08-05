@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import {
   Can,
@@ -39,6 +39,7 @@ import {
   StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
+import { CashCollectedResponseDto, PagedPaymentResponseDto, PaymentResponseDto, UnsettledMethodAggregateResponseDto, Webhook3ResponseDto } from './dto/responses.generated.dto';
 
 // Refunds, the refund-approval queue (feature 14a) and the HQ settlement dashboard
 // (design 6a) used to carry hand-written role arrays here, invisible to the shared map
@@ -52,6 +53,7 @@ import {
 export class PaymentController {
   constructor(private readonly payments: PaymentService) {}
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post()
   @ApiOperation({ summary: 'Initiate a payment for an order' })
   initiate(
@@ -64,6 +66,7 @@ export class PaymentController {
   // Counter sale: the cashier records the payment for the buyer, so customerId comes from
   // the body rather than the token. A sibling route, not a branch inside the customer one —
   // the amount is still validated against the authoritative order total in the service.
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post('staff')
   @Can('paymentSettle')
   @ApiOperation({ summary: 'Initiate a payment on behalf of a customer (counter sale)' })
@@ -74,6 +77,7 @@ export class PaymentController {
   // Voiding a counter sale gives the buyer their money back. Internal-key only, and
   // deliberately not behind `refundIssue`: the cashier doing the void is not a manager, and
   // making them fetch one would leave the buyer waiting at the till with no refund.
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -87,6 +91,7 @@ export class PaymentController {
   // Shift close asks this: how much cash should be in THIS depot's drawer right now.
   // Internal-key only — depot-service is the caller, and the answer decides whether a
   // cashier is short. Declared before ':id' so the static segment wins.
+  @ApiOkResponse({ type: CashCollectedResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -99,6 +104,7 @@ export class PaymentController {
     });
   }
 
+  @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get()
   @ApiOperation({ summary: "List the current customer's payments" })
   list(
@@ -110,6 +116,7 @@ export class PaymentController {
 
   // Staff: read an order's payments to confirm receipt. Declared before ':id' so the
   // static 'for-order' segment wins. Not customer-scoped (staff act across customers).
+  @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get('for-order/:orderId')
   @Can('paymentSettle')
   @ApiOperation({ summary: "List an order's payments (staff, for settlement)" })
@@ -119,6 +126,7 @@ export class PaymentController {
 
   // HQ settlement dashboard (design 6a): network-wide unsettled payments grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
+  @ApiOkResponse({ type: UnsettledMethodAggregateResponseDto, isArray: true })
   @Get('unsettled-by-method')
   @Can('settlementRead')
   @ApiOperation({ summary: 'Network unsettled payments grouped by method (finance/super-admin)' })
@@ -133,6 +141,7 @@ export class PaymentController {
 
   // HQ report export (design 10a): network-wide collected (PAID) revenue grouped by
   // method. Declared before ':id' so the static segment wins. Read-only aggregate.
+  @ApiOkResponse({ type: UnsettledMethodAggregateResponseDto, isArray: true })
   @Get('revenue-by-method')
   @Can('settlementRead')
   @ApiOperation({ summary: 'Network collected revenue grouped by method (finance/super-admin)' })
@@ -147,6 +156,7 @@ export class PaymentController {
   // delivered orders — the "how much" for an end-of-shift settlement. Bearer is
   // forwarded from delivery-service; settlement roles (incl. STAFF_DEPOT) may read.
   // Declared before ':id' so the static segment wins.
+  @ApiOkResponse({ type: CashCollectedResponseDto })
   @Get('cash-collected')
   @Can('paymentSettle')
   @ApiOperation({ summary: 'Sum PAID cash over a set of orders (courier COD deposit)' })
@@ -156,6 +166,7 @@ export class PaymentController {
 
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
   // threshold, newest first. Declared before ':id' so the static segment wins.
+  @ApiOkResponse({ type: PagedPaymentResponseDto })
   @Get('refunds/queue')
   @Can('refundQueue')
   @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
@@ -163,6 +174,7 @@ export class PaymentController {
     return this.payments.listRefundQueue(query);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Get(':id')
   @ApiOperation({ summary: "Get one of the current customer's payments" })
   get(
@@ -172,6 +184,7 @@ export class PaymentController {
     return this.payments.getForCustomer(user.sub, id);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/confirm')
   @Can('paymentSettle')
   @ApiOperation({ summary: 'Confirm a payment as settled (staff, e.g. cash received)' })
@@ -183,6 +196,7 @@ export class PaymentController {
     return this.payments.confirm(id, user.sub, dto.cashReceived);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/fail')
   @Can('paymentSettle')
   @ApiOperation({ summary: 'Mark a pending payment as failed (staff)' })
@@ -193,6 +207,7 @@ export class PaymentController {
     return this.payments.fail(id, user.sub);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/refund')
   @Can('refundIssue')
   @ApiOperation({ summary: 'Refund a paid payment (finance/manager)' })
@@ -204,6 +219,7 @@ export class PaymentController {
     return this.payments.refund(id, user.sub, dto.reason);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/refund/approve')
   @Can('refundQueue')
   @ApiOperation({ summary: 'Approve a queued refund → settles now (HQ)' })
@@ -214,6 +230,7 @@ export class PaymentController {
     return this.payments.approveRefund(id, user.sub);
   }
 
+  @ApiOkResponse({ type: PaymentResponseDto })
   @Post(':id/refund/reject')
   @Can('refundQueue')
   @ApiOperation({ summary: 'Reject a queued refund → no money moves (HQ)' })
@@ -225,6 +242,7 @@ export class PaymentController {
     return this.payments.rejectRefund(id, user.sub, dto.reason);
   }
 
+  @ApiOkResponse({ type: Webhook3ResponseDto })
   @Public()
   @Post('webhook')
   @HttpCode(HttpStatus.OK)

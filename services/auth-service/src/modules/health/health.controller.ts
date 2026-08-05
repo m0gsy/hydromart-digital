@@ -1,10 +1,11 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { rbacHealth, type RbacHealth } from '@hydromart/platform';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { HealthStatusResponseDto } from '../dto/responses.generated.dto';
 
 interface HealthStatus {
   status: 'ok' | 'error';
@@ -19,6 +20,7 @@ interface HealthStatus {
 export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @ApiOkResponse({ type: HealthStatusResponseDto })
   @Public()
   @Get('health')
   @ApiOperation({ summary: 'Service liveness and database readiness' })

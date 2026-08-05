@@ -56,6 +56,8 @@ export interface PaymentQuery {
   status?: PaymentStatus;
   page: number;
   limit: number;
+  /** Opaque keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
 }
 
 /** One method's unsettled (PENDING) total + transaction count, network-wide. */
@@ -82,7 +84,9 @@ export interface PaymentRepository {
   /** Active = PENDING or PAID. Used to enforce one live payment per order. */
   findActiveByOrder(orderId: string): Promise<PaymentRecord | null>;
   findByReference(reference: string): Promise<PaymentRecord | null>;
-  search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }>;
+  search(
+    query: PaymentQuery,
+  ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }>;
   /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
   listPendingRefunds(query: { page: number; limit: number }): Promise<{
     items: PaymentRecord[];

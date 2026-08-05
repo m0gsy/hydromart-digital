@@ -341,7 +341,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   async listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
-  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number; nextCursor: string | null }> {
     const rows = this.moves
       .map((move) => ({ move, item: this.items.find((item) => item.id === move.itemId) }))
       .filter(({ item }) => item?.depotId === depotId)
@@ -352,15 +352,20 @@ export class InMemoryInventoryRepository implements InventoryRepository {
           (!filter.to || move.createdAt < filter.to),
       )
       .sort((a, b) => b.move.createdAt.getTime() - a.move.createdAt.getTime());
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = filter.cursor
+      ? rows.findIndex(({ move }) => move.id === filter.cursor) + 1
+      : (filter.page - 1) * filter.limit;
+    const page = rows.slice(start, start + filter.limit);
     return {
       total: rows.length,
-      items: rows
-        .slice((filter.page - 1) * filter.limit, filter.page * filter.limit)
-        .map(({ move, item }) => ({
-          ...move,
-          itemLabel: item!.label,
-          itemType: item!.itemType,
-        })),
+      nextCursor:
+        page.length === filter.limit ? (page[page.length - 1]?.move.id ?? null) : null,
+      items: page.map(({ move, item }) => ({
+        ...move,
+        itemLabel: item!.label,
+        itemType: item!.itemType,
+      })),
     };
   }
   async wastageAdjustments(

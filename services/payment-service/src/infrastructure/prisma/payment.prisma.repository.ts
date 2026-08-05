@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
 
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
@@ -111,7 +112,9 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }> {
+  async search(
+    query: PaymentQuery,
+  ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.orderId ? { orderId: query.orderId } : {}),
@@ -120,13 +123,17 @@ export class PaymentPrismaRepository implements PaymentRepository {
     const [rows, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor cannot straddle two payments in the same millisecond.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.payment.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
   async listPendingRefunds(query: {

@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, Role, Roles } from '@hydromart/platform';
 
@@ -31,6 +31,7 @@ import {
   RebuildQueryDto,
   SalesQueryDto,
 } from './dto/forecast.dto';
+import { Churn3ResponseDto, ForecastItemResponseDto, ForecastResponseDto, RebuildNow3ResponseDto, SalesForecastResponseDto } from './dto/responses.generated.dto';
 
 // Planning staff only — never customer-facing. Class-level roles cover the query endpoints;
 // rebuild overrides with SUPER_ADMIN below (RolesGuard uses getAllAndOverride: handler wins).
@@ -65,6 +66,7 @@ export class ForecastController {
   // `demand` (static) is declared before `depot/:depotId` (param); distinct prefixes make
   // the order safe regardless, but static-first is kept as the convention.
 
+  @ApiOkResponse({ type: ForecastResponseDto })
   @Get('demand')
   @ApiOperation({ summary: 'Single-product demand forecast (omit depotId for a global forecast)' })
   async demand(
@@ -80,6 +82,7 @@ export class ForecastController {
     });
   }
 
+  @ApiOkResponse({ type: ForecastItemResponseDto, isArray: true })
   @Get('depot/:depotId')
   @ApiOperation({ summary: 'Per-depot planning rollup: every product with demand, forecast, ranked by predicted total' })
   async depotRollup(
@@ -96,6 +99,7 @@ export class ForecastController {
     });
   }
 
+  @ApiOkResponse({ type: SalesForecastResponseDto })
   @Get('sales')
   @ApiOperation({ summary: 'Daily revenue forecast (omit depotId for a global forecast)' })
   async sales(
@@ -113,6 +117,7 @@ export class ForecastController {
   // Churn is CRM-facing (re-engagement) — overrides the class PLANNING_ROLES with CHURN_ROLES
   // via getAllAndOverride (handler wins). A planning role not in this set (e.g. KEPALA_DEPOT)
   // is rejected.
+  @ApiOkResponse({ type: Churn3ResponseDto })
   @Can('churn')
   @Get('churn')
   @ApiOperation({ summary: 'At-risk customers ranked by recency-driven churn risk' })
@@ -124,6 +129,7 @@ export class ForecastController {
     });
   }
 
+  @ApiOkResponse({ type: RebuildNow3ResponseDto })
   @Roles(Role.SUPER_ADMIN)
   @Post('rebuild')
   @HttpCode(HttpStatus.OK)

@@ -8,13 +8,14 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
 import { PayoutService, PendingPayout } from '../application/services/payout.service';
 import { WithdrawalRecord } from '../domain/ledger';
 import { ReleasePayoutDto } from './dto/payout.dto';
+import { PendingPayoutResponseDto, WithdrawalResponseDto } from './dto/responses.generated.dto';
 
 /**
  * HQ payout-release queue (design 6a, right panel). Cross-owner, HQ-only: FINANCE +
@@ -28,6 +29,7 @@ import { ReleasePayoutDto } from './dto/payout.dto';
 export class HqPayoutController {
   constructor(private readonly payout: PayoutService) {}
 
+  @ApiOkResponse({ type: PendingPayoutResponseDto, isArray: true })
   @Get('pending')
   @ApiOperation({ summary: 'Owners across the network with a positive balance awaiting release' })
   pending(): Promise<PendingPayout[]> {
@@ -36,6 +38,7 @@ export class HqPayoutController {
 
   // Read-only single-owner balance for the HQ depot-detail payout card. HEAD_OFFICE also
   // reads it (depot admins view depot detail); release stays FINANCE/SUPER_ADMIN only.
+  @ApiOkResponse({ type: PendingPayoutResponseDto })
   @Can('hqPayoutRead')
   @Get('owner/:ownerId')
   @ApiOperation({ summary: "One franchise owner's available balance + next release date" })
@@ -43,6 +46,7 @@ export class HqPayoutController {
     return this.payout.availableForOwner(ownerId);
   }
 
+  @ApiOkResponse({ type: WithdrawalResponseDto })
   @Post('release')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: "Release an owner's full available balance to their bank" })

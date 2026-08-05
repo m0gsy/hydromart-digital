@@ -12,7 +12,7 @@ import {
   Min,
 } from 'class-validator';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class SalesReportQueryDto {
   @ApiPropertyOptional({ enum: ['daily', 'monthly'], default: 'daily' })
@@ -29,6 +29,7 @@ export class SalesReportQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -42,6 +43,7 @@ export class RangeReportQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -121,6 +123,7 @@ export class DepotWeeklyQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -138,6 +141,7 @@ export class DepotCompareQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -155,6 +159,7 @@ export class DepotRatingsQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -193,5 +198,6 @@ export class TopReportQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }

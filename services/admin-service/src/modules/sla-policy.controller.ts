@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -16,12 +16,14 @@ import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
 export class SlaPolicyController {
   constructor(private readonly policy: SlaPolicyService) {}
 
+  @ApiOkResponse({ type: SlaPolicyDto })
   @Get()
   @ApiOperation({ summary: 'Read the SLA policy (threshold + healthy/critical bands)' })
   async get(): Promise<SlaPolicyDto> {
     return SlaPolicyDto.from(await this.policy.get());
   }
 
+  @ApiOkResponse({ type: SlaPolicyDto })
   @Put()
   @ApiOperation({ summary: 'Replace the SLA policy' })
   async save(@Body() dto: SaveSlaPolicyDto): Promise<SlaPolicyDto> {

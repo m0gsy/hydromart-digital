@@ -16,6 +16,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 /** Max base64 length for one captured frame (~1.4 MB decoded). */
 export const MAX_FRAME = 2_000_000;
@@ -113,17 +114,19 @@ export class ListAttendanceDto {
   @IsOptional() @IsIn([...ATTENDANCE_STATUS, 'PENDING']) status?: string;
   @IsOptional() @IsUUID() employeeId?: string;
   @IsOptional() @IsISO8601() from?: string;
-  @IsOptional() @IsISO8601() to?: string;
+  @IsOptional() @IsISO8601() @IsNotBefore('from') @IsWithinDays('from') to?: string;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   pageSize = 30;
 }

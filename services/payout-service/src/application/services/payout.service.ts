@@ -226,9 +226,19 @@ export class PayoutService {
     return this.requestWithdrawal(ownerId, balance, 'Rilis HQ');
   }
 
-  async ledgerPage(ownerId: string, page: number, limit: number): Promise<Page<LedgerEntryRecord>> {
-    const { items, total } = await this.ledger.listForOwner(ownerId, page, limit);
-    return buildPage(items, total, page, limit);
+  async ledgerPage(
+    ownerId: string,
+    page: number,
+    limit: number,
+    cursor?: string,
+  ): Promise<Page<LedgerEntryRecord>> {
+    const { items, total, nextCursor } = await this.ledger.listForOwner(
+      ownerId,
+      page,
+      limit,
+      cursor,
+    );
+    return buildPage(items, total, page, limit, nextCursor);
   }
 
   async requestWithdrawal(

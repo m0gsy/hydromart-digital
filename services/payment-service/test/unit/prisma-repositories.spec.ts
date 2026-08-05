@@ -128,7 +128,7 @@ describe('PaymentPrismaRepository', () => {
     expect(result.items).toHaveLength(2);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { customerId: 'cust-1', orderId: 'order-1', status: PaymentStatus.PAID },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 10,
       take: 10,
     });
@@ -140,13 +140,24 @@ describe('PaymentPrismaRepository', () => {
   it('search omits absent filters (empty where)', async () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);
-    await repo.search({ page: 1, limit: 20 });
+    const out = await repo.search({ page: 1, limit: 20 });
     expect(model.findMany).toHaveBeenCalledWith({
       where: {},
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 0,
       take: 20,
     });
+    expect(out.nextCursor).toBeNull();
+  });
+
+  it('search seeks past a cursor rather than an offset (audit Q-16)', async () => {
+    model.findMany.mockResolvedValue([fullRow()]);
+    model.count.mockResolvedValue(900);
+    const out = await repo.search({ page: 30, limit: 1, cursor: 'pay-0' });
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'pay-0' }, skip: 1, take: 1 }),
+    );
+    expect(out.nextCursor).toBe(out.items[0].id);
   });
 
   it('listPendingRefunds filters on PENDING approval, newest updated first', async () => {

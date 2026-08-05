@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 
 import { HuddleService } from '../application/services/huddle.service';
 import { HuddleNote } from '../domain/huddle';
 import { ListHuddleQueryDto, UpsertHuddleNoteDto } from './dto/huddle.dto';
+import { HuddleNoteResponseDto } from './dto/responses.generated.dto';
 
 /** Weekly depot team huddle notes (design depotTeam). */
 @ApiTags('Huddle notes')
@@ -26,6 +27,7 @@ export class HuddleController {
     return this.huddles.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: HuddleNoteResponseDto })
   @Put()
   @ApiOperation({ summary: "Upsert a week's huddle note (by depot + weekStart)" })
   upsert(

@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
@@ -18,6 +18,7 @@ import { VoucherRequestService } from '../application/services/voucher-request.s
 import { VoucherRequestRecord, VoucherRequestStatus } from '../domain/voucher-request';
 import { DiscountType } from '../domain/voucher';
 import { ListVoucherRequestsQueryDto, ProposeVoucherRequestDto } from './dto/voucher-request.dto';
+import { PagedVoucherRequestResponseDto, VoucherRequestResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Depot-side propose (design 14b): a depot manager requests a voucher for their
@@ -29,6 +30,7 @@ import { ListVoucherRequestsQueryDto, ProposeVoucherRequestDto } from './dto/vou
 export class DepotVoucherRequestController {
   constructor(private readonly requests: VoucherRequestService) {}
 
+  @ApiOkResponse({ type: VoucherRequestResponseDto })
   @Post()
   @Can('voucherWrite')
   @ApiOperation({ summary: 'Propose a voucher for a depot (depot manager)' })
@@ -63,6 +65,7 @@ export class DepotVoucherRequestController {
 export class VoucherRequestController {
   constructor(private readonly requests: VoucherRequestService) {}
 
+  @ApiOkResponse({ type: PagedVoucherRequestResponseDto })
   @Get()
   @ApiOperation({ summary: 'List voucher requests (defaults to the pending queue)' })
   list(@Query() query: ListVoucherRequestsQueryDto): Promise<Page<VoucherRequestRecord>> {
@@ -73,6 +76,7 @@ export class VoucherRequestController {
     });
   }
 
+  @ApiOkResponse({ type: VoucherRequestResponseDto })
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → creates the real voucher' })
@@ -83,6 +87,7 @@ export class VoucherRequestController {
     return this.requests.approve(id, user.sub);
   }
 
+  @ApiOkResponse({ type: VoucherRequestResponseDto })
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject a voucher request (no voucher created)' })

@@ -56,6 +56,12 @@ export interface DepotMovementFilter {
   to?: Date;
   page: number;
   limit: number;
+  /**
+   * Opaque keyset cursor — the previous page's `nextCursor`. stock_movements is the
+   * fastest-growing table in the system, so paging it by OFFSET is the worst case for
+   * Q-16; with a cursor the read seeks straight to the row. `page` is ignored when set.
+   */
+  cursor?: string;
 }
 
 export interface CreateInventoryItemData {
@@ -135,7 +141,7 @@ export interface InventoryRepository {
   listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
-  ): Promise<{ items: DepotStockMovementRecord[]; total: number }>;
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Negative-delta ADJUSTMENT movements for a depot's lines in the window, each joined
    * with its line's label + sellPrice. Backs the depot wastage summary — the service

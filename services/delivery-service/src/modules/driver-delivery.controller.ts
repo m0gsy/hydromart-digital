@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
@@ -28,6 +28,7 @@ import {
   ReportLocationDto,
   RescheduleDeliveryDto,
 } from './dto/delivery.dto';
+import { DeliveryResponseDto, NoShowStatusResponseDto, PagedDeliveryResponseDto } from './dto/responses.generated.dto';
 
 /** Driver-facing view: a driver only ever sees and acts on their own deliveries. */
 @ApiTags('Driver Deliveries')
@@ -37,6 +38,7 @@ import {
 export class DriverDeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}
 
+  @ApiOkResponse({ type: PagedDeliveryResponseDto })
   @Get()
   @ApiOperation({ summary: "List the current driver's deliveries" })
   list(
@@ -46,6 +48,7 @@ export class DriverDeliveryController {
     return this.deliveries.listForDriver(user.sub, query);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Get(':id')
   @ApiOperation({ summary: "Get one of the driver's deliveries" })
   get(
@@ -55,6 +58,7 @@ export class DriverDeliveryController {
     return this.deliveries.getForDriver(user.sub, id);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Patch(':id/pickup')
   @ApiOperation({ summary: 'Mark the order picked up (advances the order to PICKED_UP)' })
   pickup(
@@ -65,6 +69,7 @@ export class DriverDeliveryController {
     return this.deliveries.pickup(user.sub, id, authorization);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Patch(':id/start')
   @ApiOperation({ summary: 'Start delivery (advances the order to ON_DELIVERY)' })
   start(
@@ -75,6 +80,7 @@ export class DriverDeliveryController {
     return this.deliveries.start(user.sub, id, authorization);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Post(':id/complete')
   @ApiOperation({ summary: 'Complete delivery with proof (advances the order to DELIVERED)' })
   complete(
@@ -99,6 +105,7 @@ export class DriverDeliveryController {
     );
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Post(':id/location')
   @ApiOperation({ summary: 'Report current GPS position (live tracking, while en route)' })
   reportLocation(
@@ -109,6 +116,7 @@ export class DriverDeliveryController {
     return this.deliveries.reportLocation(user.sub, id, dto.lat, dto.lng);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Patch(':id/fail')
   @ApiOperation({ summary: 'Mark the delivery failed' })
   fail(
@@ -121,6 +129,7 @@ export class DriverDeliveryController {
     return this.deliveries.fail(user.sub, id, dto.reason, authorization);
   }
 
+  @ApiOkResponse({ type: NoShowStatusResponseDto })
   @Post(':id/contact-attempts')
   @ApiOperation({ summary: 'Record a contact attempt; returns the no-show gate status (5a)' })
   recordContactAttempt(
@@ -136,6 +145,7 @@ export class DriverDeliveryController {
     );
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Patch(':id/no-show')
   @ApiOperation({ summary: 'Fail the delivery as a no-show (gated on attempts + wait, 5a)' })
   markNoShow(
@@ -146,6 +156,7 @@ export class DriverDeliveryController {
     return this.deliveries.markNoShow(user.sub, id, new Date(), authorization);
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Patch(':id/reschedule')
   @ApiOperation({ summary: 'Reschedule the delivery to a later slot (3c)' })
   reschedule(

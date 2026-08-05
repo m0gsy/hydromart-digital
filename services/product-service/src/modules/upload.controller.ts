@@ -11,13 +11,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { PRODUCT_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { MulterExceptionFilter } from './multer-exception.filter';
+import { Upload3ResponseDto } from './dto/responses.generated.dto';
 
 const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -32,6 +33,7 @@ export class UploadController {
 
   constructor(@Inject(PRODUCT_TOKENS.Storage) private readonly storage: StoragePort) {}
 
+  @ApiOkResponse({ type: Upload3ResponseDto })
   @Post('images')
   @ApiOperation({ summary: 'Upload a product image; returns its URL (admin)' })
   @ApiConsumes('multipart/form-data')

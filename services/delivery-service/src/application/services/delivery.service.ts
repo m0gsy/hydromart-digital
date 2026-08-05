@@ -77,6 +77,8 @@ export interface ListDeliveriesInput {
   status?: DeliveryStatus;
   page?: number;
   limit?: number;
+  /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
   /** Depot scope for staff lists; set by the controller from depotScopeIds (undefined = all). */
   depotIds?: readonly string[];
 }
@@ -615,13 +617,14 @@ export class DeliveryService {
   ): Promise<Page<DeliveryRecord>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(DeliveryService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
-    const { items, total } = await this.deliveries.search({
+    const { items, total, nextCursor } = await this.deliveries.search({
       page,
       limit,
+      cursor: input.cursor,
       driverId: input.driverId,
       depotIds: input.depotIds,
       status: input.status,
     });
-    return buildPage(items, total, page, limit);
+    return buildPage(items, total, page, limit, nextCursor);
   }
 }

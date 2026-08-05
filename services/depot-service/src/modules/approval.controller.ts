@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
@@ -11,6 +11,8 @@ import {
   DecideApprovalDto,
   ListApprovalQueryDto,
 } from './dto/approval.dto';
+import { PendingCounts } from '../application/ports/approval.repository';
+import { ApprovalResponseDto, CountsResponseDto } from './dto/responses.generated.dto';
 
 /** Depot-manager approval queue (design 1c/2a-2c/10c/12a). */
 @ApiTags('Approvals')
@@ -20,6 +22,7 @@ import {
 export class ApprovalController {
   constructor(private readonly approvals: ApprovalService) {}
 
+  @ApiOkResponse({ type: ApprovalResponseDto })
   @Post()
   @ApiOperation({ summary: 'Raise an approval item (auto-passes under the depot threshold)' })
   create(
@@ -39,18 +42,21 @@ export class ApprovalController {
     );
   }
 
+  @ApiOkResponse({ type: ApprovalResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's approval items (newest first), optional status filter" })
   list(@Query() query: ListApprovalQueryDto): Promise<Approval[]> {
     return this.approvals.list(query.depotId, query.status);
   }
 
+  @ApiOkResponse({ type: CountsResponseDto })
   @Get('counts')
   @ApiOperation({ summary: 'Pending approval counts by type (queue badge)' })
-  counts(@Query() query: CountsApprovalQueryDto) {
+  counts(@Query() query: CountsApprovalQueryDto): Promise<{ total: number; byType: PendingCounts }> {
     return this.approvals.counts(query.depotId);
   }
 
+  @ApiOkResponse({ type: ApprovalResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get one approval item' })
   async get(
@@ -62,6 +68,7 @@ export class ApprovalController {
     return approval;
   }
 
+  @ApiOkResponse({ type: ApprovalResponseDto })
   @Patch(':id/decide')
   @ApiOperation({ summary: 'Decide an approval item: APPROVE / REJECT / HOLD' })
   async decide(

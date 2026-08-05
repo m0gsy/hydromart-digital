@@ -9,7 +9,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
@@ -29,12 +29,14 @@ import {
 export class ScheduledReportsController {
   constructor(private readonly reports: ScheduledReportService) {}
 
+  @ApiOkResponse({ type: ScheduledReportDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List scheduled reports (15c)' })
   async list(): Promise<ScheduledReportDto[]> {
     return (await this.reports.list()).map((r) => ScheduledReportDto.from(r));
   }
 
+  @ApiOkResponse({ type: ScheduledReportDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a scheduled report' })
@@ -42,6 +44,7 @@ export class ScheduledReportsController {
     return ScheduledReportDto.from(await this.reports.create(dto));
   }
 
+  @ApiOkResponse({ type: ScheduledReportDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Enable / disable / edit a scheduled report' })
   async update(
@@ -51,6 +54,7 @@ export class ScheduledReportsController {
     return ScheduledReportDto.from(await this.reports.update(id, dto));
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a scheduled report' })

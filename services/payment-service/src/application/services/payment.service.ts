@@ -55,6 +55,8 @@ export interface ListPaymentsInput {
   status?: PaymentStatus;
   page?: number;
   limit?: number;
+  /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
 }
 
 /** Provider webhook event mapped to a settlement outcome. */
@@ -493,13 +495,14 @@ export class PaymentService {
   ): Promise<Page<PaymentRecord>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(PaymentService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
-    const { items, total } = await this.payments.search({
+    const { items, total, nextCursor } = await this.payments.search({
       page,
       limit,
+      cursor: input.cursor,
       customerId: input.customerId,
       orderId: input.orderId,
       status: input.status,
     });
-    return buildPage(items, total, page, limit);
+    return buildPage(items, total, page, limit, nextCursor);
   }
 }

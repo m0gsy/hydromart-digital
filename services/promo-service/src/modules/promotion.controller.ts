@@ -17,6 +17,7 @@ import { Public, Role, Roles } from '@hydromart/platform';
 import { PromotionRecord } from '../application/ports/promotion.repository';
 import { PromotionService } from '../application/services/promotion.service';
 import { CreatePromotionDto, PromotionAnalyticsDto, UpdatePromotionDto } from './dto/promotion.dto';
+import { PromotionResponseDto } from './dto/responses.generated.dto';
 
 // Promotions are authored by marketing/depot staff and shown to customers on Home.
 const ADMIN_ROLES = [Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN] as const;
@@ -34,6 +35,7 @@ const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefi
 export class PromotionController {
   constructor(private readonly promotions: PromotionService) {}
 
+  @ApiOkResponse({ type: PromotionResponseDto, isArray: true })
   @Public()
   @Get()
   @ApiOperation({ summary: 'List live promotions for the customer Home page' })
@@ -41,6 +43,7 @@ export class PromotionController {
     return this.promotions.listActive();
   }
 
+  @ApiOkResponse({ type: PromotionResponseDto, isArray: true })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('admin')
@@ -58,6 +61,7 @@ export class PromotionController {
     return PromotionAnalyticsDto.from(await this.promotions.analytics(id));
   }
 
+  @ApiOkResponse({ type: PromotionResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Post()
@@ -76,6 +80,7 @@ export class PromotionController {
     });
   }
 
+  @ApiOkResponse({ type: PromotionResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Patch(':id')
@@ -98,6 +103,7 @@ export class PromotionController {
     });
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Delete(':id')

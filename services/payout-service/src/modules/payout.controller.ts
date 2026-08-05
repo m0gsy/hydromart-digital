@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -25,6 +25,7 @@ import {
   RequestWithdrawalDto,
   VoidOrderRevenueDto,
 } from './dto/payout.dto';
+import { OrderRevenueResponseDto, PagedLedgerEntryResponseDto, PayoutResponseDto, VoidRevenue2ResponseDto, WithdrawalResponseDto } from './dto/responses.generated.dto';
 
 // Owner-scoped: every endpoint reads the caller's own franchise ledger (user.sub).
 @ApiTags('Payout')
@@ -34,12 +35,14 @@ import {
 export class PayoutController {
   constructor(private readonly payout: PayoutService) {}
 
+  @ApiOkResponse({ type: PayoutResponseDto })
   @Get('summary')
   @ApiOperation({ summary: 'Balance, month revenue/commission, next payout + recent activity' })
   summary(@CurrentUser() user: AuthenticatedUser): Promise<PayoutSummary> {
     return this.payout.summary(user.sub);
   }
 
+  @ApiOkResponse({ type: PagedLedgerEntryResponseDto })
   @Get('ledger')
   @ApiOperation({ summary: 'Paginated cash-book entries for the calling owner' })
   ledger(
@@ -49,6 +52,7 @@ export class PayoutController {
     return this.payout.ledgerPage(user.sub, query.page, query.limit);
   }
 
+  @ApiOkResponse({ type: WithdrawalResponseDto })
   @Post('withdrawals')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Request a withdrawal to the owner bank account' })
@@ -62,6 +66,7 @@ export class PayoutController {
   // System-triggered: order-service posts an order the moment it completes, authenticated
   // by the shared INTERNAL_SERVICE_KEY (no end-user token). @Public() skips the JWT guard;
   // InternalAuthGuard is the sole (fail-closed) auth. Idempotent by orderId.
+  @ApiOkResponse({ type: OrderRevenueResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -83,6 +88,7 @@ export class PayoutController {
 
   // The other half: a counter sale reversed at the till has to give the revenue and the
   // commission back, or the owner is paid for money that was handed to the buyer.
+  @ApiOkResponse({ type: VoidRevenue2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

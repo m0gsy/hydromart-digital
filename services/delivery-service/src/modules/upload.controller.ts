@@ -11,13 +11,14 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import { DELIVERY_TOKENS } from '../application/tokens';
 import { StoragePort } from '../application/ports/storage.port';
 import { MulterExceptionFilter } from './multer-exception.filter';
+import { Upload2ResponseDto } from './dto/responses.generated.dto';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 /** Driver uploads a PoD photo/signature and gets back a URL to submit to /complete. */
@@ -31,6 +32,7 @@ export class UploadController {
 
   constructor(@Inject(DELIVERY_TOKENS.Storage) private readonly storage: StoragePort) {}
 
+  @ApiOkResponse({ type: Upload2ResponseDto })
   @Post('uploads')
   @ApiOperation({ summary: 'Upload a PoD photo or signature; returns its URL' })
   @ApiConsumes('multipart/form-data')

@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsISO8601, IsOptional, IsUUID } from 'class-validator';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class CommissionQueryDto {
   @ApiPropertyOptional({ format: 'uuid', description: 'Depot to run commission for.' })
@@ -17,5 +17,6 @@ export class CommissionQueryDto {
   @IsOptional()
   @IsISO8601()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }

@@ -1,11 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierEarningRuleRecord } from '../application/ports/courier-ledger.repository';
 import { ApplyEarningRuleDto } from './dto/earning-rule.dto';
+import { CourierEarningRuleResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Courier earning-rule editor (design 6b). Finance-owned config, gated on the roles
@@ -19,12 +20,14 @@ import { ApplyEarningRuleDto } from './dto/earning-rule.dto';
 export class EarningRuleController {
   constructor(private readonly payout: CourierPayoutService) {}
 
+  @ApiOkResponse({ type: CourierEarningRuleResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List every earning rule (network default + per-depot), newest first' })
   list(): Promise<CourierEarningRuleRecord[]> {
     return this.payout.listEarningRules();
   }
 
+  @ApiOkResponse({ type: CourierEarningRuleResponseDto })
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Apply a new effective-dated earning rule' })

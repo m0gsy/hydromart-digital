@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 import { can } from '@hydromart/access';
@@ -7,6 +7,7 @@ import { can } from '@hydromart/access';
 import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { CashierShift } from '../domain/cashier-shift';
 import { CloseShiftDto, OpenShiftDto, ShiftQueryDto } from './dto/cashier-shift.dto';
+import { CashierShiftResponseDto, ListResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Cashier shifts (counter chain of custody). Everything here is depot-money handling, so
@@ -19,6 +20,7 @@ import { CloseShiftDto, OpenShiftDto, ShiftQueryDto } from './dto/cashier-shift.
 export class CashierShiftController {
   constructor(private readonly shifts: CashierShiftService) {}
 
+  @ApiOkResponse({ type: CashierShiftResponseDto })
   @Post()
   @ApiOperation({ summary: 'Open a shift with the drawer float' })
   open(@Body() dto: OpenShiftDto, @CurrentUser() user: AuthenticatedUser): Promise<CashierShift> {
@@ -27,6 +29,7 @@ export class CashierShiftController {
     return this.shifts.open(dto, { id: user.sub, name: user.phone ?? user.sub });
   }
 
+  @ApiOkResponse({ type: CashierShiftResponseDto })
   @Get('current')
   @ApiOperation({ summary: "The caller's own open shift at a depot, or null" })
   current(
@@ -36,12 +39,14 @@ export class CashierShiftController {
     return this.shifts.current(query.depotId, user.sub);
   }
 
+  @ApiOkResponse({ type: ListResponseDto })
   @Get()
   @ApiOperation({ summary: 'Open shifts at a depot plus the latest closed ones' })
   list(@Query() query: ShiftQueryDto): Promise<{ open: CashierShift[]; closed: CashierShift[] }> {
     return this.shifts.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: CashierShiftResponseDto })
   @Post(':id/close')
   @ApiOperation({ summary: 'Count the drawer and close the shift (expected cash is server-side)' })
   close(

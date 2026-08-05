@@ -210,21 +210,36 @@ describe('DeliveryPrismaRepository', () => {
       page: 2,
       limit: 10,
     } as never);
-    expect(res).toEqual({ items: [expect.objectContaining({ id: 'del-1' })], total: 1 });
+    expect(res).toEqual({
+      items: [expect.objectContaining({ id: 'del-1' })],
+      total: 1,
+      nextCursor: null,
+    });
     expect(delivery.findMany).toHaveBeenCalledWith({
       where: { driverId: 'drv-1', depotId: { in: ['dep-1'] }, status: DeliveryStatus.ASSIGNED },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },
-      orderBy: { assignedAt: 'desc' },
+      orderBy: [{ assignedAt: 'desc' }, { id: 'desc' }],
       skip: 10,
       take: 10,
     });
+  });
+
+  it('search seeks past a cursor and hands the next one back', async () => {
+    delivery.findMany.mockResolvedValue([deliveryRow(), { ...deliveryRow(), id: 'del-2' }]);
+    delivery.count.mockResolvedValue(99);
+    const res = await repo.search({ page: 5, limit: 2, cursor: 'del-0' } as never);
+    // `page` is ignored once a cursor is given — honouring both re-reads or skips rows.
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'del-0' }, skip: 1, take: 2 }),
+    );
+    expect(res.nextCursor).toBe('del-2');
   });
 
   it('search omits absent filters', async () => {
     delivery.findMany.mockResolvedValue([]);
     delivery.count.mockResolvedValue(0);
     const res = await repo.search({ page: 1, limit: 20 } as never);
-    expect(res).toEqual({ items: [], total: 0 });
+    expect(res).toEqual({ items: [], total: 0, nextCursor: null });
     expect(delivery.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: {}, skip: 0, take: 20 }),
     );

@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { SubscriptionService } from '../application/services/subscription.service';
 import { Subscription } from '../domain/subscription';
 import { CreateSubscriptionDto, ListSubscriptionQueryDto } from './dto/subscription.dto';
+import { SubscriptionResponseDto } from './dto/responses.generated.dto';
 
 /** Customer recurring subscriptions (design 16b). */
 @ApiTags('Subscriptions')
@@ -15,12 +16,14 @@ import { CreateSubscriptionDto, ListSubscriptionQueryDto } from './dto/subscript
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}
 
+  @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's subscriptions (newest first), optional status filter" })
   list(@Query() query: ListSubscriptionQueryDto): Promise<Subscription[]> {
     return this.subscriptions.list(query.depotId, { status: query.status });
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Post()
   @ApiOperation({ summary: 'Create a customer subscription (ACTIVE)' })
   create(@Body() dto: CreateSubscriptionDto): Promise<Subscription> {
@@ -36,6 +39,7 @@ export class SubscriptionController {
     });
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Patch(':id/pause')
   @ApiOperation({ summary: 'Pause a subscription' })
   async pause(
@@ -46,6 +50,7 @@ export class SubscriptionController {
     return this.subscriptions.pause(id);
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Patch(':id/resume')
   @ApiOperation({ summary: 'Resume a subscription' })
   async resume(

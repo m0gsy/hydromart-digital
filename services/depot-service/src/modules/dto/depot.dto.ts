@@ -22,11 +22,12 @@ import { OwnershipType } from '../../domain/inventory';
 import { DepotRecord } from '../../application/ports/depot.repository';
 
 export class BrowseDepotsQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })

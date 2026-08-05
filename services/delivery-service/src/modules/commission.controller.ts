@@ -1,11 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, addLocalMonths, startOfLocalMonth } from '@hydromart/platform';
 
 import { CommissionRun, CommissionService } from '../application/services/commission.service';
 import { DeliveryConfigService } from '../config/delivery-config.service';
 import { CommissionQueryDto } from './dto/commission.dto';
+import { CommissionRunResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Default window: the WIB calendar month [first-of-month, first-of-next-month).
@@ -31,6 +32,7 @@ export class CommissionController {
     private readonly config: DeliveryConfigService,
   ) {}
 
+  @ApiOkResponse({ type: CommissionRunResponseDto })
   @Get()
   @ApiOperation({ summary: 'Per-courier commission for a depot over a window (design 11c)' })
   run(@Query() q: CommissionQueryDto): Promise<CommissionRun> {

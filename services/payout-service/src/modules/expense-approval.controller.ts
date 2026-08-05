@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
@@ -7,6 +7,7 @@ import { ExpenseClaimService } from '../application/services/expense-claim.servi
 import { ExpenseClaimRecord } from '../application/ports/expense-claim.repository';
 import { Page } from '../application/pagination';
 import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
+import { ExpenseClaimResponseDto, PagedExpenseClaimResponseDto } from './dto/responses.generated.dto';
 
 // Reviewer-scoped: depot managers / finance approve or reject courier claims (design 6a).
 // expenseApprove excludes STAFF_DEPOT, so a courier can never approve their own claim.
@@ -17,6 +18,7 @@ import { ExpenseQueryDto, ReviewExpenseDto } from './dto/expense-claim.dto';
 export class ExpenseApprovalController {
   constructor(private readonly expenses: ExpenseClaimService) {}
 
+  @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
   @Get()
   @ApiOperation({ summary: 'Search courier expense claims by depot + status' })
   list(@Query() query: ExpenseQueryDto): Promise<Page<ExpenseClaimRecord>> {
@@ -28,6 +30,7 @@ export class ExpenseApprovalController {
     );
   }
 
+  @ApiOkResponse({ type: ExpenseClaimResponseDto })
   @Post(':id/approve')
   @ApiOperation({ summary: 'Approve a pending claim; credits the courier ledger' })
   approve(
@@ -38,6 +41,7 @@ export class ExpenseApprovalController {
     return this.expenses.approve(id, user.sub, dto.note);
   }
 
+  @ApiOkResponse({ type: ExpenseClaimResponseDto })
   @Post(':id/reject')
   @ApiOperation({ summary: 'Reject a pending claim (no ledger movement)' })
   reject(

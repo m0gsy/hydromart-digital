@@ -39,9 +39,15 @@ export interface LedgerRepository {
   ownersWithBalance(): Promise<OwnerBalance[]>;
   /** Sum of entries of one type over an inclusive date range. */
   sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number>;
+  /**
+   * One owner's ledger page. `cursor` is the previous page's `nextCursor`: the ledger is
+   * append-only and never stops growing, so paging deep into it by OFFSET walks every
+   * earlier row (audit Q-16). `page` is ignored when a cursor is given.
+   */
   listForOwner(
     franchiseOwnerId: string,
     page: number,
     limit: number,
-  ): Promise<{ items: LedgerEntryRecord[]; total: number }>;
+    cursor?: string,
+  ): Promise<{ items: LedgerEntryRecord[]; total: number; nextCursor: string | null }>;
 }

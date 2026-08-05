@@ -217,6 +217,16 @@ export class RescheduleDeliveryDto {
 }
 
 export class ListDeliveriesQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Keyset cursor from the previous response (`nextCursor`). Reads the next page ' +
+      'without an OFFSET; `page` is ignored when this is given.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  cursor?: string;
+
   @ApiPropertyOptional({ enum: DeliveryStatus })
   @IsOptional()
   @IsEnum(DeliveryStatus)
@@ -230,11 +240,12 @@ export class ListDeliveriesQueryDto {
   @IsUUID()
   depotId?: string;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })

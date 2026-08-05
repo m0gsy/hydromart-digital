@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { MaintenanceService } from '../application/services/maintenance.service';
 import { MaintenanceItem } from '../domain/maintenance';
 import { CreateMaintenanceDto, ListMaintenanceQueryDto } from './dto/maintenance.dto';
+import { MaintenanceItemResponseDto } from './dto/responses.generated.dto';
 
 /** Depot equipment/vehicle maintenance schedule (depot admin). */
 @ApiTags('Maintenance')
@@ -15,6 +16,7 @@ import { CreateMaintenanceDto, ListMaintenanceQueryDto } from './dto/maintenance
 export class MaintenanceController {
   constructor(private readonly maintenance: MaintenanceService) {}
 
+  @ApiOkResponse({ type: MaintenanceItemResponseDto })
   @Post()
   @ApiOperation({ summary: 'Add a maintenance item (status derived from next-due date)' })
   create(@Body() dto: CreateMaintenanceDto): Promise<MaintenanceItem> {
@@ -29,12 +31,14 @@ export class MaintenanceController {
     });
   }
 
+  @ApiOkResponse({ type: MaintenanceItemResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's maintenance items (next-due first), status recomputed" })
   list(@Query() query: ListMaintenanceQueryDto): Promise<MaintenanceItem[]> {
     return this.maintenance.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: MaintenanceItemResponseDto })
   @Patch(':id/serviced')
   @ApiOperation({ summary: 'Mark serviced now (bumps next-due by the interval)' })
   async markServiced(

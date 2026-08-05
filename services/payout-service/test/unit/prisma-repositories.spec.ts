@@ -152,7 +152,8 @@ describe('WithdrawalPrismaRepository', () => {
 describe('CommissionSchemePrismaRepository', () => {
   const model = { findMany: jest.fn(), create: jest.fn() };
   const $transaction = jest.fn();
-  const prisma = { commissionScheme: model, $transaction } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { commissionScheme: model, $transaction, $queryRaw } as unknown as PrismaService;
   const repo = new CommissionSchemePrismaRepository(prisma);
 
   const row = {
@@ -167,12 +168,13 @@ describe('CommissionSchemePrismaRepository', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('lists current schemes DISTINCT ON depotId newest first, mapping pct to number', async () => {
-    model.findMany.mockResolvedValue([row]);
+    $queryRaw.mockResolvedValue([row]);
     const results = await repo.listCurrent();
-    expect(model.findMany).toHaveBeenCalledWith({
-      orderBy: [{ depotId: 'asc' }, { effectiveDate: 'desc' }],
-      distinct: ['depotId'],
-    });
+    // Postgres DISTINCT ON, not Prisma's `distinct`: the latter dedupes rows already
+    // fetched, so a page bound over the scheme history would drop whole depots — and a
+    // depot with no current pct is a commission that silently stops being paid.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(model.findMany).not.toHaveBeenCalled();
     expect(results[0].pct).toBe(12.5);
     expect(results[0].depotId).toBe('dep-1');
   });
@@ -318,13 +320,25 @@ describe('LedgerPrismaRepository', () => {
     const result = await repo.listForOwner('own-1', 2, 20);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { franchiseOwnerId: 'own-1' },
-      orderBy: { occurredAt: 'desc' },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       skip: 20, // (2-1)*20
       take: 20,
     });
     expect(model.count).toHaveBeenCalledWith({ where: { franchiseOwnerId: 'own-1' } });
     expect(result.total).toBe(1);
     expect(result.items[0].amount).toBe(5000);
+    // A short page ends the walk: nothing to page on to.
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('seeks past a ledger cursor rather than an offset (audit Q-16)', async () => {
+    model.findMany.mockResolvedValue([row]);
+    model.count.mockResolvedValue(900);
+    const result = await repo.listForOwner('own-1', 45, 1, 'led-0');
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'led-0' }, skip: 1, take: 1 }),
+    );
+    expect(result.nextCursor).toBe(row.id);
   });
 });
 

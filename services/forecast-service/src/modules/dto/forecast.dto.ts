@@ -107,10 +107,11 @@ export class ChurnQueryDto {
 }
 
 export class RebuildQueryDto {
-  @ApiPropertyOptional({ default: 100, minimum: 1, description: 'Max orders to pull per feed page.' })
+  @ApiPropertyOptional({ default: 100, minimum: 1, description: 'Max orders to pull per feed page.', maximum: 500 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(500)
   @Type(() => Number)
   limit?: number;
 }

@@ -301,3 +301,16 @@ export class InvalidStatusTransitionError extends DomainError {
     super(`Cannot move an order from ${from} to ${to}.`);
   }
 }
+
+/**
+ * A report asked for more orders than one response is allowed to materialise (audit H-46).
+ * The alternative is silently truncating the window, which returns a revenue number that
+ * looks right and is not — a narrower range is a worse report, a wrong one is a liability.
+ */
+export class ReportRangeTooLargeError extends DomainError {
+  readonly code = 'ORDER_REPORT_RANGE_TOO_LARGE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(maxOrders: number) {
+    super(`This range covers more than ${maxOrders} orders. Narrow the date range.`);
+  }
+}

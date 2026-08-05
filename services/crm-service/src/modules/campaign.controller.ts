@@ -11,7 +11,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import {
   Can,
@@ -38,6 +44,7 @@ import {
 export class CampaignController {
   constructor(private readonly campaigns: CampaignService) {}
 
+  @ApiOkResponse({ type: CampaignDto })
   @Can('campaignWrite')
   @Post()
   @ApiOperation({ summary: 'Create a draft broadcast campaign — explicit list or segment (FR-087/088/094)' })
@@ -57,6 +64,7 @@ export class CampaignController {
     return CampaignDto.from(campaign);
   }
 
+  @ApiOkResponse({ type: CampaignListDto })
   @Can('campaignRead')
   @Get()
   @ApiOperation({ summary: 'List broadcast campaigns (paginated)' })
@@ -64,6 +72,7 @@ export class CampaignController {
     return CampaignListDto.from(await this.campaigns.list(query.page, query.limit));
   }
 
+  @ApiOkResponse({ type: CampaignDto })
   @Can('campaignRead')
   @Get(':id')
   @ApiOperation({ summary: 'Get a campaign with its recipients' })
@@ -71,6 +80,7 @@ export class CampaignController {
     return CampaignDto.from(await this.campaigns.get(id));
   }
 
+  @ApiOkResponse({ type: CampaignDto })
   @Can('campaignWrite')
   @Post(':id/send')
   @HttpCode(HttpStatus.ACCEPTED)
@@ -93,6 +103,9 @@ export class CampaignController {
   @ApiSecurity('internal-key')
   @Post('internal/process-sending')
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({
+    description: 'Counts for this tick: campaigns walked, messages sent, failed, completed.',
+  })
   @ApiOperation({
     summary: 'Continue every campaign still broadcasting (internal service auth)',
     description:

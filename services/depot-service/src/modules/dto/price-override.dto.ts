@@ -10,6 +10,7 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -53,18 +54,20 @@ export class ProposePriceOverrideDto {
 }
 
 export class ListPriceOverridesQueryDto {
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @ApiPropertyOptional({ enum: PriceOverrideStatus, description: 'Filter by decision status.' })

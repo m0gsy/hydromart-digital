@@ -23,6 +23,7 @@ import {
   PurgeNotificationsDto,
   SendNotificationDto,
 } from './dto/notification.dto';
+import { Purge3ResponseDto } from './dto/responses.generated.dto';
 
 // Fired by upstream services (order-service) forwarding the acting fulfilment staff
 // member's token; SUPER_ADMIN can trigger manually. Not a customer-facing endpoint.
@@ -85,6 +86,7 @@ export class NotificationController {
     return { marked: await this.notifications.markAllOpsRead(user.sub) };
   }
 
+  @ApiOkResponse({ type: NotificationDto })
   @Roles(...TRIGGER_ROLES)
   @Post()
   @HttpCode(HttpStatus.OK)
@@ -97,6 +99,7 @@ export class NotificationController {
   // (e.g. auth-service registration welcome, payment webhooks). Authenticated by the
   // shared INTERNAL_SERVICE_KEY, not a JWT. @Public() bypasses the global JWT guard;
   // InternalAuthGuard is then the sole (fail-closed) auth.
+  @ApiOkResponse({ type: NotificationDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -109,6 +112,7 @@ export class NotificationController {
 
   // Retention sweep driven by admin-service (M23-21 enforcement). Same internal-key
   // auth as the send path — never reachable with an end-user token.
+  @ApiOkResponse({ type: Purge3ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

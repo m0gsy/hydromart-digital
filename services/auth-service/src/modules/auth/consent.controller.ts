@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ConsentService } from '../../application/services/consent.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,18 +24,21 @@ import {
 export class ConsentController {
   constructor(private readonly consents: ConsentService) {}
 
+  @ApiOkResponse({ type: ConsentStateDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'Your current consent per purpose, and whether it can be withdrawn' })
   async state(@CurrentUser() user: AuthenticatedUser): Promise<ConsentStateDto[]> {
     return (await this.consents.stateFor(user.sub)).map(ConsentStateDto.from);
   }
 
+  @ApiOkResponse({ type: ConsentHistoryEntryDto, isArray: true })
   @Get('history')
   @ApiOperation({ summary: 'Every consent decision you have made, oldest first' })
   async history(@CurrentUser() user: AuthenticatedUser): Promise<ConsentHistoryEntryDto[]> {
     return (await this.consents.history(user.sub)).map(ConsentHistoryEntryDto.from);
   }
 
+  @ApiOkResponse({ type: ConsentHistoryEntryDto })
   @Put()
   @ApiOperation({
     summary: 'Grant or withdraw one optional consent',

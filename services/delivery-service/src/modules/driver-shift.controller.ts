@@ -1,10 +1,11 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
 import { ShiftService, ShiftView } from '../application/services/shift.service';
 import { CheckInDto, CheckOutDto, SetShiftStatusDto } from './dto/shift.dto';
+import { ShiftResponseDto } from './dto/responses.generated.dto';
 
 /** Courier-facing shift: check in at the depot, go on break, check out (design 3a/3b). */
 @ApiTags('Driver Shifts')
@@ -14,18 +15,21 @@ import { CheckInDto, CheckOutDto, SetShiftStatusDto } from './dto/shift.dto';
 export class DriverShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
+  @ApiOkResponse({ type: ShiftResponseDto })
   @Get('current')
   @ApiOperation({ summary: "The courier's open shift, or null when checked out" })
   current(@CurrentUser() user: AuthenticatedUser): Promise<ShiftView | null> {
     return this.shifts.current(user.sub);
   }
 
+  @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "The courier's recent shifts, newest first" })
   history(@CurrentUser() user: AuthenticatedUser): Promise<ShiftView[]> {
     return this.shifts.history(user.sub);
   }
 
+  @ApiOkResponse({ type: ShiftResponseDto })
   @Post('check-in')
   @ApiOperation({ summary: 'Start a shift (verified against the depot location)' })
   checkIn(@CurrentUser() user: AuthenticatedUser, @Body() dto: CheckInDto): Promise<ShiftView> {
@@ -38,6 +42,7 @@ export class DriverShiftController {
     );
   }
 
+  @ApiOkResponse({ type: ShiftResponseDto })
   @Post(':id/check-out')
   @ApiOperation({ summary: 'End the shift' })
   checkOut(
@@ -48,6 +53,7 @@ export class DriverShiftController {
     return this.shifts.checkOut(user.sub, id, dto.lat, dto.lng);
   }
 
+  @ApiOkResponse({ type: ShiftResponseDto })
   @Patch(':id/status')
   @ApiOperation({ summary: 'Go ONLINE / BREAK / OFFLINE' })
   setStatus(

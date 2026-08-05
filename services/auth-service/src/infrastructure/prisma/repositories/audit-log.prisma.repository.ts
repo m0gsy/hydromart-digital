@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
 import { Prisma } from '@prisma/client';
 
 import {
@@ -34,7 +35,9 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
     });
   }
 
-  async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+  async list(
+    query: AuditLogQuery,
+  ): Promise<{ items: AuditLogListItem[]; total: number; nextCursor: string | null }> {
     const category = query.type ? AUDIT_CATEGORIES[query.type] : undefined;
     const where: Prisma.AuditLogWhereInput = {
       ...(query.action ? { action: query.action } : {}),
@@ -50,9 +53,9 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
     const [rows, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor cannot straddle two rows written in the same tick.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.auditLog.count({ where }),
     ]);
@@ -85,6 +88,6 @@ export class AuditLogPrismaRepository implements AuditLogRepository {
         actorRole: actor?.role ?? null,
       };
     });
-    return { items, total };
+    return { items, total, nextCursor: nextCursor(rows, query.limit) };
   }
 }

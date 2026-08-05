@@ -13,6 +13,7 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
   Min,
   ValidateNested,
@@ -266,12 +267,14 @@ export class ListEmployeesDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page = 1;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   pageSize = 20;
 }
 

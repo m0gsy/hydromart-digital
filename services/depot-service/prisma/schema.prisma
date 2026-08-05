@@ -103,6 +103,7 @@ model Depot {
   subscriptions          Subscription[]
   huddleNotes            HuddleNote[]
   shiftHandovers         ShiftHandover[]
+  serviceSettings        ServiceSetting[]
 
   @@index([active])
   @@index([ownershipType])
@@ -243,7 +244,12 @@ model StockMovement {
   createdAt      DateTime          @default(now())
 
   @@unique([itemId, orderId])
-  @@index([itemId])
+  // The fastest-growing table in the system, and every read of it is "this item's
+  // ledger, newest first" or "this depot's movements of this type in a window"
+  // (audit DB-1). The bare [itemId] index these replaced is the leftmost prefix of
+  // the first composite, so nothing lost it.
+  @@index([itemId, createdAt])
+  @@index([type, createdAt])
   @@map("stock_movements")
 }
 
@@ -842,7 +848,11 @@ model StaffDepotAssignment {
 model ServiceSetting {
   id        String   @id @default(uuid())
   scope     String   // 'GLOBAL' | 'DEPOT'
-  depotId   String?  @map("depot_id")
+  /// Null for scope=GLOBAL. Foreign key here only — the other six services carry the
+  /// same table with no Depot to point at, so theirs stays a bare id by necessity
+  /// (audit DB-5). A depot that is deleted takes its own overrides with it.
+  depotId   String?  @map("depot_id") @db.Uuid
+  depot     Depot?   @relation(fields: [depotId], references: [id], onDelete: Cascade)
   key       String
   value     String
   updatedBy String   @map("updated_by")
