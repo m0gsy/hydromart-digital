@@ -39,6 +39,14 @@ is "schema edit alone is not a migration" \
   "$(pending_migrations "services/order-service/prisma/schema.prisma")" ""
 is "ordinary code change carries no migration" \
   "$(pending_migrations "$(printf 'services/order-service/src/a.ts\ndocker-compose.prod.yml\n')")" ""
+# ...and answering "none" must EXIT ZERO. deploy.sh reads this into a variable under
+# `set -euo pipefail`, where the status of a command substitution becomes the status of
+# the assignment — so grep's no-match 1 killed every migration-less deploy right after the
+# reset. The output checks above cannot catch it: a failing substitution inside an
+# argument does not trip `set -e`, only one in an assignment does. Assert the status.
+probe_status=0
+probe="$(pending_migrations "docker-compose.prod.yml")" || probe_status=$?
+is "no migration exits zero (deploy.sh reads this under set -e)" "$probe_status" "0"
 
 # H-32 — the deploy gate reads compose `ps` state AND health. `running` alone passed a
 # container that had been failing its own healthcheck since boot.

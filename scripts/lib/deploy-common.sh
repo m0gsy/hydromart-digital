@@ -82,8 +82,14 @@ needs_full_rebuild() {
 # convention (schema ships one release BEFORE its reader) is only safe when something
 # actually checks; this is that something.
 # Takes the newline-separated `git diff --name-only` output.
+#
+# `|| true` is load-bearing, not tidiness: grep exits 1 on no match, deploy.sh runs under
+# `set -euo pipefail`, and `MIGRATIONS="$(pending_migrations "$CHANGED")"` takes its status
+# from the substitution. Without this, EVERY deploy whose diff carries no migration — which
+# is most of them — died silently right after the reset, before a single container was
+# touched. "No migrations" is the normal answer to this question, not a failure.
 pending_migrations() {
-  echo "$1" | grep -oE '^(services|apps)/[^/]+/prisma/migrations/[^/]+' | sort -u
+  echo "$1" | grep -oE '^(services|apps)/[^/]+/prisma/migrations/[^/]+' | sort -u || true
 }
 
 # Every service the compose project defines must be RUNNING. The gateway probe alone is
