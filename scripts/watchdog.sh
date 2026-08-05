@@ -23,6 +23,13 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 . scripts/lib/deploy-common.sh
 
+# A deploy recreates containers, and a container mid-recreate looks exactly like one that
+# stopped. Converging it underneath the deploy is what killed the 2026-08-05 deploy.
+if ! stack_lock 0; then
+  echo "[watchdog] $(date -Is) deploy in progress — it converges the stack itself; skipping"
+  exit 0
+fi
+
 DOWN="$(stopped_services)"
 if [ -z "$DOWN" ]; then exit 0; fi
 

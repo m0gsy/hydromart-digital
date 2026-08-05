@@ -169,5 +169,38 @@ if [ -n "$unlocked" ]; then
   fail=1
 fi
 
+# --- deploy and watchdog cannot converge the same stack at once ----------------------
+# A deploy runs for tens of minutes and the watchdog every five, so they overlap on every
+# deploy. On 2026-08-05 the watchdog's converge hit a container the deploy was recreating
+# and the deploy died on "removal of container ... is already in progress" — after the
+# stack was up, but before the health gate wrote last-good-sha.
+if command -v flock >/dev/null 2>&1; then
+  lockdir="$(mktemp -d)"
+  # A second, independent converger must NOT get the lock while the first holds it.
+  held="$(STACK_LOCK="$lockdir/stack.lock" bash -c '
+    . scripts/lib/deploy-common.sh
+    stack_lock 0 || { echo first-failed; exit 0; }
+    HYDROMART_STACK_LOCKED= bash -c ". scripts/lib/deploy-common.sh
+      if stack_lock 0; then echo second-got-it; else echo second-blocked; fi"
+    # Keep this shell alive past its child: bash exec()s into the LAST command of a
+    # `-c` string, which would hand the lock fd to the very shell being tested.
+    :')"
+  is "a second converger is locked out" "$held" "second-blocked"
+  # ...but a nested call inside the SAME deploy (deploy.sh -> rollback.sh) must not
+  # deadlock on the lock its own parent already holds.
+  nested="$(STACK_LOCK="$lockdir/stack.lock" HYDROMART_STACK_LOCKED=1 bash -c '
+    . scripts/lib/deploy-common.sh
+    if stack_lock 0; then echo nested-ok; else echo nested-deadlocked; fi')"
+  is "a nested caller inherits the lock" "$nested" "nested-ok"
+  rm -rf "$lockdir"
+fi
+# Every script that converges the stack must ask for the lock first.
+for s in scripts/deploy.sh scripts/rollback.sh scripts/watchdog.sh; do
+  if ! grep -q 'stack_lock' "$s"; then
+    echo "FAIL $s converges the stack without taking the stack lock"
+    fail=1
+  fi
+done
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"

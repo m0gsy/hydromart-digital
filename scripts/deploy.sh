@@ -21,6 +21,14 @@ BRANCH="${DEPLOY_BRANCH:-main}"
 
 log() { echo "[deploy] $*"; }
 
+# Held for the whole deploy: the watchdog must not converge the containers this is in the
+# middle of recreating, and two deploys must not interleave. Waits rather than fails,
+# because the only thing normally holding it is one watchdog pass.
+if ! stack_lock 900; then
+  log "!! the stack lock is still held after 15 minutes — refusing to deploy over it"
+  exit 1
+fi
+
 PREV_SHA="$(git rev-parse HEAD)"
 log "current HEAD $PREV_SHA"
 

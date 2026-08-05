@@ -14,6 +14,13 @@ STATE_DIR=".deploy"
 
 log() { echo "[rollback] $*"; }
 
+# A no-op when deploy.sh already holds it — that is how a failed health check gets here.
+# A hand-run rollback takes it, so the watchdog cannot converge halfway through one.
+if ! stack_lock 900; then
+  log "!! another deploy holds the stack lock — refusing to roll back underneath it"
+  exit 1
+fi
+
 TARGET="${1:-$(cat "$STATE_DIR/prev-sha" 2>/dev/null || true)}"
 [ -z "$TARGET" ] && { echo "no rollback target (pass a SHA or run a deploy first)"; exit 2; }
 
