@@ -144,5 +144,20 @@ else
   fail=1
 fi
 
+# --- every npm cache mount must be locked -------------------------------------------
+# 19 images build at once in CI and every one of them runs a full-monorepo `npm ci`
+# against the same BuildKit cache at /root/.npm. BuildKit's default is sharing=shared,
+# which permits concurrent writers — so npm's cacache tmp files collide (EEXIST), and
+# with nothing serialising them all 19 miss the cache in the same instant and pull the
+# whole workspace at once (ECONNRESET / ETIMEDOUT). Both symptoms, one cause. `locked`
+# lets the first build populate the cache and the rest wait for a warm one.
+unlocked="$(grep -rl --exclude-dir=node_modules --include='Dockerfile*' \
+  -- '--mount=type=cache,target=/root/\.npm ' services apps 2>/dev/null || true)"
+if [ -n "$unlocked" ]; then
+  echo "FAIL npm cache mount is not sharing=locked in:"
+  echo "$unlocked" | sed 's/^/  /'
+  fail=1
+fi
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"

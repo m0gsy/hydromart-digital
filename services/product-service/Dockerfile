@@ -19,7 +19,7 @@ COPY services/product-service/prisma ./services/product-service/prisma
 # 19 images build at once in CI, each pulling the whole workspace. npm defaults to 2
 # retries / 60s, so one stalled socket under that contention kills the entire build
 # (seen twice: ECONNRESET, then ETIMEDOUT, on different services each time).
-RUN --mount=type=cache,target=/root/.npm npm ci --include-workspace-root \
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --include-workspace-root \
   --fetch-retries=5 --fetch-retry-mintimeout=10000 --fetch-retry-maxtimeout=120000
 COPY services/product-service ./services/product-service
 RUN npm run build -w @hydromart/access \
