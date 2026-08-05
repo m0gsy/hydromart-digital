@@ -55,6 +55,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           return (
             <div
               key={t.id}
+              // An error is not a status update: role="status"/aria-live="polite" makes a
+              // screen reader wait for a pause before mentioning that what the user just
+              // did failed. Errors announce assertively; everything else stays polite.
+              // It is also what makes a failure assertable — the face check-in e2e was
+              // looking for an alert the UI never marked as one.
+              role={t.tone === 'error' ? 'alert' : undefined}
               className="pointer-events-auto flex max-w-sm items-center gap-2.5 rounded-full bg-[color:var(--text)] px-5 py-3 text-sm font-semibold text-[color:var(--surface)] shadow-lift"
               style={{ animation: 'fadeUp 0.25s var(--ease-out) both' }}
             >
