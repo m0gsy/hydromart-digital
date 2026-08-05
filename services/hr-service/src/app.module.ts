@@ -4,7 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
-import { AllExceptionsFilter, GlobalValidationPipe } from '@hydromart/platform';
+import { AllExceptionsFilter, GlobalValidationPipe, LOG_REDACT_PATHS } from '@hydromart/platform';
 
 import { HrConfigService } from './config/hr-config.service';
 import { envValidationSchema } from './config/env.validation';
@@ -27,7 +27,7 @@ import { HealthController } from './modules/health.controller';
           pinoHttp: {
             level: isProduction ? 'info' : 'debug',
             transport: isProduction ? undefined : { target: 'pino-pretty' },
-            redact: ['req.headers.authorization', 'req.headers.cookie'],
+            redact: [...LOG_REDACT_PATHS],
             autoLogging: true,
           },
         };

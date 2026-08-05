@@ -11,7 +11,11 @@ import { loginWithOtp } from './helpers/auth';
 // tertaut"/"belum di-enroll"). Either proves the round-trip; a silent no-op would not.
 test('face check-in captures a frame and posts through the cookie session', async ({ page }) => {
   await loginWithOtp(page);
-  await page.context().grantPermissions(['camera']);
+  // Geolocation as well as camera: punch() asks for a position before it posts, and an
+  // ungranted prompt in headless does not reject — it sits until the 10s option timeout.
+  // Without this the test was measuring that timeout, not the check-in.
+  await page.context().grantPermissions(['camera', 'geolocation']);
+  await page.context().setGeolocation({ latitude: -6.2088, longitude: 106.8456 });
 
   await page.goto('/hr/me/check-in');
   await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({ timeout: 10_000 });
@@ -35,11 +39,21 @@ test('face check-in captures a frame and posts through the cookie session', asyn
 
   // Either the capture posted (any status — success or a wired 4xx), or the client-side
   // liveness gate rejected it and surfaced an alert. Both are real, wired outcomes.
-  const posted = await postPromise.catch(() => null);
-  if (!posted) {
-    await expect(page.getByRole('alert').filter({ hasText: /\S/ })).toBeVisible({ timeout: 5_000 });
-  } else {
-    expect(posted.status()).toBeLessThan(500); // never a server crash
+  // Race the two outcomes rather than checking them in sequence. A toast is transient:
+  // waiting the full POST timeout first and only then looking for the alert meant the
+  // alert had already faded, and the test failed with neither outcome — which is exactly
+  // what it did the first time B-1 let this pipeline actually run.
+  const alerted = page
+    .getByRole('alert')
+    .filter({ hasText: /\S/ })
+    .waitFor({ state: 'visible', timeout: 20_000 })
+    .then(() => 'alert' as const)
+    .catch(() => null);
+
+  const outcome = await Promise.race([postPromise.catch(() => null), alerted]);
+  expect(outcome, 'capture produced neither a POST nor a visible error').not.toBeNull();
+  if (outcome !== 'alert' && outcome) {
+    expect(outcome.status()).toBeLessThan(500); // never a server crash
   }
 });
 
@@ -47,7 +61,11 @@ test('face check-in captures a frame and posts through the cookie session', asyn
 // the IndexedDB queue, the banner announces it, and it flushes once the network is back.
 test('a punch taken offline is queued on the device and flushed on reconnect', async ({ page }) => {
   await loginWithOtp(page);
-  await page.context().grantPermissions(['camera']);
+  // Geolocation as well as camera: punch() asks for a position before it posts, and an
+  // ungranted prompt in headless does not reject — it sits until the 10s option timeout.
+  // Without this the test was measuring that timeout, not the check-in.
+  await page.context().grantPermissions(['camera', 'geolocation']);
+  await page.context().setGeolocation({ latitude: -6.2088, longitude: 106.8456 });
 
   await page.goto('/hr/me/check-in');
   await expect(page.getByRole('heading', { name: /Absensi Wajah/i })).toBeVisible({ timeout: 10_000 });

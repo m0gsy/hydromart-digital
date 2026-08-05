@@ -44,6 +44,20 @@ services:
   postgres:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # B-12: the pool was unbounded on BOTH sides. Prisma defaults to (cpus * 2 + 1)
+    # connections per service — on this 8-vCPU box that is 17 x 16 services = 272 against
+    # postgres's default max_connections of 100. It does not fail cleanly: the 101st
+    # connection is refused, Prisma surfaces it as a connection error, and it reads like an
+    # intermittent network fault rather than exhaustion.
+    #
+    # Now bounded at both ends: every *_DATABASE_URL carries connection_limit=${DB_POOL:-5}
+    # (16 x 5 = 80 steady-state) and the server allows 150 — 70 spare for psql, migrations,
+    # backup-db.sh and the exporters. Raising DB_POOL past 9 breaks that headroom, which is
+    # what scripts/lib/deploy-common.test.sh asserts.
+    command:
+      - postgres
+      - -c
+      - max_connections=150
 
   auth:
     <<: *svc
@@ -51,7 +65,7 @@ services:
     environment:
       <<: *shared
       AUTH_SERVICE_PORT: 3001
-      AUTH_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public
+      AUTH_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET (min 32 chars)}
       JWT_ACCESS_TTL: 900
       JWT_REFRESH_TTL: 2592000
@@ -100,7 +114,7 @@ services:
     environment:
       <<: *shared
       CUSTOMER_SERVICE_PORT: 3002
-      CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public
+      CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       MAX_ADDRESSES_PER_CUSTOMER: 20
       LOYALTY_SERVICE_URL: http://loyalty:3009
       PRODUCT_SERVICE_URL: http://product:3003
@@ -119,7 +133,7 @@ services:
     environment:
       <<: *shared
       PRODUCT_SERVICE_PORT: 3003
-      PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public
+      PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # DEPOT_SERVICE_URL comes from *shared (http://depot:3007) — product-service pushes
       # renames/deactivations there so depot stock lines that copied a name follow it.
       # Object storage for product images. BiznetGio NEO (S3-compatible); per-bucket
@@ -143,7 +157,7 @@ services:
     environment:
       <<: *shared
       ORDER_SERVICE_PORT: 3004
-      ORDER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_order?schema=public
+      ORDER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_order?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_SERVICE_URL: http://depot:3007
       LOYALTY_SERVICE_URL: http://loyalty:3009
@@ -176,7 +190,7 @@ services:
     environment:
       <<: *shared
       PAYMENT_SERVICE_PORT: 3005
-      PAYMENT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payment?schema=public
+      PAYMENT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payment?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Blank in dev/self-hosted = online charges fail closed until a real gateway is wired.
       PAYMENT_GATEWAY_BASE_URL: ${PAYMENT_GATEWAY_BASE_URL:-}
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-}
@@ -194,7 +208,7 @@ services:
     environment:
       <<: *shared
       DELIVERY_SERVICE_PORT: 3006
-      DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public
+      DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
       DEPOT_SERVICE_URL: http://depot:3007
       # PAID-cash total for COD settlement (design 2d, fail-closed).
@@ -232,7 +246,7 @@ services:
     environment:
       <<: *shared
       DEPOT_SERVICE_PORT: 3007
-      DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
+      DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CRM_SERVICE_URL: http://crm:3012
       # Read when a PRODUK stock line is opened, to validate the product id and take the
       # catalog's own name for it. Unset here would silently fall back to localhost, which
@@ -283,7 +297,7 @@ services:
     environment:
       <<: *shared
       LOYALTY_SERVICE_PORT: 3009
-      LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public
+      LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       LOYALTY_EARN_RATE_RUPIAH: 1000
       LOYALTY_POINT_EXPIRY_MONTHS: 12
       # Depot-scoped loyalty summary resolves a depot's customers via customer-service
@@ -301,7 +315,7 @@ services:
     environment:
       <<: *shared
       PROMO_SERVICE_PORT: 3010
-      PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public
+      PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
       # Outbound for the "voucher baru" grant notification (spec 5h). INTERNAL_SERVICE_KEY
       # comes from *shared; blank URLs → grant succeeds, notification is skipped (fail-open).
@@ -319,7 +333,7 @@ services:
     environment:
       <<: *shared
       REFERRAL_SERVICE_PORT: 3011
-      REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public
+      REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       LOYALTY_SERVICE_URL: http://loyalty:3009
       CUSTOMER_SERVICE_URL: http://customer:3002
       REFERRAL_REFERRER_POINTS: 500
@@ -336,7 +350,7 @@ services:
     environment:
       <<: *shared
       CRM_SERVICE_PORT: 3012
-      CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public
+      CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       CUSTOMER_SERVICE_URL: http://customer:3002
@@ -356,7 +370,7 @@ services:
     environment:
       <<: *shared
       RECOMMENDATION_SERVICE_PORT: 3013
-      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_recommendation?schema=public
+      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_recommendation?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3013/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -370,7 +384,7 @@ services:
     environment:
       <<: *shared
       FORECAST_SERVICE_PORT: 3014
-      FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public
+      FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CHURN_WINDOW_DAYS: 45
       DEPOT_SERVICE_URL: http://depot:3007
     healthcheck:
@@ -385,7 +399,7 @@ services:
     environment:
       <<: *shared
       PAYOUT_SERVICE_PORT: 3016
-      PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public
+      PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       PAYOUT_COMMISSION_RATE: ${PAYOUT_COMMISSION_RATE:-0.05}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3016/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -399,7 +413,7 @@ services:
     environment:
       <<: *shared
       ADMIN_SERVICE_PORT: 3017
-      ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public
+      ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Peer service base URLs probed by the aggregate system-health roll-up (13b).
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
@@ -430,7 +444,7 @@ services:
     environment:
       <<: *shared
       HR_SERVICE_PORT: 3018
-      HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public
+      HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Provisions the staff login behind each imported employee row.
       AUTH_SERVICE_URL: http://auth:3001
       # HR notifications (leave decisions, announcements) ride crm's internal endpoint.
@@ -492,8 +506,17 @@ services:
       PAYOUT_SERVICE_URL: http://payout:3016
       ADMIN_SERVICE_URL: http://admin:3017
       HR_SERVICE_URL: http://hr:3018
+    # H-19: bound to loopback by DEFAULT so only Caddy can reach it. Two reasons this is
+    # not optional any more: the gateway is the single public ingress, and gateway.setup.ts
+    # now sets `trust proxy` — which means X-Forwarded-For is BELIEVED. A directly
+    # reachable port would let any client spoof that header and mint itself a fresh
+    # rate-limit bucket, turning the B-2 fix into a B-2 bypass.
+    #
+    # Bare-IP deploys (no WEB_DOMAIN, no --profile tls) have no proxy in front and MUST
+    # set PUBLIC_BIND=0.0.0.0 in .env or the stack is unreachable from outside the box.
+    # Default is the safe one; the exposed one is a deliberate choice you have to make.
     ports:
-      - "8080:8080"
+      - "${PUBLIC_BIND:-127.0.0.1}:8080:8080"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
@@ -513,8 +536,9 @@ services:
     restart: unless-stopped
     depends_on:
       - gateway
+    # H-19, same rule as the gateway above: loopback by default, Caddy is the way in.
     ports:
-      - "3000:3000"
+      - "${PUBLIC_BIND:-127.0.0.1}:3000:3000"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

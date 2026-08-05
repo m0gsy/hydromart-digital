@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import { DepotScopeGuard, JwtAuthGuard, RolesGuard } from '@hydromart/platform';
 
 import { PromoConfigService } from '../config/promo-config.service';
 import { PROMO_TOKENS } from '../application/tokens';
@@ -23,7 +23,9 @@ import {
 } from './voucher-request.controller';
 import { PromotionController } from './promotion.controller';
 
-const providers: Provider[] = [
+// Exported so the guard registration is assertable without booting the module — see
+// test/unit/depot-scope-registration.spec.ts (B-14).
+export const providers: Provider[] = [
   PrismaService,
   PromoConfigService,
   VoucherService,
@@ -37,6 +39,10 @@ const providers: Provider[] = [
   { provide: PROMO_TOKENS.OrderValues, useClass: OrderValueHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
+  // B-14: promo-service exposes `depots/:depotId/voucher-requests` and hands the path
+  // parameter straight to the service. Without this guard that depotId was never checked
+  // against the caller's scope — depot scoping enforced by a guard nobody installed.
+  { provide: APP_GUARD, useClass: DepotScopeGuard },
 ];
 
 @Module({

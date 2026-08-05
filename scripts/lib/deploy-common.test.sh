@@ -34,5 +34,42 @@ is "missing key reported" "$(cd "$tmp" && missing_env_keys)" "ORDER_ALERT_PHONE 
 printf 'A=9\nORDER_ALERT_PHONE=62812\n' > "$tmp/.env"
 is "no gap reported"      "$(cd "$tmp" && missing_env_keys)" ""
 
+# --- B-12: the connection pool must be bounded on both sides -------------------------
+# Prisma defaults to (cpus*2+1) connections PER SERVICE. Unbounded, 16 services on an
+# 8-vCPU box ask for ~272 against postgres's default max_connections of 100 — and the
+# failure looks like an intermittent network fault, not exhaustion. These assertions fail
+# against the pre-fix compose file, and keep failing if service #17 arrives without a
+# limit or if someone raises DB_POOL past what the server allows.
+COMPOSE_PROD="docker-compose.prod.yml"
+
+n_urls="$(grep -c '_DATABASE_URL: postgresql://' "$COMPOSE_PROD" || true)"
+n_limited="$(grep '_DATABASE_URL: postgresql://' "$COMPOSE_PROD" | grep -c 'connection_limit=' || true)"
+is "every service DB url bounds its pool" "$n_limited" "$n_urls"
+
+max_conn="$(grep -oE 'max_connections=[0-9]+' "$COMPOSE_PROD" | head -1 | cut -d= -f2)"
+is "postgres declares a connection ceiling" "${max_conn:-unset}" "150"
+
+# Default pool x service count must leave room for psql, migrations, backups, exporters.
+pool_default="$(grep -oE 'connection_limit=\$\{DB_POOL:-[0-9]+\}' "$COMPOSE_PROD" | head -1 | grep -oE '[0-9]+\}$' | tr -d '}')"
+worst_case=$(( ${pool_default:-0} * n_urls ))
+if [ "${pool_default:-0}" -gt 0 ] && [ "$worst_case" -lt "${max_conn:-0}" ]; then
+  :
+else
+  echo "FAIL pool headroom: ${pool_default:-0} x $n_urls = $worst_case connections vs max_connections=${max_conn:-0}"
+  fail=1
+fi
+
+# --- H-19: the public ports must not default to every interface ----------------------
+# `trust proxy` is now on in the gateway, so a directly reachable port lets a client spoof
+# X-Forwarded-For and mint a fresh rate-limit bucket. Loopback must stay the default.
+for port in 8080 3000; do
+  if grep -qE "^\s+- \"\\\$\{PUBLIC_BIND:-127\.0\.0\.1\}:${port}:${port}\"" "$COMPOSE_PROD"; then
+    :
+  else
+    echo "FAIL port $port is not bound to loopback by default (H-19)"
+    fail=1
+  fi
+done
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"

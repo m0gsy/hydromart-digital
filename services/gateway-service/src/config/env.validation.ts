@@ -22,5 +22,15 @@ export const envValidationSchema = Joi.object({
   HR_SERVICE_URL: Joi.string().uri().required(),
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
-  RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
+  // Per client per minute (see the `trust proxy` note in gateway.setup.ts — before that
+  // fix this was per DEPLOYMENT, which is why 100 ever looked sufficient).
+  //
+  // 100 is far too low for one real user: a single HQ dashboard page currently fires ~201
+  // requests on open (audit F-1), so the old ceiling could not survive one page load even
+  // with correct per-client keying. 600 leaves room for roughly three heavy page loads a
+  // minute per person while still stopping a scripted flood.
+  //
+  // This number is sized around a frontend defect, not around what the API should need.
+  // When F-1 lands and the fan-out drops, bring it back down — it is a ceiling, not a target.
+  RATE_LIMIT_MAX: Joi.number().integer().positive().default(600),
 });
