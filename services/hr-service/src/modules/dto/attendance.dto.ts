@@ -18,13 +18,21 @@ import {
 } from 'class-validator';
 
 /** Max base64 length for one captured frame (~1.4 MB decoded). */
-const MAX_FRAME = 2_000_000;
+export const MAX_FRAME = 2_000_000;
+/** Max frames one enrollment may carry. */
+export const MAX_FRAMES = 10;
+/**
+ * B-15: the JSON body budget the face routes need, derived from the two limits above so
+ * they cannot drift apart again. Express defaults to 100 KB — a real selfie was rejected
+ * with a bare 413 before validation ever ran, ~200× under what these DTOs accept.
+ */
+export const FACE_BODY_LIMIT = MAX_FRAME * MAX_FRAMES + 64 * 1024;
 
 export class EnrollFaceDto {
   /** Base64 (or data-URL) aligned face frames captured by the PWA. */
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(MAX_FRAMES)
   @IsString({ each: true })
   @MaxLength(MAX_FRAME, { each: true })
   images!: string[];
@@ -46,7 +54,12 @@ export class FacePunchDto {
   @MaxLength(500)
   photoUrl?: string;
 
-  /** Client passive-liveness verdict (blink/head-turn challenge). */
+  /**
+   * Client passive-liveness verdict (blink/head-turn challenge). ACCEPTED AND IGNORED:
+   * a self-asserted anti-spoofing result is not a security control (B-7). Still accepted
+   * so punches queued on a device before this deploy — and any installed PWA still sending
+   * it — are not rejected by the strict validation pipe.
+   */
   @IsOptional()
   @IsBoolean()
   live?: boolean;

@@ -89,6 +89,23 @@ describe('ApiKeyPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // H-30: the two methods that turn the registry into an authentication mechanism.
+  it('finds a key by its stored hash', async () => {
+    model.findUnique.mockResolvedValue(row());
+    const found = await repo.findByHash('deadbeef');
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { keyHash: 'deadbeef' } });
+    expect(found?.id).toBe('key-1');
+
+    model.findUnique.mockResolvedValue(null);
+    await expect(repo.findByHash('nope')).resolves.toBeNull();
+  });
+
+  it('stamps lastUsedAt', async () => {
+    const at = new Date('2026-08-04T10:00:00.000Z');
+    await repo.touchLastUsed('key-1', at);
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'key-1' }, data: { lastUsedAt: at } });
+  });
+
   it('list selects safe columns, orders newest-first and casts environment', async () => {
     model.findMany.mockResolvedValue([row()]);
     const recs = await repo.list();

@@ -7,6 +7,16 @@ import { ApiError } from '../src/lib/api';
 const post = vi.fn();
 const upload = vi.fn();
 
+// Who is signed in, for the H-24 owner binding. Hoisted so the module mock below can read
+// it after each vi.resetModules() in freshQueue().
+const session = vi.hoisted(() => ({ owner: 'courier-1' as string | null }));
+
+vi.mock('../src/lib/session-store', () => ({
+  getSession: () => (session.owner ? { customer: { id: session.owner } } : null),
+  setSession: () => {},
+  subscribe: () => () => {},
+}));
+
 vi.mock('../src/lib/api', async () => {
   const actual = await vi.importActual<typeof import('../src/lib/api')>('../src/lib/api');
   return {
@@ -29,13 +39,43 @@ async function freshQueue() {
 
 const punch = {
   kind: 'hrPunch' as const,
-  payload: { mode: 'in' as const, image: 'data:x', live: true, lat: -6.2, lng: 106.8 },
+  payload: { mode: 'in' as const, image: 'data:x', lat: -6.2, lng: 106.8 },
 };
+
+/** Pretend `who` is signed in on this device. */
+function signIn(who: string | null): void {
+  session.owner = who;
+}
 
 describe('offline queue', () => {
   beforeEach(() => {
     post.mockReset();
     upload.mockReset();
+    signIn('courier-1');
+  });
+
+  // H-24: a depot phone is shared. A punch queued offline by one courier used to flush
+  // under whoever signed in next — the server resolves the employee from the token, so
+  // one person's face frame filed the other person's attendance.
+  it('does not send, or even show, a job the signed-in user did not capture', async () => {
+    const { runOrQueue, flush, pending } = await freshQueue();
+    post.mockRejectedValue(new ApiError(0, 'offline'));
+    await runOrQueue(punch);
+    expect(pending()).toHaveLength(1);
+
+    signIn('courier-2');
+    post.mockReset();
+    post.mockResolvedValue({ id: 'a1' });
+    await flush();
+
+    expect(post).not.toHaveBeenCalled();
+    expect(pending()).toHaveLength(0);
+
+    // It is held, not lost: the courier who captured it signs back in and it goes.
+    signIn('courier-1');
+    await flush();
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(pending()).toHaveLength(0);
   });
 
   it('sends straight through when the network is there, adding the capture time', async () => {

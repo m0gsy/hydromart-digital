@@ -16,8 +16,12 @@ import { Role, Roles } from '@hydromart/platform';
 import { WebhookService } from '../application/services/webhook.service';
 import { CreateWebhookDto, UpdateWebhookDto, WebhookDto } from './dto/webhook.dto';
 
-// Design 19c — webhook subscriptions. SUPER_ADMIN only. Delivery status/rate are stored
-// fields updated by future delivery attempts (null until a real delivery is recorded).
+// Design 19c — webhook subscriptions. SUPER_ADMIN only.
+//
+// H-30: these subscriptions are delivered against. A service reports an event to
+// POST /webhooks/events, one delivery row is queued per subscribed endpoint, and the
+// scheduler sweep sends them signed (X-Hydromart-Signature) with backoff. The stored
+// status and success rate are computed from those attempts.
 @ApiTags('Webhooks')
 @ApiBearerAuth()
 @Roles(Role.SUPER_ADMIN)
@@ -26,7 +30,11 @@ export class WebhooksController {
   constructor(private readonly webhooks: WebhookService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List webhook endpoints (19c)' })
+  @ApiOperation({
+    summary: 'List webhook endpoints (19c)',
+    description:
+      'Subscribed endpoints receive signed POSTs; see /webhooks/deliveries for what was sent.',
+  })
   async list(): Promise<WebhookDto[]> {
     return (await this.webhooks.list()).map((w) => WebhookDto.from(w));
   }

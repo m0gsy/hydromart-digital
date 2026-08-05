@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeliveryService } from '../../src/application/services/delivery.service';
+import { DeliveryService, storageKeyFromUrl } from '../../src/application/services/delivery.service';
 import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DeliveryAlreadyExistsError,
@@ -29,8 +29,9 @@ import {
 
 const AUTH = 'Bearer token';
 const PROOF = {
-  photoUrl: 'https://cdn/x.jpg',
-  signatureUrl: 'https://cdn/sig.png',
+  // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
+  photoUrl: 'https://cdn/pod/x.jpg',
+  signatureUrl: 'https://cdn/pod/sig.png',
   recipientName: 'Budi',
   latitude: -6.9147,
   longitude: 107.6098,
@@ -47,6 +48,10 @@ describe('DeliveryService', () => {
   let payout: FakeCourierPayout;
   let shifts: ShiftService;
   let service: DeliveryService;
+  let storage: { put: jest.Mock; remove: jest.Mock };
+  /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
+  let makeStorageless: () => DeliveryService;
+  let events: { publish: jest.Mock };
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -59,7 +64,20 @@ describe('DeliveryService', () => {
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
     payout = new FakeCourierPayout();
-    service = new DeliveryService(repo, orders, payout, shifts, config, depots);
+    storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
+    makeStorageless = () =>
+      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+    events = { publish: jest.fn().mockResolvedValue(undefined) };
+    service = new DeliveryService(
+      repo,
+      orders,
+      payout,
+      shifts,
+      config,
+      depots,
+      storage as never,
+      events as never,
+    );
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
@@ -493,6 +511,37 @@ describe('DeliveryService', () => {
     expect(await repo.countActiveByDriver(driver)).toBe(0);
   });
 
+  // H-30: the event a partner subscribes to. Published after the handover is recorded, so
+  // a partner integration can never be the reason a delivery fails.
+  it('publishes delivery.delivered once the handover is stored', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    await Promise.resolve();
+
+    expect(events.publish).toHaveBeenCalledTimes(1);
+    const [event, payload] = events.publish.mock.calls[0]!;
+    expect(event).toBe('delivery.delivered');
+    expect(payload).toMatchObject({
+      deliveryId: done.id,
+      orderId: done.orderId,
+      recipientName: PROOF.recipientName,
+    });
+  });
+
+  it('completes normally when no partner fan-out is bound at all', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await bare.pickup(driver, d.id, AUTH);
+    await bare.start(driver, d.id, AUTH);
+
+    await expect(bare.complete(driver, d.id, PROOF, AUTH)).resolves.toMatchObject({
+      status: DeliveryStatus.DELIVERED,
+    });
+    expect(events.publish).not.toHaveBeenCalled();
+  });
+
   it("never reveals another driver's delivery (404)", async () => {
     const d = await assign();
     await expect(service.getForDriver(randomUUID(), d.id)).rejects.toBeInstanceOf(
@@ -523,5 +572,52 @@ describe('DeliveryService', () => {
     const later = new Date(capturedAt.getTime() + 366 * 86_400_000);
     expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
     expect((await service.getAny(d.id)).proof).toBeNull();
+
+    // H-22: deleting the row alone left the photo — someone's doorstep, often with them in
+    // frame — sitting in the bucket after the record that was supposed to be erased.
+    expect(storage.remove).toHaveBeenCalledWith(storageKeyFromUrl(PROOF.photoUrl));
+  });
+
+  // A proof URL that predates the current storage layout has no `pod/` segment to key on.
+  // The row still goes; the object is reported as left behind rather than silently skipped.
+  it('reports a proof url it cannot turn into a storage key', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(
+      driver,
+      d.id,
+      { ...PROOF, photoUrl: 'https://cdn/legacy.jpg', signatureUrl: null },
+      AUTH,
+    );
+
+    expect(storageKeyFromUrl('https://cdn/legacy.jpg')).toBeNull();
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('leaves the objects alone, loudly, when no storage is bound', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(bare.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('finishes the sweep even when the bucket refuses one delete', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    storage.remove.mockRejectedValueOnce(new Error('bucket unreachable'));
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    // The rows are already gone; one stubborn object must not abort erasure for everyone else.
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
   });
 });

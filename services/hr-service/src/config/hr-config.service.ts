@@ -178,6 +178,13 @@ export class HrConfigService {
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
   }
+  /**
+   * Key the enrolled embeddings are encrypted with at rest (B-19). Required in production
+   * by env validation; the dev fallback keeps a local box and CI running on throwaway data.
+   */
+  get faceEncryptionKey(): string {
+    return this.config.get<string>('HR_FACE_ENCRYPTION_KEY', 'hydromart-dev-face-key');
+  }
   /** order-service base URL + internal key for the SALES_TOTAL bonus aggregate. */
   get orderService(): { url: string; internalKey: string } {
     return {

@@ -1159,6 +1159,8 @@ export const hq = {
   apiKeys: {
     title: 'Kunci API',
     subtitle: 'Kredensial layanan & cakupan akses',
+    howItWorks:
+      'Kunci dipakai mitra untuk memanggil /api/v1/partner/* lewat header x-api-key. Cakupan ditegakkan per rute (webhooks:read, webhooks:write) dan pencabutan berlaku pada permintaan berikutnya. Kolom terakhir dipakai menunjukkan apakah kunci benar-benar dipanggil.',
     create: '＋ Buat kunci',
     createTitle: 'Buat kunci API',
     name: 'Nama',
@@ -1192,6 +1194,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
+    howItWorks:
+      'Endpoint yang berlangganan menerima POST bertanda tangan per event (X-Hydromart-Signature atas timestamp dan body). Kegagalan diulang dengan jeda menaik dan dihentikan setelah enam percobaan; angka keberhasilan di bawah dihitung dari percobaan nyata.',
     add: '＋ Endpoint',
     createTitle: 'Tambah webhook',
     url: 'URL endpoint',

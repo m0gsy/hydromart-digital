@@ -1158,6 +1158,8 @@ export const hq = {
   apiKeys: {
     title: 'API keys',
     subtitle: 'Service credentials & access scopes',
+    howItWorks:
+      'A key authenticates partner calls to /api/v1/partner/* via the x-api-key header. Scopes are enforced per route (webhooks:read, webhooks:write) and revoking one takes effect on the next request. Last used tells you if anyone is actually calling.',
     create: '＋ Create key',
     createTitle: 'Create API key',
     name: 'Name',
@@ -1190,6 +1192,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
+    howItWorks:
+      'Subscribed endpoints receive a signed POST per event (X-Hydromart-Signature over the timestamp and body). Failures retry with backoff and are abandoned after six attempts; the success rate below is measured from real attempts.',
     add: '＋ Endpoint',
     createTitle: 'Add webhook',
     url: 'Endpoint URL',

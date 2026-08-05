@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -30,5 +30,17 @@ describe('LocalDiskStorageAdapter', () => {
     expect(key).toMatch(/^pod\/[0-9a-f-]{36}\.png$/);
     expect(url).toBe(`http://localhost:3006/uploads/${key}`);
     expect(readFileSync(join(dir, key))).toEqual(body);
+  });
+
+  // H-22: idempotent by contract — the retention sweep must not fail on a key that a
+  // previous run (or a manual cleanup) already removed.
+  it('removes a written file, and treats a missing one as done', async () => {
+    const adapter = new LocalDiskStorageAdapter(makeConfig(dir));
+    const { key } = await adapter.put({ body: Buffer.from('x'), contentType: 'image/png', ext: 'png' });
+
+    await adapter.remove(key);
+    expect(existsSync(join(dir, key))).toBe(false);
+
+    await expect(adapter.remove(key)).resolves.toBeUndefined();
   });
 });

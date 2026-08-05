@@ -240,11 +240,11 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return active[0] ? { ...active[0] } : null;
   }
-  async incrementAttempts(id: string): Promise<void> {
-    const row = this.rows.find((r) => r.id === id);
-    if (row) {
-      row.attempts += 1;
-    }
+  async claimAttempt(id: string, maxAttempts: number): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id && !r.consumedAt && r.attempts < maxAttempts);
+    if (!row) return false;
+    row.attempts += 1;
+    return true;
   }
   async markConsumed(id: string, consumedAt: Date): Promise<void> {
     const row = this.rows.find((r) => r.id === id);

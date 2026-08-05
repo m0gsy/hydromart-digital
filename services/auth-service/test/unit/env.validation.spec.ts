@@ -1,4 +1,4 @@
-import { envValidationSchema } from '../../src/config/env.validation';
+import { CONSOLE_ACK, envValidationSchema } from '../../src/config/env.validation';
 
 // Minimum a deploy must supply; everything else in the schema carries a default.
 const BASE = {
@@ -43,6 +43,38 @@ describe('auth env validation — OTP channel credentials', () => {
   it('requires the generic SMS gateway credentials when that channel is selected', () => {
     const { error } = validate({ ...BASE, OTP_DELIVERY_CHANNEL: 'sms' });
     expect(error?.message).toContain('SMS_API_BASE_URL');
+  });
+
+  // H-26: `console` prints the login code to the container log. Production must not boot on it.
+  it('refuses the console channel in production', () => {
+    const { error } = validate({ ...BASE, NODE_ENV: 'production', STORAGE_PUBLIC_BASE_URL: 'https://cdn.example.com' });
+    expect(error?.message).toContain('OTP_DELIVERY_CHANNEL');
+  });
+
+  it('accepts production once a real channel is named', () => {
+    const { error } = validate({
+      ...BASE,
+      NODE_ENV: 'production',
+      STORAGE_PUBLIC_BASE_URL: 'https://cdn.example.com',
+      OTP_DELIVERY_CHANNEL: 'zenziva',
+      ZENZIVA_USERKEY: 'userkey',
+      ZENZIVA_PASSKEY: 'passkey',
+    });
+    expect(error).toBeUndefined();
+  });
+
+  // The E2E stack runs NODE_ENV=production on purpose and reads codes from the log.
+  it('allows the console channel in production only with the explicit acknowledgement', () => {
+    const env = {
+      ...BASE,
+      NODE_ENV: 'production',
+      STORAGE_PUBLIC_BASE_URL: 'https://cdn.example.com',
+      OTP_DELIVERY_CHANNEL: 'console',
+    };
+    expect(validate({ ...env, OTP_CONSOLE_ACK: CONSOLE_ACK }).error).toBeUndefined();
+    expect(validate({ ...env, OTP_CONSOLE_ACK: 'true' }).error?.message).toContain(
+      'OTP_DELIVERY_CHANNEL',
+    );
   });
 
   it('rejects an unknown channel', () => {

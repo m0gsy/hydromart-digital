@@ -9,6 +9,10 @@ import { ApiKeyDto, CreateApiKeyDto, CreatedApiKeyDto } from './dto/api-key.dto'
 
 // Design 13d — service API credentials. SUPER_ADMIN only. Create/rotate return the full
 // secret exactly once; the list only ever shows the display-safe prefix.
+//
+// H-30: these keys authenticate. ApiKeyGuard verifies a presented `x-api-key` against the
+// stored sha256, refuses revoked keys, enforces per-route scopes and stamps `lastUsedAt`.
+// The surface they open is /api/v1/partner/* — a partner's own webhook deliveries.
 @ApiTags('API keys')
 @ApiBearerAuth()
 @Roles(Role.SUPER_ADMIN)
@@ -17,7 +21,12 @@ export class ApiKeysController {
   constructor(private readonly keys: ApiKeyService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List service API keys (13d)' })
+  @ApiOperation({
+    summary: 'List service API keys (13d)',
+    description:
+      'Keys authenticate /api/v1/partner/* via the x-api-key header; scopes are enforced ' +
+      'per route (webhooks:read, webhooks:write).',
+  })
   async list(): Promise<ApiKeyDto[]> {
     return (await this.keys.list()).map((k) => ApiKeyDto.from(k));
   }

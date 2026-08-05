@@ -30,11 +30,10 @@ export class StubFaceVerifier implements FaceVerifier {
   async verify(
     image: Buffer,
     enrolled: number[][],
-    live: boolean,
     _identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
     const { score } = bestMatch(this.embed(image), enrolled);
-    return { score, matched: score >= this.config.faceMatchThreshold, live };
+    return { score, matched: score >= this.config.faceMatchThreshold };
   }
 
   /** FNV-1a seed over the bytes → mulberry32 PRNG → normalized 512-d vector. */

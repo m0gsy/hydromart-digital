@@ -13,6 +13,7 @@ import { SystemSettingsService } from '../application/services/system-settings.s
 import { SystemHealthService } from '../application/services/system-health.service';
 import { ApiKeyService } from '../application/services/api-key.service';
 import { WebhookService } from '../application/services/webhook.service';
+import { WebhookDispatchService } from '../application/services/webhook-dispatch.service';
 import { ExportLogService } from '../application/services/export-log.service';
 import { ScheduledReportService } from '../application/services/scheduled-report.service';
 import { SupportTicketService } from '../application/services/support-ticket.service';
@@ -28,6 +29,7 @@ import { FeatureFlagPrismaRepository } from '../infrastructure/prisma/feature-fl
 import { SystemSettingsPrismaRepository } from '../infrastructure/prisma/system-settings.prisma.repository';
 import { ApiKeyPrismaRepository } from '../infrastructure/prisma/api-key.prisma.repository';
 import { WebhookPrismaRepository } from '../infrastructure/prisma/webhook.prisma.repository';
+import { WebhookDeliveryPrismaRepository } from '../infrastructure/prisma/webhook-delivery.prisma.repository';
 import { ExportLogPrismaRepository } from '../infrastructure/prisma/export-log.prisma.repository';
 import { ScheduledReportPrismaRepository } from '../infrastructure/prisma/scheduled-report.prisma.repository';
 import { SupportTicketPrismaRepository } from '../infrastructure/prisma/support-ticket.prisma.repository';
@@ -44,6 +46,11 @@ import { SystemSettingsController } from './system-settings.controller';
 import { SystemHealthController } from './system-health.controller';
 import { ApiKeysController } from './api-keys.controller';
 import { WebhooksController } from './webhooks.controller';
+import {
+  PartnerDeliveryController,
+  WebhookDeliveryController,
+  WebhookInternalController,
+} from './webhook-delivery.controller';
 import { ExportLogsController } from './export-logs.controller';
 import { ScheduledReportsController } from './scheduled-reports.controller';
 import { SupportTicketsController } from './support-tickets.controller';
@@ -63,6 +70,7 @@ const providers: Provider[] = [
   SystemHealthService,
   ApiKeyService,
   WebhookService,
+  WebhookDispatchService,
   ExportLogService,
   ScheduledReportService,
   SupportTicketService,
@@ -78,6 +86,10 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.HealthProbe, useClass: HealthProbeHttpAdapter },
   { provide: ADMIN_TOKENS.ApiKeyRepository, useClass: ApiKeyPrismaRepository },
   { provide: ADMIN_TOKENS.WebhookRepository, useClass: WebhookPrismaRepository },
+  {
+    provide: ADMIN_TOKENS.WebhookDeliveryRepository,
+    useClass: WebhookDeliveryPrismaRepository,
+  },
   { provide: ADMIN_TOKENS.ExportLogRepository, useClass: ExportLogPrismaRepository },
   { provide: ADMIN_TOKENS.ScheduledReportRepository, useClass: ScheduledReportPrismaRepository },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
@@ -105,6 +117,9 @@ const providers: Provider[] = [
     SystemHealthController,
     ApiKeysController,
     WebhooksController,
+    WebhookInternalController,
+    WebhookDeliveryController,
+    PartnerDeliveryController,
     ExportLogsController,
     ScheduledReportsController,
     SupportTicketsController,

@@ -135,11 +135,21 @@ describe('OtpTokenPrismaRepository', () => {
     });
   });
 
-  it('increments, consumes and bulk-consumes', async () => {
-    await repo.incrementAttempts('otp-1');
+  it('claims an attempt only while one is left', async () => {
+    model.updateMany.mockResolvedValueOnce({ count: 1 });
+    await expect(repo.claimAttempt('otp-1', 5)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'otp-1', consumedAt: null, attempts: { lt: 5 } },
+      data: { attempts: { increment: 1 } },
+    });
+    model.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repo.claimAttempt('otp-1', 5)).resolves.toBe(false);
+  });
+
+  it('consumes and bulk-consumes', async () => {
     await repo.markConsumed('otp-1', new Date());
     await repo.consumeAllForPurpose('cust-1', OtpPurpose.LOGIN, new Date());
-    expect(model.update).toHaveBeenCalledTimes(2);
+    expect(model.update).toHaveBeenCalledTimes(1);
     expect(model.updateMany).toHaveBeenCalledTimes(1);
   });
 });

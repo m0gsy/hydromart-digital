@@ -100,10 +100,11 @@ services:
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
       # `console` only prints the code to the container log — real customers can
-      # never receive it. Set OTP_DELIVERY_CHANNEL to `zenziva` (Indonesian SMS
-      # provider in use) or `sms` (generic gateway) in .env, plus that channel's
-      # credentials below, before taking real signups.
-      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:-console}
+      # never receive it, and anyone who can read logs can sign in as anyone. The
+      # service refuses to boot on it in production: set OTP_DELIVERY_CHANNEL to
+      # `zenziva` (Indonesian SMS provider in use) or `sms` (generic gateway) in
+      # .env, plus that channel's credentials below.
+      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:?set OTP_DELIVERY_CHANNEL=zenziva|sms (console is dev-only)}
       ZENZIVA_BASE_URL: ${ZENZIVA_BASE_URL:-https://console.zenziva.net}
       ZENZIVA_USERKEY: ${ZENZIVA_USERKEY:-}
       ZENZIVA_PASSKEY: ${ZENZIVA_PASSKEY:-}
@@ -249,6 +250,9 @@ services:
       OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       # Courier earning push on delivery completion (design 6b, internal key).
       PAYOUT_SERVICE_URL: http://payout:3016
+      # H-30: a completed delivery is reported here for the partner webhook fan-out.
+      # Hardcoded like the other internal URLs — blank would silently publish nothing.
+      ADMIN_SERVICE_URL: http://admin:3017
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
       SHIFT_LENGTH_HOURS: 8
@@ -503,6 +507,9 @@ services:
       HR_FACE_MATCH_THRESHOLD: ${HR_FACE_MATCH_THRESHOLD:-0.62}
       HR_FACE_DUPLICATE_THRESHOLD: ${HR_FACE_DUPLICATE_THRESHOLD:-0.75}
       HR_FACE_MODEL_PATH: ${HR_FACE_MODEL_PATH:-./models/arcface.onnx}
+      # B-19: AES-256-GCM key for the enrolled face templates. `openssl rand -hex 32`.
+      # Changing it makes every existing enrolment undecryptable — employees re-enroll.
+      HR_FACE_ENCRYPTION_KEY: ${HR_FACE_ENCRYPTION_KEY:?set HR_FACE_ENCRYPTION_KEY (openssl rand -hex 32)}
       NEO_FR_ENDPOINT: ${NEO_FR_ENDPOINT:-https://fr.neoapi.id}
       NEO_FR_TOKEN: ${NEO_FR_TOKEN:-}
       NEO_FR_GALLERY_ID: ${NEO_FR_GALLERY_ID:-hydromart-hr}

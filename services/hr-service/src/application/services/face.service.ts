@@ -4,7 +4,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 import { FaceEmbedding } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { bestMatch } from '../../domain/face-math';
-import { uploadFrame } from '../../infrastructure/storage/upload-frame';
+import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
@@ -71,7 +71,7 @@ export class FaceService {
     }
 
     // Persist the first source frame (best-effort) if the caller didn't pass a url.
-    const storedUrl = sourcePhotoUrl ?? (await uploadFrame(this.storage, images[0], 'hr/faces'));
+    const storedUrl = sourcePhotoUrl ?? (await storeFrame(this.storage, images[0], 'hr/faces'));
 
     await this.repo.deactivateForEmployee(employee.id);
     return this.repo.create({

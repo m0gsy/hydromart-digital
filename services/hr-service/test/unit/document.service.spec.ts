@@ -98,8 +98,13 @@ function make(opts: { storage?: Partial<StoragePort>; employeeFound?: boolean } 
   return { repo, puts, removed, employees, svc: new DocumentService(repo, storage, employees) };
 }
 
+// H-20: the upload path decides the type from the BYTES, not from the multipart label,
+// so these fixtures carry real signatures.
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(8)]);
+const PDF = Buffer.concat([Buffer.from('%PDF-1.7'), Buffer.alloc(8)]);
+
 const file = (over: Partial<UploadedDocumentFile> = {}): UploadedDocumentFile => ({
-  buffer: Buffer.from('scan-bytes'),
+  buffer: JPEG,
   mimetype: 'image/jpeg',
   size: 1234,
   ...over,
@@ -152,12 +157,17 @@ describe('DocumentService.upload', () => {
 
   it('accepts pdf and rejects anything outside the allowlist', async () => {
     const { svc } = make();
-    expect((await svc.upload(hr, INPUT, file({ mimetype: 'application/pdf' }))).mimeType).toBe(
-      'application/pdf',
-    );
-    await expect(svc.upload(hr, INPUT, file({ mimetype: 'application/zip' }))).rejects.toThrow(
+    expect((await svc.upload(hr, INPUT, file({ buffer: PDF }))).mimeType).toBe('application/pdf');
+    await expect(svc.upload(hr, INPUT, file({ buffer: Buffer.from('PKzip-bytes') }))).rejects.toThrow(
       BadRequestException,
     );
+  });
+
+  // The label is the caller's to write; an employee file is read back by HR later.
+  it('records the mime the bytes prove, not the one that was claimed', async () => {
+    const { svc } = make();
+    const doc = await svc.upload(hr, INPUT, file({ mimetype: 'application/pdf', buffer: JPEG }));
+    expect(doc.mimeType).toBe('image/jpeg');
   });
 
   it('rejects a missing file and one over 5MB', async () => {

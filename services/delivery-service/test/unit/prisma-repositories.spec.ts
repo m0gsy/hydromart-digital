@@ -22,7 +22,7 @@ describe('DeliveryPrismaRepository', () => {
     update: jest.fn(),
   };
   const contactAttempt = { create: jest.fn(), count: jest.fn(), findFirst: jest.fn() };
-  const proofOfDelivery = { deleteMany: jest.fn() };
+  const proofOfDelivery = { deleteMany: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();
   const prisma = { delivery, contactAttempt, proofOfDelivery, $queryRaw } as unknown as PrismaService;
   const repo = new DeliveryPrismaRepository(prisma);
@@ -410,10 +410,19 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
-  it('purgeProofsBefore deletes and returns the deleted count', async () => {
+  // H-22: the URLs are read BEFORE the rows go — afterwards nothing says which objects in
+  // the bucket belonged to them, and the photos outlive the record that was erased.
+  it('purgeProofsBefore returns the deleted count and every object url', async () => {
     const cutoff = new Date('2026-01-01');
-    proofOfDelivery.deleteMany.mockResolvedValue({ count: 7 });
-    expect(await repo.purgeProofsBefore(cutoff)).toBe(7);
+    proofOfDelivery.findMany.mockResolvedValue([
+      { photoUrl: 'https://cdn/pod/a.jpg', signatureUrl: 'https://cdn/pod/a-sig.png' },
+      { photoUrl: 'https://cdn/pod/b.jpg', signatureUrl: null },
+    ]);
+    proofOfDelivery.deleteMany.mockResolvedValue({ count: 2 });
+    expect(await repo.purgeProofsBefore(cutoff)).toEqual({
+      count: 2,
+      urls: ['https://cdn/pod/a.jpg', 'https://cdn/pod/a-sig.png', 'https://cdn/pod/b.jpg'],
+    });
     expect(proofOfDelivery.deleteMany).toHaveBeenCalledWith({
       where: { capturedAt: { lt: cutoff } },
     });

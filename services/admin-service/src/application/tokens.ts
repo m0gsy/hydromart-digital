@@ -4,6 +4,7 @@ export const ADMIN_TOKENS = {
   HealthProbe: Symbol('HealthProbe'),
   ApiKeyRepository: Symbol('ApiKeyRepository'),
   WebhookRepository: Symbol('WebhookRepository'),
+  WebhookDeliveryRepository: Symbol('WebhookDeliveryRepository'),
   ExportLogRepository: Symbol('ExportLogRepository'),
   ScheduledReportRepository: Symbol('ScheduledReportRepository'),
   SupportTicketRepository: Symbol('SupportTicketRepository'),

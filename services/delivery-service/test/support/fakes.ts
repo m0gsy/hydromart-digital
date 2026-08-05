@@ -311,15 +311,18 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return clone(row);
   }
-  async purgeProofsBefore(cutoff: Date): Promise<number> {
+  async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
     let count = 0;
+    const urls: string[] = [];
     for (const r of this.rows) {
       if (r.proof && r.proof.capturedAt.getTime() < cutoff.getTime()) {
+        urls.push(r.proof.photoUrl);
+        if (r.proof.signatureUrl) urls.push(r.proof.signatureUrl);
         r.proof = null;
         count += 1;
       }
     }
-    return count;
+    return { count, urls };
   }
   async slaStats(
     range: ReportRange,

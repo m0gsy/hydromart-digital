@@ -27,6 +27,7 @@ import { CourierPayoutHttpAdapter } from '../infrastructure/http/courier-payout.
 import { RatingHttpAdapter } from '../infrastructure/http/rating.http.adapter';
 import { DepotLocationHttpAdapter } from '../infrastructure/http/depot-location.http.adapter';
 import { OpsNotifierHttpAdapter } from '../infrastructure/http/ops-notifier.http.adapter';
+import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publisher.http.adapter';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
 import { StoragePort } from '../application/ports/storage.port';
@@ -71,6 +72,7 @@ const providers: Provider[] = [
   { provide: DELIVERY_TOKENS.Rating, useClass: RatingHttpAdapter },
   { provide: DELIVERY_TOKENS.DepotLocation, useClass: DepotLocationHttpAdapter },
   { provide: DELIVERY_TOKENS.OpsNotifier, useClass: OpsNotifierHttpAdapter },
+  { provide: DELIVERY_TOKENS.EventPublisher, useClass: EventPublisherHttpAdapter },
   {
     provide: DELIVERY_TOKENS.Storage,
     inject: [DeliveryConfigService],
