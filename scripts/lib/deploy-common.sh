@@ -44,6 +44,34 @@ if [ -n "${IMAGE_PREFIX:-}" ] && [ -z "${IMAGE_TAG:-}" ]; then
   export IMAGE_TAG="$(git rev-parse HEAD 2>/dev/null || echo local)"
 fi
 
+# One writer at a time on this compose project.
+#
+# The watchdog runs every five minutes; a deploy runs for tens of them. On 2026-08-05
+# they collided: the watchdog saw the containers deploy.sh was in the middle of
+# recreating as stopped, ran its own converge, and the deploy died on
+# `Error response from daemon: removal of container ... is already in progress`. The
+# stack ended up fine — the watchdog finished the recreate — but the deploy exited 1
+# before its health gate, so `last-good-sha` was never written and a deploy that HAD
+# converged reported failure. Every deploy crosses a watchdog tick, so this was not a
+# one-off.
+#
+# One lock file, held for the whole run. The deploy waits, because a watchdog pass is
+# seconds; the watchdog gives up at once, because a deploy converging IS the recovery it
+# would have performed. A nested call (deploy.sh -> rollback.sh) inherits rather than
+# deadlocks on itself.
+STACK_LOCK="${STACK_LOCK:-.deploy/stack.lock}"
+stack_lock() {
+  # Already held by the script that invoked this one.
+  [ -n "${HYDROMART_STACK_LOCKED:-}" ] && return 0
+  # ponytail: no flock (git-bash, macOS default) = exactly the old behaviour. The box
+  # that runs deploys has it; a laptop that does not is not racing anything.
+  command -v flock >/dev/null 2>&1 || return 0
+  mkdir -p "$(dirname "$STACK_LOCK")"
+  exec 9>>"$STACK_LOCK"
+  flock -w "${1:-0}" 9 || return 1
+  export HYDROMART_STACK_LOCKED=1
+}
+
 # Pull the SHA-tagged images for one commit, or fail loudly. The tag is the commit, so a
 # miss means the Images workflow has not finished (or failed) for that SHA — which must
 # stop the deploy rather than silently leaving the old containers running.
