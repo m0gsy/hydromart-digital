@@ -2,6 +2,7 @@
 
 import { ChartLineUp } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -35,18 +36,18 @@ export default function HqForecastPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <ChartLineUp size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.forecast.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.forecast.subtitle')}</p>
-          </div>
-        </div>
-        <Button variant="secondary" onClick={data.reload} loading={data.loading}>
-          {t('hq.forecast.rebuild')}
-        </Button>
-      </div>
+      <HqPageHeader
+        icon={ChartLineUp}
+        title={t('hq.forecast.title')}
+        subtitle={t('hq.forecast.subtitle')}
+        action={
+          <>
+            <Button variant="secondary" onClick={data.reload} loading={data.loading}>
+              {t('hq.forecast.rebuild')}
+            </Button>
+          </>
+        }
+      />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

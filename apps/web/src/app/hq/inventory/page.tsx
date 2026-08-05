@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Package, Warning } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { StockBar } from '@/components/hq/charts';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -23,7 +24,7 @@ export default function HqInventoryPage() {
   const { t } = useT();
 
   const data = useAsync<DepotStock[]>(async () => {
-    const list = await api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
+    const list = await api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true);
     const depots = list.items.filter((d) => d.active);
     return Promise.all(
       depots.map(async (depot) => {
@@ -38,25 +39,25 @@ export default function HqInventoryPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Package size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.inventory.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.inventory.subtitle')}</p>
-          </div>
-        </div>
-        {critical > 0 ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--warning-bg)] px-3 py-1.5 text-xs font-bold text-[color:var(--warning)]">
-            <Warning size={14} weight="fill" />
-            {t('hq.inventory.critical', { n: critical })}
-          </span>
-        ) : rows.length > 0 ? (
-          <span className="rounded-full bg-[color:var(--success-bg)] px-3 py-1.5 text-xs font-bold text-[color:var(--success)]">
-            {t('hq.inventory.allHealthy')}
-          </span>
-        ) : null}
-      </div>
+      <HqPageHeader
+        icon={Package}
+        title={t('hq.inventory.title')}
+        subtitle={t('hq.inventory.subtitle')}
+        action={
+          <>
+            {critical > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:var(--warning-bg)] px-3 py-1.5 text-xs font-bold text-[color:var(--warning)]">
+                <Warning size={14} weight="fill" />
+                {t('hq.inventory.critical', { n: critical })}
+              </span>
+            ) : rows.length > 0 ? (
+              <span className="rounded-full bg-[color:var(--success-bg)] px-3 py-1.5 text-xs font-bold text-[color:var(--success)]">
+                {t('hq.inventory.allHealthy')}
+              </span>
+            ) : null}
+          </>
+        }
+      />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

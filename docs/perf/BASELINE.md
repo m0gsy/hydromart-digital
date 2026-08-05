@@ -61,6 +61,30 @@ lock ordering in `reserveAtomic`, cursor-paged walks (`readAllPages`), and the p
 importers whose whole point is that row 7 failing does not stop row 8. A bare `Promise.all`
 over any of those would be a new bug, not an optimisation.
 
+## Browser baseline (PR 8)
+
+The same rule applies to the frontend: what one screen costs, and what holds it there.
+Requests are counted from the client, so this table is about **HTTP round-trips the browser
+makes**, not about queries behind them.
+
+| ID | Screen / behaviour | Before | After | Pinned by |
+|---|---|---|---|---|
+| F-2 | Same GET fired by N components in one paint | N requests | 1 | `apps/web/test/api-resilience.test.ts` → `concurrent identical GETs cost one round-trip` |
+| F-2 | Reference data (depot list, categories, capability matrix, favourites) re-read per screen | 1 per screen | 1 per TTL, dropped by any mutation | `apps/web/test/api-resilience.test.ts` → `getCached serves reference data from memory within its TTL` · `any mutation drops the cache, so the next read is fresh` |
+| F-7 | Cart quantity change | 2 (PUT + GET) | 1 | `apps/web/test/cart-round-trips.test.tsx` → `a quantity change is one round-trip` |
+| F-7 | Cart add-on tap | 3 (POST + GET + GET) | 1 | `apps/web/test/cart-round-trips.test.tsx` → `adding a recommendation is one round-trip` |
+| F-13 | Navigating between shop pages | +1 `GET /cart` per navigation | 0 | `apps/web/test/cart-round-trips.test.tsx` → `the cart is not re-read on every navigation` |
+| F-13 | Signed-in home, repeat visit within the TTL | 8 requests | 3 | same `getCached` tests as F-2 |
+| F-12 | `/hq/search`, per debounced keystroke | 130 rows fetched, matched in JS | 30 rows, matched in SQL | `services/auth-service/test/unit/infra-branches.spec.ts` → `matches the staff search term against name or phone in the query, not in memory` · `services/order-service/test/unit/prisma-repositories.spec.ts` → `matches an order-number term in the query, trimmed and case-insensitive` |
+| F-16 | Promo screen while a countdown runs | whole page re-rendered 60×/min | one leaf | _(no test — a render count is not observable without a profiler; the interval's owner is the assertion)_ |
+| F-3 | Any request against a hung upstream | unbounded wait | 408 at 15 s | `apps/web/test/api-resilience.test.ts` → `a request that never answers is aborted and surfaces as 408, not a hung promise` |
+
+Bundle weight is NOT in this table. `next build` prints per-route First Load JS, and that is
+the number to record — but it is only comparable between two runs of the same Next version on
+the same machine, so a figure copied here would rot faster than it helps. What PR 8 removed is
+stated instead, in the commits: framer-motion (~110 KB), the second i18n dictionary on every
+route, the Phosphor barrel, and four always-mounted components that are now `next/dynamic`.
+
 ## Latency (real stack)
 
 Round-trip counts do not tell you whether the thing is fast enough — only that it stopped

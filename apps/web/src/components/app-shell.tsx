@@ -1,15 +1,22 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 
 import { BottomNav } from '@/components/bottom-nav';
 import { Footer } from '@/components/footer';
 import { Nav } from '@/components/nav';
-import { OnboardingTour } from '@/components/onboarding-tour';
 import { PageTransition } from '@/components/page-transition';
 import { CartProvider } from '@/lib/cart-context';
 import { LocationProvider } from '@/lib/location-context';
 import { isConsolePath } from '@/lib/roles';
+
+// Audit F-9: the tour renders for first-time visitors only, and never again once
+// dismissed — there is no reason for it to be in the shell's own chunk.
+const OnboardingTour = dynamic(
+  () => import('@/components/onboarding-tour').then((m) => m.OnboardingTour),
+  { ssr: false },
+);
 
 /**
  * Splits the shop chrome from the staff consoles. A console route renders nothing but

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Export } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
@@ -62,7 +63,7 @@ export default function HqReportsExportPage() {
   const fromIso = safeIso(from);
   const toIso = safeIso(to, true);
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const dash = useAsync<ExecutiveDashboard>(
     () => api.get(endpoints.dashboard.executive({ from: fromIso, to: toIso }), true),
     [fromIso, toIso],
@@ -113,13 +114,7 @@ export default function HqReportsExportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Export size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.reportsExport.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.reportsExport.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Export} title={t('hq.reportsExport.title')} subtitle={t('hq.reportsExport.subtitle')} />
 
       <Card className="flex flex-col gap-4 p-5">
         {/* Range chips + custom dates */}

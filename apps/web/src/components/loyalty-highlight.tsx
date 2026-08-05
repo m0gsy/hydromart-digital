@@ -28,11 +28,11 @@ export function LoyaltyHighlight() {
   // teaser promising a rate the local depot does not give is worse than no teaser.
   const depotId = location?.depotId ?? null;
   const { data: tiers } = useAsync<TierBenefit[]>(
-    () => api.get<TierBenefit[]>(endpoints.loyalty.tiers(depotId)),
+    () => api.getCached<TierBenefit[]>(endpoints.loyalty.tiers(depotId)),
     [depotId],
   );
   const { data: account } = useAsync<LoyaltyAccount>(
-    () => (customer ? api.get(endpoints.loyalty.me(depotId), true) : Promise.resolve(null as never)),
+    () => (customer ? api.getCached(endpoints.loyalty.me(depotId), true) : Promise.resolve(null as never)),
     [customer, depotId],
   );
 

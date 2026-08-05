@@ -1,0 +1,128 @@
+// Public path builders, one file per product area. The gateway strips the first
+// segment and forwards the rest to the owning service, so every path is
+// `/{segment}/api/v1/...`.
+//
+// Audit F-15: this used to be a single 1,426-line object literal imported by 232
+// files — every route touched it, and every change to any path showed up as a
+// conflict in the same file. Splitting it by area changes no path and no call site:
+// `endpoints` is still one object, assembled in ./index.ts.
+
+export const identity = {
+auth: {
+  register: '/auth/api/v1/auth/register',
+  verifyOtp: '/auth/api/v1/auth/otp/verify',
+  resendOtp: '/auth/api/v1/auth/otp/resend',
+  login: '/auth/api/v1/auth/login',
+  refresh: '/auth/api/v1/auth/token/refresh',
+  me: '/auth/api/v1/auth/me',
+  // PATCH: update own name/email.
+  updateProfile: '/auth/api/v1/auth/me',
+  // Multipart avatar-photo upload (self); returns the updated customer.
+  uploadAvatar: '/auth/api/v1/auth/me/avatar',
+  // Staff: resolve a phone to a customer (for voucher grant). 404 if none.
+  customerLookup: (phone: string) =>
+    `/auth/api/v1/auth/customers/lookup?phone=${encodeURIComponent(phone)}`,
+  // Staff: resolve customer ids → public profiles (reseller row-name labels). Array of Customer.
+  customersByIds: (ids: string[]) =>
+    `/auth/api/v1/auth/customers/by-ids?ids=${encodeURIComponent(ids.join(','))}`,
+  logout: '/auth/api/v1/auth/logout',
+  // RBAC matrix (F2): read the effective map, retune or reset one capability. Writes
+  // are accessMatrixWrite (super-admin by default) and reach the guards within a TTL.
+  matrix: '/auth/api/v1/access/matrix',
+  capability: (name: string) => `/auth/api/v1/access/matrix/${encodeURIComponent(name)}`,
+  // Current user's active device sessions (19b) + revoke one by id.
+  sessions: '/auth/api/v1/sessions',
+  revokeSession: (id: string) => `/auth/api/v1/sessions/${encodeURIComponent(id)}/revoke`,
+  // Staff & roles directory (head-office/super-admin). List is paginated → { items, ... }.
+  staff: (
+    q: { page?: number; limit?: number; role?: string; depotId?: string; search?: string } = {},
+  ) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    if (q.role) p.set('role', q.role);
+    if (q.depotId) p.set('depotId', q.depotId);
+    // Audit F-12: name/phone substring, matched by auth-service over the whole directory.
+    if (q.search) p.set('search', q.search);
+    const qs = p.toString();
+    return `/auth/api/v1/auth/staff${qs ? `?${qs}` : ''}`;
+  },
+  inviteStaff: '/auth/api/v1/auth/staff/invite',
+  // Bulk form of the line above: one POST for the whole spreadsheet, with a per-row
+  // verdict back, instead of the console firing N invites and counting them itself.
+  importStaff: '/auth/api/v1/auth/staff/import',
+  // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
+  drivers: '/auth/api/v1/auth/drivers',
+},
+
+// Notification channel preferences (GET to read, PATCH to update).
+preferences: {
+  notifications: '/customers/api/v1/profile/notifications',
+},
+
+// Customer's notification inbox feed (crm-service, newest first).
+notifications: {
+  me: '/crm/api/v1/notifications/me',
+  // Staff operational feed: recent ops alerts (low stock, …), each with the caller's
+  // own read receipt. Reads are per staff member and persist server-side.
+  ops: '/crm/api/v1/notifications/ops',
+  opsRead: (id: string) => `/crm/api/v1/notifications/ops/${id}/read`,
+  opsReadAll: '/crm/api/v1/notifications/ops/read-all',
+},
+
+// Web Push (crm-service, design 7b transport). vapidKey → browser subscribe; subscribe/
+// unsubscribe register a device endpoint (DELETE takes { endpoint } in the body).
+push: {
+  vapidKey: '/crm/api/v1/push/vapid-public-key',
+  subscribe: '/crm/api/v1/push/subscriptions',
+  unsubscribe: '/crm/api/v1/push/subscriptions',
+},
+
+// Depot broadcasts (design 8a). Courier lists their depot's announcements + marks read;
+// depot ops (depotBroadcast cap) posts via POST.
+broadcasts: {
+  forDepot: (depotId: string) => `/crm/api/v1/broadcasts?depotId=${encodeURIComponent(depotId)}`,
+  create: '/crm/api/v1/broadcasts',
+  read: (id: string) => `/crm/api/v1/broadcasts/${id}/read`,
+},
+
+// Saved payment instruments (customer-service). Management-only.
+paymentMethods: {
+  list: '/customers/api/v1/payment-methods',
+  create: '/customers/api/v1/payment-methods',
+  // PATCH to edit, DELETE to remove.
+  detail: (id: string) => `/customers/api/v1/payment-methods/${id}`,
+  default: (id: string) => `/customers/api/v1/payment-methods/${id}/default`,
+},
+
+addresses: {
+  // Saved delivery addresses (customer-service, via the `customers` gateway segment).
+  list: '/customers/api/v1/addresses',
+  create: '/customers/api/v1/addresses',
+  // PATCH to edit, DELETE to remove.
+  detail: (id: string) => `/customers/api/v1/addresses/${id}`,
+  primary: (id: string) => `/customers/api/v1/addresses/${id}/primary`,
+},
+
+favorites: {
+  // Wishlist (customer-service, via the `customers` gateway segment). GET returns
+  // { productIds }, POST { productId } adds (idempotent), DELETE removes.
+  list: '/customers/api/v1/favorites',
+  add: '/customers/api/v1/favorites',
+  remove: (productId: string) => `/customers/api/v1/favorites/${productId}`,
+},
+
+// UU PDP tahap 1 (item 13): the data-subject request queue lives in auth-service.
+pdp: {
+  request: '/auth/api/v1/account/data-requests',
+  mine: '/auth/api/v1/account/data-requests/me',
+  myExport: '/auth/api/v1/account/data-requests/me/export',
+  queue: (status?: string) =>
+    `/auth/api/v1/account/data-requests${status ? `?status=${status}` : ''}`,
+  approve: (id: string) => `/auth/api/v1/account/data-requests/${id}/approve`,
+  // UU PDP tahap 2 — the consent ledger.
+  consents: '/auth/api/v1/account/consents',
+  consentHistory: '/auth/api/v1/account/consents/history',
+  reject: (id: string) => `/auth/api/v1/account/data-requests/${id}/reject`,
+},
+} as const;

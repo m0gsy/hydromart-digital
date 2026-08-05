@@ -16,7 +16,7 @@ import type { Product } from '@/lib/types';
 // but still favorited) so a stale favorite never breaks the whole grid.
 function FavoritesInner() {
   const { data, error, loading, reload } = useAsync<Product[]>(async () => {
-    const { productIds } = await api.get<{ productIds: string[] }>(endpoints.favorites.list, true);
+    const { productIds } = await api.getCached<{ productIds: string[] }>(endpoints.favorites.list, true);
     if (productIds.length === 0) return [];
     const settled = await Promise.allSettled(
       productIds.map((id) => api.get<Product>(endpoints.products.get(id))),

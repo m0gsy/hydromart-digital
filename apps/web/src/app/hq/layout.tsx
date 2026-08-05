@@ -1,14 +1,21 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 
 import { AccessDeniedHq } from '@/components/hq/access-denied';
-import { CommandPalette } from '@/components/hq/command-palette';
 import { HqBottomNav } from '@/components/hq/hq-bottom-nav';
 import { HqRail } from '@/components/hq/hq-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { useAuth } from '@/lib/auth-context';
 import { isHq } from '@/lib/roles';
+
+// Audit F-9: the palette is mounted on every HQ screen but only renders once someone
+// presses ⌘K. Loading it lazily keeps it out of the first paint of all 60 routes.
+const CommandPalette = dynamic(
+  () => import('@/components/hq/command-palette').then((m) => m.CommandPalette),
+  { ssr: false },
+);
 
 // HQ console shell: a persistent left rail (network-wide, no depot switcher) under the
 // app top nav, mirroring the ops dashboard layout. There is NO DepotProvider — HQ is

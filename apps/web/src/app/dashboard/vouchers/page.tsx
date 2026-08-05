@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Lock, Ticket } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -313,6 +314,7 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
 
 function VouchersAdmin() {
   const { customer } = useAuth();
+  const { toast } = useToast();
   const canWrite = canManageVouchers(customer?.role);
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
@@ -329,8 +331,14 @@ function VouchersAdmin() {
     );
   }
 
+  // Audit F-14: a rejected deactivation used to be swallowed — the voucher stayed
+  // live and the list redrew as if the click had worked.
   async function deactivate(v: Voucher) {
-    await api.del(endpoints.vouchers.detail(v.id), true).catch(() => {});
+    try {
+      await api.del(endpoints.vouchers.detail(v.id), true);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Gagal menonaktifkan voucher.', 'error');
+    }
     reload();
   }
 

@@ -137,6 +137,8 @@ export interface OrderQuery {
    * find and assign them. Takes precedence over `depotIds`.
    */
   unrouted?: boolean;
+  /** Case-insensitive substring matched against the order number (audit F-12). */
+  orderNumber?: string;
   page: number;
   limit: number;
   /**

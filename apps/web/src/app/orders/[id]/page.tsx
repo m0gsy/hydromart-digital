@@ -12,6 +12,7 @@ import {
   Star,
 } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
@@ -365,9 +366,11 @@ function OrderDetailInner({ id }: { id: string }) {
                 {payment.method === 'QRIS' &&
                   (depot.paymentQrisImageUrl ? (
                     <div className="flex flex-col items-center gap-2 rounded-2xl border border-app p-4">
-                      <img
-                        src={mediaUrl(depot.paymentQrisImageUrl) ?? undefined}
+                      <RemoteImage
+                        src={mediaUrl(depot.paymentQrisImageUrl)}
                         alt={`QRIS ${depot.name}`}
+                        width={224}
+                        height={224}
                         className="h-56 w-56 rounded-xl object-contain"
                       />
                       <p className="text-sm font-bold">

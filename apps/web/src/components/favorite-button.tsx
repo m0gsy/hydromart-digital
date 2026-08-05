@@ -22,7 +22,7 @@ export function FavoriteButton({ productId, className = '' }: { productId: strin
     if (!customer) return;
     let alive = true;
     api
-      .get<{ productIds: string[] }>(endpoints.favorites.list, true)
+      .getCached<{ productIds: string[] }>(endpoints.favorites.list, true)
       .then((r) => {
         if (alive) setOn(r.productIds.includes(productId));
       })

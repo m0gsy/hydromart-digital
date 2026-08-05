@@ -20,6 +20,7 @@ interface RawStat {
  */
 @Injectable()
 export class OrderCrmHttpAdapter implements OrderCrmPort {
+  private static readonly TIMEOUT_MS = 5_000;
   private readonly logger = new Logger(OrderCrmHttpAdapter.name);
 
   constructor(private readonly config: CustomerConfigService) {}
@@ -31,7 +32,9 @@ export class OrderCrmHttpAdapter implements OrderCrmPort {
     try {
       const res = await fetch(
         `${url.replace(/\/$/, '')}/api/v1/orders/internal/depot-customers?depotId=${encodeURIComponent(depotId)}`,
-        { headers: { 'x-internal-key': key } },
+        // Audit F-3: this adapter had no deadline. It fails soft, so a hung order-service
+        // did not error — it held the CRM directory request open until the proxy gave up.
+        { headers: { 'x-internal-key': key }, signal: AbortSignal.timeout(OrderCrmHttpAdapter.TIMEOUT_MS) },
       );
       if (!res.ok) {
         this.logger.warn(`depot-customers ${res.status} for depot ${depotId}`);

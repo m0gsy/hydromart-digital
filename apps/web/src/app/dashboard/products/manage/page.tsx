@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Lock, Info, Package, Plus, Trash } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -229,7 +230,11 @@ function ProductItem({
     <Card className="flex items-center gap-3 p-3">
       <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-app bg-[color:var(--surface-soft)]">
         {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+          <RemoteImage
+            src={product.imageUrl}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
         ) : (
           <Package size={22} className="text-muted" />
         )}
@@ -267,7 +272,7 @@ function ProductsManageBody() {
   const { selected, depots, scopedId } = useDepot();
   const products = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 100 }), true), []);
   // Same public list the shop's category pills are built from, so the two can't disagree.
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories), []);
   const [creating, setCreating] = useState(false);
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;

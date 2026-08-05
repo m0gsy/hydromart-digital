@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Package } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Button, Card, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -207,7 +208,7 @@ function ProductEditor({
 function CategoryManager({ onChange }: { onChange: () => void }) {
   const { t } = useT();
   const { toast } = useToast();
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categoriesAll, true));
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categoriesAll, true));
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [editId, setEditId] = useState<string | null>(null);
@@ -363,24 +364,24 @@ export default function HqCatalogPage() {
   const catalog = useAsync<Page<Product>>(() =>
     api.get(endpoints.products.browseAll({ limit: 100 }), true),
   );
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories));
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories));
 
   const products = catalog.data?.items ?? [];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Package size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.catalog.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.catalog.subtitle')}</p>
-          </div>
-        </div>
-        {editing === undefined && (
-          <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>
-        )}
-      </div>
+      <HqPageHeader
+        icon={Package}
+        title={t('hq.catalog.title')}
+        subtitle={t('hq.catalog.subtitle')}
+        action={
+          <>
+            {editing === undefined && (
+              <Button onClick={() => setEditing(null)}>{t('hq.catalog.newProduct')}</Button>
+            )}
+          </>
+        }
+      />
 
       {editing !== undefined && (
         <ProductEditor

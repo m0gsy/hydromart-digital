@@ -41,11 +41,13 @@ export function useMemberRate(): number {
   const { location } = useLocation();
   const depotId = location?.depotId ?? null;
   const { data: tiers } = useAsync<TierBenefit[]>(
-    () => api.get<TierBenefit[]>(endpoints.loyalty.tiers(depotId)),
+    // Audit F-13: the same two reads the home LoyaltyHighlight makes. Shared, they are
+    // one round-trip on a paint where both mount.
+    () => api.getCached<TierBenefit[]>(endpoints.loyalty.tiers(depotId)),
     [depotId],
   );
   const { data: account } = useAsync<LoyaltyAccount>(
-    () => (customer ? api.get(endpoints.loyalty.me(depotId), true) : Promise.resolve(null as never)),
+    () => (customer ? api.getCached(endpoints.loyalty.me(depotId), true) : Promise.resolve(null as never)),
     [customer, depotId],
   );
   return effectiveRate(account, tiers);

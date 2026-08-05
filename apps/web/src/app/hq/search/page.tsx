@@ -18,9 +18,14 @@ interface Results {
 
 const EMPTY: Results = { depots: [], staff: [], orders: [] };
 
-// Design 20b — global search. There is no dedicated /search endpoint in Milestone A,
-// so results are assembled client-side from existing list endpoints: depots.manage has
-// a server `search`, staff + orders are fetched recent and filtered by the query.
+// Design 20b — global search. There is still no dedicated /search endpoint, so results
+// are assembled from the three existing list endpoints — but all three now MATCH on the
+// server.
+//
+// Audit F-12: this used to fetch 100 staff rows and 20 recent orders per keystroke and
+// filter them in JavaScript, which made it both expensive and wrong: a staff member on
+// page 2 of the directory, or an order older than the last twenty, was unfindable. Each
+// list takes the term as a query parameter now and returns at most ten rows.
 export default function HqSearchPage() {
   const { t } = useT();
   const [query, setQuery] = useState('');
@@ -35,8 +40,7 @@ export default function HqSearchPage() {
   }, [query]);
 
   useEffect(() => {
-    const q = debounced.toLowerCase();
-    if (!q) {
+    if (!debounced) {
       setResults(EMPTY);
       setLoading(false);
       return;
@@ -49,20 +53,16 @@ export default function HqSearchPage() {
         .then((p) => p.items)
         .catch(() => [] as DepotAdmin[]),
       api
-        .get<Page<Customer>>(endpoints.auth.staff({ limit: 100 }), true)
-        .then((p) =>
-          p.items.filter((s) =>
-            [s.fullName, s.phone, s.role].some((v) => v?.toLowerCase().includes(q)),
-          ),
-        )
+        .get<Page<Customer>>(endpoints.auth.staff({ search: debounced, limit: 10 }), true)
+        .then((p) => p.items)
         .catch(() => [] as Customer[]),
       api
-        .get<Page<Order>>(endpoints.orders.manage({ limit: 20 }), true)
-        .then((p) => p.items.filter((o) => o.orderNumber.toLowerCase().includes(q)))
+        .get<Page<Order>>(endpoints.orders.manage({ orderNumber: debounced, limit: 10 }), true)
+        .then((p) => p.items)
         .catch(() => [] as Order[]),
     ]).then(([depots, staff, orders]) => {
       if (!alive) return;
-      setResults({ depots, staff: staff.slice(0, 10), orders: orders.slice(0, 10) });
+      setResults({ depots, staff, orders });
       setLoading(false);
     });
     return () => {

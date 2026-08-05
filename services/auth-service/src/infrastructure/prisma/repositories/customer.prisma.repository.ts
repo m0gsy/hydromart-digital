@@ -62,11 +62,23 @@ export class CustomerPrismaRepository implements CustomerRepository {
     limit: number,
     role?: Role,
     depotId?: string,
+    search?: string,
   ): Promise<{ items: Customer[]; total: number }> {
+    const term = search?.trim();
     const where = {
       status: { not: toPrismaStatus(CustomerStatus.DELETED) },
       role: role ? toPrismaRole(role) : { not: toPrismaRole(Role.CUSTOMER) },
       ...(depotId ? { assignedDepotId: depotId } : {}),
+      // Audit F-12: matching happens here, over the whole directory, instead of in the
+      // browser over whatever the first page happened to contain.
+      ...(term
+        ? {
+            OR: [
+              { fullName: { contains: term, mode: 'insensitive' as const } },
+              { phone: { contains: term } },
+            ],
+          }
+        : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.customer.findMany({

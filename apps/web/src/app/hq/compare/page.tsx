@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { ChartBar } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
@@ -35,7 +36,7 @@ export default function HqComparePage() {
   const { toast } = useToast();
   const range = useMemo(range30, []);
   const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
-  const depotList = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depotList = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
   const [selected, setSelected] = useState<string[]>([]);
 
@@ -70,13 +71,7 @@ export default function HqComparePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <ChartBar size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.compare.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.compare.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={ChartBar} title={t('hq.compare.title')} subtitle={t('hq.compare.subtitle')} />
 
       {/* Depot picker */}
       <div className="flex flex-wrap gap-2">

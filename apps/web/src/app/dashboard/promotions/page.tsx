@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ArrowLeft, CheckCircle, Lock, Megaphone } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -298,6 +299,7 @@ function PromoAnalytics({ promo, onBack }: { promo: Promotion; onBack: () => voi
 function PromotionsAdmin() {
   const { t } = useT();
   const { customer } = useAuth();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined); // undefined = closed, null = new
   const [analytics, setAnalytics] = useState<Promotion | null>(null);
   const { data, error, loading, reload } = useAsync<Promotion[]>(
@@ -315,8 +317,14 @@ function PromotionsAdmin() {
     );
   }
 
+  // Audit F-14: a rejected delete used to be swallowed, so the row simply reappeared
+  // and the operator had no way to tell a refusal from a no-op.
   async function remove(id: string) {
-    await api.del(endpoints.promotions.detail(id), true).catch(() => {});
+    try {
+      await api.del(endpoints.promotions.detail(id), true);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Gagal menghapus promo.', 'error');
+    }
     reload();
   }
 

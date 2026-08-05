@@ -23,7 +23,7 @@ export function NearbyDepots() {
   const { data, loading } = useAsync<NearbyDepot[]>(
     () =>
       location
-        ? api.get<NearbyDepot[]>(endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 2 }))
+        ? api.getCached<NearbyDepot[]>(endpoints.depots.nearby({ lat: location.lat, lng: location.lng, limit: 2 }))
         : Promise.resolve([] as NearbyDepot[]),
     [location?.lat, location?.lng],
   );

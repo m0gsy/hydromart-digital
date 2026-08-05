@@ -35,7 +35,7 @@ async function safe<T>(p: Promise<T>, fallback: T): Promise<T> {
 
 async function runSearch(q: string): Promise<Results> {
   const [depotPage, productPage, customer] = await Promise.all([
-    safe(api.get<Page<DepotAdmin>>(endpoints.depots.manage({ search: q, limit: 8 }), true), {
+    safe(api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ search: q, limit: 8 }), true), {
       items: [],
     } as unknown as Page<DepotAdmin>),
     safe(api.get<Page<Product>>(endpoints.products.browse({ search: q, limit: 8 }), true), {

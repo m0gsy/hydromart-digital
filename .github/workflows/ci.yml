@@ -131,6 +131,13 @@ jobs:
       - name: API response documentation ratchet
         run: node scripts/check-api-responses.mjs
 
+      # The web client's endpoint table is hand-written (audit F-17), so a renamed route
+      # used to reach production as a 404 nobody's tests could see. Every path the client
+      # can build is resolved through the gateway's segment map to the owning service and
+      # matched against the routes that service declares.
+      - name: Frontend endpoint contracts
+        run: node scripts/check-endpoint-contracts.mjs
+
       # The performance baseline (audit Q-17) names, per hot path, the test that holds its
       # round-trip count. A renamed or deleted test turns that table into a promise nobody
       # is keeping, so the reference is checked here.

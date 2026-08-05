@@ -103,7 +103,9 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
     const out = await new OrderCrmHttpAdapter(cfg()).depotCustomerStats('d1');
     expect(fetchMock).toHaveBeenCalledWith(
       'http://order:3004/api/v1/orders/internal/depot-customers?depotId=d1',
-      { headers: { 'x-internal-key': KEY } },
+      // Audit F-3: the deadline is part of the contract — this adapter fails soft, so
+      // without it a hung order-service held the CRM directory open with no error.
+      { headers: { 'x-internal-key': KEY }, signal: expect.any(AbortSignal) },
     );
     expect(out[0]!.firstOrderAt).toEqual(new Date('2026-01-01T00:00:00.000Z'));
     expect(out[1]).toMatchObject({ customerId: 'c2', firstOrderAt: null, lastOrderAt: null });

@@ -20,7 +20,7 @@ export default function HqFranchisePage() {
   const router = useRouter();
 
   const depots = useAsync<Page<DepotAdmin>>(() =>
-    api.get(endpoints.depots.manage({ limit: 100, ownershipType: 'WARALABA' }), true),
+    api.getCached(endpoints.depots.manage({ limit: 100, ownershipType: 'WARALABA' }), true),
   );
   const owners = useAsync<Customer[]>(() =>
     api

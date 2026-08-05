@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Camera } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { Button, Field, Input, Skeleton } from '@/components/ui';
@@ -94,9 +95,11 @@ function EditProfileInner() {
       <div className="flex flex-col items-center gap-2">
         <div className="relative">
           {customer.avatarUrl ? (
-            <img
+            <RemoteImage
               src={customer.avatarUrl}
               alt=""
+              width={88}
+              height={88}
               className="h-[88px] w-[88px] rounded-full object-cover"
             />
           ) : (

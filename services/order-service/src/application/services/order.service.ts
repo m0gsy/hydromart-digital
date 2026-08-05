@@ -117,6 +117,8 @@ export interface ListOrdersInput {
   depotIds?: readonly string[];
   /** HQ tray of orders that reached no depot (legacy fail-open rows). */
   unrouted?: boolean;
+  /** Case-insensitive substring of the order number (audit F-12). */
+  orderNumber?: string;
 }
 
 @Injectable()
@@ -1215,6 +1217,7 @@ export class OrderService {
       status: input.status,
       depotIds: input.depotIds,
       unrouted: input.unrouted,
+      orderNumber: input.orderNumber,
     };
     const { items, total, nextCursor } = await this.orders.search(query);
     return buildPage(items, total, page, limit, nextCursor);
