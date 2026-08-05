@@ -110,9 +110,14 @@ jobs:
         run: |
           BASE="$(grep -hoP '^FROM \K\S+' services/*/Dockerfile apps/*/Dockerfile | sort -u | head -1)"
           echo "scanning $BASE"
+          # .trivyignore carries the residuals we consume but cannot patch, each with a
+          # written reason and the condition that deletes it — same rule as the npm audit
+          # allowlist. Anything not listed there still fails this job.
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/.trivyignore:/.trivyignore:ro" \
             aquasec/trivy:0.58.1 image \
-            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress "$BASE"
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+            --ignorefile /.trivyignore "$BASE"
 
       - name: trivy (Dockerfile + compose misconfiguration)
         run: |
