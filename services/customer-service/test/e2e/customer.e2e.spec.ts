@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
-import { AllExceptionsFilter, GlobalValidationPipe, Role } from '@hydromart/platform';
+import { AllExceptionsFilter, GlobalValidationPipe, Role, localDayKey } from '@hydromart/platform';
 
 import { CustomerModule } from '../../src/modules/customer.module';
 import { CUSTOMER_TOKENS } from '../../src/application/tokens';
@@ -144,7 +144,10 @@ describe('Customer HTTP flows (e2e)', () => {
   });
 
   it('sets DOB and runs the birthday sweep (admin grants points, customer forbidden)', async () => {
-    const today = new Date().toISOString().slice(0, 10);
+    // The sweep matches on the BUSINESS day (H-16), not the UTC one. Taking today from
+    // toISOString() made this test fail for the seven hours a day when WIB has already
+    // turned over and UTC has not — on any machine, CI included.
+    const today = localDayKey(new Date(), 'Asia/Jakarta');
     const set = await auth(
       request(server()).patch('/api/v1/profile').send({ birthdate: today }),
     ).expect(200);
