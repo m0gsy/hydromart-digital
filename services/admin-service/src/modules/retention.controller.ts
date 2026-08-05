@@ -89,6 +89,7 @@ export class RetentionController {
   @ApiSecurity('internal-key')
   @Post('internal/backup-status')
   @ApiOperation({ summary: 'Record a backup or restore-drill outcome (internal service auth)' })
+  @ApiOkResponse({ type: BackupStatusDto })
   async recordBackupRun(@Body() dto: RecordBackupRunDto): Promise<BackupStatusDto> {
     return BackupStatusDto.from(
       await this.retention.recordBackupRun({

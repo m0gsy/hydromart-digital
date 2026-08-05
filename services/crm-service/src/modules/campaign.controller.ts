@@ -103,6 +103,9 @@ export class CampaignController {
   @ApiSecurity('internal-key')
   @Post('internal/process-sending')
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({
+    description: 'Counts for this tick: campaigns walked, messages sent, failed, completed.',
+  })
   @ApiOperation({
     summary: 'Continue every campaign still broadcasting (internal service auth)',
     description:

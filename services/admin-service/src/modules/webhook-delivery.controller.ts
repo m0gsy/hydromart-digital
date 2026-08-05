@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -37,6 +37,7 @@ export class WebhookInternalController {
   @ApiSecurity('internal-key')
   @Post('events')
   @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOkResponse({ description: 'How many deliveries this event queued.' })
   @ApiOperation({
     summary: 'Report a domain event; queues one delivery per subscribed endpoint (19c)',
   })
@@ -54,6 +55,7 @@ export class WebhookInternalController {
   @Post('deliveries/process')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send every due webhook delivery (scheduler sweep)' })
+  @ApiOkResponse({ description: 'Counts for this sweep: sent, failed, dead.' })
   process(): Promise<{ sent: number; failed: number; dead: number }> {
     return this.dispatch.process();
   }
@@ -68,12 +70,14 @@ export class WebhookDeliveryController {
 
   @Get()
   @ApiOperation({ summary: 'Recent webhook deliveries, newest first' })
+  @ApiOkResponse({ type: WebhookDeliveryDto, isArray: true })
   async list(@Query() query: ListDeliveriesDto): Promise<WebhookDeliveryDto[]> {
     return (await this.dispatch.list(query.limit, query.event)).map(WebhookDeliveryDto.from);
   }
 
   @Post(':id/replay')
   @ApiOperation({ summary: 'Queue one delivery for another attempt' })
+  @ApiOkResponse({ type: WebhookDeliveryDto })
   async replay(@Param('id', ParseUUIDPipe) id: string): Promise<WebhookDeliveryDto> {
     return WebhookDeliveryDto.from(await this.dispatch.replay(id));
   }
@@ -97,6 +101,7 @@ export class PartnerDeliveryController {
   @Get()
   @ApiScopes('webhooks:read')
   @ApiOperation({ summary: 'Webhook deliveries sent to you, newest first (API key)' })
+  @ApiOkResponse({ type: WebhookDeliveryDto, isArray: true })
   async list(@Query() query: ListDeliveriesDto): Promise<WebhookDeliveryDto[]> {
     return (await this.dispatch.list(query.limit, query.event)).map(WebhookDeliveryDto.from);
   }
@@ -104,6 +109,7 @@ export class PartnerDeliveryController {
   @Post(':id/replay')
   @ApiScopes('webhooks:write')
   @ApiOperation({ summary: 'Ask for one delivery to be sent again (API key)' })
+  @ApiOkResponse({ type: WebhookDeliveryDto })
   async replay(@Param('id', ParseUUIDPipe) id: string): Promise<WebhookDeliveryDto> {
     return WebhookDeliveryDto.from(await this.dispatch.replay(id));
   }

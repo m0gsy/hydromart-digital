@@ -165,6 +165,7 @@ export class OrderController {
   @Post('outbox/process')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retry the order side effects still owed (admin sweep)' })
+  @ApiOkResponse({ description: 'Counts for this sweep: claimed, delivered, failed, dead.' })
   processOutbox(): Promise<OutboxSweepResult> {
     return this.outboxService.processDue();
   }
@@ -173,6 +174,7 @@ export class OrderController {
   @Roles(Role.SUPER_ADMIN)
   @Get('outbox/pending')
   @ApiOperation({ summary: 'Counts of order side effects owed, delivered and given up on' })
+  @ApiOkResponse({ description: 'Row counts keyed by outbox status (PENDING, DONE, DEAD).' })
   outboxPending(): Promise<Record<string, number>> {
     return this.outboxService.pending();
   }
