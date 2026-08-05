@@ -67,17 +67,17 @@ The same rule applies to the frontend: what one screen costs, and what holds it 
 Requests are counted from the client, so this table is about **HTTP round-trips the browser
 makes**, not about queries behind them.
 
-| ID | Screen / behaviour | Before | After | Pinned by |
-|---|---|---|---|---|
-| F-2 | Same GET fired by N components in one paint | N requests | 1 | `apps/web/test/api-resilience.test.ts` → `concurrent identical GETs cost one round-trip` |
-| F-2 | Reference data (depot list, categories, capability matrix, favourites) re-read per screen | 1 per screen | 1 per TTL, dropped by any mutation | `apps/web/test/api-resilience.test.ts` → `getCached serves reference data from memory within its TTL` · `any mutation drops the cache, so the next read is fresh` |
-| F-7 | Cart quantity change | 2 (PUT + GET) | 1 | `apps/web/test/cart-round-trips.test.tsx` → `a quantity change is one round-trip` |
-| F-7 | Cart add-on tap | 3 (POST + GET + GET) | 1 | `apps/web/test/cart-round-trips.test.tsx` → `adding a recommendation is one round-trip` |
-| F-13 | Navigating between shop pages | +1 `GET /cart` per navigation | 0 | `apps/web/test/cart-round-trips.test.tsx` → `the cart is not re-read on every navigation` |
-| F-13 | Signed-in home, repeat visit within the TTL | 8 requests | 3 | same `getCached` tests as F-2 |
-| F-12 | `/hq/search`, per debounced keystroke | 130 rows fetched, matched in JS | 30 rows, matched in SQL | `services/auth-service/test/unit/infra-branches.spec.ts` → `matches the staff search term against name or phone in the query, not in memory` · `services/order-service/test/unit/prisma-repositories.spec.ts` → `matches an order-number term in the query, trimmed and case-insensitive` |
-| F-16 | Promo screen while a countdown runs | whole page re-rendered 60×/min | one leaf | _(no test — a render count is not observable without a profiler; the interval's owner is the assertion)_ |
-| F-3 | Any request against a hung upstream | unbounded wait | 408 at 15 s | `apps/web/test/api-resilience.test.ts` → `a request that never answers is aborted and surfaces as 408, not a hung promise` |
+| ID   | Screen / behaviour                                                                        | Before                          | After                              | Pinned by                                                                                                                                                                                                                                                                                 |
+| ---- | ----------------------------------------------------------------------------------------- | ------------------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F-2  | Same GET fired by N components in one paint                                               | N requests                      | 1                                  | `apps/web/test/api-resilience.test.ts` → `concurrent identical GETs cost one round-trip`                                                                                                                                                                                                  |
+| F-2  | Reference data (depot list, categories, capability matrix, favourites) re-read per screen | 1 per screen                    | 1 per TTL, dropped by any mutation | `apps/web/test/api-resilience.test.ts` → `getCached serves reference data from memory within its TTL` · `any mutation drops the cache, so the next read is fresh`                                                                                                                         |
+| F-7  | Cart quantity change                                                                      | 2 (PUT + GET)                   | 1                                  | `apps/web/test/cart-round-trips.test.tsx` → `a quantity change is one round-trip`                                                                                                                                                                                                         |
+| F-7  | Cart add-on tap                                                                           | 3 (POST + GET + GET)            | 1                                  | `apps/web/test/cart-round-trips.test.tsx` → `adding a recommendation is one round-trip`                                                                                                                                                                                                   |
+| F-13 | Navigating between shop pages                                                             | +1 `GET /cart` per navigation   | 0                                  | `apps/web/test/cart-round-trips.test.tsx` → `the cart is not re-read on every navigation`                                                                                                                                                                                                 |
+| F-13 | Signed-in home, repeat visit within the TTL                                               | 8 requests                      | 3                                  | same `getCached` tests as F-2                                                                                                                                                                                                                                                             |
+| F-12 | `/hq/search`, per debounced keystroke                                                     | 130 rows fetched, matched in JS | 30 rows, matched in SQL            | `services/auth-service/test/unit/infra-branches.spec.ts` → `matches the staff search term against name or phone in the query, not in memory` · `services/order-service/test/unit/prisma-repositories.spec.ts` → `matches an order-number term in the query, trimmed and case-insensitive` |
+| F-16 | Promo screen while a countdown runs                                                       | whole page re-rendered 60×/min  | one leaf                           | _(no test — a render count is not observable without a profiler; the interval's owner is the assertion)_                                                                                                                                                                                  |
+| F-3  | Any request against a hung upstream                                                       | unbounded wait                  | 408 at 15 s                        | `apps/web/test/api-resilience.test.ts` → `a request that never answers is aborted and surfaces as 408, not a hung promise`                                                                                                                                                                |
 
 Bundle weight is NOT in this table. `next build` prints per-route First Load JS, and that is
 the number to record — but it is only comparable between two runs of the same Next version on
@@ -101,9 +101,40 @@ k6 run scripts/load/dashboards.k6.js
 Both print p95 and fail on their thresholds. **Record the numbers here when you run them** —
 an empty row below is honest; an invented one is not.
 
-| Date | Commit | Scenario | VUs | p95 | Notes |
-|---|---|---|---|---|---|
-| _not yet run_ | | | | | needs a seeded VPS-class stack; laptop numbers are not a baseline |
+| Date          | Commit | Scenario | VUs | p95 | Notes                                                             |
+| ------------- | ------ | -------- | --- | --- | ----------------------------------------------------------------- |
+| _not yet run_ |        |          |     |     | needs a seeded VPS-class stack; laptop numbers are not a baseline |
+
+### Why this table is still empty after PR 10 (audit Q-17)
+
+Everything Q-17 asked for that can be built is built: the scripts exist, they refuse to
+report a number the rate limiter produced (CI-12), `scripts/check-perf-baseline.mjs` fails
+CI if a pinning test disappears, and the round-trip table above is the part that a laptop
+_can_ measure honestly.
+
+What is left is a run, and a run needs a decision only the operator can make:
+
+1. **Where.** The checkout scenario places real orders and moves real stock. Against
+   production that is not a measurement, it is a batch of fake sales in the ledger and a
+   depot's available quantity that no longer matches its shelf. Use a seeded copy of the
+   stack on VPS-class hardware, or accept and later reverse the writes.
+2. **With the limiter raised.** `RATE_LIMIT_MAX=100` per 60s per IP, and a load generator
+   is one IP:
+
+   ```bash
+   RATE_LIMIT_MAX=100000 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+     up -d gateway
+   ```
+
+   Both scripts abort loudly on a 429 rather than folding it into the failure rate, so a
+   forgotten step cannot quietly become "the p95".
+
+3. **Then restore it.** `RATE_LIMIT_MAX` back to its production value, and recreate the
+   gateway. A load-test setting left behind is a denial-of-service budget left open.
+
+Record the run as a row above — date, commit, scenario, VUs, p95 — and, if
+`pg_stat_statements` is loaded, paste the top statements alongside it. Until then this
+section says "not measured", which is what is true.
 
 ### Profiler
 

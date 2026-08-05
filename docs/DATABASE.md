@@ -5,23 +5,23 @@ All databases live in a single local Postgres instance created by
 [`docker-compose.yml`](../docker-compose.yml); the per-service databases are
 created on first boot by [`infra/postgres/init-databases.sql`](../infra/postgres/init-databases.sql).
 
-| Service | Database | Migrations |
-| --- | --- | --- |
-| auth-service | `hydromart_auth` | `services/auth-service/prisma/migrations` |
-| customer-service | `hydromart_customer` | … |
-| product-service | `hydromart_product` | … |
-| order-service | `hydromart_order` | … |
-| payment-service | `hydromart_payment` | … |
-| delivery-service | `hydromart_delivery` | … |
-| depot-service | `hydromart_depot` | … |
-| loyalty-service | `hydromart_loyalty` | … |
-| promo-service | `hydromart_promo` | … |
-| referral-service | `hydromart_referral` | … |
-| crm-service | `hydromart_crm` | … |
+| Service                | Database                   | Migrations                                          |
+| ---------------------- | -------------------------- | --------------------------------------------------- |
+| auth-service           | `hydromart_auth`           | `services/auth-service/prisma/migrations`           |
+| customer-service       | `hydromart_customer`       | …                                                   |
+| product-service        | `hydromart_product`        | …                                                   |
+| order-service          | `hydromart_order`          | …                                                   |
+| payment-service        | `hydromart_payment`        | …                                                   |
+| delivery-service       | `hydromart_delivery`       | …                                                   |
+| depot-service          | `hydromart_depot`          | …                                                   |
+| loyalty-service        | `hydromart_loyalty`        | …                                                   |
+| promo-service          | `hydromart_promo`          | …                                                   |
+| referral-service       | `hydromart_referral`       | …                                                   |
+| crm-service            | `hydromart_crm`            | …                                                   |
 | recommendation-service | `hydromart_recommendation` | `services/recommendation-service/prisma/migrations` |
-| forecast-service | `hydromart_forecast` | `services/forecast-service/prisma/migrations` |
-| dashboard-service | — (no DB, BFF aggregator) | — |
-| gateway-service | — (no DB, reverse proxy) | — |
+| forecast-service       | `hydromart_forecast`       | `services/forecast-service/prisma/migrations`       |
+| dashboard-service      | — (no DB, BFF aggregator)  | —                                                   |
+| gateway-service        | — (no DB, reverse proxy)   | —                                                   |
 
 ## First-time setup
 
@@ -36,13 +36,13 @@ npm run db:migrate            # apply every service's migrations (prisma migrate
 
 ## Everyday commands
 
-| Command | What it does |
-| --- | --- |
-| `npm run db:up` / `db:down` | Start / stop the Postgres container |
-| `npm run db:validate` | Validate every Prisma schema (no database needed — CI-safe) |
-| `npm run db:generate` | Regenerate every service's Prisma client |
-| `npm run db:migrate` | Apply all pending migrations to the running databases |
-| `npm run prisma:migrate:dev -w @hydromart/<svc>` | Create + apply a new migration for one service (dev) |
+| Command                                          | What it does                                                |
+| ------------------------------------------------ | ----------------------------------------------------------- |
+| `npm run db:up` / `db:down`                      | Start / stop the Postgres container                         |
+| `npm run db:validate`                            | Validate every Prisma schema (no database needed — CI-safe) |
+| `npm run db:generate`                            | Regenerate every service's Prisma client                    |
+| `npm run db:migrate`                             | Apply all pending migrations to the running databases       |
+| `npm run prisma:migrate:dev -w @hydromart/<svc>` | Create + apply a new migration for one service (dev)        |
 
 Each migration directory ships a hand-written `rollback.sql` alongside Prisma's
 `migration.sql` for manual, reviewed rollbacks (Prisma has no built-in `down`).
@@ -65,7 +65,7 @@ Rules:
 - **One enum add per migration.** Do not mix an `ADD VALUE` with table DDL that
   references the new value — split them into separate migrations.
 - **`IF NOT EXISTS`** so re-running `migrate deploy` is idempotent.
-- **`rollback.sql`** documents that removing a *shipped* enum value is a data
+- **`rollback.sql`** documents that removing a _shipped_ enum value is a data
   migration (recreate the type without it, re-cast the column once no rows reference
   it), not a plain DDL undo — Postgres cannot `DROP` a single enum value. See the
   0005 rollback for the worked example.

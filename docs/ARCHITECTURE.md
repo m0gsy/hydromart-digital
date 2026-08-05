@@ -21,34 +21,51 @@ over REST (`/api/v1/...`). This matches PRD §23–25.
 
 ```
                     ┌──────────────┐
-   Customer Web ───▶│              │
-   Driver App    ──▶│  API Gateway │──▶ auth-service        (identity, OTP, JWT)
-   Admin Depot   ──▶│  (routing,   │──▶ customer-service    (profile, addresses)
-   HO Portal     ──▶│   authn edge,│──▶ order-service
-                    │   rate limit)│──▶ delivery-service
-                    └──────────────┘──▶ payment-service
-                                    └─▶ inventory / crm / reporting …
+   Customer      ───▶│             │──▶ auth      customer   product   order
+   Courier       ──▶│  API Gateway │──▶ payment   delivery   depot     dashboard
+   Depot console ──▶│  (routing,   │──▶ loyalty   promo      referral  crm
+   HQ console    ──▶│   session BFF│──▶ recommendation  forecast  payout
+                    │   rate limit)│──▶ admin     hr
+                    └──────────────┘
+                          │              (18 services; one bounded context each,
+                          ▼               reachable only on the internal network)
                           │
                           ▼
-                  PostgreSQL (per-service schema) · Redis · Object Storage
+                  PostgreSQL (a database per service) · Object Storage (S3)
 ```
 
 Bounded contexts follow the PRD data model: Customer, Order, Product, Inventory,
 Delivery, Payment, Depot, Franchise, CRM, Reporting.
 
 Cross-cutting building blocks (DomainError, Role, JWT/Roles guards, decorators,
-exception filter, validation pipe, request-context) are shared via the
-`@hydromart/platform` package (`packages/platform`) — consumed by all services
-except auth-service, which predates it and remains self-contained. Each service
-verifies auth-service's JWT access tokens using the shared `JWT_ACCESS_SECRET`.
-Each service owns its own Prisma client (custom generator `output`) so the hoisted
-`node_modules/@prisma/client` is never shared across schemas.
+exception filter, validation pipe, request-context, the settings slice, the error
+alerter) are shared via the `@hydromart/platform` package (`packages/platform`),
+and the RBAC capability map via `@hydromart/access`. Both are consumed by every
+service, auth-service included. Each service verifies auth-service's JWT access
+tokens using the shared `JWT_ACCESS_SECRET`. Each service owns its own Prisma
+client (custom generator `output`) so the hoisted `node_modules/@prisma/client` is
+never shared across schemas.
+
+> **`packages/platform` is an 18× multiplier (audit Q-2).** A change in it reaches
+> every service, so the repository treats it that way rather than relying on care:
+> `needs_full_rebuild()` in `scripts/lib/deploy-common.sh` classifies any
+> `packages/` change as a full rebuild, CI's affected-only filter therefore never
+> skips the Docker jobs for it, and `npm run test:cov` runs every workspace's suite
+> on every push regardless. There is no path where a platform edit ships having
+> been tested only against the service its author had open.
 
 ### Deployment target
 
-Docker images → Google Cloud Run; Cloud SQL (PostgreSQL); Memorystore (Redis);
-Secret Manager for secrets; Cloud Build CI/CD; Artifact Registry. Firebase Hosting
-for the web frontends.
+**A single VPS running Docker Compose** — `docker-compose.yml` (PostgreSQL) plus
+`docker-compose.prod.yml` (19 services + web + scheduler + Prometheus, Alertmanager
+and Grafana), with Caddy terminating TLS and holding HSTS/CSP. Object storage is
+BiznetGio NEO (S3-compatible). CI/CD is GitHub Actions; a merge to `main` deploys
+itself, while database migrations stay a deliberate manual step.
+
+An earlier revision of this document specified Google Cloud Run, Cloud SQL,
+Memorystore, Secret Manager, Cloud Build, Artifact Registry and Firebase Hosting.
+None of that was ever provisioned, and reading it cost more than it explained — see
+[`DEPLOY.md`](../DEPLOY.md) for what actually runs.
 
 ## 3. Service internal architecture (Clean Architecture / DDD)
 
@@ -86,7 +103,7 @@ Implements PRD Module 1 (Authentication, FR-001…010) and the related business 
 | `POST /api/v1/auth/logout`        | Revoke a refresh token (one session)     | FR-008             |
 | `POST /api/v1/auth/logout/all`    | Revoke all sessions (multi-device)       | FR-010             |
 | `GET  /api/v1/auth/me`            | Current authenticated identity           | FR-009             |
-| `GET  /api/v1/sessions`          | List active sessions (devices)           | FR-010             |
+| `GET  /api/v1/sessions`           | List active sessions (devices)           | FR-010             |
 | `GET  /health`                    | Liveness/readiness                       | NFR                |
 
 ### Enforced business rules
@@ -114,16 +131,25 @@ OTP codes and refresh tokens are **hashed at rest** (never stored in plaintext).
 
 ## 5. MVP roadmap
 
-| Milestone | Scope                                              | Status         |
-| --------- | -------------------------------------------------- | -------------- |
-| M1        | Authentication                                     | Done           |
-| M2        | Customer profile + addresses, Product catalog      | Done           |
-| M3        | Cart → Checkout → Payment                          | Planned        |
-| M4        | Order management + Delivery (proof of delivery)     | Planned        |
-| M5        | Depot management + Inventory                        | Planned        |
-| M6        | Operational dashboard; API gateway hardening        | Planned        |
+| Milestone | Scope                                           | Status |
+| --------- | ----------------------------------------------- | ------ |
+| M1        | Authentication                                  | Done   |
+| M2        | Customer profile + addresses, Product catalog   | Done   |
+| M3        | Cart → Checkout → Payment                       | Done   |
+| M4        | Order management + Delivery (proof of delivery) | Done   |
+| M5        | Depot management + Inventory                    | Done   |
+| M6        | Operational dashboard; API gateway hardening    | Done   |
 
-Release 2: Loyalty, Membership, Voucher, Referral, CRM, WhatsApp automation.
+Release 2 also shipped: Loyalty, Membership, Voucher, Referral, CRM (WhatsApp
+automation was dropped deliberately — push + in-app notifications are final). Beyond
+the original roadmap the repository now also carries the HRIS (hr-service), franchise
+payouts (payout-service), forecasting, recommendations, an admin plane (feature flags,
+API keys, outbound webhooks, the retention purge engine), and the HQ / depot / courier
+consoles in `apps/web`.
+
+This table was three milestones out of date until the audit's Q-18 pass; if you are
+adding a milestone row, the honest thing is to correct the ones above it at the same
+time.
 Release 3: BI/Franchise dashboards, AI recommendation, dynamic pricing.
 
 ## 6. Cross-cutting standards

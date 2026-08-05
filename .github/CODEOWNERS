@@ -1,0 +1,56 @@
+# Code owners — who must approve a change before it merges.
+#
+# Audit Q-18: the repository had no CODEOWNERS, so `.claude/COMMIT_RULES.md`'s
+# "findings on payment, biometric and payroll paths get human review before merge"
+# was a convention with nothing enforcing it. This file is the enforcement: add
+# these paths to a branch-protection rule with "Require review from Code Owners"
+# and the rule stops being a memory test.
+#
+# NOTE: the handle below is derived from the repository's git author. If the GitHub
+# login differs, fix it here — GitHub silently ignores an owner it cannot resolve,
+# and an unresolvable CODEOWNERS protects nothing.
+
+# Default owner for everything not matched below.
+*                                           @lwahyualdi
+
+# ---- Money -----------------------------------------------------------------
+# Payments, refunds, the franchise ledger, commissions and withdrawals. A defect
+# here moves real IDR and is usually discovered by someone counting cash.
+/services/payment-service/                  @lwahyualdi
+/services/payout-service/                   @lwahyualdi
+/services/promo-service/                    @lwahyualdi
+
+# ---- Stock -----------------------------------------------------------------
+# Reservation, settlement and the movement ledger: an oversell is silent and
+# cumulative, so these paths get the same treatment as money.
+/services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts @lwahyualdi
+/services/depot-service/src/application/services/inventory.service.ts            @lwahyualdi
+/services/order-service/src/application/services/order.service.ts                @lwahyualdi
+
+# ---- Payroll and biometrics ------------------------------------------------
+# Payroll computes what people are paid; the face paths hold biometric templates
+# that cannot be reissued if they leak.
+/services/hr-service/src/application/services/payroll.service.ts   @lwahyualdi
+/services/hr-service/src/application/services/attendance.service.ts @lwahyualdi
+/services/hr-service/src/infrastructure/face/                       @lwahyualdi
+
+# ---- Authentication and authorization --------------------------------------
+# One capability map backs both the guards and the console; auth-service owns
+# sessions, OTP and the internal-key path.
+/services/auth-service/                     @lwahyualdi
+/packages/access/                           @lwahyualdi
+/packages/platform/src/nest/                @lwahyualdi
+
+# ---- The 18× multiplier and the edge ---------------------------------------
+# A change in packages/platform reaches every service (audit Q-2); the gateway is
+# the only thing the public internet talks to.
+/packages/platform/                         @lwahyualdi
+/services/gateway-service/                  @lwahyualdi
+
+# ---- Deployment, secrets, security posture ---------------------------------
+/docker-compose.prod.yml                    @lwahyualdi
+/Caddyfile                                  @lwahyualdi
+/scripts/                                   @lwahyualdi
+/.github/workflows/                         @lwahyualdi
+/SECURITY.md                                @lwahyualdi
+/.github/CODEOWNERS                         @lwahyualdi
