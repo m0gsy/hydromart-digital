@@ -171,7 +171,21 @@ export class PaymentWebhookDto {
   @IsIn(['PAID', 'FAILED'])
   event!: 'PAID' | 'FAILED';
 
-  @ApiProperty({ description: 'HMAC-SHA256 of `${reference}.${event}` with the webhook secret.' })
+  @ApiProperty({
+    example: 1785800000000,
+    description:
+      'Epoch milliseconds the provider signed at. Must be within 5 minutes of server time — ' +
+      'it is inside the HMAC, so it cannot be edited to refresh a captured request.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  timestamp!: number;
+
+  @ApiProperty({
+    description:
+      'HMAC-SHA256, with the webhook secret, over every field of this payload except ' +
+      '`signature`: sorted by key and joined as `k=v&k=v`.',
+  })
   @IsString()
   @MaxLength(200)
   signature!: string;

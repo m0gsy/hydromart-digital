@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SettingsCache } from '@hydromart/platform';
 
+import { StatutoryRates } from '../domain/statutory';
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
 /**
@@ -95,6 +96,31 @@ export class HrConfigService {
       Number(this.config.get<string>('HR_OVERTIME_MULTIPLIER_PCT', '150')),
       depotId,
     );
+  }
+
+  /**
+   * The statutory deduction rates (Q-13): BPJS employee shares, their wage ceilings,
+   * biaya jabatan and the no-NPWP surcharge.
+   *
+   * Percentages are stored ×100 in the settings store (integer-only) and divided back
+   * here, so callers deal in real percentages. Every value is per-depot tunable for the
+   * same reason the rest are: a rate changes by regulation, not by release.
+   */
+  statutoryRates(depotId: string | null = null): StatutoryRates {
+    const pct = (key: string, env: string, fallback: string): number =>
+      this.tunableNum(key, Number(this.config.get<string>(env, fallback)), depotId) / 100;
+    const idr = (key: string, env: string, fallback: string): number =>
+      this.tunableNum(key, Number(this.config.get<string>(env, fallback)), depotId);
+    return {
+      healthEmployeePct: pct('bpjsHealthEmployeePctX100', 'HR_BPJS_HEALTH_EMPLOYEE_PCT_X100', '100'),
+      healthCeilingIdr: idr('bpjsHealthCeilingIdr', 'HR_BPJS_HEALTH_CEILING_IDR', '12000000'),
+      jhtEmployeePct: pct('bpjsJhtEmployeePctX100', 'HR_BPJS_JHT_EMPLOYEE_PCT_X100', '200'),
+      jpEmployeePct: pct('bpjsJpEmployeePctX100', 'HR_BPJS_JP_EMPLOYEE_PCT_X100', '100'),
+      jpCeilingIdr: idr('bpjsJpCeilingIdr', 'HR_BPJS_JP_CEILING_IDR', '10547400'),
+      occupationalCostPct: pct('occupationalCostPctX100', 'HR_OCCUPATIONAL_COST_PCT_X100', '500'),
+      occupationalCostCapIdr: idr('occupationalCostCapIdr', 'HR_OCCUPATIONAL_COST_CAP_IDR', '500000'),
+      noNpwpSurchargePct: idr('noNpwpSurchargePct', 'HR_NO_NPWP_SURCHARGE_PCT', '20'),
+    };
   }
 
   /** Weekly-off days and national holidays share this rate (M24-17). */

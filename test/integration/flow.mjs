@@ -29,8 +29,16 @@ function staffToken() {
 }
 
 // Provider webhook signature: HMAC-SHA256 hex over `${reference}.${event}`.
-function signWebhook(reference, event) {
-  return crypto.createHmac('sha256', WEBHOOK_SECRET).update(`${reference}.${event}`).digest('hex');
+// Q-15: the HMAC covers every field except the signature, sorted, plus a timestamp the
+// service checks for freshness. Mirrors webhookSigningPayload() in payment-service's
+// domain — if that canonical form changes, this must change with it or the flow goes red.
+function signWebhook(payload) {
+  const canonical = Object.keys(payload)
+    .filter((key) => key !== 'signature' && payload[key] !== undefined)
+    .sort()
+    .map((key) => `${key}=${String(payload[key] ?? '')}`)
+    .join('&');
+  return crypto.createHmac('sha256', WEBHOOK_SECRET).update(canonical).digest('hex');
 }
 
 async function api(method, path, { token, body } = {}) {
@@ -273,13 +281,17 @@ async function onlineWebhookLoop(staff) {
   const reference = pay.body.reference;
   assert(pay.body.status === 'PENDING' && reference, `ow: expected PENDING+reference, got ${JSON.stringify(pay.body)}`);
 
-  // Bad signature is rejected (InvalidWebhookSignatureError -> 401).
-  const bad = await api('POST', '/payments/api/v1/payments/webhook', { body: { reference, event: 'PAID', signature: 'deadbeef' } });
+  // Bad signature is rejected (InvalidWebhookSignatureError -> 401). The payload must
+  // otherwise be VALID — a missing timestamp is a 400 from validation, which would pass
+  // an assertion about rejection while proving nothing about the signature check.
+  const badPayload = { reference, event: 'PAID', timestamp: Date.now(), signature: 'deadbeef'.repeat(8) };
+  const bad = await api('POST', '/payments/api/v1/payments/webhook', { body: badPayload });
   assert(bad.status === 401, `ow: bad-signature webhook expected 401, got ${bad.status}`);
 
   // Signed PAID webhook settles the payment and confirms the order (payment -> order internal-confirm).
+  const goodPayload = { reference, event: 'PAID', timestamp: Date.now() };
   const good = await api('POST', '/payments/api/v1/payments/webhook', {
-    body: { reference, event: 'PAID', signature: signWebhook(reference, 'PAID') },
+    body: { ...goodPayload, signature: signWebhook(goodPayload) },
   });
   ok(good, 'ow: signed webhook');
   assert(good.body.handled === true, `ow: webhook not handled: ${JSON.stringify(good.body)}`);

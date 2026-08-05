@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { ImportSummary, runImport } from '@hydromart/platform';
+import { ImportSummary, recordAuditEvent, runImport } from '@hydromart/platform';
 
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
@@ -115,11 +115,17 @@ export class PriceOverrideService {
     const impactIdr = overrideImpactIdr(proposal.currentPrice, proposal.adjustType, proposal.value);
     const autoPassIdr = this.config.approvalAutoPassIdr(proposal.depotId);
     if (needsSecondApprover(proposal.proposedBy, decidedBy, impactIdr, autoPassIdr)) {
-      // Audit marker: depot-service has no audit store of its own, so this stable,
-      // greppable line IS the trail. Keep the action string unchanged if you edit this.
+      // The log line stays: it is stable, greppable, and predates the trail. It is no
+      // longer the ONLY record — a blocked self-approval is a security-relevant attempt,
+      // so it goes to the audit trail as an unsuccessful decision (H-29).
       this.logger.warn(
         `price-override.self-approve-blocked proposal=${id} depot=${proposal.depotId} actor=${decidedBy} impactIdr=${impactIdr} autoPassIdr=${autoPassIdr}`,
       );
+      await this.audit('depot.price_override.self_approve_blocked', proposal, decidedBy, false, {
+        impactIdr,
+        autoPassIdr,
+        proposedBy: proposal.proposedBy,
+      });
       throw new PriceOverrideSelfApprovalError();
     }
 
@@ -136,6 +142,13 @@ export class PriceOverrideService {
       priority: APPROVED_OVERRIDE_PRIORITY,
       active: true,
     });
+    await this.audit('depot.price_override.approved', proposal, decidedBy, true, {
+      impactIdr,
+      currentPrice: proposal.currentPrice,
+      adjustType: proposal.adjustType,
+      value: proposal.value,
+      proposedBy: proposal.proposedBy,
+    });
     return this.proposals.update(id, {
       status: PriceOverrideStatus.APPROVED,
       decidedBy,
@@ -145,10 +158,49 @@ export class PriceOverrideService {
   async reject(id: string, decidedBy: string): Promise<PriceOverrideProposalRecord> {
     const proposal = await this.require(id);
     if (isTerminalStatus(proposal.status)) throw new PriceOverrideProposalDecidedError();
+    // success:false — the decision succeeded, the price change did not. The trail records
+    // outcomes for the thing under review, and a rejected price rise is a "no".
+    await this.audit('depot.price_override.rejected', proposal, decidedBy, false, {
+      currentPrice: proposal.currentPrice,
+      adjustType: proposal.adjustType,
+      value: proposal.value,
+      proposedBy: proposal.proposedBy,
+    });
     return this.proposals.update(id, {
       status: PriceOverrideStatus.REJECTED,
       decidedBy,
     });
+  }
+
+  /**
+   * Records one price-override decision to the shared audit trail (H-29).
+   *
+   * depot-service has no audit store of its own; auth-service's is the platform's, and
+   * this is the internal ingest path. Fail-open by construction (see recordAuditEvent):
+   * the price change has already been applied by the time this runs.
+   */
+  private async audit(
+    action: string,
+    proposal: PriceOverrideProposalRecord,
+    decidedBy: string,
+    success: boolean,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    await recordAuditEvent(
+      {
+        authServiceUrl: this.config.authServiceUrl,
+        internalServiceKey: this.config.internalServiceKey,
+      },
+      {
+        action,
+        actorId: decidedBy || null,
+        target: `${proposal.depotName} · ${proposal.productName}`,
+        success,
+        // depotId is what the depot-scoped audit view (design 8b) filters on.
+        metadata: { ...metadata, proposalId: proposal.id, depotId: proposal.depotId },
+      },
+      this.logger,
+    );
   }
 
   private async require(id: string): Promise<PriceOverrideProposalRecord> {

@@ -25,6 +25,8 @@ export type CourierWithdrawalOutcome =
   | { ok: false; balance: number };
 
 export interface CourierWithdrawalRepository {
+  /** Next value of the shared reference counter (H-13) — see reference-sequence.ts. */
+  nextReferenceSequence(): Promise<number>;
   create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord>;
   listForCourier(courierId: string, limit: number): Promise<CourierWithdrawalRecord[]>;
 

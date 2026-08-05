@@ -90,11 +90,100 @@ describe('PriceOverrideService', () => {
 
   // PROPOSE is -10% of 20000 = 2000 impact, well under this auto-pass limit, so the
   // existing tests keep their old behaviour; the M18-15 cases tune it per test.
-  const fakeConfig = (autoPassIdr = 100000) =>
-    ({ approvalAutoPassIdr: () => autoPassIdr }) as unknown as DepotConfigService;
+  const fakeConfig = (autoPassIdr = 100000, audited = false) =>
+    ({
+      approvalAutoPassIdr: () => autoPassIdr,
+      // Blank by default: the audit client is a no-op when unconfigured, so the tests
+      // that are not about the trail make no network call at all.
+      authServiceUrl: audited ? 'http://auth:3001' : '',
+      internalServiceKey: audited ? 'k'.repeat(16) : '',
+    }) as unknown as DepotConfigService;
 
-  const service = (depotName: string | null = 'Depot Kelapa Gading', autoPassIdr = 100000) =>
-    new PriceOverrideService(repo, fakeDepots(depotName), pricing, fakeConfig(autoPassIdr));
+  const service = (
+    depotName: string | null = 'Depot Kelapa Gading',
+    autoPassIdr = 100000,
+    audited = false,
+  ) =>
+    new PriceOverrideService(
+      repo,
+      fakeDepots(depotName),
+      pricing,
+      fakeConfig(autoPassIdr, audited),
+    );
+
+  // H-29: a price override is money — the comment in this service used to say outright
+  // that a log line WAS the trail, because depot-service has no audit store. It has one
+  // now (auth-service's, over the internal ingest route), and all three outcomes land in
+  // it: approved, rejected, and a blocked self-approval.
+  describe('audit trail', () => {
+    let fetchMock: jest.SpyInstance;
+    beforeEach(() => {
+      fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    });
+    afterEach(() => fetchMock.mockRestore());
+    const entries = () =>
+      fetchMock.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+
+    it('records an approval with who proposed it, who decided, and the impact', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.approve(created.id, 'hq-1');
+
+      expect(entries()).toEqual([
+        expect.objectContaining({
+          action: 'depot.price_override.approved',
+          actorId: 'hq-1',
+          success: true,
+          metadata: expect.objectContaining({
+            proposedBy: 'mgr-1',
+            depotId: 'd1',
+            proposalId: created.id,
+          }),
+        }),
+      ]);
+    });
+
+    it('records a rejection', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.reject(created.id, 'hq-1');
+      expect(entries()[0]).toMatchObject({
+        action: 'depot.price_override.rejected',
+        actorId: 'hq-1',
+        success: false,
+      });
+    });
+
+    it('records a blocked self-approval — an attempt is the thing worth keeping', async () => {
+      const svc = service('Depot Kelapa Gading', 0, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await expect(svc.approve(created.id, 'mgr-1')).rejects.toBeInstanceOf(
+        PriceOverrideSelfApprovalError,
+      );
+      expect(entries()[0]).toMatchObject({
+        action: 'depot.price_override.self_approve_blocked',
+        actorId: 'mgr-1',
+        success: false,
+      });
+    });
+
+    it('records a blank actor as a system event, not as an actor named ""', async () => {
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await svc.reject(created.id, '');
+      expect(entries()[0].actorId).toBeUndefined();
+    });
+
+    // Fail-open: the pricing rule is already created by the time the trail is written.
+    it('still approves when the trail is unreachable', async () => {
+      fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+      const svc = service('Depot Kelapa Gading', 100000, true);
+      const created = await svc.propose('d1', 'mgr-1', PROPOSE);
+      await expect(svc.approve(created.id, 'hq-1')).resolves.toMatchObject({
+        status: PriceOverrideStatus.APPROVED,
+      });
+    });
+  });
 
   it('proposes an override, denormalizing the depot name', async () => {
     const created = await service().propose('d1', 'mgr-1', PROPOSE);

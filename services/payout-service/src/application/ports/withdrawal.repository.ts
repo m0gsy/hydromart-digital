@@ -18,6 +18,8 @@ export type WithdrawalOutcome =
   | { ok: false; balance: number };
 
 export interface WithdrawalRepository {
+  /** Next value of the shared reference counter (H-13) — see reference-sequence.ts. */
+  nextReferenceSequence(): Promise<number>;
   create(data: CreateWithdrawalData): Promise<WithdrawalRecord>;
   listForOwner(franchiseOwnerId: string, limit: number): Promise<WithdrawalRecord[]>;
 

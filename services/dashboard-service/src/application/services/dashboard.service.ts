@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalMonths, dayStartUtc } from '@hydromart/platform';
 
 import {
   DashboardSourcesPort,
@@ -39,6 +40,7 @@ export interface NetworkDashboard {
     inventory: 'ok' | 'unavailable';
   };
 }
+import { DashboardConfigService } from '../../config/dashboard-config.service';
 import { DASHBOARD_TOKENS } from '../tokens';
 
 export interface ExecutiveDashboard {
@@ -139,11 +141,16 @@ export class DashboardService {
 
   constructor(
     @Inject(DASHBOARD_TOKENS.Sources) private readonly sources: DashboardSourcesPort,
+    private readonly config: DashboardConfigService,
   ) {}
 
   async monthlyPnl(depotId: string, month: string, token: string): Promise<MonthlyOperationalPnl> {
-    const fromDate = new Date(`${month}-01T00:00:00.000Z`);
-    const toDate = new Date(Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth() + 1, 1));
+    // H-16: `${month}-01T00:00Z` is 07:00 WIB on the 1st, so the P&L window started
+    // seven hours late and ended seven hours late — the first and last day of every
+    // month were both partly wrong.
+    const tz = this.config.businessTimeZone;
+    const fromDate = dayStartUtc(`${month}-01`, tz);
+    const toDate = addLocalMonths(fromDate, 1, tz);
     const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
     const [order, costs] = await Promise.all([
       this.sources.depotMonthly(depotId, month, token),

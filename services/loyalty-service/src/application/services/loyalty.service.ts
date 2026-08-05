@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { startOfLocalMonth } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../config/loyalty-config.service';
 import { InvalidAdjustmentError } from '../../domain/errors';
@@ -94,7 +95,9 @@ export class LoyaltyService {
         tiers: zeroTierCounts(),
       };
     }
-    const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    // H-16: "this month" started at 07:00 WIB on the 1st, so redemptions in the first
+    // seven hours of the month were reported against the previous one.
+    const since = startOfLocalMonth(now, this.config.businessTimeZone);
     const [tiers, pointsOutstanding, redeemedThisMonth] = await Promise.all([
       this.repo.countByTier(ids),
       this.repo.sumPointsBalance(ids),

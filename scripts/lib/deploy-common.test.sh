@@ -62,6 +62,16 @@ is "no healthcheck declared is judged on running only" \
   "$(printf 'caddy running \n' | filter_unhealthy)" ""
 is "no healthcheck and not running still fails" \
   "$(printf 'caddy exited \n' | filter_unhealthy)" "caddy "
+# H-17: a rebuild that dies midway leaves services with no container at all, and
+# `stopped_services` cannot see those — it reports containers whose STATE is wrong, and
+# an absent container has no row and no state. The empty-second-list case is the same
+# blind spot wearing a different hat: when `docker compose ps` itself fails it prints
+# nothing, and "nothing stopped" used to read as "everything healthy".
+is "absent: one never created"  "$(absent_services "$(printf 'gateway\norder\nweb\n')" "$(printf 'gateway\nweb\n')")" "order "
+is "absent: none missing"       "$(absent_services "$(printf 'gateway\nweb\n')"         "$(printf 'web\ngateway\n')")" ""
+is "absent: ps returned nothing" "$(absent_services "$(printf 'gateway\nweb\n')"        "")"                           "gateway web "
+is "absent: blank lines ignored" "$(absent_services "$(printf 'gateway\n\nweb\n')"      "$(printf '\ngateway\nweb\n')")" ""
+is "absent: extra container is not an error" "$(absent_services "$(printf 'web\n')"     "$(printf 'web\nleftover\n')")" ""
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 

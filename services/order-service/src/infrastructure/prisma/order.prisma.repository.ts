@@ -107,6 +107,18 @@ interface OrderRow {
  * revenue, customer-value and depot report filters both out through this one list.
  */
 const VOID_LIKE = [DbOrderStatus.CANCELLED, DbOrderStatus.VOIDED];
+/**
+ * The same exclusion for the raw-SQL reports (H-14).
+ *
+ * Four `$queryRaw` reports — the revenue series, the retention cohort, the audience
+ * reach and the segment estimate — excluded only CANCELLED, while every Prisma-built
+ * report next to them excluded VOID_LIKE. A voided counter sale is a sale that did not
+ * happen; counting it inflated reported revenue and left the buyer in a retention cohort
+ * they never joined. One fragment so the two can no longer drift apart.
+ */
+const NOT_VOID_SQL = Prisma.sql`"status" NOT IN (${Prisma.join(
+  VOID_LIKE.map((status) => Prisma.sql`${status}::"OrderStatus"`),
+)})`;
 
 const INCLUDE = {
   items: true,
@@ -134,6 +146,13 @@ function isUniqueViolation(error: unknown, field: string): boolean {
 @Injectable()
 export class OrderPrismaRepository implements OrderRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async nextOrderSequence(): Promise<number> {
+    const rows = await this.prisma.$queryRaw<
+      { v: bigint }[]
+    >`SELECT nextval('order_number_seq') AS v`;
+    return Number(rows[0]?.v ?? 0);
+  }
 
   private toRecord(row: OrderRow): OrderRecord {
     return {
@@ -448,7 +467,7 @@ export class OrderPrismaRepository implements OrderRepository {
     // Whitelisted so the trunc unit / format are never attacker-controlled.
     const unit = granularity === 'monthly' ? 'month' : 'day';
     const fmt = granularity === 'monthly' ? 'YYYY-MM' : 'YYYY-MM-DD';
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
     const rows = await this.prisma.$queryRaw<
@@ -650,7 +669,7 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
     const where = Prisma.join(conds, ' AND ');
@@ -730,7 +749,7 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async audienceReach(depotId?: string): Promise<number> {
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (depotId) conds.push(Prisma.sql`"depotId" = ${depotId}::uuid`);
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
       SELECT COUNT(DISTINCT "customerId")::bigint AS count
@@ -756,7 +775,7 @@ export class OrderPrismaRepository implements OrderRepository {
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
     // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
     // frequency/recency are HAVING predicates over the per-customer aggregate.
-    const where: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const where: Prisma.Sql[] = [NOT_VOID_SQL];
     if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
     const having: Prisma.Sql[] = [];
     if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);

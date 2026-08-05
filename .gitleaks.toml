@@ -36,6 +36,12 @@ paths = [
 ]
 
 regexes = [
+  # Settings-schema key NAMES, not values. `key: 'bpjsJhtEmployeePctX100'` reads to
+  # generic-api-key as a high-entropy string assigned to something literally called "key";
+  # it names a statutory payroll percentage an accountant edits in the console, and the
+  # value beside it is an integer. Anchored on the ×100 suffix the whole family carries, so
+  # it allowlists those names and nothing else in the file.
+  '''^[a-z][A-Za-z]*PctX100$''',
   # VAPID/web-push and JWT example values are documented inline in several READMEs with a
   # literal "example"/"changeme"/"replace" marker next to them.
   '''(?i)(example|placeholder|changeme|replace-me|your-.*-here|dummy|fake)''',

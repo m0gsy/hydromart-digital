@@ -38,6 +38,40 @@ export const DEFAULT_REFUND_APPROVAL_THRESHOLD = 100_000;
  * QRIS is NOT online: depots use their own static QRIS paid directly to the
  * depot and confirmed by staff, so it settles manually like TRANSFER.
  */
+/**
+ * Freshness window for a provider webhook, in milliseconds (Q-15).
+ *
+ * Five minutes each way: generous enough for clock skew and a provider retry, short
+ * enough that a captured request stops being useful quickly.
+ */
+export const WEBHOOK_MAX_SKEW_MS = 5 * 60 * 1000;
+
+/**
+ * The exact string a webhook's HMAC covers (Q-15).
+ *
+ * It used to be `${reference}.${event}` — two fields out of the whole request. Anything
+ * the provider added later (an amount, a settlement time, a currency) would have arrived
+ * unauthenticated, and with no timestamp in the signed material a captured PAID callback
+ * stayed replayable forever. Signing every field except the signature itself means a new
+ * field is covered the moment it exists, without anybody remembering to come back here.
+ *
+ * Sorted by key so the sender and the receiver cannot disagree about field order, and
+ * `k=v` joined with `&` so two fields cannot be confused for one by moving a delimiter
+ * into a value.
+ */
+export function webhookSigningPayload(payload: Record<string, unknown>): string {
+  return Object.keys(payload)
+    .filter((key) => key !== 'signature' && payload[key] !== undefined)
+    .sort()
+    .map((key) => `${key}=${String(payload[key] ?? '')}`)
+    .join('&');
+}
+
+/** Is `timestamp` (epoch ms) inside the replay window around `now`? */
+export function isWebhookFresh(timestamp: number, now: number): boolean {
+  return Number.isFinite(timestamp) && Math.abs(now - timestamp) <= WEBHOOK_MAX_SKEW_MS;
+}
+
 const ONLINE_METHODS: readonly PaymentMethod[] = [PaymentMethod.EWALLET, PaymentMethod.VA];
 
 export function isOnlineMethod(method: PaymentMethod): boolean {

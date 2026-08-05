@@ -50,6 +50,21 @@ fi
 
 git reset --hard "$NEW_SHA"
 
+# A rebuild is not atomic: rebuild-stale.sh builds and `up -d`s in serial batches, so a
+# failure in batch 3 of 5 leaves the first two services running NEW code against services
+# still on the OLD image. `set -e` used to end the script right there — no converge, no
+# health check, no rollback — so the workflow went red while production sat in a state
+# nobody chose and nothing reported. Roll back on that failure exactly as on a failed
+# health check, because it is the same situation: this commit is not serving. (H-17)
+rebuild_or_rollback() {
+  if bash scripts/rebuild-stale.sh "$@"; then return 0; fi
+  log "!! rebuild FAILED partway — services may be split across two commits"
+  log "!! rolling back to $PREV_SHA"
+  alert "deploy rebuild failed at $NEW_SHA; rolling back to $PREV_SHA"
+  bash scripts/rollback.sh "$PREV_SHA"
+  exit 1
+}
+
 # B-20 — schema before code, enforced instead of remembered.
 #
 # Migration execution used to be a separate manual button in the Deploy workflow, so a
@@ -99,7 +114,7 @@ if registry_mode; then
   fi
 elif [ "${SERVICES[0]:-}" = "--all" ]; then
   log "rebuilding ALL services"
-  bash scripts/rebuild-stale.sh --all
+  rebuild_or_rollback --all
 elif [ "${#SERVICES[@]}" -eq 0 ]; then
   # No image is stale — but that is NOT "nothing to do". docker-compose.prod.yml,
   # .env.example, Caddyfile and the scripts themselves all change how the stack RUNS
@@ -109,7 +124,7 @@ elif [ "${#SERVICES[@]}" -eq 0 ]; then
   log "no service image is stale — converging config only"
 else
   log "rebuilding: ${SERVICES[*]}"
-  bash scripts/rebuild-stale.sh "${SERVICES[@]}"
+  rebuild_or_rollback "${SERVICES[@]}"
 fi
 
 # rebuild-stale only `up -d`s the services it rebuilt, so anything outside that set

@@ -102,7 +102,7 @@ export class ReportController {
   @Get('depot-daily')
   @ApiOperation({ summary: 'Depot daily operations report (design 2d Laporan harian)' })
   depotDaily(@Query() q: DepotDailyQueryDto) {
-    return this.reports.depotDaily(q.depotId, q.date ?? new Date().toISOString().slice(0, 10));
+    return this.reports.depotDaily(q.depotId, q.date);
   }
 
   @Roles(...DEPOT_REPORT_ROLES)

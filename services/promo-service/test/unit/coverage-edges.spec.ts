@@ -4,6 +4,11 @@ import { VoucherService } from '../../src/application/services/voucher.service';
 import { PromotionService } from '../../src/application/services/promotion.service';
 import { OrderValueHttpAdapter } from '../../src/infrastructure/http/order-value.http.adapter';
 import { FakeCustomerLookup, FakeNotification, InMemoryVoucherRepository } from '../support/fakes';
+import { PromoConfigService } from '../../src/config/promo-config.service';
+/** Only `businessTimeZone` is read; WIB pinned so a UTC-bucket regression (H-16) fails here. */
+const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
+  ({ businessTimeZone: timeZone }) as PromoConfigService;
+
 
 const baseVoucher = (overrides: Partial<CreateVoucherData> = {}): CreateVoucherData => ({
   code: 'HEMAT10',
@@ -92,7 +97,7 @@ describe('PromotionService.listActive', () => {
   it('defaults the clock to now', async () => {
     const findActive = jest.fn().mockResolvedValue([]);
     const before = Date.now();
-    await new PromotionService({ findActive } as never, {} as never, {} as never).listActive();
+    await new PromotionService({ findActive } as never, {} as never, {} as never, promoTestConfig()).listActive();
     const passed = findActive.mock.calls[0][0] as Date;
     expect(passed.getTime()).toBeGreaterThanOrEqual(before);
   });
@@ -100,7 +105,7 @@ describe('PromotionService.listActive', () => {
   it('passes an explicit clock straight through', async () => {
     const findActive = jest.fn().mockResolvedValue([]);
     const at = new Date('2026-03-01T00:00:00.000Z');
-    await new PromotionService({ findActive } as never, {} as never, {} as never).listActive(at);
+    await new PromotionService({ findActive } as never, {} as never, {} as never, promoTestConfig()).listActive(at);
     expect(findActive).toHaveBeenCalledWith(at);
   });
 });

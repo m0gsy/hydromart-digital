@@ -1,8 +1,11 @@
-// Weekly courier performance windows (design 4c). Weeks are reckoned in WIB
-// (Asia/Jakarta, UTC+7, no DST) so a "day" bar lines up with the courier's local
-// calendar — a delivery at 23:30 WIB belongs to that day, not the UTC next day.
+// Weekly courier performance windows (design 4c). Weeks are reckoned in the business
+// timezone so a "day" bar lines up with the courier's local calendar — a delivery at
+// 23:30 WIB belongs to that day, not the UTC next day.
+//
+// H-16: this used to hardcode `+07:00` while other services read PRICING_TZ. The zone is
+// a parameter now, defaulted to the platform's one policy, so the two cannot disagree.
+import { BUSINESS_TIME_ZONE, dayStartUtc } from '@hydromart/platform';
 
-const WIB_OFFSET = '+07:00';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
 
@@ -14,11 +17,15 @@ export interface WeekWindow {
 }
 
 /** The WIB week beginning on `weekStartIso` (YYYY-MM-DD, a Monday by convention). */
-export function weekWindow(weekStartIso: string): WeekWindow {
-  const from = new Date(`${weekStartIso}T00:00:00${WIB_OFFSET}`);
-  if (Number.isNaN(from.getTime())) {
+export function weekWindow(weekStartIso: string, timeZone = BUSINESS_TIME_ZONE): WeekWindow {
+  let from: Date;
+  try {
+    from = dayStartUtc(weekStartIso, timeZone);
+  } catch {
     throw new Error(`invalid weekStart: ${weekStartIso}`);
   }
+  // ponytail: fixed 7×24h. Exact for a zone with no DST (WIB); a DST zone would be off
+  // by an hour twice a year — swap for addLocalDays if depots ever span one.
   return { from, to: new Date(from.getTime() + WEEK_MS) };
 }
 

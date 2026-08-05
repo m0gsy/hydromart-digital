@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { DEFAULT_REFUND_APPROVAL_THRESHOLD } from '../domain/payment';
+
 @Injectable()
 export class PaymentConfigService {
   constructor(private readonly config: ConfigService) {}
@@ -33,10 +35,19 @@ export class PaymentConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
-  /** Refunds above this IDR amount require HQ approval (feature 14a). Default Rp 100k. */
+  /**
+   * Refunds above this IDR amount require HQ approval (feature 14a).
+   *
+   * Q-11: the default was the literal `100_000` here while
+   * DEFAULT_REFUND_APPROVAL_THRESHOLD in domain/payment.ts documented itself as the
+   * source of truth. Two numbers, one of them wrong the moment either moved.
+   */
   get refundApprovalThreshold(): number {
     const raw = Number(this.config.get<string>('REFUND_HQ_THRESHOLD'));
-    return Number.isFinite(raw) && raw > 0 ? raw : 100_000;
+    return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_REFUND_APPROVAL_THRESHOLD;
+  }
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
   }
   get corsOrigins(): string[] {
     return this.config

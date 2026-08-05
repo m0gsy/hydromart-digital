@@ -1,5 +1,6 @@
-# Hydromart internal sweeps (busybox crond). Times are the container's TZ (UTC by
-# default — set TZ on the scheduler service to shift). Logs go to the container.
+# Hydromart internal sweeps (busybox crond). Times are the container's TZ, which follows
+# PRICING_TZ (Asia/Jakarta by default) — so every time below is a WIB business hour, the
+# same clock the reports and day boundaries use. Logs go to the container.
 #
 # Place orders for all due recurring subscriptions — hourly.
 0 * * * * sh /scripts/sweep.sh subscriptions/process-due

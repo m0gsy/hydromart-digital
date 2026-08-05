@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { dayStartUtc, localDayKey, startOfLocalMonth } from '@hydromart/platform';
 
 import {
   InsufficientBalanceError,
@@ -9,6 +10,7 @@ import { LedgerEntryRecord, WithdrawalRecord } from '../../domain/ledger';
 import { CommissionSchemeRepository } from '../ports/commission-scheme.repository';
 import { LedgerRepository } from '../ports/ledger.repository';
 import { WithdrawalRepository } from '../ports/withdrawal.repository';
+import { PayoutConfigService } from '../../config/payout-config.service';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
@@ -53,6 +55,7 @@ export class PayoutService {
     @Inject(PAYOUT_TOKENS.WithdrawalRepository) private readonly withdrawals: WithdrawalRepository,
     @Inject(PAYOUT_TOKENS.CommissionSchemeRepository)
     private readonly schemes: CommissionSchemeRepository,
+    private readonly config: PayoutConfigService,
   ) {}
 
   /**
@@ -165,7 +168,7 @@ export class PayoutService {
   }
 
   async summary(ownerId: string): Promise<PayoutSummary> {
-    const monthStart = startOfMonth(new Date());
+    const monthStart = startOfMonth(new Date(), this.config.businessTimeZone);
     const [availableBalance, monthRevenue, monthCommission, recent, recentWithdrawals] =
       await Promise.all([
         this.ledger.balanceFor(ownerId),
@@ -179,7 +182,7 @@ export class PayoutService {
       monthRevenue,
       // COMMISSION entries are stored as debits (negative); report the magnitude.
       monthCommission: Math.abs(monthCommission),
-      nextPayoutDate: nextPayoutDate(new Date()).toISOString(),
+      nextPayoutDate: nextPayoutDate(new Date(), this.config.businessTimeZone).toISOString(),
       recentEntries: recent.items,
       recentWithdrawals,
     };
@@ -192,7 +195,7 @@ export class PayoutService {
    */
   async pendingPayouts(): Promise<PendingPayout[]> {
     const owners = await this.ledger.ownersWithBalance();
-    const due = nextPayoutDate(new Date()).toISOString();
+    const due = nextPayoutDate(new Date(), this.config.businessTimeZone).toISOString();
     return owners.map((o) => ({
       franchiseOwnerId: o.franchiseOwnerId,
       availableBalance: o.availableBalance,
@@ -209,7 +212,7 @@ export class PayoutService {
     return {
       franchiseOwnerId: ownerId,
       availableBalance,
-      nextPayoutDate: nextPayoutDate(new Date()).toISOString(),
+      nextPayoutDate: nextPayoutDate(new Date(), this.config.businessTimeZone).toISOString(),
     };
   }
 
@@ -239,7 +242,14 @@ export class PayoutService {
     // Reading the balance here and writing afterwards let two concurrent requests both
     // pass the same check and overdraw, and a crash between the withdrawal row and its
     // debit left a PROCESSING payout with the balance untouched.
-    const reference = withdrawalReference(new Date());
+    //
+    // H-13: the reference itself comes from a sequence, not a random suffix that collided
+    // ~27% of days, and is stamped in the business timezone.
+    const reference = withdrawalReference(
+      new Date(),
+      await this.withdrawals.nextReferenceSequence(),
+      this.config.businessTimeZone,
+    );
     const outcome = await this.withdrawals.withdrawWithDebit({
       franchiseOwnerId: ownerId,
       amount,
@@ -255,21 +265,31 @@ export class PayoutService {
   }
 }
 
-function startOfMonth(now: Date): Date {
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+// H-16: both of these read the HOST's calendar (`getFullYear`/`getMonth`/`getDate`),
+// which on a UTC container is not the Indonesian one — a settlement placed at 02:00 WIB
+// on the 1st landed in the previous month, and the payout date flipped a day early.
+function startOfMonth(now: Date, timeZone: string): Date {
+  return startOfLocalMonth(now, timeZone);
 }
 
-/** 15th of this month if still ahead, else the 15th of next month. */
-function nextPayoutDate(now: Date): Date {
-  const day15 = new Date(now.getFullYear(), now.getMonth(), 15);
-  if (now.getDate() < 15) return day15;
-  return new Date(now.getFullYear(), now.getMonth() + 1, 15);
+/** 15th of this WIB month if still ahead, else the 15th of next WIB month. */
+function nextPayoutDate(now: Date, timeZone: string): Date {
+  const [y, m, d] = localDayKey(now, timeZone).split('-').map(Number);
+  const month = d < 15 ? m : m + 1;
+  const rolled = new Date(Date.UTC(y, month - 1, 15));
+  return dayStartUtc(rolled.toISOString().slice(0, 10), timeZone);
 }
 
-export function withdrawalReference(now: Date): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const rand = String(Math.floor(1000 + Math.random() * 9000));
-  return `WD-${y}${m}${d}-${rand}`;
+/**
+ * `WD-<WIB date>-<counter>` (H-13, H-16).
+ *
+ * The suffix used to be `Math.random()` over four digits against a UNIQUE column —
+ * roughly a 27% chance of a same-day collision, and a collision is a 500 on someone's
+ * cash-out. `seq` comes from a Postgres sequence, so distinctness is guaranteed rather
+ * than likely. The date part is the WIB calendar date; it used to be the host's local
+ * date, which on a UTC container is the previous day for anything before 07:00 WIB.
+ */
+export function withdrawalReference(now: Date, seq: number, timeZone: string): string {
+  const ymd = localDayKey(now, timeZone).replace(/-/g, '');
+  return `WD-${ymd}-${String(seq).padStart(4, '0')}`;
 }

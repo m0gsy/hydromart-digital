@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
 
 import { PromotionNotFoundError } from '../../domain/errors';
 import {
@@ -9,9 +10,9 @@ import {
 } from '../ports/promotion.repository';
 import { OrderValuePort } from '../ports/order-value.port';
 import { VoucherRepository } from '../ports/voucher.repository';
+import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface PromotionAnalytics {
   promotionId: string;
@@ -34,6 +35,7 @@ export class PromotionService {
     @Inject(PROMO_TOKENS.PromotionRepository) private readonly repo: PromotionRepository,
     @Inject(PROMO_TOKENS.VoucherRepository) private readonly vouchers: VoucherRepository,
     @Inject(PROMO_TOKENS.OrderValues) private readonly orderValues: OrderValuePort,
+    private readonly config: PromoConfigService,
   ) {}
 
   /** Live promotions for the customer Home page (active + inside date window). */
@@ -62,12 +64,16 @@ export class PromotionService {
 
   async analytics(id: string, now: Date = new Date()): Promise<PromotionAnalytics> {
     const promotion = await this.getById(id);
-    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const firstDayUtc = todayUtc - 6 * DAY_MS;
+    // H-16: the 7-day strip was bucketed on UTC days, so a redemption at 02:00 WIB
+    // landed on the previous bar and "today" only began at 07:00 WIB.
+    const tz = this.config.businessTimeZone;
+    const todayStart = startOfLocalDay(now, tz).getTime();
+    const firstDayUtc = addLocalDays(new Date(todayStart), -6, tz).getTime();
     const dailyUses = Array.from({ length: 7 }, (_, index) => ({
-      day: new Date(firstDayUtc + index * DAY_MS).toISOString().slice(0, 10),
+      day: localDayKey(addLocalDays(new Date(firstDayUtc), index, tz), tz),
       uses: 0,
     }));
+    const dayIndex = new Map(dailyUses.map((d, index) => [d.day, index]));
     const empty = (): PromotionAnalytics => ({
       promotionId: promotion.id,
       title: promotion.title,
@@ -99,10 +105,12 @@ export class PromotionService {
       customer.savingsIdr += redemption.discountApplied;
       customers.set(redemption.customerId, customer);
 
-      const createdAt = redemption.createdAt.getTime();
-      if (createdAt >= firstDayUtc && createdAt < todayUtc + DAY_MS) {
+      // Bucket by the LOCAL day label rather than by elapsed milliseconds: with a
+      // zone that ever shifts, a fixed 24h divisor puts a redemption in the wrong bar.
+      const bucket = dayIndex.get(localDayKey(redemption.createdAt, tz));
+      if (bucket !== undefined) {
         usesLast7Days += 1;
-        dailyUses[Math.floor((createdAt - firstDayUtc) / DAY_MS)].uses += 1;
+        dailyUses[bucket].uses += 1;
       }
     }
 

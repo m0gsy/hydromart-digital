@@ -4,6 +4,15 @@ import { ReportService } from '../../src/application/services/report.service';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
 import { InMemoryOrderRepository } from '../support/fakes';
+import { OrderConfigService } from '../../src/config/order-config.service';
+/**
+ * The service reads only `businessTimeZone` off the config. WIB is pinned here on
+ * purpose: every day/month boundary in these reports used to be built from UTC (H-16),
+ * and a test that inherits the host's zone cannot catch that coming back.
+ */
+const reportTestConfig = (timeZone = 'Asia/Jakarta'): OrderConfigService =>
+  ({ businessTimeZone: timeZone }) as OrderConfigService;
+
 
 const CUST_A = randomUUID();
 const CUST_B = randomUUID();
@@ -38,7 +47,7 @@ describe('ReportService', () => {
 
   beforeEach(async () => {
     repo = new InMemoryOrderRepository();
-    reports = new ReportService(repo);
+    reports = new ReportService(repo, reportTestConfig());
     await repo.create(orderData({ customerId: CUST_A, depotId: DEPOT_A, total: 50000 }));
     await repo.create(orderData({ customerId: CUST_A, depotId: DEPOT_A, total: 30000 }));
     await repo.create(orderData({ customerId: CUST_B, depotId: DEPOT_B, total: 20000 }));
@@ -112,7 +121,7 @@ describe('ReportService', () => {
       items,
     });
     const r2 = new InMemoryOrderRepository();
-    const svc = new ReportService(r2);
+    const svc = new ReportService(r2, reportTestConfig());
     await r2.create(
       withItems({ total: 60000 }, [
         {
@@ -201,7 +210,7 @@ describe('ReportService', () => {
 
   it('composes a depot daily report: real orders/revenue/gallons, cancelled = failed', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     const day = '2026-07-15';
     const at = (h: number) => new Date(`${day}T0${h}:00:00.000Z`);
@@ -240,9 +249,42 @@ describe('ReportService', () => {
     expect(rep.gallonsDamaged).toBeNull();
   });
 
+  // H-16: the window used to be [date T00:00Z, +24h) — which is 07:00 WIB to 07:00 WIB.
+  // An order at 01:00 WIB fell into the PREVIOUS day's report and one at 03:00 WIB the
+  // next morning was counted as today's, so the depot's daily revenue was wrong twice
+  // over. Both edges are asserted, because fixing only one just moves the error.
+  it('counts a WIB calendar day, not a UTC one', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r, reportTestConfig());
+    const depot = randomUUID();
+
+    const place = async (iso: string) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total: 50000 }) });
+      const row = r.rows.find((x) => x.id === o.id)!;
+      row.status = OrderStatus.DELIVERED;
+      row.createdAt = new Date(iso);
+    };
+    await place('2026-07-14T18:00:00.000Z'); // 01:00 WIB on the 15th → counts
+    await place('2026-07-15T20:00:00.000Z'); // 03:00 WIB on the 16th → does not
+
+    const rep = await svc.depotDaily(depot, '2026-07-15');
+    expect(rep.orders).toBe(1);
+    expect(rep.revenueIdr).toBe(50000);
+  });
+
+  it('defaults to the WIB today when no date is given', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-03T19:00:00Z')); // 02:00 WIB, 4 Aug
+    try {
+      const svc = new ReportService(new InMemoryOrderRepository(), reportTestConfig());
+      expect((await svc.depotDaily(randomUUID())).date).toBe('2026-08-04');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('composes a depot weekly report: revenueByDay, topProducts and a driverName topCourier', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     const from = new Date('2026-07-10T00:00:00.000Z');
     const to = new Date('2026-07-17T00:00:00.000Z');
@@ -296,7 +338,7 @@ describe('ReportService', () => {
 
   it('aggregates depot ratings: average, star distribution, and recent review cards', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     const other = randomUUID();
     const review = async (depotId: string, rating: number, comment: string | null) => {
@@ -337,7 +379,7 @@ describe('ReportService', () => {
 
   it('composes a depot monthly review: real orders/revenue/activeCustomers, null sla/profit', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     const custX = randomUUID();
     const custY = randomUUID();
@@ -376,7 +418,7 @@ describe('ReportService', () => {
 
   it('sums shipping billed per depot, ignoring unrouted orders', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 5000 });
     await r.create({ ...orderData({ depotId: depot, total: 10000 }), deliveryFee: 7000 });
@@ -388,7 +430,7 @@ describe('ReportService', () => {
 
   it('averages ratings per depot from real reviews', async () => {
     const r = new InMemoryOrderRepository();
-    const svc = new ReportService(r);
+    const svc = new ReportService(r, reportTestConfig());
     const depot = randomUUID();
     const review = async (rating: number) => {
       const o = await r.create(orderData({ depotId: depot }));
@@ -413,7 +455,7 @@ describe('ReportService', () => {
 // the empty/absent shapes a real depot hits on a quiet week, driven off a stubbed repository
 // so the exact aggregate rows can be dictated.
 describe('ReportService empty and absent shapes', () => {
-  const stub = (over: Record<string, unknown>): ReportService => new ReportService(over as never);
+  const stub = (over: Record<string, unknown>): ReportService => new ReportService(over as never, reportTestConfig());
 
   it('gives every product a zero share when nothing sold', async () => {
     const svc = stub({

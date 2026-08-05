@@ -98,6 +98,84 @@ export const SETTING_DEFS: SettingDef[] = [
     max: 500,
     envDefault: 200,
   },
+  // Q-13 statutory payroll. Percentages are stored ×100 so the settings store stays
+  // integer-only (100 = 1.00%). Every one of these moves on the government's schedule,
+  // not ours — an accountant must be able to correct them without a deploy. Legal source
+  // is named against each so a reader can check the number, not just trust it.
+  {
+    // Perpres 64/2020: 5% of wage, 1% employee / 4% employer.
+    key: 'bpjsHealthEmployeePctX100',
+    label: 'BPJS Kesehatan — potongan karyawan',
+    type: 'int',
+    unit: '% ×100 (100 = 1,00%)',
+    min: 0,
+    max: 2000,
+    envDefault: 100,
+  },
+  {
+    key: 'bpjsHealthCeilingIdr',
+    label: 'BPJS Kesehatan — batas upah',
+    type: 'int',
+    unit: 'IDR/bulan (0 = tanpa batas)',
+    min: 0,
+    envDefault: 12_000_000,
+  },
+  {
+    // PP 46/2015: JHT 5,7% total, 2% employee. No wage ceiling.
+    key: 'bpjsJhtEmployeePctX100',
+    label: 'BPJS JHT — potongan karyawan',
+    type: 'int',
+    unit: '% ×100 (200 = 2,00%)',
+    min: 0,
+    max: 2000,
+    envDefault: 200,
+  },
+  {
+    // PP 45/2015: JP 3% total, 1% employee, wage ceiling re-issued annually by BPJS.
+    key: 'bpjsJpEmployeePctX100',
+    label: 'BPJS Jaminan Pensiun — potongan karyawan',
+    type: 'int',
+    unit: '% ×100 (100 = 1,00%)',
+    min: 0,
+    max: 2000,
+    envDefault: 100,
+  },
+  {
+    key: 'bpjsJpCeilingIdr',
+    label: 'BPJS Jaminan Pensiun — batas upah',
+    type: 'int',
+    unit: 'IDR/bulan (0 = tanpa batas)',
+    min: 0,
+    envDefault: 10_547_400,
+  },
+  {
+    // PMK 250/PMK.03/2008: biaya jabatan 5% of gross, capped Rp 500.000/month.
+    key: 'occupationalCostPctX100',
+    label: 'Biaya jabatan',
+    type: 'int',
+    unit: '% ×100 (500 = 5,00%)',
+    min: 0,
+    max: 2000,
+    envDefault: 500,
+  },
+  {
+    key: 'occupationalCostCapIdr',
+    label: 'Biaya jabatan — batas',
+    type: 'int',
+    unit: 'IDR/bulan',
+    min: 0,
+    envDefault: 500_000,
+  },
+  {
+    // UU 36/2008 Article 21(5a): 20% higher rate for an employee with no NPWP.
+    key: 'noNpwpSurchargePct',
+    label: 'Tambahan PPh 21 tanpa NPWP',
+    type: 'int',
+    unit: '%',
+    min: 0,
+    max: 100,
+    envDefault: 20,
+  },
   {
     key: 'tenureRaiseLadder',
     label: 'Kenaikan gaji masa kerja (Kepala Depot)',

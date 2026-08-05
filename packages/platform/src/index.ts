@@ -1,5 +1,20 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
 export { Role } from './domain/role.enum';
+export { money } from './domain/money';
+export {
+  BUSINESS_TIME_ZONE,
+  addLocalDays,
+  addLocalMonths,
+  dayStartUtc,
+  localDayKey,
+  localDayRange,
+  localHour,
+  localMonthKey,
+  localMonthRange,
+  startOfLocalDay,
+  startOfLocalMonth,
+  zoneOffsetMs,
+} from './domain/business-time';
 export {
   runImport,
   type ImportRowResult,
@@ -19,6 +34,11 @@ export {
   CAPABILITY_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
+export {
+  recordAuditEvent,
+  type AuditEvent,
+  type AuditTrailConfig,
+} from './nest/audit-trail';
 export {
   startCapabilityRefresh,
   httpCapabilityLoader,

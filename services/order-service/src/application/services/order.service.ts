@@ -1,7 +1,12 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  assertDepotAccess,
+  localDayKey,
+  money,
+} from '@hydromart/platform';
 
 import {
   BelowMinimumOrderError,
@@ -110,11 +115,6 @@ export interface ListOrdersInput {
   depotIds?: readonly string[];
   /** HQ tray of orders that reached no depot (legacy fail-open rows). */
   unrouted?: boolean;
-}
-
-/** Rounds to 2 decimals (IDR minor units) to keep money arithmetic exact. */
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 @Injectable()
@@ -316,7 +316,7 @@ export class OrderService {
     const order = await this.reserveThenCreate(
       depot.id,
       {
-        orderNumber: OrderService.newOrderNumber(),
+        orderNumber: await this.newOrderNumber(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -446,7 +446,7 @@ export class OrderService {
     const order = await this.reserveThenCreate(
       depot.id,
       {
-        orderNumber: OrderService.newOrderNumber(),
+        orderNumber: await this.newOrderNumber(),
         customerId,
         depotId: depot.id,
         subtotal,
@@ -512,7 +512,7 @@ export class OrderService {
     const order = await this.reserveThenCreate(
       input.depotId,
       {
-        orderNumber: OrderService.newOrderNumber(),
+        orderNumber: await this.newOrderNumber(),
         customerId,
         depotId: input.depotId,
         status: OrderStatus.COMPLETED,
@@ -579,7 +579,7 @@ export class OrderService {
     if (!order.isWalkIn) throw new NotACounterSaleError();
     assertDepotAccess(user, order.depotId);
     if (order.status === OrderStatus.VOIDED) throw new OrderAlreadyVoidedError();
-    if (!isVoidableOn(order.createdAt, now, this.config.counterVoidTimeZone)) {
+    if (!isVoidableOn(order.createdAt, now, this.config.businessTimeZone)) {
       throw new VoidWindowClosedError();
     }
 
@@ -1204,13 +1204,22 @@ export class OrderService {
     return buildPage(items, total, page, limit);
   }
 
-  private static newOrderNumber(): string {
-    const now = new Date();
-    const ymd =
-      now.getUTCFullYear().toString() +
-      String(now.getUTCMonth() + 1).padStart(2, '0') +
-      String(now.getUTCDate()).padStart(2, '0');
-    const suffix = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    return `HM-${ymd}-${suffix}`;
+  /**
+   * `HM-<WIB date>-<counter>` (H-12, H-16).
+   *
+   * Two defects in one line before this: the suffix was six random digits against a
+   * UNIQUE column — a collision failed a real customer's checkout, and at ~1,000
+   * orders/day that is close to a 40% chance on any given day — and the date part was
+   * built from `getUTC*`, so every order placed between 00:00 and 07:00 WIB was stamped
+   * with the previous day. The counter is now a Postgres sequence (no collision is
+   * possible, not merely unlikely) and the date is the WIB calendar date.
+   *
+   * The counter is global rather than per-day: it only has to make the number unique,
+   * and the date already tells a human when the order was placed.
+   */
+  private async newOrderNumber(now = new Date()): Promise<string> {
+    const ymd = localDayKey(now, this.config.businessTimeZone).replace(/-/g, '');
+    const seq = await this.orders.nextOrderSequence();
+    return `HM-${ymd}-${String(seq).padStart(6, '0')}`;
   }
 }

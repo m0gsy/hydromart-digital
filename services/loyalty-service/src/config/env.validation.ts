@@ -2,6 +2,8 @@ import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  // One business timezone for the whole platform (H-16); see @hydromart/platform.
+  PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   LOYALTY_SERVICE_PORT: Joi.number().port().default(3009),
   LOYALTY_DATABASE_URL: Joi.string()

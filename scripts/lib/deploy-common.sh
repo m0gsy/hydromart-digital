@@ -148,6 +148,32 @@ unhealthy_services() {
   $COMPOSE ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null | filter_unhealthy
 }
 
+# Names compose DECLARES for this project. Parsed from the YAML, which is why it still
+# answers when the daemon is the broken thing.
+declared_services() {
+  $COMPOSE config --services 2>/dev/null | sort -u
+}
+
+# Declared names that `ps --all` did not list at all. PURE — takes the two newline lists
+# as arguments — so it is tested without Docker.
+#
+# H-17: this is the gap `stopped_services` cannot see. It reports containers whose STATE
+# is wrong; a service that was never created has no state and no row, so a rebuild that
+# died in batch 3 of 5 left the remaining services absent and the gate read "nothing
+# stopped" as "everything fine". The same blind spot turns a dead daemon into a pass:
+# `ps` fails, prints nothing, and an empty list of stopped services looks like health.
+absent_services() {
+  comm -23 \
+    <(printf '%s\n' "$1" | sed '/^[[:space:]]*$/d' | sort -u) \
+    <(printf '%s\n' "$2" | sed '/^[[:space:]]*$/d' | sort -u) | tr '\n' ' '
+}
+
+# The live version of the above: declared minus whatever compose can actually see.
+missing_services() {
+  absent_services "$(declared_services)" \
+    "$($COMPOSE ps --all --format '{{.Service}}' 2>/dev/null)"
+}
+
 # Bring the whole project to its declared state. Idempotent: a no-op when everything
 # already runs, a recreate for any container whose compose config moved, a start for
 # anything left stopped by anyone. This — not svc_of — is what makes a root-file change
@@ -207,15 +233,24 @@ health_ok() {
   done
   [ "$ok" -eq 0 ] || { echo "[health] !! gateway probe never answered"; return 1; }
 
-  # Give slow starters a moment before declaring the stack incomplete. The window is
-  # wider than the old one because `starting` is now a fail: compose healthchecks have
-  # their own start_period and interval, and 60s was not enough for 20 of them to land.
+  # Give slow starters a moment before declaring the stack incomplete. Both questions are
+  # asked every round: a container can be running-but-broken, and a container can be
+  # missing entirely, and only the second one catches a rebuild that died before creating
+  # it. The window is 30 rounds, not 15, because `starting` is a fail under H-32 and
+  # compose healthchecks have their own start_period — 60s was not enough for 20 of them.
+  local absent=""
   for _ in $(seq 1 30); do
     down="$(unhealthy_services)"
-    [ -z "$down" ] && return 0
+    absent="$(missing_services)"
+    if [ -z "$down" ] && [ -z "$absent" ]; then return 0; fi
     sleep 4
   done
-  echo "[health] !! these services are not running or not healthy: $down"
+  if [ -n "$absent" ]; then
+    echo "[health] !! these services have no container at all: $absent"
+  fi
+  if [ -n "$down" ]; then
+    echo "[health] !! these services are not running or not healthy: $down"
+  fi
   echo "[health] diagnostics written to $(diagnose_stopped)"
   return 1
 }

@@ -16,6 +16,16 @@ import type {
 import type { CommissionSchemeRepository } from '../src/application/ports/commission-scheme.repository';
 import type { CommissionSchemeRecord } from '../src/domain/commission';
 import type { LedgerEntryRecord, WithdrawalRecord, WithdrawalStatus } from '../src/domain/ledger';
+import { PayoutConfigService } from '../src/config/payout-config.service';
+
+/**
+ * The service only reads `businessTimeZone` off the config, so the test double is one
+ * getter. Pinned to WIB deliberately: the month and payout-date boundaries these tests
+ * assert used to come from the HOST's calendar (H-16), and a test that inherits the
+ * host's zone cannot catch that regression coming back.
+ */
+const payoutTestConfig = (timeZone = 'Asia/Jakarta'): PayoutConfigService =>
+  ({ businessTimeZone: timeZone }) as PayoutConfigService;
 
 // In-memory fakes — the balance guard is the money-critical path worth pinning.
 class FakeLedger implements LedgerRepository {
@@ -110,6 +120,13 @@ class FakeSchemes implements CommissionSchemeRepository {
 }
 
 class FakeWithdrawals implements WithdrawalRepository {
+  private seq = 100_000;
+  /** Mirrors the Postgres sequence: strictly increasing, never repeated (H-13). */
+  async nextReferenceSequence(): Promise<number> {
+    this.seq += 1;
+    return this.seq;
+  }
+
   created: CreateWithdrawalData[] = [];
   /** Ledger debits written alongside a withdrawal — proves the pair is not split. */
   debits: { franchiseOwnerId: string; amount: number; description: string }[] = [];
@@ -169,6 +186,7 @@ describe('PayoutService.requestWithdrawal', () => {
       new FakeLedger([100000]),
       new FakeWithdrawals(),
       new FakeSchemes(),
+      payoutTestConfig(),
     );
     await expect(svc.requestWithdrawal('owner-1', 0, 'BCA')).rejects.toBeInstanceOf(
       InvalidWithdrawalAmountError,
@@ -178,7 +196,7 @@ describe('PayoutService.requestWithdrawal', () => {
   it('rejects when the amount exceeds available balance', async () => {
     const ledger = new FakeLedger([100000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
 
     await expect(svc.requestWithdrawal('owner-1', 150000, 'BCA')).rejects.toBeInstanceOf(
       InsufficientBalanceError,
@@ -194,11 +212,11 @@ describe('PayoutService.requestWithdrawal', () => {
   it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
     const ledger = new FakeLedger([500000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
 
     const w = await svc.requestWithdrawal('owner-1', 500000, 'BCA ···· 4821');
 
-    expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
+    expect(w.reference).toMatch(/^WD-\d{8}-\d{4,}$/);
     expect(withdrawals.created).toHaveLength(1);
     expect(await ledger.balanceFor()).toBe(0);
   });
@@ -206,7 +224,7 @@ describe('PayoutService.requestWithdrawal', () => {
   it('cannot be drained twice: the second cash-out sees the first one’s debit', async () => {
     const ledger = new FakeLedger([500000]);
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
 
     await svc.requestWithdrawal('owner-1', 500000, 'BCA');
     // Sequentially this always held. What B-8 changes is that the check now runs inside
@@ -222,7 +240,7 @@ describe('PayoutService.requestWithdrawal', () => {
 describe('PayoutService.summary', () => {
   it('reports available balance, recent entries and the next payout date', async () => {
     const ledger = new FakeLedger([300000, -50000]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
     const s = await svc.summary('owner-1');
     expect(s.availableBalance).toBe(250000);
@@ -237,13 +255,19 @@ describe('PayoutService.summary', () => {
   it('points at this month’s 15th before it, and next month’s once it has passed', async () => {
     jest.useFakeTimers();
     try {
-      const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes());
+      const svc = new PayoutService(new FakeLedger([100000]), new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
-      jest.setSystemTime(new Date(2026, 7, 3));
-      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(new Date(2026, 7, 15).toISOString());
+      // H-16 anchors the payout date to Asia/Jakarta, so the 15th is a fixed INSTANT:
+      // 00:00 WIB = 17:00Z the day before. Building it from `new Date(2026, 7, 15)` used
+      // the RUNNER's local midnight — the same instant only on a WIB machine, which is
+      // why it passed here and failed in CI.
+      const wibMidnight = (iso: string) => `${iso}T17:00:00.000Z`;
 
-      jest.setSystemTime(new Date(2026, 7, 20));
-      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(new Date(2026, 8, 15).toISOString());
+      jest.setSystemTime(new Date('2026-08-03T00:00:00Z'));
+      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(wibMidnight('2026-08-14'));
+
+      jest.setSystemTime(new Date('2026-08-20T00:00:00Z'));
+      expect((await svc.summary('owner-1')).nextPayoutDate).toBe(wibMidnight('2026-09-14'));
     } finally {
       jest.useRealTimers();
     }
@@ -253,7 +277,7 @@ describe('PayoutService.summary', () => {
 describe('PayoutService.ledgerPage', () => {
   it('wraps entries in a page envelope', async () => {
     const ledger = new FakeLedger([100000, 200000]);
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
     const page = await svc.ledgerPage('owner-1', 1, 10);
     expect(page).toMatchObject({ page: 1, limit: 10, total: 2, totalPages: 1 });
@@ -285,7 +309,7 @@ describe('PayoutService HQ release queue', () => {
       amount: -100000,
       description: '',
     });
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
     const pending = await svc.pendingPayouts();
     expect(pending.map((p) => p.franchiseOwnerId)).toEqual(['owner-b', 'owner-a']);
@@ -309,7 +333,7 @@ describe('PayoutService HQ release queue', () => {
       amount: -100000,
       description: '',
     });
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
     const bal = await svc.availableForOwner('owner-a');
     expect(bal.franchiseOwnerId).toBe('owner-a');
@@ -329,7 +353,7 @@ describe('PayoutService HQ release queue', () => {
       description: '',
     });
     const withdrawals = new FakeWithdrawals(ledger);
-    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
 
     const w = await svc.releaseForOwner('owner-a');
     expect(w.amount).toBe(500000);
@@ -356,6 +380,7 @@ describe('PayoutService.recordOrderRevenue', () => {
       ledger,
       new FakeWithdrawals(),
       new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      payoutTestConfig(),
     );
 
     const out = await svc.recordOrderRevenue(order);
@@ -383,6 +408,7 @@ describe('PayoutService.recordOrderRevenue', () => {
       ledger,
       new FakeWithdrawals(),
       new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      payoutTestConfig(),
     );
     ledger.failAfter = 1; // the sale lands, then the process dies before the commission
 
@@ -398,6 +424,7 @@ describe('PayoutService.recordOrderRevenue', () => {
       ledger,
       new FakeWithdrawals(),
       new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      payoutTestConfig(),
     );
     await svc.recordOrderRevenue(order);
     ledger.failAfter = 1;
@@ -410,7 +437,7 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('posts the sale alone when the depot has no commission scheme', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
 
     const out = await svc.recordOrderRevenue(order);
 
@@ -424,6 +451,7 @@ describe('PayoutService.recordOrderRevenue', () => {
       ledger,
       new FakeWithdrawals(),
       new FakeSchemes([{ depotId: 'other', pct: 9 }]),
+      payoutTestConfig(),
     );
 
     expect((await svc.recordOrderRevenue(order)).commissionPct).toBe(0);
@@ -441,6 +469,7 @@ describe('PayoutService.recordOrderRevenue', () => {
       ledger,
       new FakeWithdrawals(),
       new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+      payoutTestConfig(),
     );
 
     await svc.recordOrderRevenue(order);
@@ -452,7 +481,7 @@ describe('PayoutService.recordOrderRevenue', () => {
   });
 
   it('rejects a non-positive amount', async () => {
-    const svc = new PayoutService(new FakeLedger(), new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(new FakeLedger(), new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
     await expect(svc.recordOrderRevenue({ ...order, amountIdr: 0 })).rejects.toBeInstanceOf(
       InvalidRevenueAmountError,
     );
@@ -460,7 +489,7 @@ describe('PayoutService.recordOrderRevenue', () => {
 
   it('falls back to the order id when no order number is given, and stamps the completion time', async () => {
     const ledger = new FakeLedger();
-    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
     const completedAt = new Date('2026-07-28T03:04:05.000Z');
 
     await svc.recordOrderRevenue({ ...order, orderNumber: null, occurredAt: completedAt });
@@ -475,7 +504,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         new FakeLedger(),
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct }]),
-      );
+      payoutTestConfig(),
+    );
 
     it('backs out both rows and leaves the owner exactly where they started', async () => {
       const ledger = new FakeLedger();
@@ -483,7 +513,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         ledger,
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
-      );
+      payoutTestConfig(),
+    );
       await svc.recordOrderRevenue(order);
       expect(await ledger.balanceFor('owner-a')).toBe(228000);
 
@@ -506,7 +537,9 @@ describe('PayoutService.recordOrderRevenue', () => {
     it('reverses what was charged, not what the current scheme would charge', async () => {
       const ledger = new FakeLedger();
       const schemes = new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]);
-      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes);
+      const svc = new PayoutService(ledger, new FakeWithdrawals(), schemes,
+      payoutTestConfig(),
+    );
       await svc.recordOrderRevenue(order);
 
       schemes.current = [{ depotId: 'depot-1', pct: 20 }];
@@ -525,7 +558,8 @@ describe('PayoutService.recordOrderRevenue', () => {
         ledger,
         new FakeWithdrawals(),
         new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
-      );
+      payoutTestConfig(),
+    );
       await live.recordOrderRevenue(order);
       await live.reverseOrderRevenue(order.orderId, 'Batal');
       expect(await live.reverseOrderRevenue(order.orderId, 'Batal')).toEqual({ reversed: false });
@@ -534,7 +568,7 @@ describe('PayoutService.recordOrderRevenue', () => {
 
     it('writes no commission reversal when none was charged', async () => {
       const ledger = new FakeLedger();
-      const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes());
+      const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig());
       await svc.recordOrderRevenue({ ...order, depotId: null });
 
       await svc.reverseOrderRevenue(order.orderId, 'Batal');
@@ -542,5 +576,41 @@ describe('PayoutService.recordOrderRevenue', () => {
       expect(ledger.entries.map((e) => e.type)).toEqual(['SALE_SETTLEMENT', 'SALE_SETTLEMENT']);
       expect(await ledger.balanceFor('owner-a')).toBe(0);
     });
+  });
+});
+
+// Carried over from PR5 (H-13, H-16). Both build on the shared-ledger fake B-8 introduced:
+// the balance guard reads the same ledger the withdrawal debits, so these exercise the
+// merged behaviour rather than the pre-B-8 shape they were written against.
+describe('PayoutService withdrawal references', () => {
+  // H-13: four random digits against a UNIQUE column collide ~27% of days at this
+  // volume, and the collision surfaces as a 500 on a real cash-out. A counter cannot.
+  it('never issues the same reference twice across cash-outs', async () => {
+    const ledger = new FakeLedger([10_000_000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig());
+    const refs = await Promise.all(
+      Array.from({ length: 50 }, () => svc.requestWithdrawal('owner-1', 1000, 'BCA')),
+    ).then((ws) => ws.map((w) => w.reference));
+    expect(new Set(refs).size).toBe(refs.length);
+  });
+
+  // H-16: the date came from the HOST calendar, so a cash-out at 02:00 WIB carried the
+  // previous day on a UTC container — and the reference is what finance reconciles by.
+  it('stamps the WIB calendar date on the reference', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-03T19:00:00Z')); // 02:00 WIB, 4 Aug
+    try {
+      const ledger = new FakeLedger([500000]);
+      const svc = new PayoutService(
+        ledger,
+        new FakeWithdrawals(ledger),
+        new FakeSchemes(),
+        payoutTestConfig(),
+      );
+      const w = await svc.requestWithdrawal('owner-1', 1000, 'BCA');
+      expect(w.reference.slice(0, 11)).toBe('WD-20260804');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

@@ -84,7 +84,8 @@ describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
 
 describe('WithdrawalPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn() };
-  const prisma = { withdrawal: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { withdrawal: model, $queryRaw } as unknown as PrismaService;
   const repo = new WithdrawalPrismaRepository(prisma);
 
   const row = {
@@ -99,6 +100,20 @@ describe('WithdrawalPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // H-13: both withdrawal tables share one reference counter, so both repos delegate to
+  // the same `nextval`. `?? 0` is the no-row case — impossible against a real sequence,
+  // but a 0 suffix is a visible wrong answer rather than a crash.
+  it('reads the shared reference counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(100_042) }]);
+    expect(await repo.nextReferenceSequence()).toBe(100_042);
+    expect(($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('')).toContain(
+      "nextval('withdrawal_reference_seq')",
+    );
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextReferenceSequence()).toBe(0);
+  });
 
   it('creates a withdrawal and maps the Decimal amount to a number', async () => {
     model.create.mockResolvedValue(row);
@@ -384,7 +399,8 @@ describe('CourierWithdrawalPrismaRepository.withdrawWithDebit', () => {
 
 describe('CourierWithdrawalPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn() };
-  const prisma = { courierWithdrawal: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { courierWithdrawal: model, $queryRaw } as unknown as PrismaService;
   const repo = new CourierWithdrawalPrismaRepository(prisma);
 
   const row = {
@@ -399,6 +415,20 @@ describe('CourierWithdrawalPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // H-13: both withdrawal tables share one reference counter, so both repos delegate to
+  // the same `nextval`. `?? 0` is the no-row case — impossible against a real sequence,
+  // but a 0 suffix is a visible wrong answer rather than a crash.
+  it('reads the shared reference counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(100_042) }]);
+    expect(await repo.nextReferenceSequence()).toBe(100_042);
+    expect(($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('')).toContain(
+      "nextval('withdrawal_reference_seq')",
+    );
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextReferenceSequence()).toBe(0);
+  });
 
   it('creates a courier withdrawal and maps the amount', async () => {
     model.create.mockResolvedValue(row);

@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { localHour } from '@hydromart/platform';
 
 import { computeEarning, tiersReached, tiersValid } from '../../domain/courier-earning';
 import {
@@ -18,6 +19,7 @@ import {
 } from '../ports/courier-withdrawal.repository';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
+import { PayoutConfigService } from '../../config/payout-config.service';
 import { withdrawalReference } from './payout.service';
 
 /** Raw delivery-completion event pushed by delivery-service (design 6b earning). */
@@ -38,9 +40,6 @@ export interface CourierEarningsSummary {
   recentWithdrawals: CourierWithdrawalRecord[];
 }
 
-// Indonesia runs one business timezone; peak hours are WIB (UTC+7). ponytail: fixed
-// offset, swap for a per-depot tz only if depots ever span timezones.
-const WIB_OFFSET_HOURS = 7;
 
 @Injectable()
 export class CourierPayoutService {
@@ -51,6 +50,7 @@ export class CourierPayoutService {
     private readonly ledger: CourierLedgerRepository,
     @Inject(PAYOUT_TOKENS.CourierWithdrawalRepository)
     private readonly withdrawals: CourierWithdrawalRepository,
+    private readonly config: PayoutConfigService,
   ) {}
 
   /**
@@ -74,7 +74,9 @@ export class CourierPayoutService {
     }
 
     const deliveredAt = new Date(event.deliveredAt);
-    const hour = (deliveredAt.getUTCHours() + WIB_OFFSET_HOURS) % 24;
+    // H-16: was `getUTCHours() + 7`, a hardcoded offset. The zone is configuration now,
+    // so peak-hour pay cannot disagree with every other day boundary in the platform.
+    const hour = localHour(deliveredAt, this.config.businessTimeZone);
     const amount = computeEarning(rule, { hour, onTime: event.onTime });
 
     const entry = await this.ledger.create({
@@ -181,7 +183,13 @@ export class CourierPayoutService {
     // rows were written independently — an overdraft was reachable by sending two
     // requests together, and a crash between the writes left a PROCESSING payout with
     // the balance untouched.
-    const reference = withdrawalReference(new Date());
+    //
+    // H-13: the reference comes from a sequence stamped in the business timezone.
+    const reference = withdrawalReference(
+      new Date(),
+      await this.withdrawals.nextReferenceSequence(),
+      this.config.businessTimeZone,
+    );
     const outcome = await this.withdrawals.withdrawWithDebit({
       courierId,
       amount,

@@ -280,6 +280,17 @@ export interface SegmentConditions {
 }
 
 export interface OrderRepository {
+  /**
+   * The next value of the order-number counter, strictly increasing and never repeated.
+   *
+   * The number used to be six random digits, and `orderNumber` is `@unique` — so a
+   * collision was not a cosmetic duplicate, it was a failed insert on a real customer's
+   * checkout. At 1,000 orders/day the birthday bound puts that near 40% of days. A
+   * Postgres sequence removes the class of bug rather than shrinking its probability:
+   * `nextval` is transactional-safe, never hands the same value to two sessions, and
+   * costs one round-trip.
+   */
+  nextOrderSequence(): Promise<number>;
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
   /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
