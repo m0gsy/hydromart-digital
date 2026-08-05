@@ -17,6 +17,13 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 const IV_BYTES = 12;
 const TAG_BYTES = 16;
 
+// GCM accepts a SHORTER tag than the one that was written unless the length is pinned
+// here. Left open, a stored blob truncated to a 4-byte tag still verifies — 2^-32 work to
+// forge instead of 2^-128 — and the row that decrypts is the one that decides whose face
+// this is. Passed to both halves so the encrypt side can never emit a length the decrypt
+// side would not demand.
+const GCM = { authTagLength: TAG_BYTES } as const;
+
 /** Any passphrase becomes a 32-byte key; a hex key is used for what it is. */
 function keyFrom(secret: string): Buffer {
   if (/^[0-9a-f]{64}$/i.test(secret)) return Buffer.from(secret, 'hex');
@@ -25,7 +32,7 @@ function keyFrom(secret: string): Buffer {
 
 export function encryptVector(vector: number[], secret: string): Buffer {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv('aes-256-gcm', keyFrom(secret), iv);
+  const cipher = createCipheriv('aes-256-gcm', keyFrom(secret), iv, GCM);
   const plain = Buffer.from(Float64Array.from(vector).buffer);
   const body = Buffer.concat([cipher.update(plain), cipher.final()]);
   return Buffer.concat([iv, cipher.getAuthTag(), body]);
@@ -33,7 +40,12 @@ export function encryptVector(vector: number[], secret: string): Buffer {
 
 export function decryptVector(blob: Uint8Array, secret: string): number[] {
   const buf = Buffer.from(blob);
-  const decipher = createDecipheriv('aes-256-gcm', keyFrom(secret), buf.subarray(0, IV_BYTES));
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    keyFrom(secret),
+    buf.subarray(0, IV_BYTES),
+    GCM,
+  );
   decipher.setAuthTag(buf.subarray(IV_BYTES, IV_BYTES + TAG_BYTES));
   const plain = Buffer.concat([
     decipher.update(buf.subarray(IV_BYTES + TAG_BYTES)),

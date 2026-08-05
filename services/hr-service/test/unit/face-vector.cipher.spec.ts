@@ -31,4 +31,12 @@ describe('face vector cipher (B-19)', () => {
     expect(() => decryptVector(tampered, KEY)).toThrow();
     expect(() => decryptVector(blob, 'b'.repeat(64))).toThrow();
   });
+
+  // Without a pinned authTagLength, GCM verifies whatever tag length it is handed — so a
+  // blob whose 16-byte tag was cut to 4 would still authenticate, at 2^-32 forgery work.
+  it('refuses a blob whose authentication tag was truncated', () => {
+    const blob = encryptVector([0.25, -0.5], KEY);
+    const shortTag = Buffer.concat([blob.subarray(0, 12 + 4), blob.subarray(12 + 16)]);
+    expect(() => decryptVector(shortTag, KEY)).toThrow();
+  });
 });
