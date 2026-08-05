@@ -36,6 +36,17 @@ export class AccessMatrixService {
     private readonly overrides: CapabilityOverrideRepository,
   ) {}
 
+  /**
+   * How long a poll may be served from the last read (audit S-8). Sixteen services poll
+   * this table on a timer; serving every one of them a fresh SELECT meant the matrix was
+   * re-read about thirty times a minute, forever, to answer with the same handful of rows.
+   *
+   * The window is short because it is also the propagation delay of a matrix edit — and an
+   * edit refreshes the cache itself, so the only cost is what OTHER instances wait.
+   */
+  private static readonly PATCH_TTL_MS = 15_000;
+  private cached: { at: number; patch: CapabilityOverrides } | null = null;
+
   /** Load the patch from the database into this process's live map. */
   async refresh(): Promise<CapabilityOverrides> {
     const rows = await this.overrides.listAll();
@@ -44,11 +55,15 @@ export class AccessMatrixService {
       patch[row.capability] = row.roles;
     }
     loadOverrides(patch);
+    this.cached = { at: Date.now(), patch };
     return patch;
   }
 
-  /** The patch as the pollers consume it. */
+  /** The patch as the pollers consume it — from the last read while it is still fresh. */
   async patch(): Promise<CapabilityOverrides> {
+    if (this.cached && Date.now() - this.cached.at < AccessMatrixService.PATCH_TTL_MS) {
+      return this.cached.patch;
+    }
     return this.refresh();
   }
 

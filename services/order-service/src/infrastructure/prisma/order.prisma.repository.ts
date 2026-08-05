@@ -106,7 +106,8 @@ interface OrderRow {
   driverPhone: string | null;
   estimatedArrivalAt: Date | null;
   items: ItemRow[];
-  history: HistoryRow[];
+  // Absent on the report and sweep reads, which do not render a timeline (audit S-23).
+  history?: HistoryRow[];
   // id-only: toRecord derives just the `reviewed` flag (INCLUDE selects id alone, DB-9).
   review: { id: string } | null;
   createdAt: Date;
@@ -154,6 +155,18 @@ function isUniqueViolation(error: unknown, field: string): boolean {
   const target = meta?.target;
   return Array.isArray(target) ? target.includes(field) : String(target ?? '').includes(field);
 }
+
+/**
+ * The same row without its status history (audit S-23). The timeline is what the customer
+ * and the ops console read on ONE order; a monthly depot report reads every order that depot
+ * took and renders none of them, so it was hauling eight history rows per order for nothing.
+ * Reads that use this must not surface `history` — `toRecord` reports it as empty, which is
+ * the truth about what was fetched rather than a claim that the order has no timeline.
+ */
+const INCLUDE_NO_HISTORY = {
+  items: INCLUDE.items,
+  review: INCLUDE.review,
+};
 
 @Injectable()
 export class OrderPrismaRepository implements OrderRepository {
@@ -203,7 +216,7 @@ export class OrderPrismaRepository implements OrderRepository {
         quantity: i.quantity,
         lineTotal: i.lineTotal.toNumber(),
       })),
-      history: row.history.map((h) => ({
+      history: (row.history ?? []).map((h) => ({
         status: h.status as OrderStatus,
         changedBy: h.changedBy,
         note: h.note,
@@ -233,14 +246,21 @@ export class OrderPrismaRepository implements OrderRepository {
     limit: number,
   ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
     // Customers whose LATEST order is older than the cutoff = no order since.
-    const grouped = await this.prisma.order.groupBy({
-      by: ['customerId'],
-      _max: { createdAt: true },
-    });
-    const dueIds = grouped
-      .filter((g) => g._max.createdAt != null && g._max.createdAt < cutoff)
-      .map((g) => g.customerId)
-      .slice(0, limit);
+    //
+    // The HAVING and the LIMIT are in the statement (audit S-12). Prisma's groupBy has no
+    // HAVING over an aggregate it did not select, so this used to group the WHOLE order
+    // table, ship every customer who has ever ordered back to Node, and throw away all but
+    // `limit` of them in JavaScript — the cost of one reminder sweep was the whole customer
+    // base.
+    const rows = await this.prisma.$queryRaw<{ customerId: string }[]>(Prisma.sql`
+      SELECT "customerId"
+      FROM "orders"
+      GROUP BY "customerId"
+      HAVING MAX("createdAt") < ${cutoff}
+      ORDER BY MAX("createdAt") ASC
+      LIMIT ${limit}
+    `);
+    const dueIds = rows.map((r) => r.customerId);
     if (dueIds.length === 0) return [];
     return this.latestContactPerCustomer(dueIds);
   }
@@ -409,7 +429,8 @@ export class OrderPrismaRepository implements OrderRepository {
     // over several ticks instead of one tick trying to load every stale order at once.
     const rows = await this.prisma.order.findMany({
       where: { status: { in: statuses }, createdAt: { lt: before } },
-      include: INCLUDE,
+      // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
+      include: INCLUDE_NO_HISTORY,
       orderBy: { createdAt: 'asc' },
       take: limit,
     });
@@ -821,7 +842,7 @@ export class OrderPrismaRepository implements OrderRepository {
       ({ take, cursor }) =>
         this.prisma.order.findMany({
           where,
-          include: INCLUDE,
+          include: INCLUDE_NO_HISTORY,
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           take,
           ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

@@ -89,6 +89,7 @@ function makePrisma(): FakePrisma {
   for (const name of MODELS) client[name] = model();
   client.$connect = jest.fn();
   client.$disconnect = jest.fn();
+  client.$queryRaw = jest.fn().mockResolvedValue([]);
   // Array form → resolve every op; callback form → run against the same client.
   client.$transaction = jest.fn((arg: unknown) =>
     Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(client),
@@ -913,6 +914,79 @@ describe('AnalyticsPrismaRepository', () => {
       where: { workDate: wd, depotId: { in: ['d1'] } },
       _count: { _all: true },
     });
+  });
+
+  it('summaryMany counts PRESENT/LATE/LEAVE per employee in one grouped query', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { employeeId: 'e1', status: 'PRESENT', _count: { _all: 18 } },
+      { employeeId: 'e1', status: 'LATE', _count: { _all: 2 } },
+      { employeeId: 'e1', status: 'LEAVE', _count: { _all: 1 } },
+      { employeeId: 'e2', status: 'ABSENT', _count: { _all: 3 } },
+    ]);
+    const repo = new AttendancePrismaRepository(asService(p));
+    const out = await repo.summaryMany(['e1', 'e2'], new Date('2026-07-01'), new Date('2026-07-31'));
+
+    // Same arithmetic as summary(): presentDays counts PRESENT *and* LATE.
+    expect(out.get('e1')).toEqual({ presentDays: 20, lateDays: 2, leaveDays: 1 });
+    expect(out.get('e2')).toEqual({ presentDays: 0, lateDays: 0, leaveDays: 0 });
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
+  });
+
+  it('summaryMany asks nothing for an empty employee list', async () => {
+    const p = makePrisma();
+    const repo = new AttendancePrismaRepository(asService(p));
+    expect((await repo.summaryMany([], new Date(), new Date())).size).toBe(0);
+    expect(m(p, 'attendance').groupBy).not.toHaveBeenCalled();
+  });
+
+  it('depotSummaryFacts answers every depot in three queries, keyed by depot', async () => {
+    const p = makePrisma();
+    const wd = new Date('2026-07-01');
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { depotId: 'd1', status: 'LATE', _count: { _all: 2 } },
+      { depotId: 'd1', status: 'PRESENT', _count: { _all: 7 } },
+      { depotId: 'd2', status: 'ABSENT', _count: { _all: 1 } },
+      // A punch with no depot on it cannot be attributed and must not crash the roll-up.
+      { depotId: null, status: 'PRESENT', _count: { _all: 5 } },
+    ]);
+    m(p, 'employee').groupBy.mockResolvedValue([
+      { depotId: 'd1', _count: { _all: 9 } },
+      { depotId: null, _count: { _all: 3 } },
+    ]);
+    // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: { toString: () => '0' } }]);
+
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    const facts = await repo.depotSummaryFacts(wd, '2026-07', ['d1', 'd2', 'd3']);
+
+    expect(facts.get('d1')).toEqual({
+      lateToday: 2,
+      absentToday: 0,
+      presentToday: 7,
+      payrollMtdNet: 0,
+      activeHeadcount: 9,
+    });
+    expect(facts.get('d2')?.absentToday).toBe(1);
+    // A depot with nothing at all is simply absent — the service decides what that means.
+    expect(facts.has('d3')).toBe(false);
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('depotSummaryFacts reads a null payroll sum as zero, and asks nothing for no depots', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([]);
+    m(p, 'employee').groupBy.mockResolvedValue([]);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: null }]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+
+    const facts = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', ['d1']);
+    expect(facts.get('d1')?.payrollMtdNet).toBe(0);
+
+    const none = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', []);
+    expect(none.size).toBe(0);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('payrollTotals converts Decimals (and null → 0), scoped by depot', async () => {

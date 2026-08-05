@@ -14,14 +14,12 @@ describe('RecommendationPrismaRepository', () => {
   const customerProductPurchase = { findMany: jest.fn() };
   const productCoBuy = { findMany: jest.fn() };
   const productRef = { findUnique: jest.fn(), findMany: jest.fn() };
-  const productDailySales = { findMany: jest.fn() };
+  const productDailySales = { findMany: jest.fn(), groupBy: jest.fn() };
 
   // Write-path models (accessed via tx.* inside the transaction callback)
   const tx = {
-    customerProductPurchase: { upsert: jest.fn() },
-    productRef: { upsert: jest.fn() },
-    productDailySales: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
-    productCoBuy: { upsert: jest.fn() },
+    $executeRaw: jest.fn(),
+    productDailySales: { findMany: jest.fn(), updateMany: jest.fn(), createMany: jest.fn() },
     ingestedOrder: { create: jest.fn() },
   };
   const $transaction = jest.fn((cb: (t: unknown) => unknown) => cb(tx));
@@ -46,7 +44,10 @@ describe('RecommendationPrismaRepository', () => {
     expect(await repo.hasIngested('ord-2')).toBe(false);
   });
 
-  it('applies an ingest atomically: purchases, refs, daily sales, co-buys, marker', async () => {
+  // Audit S-5 and its Q-17 baseline row: one order used to cost three statements per line
+  // plus two per product PAIR, all inside one interactive transaction. The count is fixed
+  // now, and the statements carry the whole order.
+  it('writes the whole order in one round of statements', async () => {
     const cmd: IngestCommand = {
       orderId: 'ord-1',
       customerId: 'cust-1',
@@ -57,44 +58,25 @@ describe('RecommendationPrismaRepository', () => {
         { productId: 'p-2', productName: 'Botol 600ml', sku: 'B600', unit: 'botol' },
       ],
     };
-    // First item: no existing daily row (create); second item: existing (update).
-    tx.productDailySales.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pds-2' });
+    // p-1 has no daily row yet (insert); p-2 already has one (increment).
+    tx.productDailySales.findMany.mockResolvedValue([{ id: 'pds-2', productId: 'p-2' }]);
 
     await repo.applyIngest(cmd);
 
     const day = new Date(Date.UTC(2026, 0, 15));
     expect($transaction).toHaveBeenCalledTimes(1);
-    expect(tx.customerProductPurchase.upsert).toHaveBeenCalledTimes(2);
-    expect(tx.customerProductPurchase.upsert).toHaveBeenNthCalledWith(1, {
-      where: { customerId_productId: { customerId: 'cust-1', productId: 'p-1' } },
-      create: { customerId: 'cust-1', productId: 'p-1', purchaseCount: 1, lastPurchasedAt: cmd.at },
-      update: { purchaseCount: { increment: 1 }, lastPurchasedAt: cmd.at },
+    // purchases + refs + co-buys: three statements for a two-line order, not six.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(tx.productDailySales.findMany).toHaveBeenCalledWith({
+      where: { productId: { in: ['p-1', 'p-2'] }, depotId: 'depot-1', day },
+      select: { id: true, productId: true },
     });
-    expect(tx.productRef.upsert).toHaveBeenNthCalledWith(1, {
-      where: { productId: 'p-1' },
-      create: { productId: 'p-1', name: 'Galon 19L', sku: 'G19', unit: 'galon', buyCount: 1 },
-      update: { name: 'Galon 19L', sku: 'G19', unit: 'galon', buyCount: { increment: 1 } },
-    });
-    // p-1: no existing row -> create with the derived UTC day.
-    expect(tx.productDailySales.create).toHaveBeenCalledWith({
-      data: { productId: 'p-1', depotId: 'depot-1', day, count: 1 },
-    });
-    // p-2: existing row -> increment.
-    expect(tx.productDailySales.update).toHaveBeenCalledWith({
-      where: { id: 'pds-2' },
+    expect(tx.productDailySales.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['pds-2'] } },
       data: { count: { increment: 1 } },
     });
-    // One unordered pair (p-1, p-2) -> two symmetric co-buy upserts.
-    expect(tx.productCoBuy.upsert).toHaveBeenCalledTimes(2);
-    expect(tx.productCoBuy.upsert).toHaveBeenNthCalledWith(1, {
-      where: { productId_relatedProductId: { productId: 'p-1', relatedProductId: 'p-2' } },
-      create: { productId: 'p-1', relatedProductId: 'p-2', coCount: 1 },
-      update: { coCount: { increment: 1 } },
-    });
-    expect(tx.productCoBuy.upsert).toHaveBeenNthCalledWith(2, {
-      where: { productId_relatedProductId: { productId: 'p-2', relatedProductId: 'p-1' } },
-      create: { productId: 'p-2', relatedProductId: 'p-1', coCount: 1 },
-      update: { coCount: { increment: 1 } },
+    expect(tx.productDailySales.createMany).toHaveBeenCalledWith({
+      data: [{ productId: 'p-1', depotId: 'depot-1', day, count: 1 }],
     });
     expect(tx.ingestedOrder.create).toHaveBeenCalledWith({ data: { orderId: 'ord-1' } });
   });
@@ -110,9 +92,42 @@ describe('RecommendationPrismaRepository', () => {
         { productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon' },
       ],
     };
-    tx.productDailySales.findFirst.mockResolvedValue({ id: 'pds-1' });
+    tx.productDailySales.findMany.mockResolvedValue([{ id: 'pds-1', productId: 'p-1' }]);
     await repo.applyIngest(cmd);
-    expect(tx.productCoBuy.upsert).not.toHaveBeenCalled();
+    // Two statements, not three: purchases and refs, and NO co-buy insert at all.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    // The product bought twice increments by two, exactly as two separate bumps did.
+    expect(tx.productDailySales.updateMany).toHaveBeenCalledWith({
+      where: { id: { in: ['pds-1'] } },
+      data: { count: { increment: 2 } },
+    });
+  });
+
+  it('writes nothing but the marker for an order with no lines', async () => {
+    await repo.applyIngest({
+      orderId: 'ord-3',
+      customerId: 'cust-1',
+      depotId: null,
+      at: new Date('2026-01-15T00:00:00Z'),
+      items: [],
+    });
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    expect(tx.ingestedOrder.create).toHaveBeenCalledWith({ data: { orderId: 'ord-3' } });
+  });
+
+  it('inserts every daily row when the day is empty', async () => {
+    tx.productDailySales.findMany.mockResolvedValue([]);
+    await repo.applyIngest({
+      orderId: 'ord-4',
+      customerId: 'cust-1',
+      depotId: null,
+      at: new Date('2026-01-15T00:00:00Z'),
+      items: [{ productId: 'p-9', productName: 'Galon', sku: 'G', unit: 'galon' }],
+    });
+    expect(tx.productDailySales.updateMany).not.toHaveBeenCalled();
+    expect(tx.productDailySales.createMany).toHaveBeenCalledWith({
+      data: [{ productId: 'p-9', depotId: null, day: new Date(Date.UTC(2026, 0, 15)), count: 1 }],
+    });
   });
 
   it('maps reorder rows for a customer', async () => {
@@ -140,19 +155,27 @@ describe('RecommendationPrismaRepository', () => {
     expect(out).toEqual({ rows: [], baseCount: 0 });
   });
 
-  it('lists trending daily rows, scoping by depot when given', async () => {
-    productDailySales.findMany.mockResolvedValue([
-      { productId: 'p-1', day: new Date('2026-01-15'), count: 3 },
-    ]);
+  // Audit S-18 and its Q-17 baseline row: a year of daily rows used to come back so the
+  // service could add them up and keep ten.
+  it('groups and limits in SQL', async () => {
+    productDailySales.groupBy.mockResolvedValue([{ productId: 'p-1', _sum: { count: 3 } }]);
     const fromDay = new Date('2026-01-01');
-    const out = await repo.trendingRows('depot-1', fromDay);
-    expect(out).toEqual([{ productId: 'p-1', day: new Date('2026-01-15'), count: 3 }]);
-    expect(productDailySales.findMany).toHaveBeenCalledWith({
+    const out = await repo.trendingTotals('depot-1', fromDay, 10);
+    expect(out).toEqual([{ productId: 'p-1', score: 3 }]);
+    expect(productDailySales.groupBy).toHaveBeenCalledWith({
+      by: ['productId'],
       where: { day: { gte: fromDay }, depotId: 'depot-1' },
+      _sum: { count: true },
+      orderBy: [{ _sum: { count: 'desc' } }, { productId: 'asc' }],
+      take: 10,
     });
 
-    await repo.trendingRows(null, fromDay);
-    expect(productDailySales.findMany).toHaveBeenLastCalledWith({ where: { day: { gte: fromDay } } });
+    // A row with no sum at all reads as zero, never NaN.
+    productDailySales.groupBy.mockResolvedValue([{ productId: 'p-2', _sum: { count: null } }]);
+    expect(await repo.trendingTotals(null, fromDay, 5)).toEqual([{ productId: 'p-2', score: 0 }]);
+    expect(productDailySales.groupBy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { day: { gte: fromDay } } }),
+    );
   });
 
   it('builds a product-ref map keyed by product id', async () => {

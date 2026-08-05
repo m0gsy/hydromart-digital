@@ -70,6 +70,11 @@ export class ProductPrismaRepository implements ProductRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async findActiveByIds(ids: string[]): Promise<ProductRecord[]> {
+    const rows = await this.prisma.product.findMany({ where: { id: { in: ids }, active: true } });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async findBySku(sku: string): Promise<ProductRecord | null> {
     const row = await this.prisma.product.findUnique({ where: { sku } });
     return row ? this.toRecord(row) : null;

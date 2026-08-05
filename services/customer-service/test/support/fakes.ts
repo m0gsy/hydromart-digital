@@ -66,6 +66,14 @@ export class InMemoryProfileRepository implements ProfileRepository {
     this.rows.set(customerId, rec);
     return rec;
   }
+  // Audit S-16: create-or-point in one call. Counted so the import test can assert the
+  // per-row cost stopped being three statements.
+  upsertCalls = 0;
+  async upsertFavoriteDepot(customerId: string, favoriteDepotId: string) {
+    this.upsertCalls += 1;
+    if (!this.rows.has(customerId)) await this.create(customerId);
+    return this.updateFavoriteDepot(customerId, favoriteDepotId);
+  }
   async updateFavoriteDepot(customerId: string, favoriteDepotId: string | null) {
     const rec = this.rows.get(customerId)!;
     rec.favoriteDepotId = favoriteDepotId;

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { localDayKey } from '@hydromart/platform';
 import { VoucherNotFoundError } from '../../src/domain/errors';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
@@ -17,6 +18,7 @@ import {
   VoucherRecord,
   VoucherRedemptionRecord,
   VoucherRepository,
+  RedemptionAnalytics,
 } from '../../src/application/ports/voucher.repository';
 
 let seq = 0;
@@ -157,6 +159,57 @@ export class InMemoryVoucherRepository implements VoucherRepository {
   async findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null> {
     const r = this.redemptions.find((x) => x.orderId === orderId);
     return r ? { ...r } : null;
+  }
+
+  // Audit S-14: the aggregate the database now computes. Modelled on the same rows the
+  // fake already holds, so a test that seeds redemptions still gets the real numbers.
+  async redemptionAnalytics(
+    voucherId: string,
+    from: Date,
+    to: Date,
+    topCustomers: number,
+    timeZone: string,
+  ): Promise<RedemptionAnalytics> {
+    const rows = this.redemptions.filter((r) => r.voucherId === voucherId);
+    const inWindow = rows.filter((r) => r.createdAt >= from && r.createdAt < to);
+    const byDay = new Map<string, number>();
+    for (const row of inWindow) {
+      // The SQL cuts the label with AT TIME ZONE (H-16), so this must too — a fake that
+      // buckets on UTC passes the concurrency of the day boundary it is meant to prove.
+      const day = localDayKey(row.createdAt, timeZone);
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    const byCustomer = new Map<string, { uses: number; savingsIdr: number }>();
+    for (const row of rows) {
+      const current = byCustomer.get(row.customerId) ?? { uses: 0, savingsIdr: 0 };
+      current.uses += 1;
+      current.savingsIdr += row.discountApplied;
+      byCustomer.set(row.customerId, current);
+    }
+    return {
+      totalUses: rows.length,
+      totalSavingsIdr: rows.reduce((sum, r) => sum + r.discountApplied, 0),
+      usesInWindow: inWindow.length,
+      dailyUses: [...byDay.entries()]
+        .map(([day, uses]) => ({ day, uses }))
+        .sort((a, b) => a.day.localeCompare(b.day)),
+      topCustomers: [...byCustomer.entries()]
+        .map(([customerId, aggregate]) => ({ customerId, ...aggregate }))
+        .sort(
+          (a, b) =>
+            b.uses - a.uses ||
+            b.savingsIdr - a.savingsIdr ||
+            a.customerId.localeCompare(b.customerId),
+        )
+        .slice(0, topCustomers),
+      orderIds: [
+        ...new Set(
+          [...rows]
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .map((r) => r.orderId),
+        ),
+      ],
+    };
   }
 
   async findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]> {

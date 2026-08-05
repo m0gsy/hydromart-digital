@@ -131,6 +131,12 @@ jobs:
       - name: API response documentation ratchet
         run: node scripts/check-api-responses.mjs
 
+      # The performance baseline (audit Q-17) names, per hot path, the test that holds its
+      # round-trip count. A renamed or deleted test turns that table into a promise nobody
+      # is keeping, so the reference is checked here.
+      - name: Performance baseline references
+        run: node scripts/check-perf-baseline.mjs
+
       - name: Typecheck
         run: npm run typecheck
 

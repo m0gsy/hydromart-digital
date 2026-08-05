@@ -9,6 +9,7 @@ import {
   ProductRefRecord,
   RevenueRow,
 } from '../../application/ports/forecast.repository';
+import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
 const MS_PER_DAY = 86_400_000;
@@ -34,38 +35,82 @@ export class ForecastPrismaRepository implements ForecastRepository {
       const already = await tx.ingestedOrder.findUnique({ where: { orderId: cmd.orderId } });
       if (already) return;
 
+      // Audit S-20: three statements per item inside an interactive transaction, so a
+      // ten-line order held its locks across thirty round-trips. Three statements for the
+      // whole order now. A product listed twice is folded into one row first — an INSERT
+      // cannot touch the same conflicting row twice, and two increments are one sum.
+      const perProduct = new Map<
+        string,
+        { item: IngestCommand['items'][number]; quantity: number; orders: number }
+      >();
       for (const item of cmd.items) {
-        await tx.productRef.upsert({
-          where: { productId: item.productId },
-          create: { productId: item.productId, name: item.productName, sku: item.sku, unit: item.unit },
-          update: { name: item.productName, sku: item.sku, unit: item.unit },
-        });
-
-        // Prisma's compound-unique where input requires a non-null depotId, but depotId is
-        // nullable here, so upsert-by-compound-key isn't typeable. Find-then-write instead;
-        // safe within one interactive $transaction for the common (non-concurrent) case.
-        // ponytail: two CONCURRENT ingests racing on the same product+day have a known ceiling:
-        //   depotId=null -> Postgres unique treats NULL != NULL so both create (harmless extra
-        //   rows; denseDailySeries re-sums per day). non-null depotId -> loser hits P2002 and the
-        //   whole tx rolls back, leaving no IngestedOrder row so a later rebuild re-ingests it.
-        //   Upgrade path: partial unique index WHERE depot_id IS NULL + raw ON CONFLICT upsert.
-        const existing = await tx.productDailyDemand.findFirst({
-          where: { productId: item.productId, depotId: cmd.depotId, day },
-        });
-        if (existing) {
-          await tx.productDailyDemand.update({
-            where: { id: existing.id },
-            data: { quantity: { increment: item.quantity }, orderCount: { increment: 1 } },
-          });
+        const current = perProduct.get(item.productId);
+        if (current) {
+          current.quantity += item.quantity;
+          current.orders += 1;
         } else {
-          await tx.productDailyDemand.create({
-            data: {
-              productId: item.productId,
+          perProduct.set(item.productId, { item, quantity: item.quantity, orders: 1 });
+        }
+      }
+      const products = [...perProduct.values()];
+
+      if (products.length > 0) {
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "product_ref" ("productId", "name", "sku", "unit", "updatedAt")
+          VALUES ${Prisma.join(
+            products.map(
+              (p) =>
+                Prisma.sql`(${p.item.productId}::uuid, ${p.item.productName}, ${p.item.sku}, ${p.item.unit}, NOW())`,
+            ),
+          )}
+          ON CONFLICT ("productId") DO UPDATE
+          SET "name" = EXCLUDED."name", "sku" = EXCLUDED."sku", "unit" = EXCLUDED."unit",
+              "updatedAt" = NOW()`);
+
+        // The @@unique carries a nullable depotId and Postgres unique treats NULL as
+        // distinct, so ON CONFLICT cannot be used for a depot-less order. Read what exists,
+        // bump those, insert the rest.
+        // ponytail: the concurrency ceiling is unchanged — depotId = null lets two racing
+        //   ingests both insert (extra rows, correct totals, since the series re-sums per
+        //   day); a non-null depotId makes the loser hit P2002 and roll its whole ingest
+        //   back, leaving no IngestedOrder row so a rebuild re-ingests it. Upgrade path: a
+        //   partial unique index WHERE "depotId" IS NULL, then a raw ON CONFLICT here too.
+        const existing = await tx.productDailyDemand.findMany({
+          where: {
+            productId: { in: products.map((p) => p.item.productId) },
+            depotId: cmd.depotId,
+            day,
+          },
+          select: { id: true, productId: true },
+        });
+        const idByProduct = new Map(existing.map((row) => [row.productId, row.id]));
+        const updates = products.filter((p) => idByProduct.has(p.item.productId));
+        if (updates.length > 0) {
+          // Increments differ per product, so this is one UPDATE ... FROM (VALUES), the
+          // same shape depot-service uses to release many reservations at once.
+          await tx.$executeRaw(Prisma.sql`
+            UPDATE "product_daily_demand" AS d
+            SET "quantity" = d."quantity" + v."q",
+                "orderCount" = d."orderCount" + v."c",
+                "updatedAt" = NOW()
+            FROM (VALUES ${Prisma.join(
+              updates.map(
+                (p) =>
+                  Prisma.sql`(${idByProduct.get(p.item.productId)!}::uuid, ${p.quantity}::int, ${p.orders}::int)`,
+              ),
+            )}) AS v("id", "q", "c")
+            WHERE d."id" = v."id"`);
+        }
+        const missing = products.filter((p) => !idByProduct.has(p.item.productId));
+        if (missing.length > 0) {
+          await tx.productDailyDemand.createMany({
+            data: missing.map((p) => ({
+              productId: p.item.productId,
               depotId: cmd.depotId,
               day,
-              quantity: item.quantity,
-              orderCount: 1,
-            },
+              quantity: p.quantity,
+              orderCount: p.orders,
+            })),
           });
         }
       }

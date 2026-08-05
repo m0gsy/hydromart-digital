@@ -62,7 +62,7 @@ export class OperationalReportService {
   ) {}
 
   async report(depotId: string, range: OperationalReportRange): Promise<OperationalCostReport> {
-    if (!(await this.depots.findById(depotId, false))) throw new DepotNotFoundError();
+    if (!(await this.depots.exists(depotId))) throw new DepotNotFoundError();
 
     const input = await this.reports.load(depotId, range);
     const receivedPurchaseOrders = [...input.receivedPurchaseOrders].sort(
@@ -76,6 +76,12 @@ export class OperationalReportService {
       ids.add(sale.itemId);
       saleItemIdsByKey.set(key, ids);
     }
+
+    // Audit S-9: this was the report's worst hotspot. Every sale re-walked every received
+    // purchase order and re-filtered its lines, so the cost was sales x orders x lines —
+    // quadratic in a depot's own history. The walk happens ONCE now, keyed by item, and a
+    // sale only looks at the orders that actually carry its item.
+    const costsByItem = OperationalReportService.costIndex(receivedPurchaseOrders);
 
     let coveredAmountIdr = 0;
     let coveredUnits = 0;
@@ -102,7 +108,7 @@ export class OperationalReportService {
         continue;
       }
 
-      const match = OperationalReportService.latestDirectCost(receivedPurchaseOrders, sale);
+      const match = OperationalReportService.latestDirectCost(costsByItem, sale);
       if (match === null) {
         addUncovered(sale, 'NO_MATCHING_RECEIVED_PO');
         continue;
@@ -179,20 +185,47 @@ export class OperationalReportService {
     };
   }
 
-  private static latestDirectCost(
+  /**
+   * One pass over the received purchase orders, producing per item key the cost each order
+   * recorded for it, in the order they were received. Two lines of the SAME order disagreeing
+   * on the unit cost is what 'ambiguous' means — that is decided here, once per order, rather
+   * than re-derived for every sale.
+   */
+  private static costIndex(
     purchaseOrders: ReceivedPurchaseOrderCostInput[],
+  ): Map<string, { receivedAt: Date; cost: number | 'ambiguous' }[]> {
+    const index = new Map<string, { receivedAt: Date; cost: number | 'ambiguous' }[]>();
+    for (const po of purchaseOrders) {
+      const costsByKey = new Map<string, Set<number>>();
+      for (const line of po.lines) {
+        const key = itemKey(line);
+        const costs = costsByKey.get(key) ?? new Set<number>();
+        costs.add(line.unitCostIdr);
+        costsByKey.set(key, costs);
+      }
+      for (const [key, costs] of costsByKey) {
+        const entry = {
+          receivedAt: po.receivedAt,
+          cost: costs.size > 1 ? ('ambiguous' as const) : [...costs][0],
+        };
+        const existing = index.get(key);
+        if (existing) existing.push(entry);
+        else index.set(key, [entry]);
+      }
+    }
+    return index;
+  }
+
+  private static latestDirectCost(
+    costsByItem: Map<string, { receivedAt: Date; cost: number | 'ambiguous' }[]>,
     sale: SaleCostInput,
   ): number | null | 'ambiguous' {
-    const key = itemKey(sale);
-    for (let index = purchaseOrders.length - 1; index >= 0; index -= 1) {
-      const po = purchaseOrders[index];
-      if (po.receivedAt > sale.occurredAt) continue;
-      const costs = new Set(
-        po.lines.filter((line) => itemKey(line) === key).map((line) => line.unitCostIdr),
-      );
-      if (costs.size === 0) continue;
-      if (costs.size > 1) return 'ambiguous';
-      return [...costs][0];
+    const entries = costsByItem.get(itemKey(sale)) ?? [];
+    // Newest order at or before the sale wins — same rule as before, same ordering
+    // (the caller sorts by receivedAt, then poNumber).
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      if (entries[index].receivedAt > sale.occurredAt) continue;
+      return entries[index].cost;
     }
     return null;
   }

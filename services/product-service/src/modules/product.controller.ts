@@ -49,6 +49,23 @@ export class ProductController {
     return this.products.browse(query, false);
   }
 
+  // The batch of the route below (audit S-7): checkout resolves every cart line at once,
+  // and used to open one HTTP call per line to do it. Declared above `:id` so 'batch' is
+  // not parsed as a product id. Active only, same as the single-product route; an id that
+  // does not exist is simply absent from the reply rather than failing the whole call.
+  @ApiOkResponse({ type: ProductResponseDto, isArray: true })
+  @Public()
+  @Get('batch')
+  @ApiOperation({ summary: 'Get many active products by id, comma-separated' })
+  batch(@Query('ids') ids: string): Promise<ProductRecord[]> {
+    return this.products.byIds(
+      (ids ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+  }
+
   @Public()
   @Get(':id')
   @ApiOperation({ summary: 'Get an active product by id' })

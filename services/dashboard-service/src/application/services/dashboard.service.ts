@@ -316,12 +316,18 @@ export class DashboardService {
     const depotIds = (depots ?? []).map((d) => d.id);
     const deliverySlaP =
       depotIds.length > 0 ? this.sources.deliverySla(range, token, depotIds) : Promise.resolve(null);
+    // One call per source for the whole set of owned depots, not one per depot (audit
+    // S-1): an owner with 12 depots used to open this page with 36 HTTP requests.
+    // Still best-effort per source — a null keeps that section 'unavailable' and the rest
+    // of the dashboard renders.
     const lowStockP: Promise<(LowStockLine[] | null)[]> = depots
-      ? Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
+      ? this.sources
+          .lowStockMany(depotIds, token)
+          .then((byDepot) => depotIds.map((id) => byDepot?.get(id) ?? null))
       : Promise.resolve([]);
-    // HR + CRM per-depot summaries (Fase 5) — internal-key fan-out, best-effort per depot.
-    const hrP = Promise.all(depotIds.map((id) => this.sources.hrSummary(id)));
-    const crmP = Promise.all(depotIds.map((id) => this.sources.crmSummary(id)));
+    // HR + CRM per-depot summaries (Fase 5) — internal-key batch, best-effort per depot.
+    const hrP = this.sources.hrSummaryMany(depotIds);
+    const crmP = this.sources.crmSummaryMany(depotIds);
     const [deliverySla, lowStockLists, hrList, crmList] = await Promise.all([
       deliverySlaP,
       lowStockP,

@@ -152,6 +152,11 @@ export interface DashboardSourcesPort {
   myDepots(token: string): Promise<FranchiseDepot[] | null>;
   /** Low-stock lines for one depot (depot-service GET /inventory/low-stock?depotId=). */
   lowStock(depotId: string, token: string): Promise<LowStockLine[] | null>;
+  /**
+   * Low-stock lines for MANY depots in one call, keyed by depot id (audit S-1). The owner
+   * dashboard used to fan out one request per owned depot.
+   */
+  lowStockMany(depotIds: string[], token: string): Promise<Map<string, LowStockLine[]> | null>;
   /** Every depot incl. inactive (depot-service GET /depots/manage); for the network roll-up. */
   allDepots(token: string): Promise<NetworkDepot[] | null>;
   /** On-time SLA grouped per depot (delivery-service GET /reports/sla-by-depot). */
@@ -168,6 +173,10 @@ export interface DashboardSourcesPort {
   ): Promise<DepotOperationalCosts | null>;
   /** One depot's HR summary (late/absent today, payroll MTD); null when hr-service is unwired/down. */
   hrSummary(depotId: string): Promise<HrDepotSummary | null>;
+  /** HR summaries for MANY depots in one call, in the order asked for (audit S-1). */
+  hrSummaryMany(depotIds: string[]): Promise<(HrDepotSummary | null)[]>;
   /** One depot's CRM lifecycle summary; null when customer-service is unwired/down. */
   crmSummary(depotId: string): Promise<CrmDepotSummary | null>;
+  /** CRM summaries for MANY depots in one call, in the order asked for (audit S-1). */
+  crmSummaryMany(depotIds: string[]): Promise<(CrmDepotSummary | null)[]>;
 }

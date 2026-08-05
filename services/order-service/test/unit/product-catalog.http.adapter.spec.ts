@@ -30,6 +30,32 @@ describe('ProductCatalogHttpAdapter', () => {
     expect(product).toMatchObject({ id: 'p1', basePrice: 20000, active: true });
   });
 
+  // Audit S-7: one call for a whole cart. It used to be one HTTP request per cart line.
+  it('resolves a whole cart in one call', async () => {
+    // No request at all for an empty cart.
+    global.fetch = jest.fn() as unknown as typeof fetch;
+    expect(await adapter.getProducts([])).toEqual(new Map());
+    expect(global.fetch).not.toHaveBeenCalled();
+
+    mockFetch(() => ({
+      status: 200,
+      ok: true,
+      json: async () => [
+        { id: 'p1', name: 'A', sku: 'A', unit: 'Galon', basePrice: 20000, active: true },
+        { id: 'p2', name: 'B', sku: 'B', unit: 'Botol', basePrice: 5000, active: true },
+      ],
+    }));
+    const found = await adapter.getProducts(['p1', 'p2', 'p3']);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect([...found.keys()]).toEqual(['p1', 'p2']); // p3 is simply absent
+    expect(found.get('p1')).toMatchObject({ basePrice: 20000, volumeMl: null, isGallon: false });
+  });
+
+  it('throws on a failed batch so checkout fails closed', async () => {
+    mockFetch(() => ({ status: 500, ok: false }));
+    await expect(adapter.getProducts(['p1'])).rejects.toThrow('product-service responded 500');
+  });
+
   it('maps a 404 to null (product missing or inactive)', async () => {
     mockFetch(() => ({ status: 404, ok: false }));
     expect(await adapter.getProduct('missing')).toBeNull();

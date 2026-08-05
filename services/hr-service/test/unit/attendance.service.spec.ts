@@ -60,6 +60,9 @@ class FakeAtt implements AttendanceRepository {
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
   }
+  async summaryMany() {
+    return new Map();
+  }
   async listWorkedMinutes() {
     return [];
   }

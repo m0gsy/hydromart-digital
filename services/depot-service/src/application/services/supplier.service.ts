@@ -28,7 +28,7 @@ export class SupplierService {
   ) {}
 
   private async requireDepot(depotId: string): Promise<void> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
   }

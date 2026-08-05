@@ -93,7 +93,14 @@ describe('VoucherPrismaRepository', () => {
   };
   const voucherGrant = { findUnique: jest.fn(), create: jest.fn() };
   const $transaction = jest.fn();
-  const prisma = { voucher, voucherRedemption, voucherGrant, $transaction } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = {
+    voucher,
+    voucherRedemption,
+    voucherGrant,
+    $transaction,
+    $queryRaw,
+  } as unknown as PrismaService;
   const repo = new VoucherPrismaRepository(prisma);
 
   const voucherRow = () => ({
@@ -184,6 +191,64 @@ describe('VoucherPrismaRepository', () => {
       skip: 0,
       take: 10,
     });
+  });
+
+  // Audit S-14: every analytics number comes back aggregated. The console used to read a
+  // voucher's whole redemption history and make five passes over it here.
+  it('aggregates redemptions in SQL', async () => {
+    voucherRedemption.aggregate.mockResolvedValue({
+      _count: { _all: 5 },
+      _sum: { discountApplied: 1900 },
+    });
+    voucherRedemption.count.mockResolvedValue(4);
+    voucherRedemption.groupBy.mockResolvedValue([
+      { customerId: 'c-1', _count: { _all: 2 }, _sum: { discountApplied: 900 } },
+      { customerId: 'c-2', _count: { _all: 1 }, _sum: { discountApplied: null } },
+    ]);
+    $queryRaw
+      .mockResolvedValueOnce([{ day: '2026-07-16', uses: 1n }])
+      .mockResolvedValueOnce([{ orderId: 'o-1' }, { orderId: 'o-2' }]);
+
+    const from = new Date('2026-07-16T00:00:00Z');
+    const to = new Date('2026-07-23T00:00:00Z');
+    const out = await repo.redemptionAnalytics('v-1', from, to, 10, 'Asia/Jakarta');
+
+    expect(out).toEqual({
+      totalUses: 5,
+      totalSavingsIdr: 1900,
+      usesInWindow: 4,
+      dailyUses: [{ day: '2026-07-16', uses: 1 }],
+      // A group with no sum reads as 0, never NaN.
+      topCustomers: [
+        { customerId: 'c-1', uses: 2, savingsIdr: 900 },
+        { customerId: 'c-2', uses: 1, savingsIdr: 0 },
+      ],
+      orderIds: ['o-1', 'o-2'],
+    });
+    expect(voucherRedemption.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ _count: { customerId: 'desc' } }, { _sum: { discountApplied: 'desc' } }],
+        take: 10,
+      }),
+    );
+    // H-16: the day labels must be cut in the business zone. On UTC every redemption
+    // before 07:00 WIB lands on the previous bar — and the caller labels its buckets
+    // with local day keys, so a UTC label matches none of them and the chart reads zero.
+    const dailySql = $queryRaw.mock.calls[0][0];
+    expect(dailySql.strings.join('')).toContain('AT TIME ZONE');
+    expect(dailySql.values).toContain('Asia/Jakarta');
+  });
+
+  it('reports zero savings when nothing was ever redeemed', async () => {
+    voucherRedemption.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { discountApplied: null },
+    });
+    voucherRedemption.count.mockResolvedValue(0);
+    voucherRedemption.groupBy.mockResolvedValue([]);
+    $queryRaw.mockResolvedValue([]);
+    const out = await repo.redemptionAnalytics('v-1', new Date(0), new Date(1), 5, 'Asia/Jakarta');
+    expect(out).toMatchObject({ totalUses: 0, totalSavingsIdr: 0, orderIds: [] });
   });
 
   it('countRedemptions scopes by voucher and optionally customer', async () => {

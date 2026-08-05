@@ -43,6 +43,7 @@ function build(over: Partial<AnalyticsRepository> = {}) {
       return value;
     };
   const repo: AnalyticsRepository = {
+    depotSummaryFacts: async () => new Map(),
     headcountByStatus: async () => [],
     headcountByEmploymentStatus: async () => [],
     attendanceByStatus: async () => [],

@@ -163,8 +163,8 @@ export class PayoutService {
   /** Current scheme percentage for a depot; 0 when the depot has no scheme yet. */
   private async commissionPctFor(depotId: string | null): Promise<number> {
     if (!depotId) return 0;
-    const current = await this.schemes.listCurrent();
-    return current.find((s) => s.depotId === depotId)?.pct ?? 0;
+    // One row, for this depot (audit S-15). This runs on every completed order.
+    return (await this.schemes.currentForDepot(depotId))?.pct ?? 0;
   }
 
   async summary(ownerId: string): Promise<PayoutSummary> {

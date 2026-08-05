@@ -95,6 +95,33 @@ export class AnalyticsService {
    * active headcount. No user scoping: the caller (dashboard-service BFF, internal key)
    * has already resolved the owner's depots and asks per depot.
    */
+  /**
+   * The same summary for MANY depots in three queries (audit S-1). The owner dashboard
+   * used to call `depotSummary` once per owned depot — three queries and one HTTP
+   * round-trip each. Depots with no rows still get a row, all zeroes, because the
+   * dashboard renders one card per depot and a missing card reads as a broken page.
+   */
+  async depotSummaryMany(depotIds: string[]): Promise<HrDepotSummary[]> {
+    const workDate = this.today();
+    const periodMonth = workDate.slice(0, 7);
+    if (depotIds.length === 0) return [];
+    const facts = await this.repo.depotSummaryFacts(
+      new Date(`${workDate}T00:00:00.000Z`),
+      periodMonth,
+      depotIds,
+    );
+    return depotIds.map((depotId) => ({
+      depotId,
+      workDate,
+      periodMonth,
+      lateToday: facts.get(depotId)?.lateToday ?? 0,
+      absentToday: facts.get(depotId)?.absentToday ?? 0,
+      presentToday: facts.get(depotId)?.presentToday ?? 0,
+      payrollMtdNet: facts.get(depotId)?.payrollMtdNet ?? 0,
+      activeHeadcount: facts.get(depotId)?.activeHeadcount ?? 0,
+    }));
+  }
+
   async depotSummary(depotId: string): Promise<HrDepotSummary> {
     const workDate = this.today();
     const periodMonth = workDate.slice(0, 7);

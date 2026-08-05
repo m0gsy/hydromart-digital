@@ -147,8 +147,8 @@ describe('MaintenanceService branch fills', () => {
 // Every depot-scoped service refuses an unknown depot the same way, and every by-id getter
 // raises its own not-found error. These are the guards that were only covered on some of them.
 describe('depot-scoped guards and by-id getters', () => {
-  const missing = { findById: async () => null } as never;
-  const found = { findById: async () => ({ id: KNOWN_DEPOT }) } as never;
+  const missing = { findById: async () => null, exists: async () => false } as never;
+  const found = { findById: async () => ({ id: KNOWN_DEPOT }), exists: async () => true } as never;
 
   it('refuses an unknown depot on approval, handover and wholesale-tier writes', async () => {
     const approvals = new ApprovalService({} as never, missing, buildTestConfig());

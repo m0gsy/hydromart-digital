@@ -37,6 +37,14 @@ export class CommissionSchemePrismaRepository implements CommissionSchemeReposit
     return rows.map((r) => this.toRecord(r));
   }
 
+  async currentForDepot(depotId: string): Promise<CommissionSchemeRecord | null> {
+    const row = await this.prisma.commissionScheme.findFirst({
+      where: { depotId },
+      orderBy: { effectiveDate: 'desc' },
+    });
+    return row ? this.toRecord(row as unknown as SchemeRow) : null;
+  }
+
   async createMany(rows: CreateCommissionSchemeData[]): Promise<CommissionSchemeRecord[]> {
     // One create per row inside a transaction so we can return the persisted records.
     const created = await this.prisma.$transaction(

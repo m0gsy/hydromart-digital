@@ -70,6 +70,17 @@ export interface RedemptionMutation {
   discountApplied: number;
 }
 
+/** What `redemptionAnalytics` returns — every number already aggregated by Postgres. */
+export interface RedemptionAnalytics {
+  totalUses: number;
+  totalSavingsIdr: number;
+  usesInWindow: number;
+  /** One row per day that had at least one use, `day` as YYYY-MM-DD. */
+  dailyUses: { day: string; uses: number }[];
+  topCustomers: { customerId: string; uses: number; savingsIdr: number }[];
+  orderIds: string[];
+}
+
 export interface VoucherRepository {
   findById(id: string): Promise<VoucherRecord | null>;
   findByCode(code: string): Promise<VoucherRecord | null>;
@@ -85,6 +96,26 @@ export interface VoucherRepository {
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;
   findRedemptionByOrder(orderId: string): Promise<VoucherRedemptionRecord | null>;
   findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]>;
+  /**
+   * The promotion analytics numbers, computed in the database (audit S-14). The console
+   * used to read a voucher's ENTIRE redemption history and make five passes over it in
+   * JavaScript — a campaign that worked was the one whose analytics page got slowest.
+   *
+   * `dailyUses` covers [from, to) only; `topCustomers` is the biggest savers first,
+   * already limited.
+   *
+   * `timeZone` is the business zone the day labels are cut on (H-16). Grouping on UTC
+   * days would put every redemption before 07:00 WIB in yesterday's bar — and since the
+   * caller labels its seven buckets with LOCAL day keys, a UTC label matches none of
+   * them and the whole chart reads zero.
+   */
+  redemptionAnalytics(
+    voucherId: string,
+    from: Date,
+    to: Date,
+    topCustomers: number,
+    timeZone: string,
+  ): Promise<RedemptionAnalytics>;
 
   /** Total rupiah discount burned per voucher (SUM discountApplied), network-wide. */
   sumRedemptionsByVoucher(): Promise<{ voucherId: string; burned: number }[]>;

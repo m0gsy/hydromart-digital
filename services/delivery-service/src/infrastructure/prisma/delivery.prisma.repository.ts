@@ -8,6 +8,7 @@ import {
   CreateDeliveryData,
   DeliveredRow,
   DeliveryItem,
+  DeliveryPingState,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
@@ -312,6 +313,24 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       grouped.set(row.driverId, activity);
     }
     return [...grouped.values()];
+  }
+
+  async findPingState(id: string): Promise<DeliveryPingState | null> {
+    // Columns only — the ping path never renders history or proof (audit S-17).
+    const row = await this.prisma.delivery.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        driverId: true,
+        status: true,
+        depotId: true,
+        destinationLat: true,
+        destinationLng: true,
+        lastLat: true,
+        lastLng: true,
+      },
+    });
+    return row ? { ...row, status: row.status as DeliveryStatus } : null;
   }
 
   async updateLocation(

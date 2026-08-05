@@ -773,6 +773,56 @@ describe('OrderService', () => {
     expect((await service.remindStaleCustomers(soon, 14)).reminded).toBe(0);
   });
 
+  // Audit S-2 / S-22, and the Q-17 baseline row for checkout. Seven upstream calls used to
+  // be waited out one after another. The pairs below need nothing from each other, so the
+  // assertion is on OVERLAP — a peak of one would mean somebody re-sequenced them.
+  it('prices and reseller status are fetched together', async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const overlap = (target: Record<string, unknown>, key: string): void => {
+      const original = (target[key] as (...args: unknown[]) => Promise<unknown>).bind(target);
+      target[key] = async (...args: unknown[]) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        try {
+          // One real tick, so a sequential implementation cannot look concurrent.
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          return await original(...args);
+        } finally {
+          inFlight -= 1;
+        }
+      };
+    };
+    for (const [target, key] of [
+      [pricing, 'getPrices'],
+      [catalog, 'getProduct'],
+      [resellerDiscount, 'get'],
+      [membership, 'getDiscountRate'],
+      [promo, 'quote'],
+    ] as unknown as [Record<string, unknown>, string][]) {
+      overlap(target, key);
+    }
+
+    await addToCart(20000, 3);
+    promo.quoteDiscount = 6000;
+    await service.checkout(
+      customer,
+      { deliveryAddress: address, voucherCode: 'hemat10' },
+      'Bearer tok',
+    );
+
+    expect(peak).toBeGreaterThanOrEqual(2);
+  });
+
+  // The membership rate is documented fail-open, and running it alongside the voucher quote
+  // must not change that: a broken adapter reads as a 0% tier, not a failed checkout.
+  it('prices at zero membership discount when the tier lookup throws', async () => {
+    await addToCart(20000, 2);
+    jest.spyOn(membership, 'getDiscountRate').mockRejectedValue(new Error('loyalty down'));
+    const order = await service.checkout(customer, { deliveryAddress: address }, 'Bearer tok');
+    expect(order.discount).toBe(0);
+  });
+
   it('applies a valid voucher discount and records the redemption', async () => {
     await addToCart(20000, 3); // subtotal 60000
     promo.quoteDiscount = 6000;

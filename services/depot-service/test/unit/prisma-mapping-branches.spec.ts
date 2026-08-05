@@ -125,13 +125,18 @@ describe('InventoryPrismaRepository filter/lock branches', () => {
     count: jest.fn().mockResolvedValue(0),
   };
   const inventoryItem = { update: jest.fn().mockResolvedValue({}) };
-  const stockReservation = { create: jest.fn().mockResolvedValue({}) };
+  const stockReservation = {
+    create: jest.fn().mockResolvedValue({}),
+    createMany: jest.fn().mockResolvedValue({ count: 0 }),
+  };
   const $queryRaw = jest.fn();
+  const $executeRaw = jest.fn();
   const prisma = {
     stockMovement,
     inventoryItem,
     stockReservation,
     $queryRaw,
+    $executeRaw,
   } as unknown as PrismaService;
   // Interactive-callback form only: reserveAtomic locks rows inside one transaction.
   (prisma as unknown as { $transaction: unknown }).$transaction = (fn: (tx: unknown) => unknown) =>
@@ -173,7 +178,10 @@ describe('InventoryPrismaRepository filter/lock branches', () => {
   });
 
   it('keeps an already-sorted and an equal-id lock order stable', async () => {
-    $queryRaw.mockResolvedValue([{ quantity: 100, reserved: 0 }]);
+    $queryRaw.mockResolvedValue([
+      { id: 'a', quantity: 100, reserved: 0 },
+      { id: 'b', quantity: 100, reserved: 0 },
+    ]);
     await repo.reserveAtomic(
       [
         { itemId: 'a', quantity: 1 },
@@ -181,9 +189,11 @@ describe('InventoryPrismaRepository filter/lock branches', () => {
       ],
       'ord-1',
     );
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'a' },
-      data: { reserved: { increment: 1 } },
+    expect(stockReservation.createMany).toHaveBeenNthCalledWith(1, {
+      data: [
+        { itemId: 'a', orderId: 'ord-1', quantity: 1 },
+        { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+      ],
     });
     await repo.reserveAtomic(
       [
@@ -192,7 +202,14 @@ describe('InventoryPrismaRepository filter/lock branches', () => {
       ],
       'ord-2',
     );
-    expect(stockReservation.create).toHaveBeenCalledTimes(4);
+    // Two duplicate plans still produce two reservation rows — the unique (itemId, orderId)
+    // index is what rejects them, exactly as when they were two separate inserts.
+    expect(stockReservation.createMany).toHaveBeenNthCalledWith(2, {
+      data: [
+        { itemId: 'a', orderId: 'ord-2', quantity: 1 },
+        { itemId: 'a', orderId: 'ord-2', quantity: 1 },
+      ],
+    });
   });
 
   it('treats a vanished row as zero sellable stock, not a crash', async () => {

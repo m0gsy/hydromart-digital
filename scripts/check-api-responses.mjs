@@ -32,23 +32,41 @@ function controllers(dir) {
   return out;
 }
 
-/** Routes in one file, and how many of them declare a response type. */
+/**
+ * Routes in one file, and how many of them declare a response type.
+ *
+ * Decorators are read as RUNS, not as single lines: `@ApiOperation({ … })` spanning three
+ * lines still belongs to the same block as the `@Get()` above it. Walking line-by-line and
+ * stopping at the first line that does not start with `@` misses everything after the
+ * first multi-line decorator — which is most of them.
+ */
 function scan(file) {
   const lines = readFileSync(file, 'utf8').split(/\r?\n/);
   let routes = 0;
   let documented = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (!ROUTE.test(lines[i])) continue;
-    routes++;
-    // The decorator block is contiguous: walk both ways from the verb decorator.
-    let documentedHere = false;
-    for (let j = i; j >= 0 && /^\s*@/.test(lines[j]); j--) {
-      if (RESPONSE.test(lines[j])) documentedHere = true;
+
+  let run = [];
+  let depth = 0;
+  for (const line of lines) {
+    const inRun = run.length > 0;
+    if (!inRun && !/^\s*@/.test(line)) continue;
+    if (!inRun || depth === 0) {
+      // A new decorator starts a run; a non-decorator line at depth 0 ends it.
+      if (inRun && !/^\s*@/.test(line)) {
+        if (run.some((l) => ROUTE.test(l))) {
+          routes++;
+          if (run.some((l) => RESPONSE.test(l))) documented++;
+        }
+        run = [];
+        continue;
+      }
     }
-    for (let j = i + 1; j < lines.length && /^\s*@/.test(lines[j]); j++) {
-      if (RESPONSE.test(lines[j])) documentedHere = true;
+    run.push(line);
+    for (const ch of line) {
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
     }
-    if (documentedHere) documented++;
+    if (depth < 0) depth = 0;
   }
   return { routes, documented };
 }
