@@ -33,7 +33,10 @@ NEW_SHA="$(git rev-parse "origin/$BRANCH")"
 # Decide which services to rebuild BEFORE moving the working tree. The diff is computed
 # unconditionally now — --all changes what gets rebuilt, not whether the incoming commit
 # carries migrations.
-CHANGED="$(git diff --name-only "$PREV_SHA" "$NEW_SHA")"
+# Diff against what the CONTAINERS were built from, not against the tree. After a deploy
+# that died past the reset, those two are different commits, and only the first one gives
+# the real rebuild set. PREV_SHA stays the tree's HEAD because that is the rollback target.
+CHANGED="$(git diff --name-only "$(rebuild_base "$LAST_GOOD" "$PREV_SHA")" "$NEW_SHA")"
 if [ "${1:-}" = "--all" ]; then
   SERVICES=(--all)
 else
