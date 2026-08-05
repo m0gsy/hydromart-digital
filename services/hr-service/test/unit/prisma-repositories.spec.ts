@@ -1309,30 +1309,39 @@ describe('AttendancePrismaRepository', () => {
     expect(m(p, 'attendance').create).toHaveBeenCalledWith({ data: input });
   });
 
-  it('summary runs 3 counts in a transaction', async () => {
+  // Q-8: summary() no longer runs three counts in a read-only transaction — it asks
+  // summaryMany() for the one employee, which is a single groupBy.
+  it('summary reads one grouped query and maps the status split', async () => {
     const p = makePrisma();
     const from = new Date('2026-07-01');
     const to = new Date('2026-07-31');
-    m(p, 'attendance')
-      .count.mockResolvedValueOnce(20)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1);
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { employeeId: 'e1', status: 'PRESENT', _count: { _all: 17 } },
+      { employeeId: 'e1', status: 'LATE', _count: { _all: 3 } },
+      { employeeId: 'e1', status: 'LEAVE', _count: { _all: 1 } },
+    ]);
     const repo = new AttendancePrismaRepository(asService(p));
     await expect(repo.summary('e1', from, to)).resolves.toEqual({
       presentDays: 20,
       lateDays: 3,
       leaveDays: 1,
     });
-    expect(tx(p)).toHaveBeenCalled();
-    const wd = { gte: from, lte: to };
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(1, {
-      where: { employeeId: 'e1', workDate: wd, status: { in: ['PRESENT', 'LATE'] } },
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledWith({
+      by: ['employeeId', 'status'],
+      where: { employeeId: { in: ['e1'] }, workDate: { gte: from, lte: to } },
+      _count: { _all: true },
     });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(2, {
-      where: { employeeId: 'e1', workDate: wd, status: 'LATE' },
-    });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(3, {
-      where: { employeeId: 'e1', workDate: wd, status: 'LEAVE' },
+    expect(m(p, 'attendance').count).not.toHaveBeenCalled();
+  });
+
+  it('summary returns zeroes for an employee with no rows in the window', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([]);
+    const repo = new AttendancePrismaRepository(asService(p));
+    await expect(repo.summary('e1', new Date(), new Date())).resolves.toEqual({
+      presentDays: 0,
+      lateDays: 0,
+      leaveDays: 0,
     });
   });
 

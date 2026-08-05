@@ -67,16 +67,15 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     return this.prisma.attendance.create({ data: input });
   }
 
+  /**
+   * Q-8: this was three COUNTs over the same table and the same filter, wrapped in a
+   * read-only `$transaction` — a snapshot bought for arithmetic that summaryMany()
+   * already does in one grouped query. Delegating keeps exactly one definition of what
+   * "present / late / leave" means; the two used to be kept in step by a comment.
+   */
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
-    const workDate = { gte: from, lte: to };
-    const [presentDays, lateDays, leaveDays] = await this.prisma.$transaction([
-      this.prisma.attendance.count({
-        where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } },
-      }),
-      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LATE' } }),
-      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LEAVE' } }),
-    ]);
-    return { presentDays, lateDays, leaveDays };
+    const byEmployee = await this.summaryMany([employeeId], from, to);
+    return byEmployee.get(employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
   }
 
   /**
