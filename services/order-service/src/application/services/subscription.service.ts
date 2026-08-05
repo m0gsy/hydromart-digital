@@ -144,9 +144,15 @@ export class SubscriptionService {
           sub.customerId,
           [{ productId: sub.productId, quantity: sub.quantity }],
           address,
+          // H-3: one key per due delivery, so two sweeps running over the same window
+          // place one order between them instead of one each. The due date is part of it
+          // — the next delivery is a different order, not a replay of this one.
+          `sub:${sub.id}:${sub.nextDeliveryAt.toISOString()}`,
         );
-        await this.subs.advance(sub.id, advanceDelivery(now, sub.frequency));
-        placed += 1;
+        // Counted only when this sweep is the one that moved the schedule on.
+        if (await this.subs.advance(sub.id, sub.nextDeliveryAt, advanceDelivery(now, sub.frequency))) {
+          placed += 1;
+        }
       } catch (err) {
         this.logger.warn(
           `Subscription ${sub.id} delivery skipped: ${err instanceof Error ? err.message : 'unknown'}`,

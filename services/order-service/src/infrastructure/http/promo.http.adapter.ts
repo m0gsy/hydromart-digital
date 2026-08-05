@@ -101,8 +101,8 @@ export class PromoHttpAdapter implements PromoPort {
   ): Promise<void> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
-      this.logger.warn(`Voucher redeem skipped for order ${orderId}: no internal service key`);
-      return;
+      this.logger.error(`Refusing to honour a voucher for order ${orderId}: no internal key`);
+      throw new VoucherRejectedError();
     }
     const url = `${this.config.promoServiceUrl}/api/v1/vouchers/redeem`;
     const controller = new AbortController();
@@ -118,8 +118,13 @@ export class PromoHttpAdapter implements PromoPort {
         throw new Error(`promo-service responded ${res.status}`);
       }
     } catch (error) {
-      // Idempotent on the promo side; a failed record only under-counts usage.
-      this.logger.warn(`Voucher redeem skipped for order ${orderId}: ${(error as Error).message}`);
+      // B-6: this used to swallow the failure — "idempotent on the promo side; a failed
+      // record only under-counts usage". It does not just under-count: the order was
+      // already created WITH the discount applied, so a failed burn handed the customer
+      // money off and left the voucher live and reusable, indefinitely. The burn is what
+      // makes the discount legitimate, so failing to burn must fail the checkout.
+      this.logger.error(`Voucher redeem failed for order ${orderId}: ${(error as Error).message}`);
+      throw new VoucherRejectedError();
     } finally {
       clearTimeout(timer);
     }

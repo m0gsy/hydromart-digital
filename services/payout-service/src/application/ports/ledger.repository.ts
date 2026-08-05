@@ -19,6 +19,18 @@ export interface OwnerBalance {
 
 export interface LedgerRepository {
   create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord>;
+  /**
+   * Writes several entries as one unit (H-7).
+   *
+   * A sale and the commission it owes are one economic event: written separately, a crash
+   * between them leaves the owner credited for a sale nobody took commission on, and the
+   * gap only shows up when somebody reconciles a month of ledger by hand. The reversal
+   * pair has the same property in the opposite direction.
+   *
+   * Idempotency still rides on the unique `sourceRef`, so a retried push that lost the
+   * race raises rather than double-crediting.
+   */
+  createAll(entries: CreateLedgerEntryData[]): Promise<void>;
   /** The entry already posted under this source reference, if any (push idempotency). */
   findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null>;
   /** Signed sum of every entry for one owner (the available balance). */

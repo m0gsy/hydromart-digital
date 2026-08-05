@@ -10,11 +10,12 @@ import type {
 } from '../src/application/ports/ledger.repository';
 import type {
   CreateWithdrawalData,
+  WithdrawalOutcome,
   WithdrawalRepository,
 } from '../src/application/ports/withdrawal.repository';
 import type { CommissionSchemeRepository } from '../src/application/ports/commission-scheme.repository';
 import type { CommissionSchemeRecord } from '../src/domain/commission';
-import type { LedgerEntryRecord, WithdrawalRecord } from '../src/domain/ledger';
+import type { LedgerEntryRecord, WithdrawalRecord, WithdrawalStatus } from '../src/domain/ledger';
 
 // In-memory fakes — the balance guard is the money-critical path worth pinning.
 class FakeLedger implements LedgerRepository {
@@ -43,6 +44,24 @@ class FakeLedger implements LedgerRepository {
     this.entries.push(row);
     this.refs.set(data.sourceRef ?? `no-ref-${this.entries.length}`, row);
     return row;
+  }
+  /**
+   * All-or-nothing, like the real transaction (H-7). `failAfter` lets a test cut the
+   * write in half the way a crash would; without the transaction the first entry would
+   * survive on its own.
+   */
+  failAfter: number | null = null;
+  async createAll(entries: CreateLedgerEntryData[]): Promise<void> {
+    const before = [...this.entries];
+    const refsBefore = new Map(this.refs);
+    for (const [i, data] of entries.entries()) {
+      if (this.failAfter !== null && i >= this.failAfter) {
+        this.entries = before;
+        this.refs = refsBefore;
+        throw new Error('ledger write interrupted');
+      }
+      await this.create(data);
+    }
   }
   refs = new Map<string, LedgerEntryRecord>();
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
@@ -92,12 +111,55 @@ class FakeSchemes implements CommissionSchemeRepository {
 
 class FakeWithdrawals implements WithdrawalRepository {
   created: CreateWithdrawalData[] = [];
+  /** Ledger debits written alongside a withdrawal — proves the pair is not split. */
+  debits: { franchiseOwnerId: string; amount: number; description: string }[] = [];
+  // The real implementation sums the ledger inside its own transaction, so the fake reads
+  // the same ledger fake rather than tracking a second, drifting number.
+  constructor(private readonly ledger?: FakeLedger) {}
+
   async create(data: CreateWithdrawalData): Promise<WithdrawalRecord> {
     this.created.push(data);
     return { ...data, id: 'w-1', createdAt: new Date(), updatedAt: new Date() };
   }
   async listForOwner(): Promise<WithdrawalRecord[]> {
     return [];
+  }
+
+  // Single-threaded stand-in for the advisory-locked withdraw (B-8). It cannot reproduce
+  // the race, but it does hold the contract the real one guarantees: the balance check and
+  // both writes are one step, and a short balance writes nothing at all.
+  async withdrawWithDebit(input: {
+    franchiseOwnerId: string;
+    amount: number;
+    bankAccountRef: string;
+    reference: string;
+    status: WithdrawalStatus;
+    description: string;
+  }): Promise<WithdrawalOutcome> {
+    const balance = (await this.ledger?.balanceFor(input.franchiseOwnerId)) ?? 0;
+    if (input.amount > balance) return { ok: false, balance };
+
+    const withdrawal = await this.create({
+      franchiseOwnerId: input.franchiseOwnerId,
+      amount: input.amount,
+      bankAccountRef: input.bankAccountRef,
+      reference: input.reference,
+      status: input.status,
+    });
+    // Written in the same step as the withdrawal, exactly as the real transaction does.
+    await this.ledger?.create({
+      franchiseOwnerId: input.franchiseOwnerId,
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -input.amount,
+      description: input.description,
+    });
+    this.debits.push({
+      franchiseOwnerId: input.franchiseOwnerId,
+      amount: -input.amount,
+      description: input.description,
+    });
+    return { ok: true, withdrawal };
   }
 }
 
@@ -114,19 +176,24 @@ describe('PayoutService.requestWithdrawal', () => {
   });
 
   it('rejects when the amount exceeds available balance', async () => {
-    const svc = new PayoutService(
-      new FakeLedger([100000]),
-      new FakeWithdrawals(),
-      new FakeSchemes(),
-    );
+    const ledger = new FakeLedger([100000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+
     await expect(svc.requestWithdrawal('owner-1', 150000, 'BCA')).rejects.toBeInstanceOf(
       InsufficientBalanceError,
     );
+    // B-8: a refused withdrawal must leave NOTHING behind. The old code wrote the
+    // withdrawal row and its debit as two independent statements, so a partial write was
+    // reachable; the check and both writes are now one step.
+    expect(withdrawals.created).toHaveLength(0);
+    expect(withdrawals.debits).toHaveLength(0);
+    expect(await ledger.balanceFor('owner-1')).toBe(100000);
   });
 
   it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
     const ledger = new FakeLedger([500000]);
-    const withdrawals = new FakeWithdrawals();
+    const withdrawals = new FakeWithdrawals(ledger);
     const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
 
     const w = await svc.requestWithdrawal('owner-1', 500000, 'BCA ···· 4821');
@@ -134,6 +201,21 @@ describe('PayoutService.requestWithdrawal', () => {
     expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
     expect(withdrawals.created).toHaveLength(1);
     expect(await ledger.balanceFor()).toBe(0);
+  });
+
+  it('cannot be drained twice: the second cash-out sees the first one’s debit', async () => {
+    const ledger = new FakeLedger([500000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
+
+    await svc.requestWithdrawal('owner-1', 500000, 'BCA');
+    // Sequentially this always held. What B-8 changes is that the check now runs inside
+    // the same serialized step as the write, so two SIMULTANEOUS requests cannot both
+    // read the pre-debit balance and both pass. Only real Postgres can prove that part.
+    await expect(svc.requestWithdrawal('owner-1', 500000, 'BCA')).rejects.toBeInstanceOf(
+      InsufficientBalanceError,
+    );
+    expect(withdrawals.created).toHaveLength(1);
   });
 });
 
@@ -246,7 +328,7 @@ describe('PayoutService HQ release queue', () => {
       amount: 500000,
       description: '',
     });
-    const withdrawals = new FakeWithdrawals();
+    const withdrawals = new FakeWithdrawals(ledger);
     const svc = new PayoutService(ledger, withdrawals, new FakeSchemes());
 
     const w = await svc.releaseForOwner('owner-a');
@@ -290,6 +372,40 @@ describe('PayoutService.recordOrderRevenue', () => {
     ]);
     // Net of both entries is what the owner can actually withdraw.
     expect(await ledger.balanceFor('owner-a')).toBe(228000);
+  });
+
+  // H-7. The two entries were separate un-transacted writes. A crash between them left
+  // the owner credited for a sale HQ never took its cut of — invisible until somebody
+  // reconciled a month of ledger by hand.
+  it('writes neither entry when the ledger write is cut in half', async () => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
+    ledger.failAfter = 1; // the sale lands, then the process dies before the commission
+
+    await expect(svc.recordOrderRevenue(order)).rejects.toThrow('ledger write interrupted');
+
+    expect(ledger.entries).toHaveLength(0);
+    expect(await ledger.balanceFor('owner-a')).toBe(0);
+  });
+
+  it('backs out the sale and its commission together, or not at all', async () => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(
+      ledger,
+      new FakeWithdrawals(),
+      new FakeSchemes([{ depotId: 'depot-1', pct: 5 }]),
+    );
+    await svc.recordOrderRevenue(order);
+    ledger.failAfter = 1;
+
+    await expect(svc.reverseOrderRevenue(order.orderId, 'salah input')).rejects.toThrow();
+
+    // Still exactly the original pair: no half-reversal that shorts the owner.
+    expect(ledger.entries.map((e) => e.type)).toEqual(['SALE_SETTLEMENT', 'COMMISSION']);
   });
 
   it('posts the sale alone when the depot has no commission scheme', async () => {

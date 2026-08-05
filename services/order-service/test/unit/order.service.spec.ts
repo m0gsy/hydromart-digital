@@ -4,11 +4,13 @@ import { Logger } from '@nestjs/common';
 
 import { CartService } from '../../src/application/services/cart.service';
 import { OrderService } from '../../src/application/services/order.service';
+import { OutboxService } from '../../src/application/services/outbox.service';
 import {
   BelowMinimumOrderError,
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
+  DuplicateCheckoutError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -20,6 +22,7 @@ import {
   OutOfServiceAreaError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
+  StaleOrderStatusError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
 import { OrderStatus } from '../../src/domain/order-status';
@@ -42,6 +45,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
 
@@ -90,6 +94,7 @@ describe('OrderService', () => {
   let inventory: FakeInventory;
   let cartService: CartService;
   let service: OrderService;
+  let outbox: OutboxService;
   const customer = randomUUID();
 
   beforeEach(() => {
@@ -110,6 +115,7 @@ describe('OrderService', () => {
     promo = new FakePromo();
     inventory = new FakeInventory();
     cartService = new CartService(cart, catalog);
+    outbox = buildOutbox(orders);
     service = new OrderService(
       orders,
       cart,
@@ -130,6 +136,7 @@ describe('OrderService', () => {
       franchiseRevenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      outbox,
     );
   });
 
@@ -198,6 +205,226 @@ describe('OrderService', () => {
     expect(order.orderNumber).toMatch(/^HM-\d{8}-\d{6}$/);
     expect(order.recipientName).toBe('Budi');
     expect(order.history[0].status).toBe(OrderStatus.CREATED);
+  });
+
+  // H-4. Transitions were read-check-write: the legality check ran against a row read
+  // moments earlier, so two staff acting together both passed it and both wrote. The
+  // second write also re-ran the completion fan-out — stock consumed twice, points
+  // awarded twice, franchise revenue posted twice.
+  describe('concurrent status transitions', () => {
+    const advance = async (order: { id: string }, to: OrderStatus) =>
+      service.updateStatus(order.id, to, 'staff', undefined, 'Bearer tok');
+
+    it('lets one of two simultaneous transitions win and tells the other', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      const results = await Promise.allSettled([
+        advance(order, OrderStatus.CONFIRMED),
+        advance(order, OrderStatus.CANCELLED),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const loser = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+      expect(loser.reason).toBeInstanceOf(StaleOrderStatusError);
+    });
+
+    it('runs the completion fan-out once when COMPLETED is applied twice', async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+      ]) {
+        await advance(order, s);
+      }
+
+      const results = await Promise.allSettled([
+        advance(order, OrderStatus.COMPLETED),
+        advance(order, OrderStatus.COMPLETED),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      // The consume is the depot's stock leaving. Twice would be a real shortfall.
+      expect(inventory.calls).toHaveLength(1);
+      expect(loyalty.calls).toHaveLength(1);
+    });
+  });
+
+  // H-10. Stock consume, the loyalty award, the referral qualification and the
+  // franchise-owner credit were fire-and-forget calls behind a swallowed catch. A
+  // depot-service blip meant the checkout hold was never settled and the depot's sellable
+  // stock drifted down forever; a payout blip meant an owner was never paid for a sale.
+  // Nothing retried, and a log line was the only trace.
+  describe('durable completion effects', () => {
+    const complete = async () => {
+      await addToCart(20000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      for (const s of [
+        OrderStatus.CONFIRMED,
+        OrderStatus.PREPARING,
+        OrderStatus.DRIVER_ASSIGNED,
+        OrderStatus.PICKED_UP,
+        OrderStatus.ON_DELIVERY,
+        OrderStatus.DELIVERED,
+        OrderStatus.COMPLETED,
+      ]) {
+        await service.updateStatus(order.id, s, 'staff', undefined, 'Bearer tok');
+      }
+      return order;
+    };
+
+    it('keeps owing the stock consume when depot-service is down, and lands it on the sweep', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      const order = await complete();
+
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
+      expect(owed).toMatchObject({ orderId: order.id, status: 'PENDING', attempts: 1 });
+      expect(inventory.calls).toHaveLength(0);
+
+      // depot-service comes back; the sweep settles the hold that completion could not.
+      const consumed: string[] = [];
+      inventory.consume = async (_d, orderId) => {
+        consumed.push(orderId);
+      };
+      const swept = await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+
+      expect(swept.delivered).toBe(1);
+      expect(consumed).toEqual([order.id]);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
+    });
+
+    it('gives up loudly rather than retrying forever', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      await complete();
+
+      // Six attempts, backing off; the seventh sweep would find nothing left to try.
+      let at = Date.now();
+      for (let i = 0; i < 6; i += 1) {
+        at += 60 * 60 * 1000;
+        await outbox.processDue(new Date(at));
+      }
+
+      const row = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
+      expect(row.status).toBe('DEAD');
+      expect(await outbox.pending()).toMatchObject({ DEAD: 1 });
+    });
+
+    it('marks every effect delivered on the happy path', async () => {
+      await complete();
+
+      const rows = orders.outbox!.rows;
+      expect(rows.map((r) => r.topic).sort()).toEqual([
+        'FRANCHISE_REVENUE',
+        'INVENTORY_CONSUME',
+        'LOYALTY_AWARD',
+        'REFERRAL_QUALIFY',
+      ]);
+      expect(rows.every((r) => r.status === 'DONE')).toBe(true);
+    });
+  });
+
+  // B-13. A double-tapped Bayar, or a retry after the proxy gave up on a request the
+  // server had already committed, used to place a second order — a second hold on the
+  // depot's stock and a second bill for the same water.
+  describe('checkout idempotency', () => {
+    const key = 'checkout-attempt-1';
+
+    it('returns the first order when the same Idempotency-Key is retried', async () => {
+      await addToCart(20000, 2);
+
+      const first = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      // The retry finds an empty cart — checkout clears it — so a service that did not
+      // recognise the key would not merely double-order here, it would throw.
+      const second = await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+
+      expect(second.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+      // One order, one hold: the replay must not reserve stock a second time.
+      expect(inventory.reserveCalls).toHaveLength(1);
+    });
+
+    it('places one order when two taps race past the pre-check, and releases the loser hold', async () => {
+      await addToCart(20000, 2);
+
+      const [a, b] = await Promise.all([
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ]);
+
+      expect(orders.rows).toHaveLength(1);
+      expect(a.id).toBe(b.id);
+      expect(a.id).toBe(orders.rows[0].id);
+      // Both taps reserved; the one the unique index rejected handed its stock straight back.
+      expect(inventory.reserveCalls).toHaveLength(2);
+      expect(inventory.releaseCalls).toHaveLength(1);
+      expect(inventory.releaseCalls[0].orderId).not.toBe(a.id);
+    });
+
+    it('still places separate orders when no key is sent', async () => {
+      await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address });
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.rows).toHaveLength(2);
+    });
+
+    it('treats a blank key as no key rather than as one every order shares', async () => {
+      await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: '  ' });
+      await addToCart(20000, 1);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: '' });
+
+      expect(orders.rows).toHaveLength(2);
+    });
+
+    it('surfaces the conflict when the winning order cannot be read back', async () => {
+      // Losing the race and then finding nothing means the winner is not visible to this
+      // connection. Answering with a fabricated success would be worse than a 409.
+      await addToCart(20000, 2);
+      jest.spyOn(orders, 'findByIdempotencyKey').mockResolvedValue(null);
+      jest.spyOn(orders, 'create').mockRejectedValue(new DuplicateCheckoutError());
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address, idempotencyKey: key }),
+      ).rejects.toBeInstanceOf(DuplicateCheckoutError);
+      // The hold that attempt took is still handed back.
+      expect(inventory.releaseCalls).toHaveLength(1);
+    });
+
+    // The subscription sweep keys each due delivery the same way (H-3); a re-triggered
+    // sweep must get the delivery it already placed, not a second one.
+    it('returns the same scheduled order when a sweep replays its key', async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const lines = [{ productId: product.id, quantity: 2 }];
+
+      const first = await service.placeScheduled(customer, lines, address, 'sub:s1:2026-07-01');
+      const again = await service.placeScheduled(customer, lines, address, 'sub:s1:2026-07-01');
+
+      expect(again.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
+
+    it('scopes the key to the customer who sent it', async () => {
+      const other = randomUUID();
+      const product = await addToCart(20000, 2);
+      await service.checkout(customer, { deliveryAddress: address, idempotencyKey: key });
+      await cartService.setItem(other, product, 1, false);
+
+      const theirs = await service.checkout(other, { deliveryAddress: address, idempotencyKey: key });
+
+      expect(orders.rows).toHaveLength(2);
+      expect(theirs.customerId).toBe(other);
+    });
   });
 
   // The optional arguments every other test in this file happens to fill in, and the
@@ -1443,6 +1670,7 @@ describe('OrderService', () => {
       franchiseRevenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      buildOutbox(orders),
     );
     depots.depots = [
       {
@@ -1567,6 +1795,7 @@ describe('OrderService franchise revenue on completion', () => {
       revenue,
       new FakeCashierShift(),
       new FakePaymentReversal(),
+      buildOutbox(orders),
     );
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     await cartService.setItem('cust-rev', product.id, 3, false);

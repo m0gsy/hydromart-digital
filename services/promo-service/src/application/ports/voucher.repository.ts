@@ -103,6 +103,28 @@ export interface VoucherRepository {
   /** Atomic: insert redemption + increment usedCount, returns the redemption. */
   recordRedemption(mutation: RedemptionMutation): Promise<VoucherRedemptionRecord>;
 
+  /**
+   * Redeem under a lock on the voucher row (H-1).
+   *
+   * `recordRedemption` is atomic in its WRITE, but the usage/per-customer/budget checks
+   * that decide whether the write is allowed ran before it, on a separate connection.
+   * Concurrent redemptions of the same code all read the same counts, all passed, and all
+   * wrote — so every cap was bypassable by simply sending the requests at once.
+   *
+   * Here the voucher row is locked first, so redemptions of one code are serialized: the
+   * counts handed to `decide` already include every redemption that committed before us.
+   * `decide` stays pure domain logic (it computes the discount and throws if a cap is
+   * blown); the lock and the write are infrastructure's business.
+   */
+  redeemAtomic(
+    input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
+    decide: (counts: {
+      usedCount: number;
+      customerRedemptions: number;
+      burned: number;
+    }) => number,
+  ): Promise<VoucherRedemptionRecord>;
+
   /** Record a grant of the voucher to a customer. Returns true only when newly created
    *  (idempotent per voucher+customer) so the notification fires once. */
   grantVoucher(voucherId: string, customerId: string): Promise<boolean>;

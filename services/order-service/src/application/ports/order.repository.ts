@@ -1,5 +1,7 @@
 import { OrderStatus } from '../../domain/order-status';
 
+import { OutboxWrite } from './outbox.repository';
+
 export interface OrderItemRecord {
   id: string;
   productId: string;
@@ -110,6 +112,18 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   status?: OrderStatus;
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
   isWalkIn?: boolean;
+  /**
+   * Side effects the order owes the moment it exists, written in the same transaction
+   * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
+   * fan-out at creation rather than at a later transition.
+   */
+  outbox?: OutboxWrite[];
+  /**
+   * Client-supplied key for this checkout attempt (B-13). When set, the write is unique
+   * per (customerId, key) and a retry carrying the same key raises DuplicateCheckoutError
+   * instead of placing a second order.
+   */
+  idempotencyKey?: string | null;
   items: CreateOrderItemData[];
 }
 
@@ -268,6 +282,8 @@ export interface SegmentConditions {
 export interface OrderRepository {
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
+  findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
   assignDepot(id: string, depotId: string): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
@@ -306,14 +322,29 @@ export interface OrderRepository {
    * driverPhone (at DRIVER_ASSIGNED) and estimatedArrivalAt (at ON_DELIVERY) when given —
    * each is written only when non-null, so a later transition never clobbers a snapshot.
    */
+  /**
+   * Moves an order to `status`, but only from the `from` it was read at (H-4).
+   *
+   * The compare-and-set is the whole point: the legality check runs against a row read
+   * moments earlier, and two staff — or a courier and the stall sweep — acting together
+   * would otherwise both pass it and both write, running the completion fan-out twice.
+   * A caller that loses gets StaleOrderStatusError, not a silent overwrite.
+   */
   applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    /**
+     * Side effects this transition earns, written in the SAME transaction as it (H-10).
+     * That is the whole point: an order cannot end up COMPLETED without the stock consume
+     * and the owner credit being owed somewhere durable.
+     */
+    outbox?: OutboxWrite[],
   ): Promise<OrderRecord>;
   /**
    * Reverses a counter sale: stamps VOIDED with the reason and appends the history row.

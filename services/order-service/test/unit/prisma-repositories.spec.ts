@@ -4,7 +4,7 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
-import { OrderAlreadyVoidedError } from '../../src/domain/errors';
+import { DuplicateCheckoutError, OrderAlreadyVoidedError } from '../../src/domain/errors';
 
 // Unit-tests the order-service Prisma repositories against per-model jest.fn() mocks of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma
@@ -70,6 +70,7 @@ describe('SubscriptionPrismaRepository', () => {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
   };
   const prisma = { subscription: model } as unknown as PrismaService;
@@ -161,12 +162,19 @@ describe('SubscriptionPrismaRepository', () => {
       where: { id: 'sub-1' },
       data: { status: 'PAUSED' },
     });
+    const due = new Date('2026-02-01');
     const next = new Date('2026-02-08');
-    await repo.advance('sub-1', next);
-    expect(model.update).toHaveBeenLastCalledWith({
-      where: { id: 'sub-1' },
+    model.updateMany.mockResolvedValue({ count: 1 });
+    // H-3: the schedule only moves from the date the sweep read it at, so one due
+    // delivery advances once however many sweeps are looking at it.
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sub-1', status: 'ACTIVE', nextDeliveryAt: due },
       data: { nextDeliveryAt: next },
     });
+
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(false);
   });
 
   it('summarizes the active network, sorted by subscriber count desc', async () => {
@@ -207,11 +215,17 @@ describe('OrderPrismaRepository', () => {
   const orderItem = { groupBy: jest.fn() };
   const orderStatusHistory = { create: jest.fn() };
   const $queryRaw = jest.fn();
+  // H-10: the order write and its outbox rows go in one transaction. Promise.all so a
+  // rejected op (the P2002 / P2025 cases below) still reaches the repository's catch.
+  const outboxMessage = { create: jest.fn() };
+  const $transaction = jest.fn((ops: unknown[]) => Promise.all(ops));
   const prisma = {
     order,
     orderReview,
     orderItem,
     orderStatusHistory,
+    outboxMessage,
+    $transaction,
     $queryRaw,
   } as unknown as PrismaService;
   const repo = new OrderPrismaRepository(prisma);
@@ -323,6 +337,99 @@ describe('OrderPrismaRepository', () => {
       data: expect.objectContaining({ id: 'preset-id' }),
       include: expect.any(Object),
     });
+  });
+
+  // B-13. The unique index is the guard; this is the translation that lets the service
+  // recognise it and answer with the order the winning attempt placed.
+  it('translates the idempotency-key unique violation into DuplicateCheckoutError', async () => {
+    order.create.mockRejectedValue(
+      Object.assign(new Error('unique'), {
+        code: 'P2002',
+        meta: { target: ['customerId', 'idempotencyKey'] },
+      }),
+    );
+    await expect(repo.create(createData)).rejects.toBeInstanceOf(DuplicateCheckoutError);
+  });
+
+  it('rethrows a unique violation on any other column', async () => {
+    // An orderNumber collision (H-12) is ours, not the caller's — swallowing it as a
+    // duplicate checkout would hand the caller somebody else's order.
+    const clash = Object.assign(new Error('unique'), {
+      code: 'P2002',
+      meta: { target: 'orders_orderNumber_key' },
+    });
+    order.create.mockRejectedValue(clash);
+    await expect(repo.create(createData)).rejects.toBe(clash);
+  });
+
+  it('rethrows a non-unique database failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    order.create.mockRejectedValue(boom);
+    await expect(repo.create(createData)).rejects.toBe(boom);
+  });
+
+  it('rethrows a rejection that carries no error object at all', async () => {
+    order.create.mockRejectedValue('connection reset');
+    await expect(repo.create(createData)).rejects.toBe('connection reset');
+  });
+
+  it('rethrows a P2002 that names no column', async () => {
+    const vague = Object.assign(new Error('unique'), { code: 'P2002' });
+    order.create.mockRejectedValue(vague);
+    await expect(repo.create(createData)).rejects.toBe(vague);
+  });
+
+  // H-10: the effects a transition earns are written in the SAME transaction as it, so an
+  // order cannot end up COMPLETED with its stock consume and owner credit owed to nobody.
+  it('writes the outbox rows alongside the status change, in one transaction', async () => {
+    order.update.mockResolvedValue({ ...orderRow(), status: 'COMPLETED' });
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
+      'staff',
+      null,
+      undefined,
+      undefined,
+      undefined,
+      [
+        { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+        { topic: 'FRANCHISE_REVENUE', orderId: 'ord-1' },
+      ],
+    );
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(outboxMessage.create).toHaveBeenCalledTimes(2);
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  it('writes the outbox rows alongside a walk-in, which is born COMPLETED', async () => {
+    order.create.mockResolvedValue(orderRow());
+    await repo.create({
+      ...createData,
+      status: OrderStatus.COMPLETED,
+      isWalkIn: true,
+      outbox: [{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }],
+    });
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  it('finds the order a previous attempt placed under an idempotency key', async () => {
+    order.findUnique.mockResolvedValue(orderRow());
+    const found = await repo.findByIdempotencyKey('cust-1', 'key-1');
+    expect(found?.id).toBe('ord-1');
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { customerId_idempotencyKey: { customerId: 'cust-1', idempotencyKey: 'key-1' } },
+      include: expect.any(Object),
+    });
+  });
+
+  it('returns null when no attempt has used that key', async () => {
+    order.findUnique.mockResolvedValue(null);
+    await expect(repo.findByIdempotencyKey('cust-1', 'key-1')).resolves.toBeNull();
   });
 
   it('finds an order by id, mapping reviewed=true when a review row exists', async () => {
@@ -461,10 +568,18 @@ describe('OrderPrismaRepository', () => {
 
   it('applies a status transition and appends history (no driver name)', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
-    const out = await repo.applyStatus('ord-1', OrderStatus.CONFIRMED, 'admin-1', 'ok');
+    const out = await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CREATED,
+      OrderStatus.CONFIRMED,
+      'admin-1',
+      'ok',
+    );
     expect(out.status).toBe(OrderStatus.CONFIRMED);
+    // H-4: the status the caller read is part of the WHERE, so a transition computed
+    // against a stale row matches nothing instead of overwriting the newer one.
     expect(order.update).toHaveBeenCalledWith({
-      where: { id: 'ord-1' },
+      where: { id: 'ord-1', status: OrderStatus.CREATED },
       data: {
         status: OrderStatus.CONFIRMED,
         history: { create: { status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
@@ -479,7 +594,14 @@ describe('OrderPrismaRepository', () => {
       driverName: 'Joko',
       status: 'DRIVER_ASSIGNED',
     });
-    await repo.applyStatus('ord-1', OrderStatus.DRIVER_ASSIGNED, null, null, 'Joko');
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CONFIRMED,
+      OrderStatus.DRIVER_ASSIGNED,
+      null,
+      null,
+      'Joko',
+    );
     expect(order.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ driverName: 'Joko' }) }),
     );

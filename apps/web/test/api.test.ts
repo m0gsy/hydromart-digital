@@ -22,6 +22,22 @@ describe('api client', () => {
     } satisfies Partial<ApiError>);
   });
 
+  // B-13: checkout and the counter till pass an Idempotency-Key this way. If the client
+  // drops it, the server-side guard never sees a key and protects nothing.
+  it('sends caller-supplied headers alongside the JSON content type', async () => {
+    const fetchMock = mockFetch(201, { id: 'o1' });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.post('/orders/api/v1/orders/checkout', { a: 1 }, true, {
+      'Idempotency-Key': 'attempt-1',
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({
+      'Content-Type': 'application/json',
+      'Idempotency-Key': 'attempt-1',
+    });
+  });
+
   it('returns undefined for 204 No Content', async () => {
     vi.stubGlobal('fetch', mockFetch(204, null));
     await expect(api.del('/orders/api/v1/cart')).resolves.toBeUndefined();

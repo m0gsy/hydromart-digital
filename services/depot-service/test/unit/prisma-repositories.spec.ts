@@ -920,6 +920,7 @@ describe('InventoryPrismaRepository', () => {
   const stockReservation = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    updateMany: jest.fn(),
     update: jest.fn(),
     create: jest.fn(),
   };
@@ -1292,19 +1293,23 @@ describe('InventoryPrismaRepository', () => {
     });
   });
 
-  it('releaseReservation flips an ACTIVE hold to RELEASED and gives units back', async () => {
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'ACTIVE',
-    });
-    stockReservation.update.mockResolvedValue({});
+  // B-5: settle used to read the status OUTSIDE the transaction and then update on `id`
+  // alone. Two concurrent settles (a staff cancellation racing the abandoned-order sweep,
+  // or release racing consume) both saw ACTIVE and both ran the decrement, so `reserved`
+  // fell twice for one hold, `available` over-reported, and the depot oversold silently
+  // and cumulatively. The claim is now a conditional updateMany on status: ACTIVE — the
+  // same discipline reserveAtomic already uses one function above.
+  const activeHold = { id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' };
+
+  it('releaseReservation claims the hold conditionally and gives units back once', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'RELEASED' });
     inventoryItem.update.mockResolvedValue(item);
+
     await repo.releaseReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({
-      where: { id: 'rs-1' },
+
+    expect(stockReservation.updateMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', orderId: 'ord-1', status: ReservationStatus.ACTIVE },
       data: { status: ReservationStatus.RELEASED },
     });
     expect(inventoryItem.update).toHaveBeenCalledWith({
@@ -1313,36 +1318,46 @@ describe('InventoryPrismaRepository', () => {
     });
   });
 
-  it('consumeReservation flips an ACTIVE hold to CONSUMED', async () => {
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'ACTIVE',
-    });
-    stockReservation.update.mockResolvedValue({});
+  it('consumeReservation claims the hold conditionally as CONSUMED', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'CONSUMED' });
     inventoryItem.update.mockResolvedValue(item);
+
     await repo.consumeReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({
-      where: { id: 'rs-1' },
+
+    expect(stockReservation.updateMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', orderId: 'ord-1', status: ReservationStatus.ACTIVE },
       data: { status: ReservationStatus.CONSUMED },
     });
   });
 
-  it('settling is idempotent: no txn for a missing or already-terminal reservation', async () => {
-    stockReservation.findUnique.mockResolvedValue(null);
-    await repo.releaseReservation('it-1', 'ord-1');
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'RELEASED',
-    });
+  it('a settle that loses the race decrements nothing — this is the oversell bug', async () => {
+    // count: 0 means another transaction already flipped the row out of ACTIVE. The old
+    // code reached the decrement anyway, because its guard was a stale read.
+    stockReservation.updateMany.mockResolvedValue({ count: 0 });
+
     await repo.consumeReservation('it-1', 'ord-1');
-    expect(stockReservation.update).not.toHaveBeenCalled();
-    expect($transaction).not.toHaveBeenCalled();
+
+    expect(inventoryItem.update).not.toHaveBeenCalled();
+  });
+
+  it('settling is idempotent for a missing or already-terminal reservation', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 0 });
+    await repo.releaseReservation('it-1', 'ord-1');
+    await repo.consumeReservation('it-1', 'ord-1');
+    expect(inventoryItem.update).not.toHaveBeenCalled();
+  });
+
+  it('does the claim and the give-back in ONE transaction, not two statements', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'RELEASED' });
+    inventoryItem.update.mockResolvedValue(item);
+
+    await repo.releaseReservation('it-1', 'ord-1');
+
+    // A crash between claim and decrement would otherwise leave the hold terminal with
+    // its units still held — stock lost to a ghost reservation.
+    expect($transaction).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -145,6 +145,18 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     Object.assign(row, patch, { updatedAt: nextDate() });
     return { ...row };
   }
+
+  /** Compare-and-set (B-9): applies the patch only if the row is still in `expected`. */
+  async updateIfStatus(
+    id: string,
+    expected: PaymentStatus[],
+    patch: PaymentStatusPatch,
+  ): Promise<PaymentRecord | null> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || !expected.includes(row.status)) return null;
+    Object.assign(row, patch, { updatedAt: nextDate() });
+    return { ...row };
+  }
 }
 
 export class FakeGateway implements PaymentGatewayPort {
@@ -163,10 +175,13 @@ export class FakeGateway implements PaymentGatewayPort {
       raw: JSON.stringify({ ok: true }),
     };
   }
+  /** Every gateway refund actually sent. Money leaves per entry, so length is the assertion. */
+  refunds: { reference: string; amount: number }[] = [];
   async refund(reference: string, amount: number): Promise<RefundResult> {
     if (this.throwOnRefund) {
       throw new Error('refund gateway down');
     }
+    this.refunds.push({ reference, amount });
     return { reference: `RFN-${reference}`, raw: JSON.stringify({ refunded: amount }) };
   }
 }

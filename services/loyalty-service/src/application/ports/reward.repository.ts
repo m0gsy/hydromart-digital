@@ -44,7 +44,6 @@ export interface CancelRedemptionMutation {
   customerId: string;
   rewardItemId: string;
   pointsRefunded: number;
-  newBalance: number;
   reason: string;
   /** True when the item has finite stock and its counter must be given back. */
   restoreStock: boolean;
@@ -59,7 +58,6 @@ export interface RedeemMutation {
   /** Where the customer said they will collect it. */
   depotId: string;
   pointsSpent: number;
-  newBalance: number;
   reason: string;
   /** True when the item has finite stock and its counter must be decremented. */
   decrementStock: boolean;

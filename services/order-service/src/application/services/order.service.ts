@@ -8,6 +8,7 @@ import {
   CatalogUnavailableError,
   DepotRequiredError,
   DepotUnavailableError,
+  DuplicateCheckoutError,
   EmptyCartError,
   InvalidStatusTransitionError,
   OrderAlreadyReviewedError,
@@ -65,7 +66,9 @@ import { NotificationPort } from '../ports/notification.port';
 import { PromoPort } from '../ports/promo.port';
 import { InventoryPort } from '../ports/inventory.port';
 import { ORDER_TOKENS } from '../tokens';
+import { OutboxTopic, OutboxWrite } from '../ports/outbox.repository';
 import { CartService, CartView } from './cart.service';
+import { OutboxService } from './outbox.service';
 
 /** One counter sale: depot, lines, and an optional identified buyer. */
 export interface WalkInSaleInput {
@@ -77,6 +80,8 @@ export interface WalkInSaleInput {
   customerPhone?: string | null;
   /** Voucher from the buyer's own wallet; only meaningful once they are identified. */
   voucherCode?: string | null;
+  /** Client-supplied `Idempotency-Key` — a re-tapped Bayar returns the same sale (B-13). */
+  idempotencyKey?: string | null;
 }
 
 export interface CheckoutInput {
@@ -90,6 +95,12 @@ export interface CheckoutInput {
   voucherCode?: string | null;
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
   deliveryWindow?: string | null;
+  /**
+   * Client-supplied `Idempotency-Key`, one per checkout attempt (B-13). A double tap or a
+   * retry after a timeout carries the same key and gets the order the first attempt placed,
+   * rather than a second one. Absent = no protection, exactly as before.
+   */
+  idempotencyKey?: string | null;
 }
 
 export interface ListOrdersInput {
@@ -138,7 +149,71 @@ export class OrderService {
     private readonly cashierShift: CashierShiftPort,
     @Inject(ORDER_TOKENS.PaymentReversal)
     private readonly paymentReversal: PaymentReversalPort,
-  ) {}
+    private readonly outboxService: OutboxService,
+  ) {
+    // H-10: the effects live here because this is where the adapters and the
+    // franchise-owner lookup are; the dispatcher only decides WHEN they run.
+    this.outboxService.register('LOYALTY_AWARD', (id, auth) => this.awardLoyalty(id, auth));
+    this.outboxService.register('REFERRAL_QUALIFY', (id, auth) => this.qualifyReferral(id, auth));
+    this.outboxService.register('INVENTORY_CONSUME', (id, auth) => this.consumeStock(id, auth));
+    this.outboxService.register('FRANCHISE_REVENUE', (id, auth) =>
+      this.postFranchiseRevenue(id, auth),
+    );
+  }
+
+  /**
+   * BR-013: award loyalty points for a completed order, then tell the customer.
+   *
+   * loyalty-service owns the (per-depot) earn rate, so the count comes back from it. The
+   * notification rides along rather than sitting in runCompletion: the award may land on a
+   * retry hours later, and the customer should still hear about it exactly once — which
+   * the outbox gives us, because the row is only marked DONE when this returns.
+   */
+  private async awardLoyalty(orderId: string, authorization: string): Promise<void> {
+    const order = await this.getAny(orderId);
+    const pointsEarned = await this.loyalty.awardPoints(
+      order.customerId,
+      order.id,
+      order.subtotal,
+      order.depotId,
+      authorization,
+    );
+    // Null = the award failed or its count is unknown: stay silent rather than promise
+    // points. The award itself is idempotent per order, so a retry cannot double-credit.
+    if (pointsEarned !== null && pointsEarned > 0) {
+      await this.notification
+        .notify(
+          'POINTS_EARNED',
+          order.phone,
+          {
+            name: order.recipientName,
+            points: String(pointsEarned),
+            orderNumber: order.orderNumber,
+          },
+          order.customerId,
+          authorization,
+        )
+        .catch(() => {});
+    }
+  }
+
+  /** FR-092: qualify a pending referral for this customer (rewards both parties). */
+  private async qualifyReferral(orderId: string, authorization: string): Promise<void> {
+    const order = await this.getAny(orderId);
+    await this.referral.qualify(order.customerId, order.id, authorization);
+  }
+
+  /** FR-067..074: deduct sold quantities from the fulfilling depot's stock. */
+  private async consumeStock(orderId: string, authorization: string): Promise<void> {
+    const order = await this.getAny(orderId);
+    if (!order.depotId) return;
+    await this.inventory.consume(
+      order.depotId,
+      order.id,
+      order.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      authorization,
+    );
+  }
 
   /**
    * Places an order from the customer's cart. Prices are re-resolved from the
@@ -150,6 +225,16 @@ export class OrderService {
     input: CheckoutInput,
     authorization = '',
   ): Promise<OrderRecord> {
+    // B-13: the cheap half of idempotency — a retry that arrives after the first attempt
+    // committed is answered from the table, before any pricing, reservation or voucher
+    // burn happens. The unique index behind reserveThenCreate covers the other half, the
+    // retry that arrives while the first attempt is still in flight.
+    const idempotencyKey = OrderService.idempotencyKeyOf(input);
+    const replay = await this.findReplay(customerId, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
+
     const lines = await this.cart.findByCustomer(customerId);
     if (lines.length === 0) {
       throw new EmptyCartError();
@@ -239,25 +324,27 @@ export class OrderService {
         discount,
         total,
         deliveryWindow: input.deliveryWindow ?? null,
+        idempotencyKey,
         ...input.deliveryAddress,
         items,
       },
       authorization,
+      // Burned before the order row is written — see reserveThenCreate. A rejected or
+      // failed burn aborts the checkout instead of handing out an unpaid discount.
+      voucherCode
+        ? (orderId) =>
+            this.promo.redeem(
+              voucherCode,
+              customerId,
+              orderId,
+              subtotal,
+              deliveryFee,
+              authorization,
+            )
+        : undefined,
     );
     await this.cart.clear(customerId);
 
-    // Record the redemption now that the order exists. Idempotent per order and
-    // fail-open — a failure here never unwinds a placed order.
-    if (voucherCode) {
-      await this.promo.redeem(
-        voucherCode,
-        customerId,
-        order.id,
-        subtotal,
-        deliveryFee,
-        authorization,
-      );
-    }
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
     await this.notification.notify(
@@ -337,8 +424,15 @@ export class OrderService {
     customerId: string,
     lines: { productId: string; quantity: number }[],
     address: DeliveryAddressSnapshot,
+    idempotencyKey: string | null = null,
   ): Promise<OrderRecord> {
     if (lines.length === 0) throw new EmptyCartError();
+    // H-3: the sweep keys each due delivery, so two overlapping sweeps place one order
+    // between them rather than one each. Same guard as checkout (B-13).
+    const replay = await this.findReplay(customerId, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
     // Fail-closed like checkout. A subscription whose saved address has no map pin
     // cannot be routed and there is nobody to ask, so the sweep skips it with a log
     // (subscription.service isolates each run) instead of placing a lost order.
@@ -359,6 +453,7 @@ export class OrderService {
         deliveryFee,
         discount,
         total,
+        idempotencyKey,
         ...address,
         items,
       },
@@ -394,6 +489,13 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // Same replay guard as checkout (B-13). A till on a flaky depot connection is the case
+    // that matters most here: the cashier taps Bayar again and must not sell the goods twice.
+    const idempotencyKey = OrderService.idempotencyKeyOf(input);
+    const replay = await this.findReplay(input.customerId ?? ANONYMOUS_CUSTOMER_ID, idempotencyKey);
+    if (replay) {
+      return replay;
+    }
     // Before anything is priced or held: cash is about to change hands, and it has to land
     // in a drawer somebody has opened in their own name and will count at the end.
     if (!(await this.cashierShift.hasOpenShift(input.depotId, authorization))) {
@@ -415,6 +517,13 @@ export class OrderService {
         depotId: input.depotId,
         status: OrderStatus.COMPLETED,
         isWalkIn: true,
+        idempotencyKey,
+        // A walk-in is born COMPLETED, so it earns the fan-out at creation rather than at
+        // a later transition. reserveThenCreate stamps these with the id it generates.
+        outbox: OrderService.completionTopics(customerId, input.depotId).map((topic) => ({
+          topic,
+          orderId: '',
+        })),
         subtotal,
         deliveryFee: 0,
         discount,
@@ -434,13 +543,13 @@ export class OrderService {
         items,
       },
       authorization,
+      // Burned before the order row is written, exactly as at checkout (B-6). The counter
+      // path had the same fail-open shape, and the same consequence.
+      voucherCode
+        ? (orderId) => this.promo.redeem(voucherCode, customerId, orderId, subtotal, 0, authorization)
+        : undefined,
     );
 
-    // Record the redemption now that the order exists — idempotent per order, fail-open,
-    // exactly as at checkout.
-    if (voucherCode) {
-      await this.promo.redeem(voucherCode, customerId, order.id, subtotal, 0, authorization);
-    }
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
@@ -685,6 +794,7 @@ export class OrderService {
     }
     const cancelled = await this.orders.applyStatus(
       order.id,
+      order.status,
       OrderStatus.CANCELLED,
       customerId,
       reason ?? null,
@@ -735,6 +845,7 @@ export class OrderService {
       for (const order of stale) {
         const cancelled = await this.orders.applyStatus(
           order.id,
+          order.status,
           OrderStatus.CANCELLED,
           changedBy,
           sweep.note,
@@ -751,7 +862,8 @@ export class OrderService {
    * No depot, no owner, or an unreachable depot-service → nothing is posted; completion
    * itself is never affected.
    */
-  private async postFranchiseRevenue(order: OrderRecord): Promise<void> {
+  private async postFranchiseRevenue(orderId: string, _authorization: string): Promise<void> {
+    const order = await this.getAny(orderId);
     if (!order.depotId || !(order.total > 0)) return;
     const ownership = await this.depotDirectory.findOwner(order.depotId);
     if (!ownership) return;
@@ -786,49 +898,16 @@ export class OrderService {
    * happened for real regardless of who bought.
    */
   private async runCompletion(updated: OrderRecord, authorization: string): Promise<void> {
-    const anonymous = updated.customerId === ANONYMOUS_CUSTOMER_ID;
+    // H-10: the four effects that MOVE MONEY OR STOCK are already owed durably by the
+    // time we get here — they were written into the outbox in the same transaction as the
+    // status change. Delivering them now keeps the happy path instant; anything that fails
+    // stays PENDING for the sweep instead of vanishing into a swallowed catch.
+    await this.outboxService.processForOrder(updated.id, authorization);
 
-    if (!anonymous) {
-      // BR-013: award loyalty points. The count comes back from loyalty-service, which
-      // owns the (per-depot) earn rate — this used to be recomputed here against the
-      // global 1 pt / Rp 1.000 and quoted the wrong number at any depot that overrode it.
-      const pointsEarned = await this.loyalty.awardPoints(
-        updated.customerId,
-        updated.id,
-        updated.subtotal,
-        updated.depotId,
-        authorization,
-      );
-      // Notify the customer of the points they just earned (spec 5h feed). Null = the
-      // award failed or its count is unknown: stay silent rather than promise points.
-      if (pointsEarned !== null && pointsEarned > 0) {
-        await this.notification
-          .notify(
-            'POINTS_EARNED',
-            updated.phone,
-            {
-              name: updated.recipientName,
-              points: String(pointsEarned),
-              orderNumber: updated.orderNumber,
-            },
-            updated.customerId,
-            authorization,
-          )
-          .catch(() => {});
-      }
-      // FR-092: qualify a pending referral for this customer (rewards both parties).
-      await this.referral.qualify(updated.customerId, updated.id, authorization);
-    }
-    // FR-067..074: deduct sold quantities from the fulfilling depot's stock.
-    // Only when the order was routed to a depot; fail-open (never blocks completion).
-    if (updated.depotId) {
-      await this.inventory.consume(
-        updated.depotId,
-        updated.id,
-        updated.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        authorization,
-      );
-    }
+    // Everything below is best-effort by design and stays that way: a missed
+    // recommendation or forecast row costs nobody money. (The points notification moved
+    // into the LOYALTY_AWARD handler — it is the award that knows what to announce, and
+    // it has to announce it whether the award landed now or on a later sweep.)
     // Feeds the recommendation-service read model (co-buy/reorder/trending).
     // Belt-and-suspenders: the adapter is already fail-open, but never let a bug
     // there escape and block completion.
@@ -836,11 +915,37 @@ export class OrderService {
     // Feeds forecast-service's per-product/per-depot demand history. Same fail-open
     // guard as above — the adapter never throws, but never let a bug there block completion.
     await this.forecastCoordination.ingestCompletedOrder(updated).catch(() => {});
-    // Design 6a: credit the fulfilling depot's franchise owner. Nothing wrote that
-    // ledger before, so every owner balance and the HQ release queue read an empty
-    // table. Fail-open and idempotent on the payout side (keyed by order id).
-    await this.postFranchiseRevenue(updated).catch(() => {});
   }
+
+  /**
+   * What a completing order owes, as outbox rows (H-10).
+   *
+   * Computed from the order rather than from live lookups so it can be written inside the
+   * status transaction. An anonymous counter sale earns nothing identity-bound; an
+   * unrouted order has no depot to consume from and no owner to credit.
+   */
+  private static completionOutbox(order: OrderRecord): OutboxWrite[] {
+    return OrderService.completionTopics(order.customerId, order.depotId).map((topic) => ({
+      topic,
+      orderId: order.id,
+    }));
+  }
+
+  /**
+   * Which effects a completing order owes. An anonymous counter sale earns nothing
+   * identity-bound; an unrouted order has no depot to consume from and no owner to credit.
+   */
+  private static completionTopics(customerId: string, depotId: string | null): OutboxTopic[] {
+    const topics: OutboxTopic[] = [];
+    if (customerId !== ANONYMOUS_CUSTOMER_ID) {
+      topics.push('LOYALTY_AWARD', 'REFERRAL_QUALIFY');
+    }
+    if (depotId) {
+      topics.push('INVENTORY_CONSUME', 'FRANCHISE_REVENUE');
+    }
+    return topics;
+  }
+
 
   /**
    * Reserves the depot's stock, then writes the order — the one order-creating step every
@@ -851,22 +956,78 @@ export class OrderService {
    * standing with no order to ever release it, so the depot silently lost that stock until
    * opname. The compensating release only ever undoes a hold this call itself placed.
    */
+  /**
+   * Reserve stock, burn the voucher, then write the order — in that order, and all three
+   * abort the checkout if they fail.
+   *
+   * B-6: the voucher used to be redeemed AFTER the order was created, fail-open, with the
+   * discount already applied to the stored total. A failed burn therefore gave the
+   * customer the discount and left the voucher live and reusable, with a comment saying
+   * "a failure here never unwinds a placed order". Fail-open is the wrong default when
+   * the step that failed is the one that makes the discount legitimate.
+   *
+   * The order id is generated here rather than by the database, which is what makes the
+   * correct order possible: the redemption can be keyed to the order before the order row
+   * exists. If the write then fails, the stock is released and the burn is left as an
+   * orphan redemption — a customer losing one voucher use on a failed checkout, which is
+   * recoverable and rare, versus unlimited reuse of a discount that was never paid for.
+   */
   private async reserveThenCreate(
     depotId: string,
     data: Omit<CreateOrderData, 'id'>,
     authorization: string,
+    burnVoucher?: (orderId: string) => Promise<void>,
   ): Promise<OrderRecord> {
     const id = randomUUID();
     const lines = data.items.map((i) => ({ productId: i.productId, quantity: i.quantity }));
     await this.inventory.reserve(depotId, id, lines, authorization);
     try {
-      return await this.orders.create({ ...data, id });
+      if (burnVoucher) {
+        await burnVoucher(id);
+      }
+      return await this.orders.create({
+        ...data,
+        id,
+        // The outbox rows are built before the id exists (it is generated here so stock can
+        // be reserved against it); stamp them now so they point at the order they belong to.
+        ...(data.outbox ? { outbox: data.outbox.map((m) => ({ ...m, orderId: id })) } : {}),
+      });
     } catch (error) {
       // Fail-open like every other inventory call: what the caller must see is why the
       // order could not be written, never a release that also failed on the way out.
       await this.inventory.release(depotId, id, lines, authorization).catch(() => {});
+      // B-13, the in-flight half: two taps got past the pre-check together and the unique
+      // index picked a winner. The loser has just handed its stock back and now answers
+      // with the winner's order — one order, one hold, which is what the customer expects
+      // from pressing a button twice.
+      if (error instanceof DuplicateCheckoutError) {
+        const winner = await this.findReplay(data.customerId, data.idempotencyKey);
+        if (winner) {
+          return winner;
+        }
+      }
       throw error;
     }
+  }
+
+  /**
+   * The order a previous attempt with this key already placed, or null (B-13).
+   *
+   * ponytail: the loser of an in-flight race has already burned a voucher use against an
+   * order id that will never exist — a redemption orphan. That costs the customer one use
+   * of one voucher in a rare double-tap, against the alternative of two whole orders; if
+   * that trade ever stops being acceptable, the fix is claiming the key before the burn.
+   */
+  private async findReplay(
+    customerId: string,
+    idempotencyKey: string | null | undefined,
+  ): Promise<OrderRecord | null> {
+    return idempotencyKey ? this.orders.findByIdempotencyKey(customerId, idempotencyKey) : null;
+  }
+
+  /** Blank, whitespace or absent all mean "no key" — and NULL never collides in the index. */
+  private static idempotencyKeyOf(input: { idempotencyKey?: string | null }): string | null {
+    return input.idempotencyKey?.trim() || null;
   }
 
   /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
@@ -899,6 +1060,7 @@ export class OrderService {
     }
     const updated = await this.orders.applyStatus(
       order.id,
+      order.status,
       to,
       changedBy,
       note ?? null,
@@ -907,6 +1069,9 @@ export class OrderService {
       to === OrderStatus.ON_DELIVERY && estimatedArrivalAt
         ? new Date(estimatedArrivalAt)
         : undefined,
+      // H-10: written in the same transaction as the transition that earns them, so an
+      // order cannot be COMPLETED without its stock consume and owner credit being owed.
+      to === OrderStatus.COMPLETED ? OrderService.completionOutbox(order) : [],
     );
     if (to === OrderStatus.COMPLETED) {
       await this.runCompletion(updated, authorization);

@@ -31,6 +31,8 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   auth?: boolean;
+  /** Extra request headers — `Idempotency-Key` on the write paths that must not double. */
+  headers?: Record<string, string>;
   /** internal: prevents an infinite refresh loop */
   _retry?: boolean;
 }
@@ -61,7 +63,7 @@ async function refreshSession(): Promise<Session | null> {
 
 async function rawRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body } = options;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...options.headers };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   let res: Response;
@@ -149,8 +151,8 @@ function del<T>(path: string, bodyOrAuth?: unknown, auth = false): Promise<T> {
 
 export const api = {
   get: <T>(path: string, auth = false) => request<T>(path, { auth }),
-  post: <T>(path: string, body?: unknown, auth = false) =>
-    request<T>(path, { method: 'POST', body, auth }),
+  post: <T>(path: string, body?: unknown, auth = false, headers?: Record<string, string>) =>
+    request<T>(path, { method: 'POST', body, auth, headers }),
   put: <T>(path: string, body?: unknown, auth = false) =>
     request<T>(path, { method: 'PUT', body, auth }),
   patch: <T>(path: string, body?: unknown, auth = false) =>

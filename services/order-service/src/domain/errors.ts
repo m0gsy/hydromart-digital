@@ -10,6 +10,33 @@ export class OrderNotFoundError extends DomainError {
   }
 }
 
+/**
+ * A checkout carrying an `Idempotency-Key` this customer has already used (B-13). Raised by
+ * the repository off the unique index, never surfaced to the caller: the service turns it
+ * back into the order the first attempt placed, which is what the retry was asking for.
+ */
+export class DuplicateCheckoutError extends DomainError {
+  readonly code = 'ORDER_DUPLICATE_CHECKOUT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This checkout was already placed.');
+  }
+}
+
+/**
+ * The order moved on between being read and being written (H-4).
+ *
+ * 409, not 422: the transition the caller asked for was legal when they asked. Somebody
+ * else got there first, and re-reading the order will show them what actually happened.
+ */
+export class StaleOrderStatusError extends DomainError {
+  readonly code = 'ORDER_STATUS_STALE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This order was already updated by someone else. Reload and try again.');
+  }
+}
+
 export class EmptyCartError extends DomainError {
   readonly code = 'ORDER_CART_EMPTY';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
@@ -160,6 +187,25 @@ export class InsufficientStockError extends DomainError {
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor(message = 'Some items are out of stock at the fulfilling depot.') {
     super(message);
+  }
+}
+
+/**
+ * Stock could not be reserved because depot-service could not be reached or answered
+ * with something other than a verdict (B-6b).
+ *
+ * The same reasoning as CatalogUnavailableError, applied to stock instead of price: if we
+ * cannot confirm the reservation, we do not get to assume it succeeded. Reserve used to
+ * fail OPEN on everything except an explicit 422, so a depot-service outage silently
+ * converted every order placed in that window into an unreserved one — the ledger and the
+ * physical shelf diverged with no error anywhere, and the divergence compounded with the
+ * settle race (B-5).
+ */
+export class StockCheckUnavailableError extends DomainError {
+  readonly code = 'ORDER_STOCK_CHECK_UNAVAILABLE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Could not confirm stock right now. Please try again.');
   }
 }
 

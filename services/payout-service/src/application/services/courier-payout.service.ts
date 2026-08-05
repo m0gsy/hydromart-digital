@@ -175,25 +175,25 @@ export class CourierPayoutService {
     bankAccountRef: string,
   ): Promise<CourierWithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
-    const balance = await this.ledger.balanceFor(courierId);
-    if (amount > balance) throw new InsufficientBalanceError(balance, amount);
 
+    // B-8/B-10: balance check and both writes in one serialized step, and the debit now
+    // carries a sourceRef. Previously the check ran on its own connection and the two
+    // rows were written independently — an overdraft was reachable by sending two
+    // requests together, and a crash between the writes left a PROCESSING payout with
+    // the balance untouched.
     const reference = withdrawalReference(new Date());
-    const withdrawal = await this.withdrawals.create({
+    const outcome = await this.withdrawals.withdrawWithDebit({
       courierId,
       amount,
       bankAccountRef,
       reference,
       status: 'PROCESSING',
-    });
-    await this.ledger.create({
-      courierId,
-      depotId: null,
-      type: 'WITHDRAWAL',
-      amount: -amount,
       description: `Penarikan saldo · ${reference}`,
     });
-    return withdrawal;
+    if (!outcome.ok) {
+      throw new InsufficientBalanceError(outcome.balance, amount);
+    }
+    return outcome.withdrawal;
   }
 
   async withdrawalHistory(courierId: string, limit = 20): Promise<CourierWithdrawalRecord[]> {

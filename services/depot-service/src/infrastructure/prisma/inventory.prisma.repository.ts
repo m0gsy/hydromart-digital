@@ -333,25 +333,45 @@ export class InventoryPrismaRepository implements InventoryRepository {
     });
   }
 
-  /** Flip an ACTIVE reservation to a terminal status and give back its held units. */
+  /**
+   * Flip an ACTIVE reservation to a terminal status and give back its held units.
+   *
+   * B-5: this used to read the status outside the transaction and then update on `id`
+   * alone, so the ACTIVE check was a stale read by the time the write ran. Two concurrent
+   * settles — a staff cancellation racing the abandoned-order sweep, release racing
+   * consume, or a retry — both saw ACTIVE and both ran the decrement. `reserved` fell
+   * twice for a single hold, `available` over-reported, and the depot oversold silently
+   * and cumulatively, with nothing in the logs to notice.
+   *
+   * The claim is now the conditional `updateMany` itself: exactly one caller can move the
+   * row out of ACTIVE, and only that caller (count === 1) gives the units back. Everyone
+   * else sees count === 0 and stops, which is also what makes this idempotent — the same
+   * discipline `reserveAtomic` uses above, expressed as a compare-and-set instead of a
+   * row lock because there is a single row to claim.
+   */
   private async settleReservation(
     itemId: string,
     orderId: string,
     status: ReservationStatus.RELEASED | ReservationStatus.CONSUMED,
   ): Promise<void> {
-    const res = await this.prisma.stockReservation.findUnique({
-      where: { itemId_orderId: { itemId, orderId } },
-    });
-    if (!res || res.status !== ReservationStatus.ACTIVE) {
-      return; // idempotent: nothing to settle
-    }
-    await this.prisma.$transaction([
-      this.prisma.stockReservation.update({ where: { id: res.id }, data: { status } }),
-      this.prisma.inventoryItem.update({
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.stockReservation.updateMany({
+        where: { itemId, orderId, status: ReservationStatus.ACTIVE },
+        data: { status },
+      });
+      // 0 = never existed, or another transaction already settled it. Either way the units
+      // are not ours to return; returning them again is the oversell.
+      if (claimed.count === 0) return;
+
+      const res = await tx.stockReservation.findUnique({
+        where: { itemId_orderId: { itemId, orderId } },
+      });
+      if (!res) return; // unreachable in practice: we just updated this row inside the txn
+      await tx.inventoryItem.update({
         where: { id: itemId },
         data: { reserved: { decrement: res.quantity } },
-      }),
-    ]);
+      });
+    });
   }
 
   async releaseReservation(itemId: string, orderId: string): Promise<void> {

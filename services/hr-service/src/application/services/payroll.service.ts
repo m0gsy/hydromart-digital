@@ -270,7 +270,10 @@ export class PayrollService {
         `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
       );
     }
-    return this.repo.setStatus(id, 'APPROVED', { approvedBy: user.sub, approvedAt: new Date() });
+    return this.repo.setStatus(id, payroll.status, 'APPROVED', {
+      approvedBy: user.sub,
+      approvedAt: new Date(),
+    });
   }
 
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
@@ -280,7 +283,7 @@ export class PayrollService {
         `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
       );
     }
-    return this.repo.setStatus(id, 'PAID', { paidAt: new Date() });
+    return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
   }
 
   async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

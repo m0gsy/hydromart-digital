@@ -139,7 +139,6 @@ export class LoyaltyService {
       return { account, pointsEarned: 0, alreadyEarned: false };
     }
 
-    const newLifetime = account.lifetimePoints + points;
     const updated = await this.repo.recordEarn({
       accountId: account.id,
       customerId,
@@ -147,13 +146,9 @@ export class LoyaltyService {
       orderId,
       reason: `Order ${orderId} completed`,
       expiresAt: expiryFrom(new Date(), this.config.pointExpiryMonths(depotId)),
-      newBalance: account.pointsBalance + points,
-      newLifetime,
-      // Global ladder on purpose: the stored tier is the customer's card across the
-      // network, not the tier they happen to hold at the depot behind this write.
-      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
+      lifetimeDelta: points,
     });
-    return { account: updated, pointsEarned: points, alreadyEarned: false };
+    return { account: await this.retier(updated), pointsEarned: points, alreadyEarned: false };
   }
 
   /**
@@ -183,21 +178,18 @@ export class LoyaltyService {
 
   async adjust(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
     const account = await this.getAccount(customerId);
-    const newBalance = account.pointsBalance + points;
-    if (newBalance < 0) throw new InvalidAdjustmentError();
-    const newLifetime = account.lifetimePoints + Math.max(0, points);
-    return this.repo.recordAdjustment({
+    // A friendly rejection before the write; the database repeats the check under the
+    // WHERE clause, which is what actually holds when two corrections land together.
+    if (account.pointsBalance + points < 0) throw new InvalidAdjustmentError();
+    const updated = await this.repo.recordAdjustment({
       type: PointsTxnType.ADJUST,
       accountId: account.id,
       customerId,
       points,
       reason,
-      newBalance,
-      newLifetime,
-      // Global ladder on purpose: the stored tier is the customer's card across the
-      // network, not the tier they happen to hold at the depot behind this write.
-      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
+      lifetimeDelta: Math.max(0, points),
     });
+    return this.retier(updated);
   }
 
   /**
@@ -208,19 +200,27 @@ export class LoyaltyService {
    */
   async reward(customerId: string, points: number, reason: string): Promise<LoyaltyAccountRecord> {
     const account = await this.getAccount(customerId);
-    const newLifetime = account.lifetimePoints + points;
-    return this.repo.recordAdjustment({
+    const updated = await this.repo.recordAdjustment({
       type: PointsTxnType.REWARD,
       accountId: account.id,
       customerId,
       points,
       reason,
-      newBalance: account.pointsBalance + points,
-      newLifetime,
-      // Global ladder on purpose: the stored tier is the customer's card across the
-      // network, not the tier they happen to hold at the depot behind this write.
-      newTier: tierFor(newLifetime, this.config.tierBenefits(null)),
+      lifetimeDelta: points,
     });
+    return this.retier(updated);
+  }
+
+  /**
+   * Re-reads the tier off the lifetime total the database actually holds, and writes it
+   * only if it moved (H-2).
+   *
+   * Global ladder on purpose: the stored tier is the customer's card across the network,
+   * not the tier they happen to hold at the depot behind this write.
+   */
+  private async retier(account: LoyaltyAccountRecord): Promise<LoyaltyAccountRecord> {
+    const tier = tierFor(account.lifetimePoints, this.config.tierBenefits(null));
+    return tier === account.tier ? account : this.repo.setTier(account.id, tier);
   }
 
   /**
@@ -234,13 +234,11 @@ export class LoyaltyService {
     for (const lot of lots) {
       const account = await this.repo.findAccount(lot.customerId);
       if (!account) continue;
-      const newBalance = Math.max(0, account.pointsBalance - lot.points);
       await this.repo.recordExpiry({
         lotId: lot.id,
         accountId: account.id,
         customerId: lot.customerId,
         points: lot.points,
-        newBalance,
       });
       pointsExpired += lot.points;
     }

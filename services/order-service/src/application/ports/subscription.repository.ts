@@ -50,7 +50,14 @@ export interface SubscriptionRepository {
   /** ACTIVE subscriptions whose next delivery is due at or before `now`. */
   findDue(now: Date): Promise<SubscriptionRecord[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
-  advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord>;
+  /**
+   * Moves the schedule on, but only from the date the sweep read (H-3).
+   *
+   * The compare-and-set is what makes one due delivery advance once: a second sweep
+   * holding the same row finds the schedule already moved, matches nothing, and gets
+   * `false` — so it neither re-advances the plan nor counts a delivery it did not make.
+   */
+  advance(id: string, from: Date, to: Date): Promise<boolean>;
   /** Network aggregate of ACTIVE subscriptions for the HQ console (18c). */
   networkSummary(): Promise<SubscriptionNetworkSummary>;
 }

@@ -19,7 +19,21 @@ import {
   ReportRange,
   SlaStats,
 } from '../../application/ports/delivery.repository';
+import { StaleDeliveryStatusError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
+
+/**
+ * Turns the status guard's "no row matched" into the courier's answer (H-5).
+ *
+ * On these writes P2025 only ever means `status: from` did not match — the delivery moved
+ * under the caller. Left raw it would be a 500 on an ordinary double tap.
+ */
+function rejectStaleStatus(error: unknown): never {
+  if ((error as { code?: string })?.code === 'P2025') {
+    throw new StaleDeliveryStatusError();
+  }
+  throw error;
+}
 
 interface ProofRow {
   photoUrl: string;
@@ -315,20 +329,23 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
     note: string | null,
   ): Promise<DeliveryRecord> {
-    const row = await this.prisma.delivery.update({
-      where: { id },
-      data: {
-        status,
-        ...timestamps,
-        history: { create: { status, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
+    const row = await this.prisma.delivery
+      .update({
+        where: { id, status: from },
+        data: {
+          status,
+          ...timestamps,
+          history: { create: { status, changedBy, note } },
+        },
+        include: INCLUDE,
+      })
+      .catch(rejectStaleStatus);
     return this.toRecord(row);
   }
 
@@ -357,20 +374,23 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
   ): Promise<DeliveryRecord> {
-    const row = await this.prisma.delivery.update({
-      where: { id },
-      data: {
-        status: DeliveryStatus.DELIVERED,
-        deliveredAt: capturedAt,
-        proof: { create: { ...proof, capturedAt } },
-        history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
-      },
-      include: INCLUDE,
-    });
+    const row = await this.prisma.delivery
+      .update({
+        where: { id, status: from },
+        data: {
+          status: DeliveryStatus.DELIVERED,
+          deliveredAt: capturedAt,
+          proof: { create: { ...proof, capturedAt } },
+          history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
+        },
+        include: INCLUDE,
+      })
+      .catch(rejectStaleStatus);
     return this.toRecord(row);
   }
 

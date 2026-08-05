@@ -65,7 +65,19 @@ import {
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
-import { OrderAlreadyVoidedError, VoucherRejectedError } from '../../src/domain/errors';
+import {
+  OutboxMessageRecord,
+  OutboxRepository,
+  OutboxStatus,
+  OutboxWrite,
+} from '../../src/application/ports/outbox.repository';
+import { OutboxService } from '../../src/application/services/outbox.service';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  StaleOrderStatusError,
+  VoucherRejectedError,
+} from '../../src/domain/errors';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -114,8 +126,15 @@ export class InMemoryCartRepository implements CartRepository {
 
 export class InMemoryOrderRepository implements OrderRepository {
   rows: OrderRecord[] = [];
+  /**
+   * The outbox the real repository writes to in the SAME transaction as the order (H-10).
+   * Wired in by the tests so an order can never appear here without its effects being owed.
+   */
+  outbox: InMemoryOutboxRepository | null = null;
   reviews: OrderReviewRecord[] = [];
   refunds = new Map<string, number>();
+  /** Stands in for the `orders_customerId_idempotencyKey_key` unique index: `cust\0key` -> orderId. */
+  private readonly byIdempotencyKey = new Map<string, string>();
 
   async findReorderReminderTargets(
     cutoff: Date,
@@ -153,9 +172,18 @@ export class InMemoryOrderRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, ...rest } = data;
+    // `outbox` is consumed below and must not land on the record — the real repository
+    // destructures it out the same way.
+    const { items, outbox, ...rest } = data;
     const now = nextDate();
     const opening = rest.status ?? OrderStatus.CREATED;
+    // The unique index is the whole of B-13's in-flight guard, so the fake has to have it
+    // too — without this the concurrency test would pass against a repository that lets
+    // both writes through, which is exactly the bug.
+    const dupeKey = rest.idempotencyKey ? `${rest.customerId}\0${rest.idempotencyKey}` : null;
+    if (dupeKey && this.byIdempotencyKey.has(dupeKey)) {
+      throw new DuplicateCheckoutError();
+    }
     const rec: OrderRecord = {
       ...rest,
       id: rest.id ?? randomUUID(),
@@ -172,11 +200,22 @@ export class InMemoryOrderRepository implements OrderRepository {
       updatedAt: now,
     };
     this.rows.push(rec);
+    if (dupeKey) this.byIdempotencyKey.set(dupeKey, rec.id);
+    if (outbox?.length) {
+      this.outbox?.enqueue(outbox.map((m) => ({ ...m, orderId: rec.id })));
+    }
     return structuredClone(rec);
   }
   async findById(id: string): Promise<OrderRecord | null> {
     const row = this.rows.find((r) => r.id === id);
     return row ? structuredClone(row) : null;
+  }
+  async findByIdempotencyKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<OrderRecord | null> {
+    const id = this.byIdempotencyKey.get(`${customerId}\0${idempotencyKey}`);
+    return id ? this.findById(id) : null;
   }
   async assignDepot(id: string, depotId: string): Promise<OrderRecord> {
     const row = this.rows.find((r) => r.id === id)!;
@@ -244,14 +283,22 @@ export class InMemoryOrderRepository implements OrderRepository {
 
   async applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    outbox: OutboxWrite[] = [],
   ): Promise<OrderRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // The compare-and-set the real repository does in its WHERE (H-4): a caller writing
+    // from a status the order has already left claims nothing.
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleOrderStatusError();
+    // Same transaction as the status change (H-10): only the winner writes, so only the
+    // winner owes.
+    if (outbox.length) this.outbox?.enqueue(outbox);
     row.status = status;
     if (driverName != null) row.driverName = driverName;
     if (driverPhone != null) row.driverPhone = driverPhone;
@@ -566,11 +613,16 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
-  async advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
-    const r = this.rows.find((x) => x.id === id)!;
-    r.nextDeliveryAt = nextDeliveryAt;
+  async advance(id: string, from: Date, to: Date): Promise<boolean> {
+    // The compare-and-set the real repository does in its WHERE: a second sweep holding
+    // the same row finds the schedule already moved and claims nothing.
+    const r = this.rows.find(
+      (x) => x.id === id && x.status === 'ACTIVE' && x.nextDeliveryAt.getTime() === from.getTime(),
+    );
+    if (!r) return false;
+    r.nextDeliveryAt = to;
     r.updatedAt = nextDate();
-    return structuredClone(r);
+    return true;
   }
 
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
@@ -1012,4 +1064,64 @@ export function buildTestConfig(overrides: Record<string, string> = {}): OrderCo
     fake as unknown as ConfigService,
     new SettingsCache({ loadAll: async () => [] }),
   );
+}
+
+/**
+ * In-memory outbox (H-10). Models what the table guarantees: one row per (topic, order),
+ * and a claim that only yields PENDING rows whose backoff has elapsed.
+ */
+export class InMemoryOutboxRepository implements OutboxRepository {
+  rows: OutboxMessageRecord[] = [];
+
+  /** Stands in for the transactional write the repositories do alongside the order. */
+  enqueue(writes: OutboxWrite[]): void {
+    for (const w of writes) {
+      if (this.rows.some((r) => r.topic === w.topic && r.orderId === w.orderId)) continue;
+      this.rows.push({
+        id: randomUUID(),
+        topic: w.topic,
+        orderId: w.orderId,
+        status: 'PENDING',
+        attempts: 0,
+        nextAttemptAt: new Date(0),
+        lastError: null,
+        createdAt: nextDate(),
+      });
+    }
+  }
+
+  async claimDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
+    return this.rows
+      .filter((r) => r.status === 'PENDING' && r.nextAttemptAt.getTime() <= now.getTime())
+      .sort((a, b) => a.nextAttemptAt.getTime() - b.nextAttemptAt.getTime())
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  }
+  async markDone(id: string): Promise<void> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.status = 'DONE';
+    row.lastError = null;
+  }
+  async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
+    const row = this.rows.find((r) => r.id === id)!;
+    row.status = nextAttemptAt ? 'PENDING' : 'DEAD';
+    row.attempts += 1;
+    row.lastError = error;
+    if (nextAttemptAt) row.nextAttemptAt = nextAttemptAt;
+  }
+  async countByStatus(): Promise<Record<OutboxStatus, number>> {
+    const counts: Record<OutboxStatus, number> = { PENDING: 0, DONE: 0, DEAD: 0 };
+    for (const r of this.rows) counts[r.status] += 1;
+    return counts;
+  }
+}
+
+/**
+ * An OutboxService wired to an in-memory outbox and hooked up to the order repository,
+ * so a test's OrderService enqueues and delivers exactly as production does (H-10).
+ */
+export function buildOutbox(orders: InMemoryOrderRepository): OutboxService {
+  const repo = new InMemoryOutboxRepository();
+  orders.outbox = repo;
+  return new OutboxService(repo, orders);
 }

@@ -62,14 +62,27 @@ describe('VoucherService budget cap short-circuit', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('sums redemptions for a capped voucher, on quote and on redeem', async () => {
+  it('counts the burned budget when quoting a capped voucher', async () => {
     await service.create(baseVoucher({ code: 'CAPPED', budgetCap: 1_000_000 } as never));
     const spy = jest.spyOn(repo, 'sumRedemptionsFor');
     await service.quote('CAPPED', 'cust-1', 100_000, 5_000);
     expect(spy).toHaveBeenCalled();
-    spy.mockClear();
-    await service.redeem('CAPPED', 'cust-1', 'order-1', 100_000, 5_000);
-    expect(spy).toHaveBeenCalled();
+  });
+
+  // H-1: redeem no longer calls sumRedemptionsFor on its own connection — the burned
+  // total is read inside the locked transaction, because reading it outside was exactly
+  // what let concurrent redemptions blow past the cap. So assert the CAP, not the call:
+  // this is the behaviour that has to hold, and it survives the next refactor.
+  it('enforces the budget cap on redeem', async () => {
+    await service.create(baseVoucher({ code: 'CAPPED', budgetCap: 15_000 } as never));
+
+    const first = await service.redeem('CAPPED', 'cust-1', 'order-1', 100_000, 5_000);
+    expect(first.discountApplied).toBeGreaterThan(0);
+
+    // The next redemption would push the total past the cap, so it must be refused
+    // outright rather than recorded and reconciled later.
+    await expect(service.redeem('CAPPED', 'cust-2', 'order-2', 100_000, 5_000)).rejects.toThrow();
+    expect(await repo.findRedemptionByOrder('order-2')).toBeNull();
   });
 });
 

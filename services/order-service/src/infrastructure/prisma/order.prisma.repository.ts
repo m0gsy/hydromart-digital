@@ -3,7 +3,11 @@ import { depotWhere } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
-import { OrderAlreadyVoidedError } from '../../domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  StaleOrderStatusError,
+} from '../../domain/errors';
 import {
   CreateOrderData,
   CreateReviewData,
@@ -27,6 +31,7 @@ import {
   SalesBucket,
   SegmentConditions,
 } from '../../application/ports/order.repository';
+import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
 
 type Decimalish = { toNumber(): number };
@@ -112,6 +117,19 @@ const INCLUDE = {
   // full — it's bounded (status transitions) and serialized to the order card/timeline.
   review: { select: { id: true } },
 };
+
+/**
+ * A Prisma unique-constraint violation (P2002) naming `field`, detected without importing
+ * the client namespace. Matching the field keeps an unrelated unique from being read as the
+ * one the caller can recover from.
+ */
+function isUniqueViolation(error: unknown, field: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, meta } = error as { code?: string; meta?: { target?: unknown } };
+  if (code !== 'P2002') return false;
+  const target = meta?.target;
+  return Array.isArray(target) ? target.includes(field) : String(target ?? '').includes(field);
+}
 
 @Injectable()
 export class OrderPrismaRepository implements OrderRepository {
@@ -224,25 +242,52 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, id, status, ...order } = data;
+    const { items, id, status, outbox = [], ...order } = data;
     // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
     // seed history row has to match the row's real status, not a CREATED it never was.
     const opening = status ?? OrderStatus.CREATED;
-    const row = await this.prisma.order.create({
-      data: {
-        ...(id ? { id } : {}),
-        ...order,
-        status: opening,
-        items: { create: items },
-        history: { create: { status: opening } },
-      },
-      include: INCLUDE,
-    });
-    return this.toRecord(row);
+    try {
+      // H-10: a walk-in is born COMPLETED, so the effects it earns are written with it
+      // rather than at a later transition. One transaction, or neither.
+      const [row] = await this.prisma.$transaction([
+        this.prisma.order.create({
+          data: {
+            ...(id ? { id } : {}),
+            ...order,
+            status: opening,
+            items: { create: items },
+            history: { create: { status: opening } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ]);
+      return this.toRecord(row);
+    } catch (error) {
+      // B-13: the retry lost the race against the attempt that is already committing.
+      // `orders_customerId_idempotencyKey_key` is the only unique this write can violate
+      // that the caller can recover from — an orderNumber collision (H-12) is ours, not
+      // theirs, and must keep surfacing as a failure.
+      if (isUniqueViolation(error, 'idempotencyKey')) {
+        throw new DuplicateCheckoutError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async findByIdempotencyKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<OrderRecord | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
+      include: INCLUDE,
+    });
     return row ? this.toRecord(row) : null;
   }
 
@@ -344,24 +389,41 @@ export class OrderPrismaRepository implements OrderRepository {
 
   async applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    outbox: OutboxWrite[] = [],
   ): Promise<OrderRecord> {
-    const row = await this.prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        ...(driverName != null ? { driverName } : {}),
-        ...(driverPhone != null ? { driverPhone } : {}),
-        ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
-        history: { create: { status, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
+    // `status: from` in the WHERE is the guard (H-4). No match means the order moved
+    // under us; P2025 becomes StaleOrderStatusError so the loser is told, not ignored.
+    //
+    // H-10: the effects the transition earns go in the SAME transaction. The status guard
+    // is what makes that safe to pair — only the winner writes, so only the winner owes.
+    const [row] = await this.prisma
+      .$transaction([
+        this.prisma.order.update({
+          where: { id, status: from },
+          data: {
+            status,
+            ...(driverName != null ? { driverName } : {}),
+            ...(driverPhone != null ? { driverPhone } : {}),
+            ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
+            history: { create: { status, changedBy, note } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ])
+      .catch((error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2025') {
+          throw new StaleOrderStatusError();
+        }
+        throw error;
+      });
     return this.toRecord(row);
   }
 

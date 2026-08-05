@@ -101,4 +101,20 @@ export interface PaymentRepository {
    */
   sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
+
+  /**
+   * Compare-and-set on status: apply `patch` only if the row is still in one of
+   * `expected`. Returns null when it was not — someone else moved it first.
+   *
+   * B-9: refund read the payment, checked isRefundable, called the gateway and THEN
+   * updated on `id` alone. Two concurrent refunds both read PAID, both passed the check,
+   * and both reached the gateway — the customer was paid back twice. A status predicate on
+   * the write is what makes exactly one caller win, and it has to be claimed BEFORE the
+   * gateway call, not after.
+   */
+  updateIfStatus(
+    id: string,
+    expected: PaymentStatus[],
+    patch: PaymentStatusPatch,
+  ): Promise<PaymentRecord | null>;
 }

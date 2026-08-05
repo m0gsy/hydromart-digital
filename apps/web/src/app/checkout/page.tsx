@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Bank,
   Check,
@@ -136,6 +136,8 @@ function CheckoutInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [express, slotTime, slotDateIdx]);
   const [submitting, setSubmitting] = useState(false);
+  /** Idempotency key for the current purchase attempt; cleared once an order is placed. */
+  const attemptKey = useRef('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState(false);
 
@@ -258,6 +260,11 @@ function CheckoutInner() {
     e.preventDefault();
     setSubmitting(true);
     setSubmitError(null);
+    // B-13: one key for this whole attempt at buying this cart, deliberately kept across
+    // failed submits. If the request timed out on an order the server had already placed,
+    // pressing Pesan again returns that order instead of buying the water twice. It is
+    // only rotated after a placed order, when the next submit really is a new purchase.
+    if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
     try {
       const order = await api.post<Order>(
         endpoints.orders.checkout,
@@ -282,7 +289,9 @@ function CheckoutInner() {
           deliveryWindow: deliveryWindow || undefined,
         },
         true,
+        { 'Idempotency-Key': attemptKey.current },
       );
+      attemptKey.current = '';
       // Save a fresh address to the book (non-blocking) so it's reusable next time.
       if (saveToBook && !savedAddresses?.some((a) => a.id === selection)) {
         try {

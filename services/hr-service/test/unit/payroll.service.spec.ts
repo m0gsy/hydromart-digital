@@ -42,7 +42,7 @@ class FakePayrollRepo implements PayrollRepository {
     this.regenerated = true;
     return { id: 'p1', status: 'DRAFT', ...data } as unknown as PayrollWithItems;
   }
-  async setStatus(_id: string, status: never): Promise<PayrollWithItems> {
+  async setStatus(_id: string, _from: never, status: never): Promise<PayrollWithItems> {
     this.status = status;
     return { ...(this.byId as PayrollWithItems), status };
   }

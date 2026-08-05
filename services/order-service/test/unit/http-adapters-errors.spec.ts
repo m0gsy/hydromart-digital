@@ -1,4 +1,5 @@
 import { OrderConfigService } from '../../src/config/order-config.service';
+import { StockCheckUnavailableError, VoucherRejectedError } from '../../src/domain/errors';
 import type { OrderRecord } from '../../src/application/ports/order.repository';
 import { LoyaltyCoordinationHttpAdapter } from '../../src/infrastructure/http/loyalty-coordination.http.adapter';
 import { NotificationHttpAdapter } from '../../src/infrastructure/http/notification.http.adapter';
@@ -14,10 +15,13 @@ import { MembershipHttpAdapter } from '../../src/infrastructure/http/membership.
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { ResellerDiscountHttpAdapter } from '../../src/infrastructure/http/reseller-discount.http.adapter';
 
-// Covers the fail-open error branches the happy-path specs don't reach: the `if (!res.ok)
-// throw` guards feeding each adapter's catch. Every fire-and-forget coordination call must
-// swallow a non-2xx (never blocking the order); the two fail-closed calls (promo.quote,
-// product) are asserted elsewhere.
+// Covers the error branches the happy-path specs don't reach: the `if (!res.ok) throw`
+// guards feeding each adapter's catch.
+//
+// The dividing line is whether the call is what makes the order legitimate. Fire-and-forget
+// coordination (points, notifications, referrals, analytics) swallows a non-2xx and never
+// blocks an order. The calls the order DEPENDS on reject it instead: promo.quote, product,
+// inventory.reserve (B-6b) and promo.redeem (B-6).
 
 const KEY = 'internal-key-01';
 
@@ -101,11 +105,15 @@ describe('coordination adapters fail open on a non-2xx response', () => {
     ).resolves.toBeUndefined();
   });
 
-  it('promo.redeem swallows a 500 (idempotent on the promo side)', async () => {
+  // B-6: this used to assert redeem SWALLOWS a 500, on the reasoning that the burn is
+  // idempotent so a failure "only under-counts usage". It does more than that — the order
+  // is created with the discount already applied, so a failed burn gives away money and
+  // leaves the voucher live and reusable. The burn is what makes the discount legitimate.
+  it('promo.redeem rejects the checkout when the burn fails', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     await expect(
       new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, ''),
-    ).resolves.toBeUndefined();
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -248,13 +256,13 @@ describe('coordination adapters short-circuit when disabled', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('inventory.reserve skips without an internal key', async () => {
-    await new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve(
-      'd1',
-      'o1',
-      line,
-      '',
-    );
+  // B-6b: this used to assert that reserve SKIPS when the internal key is missing, which
+  // meant a blank config value quietly sold unreserved stock on every order. A missing key
+  // is a deployment fault, so it now rejects the checkout like any other non-verdict.
+  it('inventory.reserve refuses to proceed without an internal key', async () => {
+    await expect(
+      new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' })).reserve('d1', 'o1', line, ''),
+    ).rejects.toBeInstanceOf(StockCheckUnavailableError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

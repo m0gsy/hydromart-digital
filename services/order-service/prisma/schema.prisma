@@ -102,6 +102,12 @@ model Order {
   voidedAt     DateTime?
   voidReason   String?
 
+  /// Client-supplied `Idempotency-Key` for the request that placed this order. A double
+  /// tap or a retry after a timeout carries the same key and the unique below turns the
+  /// second write into a no-op that returns this same row. Null for order paths with no
+  /// caller to retry them (subscription sweeps).
+  idempotencyKey String?
+
   items   OrderItem[]
   history OrderStatusHistory[]
   review  OrderReview?
@@ -117,6 +123,9 @@ model Order {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([depotId, createdAt])
+  // B-13: one order per (buyer, idempotency key). Postgres treats every NULL as distinct,
+  // so this only binds requests that actually sent a key.
+  @@unique([customerId, idempotencyKey])
   @@map("orders")
 }
 
@@ -265,6 +274,46 @@ model ServiceSetting {
   updatedBy String   @map("updated_by")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // H-11: also two PARTIAL unique indexes, invisible to Prisma because it cannot express a
+  // WHERE on an index: one key per depot, and one key globally. A plain @@unique here would
+  // not constrain the GLOBAL rows — depotId is null on those and Postgres treats every NULL
+  // as distinct. The repository upserts against them by catching the violation.
+  //
+  // They have existed since 20260724181000_service_settings; the audit's H-11 was true only of
+  // hr-service, which gets them in 20260803160000_service_settings_unique.
   @@index([scope, depotId])
   @@map("service_settings")
+}
+
+/// H-10: durable outbox for the side effects that MUST happen when an order completes.
+///
+/// Stock consume, the loyalty award, the referral qualification and the franchise-owner
+/// credit were all fire-and-forget HTTP calls behind a `.catch(() => {})`. A depot-service
+/// blip meant the depot's checkout hold was never settled and its sellable stock drifted
+/// down forever; a payout-service blip meant an owner was simply never paid for a sale.
+/// Nothing retried, and the only trace was a log line.
+///
+/// Rows are written in the SAME transaction as the status change that earns them, so an
+/// order can never be COMPLETED without its effects being owed somewhere durable. Every
+/// handler is idempotent on the receiving side (keyed by order id), which is what makes
+/// retrying safe.
+model OutboxMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Which effect this row owes. See OUTBOX_TOPICS in the application layer.
+  topic     String
+  /// The order the effect is for. The handler re-reads it, so nothing here can go stale.
+  orderId   String   @db.Uuid
+  status    String   @default("PENDING")
+  attempts  Int      @default(0)
+  /// Exponential backoff: a claim only picks up rows due at or before now.
+  nextAttemptAt DateTime @default(now())
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One row per effect per order: re-running the completion cannot owe it twice.
+  @@unique([topic, orderId])
+  /// The claim predicate.
+  @@index([status, nextAttemptAt])
+  @@map("outbox_messages")
 }

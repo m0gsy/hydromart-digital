@@ -13,13 +13,21 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
+import { OutboxService, OutboxSweepResult } from '../application/services/outbox.service';
 import {
   OrderRecord,
   OrderReviewRecord,
@@ -54,14 +62,24 @@ const FULFILMENT_ROLES = [
 @ApiBearerAuth()
 @Controller({ path: 'orders', version: '1' })
 export class OrderController {
-  constructor(private readonly orders: OrderService) {}
+  constructor(
+    private readonly orders: OrderService,
+    private readonly outboxService: OutboxService,
+  ) {}
 
   @Post('checkout')
   @ApiOperation({ summary: 'Place an order from the cart (prices re-verified server-side)' })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description:
+      'Unique per checkout attempt. Re-sending it returns the order the first attempt placed instead of a second one.',
+  })
   checkout(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CheckoutDto,
     @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<OrderRecord> {
     // Forward the caller's token so checkout can validate/redeem a voucher against
     // the promo-service (which enforces its own RBAC on quote/redeem).
@@ -82,6 +100,7 @@ export class OrderController {
         depotId: dto.depotId ?? null,
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       },
       authorization,
     );
@@ -91,10 +110,16 @@ export class OrderController {
   @Can('walkInSale')
   @Post('walk-in')
   @ApiOperation({ summary: 'Record a cash sale at the depot counter (completed immediately)' })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: false,
+    description: 'Unique per till attempt. Re-sending it returns the same sale, not a second one.',
+  })
   walkIn(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: WalkInSaleDto,
     @Headers('authorization') authorization?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ): Promise<OrderRecord> {
     return this.orders.walkInSale(
       user,
@@ -105,6 +130,7 @@ export class OrderController {
         customerName: dto.customerName ?? null,
         customerPhone: dto.customerPhone ?? null,
         voucherCode: dto.voucherCode ?? null,
+        idempotencyKey: idempotencyKey ?? null,
       },
       authorization,
     );
@@ -123,6 +149,28 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     return this.orders.voidCounterSale(user, id, dto.reason, new Date(), authorization);
+  }
+
+  /**
+   * H-10: deliver the completion effects that are still owed — the stock consume, the
+   * loyalty award, the referral qualification, the franchise-owner credit. Ops-scheduled,
+   * exactly like expire-abandoned and the subscription sweep; this service runs no cron
+   * daemon of its own.
+   */
+  @Roles(Role.SUPER_ADMIN)
+  @Post('outbox/process')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry the order side effects still owed (admin sweep)' })
+  processOutbox(): Promise<OutboxSweepResult> {
+    return this.outboxService.processDue();
+  }
+
+  /** What the sweep still owes, so a queue that stops draining is visible. */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('outbox/pending')
+  @ApiOperation({ summary: 'Counts of order side effects owed, delivered and given up on' })
+  outboxPending(): Promise<Record<string, number>> {
+    return this.outboxService.pending();
   }
 
   @Roles(Role.SUPER_ADMIN)

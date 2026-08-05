@@ -76,27 +76,34 @@ export class PayoutService {
 
     const label = input.orderNumber ?? input.orderId;
     const occurredAt = input.occurredAt ?? new Date();
-    await this.ledger.create({
-      franchiseOwnerId: input.franchiseOwnerId,
-      depotId: input.depotId,
-      type: 'SALE_SETTLEMENT',
-      amount: input.amountIdr,
-      description: `Penjualan pesanan ${label}`,
-      sourceRef: saleRef,
-      occurredAt,
-    });
-    // Commission is stored as a debit (negative), matching how the summary reports it.
-    if (commission > 0) {
-      await this.ledger.create({
+    // H-7: the sale and the commission it owes are one economic event, so they are written
+    // as one. Separately, a crash between them left the owner credited for a sale HQ never
+    // took its cut of — a discrepancy nobody sees until a month is reconciled by hand.
+    await this.ledger.createAll([
+      {
         franchiseOwnerId: input.franchiseOwnerId,
         depotId: input.depotId,
-        type: 'COMMISSION',
-        amount: -commission,
-        description: `Komisi HQ ${pct}% pesanan ${label}`,
-        sourceRef: `order:${input.orderId}:COMMISSION`,
+        type: 'SALE_SETTLEMENT',
+        amount: input.amountIdr,
+        description: `Penjualan pesanan ${label}`,
+        sourceRef: saleRef,
         occurredAt,
-      });
-    }
+      },
+      // Commission is stored as a debit (negative), matching how the summary reports it.
+      ...(commission > 0
+        ? [
+            {
+              franchiseOwnerId: input.franchiseOwnerId,
+              depotId: input.depotId,
+              type: 'COMMISSION' as const,
+              amount: -commission,
+              description: `Komisi HQ ${pct}% pesanan ${label}`,
+              sourceRef: `order:${input.orderId}:COMMISSION`,
+              occurredAt,
+            },
+          ]
+        : []),
+    ]);
     return { recorded: true, revenue: input.amountIdr, commission, commissionPct: pct };
   }
 
@@ -119,28 +126,34 @@ export class PayoutService {
     }
 
     const occurredAt = new Date();
-    await this.ledger.create({
-      franchiseOwnerId: sale.franchiseOwnerId,
-      depotId: sale.depotId,
-      type: 'SALE_SETTLEMENT',
-      amount: -sale.amount,
-      description: `Pembatalan: ${sale.description} (${reason})`,
-      sourceRef: `order:${orderId}:VOID_SALE`,
-      occurredAt,
-    });
     const commission = await this.ledger.findBySourceRef(`order:${orderId}:COMMISSION`);
-    if (commission) {
-      await this.ledger.create({
-        franchiseOwnerId: commission.franchiseOwnerId,
-        depotId: commission.depotId,
-        type: 'COMMISSION',
-        // The original is a debit (negative), so giving it back is a credit.
-        amount: -commission.amount,
-        description: `Pembatalan: ${commission.description}`,
-        sourceRef: `order:${orderId}:VOID_COMMISSION`,
+    // Same pairing rule as the forward posting (H-7): giving the sale back without giving
+    // the commission back leaves the owner short by HQ's cut of a sale that never happened.
+    await this.ledger.createAll([
+      {
+        franchiseOwnerId: sale.franchiseOwnerId,
+        depotId: sale.depotId,
+        type: 'SALE_SETTLEMENT',
+        amount: -sale.amount,
+        description: `Pembatalan: ${sale.description} (${reason})`,
+        sourceRef: `order:${orderId}:VOID_SALE`,
         occurredAt,
-      });
-    }
+      },
+      ...(commission
+        ? [
+            {
+              franchiseOwnerId: commission.franchiseOwnerId,
+              depotId: commission.depotId,
+              type: 'COMMISSION' as const,
+              // The original is a debit (negative), so giving it back is a credit.
+              amount: -commission.amount,
+              description: `Pembatalan: ${commission.description}`,
+              sourceRef: `order:${orderId}:VOID_COMMISSION`,
+              occurredAt,
+            },
+          ]
+        : []),
+    ]);
     return { reversed: true };
   }
 
@@ -221,26 +234,24 @@ export class PayoutService {
     bankAccountRef: string,
   ): Promise<WithdrawalRecord> {
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
-    const balance = await this.ledger.balanceFor(ownerId);
-    if (amount > balance) throw new InsufficientBalanceError(balance, amount);
 
+    // B-8: the balance check and the two writes happen together, serialized per owner.
+    // Reading the balance here and writing afterwards let two concurrent requests both
+    // pass the same check and overdraw, and a crash between the withdrawal row and its
+    // debit left a PROCESSING payout with the balance untouched.
     const reference = withdrawalReference(new Date());
-    const withdrawal = await this.withdrawals.create({
+    const outcome = await this.withdrawals.withdrawWithDebit({
       franchiseOwnerId: ownerId,
       amount,
       bankAccountRef,
       reference,
       status: 'PROCESSING',
-    });
-    // Post the matching debit so the balance drops immediately.
-    await this.ledger.create({
-      franchiseOwnerId: ownerId,
-      depotId: null,
-      type: 'WITHDRAWAL',
-      amount: -amount,
       description: `Pencairan saldo · ${reference}`,
     });
-    return withdrawal;
+    if (!outcome.ok) {
+      throw new InsufficientBalanceError(outcome.balance, amount);
+    }
+    return outcome.withdrawal;
   }
 }
 

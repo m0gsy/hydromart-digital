@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { LoyaltyConfigService } from '../../src/config/loyalty-config.service';
+import { InsufficientPointsError, InvalidAdjustmentError } from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 import { CustomerDirectory } from '../../src/application/ports/customer-directory.port';
@@ -74,6 +75,10 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
   }
 
   async createAccount(customerId: string): Promise<LoyaltyAccountRecord> {
+    // customerId is unique in the schema — a second create for the same customer returns
+    // the existing account rather than a second one, exactly as the upsert does.
+    const existing = this.accounts.find((x) => x.customerId === customerId);
+    if (existing) return { ...existing };
     const now = nextDate();
     const a: LoyaltyAccountRecord = {
       id: randomUUID(),
@@ -95,9 +100,20 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
 
   private applyToAccount(m: AccountMutation): LoyaltyAccountRecord {
     const acc = this.accounts.find((x) => x.id === m.accountId)!;
-    acc.pointsBalance = m.newBalance;
-    acc.lifetimePoints = m.newLifetime;
-    acc.tier = m.newTier;
+    // Deltas, and the debit floor, exactly as the database applies them (H-2) — a fake
+    // that assigned an absolute would let the lost-update test pass against the bug.
+    if (m.points < 0 && acc.pointsBalance < -m.points) {
+      throw new InvalidAdjustmentError();
+    }
+    acc.pointsBalance += m.points;
+    acc.lifetimePoints += m.lifetimeDelta;
+    acc.updatedAt = nextDate();
+    return { ...acc };
+  }
+
+  async setTier(accountId: string, tier: MembershipTier): Promise<LoyaltyAccountRecord> {
+    const acc = this.accounts.find((x) => x.id === accountId)!;
+    acc.tier = tier;
     acc.updatedAt = nextDate();
     return { ...acc };
   }
@@ -172,7 +188,7 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
       createdAt: nextDate(),
     });
     const acc = this.accounts.find((x) => x.id === m.accountId)!;
-    acc.pointsBalance = m.newBalance;
+    acc.pointsBalance = Math.max(0, acc.pointsBalance - m.points);
     acc.updatedAt = nextDate();
   }
 }
@@ -236,6 +252,10 @@ export class InMemoryRewardRepository implements RewardRepository {
   }
 
   async redeem(m: RedeemMutation): Promise<RewardRedemptionRecord> {
+    const account = this.loyalty.accounts.find((x) => x.id === m.accountId)!;
+    // The conditional debit the real repository does in its WHERE clause. Checked before
+    // anything is written, because there the whole transaction rolls back together.
+    if (account.pointsBalance < m.pointsSpent) throw new InsufficientPointsError();
     const redemption: RewardRedemptionRecord & { idempotencyKey: string } = {
       id: randomUUID(),
       rewardItemId: m.rewardItemId,
@@ -262,9 +282,8 @@ export class InMemoryRewardRepository implements RewardRepository {
       expired: false,
       createdAt: nextDate(),
     });
-    const acc = this.loyalty.accounts.find((x) => x.id === m.accountId)!;
-    acc.pointsBalance = m.newBalance;
-    acc.updatedAt = nextDate();
+    account.pointsBalance -= m.pointsSpent;
+    account.updatedAt = nextDate();
     if (m.decrementStock) {
       const item = this.items.find((x) => x.id === m.rewardItemId)!;
       item.stock = (item.stock ?? 0) - 1;
@@ -325,7 +344,7 @@ export class InMemoryRewardRepository implements RewardRepository {
       createdAt: nextDate(),
     });
     const acc = this.loyalty.accounts.find((x) => x.id === m.accountId)!;
-    acc.pointsBalance = m.newBalance;
+    acc.pointsBalance += m.pointsRefunded;
     acc.updatedAt = nextDate();
     if (m.restoreStock) {
       const item = this.items.find((x) => x.id === m.rewardItemId)!;

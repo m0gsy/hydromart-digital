@@ -93,9 +93,14 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return this.toRecord(row);
   }
 
-  async advance(id: string, nextDeliveryAt: Date): Promise<SubscriptionRecord> {
-    const row = await this.prisma.subscription.update({ where: { id }, data: { nextDeliveryAt } });
-    return this.toRecord(row);
+  async advance(id: string, from: Date, to: Date): Promise<boolean> {
+    // updateMany, not update: the schedule predicate is not part of any unique key, and a
+    // miss has to come back as a count rather than as an exception.
+    const { count } = await this.prisma.subscription.updateMany({
+      where: { id, status: 'ACTIVE', nextDeliveryAt: from },
+      data: { nextDeliveryAt: to },
+    });
+    return count === 1;
   }
 
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
