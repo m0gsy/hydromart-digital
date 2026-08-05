@@ -17,6 +17,15 @@ log() { echo "[rollback] $*"; }
 TARGET="${1:-$(cat "$STATE_DIR/prev-sha" 2>/dev/null || true)}"
 [ -z "$TARGET" ] && { echo "no rollback target (pass a SHA or run a deploy first)"; exit 2; }
 
+# Audit [G] H-18 alleged shell injection through this argument. It was not
+# reproducible: TARGET is quoted at every use, never eval'd, never interpolated
+# into a `sh -c`, and the script runs under `set -euo pipefail`. Rather than
+# argue the point in a comment, resolve it by construction — anything that is
+# not a commit this repository actually has is refused here, before it reaches
+# git, the rebuild, or the alert text.
+git rev-parse --verify --quiet "$TARGET^{commit}" >/dev/null || {
+  echo "not a commit in this repository: $TARGET"; exit 2; }
+
 CUR="$(git rev-parse HEAD)"
 log "rolling back $CUR → $TARGET"
 
