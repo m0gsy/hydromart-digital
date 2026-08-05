@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
 # Base file (docker-compose.yml) provides postgres (init-databases.sql creates all
-# per-service DBs) + redis. This overlay adds the 15 app services + the web app.
+# per-service DBs). This overlay adds the 15 app services + the web app.
 #
 # All secrets come from the environment (see .env.production.example). ${VAR:?msg}
 # fails the command if VAR is unset — no secret is ever hardcoded here.
@@ -49,14 +49,13 @@ x-svc: &svc
   cpus: 1.0
   depends_on:
     postgres: { condition: service_healthy }
-    redis: { condition: service_healthy }
 
 services:
   # Override only the postgres password with the prod secret; user, db, volume,
   # init script AND port publishing all come from the base file (which publishes
-  # 5432/6379). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
+  # 5432). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
   # port lists across files, so a second entry would double-bind and fail to boot.
-  # Postgres/Redis therefore stay on the host's published 5432/6379 — lock them down
+  # Postgres therefore stays on the host's published 5432 — lock it down
   # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
   postgres:
     # H-34: the one container that genuinely wants headroom — shared_buffers plus every

@@ -183,6 +183,12 @@ jobs:
       - name: Performance baseline references
         run: node scripts/check-perf-baseline.mjs
 
+      # Q-6: an env var a service READS must be a key its Joi schema VALIDATES.
+      # Nest passes unknown keys through untouched, so an undeclared one is not a
+      # boot error — it is `undefined` behind a `??` at 3am.
+      - name: Env contract (read ⊆ validated)
+        run: node scripts/check-env-contract.mjs
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -256,7 +262,7 @@ jobs:
       # databases) so the runner's db:migrate doesn't race a cold Postgres in CI.
       - name: Start infra + wait for Postgres
         run: |
-          docker compose up -d postgres redis
+          docker compose up -d postgres
           for i in $(seq 1 30); do
             if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then exit 0; fi
             sleep 2
@@ -336,7 +342,7 @@ jobs:
 
       - name: Start infra + wait for Postgres
         run: |
-          docker compose up -d postgres redis
+          docker compose up -d postgres
           # Fail loudly instead of racing db:migrate against a cold Postgres — a fresh
           # runner's initdb creates all 16 databases, which can take >60s. The old loop
           # only `break`ed on ready and fell through silently on timeout, so the first

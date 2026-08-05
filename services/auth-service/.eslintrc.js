@@ -17,6 +17,11 @@ module.exports = {
   },
   ignorePatterns: ['.eslintrc.js', 'dist', 'node_modules', 'coverage'],
   rules: {
+    // Q-5: a rejected promise nobody awaits is an unhandled rejection, and Node
+    // exits the process on those. Type-aware, so it catches the real ones; a
+    // deliberate fire-and-forget must say so with `void` + its own `.catch`.
+    '@typescript-eslint/no-floating-promises': 'error',
+    '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
     '@typescript-eslint/interface-name-prefix': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',

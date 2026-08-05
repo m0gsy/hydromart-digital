@@ -1,69 +1,20 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { SettingsCache, coerce } from '@hydromart/platform';
+import { Inject, Injectable } from '@nestjs/common';
+import { SettingsCache, SettingsSliceService } from '@hydromart/platform';
 
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../ports/settings.repository';
-import { SETTING_DEFS, SETTING_DEF_BY_KEY, SettingDef } from '../../config/setting-defs';
+import { SETTING_DEFS, SETTING_DEF_BY_KEY } from '../../config/setting-defs';
 
-interface PutInput {
-  scope: 'GLOBAL' | 'DEPOT';
-  depotId: string | null;
-  key: string;
-  value: string;
-  updatedBy: string;
-}
-
+/**
+ * Q-1: the whole body of this class used to be copied into seven services,
+ * byte-identical. It now lives in @hydromart/platform; what stays here is the one
+ * thing that was ever different — which defs table this service owns.
+ */
 @Injectable()
-export class SettingsService {
+export class SettingsService extends SettingsSliceService {
   constructor(
-    @Inject(SETTINGS_REPOSITORY) private readonly repo: SettingsRepository,
-    public readonly cache: SettingsCache,
-  ) {}
-
-  async schema(
-    depotId: string | null,
-  ): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
-    await this.cache.refresh();
-    const effective: Record<string, number | string> = {};
-    for (const def of SETTING_DEFS) {
-      effective[def.key] = this.cache.effective(def.key, def.type, def.envDefault, depotId);
-    }
-    return { defs: SETTING_DEFS, effective };
-  }
-
-  async put(input: PutInput): Promise<void> {
-    const def = SETTING_DEF_BY_KEY[input.key];
-    if (!def) {
-      throw new BadRequestException(`Unknown setting: ${input.key}`);
-    }
-    if (input.scope === 'DEPOT' && !input.depotId) {
-      throw new BadRequestException('depotId required for a DEPOT override');
-    }
-    if (def.global && input.scope === 'DEPOT') {
-      throw new BadRequestException(`${input.key} is a global-only setting; no per-depot override`);
-    }
-    const coerced = coerce(input.value, def.type);
-    if (def.type !== 'string') {
-      const n = coerced as number;
-      if (def.min != null && n < def.min) throw new BadRequestException(`${input.key} below min ${def.min}`);
-      if (def.max != null && n > def.max) throw new BadRequestException(`${input.key} above max ${def.max}`);
-    }
-    await this.repo.upsert({
-      scope: input.scope,
-      // Every tunable this service owns is global-only (see setting-defs), and the guard above
-      // already refused a DEPOT scope — so the row is always the network one.
-      depotId: null,
-      key: input.key,
-      value: String(coerced),
-      updatedBy: input.updatedBy,
-    });
-    await this.cache.refresh();
-  }
-
-  async reset(scope: 'GLOBAL' | 'DEPOT', depotId: string | null, key: string): Promise<void> {
-    if (scope === 'DEPOT' && !depotId) {
-      throw new BadRequestException('depotId required for a DEPOT override');
-    }
-    await this.repo.remove(scope, scope === 'GLOBAL' ? null : depotId, key);
-    await this.cache.refresh();
+    @Inject(SETTINGS_REPOSITORY) repo: SettingsRepository,
+    cache: SettingsCache,
+  ) {
+    super(repo, cache, SETTING_DEFS, SETTING_DEF_BY_KEY);
   }
 }

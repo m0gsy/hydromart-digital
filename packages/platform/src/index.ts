@@ -105,3 +105,9 @@ export {
   resolveRaw,
   SettingsCache,
 } from './config/settings';
+export {
+  SettingsSliceService,
+  type SettingDef,
+  type SettingsSliceRepository,
+  type PutSettingInput,
+} from './config/settings-slice';

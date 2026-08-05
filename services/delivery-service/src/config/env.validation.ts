@@ -66,7 +66,10 @@ export const envValidationSchema = Joi.object({
     .uri()
     .when('NODE_ENV', {
       is: 'production',
-      then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
       otherwise: Joi.string().uri().default('http://localhost:3006'),
     }),
   // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (Cloudflare R2
@@ -94,4 +97,14 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
+  DELIVERY_URBAN_SPEED_KMPH: Joi.number().positive().default(18),
+  // Q-6: shipped to every service by docker-compose's x-shared, and until now
+  // validated by none of them. The capability poller reads it; unset, it fails open
+  // and every service silently enforces the compiled RBAC defaults forever — which
+  // looks exactly like "the matrix edit did nothing".
+  AUTH_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });

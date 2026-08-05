@@ -20,4 +20,15 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
+  HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Q-6: shipped to every service by docker-compose's x-shared, and until now
+  // validated by none of them. The capability poller reads it; unset, it fails open
+  // and every service silently enforces the compiled RBAC defaults forever — which
+  // looks exactly like "the matrix edit did nothing".
+  AUTH_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });

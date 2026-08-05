@@ -75,13 +75,21 @@ describe('envValidationSchema — SEC-1 coordination keys', () => {
     expect(value.INTERNAL_SERVICE_KEY).toBe('');
   });
 
+  // Q-6 made two more keys production-required, so a production env needs them
+  // present or the assertion below would pass for the wrong reason.
+  const prod = {
+    ...base,
+    NODE_ENV: 'production',
+    AUTH_SERVICE_URL: 'http://auth:3001',
+    DEPOT_SERVICE_URL: 'http://depot:3007',
+  };
+
   it.each([
     ['ORDER_SERVICE_URL', { INTERNAL_SERVICE_KEY: 'c'.repeat(16) }],
     ['INTERNAL_SERVICE_KEY', { ORDER_SERVICE_URL: 'http://order:3004' }],
   ])('refuses to boot production without %s', (missing, present) => {
     const { error } = envValidationSchema.validate({
-      ...base,
-      NODE_ENV: 'production',
+      ...prod,
       ...present,
     });
     expect(error?.message).toContain(missing);
@@ -89,8 +97,7 @@ describe('envValidationSchema — SEC-1 coordination keys', () => {
 
   it('refuses a production value that is explicitly blank', () => {
     const { error } = envValidationSchema.validate({
-      ...base,
-      NODE_ENV: 'production',
+      ...prod,
       ORDER_SERVICE_URL: '',
       INTERNAL_SERVICE_KEY: '',
     });
@@ -99,8 +106,7 @@ describe('envValidationSchema — SEC-1 coordination keys', () => {
 
   it('accepts production with both set', () => {
     const { error } = envValidationSchema.validate({
-      ...base,
-      NODE_ENV: 'production',
+      ...prod,
       ORDER_SERVICE_URL: 'http://order:3004',
       INTERNAL_SERVICE_KEY: 'c'.repeat(16),
     });

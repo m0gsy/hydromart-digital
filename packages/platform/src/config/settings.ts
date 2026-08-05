@@ -45,6 +45,7 @@ export function resolveRaw(key: string, depotId: string | null, rows: SettingRow
  */
 export class SettingsCache {
   private rows: SettingRow[] = [];
+  private loadedAt = 0;
 
   constructor(
     private readonly source: SettingsSource,
@@ -53,6 +54,18 @@ export class SettingsCache {
 
   async refresh(): Promise<void> {
     this.rows = await this.source.loadAll();
+    this.loadedAt = Date.now();
+  }
+
+  /**
+   * Q-7: the settings screen used to call refresh() on every GET, which is a full
+   * table read per request in seven services — a cache with a TTL that only the
+   * background timer ever honoured. Reads go through here; WRITES still call
+   * refresh() directly, because an edit must be visible to the response that made it.
+   */
+  async ensureFresh(): Promise<void> {
+    if (Date.now() - this.loadedAt < this.ttlMs) return;
+    await this.refresh();
   }
 
   get ttl(): number {

@@ -25,12 +25,12 @@ created on first boot by [`infra/postgres/init-databases.sql`](../infra/postgres
 
 ## First-time setup
 
-Requires Docker (Postgres 16 + Redis 7). From the repo root:
+Requires Docker (Postgres 16). From the repo root:
 
 ```bash
 cp .env.example .env          # fill in secrets
 npm install                   # installs deps + generates every Prisma client
-npm run db:up                 # start Postgres + Redis, creates all per-service DBs
+npm run db:up                 # start Postgres, creates all per-service DBs
 npm run db:migrate            # apply every service's migrations (prisma migrate deploy)
 ```
 
@@ -38,7 +38,7 @@ npm run db:migrate            # apply every service's migrations (prisma migrate
 
 | Command | What it does |
 | --- | --- |
-| `npm run db:up` / `db:down` | Start / stop the Postgres + Redis containers |
+| `npm run db:up` / `db:down` | Start / stop the Postgres container |
 | `npm run db:validate` | Validate every Prisma schema (no database needed — CI-safe) |
 | `npm run db:generate` | Regenerate every service's Prisma client |
 | `npm run db:migrate` | Apply all pending migrations to the running databases |

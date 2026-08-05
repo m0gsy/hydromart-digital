@@ -15,7 +15,9 @@ export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   AUTH_SERVICE_PORT: Joi.number().port().default(3001),
 
-  AUTH_DATABASE_URL: Joi.string().uri({ scheme: ['postgres', 'postgresql'] }).required(),
+  AUTH_DATABASE_URL: Joi.string()
+    .uri({ scheme: ['postgres', 'postgresql'] })
+    .required(),
 
   JWT_ACCESS_SECRET: requiredSecret(32),
   JWT_REFRESH_SECRET: requiredSecret(32),
@@ -66,7 +68,10 @@ export const envValidationSchema = Joi.object({
     .uri()
     .when('NODE_ENV', {
       is: 'production',
-      then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
       otherwise: Joi.string().uri().default('http://localhost:3001'),
     }),
   // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (BiznetGio NEO
