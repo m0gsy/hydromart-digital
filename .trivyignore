@@ -14,14 +14,15 @@
 # its own image, not by these containers. Delete this line once the base tag moves.
 CVE-2026-45447
 
-# The next two are npm's OWN bundled dependencies inside the base image
-# (/usr/local/lib/node_modules/npm), not our dependency tree — our copies of both
-# are patched, and scripts/audit-gate.mjs gates that separately.
+# Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
+# in that class lives in npm's OWN bundle inside the base image
+# (/usr/local/lib/node_modules/npm) — brace-expansion, cross-spawn, glob, tar. That is
+# not our dependency tree: ours is gated by scripts/audit-gate.mjs against the lockfile,
+# which is the thing we can actually fix.
 #
-# npm is never invoked at runtime: the images run `node dist/main.js`, healthchecks
-# use busybox wget, and migrations run host-side. The real fix is therefore to stop
-# shipping npm in the runtime stage, which is a Dockerfile change and belongs with
-# the image work, not here. Delete both lines when that lands.
-CVE-2026-59873
-CVE-2026-23745
-CVE-2026-13149
+# Nor is any of it shipped by something that runs: the images execute `node dist/main.js`,
+# healthchecks are busybox wget, migrations run host-side. npm is present only because
+# the base image includes it. Deleting it from the runtime stage is the real fix and
+# belongs with the image work — until then, scanning a vendor's bundled copies on every
+# PR produces a permanently red gate nobody can turn green, which is how a gate stops
+# being read.

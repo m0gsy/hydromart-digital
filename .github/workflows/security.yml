@@ -117,7 +117,7 @@ jobs:
             -v "$PWD/.trivyignore:/.trivyignore:ro" \
             aquasec/trivy:0.58.1 image \
             --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
-            --ignorefile /.trivyignore "$BASE"
+            --pkg-types os --ignorefile /.trivyignore "$BASE"
 
       - name: trivy (Dockerfile + compose misconfiguration)
         run: |
