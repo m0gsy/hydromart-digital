@@ -68,19 +68,21 @@ tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 # The rebuild set must be measured from the last commit that actually reached the
 # containers. Measuring from HEAD is what turned a deploy that died after `git reset
 # --hard` into a later no-op that reported success.
+# HEAD is the only commit a shallow CI checkout is guaranteed to have, so the recorded
+# SHA is HEAD and the fallback is a sentinel — which is the distinction that matters:
+# whether the file wins over the fallback, not which two commits they are.
 head_sha="$(git rev-parse HEAD)"
-older_sha="$(git rev-parse HEAD~1)"
-printf '%s\n' "$older_sha" > "$tmp/last-good"
+printf '%s\n' "$head_sha" > "$tmp/last-good"
 printf 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef\n' > "$tmp/unknown-sha"
 : > "$tmp/empty"
-is "base is the last DEPLOYED commit, not the tree" \
-  "$(rebuild_base "$tmp/last-good" "$head_sha")" "$older_sha"
-is "no last-good file falls back to HEAD (first deploy)" \
-  "$(rebuild_base "$tmp/absent" "$head_sha")" "$head_sha"
-is "empty last-good falls back to HEAD" \
-  "$(rebuild_base "$tmp/empty" "$head_sha")" "$head_sha"
-is "a sha this checkout does not have falls back to HEAD" \
-  "$(rebuild_base "$tmp/unknown-sha" "$head_sha")" "$head_sha"
+is "base is the recorded DEPLOYED commit, not the tree" \
+  "$(rebuild_base "$tmp/last-good" "FALLBACK")" "$head_sha"
+is "no last-good file falls back (first deploy)" \
+  "$(rebuild_base "$tmp/absent" "FALLBACK")" "FALLBACK"
+is "empty last-good falls back" \
+  "$(rebuild_base "$tmp/empty" "FALLBACK")" "FALLBACK"
+is "a sha this checkout does not have falls back" \
+  "$(rebuild_base "$tmp/unknown-sha" "FALLBACK")" "FALLBACK"
 
 printf 'A=1\nORDER_ALERT_PHONE=\n# C=3\n' > "$tmp/.env.example"
 printf 'A=9\n' > "$tmp/.env"
