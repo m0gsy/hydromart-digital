@@ -32,7 +32,7 @@ describe('api client', () => {
       'Idempotency-Key': 'attempt-1',
     });
 
-    expect(fetchMock.mock.calls[0][1]?.headers).toEqual({
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toEqual({
       'Content-Type': 'application/json',
       'Idempotency-Key': 'attempt-1',
     });
