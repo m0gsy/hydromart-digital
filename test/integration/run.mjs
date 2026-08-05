@@ -20,6 +20,13 @@ function run(cmd, args, opts = {}) {
 }
 const compose = (args, opts) => run('docker', ['compose', ...args], opts);
 
+function composeConfig() {
+  const r = spawnSync('docker', ['compose', ...COMPOSE, 'config', '--format', 'json'],
+    { encoding: 'utf8', shell: win });
+  if (r.status !== 0) throw new Error('docker compose config failed');
+  return JSON.parse(r.stdout);
+}
+
 function healthy() {
   // Comma delimiter (no spaces / no shell metachars) so the format survives shell:true on Windows.
   const r = spawnSync('docker', ['compose', ...COMPOSE, 'ps', '-a', '--format', '{{.Service}},{{.Health}},{{.State}}'],
@@ -56,6 +63,28 @@ async function main() {
   if (compose(['up', '-d', 'postgres', 'redis'])) throw new Error('infra up failed');
   await sleep(8000);
   if (run('npm', ['run', 'db:migrate'])) throw new Error('db:migrate failed');
+  // Build in small batches instead of letting compose start all 15 at once.
+  //
+  // Every image runs a FULL-monorepo `npm ci`, and all of them share one BuildKit cache
+  // mount at /root/.npm. Built concurrently that is fifteen cold downloads in the same
+  // instant: npm's cacache tmp files collide (EEXIST) and the registry cuts sockets under
+  // the burst (ECONNRESET/ETIMEDOUT). Measured on one failing run — seven npm-ci steps of
+  // 90-241s overlapping, only one short enough to have hit a warm cache. `sharing=locked`
+  // alone did not fix it: it does not serialise across compose's separate build requests.
+  //
+  // Batched, the first batch populates the cache and the rest hit it warm. Same reasoning
+  // as scripts/rebuild-stale.sh, which already batches on the VPS so a build never OOMs it.
+  // Read the list from compose rather than from APP above: APP is the health-gate list and
+  // was already two services short of what the test stack builds, so hard-coding it here
+  // would have quietly left those two building in parallel with everything else.
+  const BATCH = Number(process.env.BUILD_BATCH || 3);
+  const buildable = Object.entries(composeConfig().services || {})
+    .filter(([, v]) => v.build).map(([k]) => k);
+  for (let i = 0; i < buildable.length; i += BATCH) {
+    const batch = buildable.slice(i, i + BATCH);
+    console.log(`building ${batch.join(', ')}`);
+    if (compose([...COMPOSE, 'build', ...batch])) throw new Error(`build failed: ${batch.join(', ')}`);
+  }
   if (compose([...COMPOSE, 'up', '-d', '--build'])) throw new Error('service boot failed');
   await waitHealthy();
   if (run('node', ['test/integration/flow.mjs'])) throw new Error('flow assertions failed');
