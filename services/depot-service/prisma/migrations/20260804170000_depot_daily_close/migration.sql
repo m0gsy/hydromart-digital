@@ -1,5 +1,14 @@
 -- One depot, one day, declared counted.
 --
+-- A-6, accepted drift: this timestamp sorts BEFORE two migrations already applied on main
+-- (20260804190000_stock_movement_indexes, 20260804190100_service_setting_depot_fk), so
+-- `prisma migrate status` will report it out of order. Kept anyway, deliberately:
+-- `migrate deploy` applies whatever is pending regardless of order, the tables are
+-- unrelated, and this timestamp is below `check-index-concurrency.mjs`'s CUTOFF of
+-- 20260804190000 — which is what grandfathers the CREATE UNIQUE INDEX below. Renaming it
+-- forward would force an entry in scripts/create-indexes.sh for a unique index on a
+-- brand-new empty table, which is not what that script is for.
+--
 -- Its own table rather than a column on an existing one: nothing else about a depot or an
 -- order changes when a day is closed, and a new table is the one shape that fails safely
 -- if the image deploys before this migration runs (only the close route errors).
