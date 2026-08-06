@@ -462,6 +462,7 @@ export const hq = {
     depot: 'Depot penugasan',
     noDepot: 'Tanpa depot',
     depotMoveFailed: 'Gagal memindahkan depot.',
+    depotMoveConfirm: 'Pindahkan {name} ke {depot}?',
     activate: 'Aktifkan',
     deactivate: 'Nonaktifkan',
     statusChangeFailed: 'Gagal mengubah status akun.',

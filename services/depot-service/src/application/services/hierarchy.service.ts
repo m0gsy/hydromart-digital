@@ -75,11 +75,13 @@ export class HierarchyService {
     let cursor: string | null = superiorId;
     while (cursor && !seen.has(cursor)) {
       seen.add(cursor);
-      const described: { superiorId: string | null } = await this.repo.describe(cursor);
-      if (described.superiorId === staffId) {
+      // D-14: one column, one query. `describe()` fires four and this used a quarter of
+      // the answer at every hop.
+      const next = await this.repo.superiorOf(cursor);
+      if (next === staffId) {
         throw new BadRequestException('Penugasan ini membentuk lingkaran atasan-bawahan.');
       }
-      cursor = described.superiorId;
+      cursor = next;
     }
     await this.repo.setSuperior(staffId, superiorId, actorId);
   }

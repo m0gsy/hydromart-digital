@@ -160,6 +160,18 @@ function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
   }
 
   if (state.loading) return null;
+  /*
+   * D-7: a 403, or a depot-service outage, used to fall straight through to the button —
+   * an inviting "Tutup buku" for a day that may already be closed. Saying nothing is known
+   * beats offering an action whose precondition was never read.
+   */
+  if (state.error) {
+    return (
+      <p className="text-xs font-medium text-muted" role="status">
+        Status tutup buku tidak bisa dibaca.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col items-end gap-1">

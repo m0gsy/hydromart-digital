@@ -31,6 +31,18 @@ const FILTER_ROLES = [
   'SUPER_ADMIN',
 ] as const;
 
+/**
+ * Roles for which "which depot" is a real question. The office roles, DIREKTUR and
+ * SUPER_ADMIN work above depot level, and FRANCHISE_OWNER is a counterparty.
+ */
+const DEPOT_SCOPED_ROLES: readonly string[] = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+];
+
 /** Roles the HR "tambah karyawan" form can actually offer in its jabatan dropdown. */
 function hrManaged(role: string): boolean {
   return (HR_MANAGED_ROLES as readonly string[]).includes(role);
@@ -101,10 +113,19 @@ export default function HqStaffPage() {
    * simply do not appear — an unreachable HR service must not make the directory look
    * broken.
    */
-  const { data: linked } = useAsync<Set<string> | null>(
+  /*
+   * D-10: `[]` deps meant this never re-ran, so every badge went stale the moment a row
+   * action changed anything — including the action that fixes the very thing the badge
+   * reports. `list.reload` was threaded into the rows; this now moves with it.
+   */
+  const { data: linked, reload: reloadLinked } = useAsync<Set<string> | null>(
     () => readLinkedAccountIds().catch(() => null),
     [],
   );
+  const reloadAll = () => {
+    list.reload();
+    reloadLinked();
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -114,7 +135,7 @@ export default function HqStaffPage() {
         subtitle={t('hq.staff.subtitle')}
         action={
           <>
-            <StaffInvite onSaved={list.reload} />
+            <StaffInvite onSaved={reloadAll} />
           </>
         }
       />
@@ -166,14 +187,14 @@ export default function HqStaffPage() {
                     </a>
                   )}
                 </div>
-                <DepotPicker staff={s} depots={depots} onMoved={list.reload} />
+                <DepotPicker staff={s} depots={depots} onMoved={reloadAll} />
                 <Badge tone="brand">{t(`hq.roles.${s.role}`)}</Badge>
                 <Badge tone={active ? 'success' : 'neutral'}>
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>
-                <ActiveToggle staff={s} onChanged={list.reload} />
+                <ActiveToggle staff={s} onChanged={reloadAll} />
                 {can('staffDelete', customer?.role) && (
-                  <DeleteStaff staff={s} onDeleted={list.reload} />
+                  <DeleteStaff staff={s} onDeleted={reloadAll} />
                 )}
               </Card>
             );
@@ -204,9 +225,18 @@ function DepotPicker({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (depots.length === 0) return null;
+  /*
+   * D-9: a depot is meaningless for the office roles, and the control PATCHed on `onChange`
+   * with no confirmation — one scroll wheel over a focused select moved somebody's depot.
+   * Rendered only where the field means something, and it asks first.
+   */
+  if (depots.length === 0 || !DEPOT_SCOPED_ROLES.includes(staff.role)) return null;
 
   async function move(depotId: string) {
+    const target = depots.find((d) => d.id === depotId)?.name ?? t('hq.staff.noDepot');
+    if (!window.confirm(t('hq.staff.depotMoveConfirm', { name: staff.fullName || staff.phone, depot: target }))) {
+      return;
+    }
     setBusy(true);
     setError(null);
     try {

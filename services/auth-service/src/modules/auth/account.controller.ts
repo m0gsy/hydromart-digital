@@ -17,6 +17,7 @@ import { UpdateAccountDto } from './dto/update-account.dto';
 import {
   ImportStaffDto,
   InviteStaffDto,
+  ListDriversQueryDto,
   ListStaffQueryDto,
   SetStaffActiveConsoleDto,
   SetStaffDepotDto,
@@ -160,7 +161,7 @@ export class AccountController {
   @ApiOperation({ summary: 'List active drivers (couriers) for dispatch, scoped to the caller' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
   async listDrivers(
-    @Query() query: { depotId?: string },
+    @Query() query: ListDriversQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<PublicCustomerDto[]> {
     const drivers = await this.account.listDrivers(await this.scopedDepotFilter(user, query.depotId));

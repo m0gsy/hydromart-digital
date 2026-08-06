@@ -60,7 +60,10 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
       setError(t('hq.staff.form.phoneRequired'));
       return;
     }
-    if (!isOwner && (position.trim() === '' || Number(rate) <= 0)) {
+    // D-11: `Number('') <= 0` is false for NaN, so a rate that will not parse got through
+    // the guard and serialised to null. Near-unreachable behind `<Input type="number">`, but
+    // the guard should mean what it says.
+    if (!isOwner && (position.trim() === '' || !(Number(rate) > 0))) {
       setError(t('hq.staff.form.employmentRequired'));
       return;
     }

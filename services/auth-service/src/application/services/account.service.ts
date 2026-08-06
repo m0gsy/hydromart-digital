@@ -258,7 +258,19 @@ export class AccountService {
       vehicleType: input.vehicleType,
       plateNumber: input.plateNumber,
     });
+    /*
+     * D-4: the skip is on the INPUT role here and on the STORED role at status and delete.
+     * Re-inviting somebody who is already an employee AS a franchise owner therefore skipped
+     * provisioning and left their old employee row behind — active, unreachable from the
+     * console, and with no repair path. Their record is closed instead, by the same internal
+     * route a resignation uses: an owner is a counterparty, so the employee half must end.
+     */
     if (input.role === Role.FRANCHISE_OWNER) {
+      if (this.hr) {
+        await this.hr
+          .setEmployeeActive(staff.id, false)
+          .catch(() => undefined /* nothing to close, or hr is down — see below */);
+      }
       return staff;
     }
     if (!this.hr) {

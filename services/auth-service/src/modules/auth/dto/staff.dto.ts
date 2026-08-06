@@ -65,6 +65,19 @@ export class ListStaffQueryDto {
   search?: string;
 }
 
+/**
+ * D-5: `listDrivers` took `@Query() query: { depotId?: string }` — a bare object literal,
+ * the only unvalidated query param on a controller where everything else is a DTO class.
+ * Nothing validated the shape, so an unparseable `depotId` reached the repository as a
+ * `where` value instead of being refused at the edge.
+ */
+export class ListDriversQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict to one depot (HQ only).' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 export class InviteStaffDto {
   @ApiProperty({ example: '+628123456789', description: 'Phone of the account to grant a staff role.' })
   @IsString()

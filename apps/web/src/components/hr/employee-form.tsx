@@ -52,9 +52,20 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
   const deptOptions = form.depotId ? departmentsForDepot(departments.data ?? [], form.depotId) : [];
 
+  // D-12: `HR_ROLE_LABEL[role as HrManagedRole] ?? role` asserted a type the value usually
+  // is not — this account is nearly always a CUSTOMER. Runtime-safe via the `??`, but the
+  // cast defeated the `Record`'s exhaustiveness, which is the only thing making that lookup
+  // trustworthy. A plain lookup with a fallback says the same thing and stays honest.
+  const roleLabel = (role: string): string =>
+    (HR_ROLE_LABEL as Record<string, string | undefined>)[role] ?? role;
+
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     // A corrected number is a different person: the confirmation has to be asked again.
-    if (k === 'phone') setConfirmOwner(null);
+    //
+    // D-13: so is a different jabatan. The dialog names the role the account is about to
+    // become, so confirming "Kurir" and then switching to "Kepala Depot" promoted somebody
+    // to a role nobody agreed to — the confirmation was for a different sentence.
+    if (k === 'phone' || k === 'role') setConfirmOwner(null);
     setForm((f) => ({ ...f, [k]: v }));
   };
 
@@ -314,7 +325,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         <Card className="border-amber-300 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900" role="alert">
             Nomor {form.phone} sudah dipakai akun atas nama{' '}
-            {confirmOwner.fullName || '(tanpa nama)'} ({HR_ROLE_LABEL[confirmOwner.role as HrManagedRole] ?? confirmOwner.role}).
+            {confirmOwner.fullName || '(tanpa nama)'} ({roleLabel(confirmOwner.role)}).
           </p>
           <p className="mt-1 text-sm text-amber-900">
             Menyimpan akan mengubah akun itu menjadi{' '}

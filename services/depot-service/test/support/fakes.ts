@@ -76,7 +76,7 @@ const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
 /** In-memory hierarchy: depot -> assistant, and a person -> superior chain. */
 export class InMemoryHierarchyRepository implements HierarchyRepository {
   assistantOfDepot = new Map<string, string>(); // depotId -> assistantId
-  superiorOf = new Map<string, string>(); // staffId -> superiorId
+  superiors = new Map<string, string>(); // staffId -> superiorId
   direct = new Map<string, string[]>(); // staffId -> depotIds
 
   depotsForAssistant(staffId: string): Promise<string[]> {
@@ -97,8 +97,12 @@ export class InMemoryHierarchyRepository implements HierarchyRepository {
   subordinatesOfMany(superiorIds: readonly string[]): Promise<string[]> {
     const set = new Set(superiorIds);
     return Promise.resolve(
-      [...this.superiorOf.entries()].filter(([, s]) => set.has(s)).map(([staff]) => staff),
+      [...this.superiors.entries()].filter(([, s]) => set.has(s)).map(([staff]) => staff),
     );
+  }
+
+  superiorOf(staffId: string): Promise<string | null> {
+    return Promise.resolve(this.superiors.get(staffId) ?? null);
   }
 
   directDepots(staffId: string): Promise<string[]> {
@@ -112,12 +116,12 @@ export class InMemoryHierarchyRepository implements HierarchyRepository {
   }
 
   setSuperior(staffId: string, superiorId: string): Promise<void> {
-    this.superiorOf.set(staffId, superiorId);
+    this.superiors.set(staffId, superiorId);
     return Promise.resolve();
   }
 
   clearSuperior(staffId: string): Promise<void> {
-    this.superiorOf.delete(staffId);
+    this.superiors.delete(staffId);
     return Promise.resolve();
   }
 
@@ -141,7 +145,7 @@ export class InMemoryHierarchyRepository implements HierarchyRepository {
     directDepotIds: string[];
   }> {
     return {
-      superiorId: this.superiorOf.get(staffId) ?? null,
+      superiorId: this.superiors.get(staffId) ?? null,
       subordinateIds: await this.subordinatesOf(staffId),
       assistantDepotIds: await this.depotsForAssistant(staffId),
       directDepotIds: await this.directDepots(staffId),

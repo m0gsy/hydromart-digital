@@ -15,9 +15,9 @@ describe('HierarchyService.scopedDepotIds', () => {
     for (let i = 0; i < 11; i += 1) repo.assistantOfDepot.set(`a${i}`, 'asv-1');
     for (let i = 0; i < 11; i += 1) repo.assistantOfDepot.set(`b${i}`, 'asv-2');
     repo.assistantOfDepot.set('orphan', ''); // no assistant at all
-    repo.superiorOf.set('asv-1', 'spv-1');
-    repo.superiorOf.set('asv-2', 'spv-1');
-    repo.superiorOf.set('spv-1', 'mgr-1');
+    repo.superiors.set('asv-1', 'spv-1');
+    repo.superiors.set('asv-2', 'spv-1');
+    repo.superiors.set('spv-1', 'mgr-1');
   });
 
   it('gives an assistant supervisor exactly their own depots', async () => {
@@ -80,7 +80,7 @@ describe('HierarchyService.setSuperior', () => {
 
   it('records the link', async () => {
     await service.setSuperior('asv-1', 'spv-1', 'admin-1');
-    expect(repo.superiorOf.get('asv-1')).toBe('spv-1');
+    expect(repo.superiors.get('asv-1')).toBe('spv-1');
   });
 
   it('refuses to make somebody their own superior', async () => {
@@ -92,7 +92,7 @@ describe('HierarchyService.setSuperior', () => {
   // A cycle would leave the resolver depending on its hop bound to terminate; reject it
   // at write time instead, where there is a human to tell.
   it('refuses a link that closes a loop', async () => {
-    repo.superiorOf.set('spv-1', 'mgr-1');
+    repo.superiors.set('spv-1', 'mgr-1');
     await expect(service.setSuperior('mgr-1', 'spv-1', null)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -102,11 +102,11 @@ describe('HierarchyService.setSuperior', () => {
   // manager -> direktur), so a guard bounded by the resolver's hop count lets the long
   // ones through. Depth must not decide whether a cycle is caught.
   it('refuses a loop that closes above the fifth level', async () => {
-    repo.superiorOf.set('e', 'f');
-    repo.superiorOf.set('d', 'e');
-    repo.superiorOf.set('c', 'd');
-    repo.superiorOf.set('b', 'c');
-    repo.superiorOf.set('a', 'b');
+    repo.superiors.set('e', 'f');
+    repo.superiors.set('d', 'e');
+    repo.superiors.set('c', 'd');
+    repo.superiors.set('b', 'c');
+    repo.superiors.set('a', 'b');
     await expect(service.setSuperior('f', 'a', null)).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -114,8 +114,8 @@ describe('HierarchyService.setSuperior', () => {
 
   // A cycle already in the table (written before the guard existed) must not hang the walk.
   it('terminates on a pre-existing cycle instead of looping forever', async () => {
-    repo.superiorOf.set('x', 'y');
-    repo.superiorOf.set('y', 'x');
+    repo.superiors.set('x', 'y');
+    repo.superiors.set('y', 'x');
     await expect(service.setSuperior('z', 'x', null)).resolves.toBeUndefined();
   });
 

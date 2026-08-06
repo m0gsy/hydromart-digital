@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
@@ -11,8 +11,16 @@ import {
   DailyCloseViewResponseDto,
 } from './dto/responses.generated.dto';
 
+/**
+ * D-2: a DAY, not any instant. `@IsISO8601()` accepted `2026-08-04T09:00:00Z`, which
+ * `close()` carried as far as the `closes.find()` lookup before the window rejected the
+ * shape — and `reopen()` never validated it at all. The unique key is
+ * `(depotId, businessDate)` on the string itself, so two spellings of one day are two rows.
+ */
+const BUSINESS_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 export class CloseDayDto {
-  @IsISO8601()
+  @Matches(BUSINESS_DAY, { message: 'businessDate wajib YYYY-MM-DD' })
   businessDate!: string;
 
   @IsOptional()
@@ -22,7 +30,7 @@ export class CloseDayDto {
 }
 
 export class DayQueryDto {
-  @IsISO8601()
+  @Matches(BUSINESS_DAY, { message: 'businessDate wajib YYYY-MM-DD' })
   businessDate!: string;
 }
 

@@ -400,7 +400,19 @@ export class EmployeeService {
         ],
       );
     }
-    return this.create(SYSTEM_ACTOR, input);
+    try {
+      return await this.create(SYSTEM_ACTOR, input);
+    } catch (error) {
+      /*
+       * D-3: this route is idempotent by contract, and under concurrency it was not. Two
+       * invites for the same account both miss the lookup above, and the loser hits the
+       * `authSubjectId` unique index — a 400 that auth-service reports as a 503, for a row
+       * that in fact exists. Re-read and hand it back: that IS the idempotent answer.
+       */
+      const existing = await this.repo.findByAuthSubjectId(input.authSubjectId);
+      if (existing) return existing;
+      throw error;
+    }
   }
 
   /**
