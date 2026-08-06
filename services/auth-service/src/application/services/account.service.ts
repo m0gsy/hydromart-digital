@@ -397,7 +397,11 @@ export class AccountService {
     if (isDepotLocked(role as unknown as PlatformRole) && (depot ?? '') === '') {
       throw new StaffDepotRequiredError();
     }
-    customer.promoteToStaff(role, depot);
+    // B-1: `assignRole`, not `promoteToStaff`. hr-service calls this whenever a role OR a
+    // depot changes, and `promoteToStaff` lifts SUSPENDED to ACTIVE — so editing a resigned
+    // employee's depot handed their login back, with HR still reading RESIGNED and nothing
+    // anywhere recording that the account had been reopened.
+    customer.assignRole(role, depot);
     return toPublicCustomer(await this.customers.save(customer));
   }
 

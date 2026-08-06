@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
 } from '@nestjs/common';
@@ -116,6 +117,8 @@ export type ImportMode = 'CREATE' | 'UPSERT';
 
 @Injectable()
 export class EmployeeService {
+  private readonly logger = new Logger(EmployeeService.name);
+
   constructor(
     @Inject(EMPLOYEE_REPOSITORY) private readonly repo: EmployeeRepository,
     @Inject(IDENTITY_PORT) private readonly identity: IdentityPort,
@@ -222,7 +225,17 @@ export class EmployeeService {
     return this.repo.listHistory(id);
   }
 
-  async create(user: AuthenticatedUser, input: CreateEmployeeInput): Promise<Employee> {
+  /**
+   * `alreadyUnique` is for the ONE caller that has to ask first: the bulk import provisions
+   * the login before writing the employee, so it runs `assertNobodyElseHas` itself, ahead of
+   * auth-service (B-2). Repeating the lookup here would put back the round-trip K-4 removed,
+   * on the busiest path in the service. Nobody else may pass it.
+   */
+  async create(
+    user: AuthenticatedUser,
+    input: CreateEmployeeInput,
+    alreadyUnique = false,
+  ): Promise<Employee> {
     // A depot-locked creator may only add staff to their own depot.
     assertDepotAccess(user, input.depotId);
     const rates = this.salaryRates(input.salaryType, input.dailyRate, input.monthlyRate);
@@ -232,7 +245,7 @@ export class EmployeeService {
     // Everything that can reject this row is asked BEFORE auth-service is called, because
     // the two writes live in two databases with no saga between them (see importMany). A
     // collision discovered after provisioning would leave a staff login nobody recorded.
-    await this.assertNobodyElseHas(input);
+    if (!alreadyUnique) await this.assertNobodyElseHas(input);
     const authSubjectId = input.authSubjectId ?? (await this.provisionFor(input));
 
     const data: Omit<Prisma.EmployeeCreateInput, 'employeeCode'> = {
@@ -352,13 +365,39 @@ export class EmployeeService {
     if (linked) {
       return linked;
     }
-    // A person may already be in HR from a CSV import that never linked an account; adopt
-    // that row rather than minting a second one for the same phone.
-    if (byPhone) {
+    /*
+     * A person may already be in HR from a CSV import that never linked an account; adopt
+     * that row rather than minting a second one for the same phone.
+     *
+     * B-3, two refusals. `Employee.phone` has no `@unique` — a family shares a number — so
+     * what this finds is "the oldest row with that phone", not "this person":
+     *
+     *  - a row already linked to a DIFFERENT account is not adopted. The write overwrote
+     *    `authSubjectId`, which raises no P2002 because it is an update, so the old link
+     *    vanished with nothing anywhere recording that it had existed.
+     *  - a RESIGNED row is not adopted either. It produced a RESIGNED employee behind an
+     *    ACTIVE login — the exact split this release exists to remove, arriving through the
+     *    one path meant to fix it.
+     *
+     * Neither case is guessed at. Both fall through to `create`, which refuses a phone that
+     * already belongs to an employee — so the invite comes back as a conflict on that one
+     * row instead of silently rewiring somebody else's account. Two people on one phone is
+     * ordinary; which of them an invite means is not a service's call.
+     */
+    if (byPhone && !byPhone.authSubjectId && byPhone.status !== 'RESIGNED') {
       return this.repo.update(
         byPhone.id,
         { authSubjectId: input.authSubjectId, role: input.role ?? byPhone.role },
-        [],
+        [
+          {
+            // Recorded, unlike before: adopting a row rewrites whose account it belongs to,
+            // and the change log is the only place that can be read back afterwards.
+            changeType: 'ACCOUNT_LINKED',
+            toValue: { authSubjectId: input.authSubjectId, source: 'staff-invite' },
+            effectiveDate: new Date(),
+            createdBy: null,
+          },
+        ],
       );
     }
     return this.create(SYSTEM_ACTOR, input);
@@ -475,6 +514,14 @@ export class EmployeeService {
           });
           return { status: 'updated', id: updated.id, message: link.message };
         }
+        /*
+         * B-2: the uniqueness check runs BEFORE auth-service, which is the order this
+         * file's own comment already claimed. `provisionStaff` promotes BY PHONE, so one
+         * mistyped digit landing on somebody who already exists minted the promotion first
+         * and rejected the row second — the summary said `skipped`, and a staff login
+         * nobody asked for stayed.
+         */
+        await this.assertNobodyElseHas({ ...input, role });
         const { customerId } = await this.identity.provisionStaff({
           phone: input.phone,
           role,
@@ -483,11 +530,25 @@ export class EmployeeService {
         });
         // `role` is recorded on the employee too, not only on the login it just minted:
         // payroll reads the jabatan locally (KEPALA_DEPOT gets the tenure raise).
-        const employee = await this.create(user, { ...input, role, authSubjectId: customerId });
+        const employee = await this.create(
+          user,
+          { ...input, role, authSubjectId: customerId },
+          true,
+        );
         return { status: 'created', id: employee.id };
       },
-      // "Already linked to another employee" / "code already taken" is a duplicate row, not a
-      // failure — it is exactly what re-uploading a corrected file produces.
+      /*
+       * "Already linked to another employee" / "already taken" is a duplicate row, not a
+       * failure — it is exactly what re-uploading a corrected file produces.
+       *
+       * B-2 also asked for a phone collision to be pulled out of this set. It is not, and
+       * the reason is that the ordering fix above removed the harm: `skipped` was a lie
+       * only because auth-service had ALREADY promoted that phone by the time this ran, so
+       * "nothing happened" was false. The check now runs first and nothing is minted, so a
+       * phone that already belongs to an employee really is a row that did nothing — and
+       * CREATE mode's whole contract is that re-uploading a corrected file reports
+       * `skipped` rather than a page of red.
+       */
       (err) =>
         err instanceof BadRequestException && /tertaut|sudah dipakai/.test(String(err.message)),
     );
@@ -566,7 +627,16 @@ export class EmployeeService {
       try {
         await this.supervision.setSuperior(employee.authSubjectId, supervisor.authSubjectId);
       } catch (err) {
-        result.message = `Atasan "${code}" ditolak: ${err instanceof Error ? err.message : 'gagal'}`;
+        // B-9: the row message is for the person who uploaded the file, and to them every
+        // failure reads the same — "atasan ditolak". A rejected cycle is their problem; a
+        // 401 from an unset INTERNAL_SERVICE_KEY is not, and it printed that same sentence
+        // on every row of every import forever with no other signal anywhere. The log is
+        // what tells the two apart, and it is what alerting can see.
+        const reason = err instanceof Error ? err.message : 'gagal';
+        this.logger.error(
+          `setSuperior ${employee.authSubjectId} -> ${supervisor.authSubjectId} failed: ${reason}`,
+        );
+        result.message = `Atasan "${code}" ditolak: ${reason}`;
       }
     }
   }

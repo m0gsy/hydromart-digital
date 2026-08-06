@@ -249,4 +249,7 @@ export class PurgeAuditLogs3ResponseDto {
 export class DeleteStaffResponseDto {
   @ApiProperty({ type: Boolean })
   deleted!: boolean;
+  /** False when the login is gone but hr-service could not scrub the employee record (B-10). */
+  @ApiProperty({ type: Boolean })
+  employeeAnonymised!: boolean;
 }

@@ -343,6 +343,50 @@ describe('AccountService', () => {
       const moved = await service.setStaffRole(office.id, Role.FINANCE);
       expect(moved).toMatchObject({ role: Role.FINANCE, assignedDepotId: null });
     });
+
+    /*
+     * B-1. hr-service calls this whenever a role OR a depot changes on an employee, and it
+     * used to go through `promoteToStaff`, which lifts SUSPENDED to ACTIVE — the status a
+     * resignation writes. So editing a resigned employee's DEPOT ALONE handed their login
+     * back, with HR still reading RESIGNED and nothing recording that the account reopened.
+     *
+     * `setStaffDepot` was given its own path for exactly this reason; the role path was not.
+     */
+    it('does not reopen a suspended login when only the depot moves', async () => {
+      const staff = await service.inviteStaff('+628990003007', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      await service.setStaffActiveInternal(staff.id, false);
+      expect((await service.getProfile(staff.id)).status).toBe(CustomerStatus.SUSPENDED);
+
+      const moved = await service.setStaffRole(staff.id, Role.STAFF_DEPOT, 'depot-2');
+
+      expect(moved.assignedDepotId).toBe('depot-2');
+      expect(moved.status).toBe(CustomerStatus.SUSPENDED);
+    });
+
+    it('does not reopen a suspended login when the role itself changes either', async () => {
+      const staff = await service.inviteStaff('+628990003008', Role.STAFF_DEPOT, 'Sari', 'depot-1');
+      await service.setStaffActiveInternal(staff.id, false);
+
+      const promoted = await service.setStaffRole(staff.id, Role.KEPALA_DEPOT);
+
+      expect(promoted.role).toBe(Role.KEPALA_DEPOT);
+      expect(promoted.status).toBe(CustomerStatus.SUSPENDED);
+    });
+
+    // The invite IS the place reactivation belongs: re-hiring somebody is what that path
+    // means, and the fix above must not take that away.
+    it('leaves the invite path able to bring somebody back', async () => {
+      const staff = await service.inviteStaff('+628990003009', Role.STAFF_DEPOT, 'Rina', 'depot-1');
+      await service.setStaffActiveInternal(staff.id, false);
+
+      const rehired = await service.inviteStaff(
+        '+628990003009',
+        Role.STAFF_DEPOT,
+        'Rina',
+        'depot-1',
+      );
+      expect(rehired.status).toBe(CustomerStatus.ACTIVE);
+    });
   });
 
   it('resolves a batch of ids to public profiles, deduping and dropping unknowns', async () => {

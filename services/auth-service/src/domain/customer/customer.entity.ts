@@ -189,6 +189,24 @@ export class Customer {
   }
 
   /**
+   * Change a staff account's role (and optionally its depot), and nothing else.
+   *
+   * B-1. `assignDepot` above was given its own path precisely so a transfer could not hand
+   * somebody their login back — but the role path was still `promoteToStaff`, which lifts
+   * SUSPENDED to ACTIVE. hr-service calls it on `roleMoved || depotMoved`, so editing a
+   * RESIGNED employee's DEPOT alone reactivated their login while HR still said RESIGNED.
+   *
+   * Reactivation belongs to the two places that mean it: the invite (`promoteToStaff`,
+   * where being invited is the point) and `setActive`.
+   */
+  assignRole(role: Role, depotId?: string | null): void {
+    this.props.role = role;
+    if (depotId !== undefined) {
+      this.props.assignedDepotId = depotId;
+    }
+  }
+
+  /**
    * Switch the login on or off, and nothing else.
    *
    * Its own path rather than `promoteToStaff`, which also writes role and depot: turning

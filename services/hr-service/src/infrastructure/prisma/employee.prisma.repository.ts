@@ -85,6 +85,13 @@ export class EmployeePrismaRepository implements EmployeeRepository {
           email: null,
           photoUrl: null,
           authSubjectId: null,
+          // B-7: the jabatan goes with the identity. `createAccountFor` keys the "buatkan
+          // akun" badge on "has a role, no account", so leaving it set made every
+          // anonymised row light that badge forever — and clicking it POSTed
+          // `{phone: '-', fullName: '[REDACTED]', role}` at auth-service, which for a
+          // MANAGER or SUPERVISOR reaches `PhoneNumber.create('-')`. A role is what somebody
+          // does; there is nobody here any more.
+          role: null,
           status: 'RESIGNED',
         },
       }),

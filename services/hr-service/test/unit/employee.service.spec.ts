@@ -602,6 +602,25 @@ describe('EmployeeService.importMany', () => {
     expect(repo.rows).toHaveLength(0);
   });
 
+  /*
+   * B-2. `provisionStaff` promotes BY PHONE, so it must never run before hr-service has
+   * decided the row is importable at all. One mistyped digit landing on somebody who is
+   * already an employee used to mint the promotion first and reject the row second — the
+   * summary said `skipped`, and a promotion nobody asked for stayed.
+   */
+  it('asks auth-service for nothing when the row collides with an employee already here', async () => {
+    const { repo, identity, svc } = make();
+    await svc.importMany(hr, [row]);
+    const callsAfterFirst = identity.calls.length;
+
+    const second = await svc.importMany(hr, [{ ...row, fullName: 'Orang Lain' }]);
+
+    expect(second).toMatchObject({ created: 0, skipped: 1, failed: 0 });
+    // The assertion that matters: no second promotion for that phone.
+    expect(identity.calls).toHaveLength(callsAfterFirst);
+    expect(repo.rows).toHaveLength(1);
+  });
+
   it('returns an empty summary for an empty batch', async () => {
     const { svc } = make();
     await expect(svc.importMany(hr, [])).resolves.toEqual({
@@ -807,6 +826,101 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     await expect(
       svc.create(hr, { ...baseInput, phone: '0899', nik: '3201010101010003' }),
     ).rejects.toThrow('NIK sudah dipakai');
+  });
+});
+
+/*
+ * The staff console invited somebody and hr-service is being told. It adopts an employee
+ * row that has no account yet — but `Employee.phone` has no `@unique`, so the row it finds
+ * is "the oldest with that phone", which is not necessarily this person.
+ */
+describe('EmployeeService.provisionFromInvite (B-3)', () => {
+  const invite = {
+    ...baseInput,
+    authSubjectId: '00000000-0000-4000-8000-0000000000aa',
+  };
+
+  /** A row typed in by hand, or imported before the two sides created each other. */
+  function seedUnlinked(repo: FakeRepo, overrides: Partial<Employee> = {}) {
+    const row = {
+      id: 'emp-seeded',
+      employeeCode: 'HR-0900',
+      fullName: 'Budi',
+      phone: '0811',
+      depotId: DEPOT_A,
+      role: 'KEPALA_DEPOT',
+      status: 'ACTIVE',
+      authSubjectId: null,
+      ...overrides,
+    } as unknown as Employee;
+    repo.rows.push(row);
+    return row;
+  }
+
+  it('adopts an unlinked row with the same phone, and records that it did', async () => {
+    const { repo, svc } = make();
+    const existing = seedUnlinked(repo);
+
+    const adopted = await svc.provisionFromInvite(invite);
+
+    expect(adopted.id).toBe(existing.id);
+    expect(adopted.authSubjectId).toBe(invite.authSubjectId);
+    expect(repo.history).toHaveLength(1);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  /*
+   * The write was an update, so it raised no P2002: the other account's link simply stopped
+   * existing, with nothing anywhere saying it ever had. Refusing is the right answer — two
+   * employees on one phone is ordinary (a family number), and which of them this invite
+   * means is not something a service may guess.
+   */
+  it('never steals a row that already belongs to another account', async () => {
+    const { repo, svc } = make();
+    const other = seedUnlinked(repo, { authSubjectId: 'auth-someone-else' });
+
+    await expect(svc.provisionFromInvite(invite)).rejects.toThrow('Nomor telepon');
+
+    expect(repo.rows.find((r) => r.id === other.id)?.authSubjectId).toBe('auth-someone-else');
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  // A RESIGNED employee behind an ACTIVE login is the exact half-a-person this release
+  // exists to remove — arriving through the one path meant to fix it.
+  it('never adopts a resigned row', async () => {
+    const { repo, svc } = make();
+    const gone = seedUnlinked(repo, { status: 'RESIGNED' });
+
+    await expect(svc.provisionFromInvite(invite)).rejects.toThrow('Nomor telepon');
+
+    expect(repo.rows.find((r) => r.id === gone.id)?.authSubjectId).toBeNull();
+  });
+
+  it('is still idempotent on authSubjectId — a repeat invite writes nothing', async () => {
+    const { repo, svc } = make();
+    const first = await svc.provisionFromInvite(invite);
+    const second = await svc.provisionFromInvite({ ...invite, fullName: 'Nama Lain' });
+
+    expect(second.id).toBe(first.id);
+    expect(repo.rows).toHaveLength(1);
+  });
+});
+
+/*
+ * B-7. `createAccountFor` keys the "buatkan akun" badge on "has a role, no account", so a
+ * role left behind by anonymisation lit that badge forever — and clicking it POSTed
+ * `{phone: '-', fullName: '[REDACTED]', role}` at auth-service.
+ */
+describe('EmployeePrismaRepository.anonymiseByAuthSubjectId (B-7)', () => {
+  it('clears the jabatan along with the identity', () => {
+    const source = require('node:fs').readFileSync(
+      'src/infrastructure/prisma/employee.prisma.repository.ts',
+      'utf8',
+    );
+    const body = source.slice(source.indexOf('async anonymiseByAuthSubjectId'));
+    const update = body.slice(0, body.indexOf('return 1;'));
+    expect(update).toContain('role: null');
+    expect(update).toContain('authSubjectId: null');
   });
 });
 

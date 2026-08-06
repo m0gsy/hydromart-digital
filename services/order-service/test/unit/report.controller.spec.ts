@@ -26,8 +26,15 @@ function makeService(): Mocked {
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
     resellerRollup: jest.fn().mockResolvedValue('rollup'),
     customerSummary: jest.fn().mockResolvedValue('customer'),
+    depotDailyRows: jest.fn().mockResolvedValue('dailyRows'),
   } as unknown as Mocked;
 }
+
+const DEPOT_A = '11111111-1111-4111-8111-111111111111';
+const DEPOT_B = '22222222-2222-4222-8222-222222222222';
+const kepalaDepot = (depotId: string) =>
+  ({ sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '0811', depotId }) as never;
+const headOffice = () => ({ sub: 'hq-1', role: 'HEAD_OFFICE', phone: '0822' }) as never;
 
 describe('ReportController', () => {
   let service: Mocked;
@@ -36,6 +43,35 @@ describe('ReportController', () => {
   beforeEach(() => {
     service = makeService();
     controller = new ReportController(service as unknown as ReportService);
+  });
+
+  /*
+   * B-8. `depotId` comes from the client and DEPOT_REPORT_ROLES includes KEPALA_DEPOT, so
+   * without a check against the CALLER any depot head could export another depot's day —
+   * and unlike the aggregate report next to it, this route returns every customer's name
+   * and every courier's name, row by row.
+   */
+  describe('depot-daily/export depot scope', () => {
+    it('lets a depot head export their own day', async () => {
+      await expect(
+        controller.depotDailyExport({ depotId: DEPOT_A } as never, kepalaDepot(DEPOT_A)),
+      ).resolves.toBe('dailyRows');
+      expect(service.depotDailyRows).toHaveBeenCalledWith(DEPOT_A, undefined);
+    });
+
+    it("refuses a depot head asking for another depot's named rows", () => {
+      expect(() =>
+        controller.depotDailyExport({ depotId: DEPOT_B } as never, kepalaDepot(DEPOT_A)),
+      ).toThrow();
+      expect(service.depotDailyRows).not.toHaveBeenCalled();
+    });
+
+    it('leaves head office able to export any depot', async () => {
+      await expect(
+        controller.depotDailyExport({ depotId: DEPOT_B, date: '2026-08-04' } as never, headOffice()),
+      ).resolves.toBe('dailyRows');
+      expect(service.depotDailyRows).toHaveBeenCalledWith(DEPOT_B, '2026-08-04');
+    });
   });
 
   it('sales: defaults granularity to daily and parses an empty range to undefined bounds', async () => {

@@ -1,7 +1,13 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  Role,
+  Roles,
+  assertDepotAccess,
+} from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
@@ -125,6 +131,12 @@ export class ReportController {
    * Returns rows rather than a rendered file: the console already owns CSV formatting (and
    * the locale that decides the separator), so a server-rendered file would be a second
    * place to keep those rules in step.
+   *
+   * B-8: `depotId` comes from the client and `DEPOT_REPORT_ROLES` includes KEPALA_DEPOT, so
+   * this is checked against the CALLER. The neighbouring `depot-daily` has the same hole and
+   * is left alone — that is main's surface — but it returns aggregates, while this returns
+   * every customer's name and every courier's name for a day. Widening one depot's report
+   * into another depot's customer list is a different order of mistake.
    */
   @ApiOkResponse({ type: DepotDailyRowResponseDto, isArray: true })
   @Roles(...DEPOT_REPORT_ROLES)
@@ -133,7 +145,8 @@ export class ReportController {
   // Same as depotDaily above: the "no date given" default is WIB today, decided in the
   // service. A `new Date().toISOString().slice(0,10)` here would be the UTC today, and
   // before 07:00 WIB the export would offer a different day than the screen it sits on.
-  depotDailyExport(@Query() q: DepotDailyQueryDto) {
+  depotDailyExport(@Query() q: DepotDailyQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    assertDepotAccess(user, q.depotId);
     return this.reports.depotDailyRows(q.depotId, q.date);
   }
 

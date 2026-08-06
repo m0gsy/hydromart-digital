@@ -169,7 +169,10 @@ export class DataSubjectService {
    * one account guaranteed to be signed in), and the last SUPER_ADMIN cannot be deleted —
    * that would leave a system nobody can administer, including to undo this.
    */
-  async deleteStaffAccount(targetId: string, actorId: string): Promise<{ deleted: true }> {
+  async deleteStaffAccount(
+    targetId: string,
+    actorId: string,
+  ): Promise<{ deleted: true; employeeAnonymised: boolean }> {
     if (targetId === actorId) {
       throw new BadRequestException('Akun sendiri tidak bisa dihapus.');
     }
@@ -177,35 +180,51 @@ export class DataSubjectService {
     if (!target) {
       throw new CustomerNotFoundError();
     }
-    if (target.role === Role.SUPER_ADMIN) {
-      const { total } = await this.customers.listStaff(1, 2, Role.SUPER_ADMIN);
-      if (total <= 1) {
-        throw new BadRequestException(
-          'Ini super admin terakhir. Angkat super admin lain dulu sebelum menghapus.',
-        );
-      }
+    // B-5: this route is the STAFF console's delete, and its siblings (`setStaffDepot`,
+    // `setStaffActiveInternal`) both refuse a customer. Without the same refusal a
+    // SUPER_ADMIN could erase an end customer through it — skipping the PDP request queue
+    // that exists to record who asked and who decided, and filing it as `staff.account.deleted`.
+    if (target.role === Role.CUSTOMER) {
+      throw new BadRequestException(
+        'Ini akun pelanggan, bukan staf. Penghapusan pelanggan lewat antrean permintaan PDP.',
+      );
     }
 
-    // Identity first, status last: an interruption leaves an account that is anonymised but
-    // still ACTIVE — visibly wrong and re-runnable — rather than one that is DELETED with
-    // its name and phone intact, which looks finished and is not.
+    // B-4: the last-super-admin guard and the write are one transaction, in the repository.
+    // Read-then-write raced, and the result — zero super admins — cannot be undone through
+    // an API where every repair is SUPER_ADMIN-only.
+    //
+    // Closing the login FIRST, then scrubbing: the previous order carried a comment
+    // promising the opposite invariant, and that promise was already untrue (B-6) because
+    // `requests.anonymiseCustomer` writes `DELETED` in the same transaction as the scrub.
+    // Of the two interrupted states, a login that is shut but still named is the safe one —
+    // it is visibly unfinished and re-runnable, and nobody can sign in meanwhile.
+    const outcome = await this.customers.markDeletedGuardingLastSuperAdmin(targetId);
+    if (outcome === 'not-found') {
+      throw new CustomerNotFoundError();
+    }
+    if (outcome === 'last-super-admin') {
+      throw new BadRequestException(
+        'Ini super admin terakhir. Angkat super admin lain dulu sebelum menghapus.',
+      );
+    }
+
     await this.customerData.anonymise(targetId);
     await this.requests.anonymiseCustomer(targetId, anonymisedIdentity(targetId));
+    let employeeAnonymised = true;
     if (this.hr && target.role !== Role.FRANCHISE_OWNER) {
       // The employee half. Fail-soft: the login is already gone, and a raise here would
-      // report failure for a deletion that has in fact happened.
+      // report failure for a deletion that has in fact happened. B-10: it is REPORTED
+      // though — `{deleted: true}` with a silently orphaned employee record is how a
+      // half-finished delete looks finished.
       try {
         await this.hr.anonymiseEmployee(targetId);
       } catch (err) {
+        employeeAnonymised = false;
         this.logger.error(
           `Employee record for ${targetId} not anonymised: ${(err as Error).message}`,
         );
       }
-    }
-    const fresh = await this.customers.findById(targetId);
-    if (fresh) {
-      fresh.markDeleted();
-      await this.customers.save(fresh);
     }
 
     await this.audit.record({
@@ -214,9 +233,9 @@ export class DataSubjectService {
       success: true,
       ipAddress: null,
       userAgent: null,
-      metadata: { subject: targetId, role: target.role },
+      metadata: { subject: targetId, role: target.role, employeeAnonymised },
     });
-    return { deleted: true };
+    return { deleted: true, employeeAnonymised };
   }
 
   /** Refuse with a reason. A refusal without one tells the customer nothing. */

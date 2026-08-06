@@ -119,9 +119,19 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
         const row = { id, role: overrides.role ?? 'KEPALA_DEPOT', status: 'ACTIVE' };
         return { ...row, markDeleted: () => void (row.status = 'DELETED'), get status() { return row.status; } };
       };
+      // B-4: the guard and the write are ONE repository call now, so the fake decides both
+      // together — which is the whole point, and what a `listStaff` count could not express.
+      const superAdmins = overrides.superAdminTotal ?? 3;
       const repo = {
         findById: jest.fn(async (id: string) => makeRow(id)),
-        listStaff: jest.fn(async () => ({ items: [], total: overrides.superAdminTotal ?? 3 })),
+        listStaff: jest.fn(async () => ({ items: [], total: superAdmins })),
+        markDeletedGuardingLastSuperAdmin: jest.fn(async (id: string) => {
+          if ((overrides.role ?? 'KEPALA_DEPOT') === 'SUPER_ADMIN' && superAdmins <= 1) {
+            return 'last-super-admin' as const;
+          }
+          saved.push({ id, status: 'DELETED' });
+          return 'deleted' as const;
+        }),
         save: jest.fn(async (c: { id: string; status: string }) => {
           saved.push({ id: c.id, status: c.status });
           return c;
@@ -145,7 +155,10 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       const hr = { anonymiseEmployee: jest.fn() };
       const { svc, saved } = makeService({ hr });
 
-      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({ deleted: true });
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+        employeeAnonymised: true,
+      });
 
       expect(customerData.anonymise).toHaveBeenCalledWith(TARGET);
       expect(requests.anonymised).toContain(TARGET);
@@ -155,6 +168,21 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'staff.account.deleted', customerId: ACTOR }),
       );
+    });
+
+    /*
+     * B-5. This is the STAFF console's delete: it skips the PDP request queue (who asked,
+     * who decided) and files the result as `staff.account.deleted`. Its two siblings,
+     * `setStaffDepot` and `setStaffActiveInternal`, both refuse a customer; this one did
+     * not, so a SUPER_ADMIN could erase an end customer through the staff route.
+     */
+    it('refuses an end customer — that deletion belongs to the PDP queue', async () => {
+      const { svc, repo } = makeService({ role: 'CUSTOMER' });
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+      expect(repo.markDeletedGuardingLastSuperAdmin).not.toHaveBeenCalled();
     });
 
     it('refuses to delete the acting account', async () => {
@@ -176,16 +204,28 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       const oneOfMany = makeService({ role: 'SUPER_ADMIN', superAdminTotal: 2 });
       await expect(oneOfMany.svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
         deleted: true,
+        employeeAnonymised: true,
       });
     });
 
     // The login is already gone by then; raising here would report a failure for a
     // deletion that did happen.
-    it('still completes when hr-service cannot be told', async () => {
+    // B-10: it completes, and it SAYS the other half did not. `{deleted: true}` on its own
+    // reads as finished, and the orphaned employee record is exactly what somebody has to
+    // go and clean up by hand.
+    it('still completes when hr-service cannot be told, and reports the half that failed', async () => {
       const hr = { anonymiseEmployee: jest.fn(async () => Promise.reject(new Error('hr down'))) };
       const { svc, saved } = makeService({ hr });
 
-      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({ deleted: true });
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+        employeeAnonymised: false,
+      });
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ employeeAnonymised: false }),
+        }),
+      );
       expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
     });
   });

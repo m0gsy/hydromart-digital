@@ -230,7 +230,7 @@ export class AccountController {
   async deleteStaff(
     @Param('id') id: string,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<{ deleted: true }> {
+  ): Promise<{ deleted: true; employeeAnonymised: boolean }> {
     return this.dataSubject.deleteStaffAccount(id, user.sub);
   }
 
