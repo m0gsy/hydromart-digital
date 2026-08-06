@@ -346,6 +346,36 @@ export const HR_MANAGED_ROLES = [
 export type HrManagedRole = (typeof HR_MANAGED_ROLES)[number];
 
 /**
+ * Every role that can be on the payroll — the whole enum except `CUSTOMER`.
+ *
+ * Wider than either allowlist above and deliberately so: those two bound what may be
+ * ASSIGNED, this one bounds which employees may EXIST. A head-office clerk, a finance
+ * officer and the super admin are all people who get paid, and the staff console can
+ * invite them; refusing their employee record made every office invite fail.
+ *
+ * `CUSTOMER` stays out, and that exclusion is the whole point of the type — an end
+ * customer is not headcount, and an employee record for one is always a mistake.
+ * FRANCHISE_OWNER is in, because the type describes what is *acceptable*; whether an
+ * owner gets an employee row is decided at the call site, not by a validation rule.
+ */
+export const EMPLOYABLE_ROLES = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
+  'FRANCHISE_OWNER',
+  'HEAD_OFFICE',
+  'FINANCE',
+  'HR',
+  'MARKETING',
+  'SUPER_ADMIN',
+] as const satisfies readonly Role[];
+
+export type EmployableRole = (typeof EMPLOYABLE_ROLES)[number];
+
+/**
  * SUPER_ADMIN edits to the map above, as a sparse patch: one entry per CHANGED
  * capability, holding the full replacement role list. An absent entry means "use the
  * compiled default", so an empty patch is byte-for-byte the behaviour of this file.

@@ -19,7 +19,7 @@ import { DEPARTMENT_REPOSITORY, DepartmentRepository } from '../ports/department
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import { IDENTITY_PORT, IdentityPort, StaffRole } from '../ports/identity.port';
 import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
-import { STAFF_IMPORT_ROLES, type HrManagedRole } from '@hydromart/access';
+import { STAFF_IMPORT_ROLES, type EmployableRole, type HrManagedRole } from '@hydromart/access';
 
 /** The roles an import may mint an account for — the allowlist auth-service enforces too. */
 const IMPORT_PROVISIONABLE_ROLES: readonly string[] = STAFF_IMPORT_ROLES;
@@ -60,12 +60,14 @@ export interface CreateEmployeeInput {
   /**
    * Login role (jabatan). Setting it on an employee with an account re-roles the login.
    *
-   * Typed as the whole enum, not `HrManagedRole`: an account invited in the staff console
-   * may be HEAD_OFFICE or FINANCE, and those people are on the payroll too. What HR may
-   * *assign* stays bounded — by the DTOs on the HR-facing routes, where that rule belongs —
-   * but which employees may *exist* is a wider question.
+   * Wider than `HrManagedRole` — an account invited in the staff console may be
+   * HEAD_OFFICE or FINANCE, and those people are on the payroll too — but NOT the whole
+   * enum: `CUSTOMER` is excluded at the type level, because an employee record for an end
+   * customer is always a mistake, and widening this to `Employee['role']` is what stopped
+   * the compiler saying so. What HR may *assign* stays bounded by the DTOs on the
+   * HR-facing routes, where that rule belongs.
    */
-  role?: Employee['role'];
+  role?: EmployableRole;
   employmentStatus: Employee['employmentStatus'];
   joinDate: string;
   salaryType: SalaryType;

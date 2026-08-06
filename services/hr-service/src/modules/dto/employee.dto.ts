@@ -21,10 +21,11 @@ import {
 } from 'class-validator';
 
 import {
+  EMPLOYABLE_ROLES,
   HR_MANAGED_ROLES,
   STAFF_IMPORT_ROLES,
+  type EmployableRole,
   type HrManagedRole,
-  type Role,
   type StaffImportRole,
 } from '@hydromart/access';
 
@@ -182,29 +183,6 @@ export class CreateEmployeeDto {
 }
 
 /**
- * Every role that can be on the payroll — i.e. everyone except an end customer.
- *
- * FRANCHISE_OWNER is in the list because the DTO only describes what is *acceptable*;
- * auth-service never sends one (an owner is a business counterpart, not headcount), and
- * that decision stays where it is made rather than being duplicated here as a validation
- * rule somebody would later have to reconcile.
- */
-const EMPLOYABLE_ROLES = [
-  'STAFF_DEPOT',
-  'KEPALA_DEPOT',
-  'ASSISTANT_SUPERVISOR',
-  'SUPERVISOR',
-  'MANAGER',
-  'DIREKTUR',
-  'FRANCHISE_OWNER',
-  'HEAD_OFFICE',
-  'FINANCE',
-  'HR',
-  'MARKETING',
-  'SUPER_ADMIN',
-] as const satisfies readonly Role[];
-
-/**
  * An account invited from the HQ staff console, arriving over the internal key so HR gets
  * the employee row that makes them payable and rosterable.
  *
@@ -231,7 +209,7 @@ export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
    * auth-service's own staff-invite path.
    */
   @IsIn(EMPLOYABLE_ROLES as readonly string[])
-  role!: string;
+  role!: EmployableRole;
 }
 
 /** An account deleted in the staff console; the employee record behind it is scrubbed. */
