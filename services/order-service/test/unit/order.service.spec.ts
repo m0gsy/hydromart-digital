@@ -1869,6 +1869,59 @@ describe('OrderService', () => {
       OrderNotFoundError,
     );
   });
+  /*
+   * An order priced from the CATALOG because the depot's own prices could not be read is a
+   * money difference: the customer is billed at a number the depot did not set. It used to
+   * leave no trace at all, so it surfaced weeks later at reconciliation with no way back to
+   * the cause. Now it lands on the order's own timeline, where the person handling the
+   * complaint can see it.
+   */
+  describe('catalog-price fallback leaves a trace', () => {
+    it('notes on the order when the depot could not be priced', async () => {
+      pricing.unavailable = true;
+      const productId = await addToCart(20_000, 2);
+      expect(productId).toBeDefined();
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      const notes = orders.notes.filter((n) => n.id === order.id).map((n) => n.note);
+      expect(notes.some((n) => n.includes('Harga dasar katalog'))).toBe(true);
+      expect(notes.some((n) => n.includes('tidak terjangkau'))).toBe(true);
+    });
+
+    // A depot that priced normally leaves nothing behind — the note has to mean something.
+    it('says nothing when the depot priced the order itself', async () => {
+      await addToCart(20_000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const notes = orders.notes.filter((n) => n.id === order.id).map((n) => n.note);
+      expect(notes.some((n) => n.includes('Harga dasar katalog'))).toBe(false);
+    });
+
+    // Fail-open on the note itself: an order that is already placed and paid for must not
+    // be unwound because the timeline write failed.
+    it('does not unwind a placed order when the note cannot be written', async () => {
+      pricing.unavailable = true;
+      jest.spyOn(orders, 'appendNote').mockRejectedValue(new Error('db down'));
+      await addToCart(20_000, 2);
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address }),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('assignDepot', () => {
+    it('refuses an unknown order and an already-routed one', async () => {
+      await expect(service.assignDepot(randomUUID(), 'depot-near')).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+      await addToCart(20_000, 1);
+      const routed = await service.checkout(customer, { deliveryAddress: address });
+      await expect(service.assignDepot(routed.id, routed.depotId!)).rejects.toBeInstanceOf(
+        OrderAlreadyRoutedError,
+      );
+    });
+  });
 });
 
 describe('OrderService franchise revenue on completion', () => {

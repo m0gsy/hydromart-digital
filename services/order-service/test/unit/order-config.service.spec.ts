@@ -78,4 +78,17 @@ describe('OrderConfigService', () => {
     });
     expect(cfg.corsOrigins).toEqual(['http://a.com', 'http://b.com', 'http://c.com']);
   });
+
+  // Both meter tunables, in both shapes: the network default and an explicit depot. A depot
+  // whose main line is 15L counts its variance in 15L units, not the network's 19L.
+  it('resolves the meter tunables per depot and network-wide', () => {
+    const cfg = buildTestConfig({
+      ORDER_METER_REFERENCE_VOLUME_ML: '19000',
+      ORDER_METER_VARIANCE_TOLERANCE_LITERS: '200',
+    });
+    expect(cfg.meterReferenceVolumeMl()).toBe(19000);
+    expect(cfg.meterReferenceVolumeMl('depot-1')).toBe(19000);
+    expect(cfg.meterVarianceToleranceLiters()).toBe(200);
+    expect(cfg.meterVarianceToleranceLiters('depot-1')).toBe(200);
+  });
 });
