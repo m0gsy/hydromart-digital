@@ -1010,3 +1010,83 @@ describe('EmployeeService salary, dates and code lookup', () => {
     await expect(svc.findByIdInternal('missing')).resolves.toBeNull();
   });
 });
+
+/*
+ * K-4: `provision-many`. Sequential on purpose (the HR-#### allocator retries on
+ * collision), so what has to hold is that a row which throws fails only itself and its
+ * reason travels back — auth-service has already minted that account and needs to say
+ * which half is missing.
+ */
+describe('EmployeeService.provisionManyFromInvite (K-4)', () => {
+  const invite = (over: Record<string, unknown> = {}) => ({
+    ...baseInput,
+    authSubjectId: '00000000-0000-4000-8000-0000000000b1',
+    ...over,
+  });
+
+  it('reports one verdict per row, in order', async () => {
+    const { repo, svc } = make();
+    const out = await svc.provisionManyFromInvite([
+      invite({ authSubjectId: 'auth-1', phone: '0811' }),
+      invite({ authSubjectId: 'auth-2', phone: '0812' }),
+    ]);
+    expect(out.results).toEqual([
+      { index: 0, ok: true, message: null },
+      { index: 1, ok: true, message: null },
+    ]);
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  it('fails only the bad row, and says why', async () => {
+    const { repo, svc } = make();
+    const out = await svc.provisionManyFromInvite([
+      invite({ authSubjectId: 'auth-1', phone: '0811' }),
+      // Same phone: rejected by the uniqueness check, so this row alone fails.
+      invite({ authSubjectId: 'auth-2', phone: '0811' }),
+    ]);
+    expect(out.results[0]).toMatchObject({ index: 0, ok: true });
+    expect(out.results[1]).toMatchObject({ index: 1, ok: false });
+    expect(out.results[1]?.message).toContain('Nomor telepon');
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('returns an empty verdict list for an empty file', async () => {
+    const { svc } = make();
+    await expect(svc.provisionManyFromInvite([])).resolves.toEqual({ results: [] });
+  });
+});
+
+describe('EmployeeService uniqueness and account plumbing', () => {
+  it('refuses a duplicate NIK by name', async () => {
+    const { svc } = make();
+    await svc.create(hr, { ...baseInput, nik: '3201010101010009' });
+    await expect(
+      svc.create(hr, { ...baseInput, phone: '0899', nik: '3201010101010009' }),
+    ).rejects.toThrow('NIK sudah dipakai');
+  });
+
+  it('refuses to mint an account for a row with no jabatan', async () => {
+    const { svc } = make();
+    await expect(
+      svc.create(hr, { ...baseInput, role: undefined }),
+    ).rejects.toThrow('Jabatan');
+  });
+
+  it('scrubs the employee behind a deleted account, and reports a miss as zero', async () => {
+    const { repo, svc } = make();
+    await expect(svc.anonymiseByAccount('auth-x')).resolves.toEqual({ anonymised: 1 });
+    expect(repo.anonymisedAccounts).toContain('auth-x');
+  });
+
+  it('resolves an employee by the account behind them', async () => {
+    const { svc } = make();
+    const created = await svc.create(hr, { ...baseInput, authSubjectId: 'auth-self' });
+    await expect(svc.findByAuthSubjectId('auth-self')).resolves.toMatchObject({ id: created.id });
+  });
+
+  // The other direction of the ping-pong guard: nothing to update is not an error.
+  it('reports setActiveInternal on an unknown account as no update', async () => {
+    const { svc } = make();
+    await expect(svc.setActiveInternal('auth-nobody', false)).resolves.toEqual({ updated: false });
+  });
+});
