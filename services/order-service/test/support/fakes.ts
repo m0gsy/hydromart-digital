@@ -234,7 +234,7 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     return this.rows
       .filter((row) => orderIds.includes(row.id))
-      .map((row) => ({ orderId: row.id, totalIdr: row.total }));
+      .map((row) => ({ orderId: row.id, orderNumber: row.orderNumber, totalIdr: row.total }));
   }
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     return this.rows
@@ -992,6 +992,14 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
     if (this.claimed.has(customerId)) return false;
     this.claimed.add(customerId);
     return true;
+  }
+
+  /** phone -> customer id, as customer-service would resolve it. Empty = unreachable. */
+  readonly byPhone = new Map<string, string>();
+  readonly resolveCalls: { phone: string; fullName: string; depotId: string }[] = [];
+  async resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null> {
+    this.resolveCalls.push({ phone, fullName, depotId });
+    return this.byPhone.get(phone) ?? null;
   }
 }
 

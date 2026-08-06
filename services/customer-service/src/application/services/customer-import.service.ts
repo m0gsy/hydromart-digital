@@ -47,6 +47,30 @@ export class CustomerImportService {
     private readonly resellers: ResellerService,
   ) {}
 
+  /**
+   * §I: the buyer at a depot counter, resolved (or pre-registered) by phone number.
+   *
+   * The POS used to do this from the BROWSER by posting a one-row Excel import and then
+   * sending the id to order-service, so any other client posting `/orders/walk-in` with a
+   * phone and no customerId booked the sale against the anonymous sentinel and created
+   * nobody. The orchestration belongs on the server, and this is the server half.
+   *
+   * Deliberately the same rules the import already follows: identity comes from
+   * auth-service, and an account that is already ACTIVE belongs to that person — their
+   * favourite depot is left alone, so the last depot to sell them water cannot claim them.
+   */
+  async resolveByPhone(
+    phone: string,
+    fullName: string,
+    depotId?: string,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' }> {
+    const { customerId, status } = await this.identity.preRegisterCustomer(phone, fullName);
+    if (status !== 'active' && depotId) {
+      await this.profiles.upsertFavoriteDepot(customerId, depotId);
+    }
+    return { customerId, status };
+  }
+
   async importCustomers(
     user: AuthenticatedUser,
     depotId: string,

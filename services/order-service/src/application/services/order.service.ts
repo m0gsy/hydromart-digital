@@ -26,6 +26,7 @@ import {
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   AnonymousVoucherNotAllowedError,
+  CounterBuyerUnresolvedError,
   ShippingVoucherAtCounterError,
   NoOpenShiftError,
   NotACounterSaleError,
@@ -571,10 +572,15 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // §I: the buyer is resolved HERE, before anything else, because the replay guard below
+    // is keyed by customer id — resolving after it would look the retry up under the
+    // sentinel and sell the goods a second time. Pre-registration is idempotent per phone,
+    // so both attempts resolve to the same account.
+    const customerId = await this.resolveCounterBuyer(input);
     // Same replay guard as checkout (B-13). A till on a flaky depot connection is the case
     // that matters most here: the cashier taps Bayar again and must not sell the goods twice.
     const idempotencyKey = OrderService.idempotencyKeyOf(input);
-    const replay = await this.findReplay(input.customerId ?? ANONYMOUS_CUSTOMER_ID, idempotencyKey);
+    const replay = await this.findReplay(customerId, idempotencyKey);
     if (replay) {
       return replay;
     }
@@ -585,20 +591,6 @@ export class OrderService {
     }
 
     const { items, subtotal, catalogFallback } = await this.priceLines(input.depotId, input.lines);
-    /*
-     * §I, NOT DONE and deliberately recorded rather than half-built: the buyer is resolved
-     * by the BROWSER. `dashboard/walk-in/page.tsx` posts a one-row depot Excel import to
-     * mint the customer, then sends the id here. Any other client posting `/orders/walk-in`
-     * with a phone and no `customerId` therefore records a sale against the anonymous
-     * sentinel and creates nobody — the orchestration belongs on this side.
-     *
-     * Moving it needs a customer-service port that resolves-or-creates by phone, which is a
-     * third cross-service link; the shipped POS works today, so it is written down here
-     * instead of rushed. Everything else in §I is done: the directory unions profile,
-     * reseller and orderer, the sentinel is filtered at the source, and checkout records
-     * the depot.
-     */
-    const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
     const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
 
@@ -711,6 +703,35 @@ export class OrderService {
         .catch(() => {});
     }
     return voided;
+  }
+
+  /**
+   * §I: who the counter sale belongs to.
+   *
+   * A caller that already knows the id (the POS, which has just looked the buyer up) sends
+   * it. A caller that only has the phone the cashier typed gets the buyer resolved — or
+   * pre-registered — here, rather than being expected to orchestrate that itself. That
+   * orchestration used to live in the POS page's browser, so every other client booked the
+   * sale against the anonymous sentinel and created nobody.
+   *
+   * No phone means a genuinely anonymous sale: cash over the counter, nobody named. That is
+   * the sentinel's whole purpose and it stays.
+   */
+  private async resolveCounterBuyer(input: WalkInSaleInput): Promise<string> {
+    if (input.customerId) return input.customerId;
+    const phone = input.customerPhone?.trim();
+    if (!phone) return ANONYMOUS_CUSTOMER_ID;
+    const resolved = await this.customerDirectory.resolveByPhone(
+      phone,
+      input.customerName?.trim() || phone,
+      input.depotId,
+    );
+    // The one counter call that fails CLOSED. Falling back to the sentinel here would make
+    // the id non-deterministic, and the replay guard below is keyed by it: a retry after a
+    // customer-service blip would miss the sale already recorded under the resolved buyer
+    // and sell the same goods a second time. See CounterBuyerUnresolvedError.
+    if (!resolved) throw new CounterBuyerUnresolvedError();
+    return resolved;
   }
 
   /**

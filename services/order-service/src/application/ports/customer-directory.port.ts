@@ -18,4 +18,18 @@ export interface CustomerDirectoryPort {
    * checkout carries on.
    */
   claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean>;
+
+  /**
+   * §I: the counter buyer, resolved (or pre-registered) from the phone the cashier typed.
+   *
+   * Resolution used to happen in the POS page's browser — it posted a one-row Excel import
+   * and sent the id back — so any other client posting `/orders/walk-in` with a phone and
+   * no customerId booked the sale against the anonymous sentinel and created nobody.
+   *
+   * Never throws: an unresolved buyer comes back as `null` and the CALLER decides what
+   * that means. It is the one counter call whose caller fails closed — see
+   * `CounterBuyerUnresolvedError` for why booking the sale anonymously instead would let a
+   * retry sell the same goods twice.
+   */
+  resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null>;
 }

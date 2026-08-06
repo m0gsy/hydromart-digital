@@ -328,6 +328,44 @@ describe('FranchiseRevenueHttpAdapter', () => {
       ).orderCompleted(event),
     ).resolves.toBeUndefined();
   });
+
+  it('posts the void so the owner stops being paid for a reversed order', async () => {
+    fetchMock.mockResolvedValue(res({ body: { voided: true } }));
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+    ).orderVoided('o1', 'refund');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payout:3016/api/v1/payout/revenue/internal/void');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({ orderId: 'o1', reason: 'refund' });
+  });
+
+  it('skips the void when payout integration is not configured', async () => {
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: '' })).orderVoided(
+      'o1',
+      'refund',
+    );
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016', internalServiceKey: '' }),
+    ).orderVoided('o1', 'refund');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('swallows a payout failure on the void — the refund must still go through', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderVoided('o1', 'refund'),
+    ).resolves.toBeUndefined();
+
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderVoided('o1', 'refund'),
+    ).resolves.toBeUndefined();
+  });
 });
 
 describe('DepotPricingHttpAdapter', () => {
@@ -810,5 +848,55 @@ describe('CustomerDirectoryHttpAdapter', () => {
     await expect(
       quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
     ).resolves.toBe(false);
+  });
+
+  // §I: the counter buyer. Resolution used to happen in the POS page's browser, so any
+  // other client posting /orders/walk-in with a phone created nobody.
+  describe('resolveByPhone', () => {
+    it('posts the phone and hands back the account it resolved', async () => {
+      const fetchMock = jest.fn().mockResolvedValue(res({ body: { customerId: 'c9' } }));
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBe('c9');
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('http://customer:3002/api/v1/customers/internal/resolve-by-phone');
+      expect(init.headers['x-internal-key']).toBe(KEY);
+      expect(JSON.parse(init.body)).toEqual({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
+    });
+
+    it('calls nothing when there is no internal key', async () => {
+      const fetchMock = jest.fn();
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+      const adapter = new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+
+      await expect(adapter.resolveByPhone('0811', 'Budi', 'd1')).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // Fails OPEN: the sale is booked anonymously rather than a cashier being stopped with
+    // the buyer standing at the counter.
+    it('answers null on a refusal, an outage, and an unreadable body', async () => {
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockResolvedValue(res({ throwJson: true }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+    });
   });
 });

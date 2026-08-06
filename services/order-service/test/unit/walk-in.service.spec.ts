@@ -7,6 +7,7 @@ import { OrderService } from '../../src/application/services/order.service';
 import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import {
   AnonymousVoucherNotAllowedError,
+  CounterBuyerUnresolvedError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -59,6 +60,8 @@ describe('OrderService.walkInSale', () => {
   let promo: FakePromo;
   let shift: FakeCashierShift;
   let paymentReversal: FakePaymentReversal;
+  let pricing: FakeDepotPricing;
+  let directory: FakeCustomerDirectory;
   let service: OrderService;
 
   const operator: AuthenticatedUser = {
@@ -73,7 +76,8 @@ describe('OrderService.walkInSale', () => {
     const cart = new InMemoryCartRepository();
     catalog = new FakeProductCatalog();
     depots = new FakeDepotDirectory();
-    const pricing = new FakeDepotPricing();
+    pricing = new FakeDepotPricing();
+    directory = new FakeCustomerDirectory();
     loyalty = new FakeLoyaltyCoordination();
     referral = new FakeReferralCoordination();
     recommendation = new FakeRecommendationCoordination();
@@ -96,7 +100,7 @@ describe('OrderService.walkInSale', () => {
       referral,
       membership,
       new FakeResellerDiscount(),
-      new FakeCustomerDirectory(),
+      directory,
       notification,
       promo,
       inventory,
@@ -153,6 +157,17 @@ describe('OrderService.walkInSale', () => {
     expect(inventory.calls).toHaveLength(1);
   });
 
+  // The cashier is standing at the counter charging a price the depot did not set. The note
+  // is what the shift reconciliation has to explain the difference with.
+  it('notes a counter sale that had to be priced from the catalog', async () => {
+    pricing.unavailable = true;
+
+    const order = await sell(2);
+
+    const notes = orders.notes.filter((n) => n.id === order.id).map((n) => n.note);
+    expect(notes).toContain('Harga dasar katalog dipakai: depot tidak terjangkau saat checkout');
+  });
+
   it('completes the sale immediately with no delivery fee', async () => {
     const order = await sell(2);
 
@@ -168,11 +183,83 @@ describe('OrderService.walkInSale', () => {
   });
 
   it('fills the mandatory address snapshot with the counter', async () => {
+    directory.byPhone.set('08123', '99999999-9999-4999-8999-999999999999');
     const order = await sell(1, { customerName: ' Budi ', customerPhone: ' 08123 ' });
 
     expect(order.recipientName).toBe('Budi');
     expect(order.phone).toBe('08123');
     expect(order.addressLine).toBe('Ambil langsung di depot');
+  });
+
+  // §I. The buyer used to be resolved in the POS page's BROWSER: it posted a one-row Excel
+  // import, then sent the id here. Any other client posting a phone with no customerId
+  // therefore booked the sale against the anonymous sentinel and created nobody.
+  describe('resolving the counter buyer', () => {
+    const BUYER = '99999999-9999-4999-8999-999999999999';
+
+    it('resolves a phone with no customer id, and books the sale against that account', async () => {
+      directory.byPhone.set('08123', BUYER);
+
+      const order = await sell(1, { customerPhone: ' 08123 ', customerName: ' Budi ' });
+
+      expect(order.customerId).toBe(BUYER);
+      expect(directory.resolveCalls).toEqual([
+        { phone: '08123', fullName: 'Budi', depotId: DEPOT },
+      ]);
+    });
+
+    // A cashier who typed only a number still gets a usable account rather than a blank one.
+    it('names the new account after the phone when no name was typed', async () => {
+      directory.byPhone.set('08123', BUYER);
+
+      await sell(1, { customerPhone: '08123' });
+
+      expect(directory.resolveCalls[0].fullName).toBe('08123');
+    });
+
+    it('leaves an id the caller already resolved alone', async () => {
+      const order = await sell(1, { customerId: BUYER, customerPhone: '08123' });
+
+      expect(order.customerId).toBe(BUYER);
+      expect(directory.resolveCalls).toEqual([]);
+    });
+
+    it('is an anonymous sale when no phone was given', async () => {
+      const order = await sell(1);
+
+      expect(order.customerId).toBe(ANONYMOUS_CUSTOMER_ID);
+      expect(directory.resolveCalls).toEqual([]);
+    });
+
+    // The one counter call that fails CLOSED. Booking it anonymously would make the id
+    // non-deterministic, and the replay guard is keyed by it — a retry would miss the sale
+    // already recorded under the resolved buyer and sell the goods a second time.
+    it('refuses the sale when the buyer cannot be resolved', async () => {
+      await expect(sell(1, { customerPhone: '08123' })).rejects.toBeInstanceOf(
+        CounterBuyerUnresolvedError,
+      );
+      expect(orders.rows).toHaveLength(0);
+      expect(directory.resolveCalls).toHaveLength(1);
+    });
+
+    // The replay guard is keyed by customer id. Resolving after it would look the retry up
+    // under the sentinel, find nothing, and sell the goods a second time.
+    it('returns the same sale on a retry, not a second one', async () => {
+      directory.byPhone.set('08123', BUYER);
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      const sale = {
+        depotId: DEPOT,
+        lines: [{ productId: product.id, quantity: 1 }],
+        customerPhone: '08123',
+        idempotencyKey: 'till-9',
+      };
+
+      const first = await service.walkInSale(operator, sale);
+      const retry = await service.walkInSale(operator, sale);
+
+      expect(retry.id).toBe(first.id);
+      expect(orders.rows).toHaveLength(1);
+    });
   });
 
   it('falls back to a generic buyer when no name is given', async () => {

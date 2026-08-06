@@ -14,6 +14,9 @@ import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franc
 import { MembershipHttpAdapter } from '../../src/infrastructure/http/membership.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { ResellerDiscountHttpAdapter } from '../../src/infrastructure/http/reseller-discount.http.adapter';
+import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
+import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
+import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
 
 // Covers the error branches the happy-path specs don't reach: the `if (!res.ok) throw`
 // guards feeding each adapter's catch.
@@ -133,6 +136,7 @@ describe('an outbound call that hangs is aborted and still settles', () => {
     makeConfig({
       productServiceUrl: 'http://product:3003',
       payoutServiceUrl: 'http://payout:3016',
+      paymentServiceUrl: 'http://payment:3005',
     });
 
   beforeEach(() => {
@@ -187,6 +191,35 @@ describe('an outbound call that hangs is aborted and still settles', () => {
     ],
     ['referral.qualify', () => new ReferralCoordinationHttpAdapter(cfg()).qualify('c1', 'o1', '')],
     ['reseller-discount.get', () => new ResellerDiscountHttpAdapter(cfg()).get('Bearer t')],
+    [
+      'franchise-revenue.orderVoided',
+      () => new FranchiseRevenueHttpAdapter(cfg()).orderVoided('o1', 'refund'),
+    ],
+    ['inventory.restock', () => new InventoryHttpAdapter(cfg()).restock('d1', 'o1', line, '')],
+    [
+      'loyalty.reversePoints',
+      () => new LoyaltyCoordinationHttpAdapter(cfg()).reversePoints('c1', 'o1', 'refund'),
+    ],
+    [
+      'cashier-shift.hasOpenShift',
+      () => new CashierShiftHttpAdapter(cfg()).hasOpenShift('d1', 'Bearer t'),
+    ],
+    [
+      'customer-directory.claimFavoriteDepot',
+      () => new CustomerDirectoryHttpAdapter(cfg()).claimFavoriteDepot('c1', 'd1'),
+    ],
+    [
+      'customer-directory.resolveByPhone',
+      () => new CustomerDirectoryHttpAdapter(cfg()).resolveByPhone('0811', 'Budi', 'd1'),
+    ],
+    [
+      'payment-reversal.voidForOrder',
+      () => new PaymentReversalHttpAdapter(cfg()).voidForOrder('o1', 'refund'),
+    ],
+    [
+      'product-catalog.getProducts',
+      () => new ProductCatalogHttpAdapter(cfg()).getProducts(['p1', 'p2']),
+    ],
   ];
 
   it.each(cases)('%s', async (_name, run) => {

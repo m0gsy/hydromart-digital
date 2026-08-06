@@ -44,4 +44,30 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
       clearTimeout(timer);
     }
   }
+
+  async resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null> {
+    const key = this.config.internalServiceKey;
+    if (!key) return null;
+    const url = `${this.config.customerServiceUrl}/api/v1/customers/internal/resolve-by-phone`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), CustomerDirectoryHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-internal-key': key },
+        body: JSON.stringify({ phone, fullName, depotId }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`customer-service responded ${res.status}`);
+      const body = (await res.json().catch(() => null)) as { customerId?: string } | null;
+      return body?.customerId ?? null;
+    } catch (error) {
+      // Fail OPEN like the rest of this adapter: the sale goes through as anonymous rather
+      // than the cashier being stopped mid-transaction.
+      this.logger.warn(`Counter buyer not resolved: ${(error as Error).message}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 }

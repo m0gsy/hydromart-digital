@@ -20,7 +20,6 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import type { ImportResponse } from '@/components/csv-import';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
@@ -133,20 +132,6 @@ function WalkIn({ depotId }: { depotId: string }) {
     TRANSFER: !!bankAccount,
   };
 
-  /** Resolve the buyer by phone, pre-registering them if this is their first purchase. */
-  async function resolveCustomerId(): Promise<string | undefined> {
-    const trimmed = phone.trim();
-    if (!trimmed) return undefined;
-    // The bulk-import path already does exactly this: idempotent per phone, skips numbers
-    // that already have an account, and returns the customer id either way.
-    const summary = await api.post<ImportResponse>(
-      endpoints.depotCrm.import,
-      { depotId, rows: [{ phone: trimmed, fullName: name.trim() || trimmed }] },
-      true,
-    );
-    return summary.results[0]?.id;
-  }
-
   async function submit() {
     if (lines.length === 0) return toast('Pilih produk dulu.', 'error');
     if (method === 'CASH' && cashReceived < total) {
@@ -169,13 +154,14 @@ function WalkIn({ depotId }: { depotId: string }) {
     if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
     let order: Order;
     try {
-      const customerId = await resolveCustomerId();
+      // §I: the buyer is resolved SERVER-side now, from the phone below. This page used to
+      // mint them here with a one-row Excel import, which meant every other client posting
+      // this route booked the sale against the anonymous sentinel and created nobody.
       order = await api.post<Order>(
         endpoints.orders.walkIn,
         {
           depotId,
           lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-          customerId,
           customerName: name.trim() || undefined,
           customerPhone: phone.trim() || undefined,
           voucherCode: voucher.trim().toUpperCase() || undefined,
