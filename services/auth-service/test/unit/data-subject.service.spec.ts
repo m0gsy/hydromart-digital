@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 
 import {
+  CustomerNotFoundError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
@@ -183,6 +184,18 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       );
       expect(customerData.anonymise).not.toHaveBeenCalled();
       expect(repo.markDeletedGuardingLastSuperAdmin).not.toHaveBeenCalled();
+    });
+
+    // The row vanished between the read and the write — a concurrent delete. The repository
+    // is the one that notices, and the caller has to translate that, not ignore it.
+    it('reports not-found when the account disappears mid-delete', async () => {
+      const { svc, repo } = makeService({});
+      repo.markDeletedGuardingLastSuperAdmin = jest.fn(
+        async (_id: string) => 'not-found',
+      ) as never;
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
     });
 
     it('refuses to delete the acting account', async () => {

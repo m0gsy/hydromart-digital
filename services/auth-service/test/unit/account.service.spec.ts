@@ -1,5 +1,6 @@
 import {
   CustomerNotFoundError,
+  DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
   StaffDepotRequiredError,
@@ -296,6 +297,115 @@ describe('AccountService', () => {
       ]);
       expect(second).toMatchObject({ created: 0, updated: 2, failed: 0 });
       expect(second.results[0].id).toBe(first.results[0].id);
+    });
+
+    /*
+     * K-4: the employee half leaves in ONE call now. What matters is that the per-row
+     * verdicts still land on the right rows — an account minted without its employee record
+     * is the half-a-person this release exists to remove, and reporting it as `created`
+     * would hide exactly the rows somebody has to go and finish by hand.
+     */
+    it('sends every non-owner row in one batch, and skips the franchise owner', async () => {
+      const spy = jest.spyOn(hr, 'provisionEmployees');
+      await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004101', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+        { ...EMPLOYMENT, phone: '+628990004102', role: Role.FRANCHISE_OWNER, fullName: 'Pemilik' },
+      ]);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0]).toHaveLength(1);
+    });
+
+    it('downgrades a row hr-service refused, and says why', async () => {
+      hr.provisionEmployees = async (inputs) =>
+        inputs.map((_i, index) => ({ index, ok: false, message: 'NIK sudah dipakai' }));
+
+      const summary = await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004201', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+
+      expect(summary).toMatchObject({ created: 0, failed: 1 });
+      expect(summary.results[0]?.message).toContain('NIK');
+    });
+
+    // A row hr-service never spoke for is not a pass.
+    it('fails a row hr-service returned no verdict for', async () => {
+      hr.provisionEmployees = async () => [];
+
+      const summary = await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004301', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+
+      expect(summary).toMatchObject({ created: 0, failed: 1 });
+      expect(summary.results[0]?.message).toContain('tidak melaporkan');
+    });
+
+    it('fails every pending row when the batch call itself does not land', async () => {
+      hr.provisionEmployees = async () => {
+        throw new Error('hr-service tidak terjangkau');
+      };
+
+      const summary = await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004401', role: Role.HEAD_OFFICE, fullName: 'A' },
+        { ...EMPLOYMENT, phone: '+628990004402', role: Role.FINANCE, fullName: 'B' },
+      ]);
+
+      expect(summary).toMatchObject({ created: 0, failed: 2 });
+      expect(summary.results[0]?.message).toContain('tidak terjangkau');
+    });
+
+    // An updated row that then fails its employee half must leave `updated` behind too,
+    // not just increment `failed`.
+    it('moves a re-uploaded row out of updated when its employee half fails', async () => {
+      await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004501', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+      hr.provisionEmployees = async (inputs) =>
+        inputs.map((_i, index) => ({ index, ok: false, message: 'ditolak' }));
+
+      const again = await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004501', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+      expect(again).toMatchObject({ created: 0, updated: 0, failed: 1 });
+    });
+
+    it('refuses the whole row when hr-service is not configured at all', async () => {
+      const noHr = new AccountService(customers, sessions, new AuditService(audit));
+      const summary = await noHr.importStaff([
+        { ...EMPLOYMENT, phone: '+628990004601', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+      expect(summary).toMatchObject({ created: 0, failed: 1 });
+    });
+  });
+
+  /*
+   * D-4: the FRANCHISE_OWNER skip branches on the INPUT role here and on the STORED role at
+   * status and delete, so re-inviting an existing employee as an owner stranded their row.
+   * It is closed instead — an owner is a counterparty, so the employee half has to end.
+   */
+  describe('inviteStaffWithEmployee for a franchise owner', () => {
+    it('closes any employee record instead of provisioning one', async () => {
+      await service.inviteStaffWithEmployee({
+        ...EMPLOYMENT,
+        phone: '+628990005001',
+        role: Role.FRANCHISE_OWNER,
+        fullName: 'Pemilik',
+      });
+      expect(hr.calls).toHaveLength(0);
+      expect(hr.activeCalls[0]).toMatchObject({ active: false });
+    });
+
+    it('does not fail the invite when hr-service cannot be told', async () => {
+      hr.setEmployeeActive = async () => {
+        throw new Error('hr down');
+      };
+      await expect(
+        service.inviteStaffWithEmployee({
+          ...EMPLOYMENT,
+          phone: '+628990005002',
+          role: Role.FRANCHISE_OWNER,
+          fullName: 'Pemilik',
+        }),
+      ).resolves.toBeDefined();
     });
   });
 
@@ -663,5 +773,129 @@ describe('AccountService', () => {
     await service.logoutAll(customer.id, ctx);
     expect(await service.listSessions(customer.id)).toHaveLength(0);
     expect(audit.actions()).toContain(AuditAction.LOGOUT_ALL);
+  });
+
+  /*
+   * K-3: the dispatch roster is read whole, so it needs a ceiling — and PR6's rule is that
+   * a ceiling REFUSES rather than truncating. A silently short roster is a courier who
+   * exists but cannot be dispatched, which reads on screen as "no shift".
+   */
+  describe('listDrivers ceiling', () => {
+    it('refuses rather than truncating past its limit', async () => {
+      const many = {
+        listStaff: jest.fn(async (page: number) => ({
+          items: Array.from({ length: 100 }, (_v, i) => makeCustomer({ phone: `+628${page}${i}` })),
+          total: 100_000,
+        })),
+      };
+      const svc = new AccountService(many as never, sessions, new AuditService(audit));
+      await expect(svc.listDrivers()).rejects.toBeInstanceOf(DriverRosterTooLargeError);
+    });
+
+    it('stops at the end of a short roster without complaining', async () => {
+      const few = {
+        listStaff: jest.fn(async () => ({
+          items: [makeCustomer({ phone: '+6288111' })],
+          total: 1,
+        })),
+      };
+      const svc = new AccountService(few as never, sessions, new AuditService(audit));
+      await expect(svc.listDrivers('depot-1')).resolves.toHaveLength(1);
+    });
+
+    it('stops on an empty page too', async () => {
+      const none = { listStaff: jest.fn(async () => ({ items: [], total: 5 })) };
+      const svc = new AccountService(none as never, sessions, new AuditService(audit));
+      await expect(svc.listDrivers()).resolves.toEqual([]);
+    });
+  });
+
+  describe('setStaffDepot', () => {
+    it('refuses an unknown account and an end customer', async () => {
+      await expect(service.setStaffDepot('missing', 'depot-1')).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
+      const customer = makeCustomer({ phone: '+628990006001' });
+      customers.seed(customer);
+      await expect(service.setStaffDepot(customer.id, 'depot-1')).rejects.toBeInstanceOf(
+        InvalidStaffRoleError,
+      );
+    });
+
+    // The reason this route exists: it must move the depot WITHOUT reopening a closed login.
+    it('moves the depot and leaves the status alone', async () => {
+      const staff = await service.inviteStaff('+628990006002', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      await service.setStaffActiveInternal(staff.id, false);
+
+      const moved = await service.setStaffDepot(staff.id, 'depot-2');
+      expect(moved).toMatchObject({
+        assignedDepotId: 'depot-2',
+        status: CustomerStatus.SUSPENDED,
+      });
+    });
+
+    it('refuses to leave a depot-locked role with no depot', async () => {
+      const staff = await service.inviteStaff('+628990006003', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+      await expect(service.setStaffDepot(staff.id, null)).rejects.toBeInstanceOf(
+        StaffDepotRequiredError,
+      );
+    });
+  });
+
+  // The remaining branches of the invite/import path: every optional field left out.
+  describe('optional fields on the invite and import paths', () => {
+    it('invites with no name at all', async () => {
+      const staff = await service.inviteStaff('+628990007001', Role.HEAD_OFFICE);
+      expect(staff.fullName).toBeNull();
+    });
+
+    // provisionPayload falls back account name -> input name -> phone. With no name
+    // anywhere, hr-service is told the phone, because an employee needs some label.
+    it('falls all the way back to the phone for the employee record', async () => {
+      await service.inviteStaffWithEmployee({
+        ...EMPLOYMENT,
+        phone: '+628990007002',
+        role: Role.HEAD_OFFICE,
+      });
+      expect(hr.calls[0]?.fullName).toBe('+628990007002');
+    });
+
+    it('reports a refused row even when hr-service gives no reason', async () => {
+      hr.provisionEmployees = async (inputs) =>
+        inputs.map((_i, index) => ({ index, ok: false, message: null }));
+      const summary = await service.importStaff([
+        { ...EMPLOYMENT, phone: '+628990007003', role: Role.HEAD_OFFICE, fullName: 'Kantor' },
+      ]);
+      expect(summary.results[0]?.message).toContain('menolak');
+    });
+
+    // A row that already failed its ACCOUNT half must not be counted twice when the batch
+    // verdicts come back — `failed` is a terminal state.
+    it('does not double-count a row that had already failed', async () => {
+      hr.provisionEmployees = async (inputs) =>
+        inputs.map((_i, index) => ({ index, ok: false, message: 'ditolak' }));
+      const summary = await service.importStaff([
+        // Depot-locked with no depot: this row fails before hr-service is ever asked.
+        { ...EMPLOYMENT, phone: '+628990007004', role: Role.KEPALA_DEPOT, fullName: 'X' },
+        { ...EMPLOYMENT, phone: '+628990007005', role: Role.HEAD_OFFICE, fullName: 'Y' },
+      ]);
+      expect(summary.failed).toBe(2);
+      expect(summary.created).toBe(0);
+    });
+
+    it('pre-registers a customer with a blank name as having none', async () => {
+      const out = await service.preRegisterCustomer('+628990007006', '   ');
+      expect(out.status).toBe('created');
+      expect((await service.getProfile(out.customerId)).fullName).toBeNull();
+    });
+
+    // Both remaining preRegisterCustomer branches: an existing PENDING row, and an ACTIVE one.
+    it('reports an existing account rather than overwriting it', async () => {
+      const pending = await service.preRegisterCustomer('+628990007007', 'Budi');
+      expect((await service.preRegisterCustomer('+628990007007', 'Lain')).status).toBe('pending');
+      const staff = await service.inviteStaff('+628990007008', Role.HEAD_OFFICE, 'Kantor');
+      expect((await service.preRegisterCustomer(staff.phone)).status).toBe('active');
+      expect(pending.customerId).toBeDefined();
+    });
   });
 });

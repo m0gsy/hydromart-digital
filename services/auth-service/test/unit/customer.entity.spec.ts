@@ -93,3 +93,16 @@ describe('Customer entity', () => {
     expect(customer.lastLoginAt).toEqual(now);
   });
 });
+
+describe('Customer.markDeleted', () => {
+  it('closes the login for good, and neither setActive nor an invite lifts it', () => {
+    const customer = Customer.fromPersistence(baseProps({ role: Role.HEAD_OFFICE }));
+    customer.markDeleted();
+    expect(customer.status).toBe(CustomerStatus.DELETED);
+
+    customer.setActive(true);
+    expect(customer.status).toBe(CustomerStatus.DELETED);
+    customer.promoteToStaff(Role.HEAD_OFFICE);
+    expect(customer.status).toBe(CustomerStatus.DELETED);
+  });
+});
