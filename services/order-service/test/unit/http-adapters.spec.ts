@@ -24,6 +24,7 @@ import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
+import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
 // branches, fail-open catch, response parsing) against a mocked global.fetch — the
@@ -738,5 +739,76 @@ describe('ReferralCoordinationHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', '');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * §I: order-service telling customer-service where somebody just bought, so a
+ * self-registered customer appears in that depot's directory.
+ *
+ * Fails OPEN on every path — the order is already placed and paid for, and a directory row
+ * is not worth unwinding it over. `false` therefore means "not recorded", never an error.
+ */
+describe('CustomerDirectoryHttpAdapter', () => {
+  const config = makeConfig({ customerServiceUrl: 'http://customer:3002' });
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    (globalThis as { fetch: unknown }).fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  function quiet(adapter: CustomerDirectoryHttpAdapter) {
+    jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+    return adapter;
+  }
+
+  it('posts the claim over the internal key and reports what was written', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(res({ body: { claimed: true } }));
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await expect(
+      new CustomerDirectoryHttpAdapter(config).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://customer:3002/api/v1/customers/internal/favorite-depot');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({ customerId: 'c1', depotId: 'd1' });
+  });
+
+  it('reports false when the customer already had a favourite', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(res({ body: { claimed: false } }));
+    await expect(
+      new CustomerDirectoryHttpAdapter(config).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+  });
+
+  it('calls nothing when there is no internal key', async () => {
+    const fetchMock = jest.fn();
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+    const adapter = new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+    await expect(adapter.claimFavoriteDepot('c1', 'd1')).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails open on a refusal, on an unreachable service, and on an unreadable body', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(res({ throwJson: true }));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
   });
 });
