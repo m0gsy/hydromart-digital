@@ -7,7 +7,7 @@ import {
   toRulePayload,
   type RuleForm,
 } from '@/lib/pricing';
-import type { CartLine } from '@/lib/types';
+import type { CartLine, ResolvedPrice } from '@/lib/types';
 
 function line(unit: string, quantity: number): CartLine {
   return {
@@ -37,23 +37,27 @@ describe('galonQuantity (mirrors the ongkir charge)', () => {
   });
 });
 
+/** Only the three fields computeEffective reads; the rest of ResolvedPrice is noise here. */
+const resolved = (over: Partial<ResolvedPrice>): ResolvedPrice =>
+  ({ productId: 'p1', sellPrice: 18000, ...over });
+
 describe('computeEffective (mirrors checkout math)', () => {
   it('falls back to the catalog base when there is no override or rule', () => {
     expect(computeEffective(20000)).toMatchObject({ base: 20000, override: null, effective: 20000 });
   });
 
   it('applies a PERCENT surge off the override, rounded to whole rupiah', () => {
-    const r = computeEffective(20000, { sellPrice: 18000, adjustType: 'PERCENT', value: 10 } as any);
+    const r = computeEffective(20000, resolved({ adjustType: 'PERCENT', value: 10 }));
     expect(r.effective).toBe(19800); // 18000 * 1.10
   });
 
   it('applies a FIXED delta off the override', () => {
-    const r = computeEffective(20000, { sellPrice: 18000, adjustType: 'FIXED', value: -3000 } as any);
+    const r = computeEffective(20000, resolved({ adjustType: 'FIXED', value: -3000 }));
     expect(r.effective).toBe(15000);
   });
 
   it('floors a deep discount at zero (never negative)', () => {
-    const r = computeEffective(20000, { sellPrice: 5000, adjustType: 'FIXED', value: -9000 } as any);
+    const r = computeEffective(20000, resolved({ sellPrice: 5000, adjustType: 'FIXED', value: -9000 }));
     expect(r.effective).toBe(0);
   });
 });

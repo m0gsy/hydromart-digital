@@ -237,6 +237,55 @@ describe('remaining prisma repository paths', () => {
     expect(customer.findMany).toHaveBeenCalledWith({ where: { id: { in: ['cust-1'] } } });
   });
 
+  // Deleting an account is one transaction with a guard inside it: the platform must never
+  // end up with no super admin, and two concurrent deletes of two DIFFERENT super admins
+  // must not each see the other as the survivor.
+  describe('markDeletedGuardingLastSuperAdmin', () => {
+    const repoWith = (target: unknown, live: { id: string }[] = []) => {
+      const update = jest.fn().mockResolvedValue({});
+      const tx = {
+        customer: { findUnique: jest.fn().mockResolvedValue(target), update },
+        $queryRaw: jest.fn().mockResolvedValue(live),
+      };
+      const prisma = {
+        $transaction: (fn: (t: unknown) => unknown) => fn(tx),
+      } as unknown as PrismaService;
+      return { repo: new CustomerPrismaRepository(prisma), tx, update };
+    };
+
+    it('reports not-found rather than pretending it deleted something', async () => {
+      const { repo, update } = repoWith(null);
+      await expect(repo.markDeletedGuardingLastSuperAdmin('gone')).resolves.toBe('not-found');
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('deletes an ordinary customer without touching the super-admin lock', async () => {
+      const { repo, tx, update } = repoWith({ role: 'CUSTOMER' });
+      await expect(repo.markDeletedGuardingLastSuperAdmin('cust-1')).resolves.toBe('deleted');
+      expect(tx.$queryRaw).not.toHaveBeenCalled();
+      expect(update).toHaveBeenCalledWith({
+        where: { id: 'cust-1' },
+        data: { status: 'DELETED' },
+      });
+    });
+
+    // The lock covers EVERY active super admin including the target: with `id <> target`
+    // in it, two concurrent deletes each lock only the other and both go through.
+    it('refuses to delete the last super admin', async () => {
+      const { repo, update } = repoWith({ role: 'SUPER_ADMIN' }, [{ id: 'sa-1' }]);
+      await expect(repo.markDeletedGuardingLastSuperAdmin('sa-1')).resolves.toBe(
+        'last-super-admin',
+      );
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('deletes a super admin while another one is still active', async () => {
+      const { repo, update } = repoWith({ role: 'SUPER_ADMIN' }, [{ id: 'sa-1' }, { id: 'sa-2' }]);
+      await expect(repo.markDeletedGuardingLastSuperAdmin('sa-1')).resolves.toBe('deleted');
+      expect(update).toHaveBeenCalled();
+    });
+  });
+
   it('counts created customers over an open, one-sided and closed window', async () => {
     const count = jest.fn().mockResolvedValue(7);
     const repo = new CustomerPrismaRepository({ customer: { count } } as unknown as PrismaService);

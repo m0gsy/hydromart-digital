@@ -31,6 +31,15 @@ describe('AuthConfigService', () => {
     expect(buildTestConfig({ GOOGLE_OAUTH_CLIENT_ID: 'client-1' }).googleClientId).toBe('client-1');
   });
 
+  // Blank fails the invite rather than creating half a person — the getter is what the
+  // fail-closed check reads, so an empty pair has to come back as an empty pair.
+  it('reports the hr-service invite target, blank when unset', () => {
+    expect(buildTestConfig().hrDirectory).toEqual({ hrUrl: '', internalKey: '' });
+    expect(
+      buildTestConfig({ HR_SERVICE_URL: 'http://hr:3018', INTERNAL_SERVICE_KEY: 'k' }).hrDirectory,
+    ).toEqual({ hrUrl: 'http://hr:3018', internalKey: 'k' });
+  });
+
   it('exposes sms provider settings and environment flags', () => {
     const config = buildTestConfig({ NODE_ENV: 'production' });
     expect(config.isProduction).toBe(true);

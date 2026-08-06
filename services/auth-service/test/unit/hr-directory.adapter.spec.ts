@@ -108,3 +108,37 @@ describe('HrDirectoryHttpAdapter', () => {
     await expect(adapter.provisionEmployee(INPUT)).rejects.toThrow('tidak terjangkau');
   });
 });
+
+// The abort timer this adapter arms had never been let fire: a hung hr-service must make
+// the invite FAIL rather than hold the request open for its whole life.
+describe('HrDirectoryHttpAdapter when hr-service hangs', () => {
+  const configured = { hrDirectory: { hrUrl: 'http://hr:3018/', internalKey: 'k' } } as never;
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    global.fetch = jest.fn(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          (init as RequestInit).signal?.addEventListener('abort', () => {
+            const aborted = new Error('The operation was aborted');
+            aborted.name = 'AbortError';
+            reject(aborted);
+          });
+        }),
+    ) as never;
+  });
+  afterEach(() => {
+    jest.useRealTimers();
+    global.fetch = originalFetch;
+  });
+
+  it('aborts and raises instead of hanging the invite', async () => {
+    // The handler has to be attached before the timer fires, or the rejection lands unhandled.
+    const settled = new HrDirectoryHttpAdapter(configured)
+      .provisionEmployee(INPUT)
+      .then(() => 'resolved', () => 'rejected');
+    await jest.advanceTimersByTimeAsync(30_000);
+    expect(await settled).toBe('rejected');
+  });
+});
