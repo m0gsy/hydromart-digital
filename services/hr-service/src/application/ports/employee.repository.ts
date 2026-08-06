@@ -58,6 +58,29 @@ export interface EmployeeRepository {
   findByPhone(phone: string): Promise<Employee | null>;
   /** Resolve by KTP number — the import's second upsert key, after the staff code. */
   findByNik(nik: string): Promise<Employee | null>;
+  /**
+   * The three uniqueness keys asked once instead of three times (K-4).
+   *
+   * `create()` runs this per row and a 500-row import runs `create()` 500 times, so three
+   * sequential round-trips here is 1500 in one request. One `OR` costs one, and the caller
+   * only needs to know WHICH key collided — hence the tag rather than the row.
+   */
+  findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null>;
+  /**
+   * Both halves of the invite lookup in one round-trip (K-4): the row already linked to
+   * this account, and the oldest unlinked row sharing the phone that it could adopt.
+   *
+   * Two calls, `findByAuthSubjectId` then `findByPhone`, said the same thing at twice the
+   * cost — and the invite path runs once per imported row.
+   */
+  findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null>;
   /** Change log for one employee, newest first. */

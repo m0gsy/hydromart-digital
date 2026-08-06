@@ -40,6 +40,9 @@ describe('AccountService', () => {
     activeCalls: { authSubjectId: string; active: boolean }[];
     anonymised: string[];
     provisionEmployee(i: ProvisionEmployeeInput): Promise<void>;
+    provisionEmployees(
+      inputs: readonly ProvisionEmployeeInput[],
+    ): Promise<{ index: number; ok: boolean; message: string | null }[]>;
     setEmployeeActive(authSubjectId: string, active: boolean): Promise<void>;
     anonymiseEmployee(authSubjectId: string): Promise<void>;
   };
@@ -61,6 +64,12 @@ describe('AccountService', () => {
       calls: [],
       activeCalls: [],
       provisionEmployee: async (input) => void hr.calls.push(input),
+      // The batch form the bulk import uses (K-4): same recording, one call.
+      provisionEmployees: async (inputs) =>
+        inputs.map((input, index) => {
+          hr.calls.push(input);
+          return { index, ok: true, message: null };
+        }),
       setEmployeeActive: async (authSubjectId, active) =>
         void hr.activeCalls.push({ authSubjectId, active }),
       anonymiseEmployee: async (authSubjectId) => void hr.anonymised.push(authSubjectId),

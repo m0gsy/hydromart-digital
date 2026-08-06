@@ -26,7 +26,7 @@ import {
   PublicCustomerDto,
   SessionInfoDto,
 } from './dto/responses.dto';
-import { CountCustomers3ResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
+import { CountCustomers3ResponseDto, DeleteStaffResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -223,6 +223,7 @@ export class AccountController {
    * `staffDelete` (SUPER_ADMIN), not `staffAdmin`: head office may invite, and a mistaken
    * invite is one click from being fixed. This one is not undoable.
    */
+  @ApiOkResponse({ type: DeleteStaffResponseDto })
   @Can('staffDelete')
   @Delete('auth/staff/:id')
   @ApiOperation({ summary: 'Delete (anonymise) a staff account — irreversible' })

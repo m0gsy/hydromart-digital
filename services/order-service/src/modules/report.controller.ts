@@ -20,7 +20,7 @@ import {
 } from './dto/report.dto';
 import { CustomerSummary, DepotCompareReport, DepotDailyReport, DepotMonthlyReport, DepotRatingsReport, DepotWeeklyReport, ReportRangeView, ResellerRollupReport, RetentionCohortReport, RevenueByProductReport, SalesReport } from '../application/services/report.service';
 import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } from '../application/ports/order.repository';
-import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
+import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 // Depot daily/weekly (2d/7d) are the operator's own console screens, so KEPALA_DEPOT
@@ -126,11 +126,15 @@ export class ReportController {
    * the locale that decides the separator), so a server-rendered file would be a second
    * place to keep those rules in step.
    */
+  @ApiOkResponse({ type: DepotDailyRowResponseDto, isArray: true })
   @Roles(...DEPOT_REPORT_ROLES)
   @Get('depot-daily/export')
   @ApiOperation({ summary: "The day's orders behind the daily report, one row per order" })
+  // Same as depotDaily above: the "no date given" default is WIB today, decided in the
+  // service. A `new Date().toISOString().slice(0,10)` here would be the UTC today, and
+  // before 07:00 WIB the export would offer a different day than the screen it sits on.
   depotDailyExport(@Query() q: DepotDailyQueryDto) {
-    return this.reports.depotDailyRows(q.depotId, q.date ?? new Date().toISOString().slice(0, 10));
+    return this.reports.depotDailyRows(q.depotId, q.date);
   }
 
   @ApiOkResponse({ type: DepotWeeklyReportResponseDto })

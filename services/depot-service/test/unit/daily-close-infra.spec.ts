@@ -89,7 +89,9 @@ describe('DailyClosePrismaRepository', () => {
   };
   const depotDailyClose = {
     findUnique: jest.fn(),
-    upsert: jest.fn(async () => row),
+    // Declared with its argument: a zero-arg `jest.fn` types `mock.calls` as `[][]`, and the
+    // assertion below reads calls[0][0] to check the upsert key.
+    upsert: jest.fn(async (_args: unknown) => row),
     update: jest.fn(async () => ({ ...row, reopenedAt: new Date(), reopenedBy: 'hq-1' })),
   };
   const repo = new DailyClosePrismaRepository({ depotDailyClose } as never);

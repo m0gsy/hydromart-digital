@@ -362,16 +362,27 @@ export class ReportService {
    * returned/damaged and the per-courier breakdown need delivery/depot/payment-service
    * data order-service can't join here (see the TODOs).
    */
-  async depotDaily(depotId: string, date?: string): Promise<DepotDailyReport> {
-    // H-16: `${date}T00:00:00.000Z` is 07:00 WIB. A depot's "daily" report therefore
-    // started mid-morning and swallowed seven hours of the day before — which is why the
-    // daily card and the meter reconciliation could disagree about the same date.
+  /**
+   * The one definition of "a depot's day", shared by the report and its export (K-2).
+   *
+   * H-16: `${date}T00:00:00.000Z` is 07:00 WIB. A depot's "daily" report therefore started
+   * mid-morning and swallowed seven hours of the day before — which is why the daily card
+   * and the meter reconciliation could disagree about the same date. "Today" with no date
+   * given is the WIB today for the same reason: before 07:00 WIB those are different days,
+   * and the operator asking is in WIB.
+   *
+   * Private and shared rather than copied, because the export's own doc already promised
+   * it "reads the exact window depotDaily reads" while quietly reading a different one.
+   */
+  private dayWindow(date?: string): { day: string; from: Date; to: Date } {
     const tz = this.config.businessTimeZone;
-    // "Today" with no date given is the WIB today, not the UTC one — before 07:00 WIB
-    // those are different days, and the operator asking is in WIB.
     const day = date ?? localDayKey(new Date(), tz);
     const from = dayStartUtc(day, tz);
-    const to = addLocalDays(from, 1, tz);
+    return { day, from, to: addLocalDays(from, 1, tz) };
+  }
+
+  async depotDaily(depotId: string, date?: string): Promise<DepotDailyReport> {
+    const { day, from, to } = this.dayWindow(date);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const delivered = live.filter((r) => isDelivered(r.status));
@@ -400,9 +411,8 @@ export class ReportService {
    * Reads the exact window `depotDaily` reads, from the same method, so the file and the
    * screen can never disagree about which orders belong to the day.
    */
-  async depotDailyRows(depotId: string, date: string): Promise<DepotDailyRow[]> {
-    const from = new Date(`${date}T00:00:00.000Z`);
-    const to = new Date(from.getTime() + DAY_MS);
+  async depotDailyRows(depotId: string, date?: string): Promise<DepotDailyRow[]> {
+    const { from, to } = this.dayWindow(date);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     return rows
       .slice()

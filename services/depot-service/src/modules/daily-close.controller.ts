@@ -1,11 +1,15 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { DailyCloseService, DailyCloseView } from '../application/services/daily-close.service';
 import { DailyCloseRecord } from '../application/ports/daily-close.repository';
+import {
+  DailyCloseRecordResponseDto,
+  DailyCloseViewResponseDto,
+} from './dto/responses.generated.dto';
 
 export class CloseDayDto {
   @IsISO8601()
@@ -35,6 +39,7 @@ export class DayQueryDto {
 export class DailyCloseController {
   constructor(private readonly dailyClose: DailyCloseService) {}
 
+  @ApiOkResponse({ type: DailyCloseViewResponseDto })
   @Get()
   @Can('dailyClose')
   @ApiOperation({ summary: "Whether a depot's day is closed, and what arrived after" })
@@ -46,6 +51,7 @@ export class DailyCloseController {
     return this.dailyClose.get(user, depotId, query.businessDate);
   }
 
+  @ApiOkResponse({ type: DailyCloseRecordResponseDto })
   @Post()
   @Can('dailyClose')
   @ApiOperation({ summary: "Close a depot's books for one day" })
@@ -57,6 +63,7 @@ export class DailyCloseController {
     return this.dailyClose.close(user, depotId, dto.businessDate, dto.note ?? null);
   }
 
+  @ApiOkResponse({ type: DailyCloseRecordResponseDto })
   @Post('reopen')
   @Can('dailyCloseReopen')
   @ApiOperation({ summary: 'Reopen a closed day (head office)' })

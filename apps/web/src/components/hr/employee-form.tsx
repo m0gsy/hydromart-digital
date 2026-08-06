@@ -38,14 +38,15 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // K-9: reference data, so getCached — main converted every one of these reads (F-2/F-13)
+  // and the contract is that a depot list and a department list are not re-fetched per form.
   const depots = useAsync<{ items: DepotOption[] }>(
-    () => api.get<{ items: DepotOption[] }>(endpoints.depots.browse({ limit: 100 }), true),
+    () => api.getCached<{ items: DepotOption[] }>(endpoints.depots.browse({ limit: 100 }), true),
     [],
   );
 
-
   const departments = useAsync<Department[]>(
-    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    () => api.getCached<Department[]>(endpoints.hr.departments(), true),
     [],
   );
   // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.

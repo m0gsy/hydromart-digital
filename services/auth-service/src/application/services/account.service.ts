@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nest
 
 import {
   CustomerNotFoundError,
+  DriverRosterTooLargeError,
   EmailAlreadyRegisteredError,
   InvalidStaffRoleError,
   StaffDepotRequiredError,
@@ -15,11 +16,18 @@ import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
 import { CustomerRepository } from '../ports/customer.repository';
-import { HR_DIRECTORY_PORT, HrDirectoryPort } from '../ports/hr-directory.port';
+import { HR_DIRECTORY_PORT, HrDirectoryPort, ProvisionEmployeeInput } from '../ports/hr-directory.port';
 import { AUTH_TOKENS } from '../tokens';
 import { PublicCustomer, RequestContext, toPublicCustomer } from '../results';
 import { AuditAction, AuditService } from './audit.service';
 import { SessionInfo, SessionService } from './session.service';
+
+/**
+ * Ceiling on the dispatch driver roster (K-3). Far above any real depot and above the
+ * whole network's couriers today; it exists so an unbounded read cannot pull the staff
+ * table into one response, not to bound normal use.
+ */
+const MAX_DRIVERS = 2_000;
 
 /** One row of a bulk staff invite — the same fields the single invite takes. */
 export interface ImportStaffRow extends InviteStaffInput {}
@@ -147,12 +155,19 @@ export class AccountService {
    * undispatchable and said nothing about it.
    */
   async listDrivers(depotId?: string): Promise<PublicCustomer[]> {
-    const PAGE = 200;
+    // K-3. Page at the same 100 `ListStaffQueryDto` caps the HTTP route at: reading the
+    // repository directly used to bypass that `@Max(100)` entirely, at 200 a page and with
+    // no ceiling at all. Not `readAllPages`, which is keyset — the staff directory is
+    // offset-paged, and giving it a cursor read would be a new repository method for the
+    // same guarantee. What matters is main's rule, and this keeps it: bounded pages, and a
+    // ceiling that REFUSES instead of returning a short roster that looks complete.
+    const PAGE = 100;
     const drivers: PublicCustomer[] = [];
     for (let page = 1; ; page += 1) {
       const { items, total } = await this.customers.listStaff(page, PAGE, Role.STAFF_DEPOT, depotId);
       drivers.push(...items.map(toPublicCustomer));
       if (items.length === 0 || drivers.length >= total) break;
+      if (drivers.length >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
     }
     return drivers.filter((c) => c.status === CustomerStatus.ACTIVE);
   }
@@ -169,6 +184,23 @@ export class AccountService {
     depotId?: string | null,
     vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
   ): Promise<PublicCustomer> {
+    return (await this.inviteStaffDetailed(rawPhone, role, fullName, depotId, vehicle)).staff;
+  }
+
+  /**
+   * `inviteStaff`, plus whether the account was created or an existing one promoted.
+   *
+   * The bulk import needs that verdict and used to get it by asking `findByPhone` itself,
+   * immediately before this method asked the same question again (K-4). One lookup, one
+   * answer; the public `inviteStaff` above keeps its old shape.
+   */
+  private async inviteStaffDetailed(
+    rawPhone: string,
+    role: Role,
+    fullName?: string | null,
+    depotId?: string | null,
+    vehicle?: { vehicleType?: string | null; plateNumber?: string | null },
+  ): Promise<{ staff: PublicCustomer; created: boolean }> {
     if (role === Role.CUSTOMER) {
       throw new InvalidStaffRoleError();
     }
@@ -189,7 +221,7 @@ export class AccountService {
         existing.updateProfile(fullName, undefined);
       }
       existing.setVehicle(vehicleType, plateNumber);
-      return toPublicCustomer(await this.customers.save(existing));
+      return { staff: toPublicCustomer(await this.customers.save(existing)), created: false };
     }
     const created = await this.customers.create({
       phone,
@@ -202,7 +234,7 @@ export class AccountService {
     });
     // create() defaults the account to PENDING; activate it so the invitee can sign in.
     created.promoteToStaff(role, depotId);
-    return toPublicCustomer(await this.customers.save(created));
+    return { staff: toPublicCustomer(await this.customers.save(created)), created: true };
   }
 
   /**
@@ -234,7 +266,16 @@ export class AccountService {
         'hr-service belum dikonfigurasi; undangan staf tidak bisa diproses.',
       );
     }
-    await this.hr.provisionEmployee({
+    await this.hr.provisionEmployee(AccountService.provisionPayload(staff, input));
+    return staff;
+  }
+
+  /** The employee half of an invite, shaped once for both the single and the bulk path. */
+  private static provisionPayload(
+    staff: PublicCustomer,
+    input: InviteStaffInput,
+  ): ProvisionEmployeeInput {
+    return {
       authSubjectId: staff.id,
       fullName: staff.fullName ?? input.fullName ?? input.phone,
       phone: staff.phone,
@@ -246,8 +287,7 @@ export class AccountService {
       salaryType: input.salaryType,
       dailyRate: input.dailyRate,
       monthlyRate: input.monthlyRate,
-    });
-    return staff;
+    };
   }
 
   /**
@@ -261,13 +301,80 @@ export class AccountService {
    * `created` so the summary tells the truth about what the second run actually did.
    */
   async importStaff(rows: readonly ImportStaffRow[]): Promise<ImportSummary> {
-    return runImport(rows, async (row) => {
-      // Looked up BEFORE the write, and with the same normalisation inviteStaff uses —
-      // asking afterwards would call every row `updated`.
-      const existing = await this.customers.findByPhone(PhoneNumber.create(row.phone).value);
-      const staff = await this.inviteStaffWithEmployee(row);
-      return { status: existing ? 'updated' : 'created', id: staff.id };
+    // K-4, two phases. The accounts still go one at a time — each is its own write and its
+    // own per-row verdict — but the employee half now leaves in ONE call instead of one per
+    // row. A 500-row file used to make 500 sequential HTTP hops to hr-service inside a
+    // single request; the baseline (S-16) for a bulk import is about three round-trips a row
+    // for everything, and that alone was already over it.
+    const pending: { row: number; payload: ProvisionEmployeeInput }[] = [];
+
+    const summary = await runImport(rows, async (row, index) => {
+      const { staff, created } = await this.inviteStaffDetailed(
+        row.phone,
+        row.role,
+        row.fullName,
+        row.depotId,
+        { vehicleType: row.vehicleType, plateNumber: row.plateNumber },
+      );
+      // An owner is a business counterpart, not headcount — same skip as the single invite.
+      if (row.role !== Role.FRANCHISE_OWNER) {
+        if (!this.hr) {
+          throw new ServiceUnavailableException(
+            'hr-service belum dikonfigurasi; undangan staf tidak bisa diproses.',
+          );
+        }
+        pending.push({ row: index + 1, payload: AccountService.provisionPayload(staff, row) });
+      }
+      return { status: created ? 'created' : 'updated', id: staff.id };
     });
+
+    if (pending.length > 0) {
+      await this.applyBulkProvisioning(summary, pending);
+    }
+    return summary;
+  }
+
+  /**
+   * Send the employee halves in one call and fold the per-row verdicts back into the summary.
+   *
+   * A row whose employee record failed is downgraded to `failed` even though its account was
+   * created: that is the half-a-person state this release exists to stop, and reporting it as
+   * `created` would hide exactly the rows somebody has to go and finish by hand.
+   *
+   * A call that does not land at all fails every pending row for the same reason.
+   */
+  private async applyBulkProvisioning(
+    summary: ImportSummary,
+    pending: { row: number; payload: ProvisionEmployeeInput }[],
+  ): Promise<void> {
+    const fail = (row: number, message: string): void => {
+      const result = summary.results.find((r) => r.row === row);
+      if (!result || result.status === 'failed') return;
+      if (result.status === 'created') summary.created -= 1;
+      if (result.status === 'updated') summary.updated -= 1;
+      summary.failed += 1;
+      result.status = 'failed';
+      result.message = message;
+    };
+
+    let verdicts: { index: number; ok: boolean; message: string | null }[];
+    try {
+      verdicts = await this.hr!.provisionEmployees(pending.map((p) => p.payload));
+    } catch (error) {
+      for (const p of pending) fail(p.row, (error as Error).message);
+      return;
+    }
+    const byIndex = new Map(verdicts.map((v) => [v.index, v]));
+    for (const [index, p] of pending.entries()) {
+      const verdict = byIndex.get(index);
+      // A missing verdict is not a pass: hr-service answered about fewer rows than it was
+      // asked about, and this row is one it never spoke for.
+      if (!verdict) {
+        fail(p.row, 'hr-service tidak melaporkan hasil untuk baris ini.');
+      } else if (!verdict.ok) {
+        fail(p.row, verdict.message ?? 'hr-service menolak baris ini.');
+      }
+    }
   }
 
   /**

@@ -1,6 +1,8 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
+import { AuthenticatedUser, addLocalDays, assertDepotAccess, dayStartUtc } from '@hydromart/platform';
+
+import { DepotConfigService } from '../../config/depot-config.service';
 
 import { CashDirection } from '../../domain/cashbook';
 import { DepotNotFoundError } from '../../domain/errors';
@@ -43,15 +45,24 @@ export class DailyCloseService {
     @Inject(DEPOT_TOKENS.CashierShiftRepository) private readonly shifts: CashierShiftRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     @Inject(COURIER_COD_PORT) private readonly cod: CourierCodPort,
+    private readonly config: DepotConfigService,
   ) {}
 
-  /** The day's window. Local midnight-to-midnight is what a depot means by "today". */
+  /**
+   * The day's window, in the business timezone (H-16).
+   *
+   * `${date}T00:00:00.000Z` is 07:00 WIB, so a UTC window put the first seven hours of a
+   * depot's morning into the previous day's books and pulled the next morning's in. Here
+   * that is worse than on a report: these totals are SNAPSHOTTED into `depot_daily_closes`
+   * and never recomputed, so a wrong window freezes a wrong money total for good.
+   */
   private window(businessDate: string): { from: Date; to: Date } {
-    const from = new Date(`${businessDate}T00:00:00.000Z`);
-    if (Number.isNaN(from.getTime())) {
+    if (Number.isNaN(new Date(`${businessDate}T00:00:00.000Z`).getTime())) {
       throw new BadRequestException('Tanggal tidak valid (pakai YYYY-MM-DD).');
     }
-    return { from, to: new Date(from.getTime() + 86_400_000) };
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(businessDate, tz);
+    return { from, to: addLocalDays(from, 1, tz) };
   }
 
   async get(user: AuthenticatedUser, depotId: string, businessDate: string): Promise<DailyCloseView> {

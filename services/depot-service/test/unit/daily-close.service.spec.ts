@@ -81,6 +81,7 @@ function make(cod = { depositedIdr: 500_000, expectedIdr: 520_000, settlements: 
     shifts as never,
     depots as never,
     { depositedInWindow: async () => cod } as never,
+    { businessTimeZone: 'Asia/Jakarta' } as never,
   );
   return { cashbook, closes, shifts, depots, service };
 }
@@ -101,6 +102,45 @@ const kepalaDepot = (depotId: string): AuthenticatedUser =>
   ({ sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '0811', depotId }) as never;
 
 describe('DailyCloseService', () => {
+  /*
+   * K-1. This is the THIRD time two "same day" windows have drifted apart in this repo, so
+   * the lock matters more than the fix: the window a close freezes must be the window
+   * order-service's `depotDaily` reports, and both are `dayStartUtc(day, tz)` to
+   * `addLocalDays(.., 1, tz)` in the business timezone.
+   *
+   * A UTC window is 07:00 WIB to 07:00 WIB. The two edges below are the seven hours that
+   * moved: without this, an early-morning counter sale is frozen into yesterday's books and
+   * tomorrow's first hours into today's — and a close is SNAPSHOTTED, so the money total is
+   * wrong for good, not until the next recompute.
+   */
+  it('freezes a WIB calendar day, edge to edge — not a UTC one', async () => {
+    const { cashbook, service, depots } = make({
+      depositedIdr: 0,
+      expectedIdr: 0,
+      settlements: 0,
+    });
+    const depotId = await seedDepot(depots);
+    const post = (occurredAt: string, amountIdr: number) =>
+      cashbook.create({
+        depotId,
+        direction: CashDirection.IN,
+        category: 'KONTER',
+        label: 'Tunai konter',
+        amountIdr,
+        occurredAt: new Date(occurredAt),
+        sourceRef: null,
+        actorId: 'kd-1',
+      });
+
+    await post('2026-08-03T17:00:00.000Z', 111_000); // 00:00 WIB on the 4th — counts
+    await post('2026-08-04T16:59:00.000Z', 222_000); // 23:59 WIB on the 4th — counts
+    await post('2026-08-03T16:59:00.000Z', 999_000); // 23:59 WIB on the 3rd — does not
+    await post('2026-08-04T17:00:00.000Z', 888_000); // 00:00 WIB on the 5th — does not
+
+    const closed = await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    expect(closed.cashInIdr).toBe(333_000);
+  });
+
   it('adds up both halves of the day: counter cash from the cashbook, COD from delivery', async () => {
     const { cashbook, service, depots } = make();
     const depotId = await seedDepot(depots);
@@ -173,7 +213,7 @@ describe('DailyCloseService', () => {
       direction: CashDirection.IN,
       category: 'COD',
       label: 'Setoran kurir telat',
-      occurredAt: new Date(`${DAY}T22:00:00.000Z`), // dated inside the closed day
+      occurredAt: new Date(`${DAY}T14:00:00.000Z`), // 21:00 WIB — inside the closed day
       amountIdr: 75_000,
       sourceRef: null,
       actorId: 'kd-1',

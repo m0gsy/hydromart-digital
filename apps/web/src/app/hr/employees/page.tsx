@@ -95,8 +95,9 @@ export default function EmployeesPage() {
       ),
     [search, status, departmentId],
   );
+  // K-9: reference data — getCached, like every other department/depot read on main.
   const departments = useAsync<Department[]>(
-    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    () => api.getCached<Department[]>(endpoints.hr.departments(), true),
     [],
   );
   const deptRows = departments.data ?? [];

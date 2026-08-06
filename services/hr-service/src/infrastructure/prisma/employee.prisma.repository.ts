@@ -11,6 +11,13 @@ import {
 import { PrismaService } from './prisma.service';
 
 
+/**
+ * How many rows sharing one phone the invite lookup will read. A family number covers a
+ * handful of people at most; the cap is here so a data-entry accident cannot turn one
+ * lookup into a table scan, not because 25 is a meaningful business number.
+ */
+const SHARED_PHONE_CAP = 25;
+
 @Injectable()
 export class EmployeePrismaRepository implements EmployeeRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -146,8 +153,48 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return this.prisma.employee.findUnique({ where: { nik } });
   }
 
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    const or: Prisma.EmployeeWhereInput[] = [{ phone: keys.phone }];
+    if (keys.employeeCode) or.push({ employeeCode: keys.employeeCode });
+    if (keys.nik) or.push({ nik: keys.nik });
+    // Only the three columns are selected — the caller wants a verdict, not a person, and
+    // an employee row carries salary and NIK it has no business loading for a check.
+    const hit = await this.prisma.employee.findFirst({
+      where: { OR: or },
+      select: { employeeCode: true, nik: true, phone: true },
+    });
+    if (!hit) return null;
+    // Ordered so the message names the most specific collision: a staff code is typed by
+    // hand, a NIK is copied off a card, a shared phone is the likeliest innocent one.
+    if (keys.employeeCode && hit.employeeCode === keys.employeeCode) return 'employeeCode';
+    if (keys.nik && hit.nik === keys.nik) return 'nik';
+    return 'phone';
+  }
+
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.prisma.employee.findUnique({ where: { authSubjectId } });
+  }
+
+  async findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    // `authSubjectId` is unique so it contributes at most one row; a phone is not (a family
+    // shares a number), so the read is bounded and ordered — `findByPhone`'s own contract is
+    // "the oldest match, the same row every re-upload, rather than a coin flip".
+    const rows = await this.prisma.employee.findMany({
+      where: { OR: [{ authSubjectId }, { phone }] },
+      orderBy: { createdAt: 'asc' },
+      take: SHARED_PHONE_CAP,
+    });
+    return {
+      linked: rows.find((r) => r.authSubjectId === authSubjectId) ?? null,
+      oldestByPhone: rows.find((r) => r.phone === phone) ?? null,
+    };
   }
 
   listHistory(employeeId: string): Promise<EmploymentHistory[]> {

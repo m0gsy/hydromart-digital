@@ -30,7 +30,7 @@
 //   JWT_ACCESS_SECRET   MUST equal the stack's shared JWT secret
 import crypto from 'node:crypto';
 
-import { fetchThrottled } from './lib/http.mjs';
+import { fetchThrottled, listAllPages } from './lib/http.mjs';
 
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:8080';
 const JWT_SECRET = process.env.JWT_ACCESS_SECRET;
@@ -87,8 +87,17 @@ async function put(path, body) {
 }
 
 async function main() {
-  const employees = (await get('/employees/api/v1/employees?pageSize=500')).rows ?? [];
-  const staff = (await get('/auth/api/v1/auth/staff?limit=500')).items ?? [];
+  // K-6: both endpoints cap their page at 100, so the "permanent net" used to 400 on its
+  // first two calls and reconcile nothing at all. Paged at the cap instead — this walks the
+  // whole directory, which is the point of a backfill.
+  const employees = await listAllPages(
+    async (page, pageSize) =>
+      (await get(`/employees/api/v1/employees?page=${page}&pageSize=${pageSize}`)).rows ?? [],
+  );
+  const staff = await listAllPages(
+    async (page, pageSize) =>
+      (await get(`/auth/api/v1/auth/staff?page=${page}&limit=${pageSize}`)).items ?? [],
+  );
   console.log(`${employees.length} karyawan, ${staff.length} akun staf.`);
 
   // 1 + 2 — employees with no login.

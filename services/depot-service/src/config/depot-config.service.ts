@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SettingsCache } from '@hydromart/platform';
+import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
@@ -105,8 +105,15 @@ export class DepotConfigService {
       secretAccessKey: this.config.getOrThrow<string>('STORAGE_S3_SECRET_ACCESS_KEY'),
     };
   }
+  /**
+   * The zone every business day boundary is measured in (H-16). One getter, because a
+   * pricing rule's "today" and a daily close's "today" have to be the same day.
+   */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
+  }
   get pricingTimeZone(): string {
-    return this.config.get<string>('PRICING_TZ', 'Asia/Jakarta');
+    return this.businessTimeZone;
   }
   /** Per-gallon deposit refunded on a courier-recorded return (design 2e). Server derives
    *  the refund as GALLON_DEPOSIT_IDR × quantity — the courier never enters an amount. */

@@ -56,6 +56,7 @@ export class InternalAccountController {
    * handed the spreadsheet path the supervision roles too, and a file of a thousand rows
    * is exactly the place those must not be reachable from.
    */
+  @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff/managed')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create or promote an HR-managed staff account (internal service auth)' })
@@ -70,6 +71,7 @@ export class InternalAccountController {
    * Writes only — see AccountService.setStaffActiveInternal. Answering with a push back to
    * hr-service would bounce the same change between the two services forever.
    */
+  @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff/status')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enable/disable a staff login (internal service auth)' })

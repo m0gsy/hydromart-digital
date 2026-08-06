@@ -39,6 +39,31 @@ function initials(c: Customer): string {
     .toUpperCase();
 }
 
+/**
+ * Every account id HR already has an employee record for.
+ *
+ * K-5/C-2. This used to be one `pageSize: 500` read. Main caps `ListEmployeesDto.pageSize`
+ * at 100, so that read now 400s and the whole reconciliation badge disappears silently —
+ * and even before the cap it was a ceiling: employee 501 was absent from the set, so their
+ * account showed "no employee record" and clicking it created a SECOND employee row.
+ *
+ * Paged instead, at the cap, bounded by the `total` the first page reports. Throwing is
+ * deliberate — the caller catches it into a null set, which hides the badges rather than
+ * showing wrong ones.
+ */
+async function readLinkedAccountIds(): Promise<Set<string>> {
+  const PAGE = 100;
+  const linked = new Set<string>();
+  for (let page = 1; ; page += 1) {
+    const { rows, total } = await api.get<{
+      rows: { authSubjectId: string | null }[];
+      total: number;
+    }>(endpoints.hr.employees({ page, pageSize: PAGE }), true);
+    for (const r of rows) if (r.authSubjectId) linked.add(r.authSubjectId);
+    if (rows.length < PAGE || page * PAGE >= total) return linked;
+  }
+}
+
 // Design 4a/4b — network staff directory with a role filter and the invite form.
 export default function HqStaffPage() {
   const { t } = useT();
@@ -69,19 +94,10 @@ export default function HqStaffPage() {
    * simply do not appear — an unreachable HR service must not make the directory look
    * broken.
    */
-  const { data: employees } = useAsync<{ rows: { authSubjectId: string | null }[] } | null>(
-    () =>
-      api
-        .get<{ rows: { authSubjectId: string | null }[] }>(
-          endpoints.hr.employees({ pageSize: 500 }),
-          true,
-        )
-        .catch(() => null),
+  const { data: linked } = useAsync<Set<string> | null>(
+    () => readLinkedAccountIds().catch(() => null),
     [],
   );
-  const linked = employees
-    ? new Set(employees.rows.map((r) => r.authSubjectId).filter((id): id is string => !!id))
-    : null;
 
   return (
     <div className="flex flex-col gap-5">

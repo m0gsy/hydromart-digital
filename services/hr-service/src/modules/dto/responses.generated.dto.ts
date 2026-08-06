@@ -894,3 +894,31 @@ export class Schema3ResponseDto {
   @ApiProperty({ type: Object })
   effective!: unknown;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class ProvisionRowResultResponseDto {
+  @ApiProperty({ type: Number })
+  index!: number;
+  @ApiProperty({ type: Boolean })
+  ok!: boolean;
+  @ApiProperty({ type: String, nullable: true })
+  message!: string | null;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class ProvisionMany2ResponseDto {
+  @ApiProperty({ type: [ProvisionRowResultResponseDto] })
+  results!: ProvisionRowResultResponseDto[];
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class SetActive2ResponseDto {
+  @ApiProperty({ type: Boolean })
+  updated!: boolean;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class AnonymiseByAccountResponseDto {
+  @ApiProperty({ type: Number })
+  anonymised!: number;
+}

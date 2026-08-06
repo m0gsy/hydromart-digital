@@ -45,6 +45,12 @@ depots: {
   paymentInfo: (id: string) => `/depots/api/v1/depots/${id}/payment-info`,
   // Multipart static-QRIS image upload (depotAdmin, design 4b); returns the updated depot.
   uploadQris: (id: string) => `/depots/api/v1/depots/${id}/qris`,
+  // "Tutup buku": one depot declaring one day counted. GET reads the state plus whatever
+  // arrived after the close; POST closes; POST .../reopen is head office only.
+  dailyClose: (depotId: string, businessDate: string) =>
+    `/depots/api/v1/depots/${depotId}/daily-close?businessDate=${businessDate}`,
+  closeDay: (depotId: string) => `/depots/api/v1/depots/${depotId}/daily-close`,
+  reopenDay: (depotId: string) => `/depots/api/v1/depots/${depotId}/daily-close/reopen`,
 },
 
 // Depot-manager console features (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b).
@@ -145,12 +151,6 @@ procurement: {
     send: (id: string) => `/procurement/api/v1/purchase-orders/${id}/send`,
     receive: (id: string) => `/procurement/api/v1/purchase-orders/${id}/receive`,
   },
-  // "Tutup buku": one depot declaring one day counted. GET reads the state plus whatever
-  // arrived after the close; POST closes; POST .../reopen is head office only.
-  dailyClose: (depotId: string, businessDate: string) =>
-    `/depots/api/v1/depots/${depotId}/daily-close?businessDate=${businessDate}`,
-  closeDay: (depotId: string) => `/depots/api/v1/depots/${depotId}/daily-close`,
-  reopenDay: (depotId: string) => `/depots/api/v1/depots/${depotId}/daily-close/reopen`,
 },
 
 // The supervision map (F3): Depot -> Asisten SPV -> SPV -> Manager. Every multi-depot

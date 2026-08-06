@@ -382,3 +382,13 @@ export class Upload2ResponseDto {
   @ApiProperty({ type: String })
   url!: string;
 }
+
+/** Mirrors `DepositedCod` exactly — generated for audit D-6, no field added or removed. */
+export class DepositedCodResponseDto {
+  @ApiProperty({ type: Number })
+  depositedIdr!: number;
+  @ApiProperty({ type: Number })
+  expectedIdr!: number;
+  @ApiProperty({ type: Number })
+  settlements!: number;
+}

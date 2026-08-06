@@ -212,6 +212,26 @@ export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
   role!: EmployableRole;
 }
 
+/**
+ * A whole spreadsheet of invites, provisioned in one call (K-4).
+ *
+ * auth-service used to POST `internal/provision` once per row: a 500-row import was 500
+ * sequential HTTP hops inside one request, on top of the per-row database work. The rows
+ * are identical to the single form, and the verdict comes back per row, so a bad row still
+ * fails only itself.
+ *
+ * `@ArrayMaxSize(500)` mirrors auth's own `ImportStaffDto` — this endpoint can never be
+ * asked for more than that endpoint accepts.
+ */
+export class ProvisionEmployeesDto {
+  @ApiProperty({ type: [ProvisionEmployeeDto], description: 'Rows to provision, in file order.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ProvisionEmployeeDto)
+  rows!: ProvisionEmployeeDto[];
+}
+
 /** An account deleted in the staff console; the employee record behind it is scrubbed. */
 export class AnonymiseEmployeeDto {
   @IsUUID()

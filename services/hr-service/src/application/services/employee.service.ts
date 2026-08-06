@@ -343,13 +343,17 @@ export class EmployeeService {
    * shape, contract window, department fit, the uniqueness pre-checks) is reused as-is.
    */
   async provisionFromInvite(input: CreateEmployeeInput & { authSubjectId: string }): Promise<Employee> {
-    const existing = await this.repo.findByAuthSubjectId(input.authSubjectId);
-    if (existing) {
-      return existing;
+    // One round-trip for both questions (K-4): this path runs once per imported row, and
+    // asking twice doubled the hops on the bulk import for no new information.
+    const { linked, oldestByPhone: byPhone } = await this.repo.findByAuthSubjectIdOrPhone(
+      input.authSubjectId,
+      input.phone,
+    );
+    if (linked) {
+      return linked;
     }
     // A person may already be in HR from a CSV import that never linked an account; adopt
     // that row rather than minting a second one for the same phone.
-    const byPhone = await this.repo.findByPhone(input.phone);
     if (byPhone) {
       return this.repo.update(
         byPhone.id,
@@ -361,21 +365,53 @@ export class EmployeeService {
   }
 
   /**
+   * The same invite provisioning, a whole file at a time (K-4).
+   *
+   * Sequential on purpose: `create()` allocates the next `HR-####` by reading the highest
+   * one and retrying on collision, so running rows in parallel would turn the common case
+   * into the retry case. What this saves is the HTTP hop per row, not the database work —
+   * auth-service made 500 of those inside one request.
+   *
+   * A row that throws fails only itself and its reason travels back, because the caller
+   * has already minted that account and needs to say which half is missing.
+   */
+  async provisionManyFromInvite(
+    rows: readonly (CreateEmployeeInput & { authSubjectId: string })[],
+  ): Promise<{ results: { index: number; ok: boolean; message: string | null }[] }> {
+    const results: { index: number; ok: boolean; message: string | null }[] = [];
+    for (const [index, row] of rows.entries()) {
+      try {
+        await this.provisionFromInvite(row);
+        results.push({ index, ok: true, message: null });
+      } catch (error) {
+        results.push({ index, ok: false, message: (error as Error).message });
+      }
+    }
+    return { results };
+  }
+
+  /**
    * The three keys that make this row somebody who already exists. Asked before the remote
    * call, so a duplicate costs a rejected form rather than an orphaned staff account.
    *
    * The wording matters: `importMany` classifies "sudah dipakai" as a duplicate row
    * (`skipped`), which is exactly what re-uploading a corrected file should produce.
+   *
+   * K-4: one round-trip, not three. `create()` runs this per row, and a 500-row import
+   * runs `create()` 500 times — three sequential lookups there is 1500 sequential hops in
+   * one request, against a baseline (S-16) of about three per row for the whole operation.
+   * Which key collided still decides the message, because "sudah dipakai" with no field
+   * named is a row somebody has to bisect by hand.
    */
   private async assertNobodyElseHas(input: CreateEmployeeInput): Promise<void> {
-    const code = input.employeeCode?.trim().toUpperCase();
-    if (code && (await this.repo.findByEmployeeCode(code))) {
-      throw new BadRequestException('Kode karyawan sudah dipakai');
-    }
-    if (input.nik && (await this.repo.findByNik(input.nik.trim()))) {
-      throw new BadRequestException('NIK sudah dipakai karyawan lain');
-    }
-    if (await this.repo.findByPhone(input.phone)) {
+    const conflict = await this.repo.findConflicting({
+      employeeCode: input.employeeCode?.trim().toUpperCase(),
+      nik: input.nik?.trim(),
+      phone: input.phone,
+    });
+    if (conflict === 'employeeCode') throw new BadRequestException('Kode karyawan sudah dipakai');
+    if (conflict === 'nik') throw new BadRequestException('NIK sudah dipakai karyawan lain');
+    if (conflict === 'phone') {
       throw new BadRequestException('Nomor telepon ini sudah dipakai karyawan lain');
     }
   }

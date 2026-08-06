@@ -11,7 +11,7 @@ import {
   SettlementQueryDto,
   VerifySettlementDto,
 } from './dto/settlement.dto';
-import { SettlementResponseDto } from './dto/responses.generated.dto';
+import { DepositedCodResponseDto, SettlementResponseDto } from './dto/responses.generated.dto';
 
 /** Cashier-facing COD settlement: verify or dispute a courier's deposit (design 6a). */
 @ApiTags('Settlements')
@@ -28,6 +28,7 @@ export class SettlementController {
    * a day's books, not a person looking at a queue. Declared FIRST so the static `internal`
    * segment cannot be read as a settlement id.
    */
+  @ApiOkResponse({ type: DepositedCodResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

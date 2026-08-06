@@ -145,6 +145,22 @@ export class DataSubjectRequestAlreadyDecidedError extends DomainError {
 }
 
 /**
+ * The dispatch driver roster is read whole, so it needs a ceiling — and PR6's rule is that
+ * a ceiling REFUSES rather than truncating. A silently truncated roster is a courier who
+ * exists but cannot be dispatched, which reads on screen as "that courier has no shift".
+ *
+ * Only reachable network-wide (HQ with no depot filter); one depot's courier list is two
+ * orders of magnitude below the limit.
+ */
+export class DriverRosterTooLargeError extends DomainError {
+  readonly code = 'AUTH_DRIVER_ROSTER_TOO_LARGE';
+  readonly status = HTTP.UNPROCESSABLE;
+  constructor(max: number) {
+    super(`Daftar kurir melebihi ${max} baris. Persempit ke satu depot.`);
+  }
+}
+
+/**
  * Withdrawing TERMS/PRIVACY would leave a live account with no lawful basis for the
  * processing it keeps asking for. That request is account deletion, and saying so is
  * more honest than accepting a withdrawal nothing downstream can honour.

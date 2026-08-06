@@ -13,6 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, Depot, Page } from '@/lib/types';
 
 /**
@@ -56,9 +57,14 @@ export default function HqHierarchyPage() {
   // Name/phone search rather than one big page: after HR and the staff console started
   // creating each other's records, the directory outgrew any cap this page could set.
   const [query, setQuery] = useState('');
+  // K-8: debounced, not per keystroke. `onChange` fed `useAsync` directly, so every letter
+  // typed was one authenticated staff search — the browser baseline (F-12) records this
+  // read as costing one request per *debounced* keystroke, so that was a baseline violation
+  // and not only a nicety.
+  const search = useDebounce(query).trim();
   const staff = useAsync<Page<Customer>>(
-    () => api.get(endpoints.auth.staff({ limit: SEARCH_LIMIT, search: query || undefined }), true),
-    [query],
+    () => api.get(endpoints.auth.staff({ limit: SEARCH_LIMIT, search: search || undefined }), true),
+    [search],
   );
   const depots = useAsync<Page<SupervisedDepot>>(
     () => api.getCached(endpoints.depots.manage({ limit: 200 }), true),

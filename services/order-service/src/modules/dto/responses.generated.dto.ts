@@ -1014,3 +1014,31 @@ export class ProcessDue2ResponseDto {
   @ApiProperty({ type: Number })
   placed!: number;
 }
+
+/** Mirrors `DepotDailyRow` exactly — generated for audit D-6, no field added or removed. */
+export class DepotDailyRowResponseDto {
+  @ApiProperty({ type: String })
+  orderNumber!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  createdAt!: string;
+  @ApiProperty({ type: String })
+  status!: string;
+  @ApiProperty({ type: Boolean })
+  cancelled!: boolean;
+  @ApiProperty({ type: String })
+  recipientName!: string;
+  @ApiProperty({ type: String, nullable: true })
+  driverName!: string | null;
+  @ApiProperty({ type: Number })
+  gallons!: number;
+  @ApiProperty({ type: Number })
+  subtotalIdr!: number;
+  @ApiProperty({ type: Number })
+  deliveryFeeIdr!: number;
+  @ApiProperty({ type: Number })
+  discountIdr!: number;
+  @ApiProperty({ type: Number })
+  totalIdr!: number;
+  @ApiProperty({ type: Boolean })
+  isWalkIn!: boolean;
+}

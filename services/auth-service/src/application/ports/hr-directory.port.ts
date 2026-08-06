@@ -18,6 +18,21 @@ export interface HrDirectoryPort {
   provisionEmployee(input: ProvisionEmployeeInput): Promise<void>;
 
   /**
+   * The same, for a whole spreadsheet, in ONE call (K-4).
+   *
+   * The bulk import used to call `provisionEmployee` per row: 500 sequential HTTP hops
+   * inside a single request, against a baseline of about three round-trips per row for the
+   * whole operation. The verdict is still per row, because auth-service has already minted
+   * those accounts and has to report exactly which ones are missing their employee half.
+   *
+   * Fails hard as a whole, like its single form: if the call itself does not land, no row
+   * got its employee record and the import says so rather than reporting 500 successes.
+   */
+  provisionEmployees(
+    inputs: readonly ProvisionEmployeeInput[],
+  ): Promise<{ index: number; ok: boolean; message: string | null }[]>;
+
+  /**
    * Carry a switched-off (or switched-back-on) login through to the employee record.
    *
    * Only ever called from the CONSOLE path. The endpoint hr-service calls in the other

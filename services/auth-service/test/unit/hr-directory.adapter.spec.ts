@@ -66,6 +66,38 @@ describe('HrDirectoryHttpAdapter', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('http://hr:3018/api/v1/employees/internal/anonymise');
   });
 
+  // K-4: the whole file in one call. The per-row verdicts are the reason this route exists
+  // separately — the caller has already minted those accounts and must say which rows are
+  // still missing their employee half.
+  it('posts the whole file to the batch route and returns the per-row verdicts', async () => {
+    const results = [
+      { index: 0, ok: true, message: null },
+      { index: 1, ok: false, message: 'NIK sudah dipakai karyawan lain' },
+    ];
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ results }) });
+
+    const adapter = new HrDirectoryHttpAdapter(configured);
+    await expect(adapter.provisionEmployees([INPUT, INPUT])).resolves.toEqual(results);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://hr:3018/api/v1/employees/internal/provision-many');
+    expect(JSON.parse(init.body).rows).toHaveLength(2);
+  });
+
+  it('does not call hr-service at all for an empty file', async () => {
+    await expect(new HrDirectoryHttpAdapter(configured).provisionEmployees([])).resolves.toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // A 200 carrying something else is not "every row provisioned". Reporting it as success
+  // is how 500 rows get marked done while hr-service has none of them.
+  it('refuses a batch answer it cannot read', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ ok: true }) });
+    await expect(
+      new HrDirectoryHttpAdapter(configured).provisionEmployees([INPUT]),
+    ).rejects.toThrow('tidak dikenali');
+  });
+
   it('raises on a refusal and on an unreachable service', async () => {
     const adapter = new HrDirectoryHttpAdapter(configured);
 

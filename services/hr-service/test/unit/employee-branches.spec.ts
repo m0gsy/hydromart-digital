@@ -72,6 +72,24 @@ class FakeRepo implements EmployeeRepository {
   async findByNik(nik: string): Promise<Employee | null> {
     return this.rows.find((r) => r.nik === nik) ?? null;
   }
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    if (keys.employeeCode && (await this.findByEmployeeCode(keys.employeeCode))) return 'employeeCode';
+    if (keys.nik && (await this.findByNik(keys.nik))) return 'nik';
+    return (await this.findByPhone(keys.phone)) ? 'phone' : null;
+  }
+  async findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    return {
+      linked: await this.findByAuthSubjectId(authSubjectId),
+      oldestByPhone: await this.findByPhone(phone),
+    };
+  }
   async listHistory(_employeeId: string): Promise<EmploymentHistory[]> {
     // Fake: HIRED rows are written without an employeeId (WithoutEmployeeInput), so return all.
     return this.history.map((h) => h as unknown as EmploymentHistory);
