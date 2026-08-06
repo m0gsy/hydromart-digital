@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
-import { isStaff } from '@/lib/roles';
+import { canManageRoster, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, ShiftAssignment, ShiftKind } from '@/lib/types';
 
@@ -73,6 +73,8 @@ function RosterBody() {
   const { scopedId, selected, depots, ready } = useDepot();
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()));
   const [editing, setEditing] = useState(false);
+  const { customer } = useAuth();
+  const canEdit = canManageRoster(customer?.role);
   // Local cell state, keyed `${staffId}|${day}` → shift. Seeded from the fetched week.
   const [cells, setCells] = useState<Record<string, ShiftKind>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ function RosterBody() {
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
 
   async function cycle(staffId: string, staffName: string, day: number) {
-    if (!editing || !scopedId) return;
+    if (!editing || !canEdit || !scopedId) return;
     const current = cells[cellKey(staffId, day)] ?? 'OFF';
     const next = CYCLE[current];
     setCells((prev) => ({ ...prev, [cellKey(staffId, day)]: next }));
@@ -150,10 +152,19 @@ function RosterBody() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant={editing ? 'primary' : 'secondary'} onClick={() => setEditing((v) => !v)}>
-            <PencilSimple size={16} weight="bold" className="mr-1.5" />
-            {editing ? 'Selesai atur' : 'Atur shift'}
-          </Button>
+          {/* B7: writing the roster needs `driverRoster`, not merely "is staff". A
+              DEPOT_OPERATOR used to get a clickable grid where every click 403'd and the
+              cell snapped back to its old value with nothing explaining why. Reading stays
+              open — knowing when you work is not a privilege. */}
+          {canEdit && (
+            <Button
+              variant={editing ? 'primary' : 'secondary'}
+              onClick={() => setEditing((v) => !v)}
+            >
+              <PencilSimple size={16} weight="bold" className="mr-1.5" />
+              {editing ? 'Selesai atur' : 'Atur shift'}
+            </Button>
+          )}
           <Button variant="ghost" onClick={exportCsv} disabled={staff.length === 0}>
             <DownloadSimple size={16} weight="bold" className="mr-1.5" />
             Ekspor jadwal
@@ -222,7 +233,7 @@ function RosterBody() {
                       <td key={day} className="px-1.5 py-2 text-center">
                         <button
                           type="button"
-                          disabled={!editing}
+                          disabled={!editing || !canEdit}
                           onClick={() => cycle(s.id, s.name, day)}
                           className={`w-full rounded-lg px-2 py-1.5 text-xs font-semibold transition ${SHIFT_STYLE[shift]} ${
                             editing ? 'cursor-pointer hover:opacity-80' : 'cursor-default'

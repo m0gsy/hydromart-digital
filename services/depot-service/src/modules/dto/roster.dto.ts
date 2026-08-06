@@ -12,7 +12,10 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Validate,
   ValidateNested,
+  ValidatorConstraint,
+  type ValidatorConstraintInterface,
 } from 'class-validator';
 
 import { ShiftKind } from '../../domain/shift';
@@ -25,6 +28,33 @@ const WEEK_START = {
 };
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * B5: the week key must actually be a Monday.
+ *
+ * The DTOs matched the SHAPE and nothing else, while the unique key is
+ * `@@unique([depotId, weekStart, staffId, day])` on that string as typed. Send a Wednesday
+ * and the same week is stored twice as two parallel grids — days off already filled in
+ * "disappear", because they are being read under a different week key. The web page always
+ * sends `mondayOf()`, but the bulk route is open on the gateway and is already driven by
+ * scripts.
+ *
+ * REFUSED, not normalised. Silently rounding back to Monday would write to a week the
+ * caller did not ask for, which is the same class of surprise one rung quieter.
+ */
+@ValidatorConstraint({ name: 'isMonday', async: false })
+export class IsMondayConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (typeof value !== 'string' || !ISO_DATE.test(value)) return false;
+    const at = new Date(`${value}T00:00:00.000Z`);
+    // getUTCDay() is 1 for Monday. Read in UTC on purpose: the string carries no zone, and
+    // the local one would make the same date a Monday in Jakarta and a Sunday in London.
+    return !Number.isNaN(at.getTime()) && at.getUTCDay() === 1;
+  }
+  defaultMessage(): string {
+    return 'weekStart must be the Monday of the week (YYYY-MM-DD).';
+  }
+}
+
 export class ListRosterQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to read the roster for.' })
   @IsUUID()
@@ -33,6 +63,7 @@ export class ListRosterQueryDto {
   @ApiProperty(WEEK_START)
   @IsString()
   @Matches(ISO_DATE, { message: 'weekStart must be an ISO date (YYYY-MM-DD).' })
+  @Validate(IsMondayConstraint)
   weekStart!: string;
 }
 
@@ -68,6 +99,7 @@ export class SetShiftDto extends ShiftCellDto {
   @ApiProperty(WEEK_START)
   @IsString()
   @Matches(ISO_DATE, { message: 'weekStart must be an ISO date (YYYY-MM-DD).' })
+  @Validate(IsMondayConstraint)
   weekStart!: string;
 }
 
@@ -80,6 +112,7 @@ export class BulkRosterDto {
   @ApiProperty(WEEK_START)
   @IsString()
   @Matches(ISO_DATE, { message: 'weekStart must be an ISO date (YYYY-MM-DD).' })
+  @Validate(IsMondayConstraint)
   weekStart!: string;
 
   @ApiProperty({ type: [ShiftCellDto] })

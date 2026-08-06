@@ -50,7 +50,8 @@ describe('ShiftService', () => {
         acceptsAssignments: true,
         breakSecondsUsed: 0,
       });
-      expect(shift.breakSecondsRemaining).toBe(1800);
+      // B6: the quota is 60 minutes now — the number the settings UI always advertised.
+      expect(shift.breakSecondsRemaining).toBe(3600);
     });
 
     it('freezes the shift end 8 hours after check-in', async () => {
@@ -130,7 +131,7 @@ describe('ShiftService', () => {
       const resumed = await service.setStatus(driver, shift.id, ShiftStatus.ONLINE);
       expect(resumed.breakSecondsUsed).toBeGreaterThanOrEqual(600);
       expect(resumed.breakStartedAt).toBeNull();
-      expect(resumed.breakSecondsRemaining).toBeLessThanOrEqual(1200);
+      expect(resumed.breakSecondsRemaining).toBeLessThanOrEqual(3000);
     });
 
     it('lets a courier resume past quota rather than stranding them on break', async () => {

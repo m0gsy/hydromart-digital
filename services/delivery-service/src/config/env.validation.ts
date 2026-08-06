@@ -38,7 +38,15 @@ export const envValidationSchema = Joi.object({
   SHIFT_LENGTH_HOURS: Joi.number().positive().default(8),
   // Paid break allowance per shift (design 3b countdown). Exceeding it is recorded
   // as an overage, not blocked.
-  SHIFT_BREAK_QUOTA_MINUTES: Joi.number().integer().positive().default(30),
+  //
+  // B6: 60, matching `setting-defs.ts`, which is the number the settings UI has been
+  // showing depots all along — and whose own comment says "envDefault must mirror this
+  // service's env.validation.ts defaults". They did not: a depot with no override was
+  // promised 60 minutes and given 30 by `breakSecondsRemaining`. 60 is the advertised
+  // figure and the one courier design 3b specifies, so the code moves, not the promise.
+  // BEHAVIOUR CHANGE ON LIVE: every depot without an explicit override doubles from 30 to
+  // 60 the moment this deploys.
+  SHIFT_BREAK_QUOTA_MINUTES: Joi.number().integer().positive().default(60),
   // No-show gate (design 5a): a courier must make this many contact attempts and
   // wait this many seconds (from the first attempt) before failing a delivery as
   // a no-show. Both together stop a premature no-show.

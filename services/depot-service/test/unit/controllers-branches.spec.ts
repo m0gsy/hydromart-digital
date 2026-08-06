@@ -991,20 +991,26 @@ describe('RosterController', () => {
   const c = new RosterController(svc as never);
   beforeEach(() => jest.clearAllMocks());
 
-  it('reads a week, sets one cell and bulk-sets', async () => {
-    await c.week({ depotId: DEPOT, weekStart: '2026-07-14' } as never);
-    expect(svc.week).toHaveBeenCalledWith(DEPOT, '2026-07-14');
-    await c.setCell({
-      depotId: DEPOT,
-      weekStart: '2026-07-14',
-      staffId: 's',
-      staffName: 'n',
-      day: 0,
-      shift: 'MORNING',
-    } as never);
-    expect(svc.setCell).toHaveBeenCalledWith(DEPOT, '2026-07-14', 's', 'n', 0, 'MORNING');
-    await c.bulk({ depotId: DEPOT, weekStart: '2026-07-14', cells: [] } as never);
-    expect(svc.bulkSet).toHaveBeenCalledWith(DEPOT, '2026-07-14', []);
+  // B1: every route hands the CALLER to the service — that is where the depot check is.
+  const kd = { sub: 'kd-1', role: 'KEPALA_DEPOT', phone: '0811', depotId: DEPOT } as never;
+
+  it('reads a week, sets one cell and bulk-sets, always passing the caller', async () => {
+    await c.week({ depotId: DEPOT, weekStart: '2026-07-14' } as never, kd);
+    expect(svc.week).toHaveBeenCalledWith(kd, DEPOT, '2026-07-14');
+    await c.setCell(
+      {
+        depotId: DEPOT,
+        weekStart: '2026-07-14',
+        staffId: 's',
+        staffName: 'n',
+        day: 0,
+        shift: 'MORNING',
+      } as never,
+      kd,
+    );
+    expect(svc.setCell).toHaveBeenCalledWith(kd, DEPOT, '2026-07-14', 's', 'n', 0, 'MORNING');
+    await c.bulk({ depotId: DEPOT, weekStart: '2026-07-14', cells: [] } as never, kd);
+    expect(svc.bulkSet).toHaveBeenCalledWith(kd, DEPOT, '2026-07-14', []);
   });
 });
 

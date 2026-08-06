@@ -63,7 +63,7 @@ describe('Delivery HTTP flows (e2e)', () => {
               MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1,
               SHIFT_CHECKIN_RADIUS_M: 200,
               SHIFT_LENGTH_HOURS: 8,
-              SHIFT_BREAK_QUOTA_MINUTES: 30,
+              SHIFT_BREAK_QUOTA_MINUTES: 60,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,

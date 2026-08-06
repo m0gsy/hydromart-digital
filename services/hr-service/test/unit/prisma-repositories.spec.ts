@@ -719,13 +719,19 @@ describe('ShiftPrismaRepository', () => {
     expect(m(p, 'shift').findUnique).toHaveBeenCalledWith({ where: { id: 'id1' } });
   });
 
-  it('list(depotId) filters; list() does not', async () => {
+  /*
+   * B4: a depot sees its own shifts PLUS the network-wide ones, exactly as `listRotations`
+   * and `findActiveForDepot` already do. This one excluded `depotId: null`, so the three
+   * methods disagreed about the same rows — `/hr/shift` printed "shift terhapus" for a
+   * shift in daily use, and `/hr/calendar` hid the shift that sets that depot's clock-in.
+   */
+  it('list(depotId) includes the network-wide shifts too; list() filters nothing', async () => {
     const p = makePrisma();
     m(p, 'shift').findMany.mockResolvedValue([]);
     const repo = new ShiftPrismaRepository(asService(p));
     await repo.list(['d1']);
     expect(m(p, 'shift').findMany).toHaveBeenCalledWith({
-      where: { depotId: { in: ['d1'] } },
+      where: { OR: [{ depotId: { in: ['d1'] } }, { depotId: null }] },
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
     await repo.list();
@@ -733,6 +739,19 @@ describe('ShiftPrismaRepository', () => {
       where: {},
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
+  });
+
+  // The lock that matters: all three reads answer the same question about a null depot.
+  it('agrees with listRotations about network-wide rows', async () => {
+    const p = makePrisma();
+    m(p, 'shift').findMany.mockResolvedValue([]);
+    m(p, 'shiftRotation').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+    await repo.list(['d1']);
+    await repo.listRotations(['d1']);
+    const shiftWhere = m(p, 'shift').findMany.mock.calls[0][0].where;
+    const rotationWhere = m(p, 'shiftRotation').findMany.mock.calls[0][0].where;
+    expect(shiftWhere).toEqual(rotationWhere);
   });
 
   it('findActiveForDepot → findFirst with OR + orderBy', async () => {
