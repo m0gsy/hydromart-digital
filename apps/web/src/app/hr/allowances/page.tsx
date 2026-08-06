@@ -4,13 +4,9 @@ import { useState } from 'react';
 
 import { EmployeeSelect } from '@/components/hr/employee-select';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
-import { Card, ErrorState, LinkButton, SectionHeader, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { Card, LinkButton, SectionHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { endpoints } from '@/lib/endpoints';
-import { type Employee, type HrPage } from '@/lib/hr';
 import { canManageHr } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
 
 /** Allowances are per employee, so this page is a picker plus the same panel the detail page shows. */
 export default function AllowancesPage() {
