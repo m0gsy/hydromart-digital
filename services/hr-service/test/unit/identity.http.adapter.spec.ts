@@ -81,3 +81,54 @@ describe('IdentityHttpAdapter.provisionStaff', () => {
     );
   });
 });
+
+// The other three writes hr-service makes against the account. Each has its own route,
+// and posting to the wrong one silently does nothing to the login — the URL IS the test.
+describe('IdentityHttpAdapter, the rest of the account writes', () => {
+  it('sends the managed-staff form to the wider allowlist route', async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'cust-2' } }));
+
+    await expect(
+      new IdentityHttpAdapter(makeConfig()).provisionManagedStaff({
+        ...INPUT,
+        superiorId: 'boss-1',
+      } as never),
+    ).resolves.toEqual({ customerId: 'cust-2' });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('http://auth:3001/api/v1/auth/internal/staff/managed');
+  });
+
+  it('reports a jabatan change to the role route', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+    const input = { customerId: 'c1', role: 'MANAGER' as const, depotId: 'd1' };
+
+    await new IdentityHttpAdapter(makeConfig()).assignRole(input);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://auth:3001/api/v1/auth/internal/staff/role');
+    expect(JSON.parse(options.body)).toEqual(input);
+  });
+
+  it('reports a resignation to the status route', async () => {
+    fetchMock.mockResolvedValue(res({ body: {} }));
+
+    await new IdentityHttpAdapter(makeConfig()).setStaffActive('c1', false);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://auth:3001/api/v1/auth/internal/staff/status');
+    expect(JSON.parse(options.body)).toEqual({ customerId: 'c1', active: false });
+  });
+
+  // Same hard-fail contract as provisionStaff: hr-service must not report a role change
+  // as done when the login never heard about it.
+  it('fails hard when auth-service refuses a role change', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 403 }));
+    await expect(
+      new IdentityHttpAdapter(makeConfig()).assignRole({
+        customerId: 'c1',
+        role: 'MANAGER' as never,
+        depotId: null,
+      }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});

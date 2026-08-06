@@ -371,6 +371,95 @@ describe('EmployeeService (M1)', () => {
     ).resolves.toEqual({ updated: false });
   });
 
+  // Moving a depot pushes the new depot onto the login, and assignRole carries the role the
+  // token must end up with. A row with an account but no jabatan has nothing to send, and
+  // guessing one would hand somebody access nobody chose.
+  it('refuses to move an accounted employee that has no jabatan to send', async () => {
+    const { svc, repo } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    repo.rows[0].role = null;
+
+    await expect(svc.update(hr, e.id, { depotId: DEPOT_B })).rejects.toThrow(/belum punya jabatan/);
+  });
+
+  // Re-sending a switch the record already agrees with must not write, or every console
+  // save would add a history row saying nothing happened.
+  it('reports nothing changed when the record already holds that status', async () => {
+    const { svc, repo } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    // The DB default the fake repo does not apply.
+    repo.rows[0].status = 'ACTIVE';
+
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', true),
+    ).resolves.toEqual({ updated: false });
+  });
+
+  // The unique keys the DB enforces, each turned into a sentence the person uploading the
+  // file can act on. A raw P2002 tells them nothing about which column collided.
+  describe('duplicate keys on create', () => {
+    it('names the NIK when the pre-check catches it', async () => {
+      const { svc } = make();
+      const nik = '3201010101010001';
+      await svc.create(hr, { ...baseInput, nik });
+
+      await expect(svc.create(hr, { ...baseInput, phone: '0812', nik })).rejects.toThrow(
+        /NIK sudah dipakai/,
+      );
+    });
+
+    it('refuses a supplied staff code the pre-check already knows about', async () => {
+      const { svc, repo } = make();
+      await svc.create(hr, { ...baseInput, employeeCode: 'STAFF-7' });
+
+      await expect(
+        svc.create(hr, { ...baseInput, phone: '0812', employeeCode: 'staff-7' }),
+      ).rejects.toThrow(/Kode karyawan sudah dipakai/);
+      expect(repo.rows).toHaveLength(1);
+    });
+
+    // The race the pre-check cannot win: two uploads a millisecond apart both read "free"
+    // and the index decides. The message has to be the same one, or the same duplicate
+    // reads as a database error to whoever uploaded second.
+    describe('when the index, not the pre-check, is what refuses', () => {
+      const racing = () => {
+        const made = make();
+        // Both rows look free at check time.
+        made.repo.findConflicting = async () => null;
+        return made;
+      };
+
+      it('still names the NIK', async () => {
+        const { svc } = racing();
+        const nik = '3201010101010001';
+        await svc.create(hr, { ...baseInput, nik });
+
+        await expect(svc.create(hr, { ...baseInput, phone: '0812', nik })).rejects.toThrow(
+          /NIK sudah dipakai/,
+        );
+      });
+
+      // A code the file supplied is a fact about that row. Retrying past it would mint
+      // HR-0042 for a row that said STAFF-7 — a code nobody typed and nobody expects.
+      it('refuses a supplied staff code rather than minting a different one', async () => {
+        const { svc, repo } = racing();
+        await svc.create(hr, { ...baseInput, employeeCode: 'STAFF-7' });
+
+        await expect(
+          svc.create(hr, { ...baseInput, phone: '0812', employeeCode: 'staff-7' }),
+        ).rejects.toThrow(/Kode karyawan sudah dipakai/);
+        expect(repo.rows).toHaveLength(1);
+      });
+
+    });
+  });
+
   // The repair path for rows written before "+ Tambah" minted accounts, and the button
   // behind the reconciliation badge on /hr/employees.
   it('creates the missing account for an existing employee, once', async () => {

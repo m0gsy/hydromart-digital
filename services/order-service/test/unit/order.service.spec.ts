@@ -181,6 +181,28 @@ describe('OrderService', () => {
       expect(orders.notes).toEqual([]);
     });
 
+    // A subscription delivery is placed by a sweep with nobody watching it, so the note on
+    // the order is the ONLY trace that it was billed from the catalog instead of the depot.
+    it('marks a scheduled delivery the same way', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      pricing.unavailable = true;
+
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: p.id, quantity: 2 }],
+        address,
+      );
+
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
     // Fail-open all the way down: an order already placed and paid for must not unwind
     // because the marker could not be written.
     it('still places the order when the marker cannot be written', async () => {
@@ -365,6 +387,26 @@ describe('OrderService', () => {
       const row = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
       expect(row.status).toBe('DEAD');
       expect(await outbox.pending()).toMatchObject({ DEAD: 1 });
+    });
+
+    // A legacy unrouted row can still reach COMPLETED, and the sweep has to settle its
+    // consume rather than retry forever against a depot that is not there.
+    it('settles the owed consume of an order that has no depot, without touching stock', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      const order = await complete();
+      orders.rows.find((r) => r.id === order.id)!.depotId = null;
+
+      const consumed: string[] = [];
+      inventory.consume = async (_d, orderId) => {
+        consumed.push(orderId);
+      };
+      const swept = await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+
+      expect(swept.delivered).toBe(1);
+      expect(consumed).toEqual([]);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
     });
 
     it('marks every effect delivered on the happy path', async () => {
@@ -634,11 +676,15 @@ describe('OrderService', () => {
 
     const result = await (
       service as unknown as {
-        findOrderValues(ids: string[]): Promise<{ orderId: string; totalIdr: number }[]>;
+        findOrderValues(
+          ids: string[],
+        ): Promise<{ orderId: string; orderNumber: string; totalIdr: number }[]>;
       }
     ).findOrderValues([order.id, missingId]);
 
-    expect(result).toEqual([{ orderId: order.id, totalIdr: order.total }]);
+    expect(result).toEqual([
+      { orderId: order.id, orderNumber: order.orderNumber, totalIdr: order.total },
+    ]);
   });
 
   it('round-trips an optional delivery window, defaulting to null when omitted', async () => {
@@ -1333,6 +1379,16 @@ describe('OrderService', () => {
         await service.assignDepot(id, homeDepot.id);
         await expect(service.assignDepot(id, homeDepot.id)).rejects.toBeInstanceOf(
           OrderAlreadyRoutedError,
+        );
+      });
+
+      // Fail closed while the directory is down: routing an order into a depot nobody can
+      // confirm is active would hand it to a depot that may no longer be trading.
+      it('refuses to route while the depot directory is unreachable', async () => {
+        const id = await unroute();
+        depots.unreachable = true;
+        await expect(service.assignDepot(id, homeDepot.id)).rejects.toBeInstanceOf(
+          DepotUnavailableError,
         );
       });
     });

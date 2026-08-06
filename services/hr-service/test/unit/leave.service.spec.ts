@@ -159,6 +159,8 @@ function make(opts: { holidays?: string[]; weeklyOff?: string; quota?: number } 
     repo,
     attendanceWrites,
     sent,
+    employees,
+    supervision,
     svc: new LeaveService(repo, attendance, employees, config, holidays, notifications, supervision),
   };
 }
@@ -236,6 +238,26 @@ describe('LeaveService.submit', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ event: 'LEAVE_SUBMITTED', phone: SUPERVISOR.phone });
     expect(sent[0].vars).toMatchObject({ name: 'Budi', from: '2026-07-06', to: '2026-07-10' });
+  });
+
+  // The notification is a courtesy on top of the request; approval rights come from role
+  // and depot scope, never from this link. So a broken link costs the message, not the leave.
+  it('still records the request when the reporting line leads nowhere', async () => {
+    const noSuperior = make();
+    noSuperior.supervision.superiorOf = async () => null;
+    await expect(noSuperior.svc.submit(staff, APPLY)).resolves.toMatchObject({
+      status: 'PENDING_MANAGER',
+    });
+    expect(noSuperior.sent).toEqual([]);
+
+    // Recorded as somebody's superior, but that account has no employee row to phone.
+    const noEmployee = make();
+    (noEmployee.employees as { findByAuthSubjectId: unknown }).findByAuthSubjectId = async () =>
+      null;
+    await expect(noEmployee.svc.submit(staff, APPLY)).resolves.toMatchObject({
+      status: 'PENDING_MANAGER',
+    });
+    expect(noEmployee.sent).toEqual([]);
   });
 });
 

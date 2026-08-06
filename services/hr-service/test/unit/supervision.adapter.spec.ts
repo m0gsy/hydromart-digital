@@ -68,4 +68,14 @@ describe('SupervisionHttpAdapter', () => {
     delete process.env.DEPOT_SERVICE_URL;
     await expect(adapter.setSuperior('a', 'b')).rejects.toThrow('DEPOT_SERVICE_URL');
   });
+
+  // undici rejects with things that are not Errors. Reading `.message` off one of those
+  // throws inside the catch, which turns a fail-soft read into a 500.
+  it('handles a rejection that is not an Error, in both directions', async () => {
+    const adapter = new SupervisionHttpAdapter();
+
+    fetchMock.mockRejectedValue('boom');
+    await expect(adapter.superiorOf('staff-1')).resolves.toBeNull();
+    await expect(adapter.setSuperior('a', 'b')).rejects.toThrow('unknown');
+  });
 });
