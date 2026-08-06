@@ -98,8 +98,21 @@ export class DataSubjectService {
     return this.requests.listByCustomer(customerId);
   }
 
-  listForStaff(status?: DataSubjectRequestStatus): Promise<DataSubjectRequestRecord[]> {
-    return this.requests.listForStaff(status);
+  /**
+   * The staff queue, each row carrying the name of whoever raised it (§G-3). It used to
+   * carry the customer id alone, so HQ decided a deletion request against eight hex
+   * characters — the one queue where knowing who is asking is the whole job.
+   *
+   * The names come from this service's own accounts table, so there is nothing to fail
+   * open on; an account that no longer exists (a completed DELETE) simply has none.
+   */
+  async listForStaff(
+    status?: DataSubjectRequestStatus,
+  ): Promise<(DataSubjectRequestRecord & { customerName: string | null })[]> {
+    const rows = await this.requests.listForStaff(status);
+    const accounts = await this.customers.findByIds([...new Set(rows.map((r) => r.customerId))]);
+    const names = new Map(accounts.map((a) => [a.id, a.fullName ?? null]));
+    return rows.map((r) => ({ ...r, customerName: names.get(r.customerId) ?? null }));
   }
 
   /**

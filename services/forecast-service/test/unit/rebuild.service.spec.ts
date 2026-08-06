@@ -5,6 +5,10 @@ import { IngestCommand } from '../../src/application/ports/forecast.repository';
 import { ForecastConfigService } from '../../src/config/forecast-config.service';
 import { FakeForecastRepository } from '../support/fakes';
 
+/** Churn ranking is what these tests are about; names are a decoration on it. */
+const noNames = async () => new Map<string, string>();
+
+
 const configStub = { churnWindowDays: 45 } as unknown as ForecastConfigService;
 
 /** In-memory OrderFeedPort: paginates a fixed order list by index cursor (same shape as the HTTP adapter). */
@@ -46,7 +50,7 @@ describe('RebuildService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    forecasts = new ForecastService(repo, configStub);
+    forecasts = new ForecastService(repo, configStub, noNames);
     feed = new FakeOrderFeed(orders);
     rebuild = new RebuildService(feed, forecasts);
   });

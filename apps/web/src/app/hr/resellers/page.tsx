@@ -69,7 +69,13 @@ export default function HrResellersPage() {
             <tbody>
               {(rows.data ?? []).map((r) => (
                 <tr key={r.customerId} className="border-t border-app">
-                  <td className="px-4 py-2.5 font-mono text-xs">{r.customerId}</td>
+                  <td className="px-4 py-2.5">
+                    {r.customerName ?? (
+                      <span className="font-mono text-xs text-muted">
+                        {r.customerId.slice(0, 8)}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 tabular-nums">{r.discountPct}%</td>
                   <td className="px-4 py-2.5 tabular-nums">{r.monthlyTargetQty}</td>
                   <td className="px-4 py-2.5 text-muted">{formatDateTime(r.joinDate)}</td>

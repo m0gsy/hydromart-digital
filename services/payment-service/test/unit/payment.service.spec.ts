@@ -223,6 +223,20 @@ describe('PaymentService', () => {
     expect(list.items[0].id).toBe(payment.id);
   });
 
+  // §G-3: a payment row holds only the order id, so this was the one money screen that
+  // asked HQ to decide against eight hex characters.
+  it('carries the order number on each queued refund, and copes without one', async () => {
+    const payment = await paidOver(150_000);
+    await service.refund(payment.id, 'finance', 'galon bocor');
+    orders.orderNumbers.set(payment.orderId, 'HM-20260806-1000001');
+
+    expect((await service.listRefundQueue({})).items[0].orderNumber).toBe('HM-20260806-1000001');
+
+    // order-service unreachable: the queue still answers, without the number.
+    orders.orderNumbers.clear();
+    expect((await service.listRefundQueue({})).items[0].orderNumber).toBeNull();
+  });
+
   it('approving a queued refund settles it and clears the queue', async () => {
     const payment = await paidOver(150_000);
     await service.refund(payment.id, 'finance', 'galon bocor');

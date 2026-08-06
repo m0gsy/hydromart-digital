@@ -20,7 +20,7 @@ import {
   Public,
 } from '@hydromart/platform';
 
-import { PaymentService } from '../application/services/payment.service';
+import { PaymentService, RefundQueueRow } from '../application/services/payment.service';
 import {
   CashCollectedSummary,
   PaymentRecord,
@@ -39,7 +39,14 @@ import {
   StaffInitiatePaymentDto,
   UnsettledByMethodQueryDto,
 } from './dto/payment.dto';
-import { CashCollectedResponseDto, PagedPaymentResponseDto, PaymentResponseDto, UnsettledMethodAggregateResponseDto, Webhook3ResponseDto } from './dto/responses.generated.dto';
+import {
+  CashCollectedResponseDto,
+  PagedPaymentResponseDto,
+  PagedRefundQueueResponseDto,
+  PaymentResponseDto,
+  UnsettledMethodAggregateResponseDto,
+  Webhook3ResponseDto,
+} from './dto/responses.generated.dto';
 
 // Refunds, the refund-approval queue (feature 14a) and the HQ settlement dashboard
 // (design 6a) used to carry hand-written role arrays here, invisible to the shared map
@@ -166,11 +173,11 @@ export class PaymentController {
 
   // HQ refund-approval queue (feature 14a): cross-depot pending refunds above the HQ
   // threshold, newest first. Declared before ':id' so the static segment wins.
-  @ApiOkResponse({ type: PagedPaymentResponseDto })
+  @ApiOkResponse({ type: PagedRefundQueueResponseDto })
   @Get('refunds/queue')
   @Can('refundQueue')
   @ApiOperation({ summary: 'List refunds awaiting HQ approval (finance/super-admin)' })
-  listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<PaymentRecord>> {
+  listRefundQueue(@Query() query: ListPaymentsQueryDto): Promise<Page<RefundQueueRow>> {
     return this.payments.listRefundQueue(query);
   }
 

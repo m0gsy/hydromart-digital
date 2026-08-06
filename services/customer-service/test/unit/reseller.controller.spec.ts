@@ -46,9 +46,10 @@ const registerDto: RegisterResellerDto = {
 describe('ResellerController', () => {
   it('list delegates to the service with the depot/active filter', async () => {
     const svc = makeService();
-    svc.list.mockResolvedValue([row]);
+    const view = { ...row, customerName: 'Budi' };
+    svc.list.mockResolvedValue([view]);
     const out = await controllerWith(svc).list(user, { depotId: 'd1', active: true });
-    expect(out).toEqual([row]);
+    expect(out).toEqual([view]);
     expect(svc.list).toHaveBeenCalledWith(user, { homeDepotId: 'd1', active: true });
   });
 

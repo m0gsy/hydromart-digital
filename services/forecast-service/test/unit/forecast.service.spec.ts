@@ -3,6 +3,10 @@ import { FakeForecastRepository } from '../support/fakes';
 import { IngestCommand } from '../../src/application/ports/forecast.repository';
 import { ForecastConfigService } from '../../src/config/forecast-config.service';
 
+/** Churn ranking is what these tests are about; names are a decoration on it. */
+const noNames = async () => new Map<string, string>();
+
+
 const NOW = new Date('2026-07-11T12:00:00Z');
 const AT = new Date('2026-07-11T08:00:00Z'); // same UTC day as NOW → lands on the last history day
 
@@ -26,7 +30,7 @@ describe('ForecastService', () => {
 
   beforeEach(() => {
     repo = new FakeForecastRepository();
-    service = new ForecastService(repo, configStub);
+    service = new ForecastService(repo, configStub, noNames);
   });
 
   it('ingest sums QUANTITY (not order count) into daily demand', async () => {
@@ -174,7 +178,7 @@ describe('ForecastService', () => {
 
   it('churnList folds Monetary in: a high-spend customer bands lower than a low-spend one at the same recency', async () => {
     const monConfig = { churnWindowDays: 30, churnMonetaryRef: 500_000 } as unknown as ForecastConfigService;
-    const monService = new ForecastService(repo, monConfig);
+    const monService = new ForecastService(repo, monConfig, noNames);
     const lapsed = new Date('2026-06-11T12:00:00Z'); // 30 days before NOW → recency 1
     await monService.ingest(makeIngest({ orderId: 'lo', customerId: 'low', at: lapsed, total: 10_000 }));
     await monService.ingest(makeIngest({ orderId: 'hi', customerId: 'high', at: lapsed, total: 500_000 }));
@@ -185,6 +189,32 @@ describe('ForecastService', () => {
     expect(low.riskBand).toBe('HIGH');
     expect(high.riskBand).toBe('MEDIUM');
     expect(high.riskScore).toBeLessThan(low.riskScore);
+  });
+
+  // §G-3: a re-engage list nobody can put a name to is a list nobody calls.
+  it('churnList carries the account name, and only asks about the rows it kept', async () => {
+    const asked: string[][] = [];
+    const named = new ForecastService(repo, configStub, async (ids: string[]) => {
+      asked.push(ids);
+      return new Map([['stale', 'Budi']]);
+    });
+    await named.ingest(makeIngest({ orderId: 'o1', customerId: 'stale', at: new Date('2026-05-01T00:00:00Z') }));
+    await named.ingest(makeIngest({ orderId: 'o2', customerId: 'recent', at: new Date('2026-07-10T00:00:00Z') }));
+
+    const { customers } = await named.churnList({ now: NOW, limit: 1 });
+
+    expect(customers).toHaveLength(1);
+    expect(customers[0]).toMatchObject({ customerId: 'stale', customerName: 'Budi' });
+    expect(asked).toEqual([['stale']]);
+  });
+
+  // Fail-soft: an unreachable auth-service costs the names, never the ranking.
+  it('churnList still ranks when no name comes back', async () => {
+    await service.ingest(makeIngest({ orderId: 'o1', customerId: 'stale', at: new Date('2026-05-01T00:00:00Z') }));
+
+    const { customers } = await service.churnList({ now: NOW });
+
+    expect(customers[0].customerName).toBeNull();
   });
 
   it('churnList empty state → no customers, no throw', async () => {

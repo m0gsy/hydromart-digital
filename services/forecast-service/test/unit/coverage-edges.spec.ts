@@ -5,6 +5,10 @@ import { OrderFeedHttpAdapter } from '../../src/infrastructure/http/order-feed.h
 import type { ForecastConfigService } from '../../src/config/forecast-config.service';
 import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
+/** Churn ranking is what these tests are about; names are a decoration on it. */
+const noNames = async () => new Map<string, string>();
+
+
 // Rows the catalogue no longer knows about, a customer who has never spent anything, a revenue
 // query for "all depots" vs "the null depot", and an order the feed hands over with no
 // timestamp — the cases the happy-path specs never produce.
@@ -38,7 +42,7 @@ describe('ForecastService.depotRollup', () => {
       findRefs: jest.fn().mockResolvedValue([]),
     } as never;
 
-    const [item] = await new ForecastService(repo, config).depotRollup({
+    const [item] = await new ForecastService(repo, config, noNames).depotRollup({
       depotId: 'dep-1',
       now: new Date('2026-08-01T00:00:00.000Z'),
     });
@@ -58,7 +62,7 @@ describe('ForecastService.depotRollup', () => {
       ]),
     } as never;
 
-    const items = await new ForecastService(repo, config).depotRollup({
+    const items = await new ForecastService(repo, config, noNames).depotRollup({
       depotId: 'dep-1',
       now: new Date('2026-08-01T00:00:00.000Z'),
     });

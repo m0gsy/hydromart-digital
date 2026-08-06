@@ -222,6 +222,8 @@ export interface RatingSummary {
 
 export interface OrderValue {
   orderId: string;
+  /** The human-readable HM-… number (§G-3): what every other console shows for an order. */
+  orderNumber: string;
   totalIdr: number;
 }
 

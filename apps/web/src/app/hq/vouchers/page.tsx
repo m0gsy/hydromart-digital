@@ -119,7 +119,10 @@ export default function HqVouchersPage() {
                   </span>
                 </div>
                 <p className="text-xs text-muted">
-                  {t('hq.vouchers.requests.by', { who: r.requestedBy.slice(0, 8), depot: r.depotName })}
+                  {t('hq.vouchers.requests.by', {
+                    who: r.requestedByName ?? r.requestedBy.slice(0, 8),
+                    depot: r.depotName,
+                  })}
                 </p>
                 {r.note ? <p className="text-xs text-muted">{r.note}</p> : null}
                 <div className="flex justify-end gap-2 border-t border-app pt-2">

@@ -334,7 +334,14 @@ describe('Order HTTP flows (e2e)', () => {
       .set('x-internal-key', INTERNAL_KEY)
       .send(body)
       .expect(200);
-    expect(values.body).toEqual([{ orderId: order.body.id, totalIdr: order.body.total }]);
+    expect(values.body).toEqual([
+      {
+        orderId: order.body.id,
+        // §G-3: the number payment-service puts on the refund queue.
+        orderNumber: order.body.orderNumber,
+        totalIdr: order.body.total,
+      },
+    ]);
 
     const validId = randomUUID();
     const invalidBodies = [

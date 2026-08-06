@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { AccountNameResolver } from '@hydromart/platform';
+
 import { denseDailySeries, toUtcDay } from '../../domain/series';
 import { forecastDemand } from '../../domain/forecast';
 import { ChurnBand, churnRisk } from '../../domain/churn';
@@ -51,6 +53,8 @@ export type SalesForecast = {
 /** One at-risk customer row in the churn list. */
 export type ChurnItem = {
   customerId: string;
+  /** §G-3: who they are, so a re-engage list is people rather than eight hex characters. */
+  customerName: string | null;
   lastOrderAt: string;
   orderCount: number;
   daysSince: number;
@@ -81,6 +85,7 @@ export class ForecastService {
   constructor(
     @Inject(FORECAST_TOKENS.Repository) private readonly repo: ForecastRepository,
     private readonly config: ForecastConfigService,
+    @Inject(FORECAST_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
   ) {}
 
   async ingest(cmd: IngestCommand): Promise<void> {
@@ -244,6 +249,7 @@ export class ForecastService {
         );
         return {
           customerId: r.customerId,
+          customerName: null as string | null,
           lastOrderAt: r.lastOrderAt.toISOString(),
           orderCount: r.orderCount,
           daysSince: risk.daysSince,
@@ -258,6 +264,12 @@ export class ForecastService {
           a.customerId.localeCompare(b.customerId),
       )
       .slice(0, limit);
+
+    // §G-3, after the slice: the list is a call sheet, and a name is what makes it one.
+    // Only the rows that survive the cut are looked up. Fail-soft — the risk ranking is
+    // the answer, the names decorate it.
+    const names = await this.accountNames(customers.map((c) => c.customerId));
+    for (const c of customers) c.customerName = names.get(c.customerId) ?? null;
 
     return { customers };
   }

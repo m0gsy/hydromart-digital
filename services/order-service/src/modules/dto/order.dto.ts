@@ -230,6 +230,9 @@ export class OrderValueDto {
   @ApiProperty({ format: 'uuid' })
   orderId!: string;
 
+  @ApiProperty({ example: 'HM-20260806-1000001', description: 'Human-readable order number.' })
+  orderNumber!: string;
+
   @ApiProperty({ example: 50_000, description: 'Authoritative order total in integer IDR.' })
   totalIdr!: number;
 }

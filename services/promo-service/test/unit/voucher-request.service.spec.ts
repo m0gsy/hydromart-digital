@@ -21,6 +21,10 @@ import {
   InMemoryVoucherRepository,
 } from '../support/fakes';
 
+/** The queue is what these tests are about; the names decorate it. */
+const noNames = async () => new Map<string, string>();
+
+
 class InMemoryVoucherRequestRepository implements VoucherRequestRepository {
   rows: VoucherRequestRecord[] = [];
   private seq = 0;
@@ -66,7 +70,7 @@ function build() {
     new FakeCustomerLookup(),
     new FakeNotification(),
   );
-  const service = new VoucherRequestService(requests, voucherService);
+  const service = new VoucherRequestService(requests, voucherService, noNames);
   return { service, requests, vouchers };
 }
 

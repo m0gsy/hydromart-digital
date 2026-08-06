@@ -2,7 +2,13 @@ import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  DepotScopeGuard,
+  SettingsCache,
+  httpAccountNameResolver,
+} from '@hydromart/platform';
 
 import { DepotConfigService } from '../config/depot-config.service';
 import { DEPOT_TOKENS } from '../application/tokens';
@@ -134,6 +140,15 @@ const providers: Provider[] = [
   HandoverService,
   OperationalReportService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
+  {
+    provide: DEPOT_TOKENS.AccountNames,
+    inject: [DepotConfigService],
+    useFactory: (config: DepotConfigService) =>
+      httpAccountNameResolver({
+        authServiceUrl: config.authServiceUrl,
+        internalKey: config.internalServiceKey,
+      }),
+  },
   { provide: DEPOT_TOKENS.InventoryRepository, useClass: InventoryPrismaRepository },
   { provide: DEPOT_TOKENS.PricingRuleRepository, useClass: PricingRulePrismaRepository },
   { provide: DEPOT_TOKENS.GallonReturnRepository, useClass: GallonReturnPrismaRepository },

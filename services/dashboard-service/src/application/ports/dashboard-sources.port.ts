@@ -14,7 +14,11 @@ export interface SalesReport {
 export interface TopCustomers {
   from: string | null;
   to: string | null;
-  items: { customerId: string; orderCount: number; revenue: number }[];
+  /**
+   * `customerName` is not part of order-service's answer — dashboard-service fills it in
+   * from auth-service before the card is served (§G-3). Null when there is no account name.
+   */
+  items: { customerId: string; customerName?: string | null; orderCount: number; revenue: number }[];
 }
 
 export interface TopDepots {

@@ -29,6 +29,9 @@ export class SalesReportResponseDto {
 export class TopCustomersItemsResponseDto {
   @ApiProperty({ type: String })
   customerId!: string;
+  /** §G-3: filled from auth-service by dashboard-service, not by order-service. */
+  @ApiProperty({ type: String, nullable: true })
+  customerName!: string | null;
   @ApiProperty({ type: Number })
   orderCount!: number;
   @ApiProperty({ type: Number })

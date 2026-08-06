@@ -1,5 +1,6 @@
 export const DEPOT_TOKENS = {
   DepotRepository: Symbol('DepotRepository'),
+  AccountNames: Symbol('AccountNameResolver'),
   InventoryRepository: Symbol('InventoryRepository'),
   LowStockAlert: Symbol('LowStockAlert'),
   UntrackedSaleAlert: Symbol('UntrackedSaleAlert'),

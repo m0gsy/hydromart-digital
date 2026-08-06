@@ -77,7 +77,7 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
   let requests: FakeRequestRepo;
   let customerData: { export: jest.Mock; anonymise: jest.Mock };
   let audit: { record: jest.Mock };
-  let customers: { findById: jest.Mock };
+  let customers: { findById: jest.Mock; findByIds: jest.Mock };
   let service: DataSubjectService;
 
   beforeEach(() => {
@@ -85,6 +85,10 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     customerData = { export: jest.fn(async () => ({ addresses: [] })), anonymise: jest.fn() };
     audit = { record: jest.fn() };
     customers = {
+      // §G-3: the staff queue names whoever raised each request.
+      findByIds: jest.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, fullName: id === CUSTOMER ? 'Budi' : null })),
+      ),
       findById: jest.fn(async () => ({
         id: CUSTOMER,
         phone: '+628111',
@@ -334,7 +338,13 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     await service.request('33333333-3333-3333-3333-333333333333', 'EXPORT', null);
 
     expect(await service.listMine(CUSTOMER)).toHaveLength(1);
-    expect(await service.listForStaff('PENDING')).toHaveLength(2);
+
+    // §G-3: HQ decides a deletion request; it has to say who is asking, not eight hex
+    // characters. An account with no name stays null so the console falls back.
+    const queue = await service.listForStaff('PENDING');
+    expect(queue).toHaveLength(2);
+    expect(queue.find((r) => r.customerId === CUSTOMER)?.customerName).toBe('Budi');
+    expect(queue.find((r) => r.customerId !== CUSTOMER)?.customerName).toBeNull();
   });
 
   it('exports on demand for the customer without a queue entry', async () => {

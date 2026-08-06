@@ -9,6 +9,7 @@ import {
   UpdateResellerData,
 } from '../ports/reseller.repository';
 import { ProfileRepository } from '../ports/profile.repository';
+import { IdentityPort } from '../ports/identity.port';
 import {
   ResellerExistsError,
   ResellerNotFoundError,
@@ -25,19 +26,35 @@ import { CUSTOMER_TOKENS } from '../tokens';
  * reseller homed at another depot (assertDepotAccess — the by-id vector DepotScopeGuard can't
  * see, per its own class doc).
  */
+export type ResellerView = Reseller & {
+  /** The account name behind `customerId`; null when auth-service has none or is down. */
+  customerName: string | null;
+};
+
 @Injectable()
 export class ResellerService {
   constructor(
     @Inject(CUSTOMER_TOKENS.ResellerRepository) private readonly resellers: ResellerRepository,
     @Inject(CUSTOMER_TOKENS.ProfileRepository) private readonly profiles: ProfileRepository,
+    @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
   ) {}
 
+  /**
+   * §G-3: the roster carried the customer id and nothing else, so the HR console rendered a
+   * 36-character UUID as the entire "Customer" column. The name lives on the account, which
+   * is auth-service's row, so it is asked for here rather than copied into this table.
+   *
+   * Fail-soft by construction (see IdentityPort): an unreachable auth-service costs the
+   * names, never the roster.
+   */
   async list(
     user: AuthenticatedUser,
     filter: { homeDepotId?: string; active?: boolean },
-  ): Promise<Reseller[]> {
+  ): Promise<ResellerView[]> {
     const homeDepotIds = depotScopeIds(user, filter.homeDepotId);
-    return this.resellers.list({ homeDepotIds, active: filter.active });
+    const rows = await this.resellers.list({ homeDepotIds, active: filter.active });
+    const names = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
+    return rows.map((r) => ({ ...r, customerName: names.get(r.customerId)?.fullName ?? null }));
   }
 
   async get(user: AuthenticatedUser, customerId: string): Promise<Reseller> {

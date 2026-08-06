@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { AccountNameResolver } from '@hydromart/platform';
+
 import { DiscountType } from '../../domain/voucher';
 import {
   VoucherRequestRecord,
@@ -34,12 +36,16 @@ export interface ProposeVoucherRequestInput {
  * EXISTING VoucherService.create (unique-code check + normalisation reused — no
  * duplicated voucher logic). Rejecting just closes the request; no voucher is made.
  */
+/** A queue row plus the name behind `requestedBy` (§G-3). */
+export type VoucherRequestView = VoucherRequestRecord & { requestedByName: string | null };
+
 @Injectable()
 export class VoucherRequestService {
   constructor(
     @Inject(PROMO_TOKENS.VoucherRequestRepository)
     private readonly requests: VoucherRequestRepository,
     private readonly vouchers: VoucherService,
+    @Inject(PROMO_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
   ) {}
 
   propose(
@@ -63,9 +69,21 @@ export class VoucherRequestService {
     });
   }
 
-  async list(filter: ListVoucherRequestsFilter): Promise<Page<VoucherRequestRecord>> {
+  /**
+   * The HQ queue. Each row carries the name of the manager who raised it (§G-3) — the
+   * console showed eight characters of their account id, which tells the approver nothing
+   * about which depot's manager is asking for the discount.
+   *
+   * Fail-soft: an unreachable auth-service costs the names, not the queue.
+   */
+  async list(filter: ListVoucherRequestsFilter): Promise<Page<VoucherRequestView>> {
     const { items, total } = await this.requests.list(filter);
-    return buildPage(items, total, filter.page, filter.limit);
+    const names = await this.accountNames(items.map((i) => i.requestedBy));
+    const decorated = items.map((i) => ({
+      ...i,
+      requestedByName: names.get(i.requestedBy) ?? null,
+    }));
+    return buildPage(decorated, total, filter.page, filter.limit);
   }
 
   async approve(id: string, decidedBy: string): Promise<VoucherRequestRecord> {

@@ -14,7 +14,10 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { Page } from '../application/pagination';
-import { VoucherRequestService } from '../application/services/voucher-request.service';
+import {
+  VoucherRequestService,
+  VoucherRequestView,
+} from '../application/services/voucher-request.service';
 import { VoucherRequestRecord, VoucherRequestStatus } from '../domain/voucher-request';
 import { DiscountType } from '../domain/voucher';
 import { ListVoucherRequestsQueryDto, ProposeVoucherRequestDto } from './dto/voucher-request.dto';
@@ -68,7 +71,7 @@ export class VoucherRequestController {
   @ApiOkResponse({ type: PagedVoucherRequestResponseDto })
   @Get()
   @ApiOperation({ summary: 'List voucher requests (defaults to the pending queue)' })
-  list(@Query() query: ListVoucherRequestsQueryDto): Promise<Page<VoucherRequestRecord>> {
+  list(@Query() query: ListVoucherRequestsQueryDto): Promise<Page<VoucherRequestView>> {
     return this.requests.list({
       page: query.page ?? 1,
       limit: query.limit ?? 20,

@@ -71,6 +71,9 @@ export interface WebhookPayload {
   signature: string;
 }
 
+/** A refund-queue row plus the order's human-readable number (§G-3). */
+export type RefundQueueRow = PaymentRecord & { orderNumber: string | null };
+
 @Injectable()
 export class PaymentService {
   private static readonly MAX_LIMIT = 100;
@@ -296,12 +299,23 @@ export class PaymentService {
     return this.payments.sumDepotCash(depotId, range);
   }
 
-  /** HQ refund-approval queue (feature 14a): payments awaiting approval, newest first. */
-  async listRefundQueue(input: { page?: number; limit?: number }): Promise<Page<PaymentRecord>> {
+  /**
+   * HQ refund-approval queue (feature 14a): payments awaiting approval, newest first.
+   *
+   * Each row carries its order's HM-… number (§G-3). A payment row holds only the order
+   * id, so this queue was the one screen that asked HQ to approve money against eight
+   * hex characters while every other console showed the number.
+   */
+  async listRefundQueue(input: { page?: number; limit?: number }): Promise<Page<RefundQueueRow>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(PaymentService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
     const { items, total } = await this.payments.listPendingRefunds({ page, limit });
-    return buildPage(items, total, page, limit);
+    const numbers = await this.orderCoordination.getOrderNumbers(items.map((i) => i.orderId));
+    const decorated = items.map((i) => ({
+      ...i,
+      orderNumber: numbers.get(i.orderId) ?? null,
+    }));
+    return buildPage(decorated, total, page, limit);
   }
 
   /** HQ approves a queued refund → it settles now (finance/super-admin). */

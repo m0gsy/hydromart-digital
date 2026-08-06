@@ -58,6 +58,35 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
     );
   }
 
+  async getOrderNumbers(orderIds: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    const unique = [...new Set(orderIds.filter((id) => id.length > 0))];
+    if (!orderServiceUrl || !internalServiceKey || unique.length === 0) return out;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OrderCoordinationHttpAdapter.TIMEOUT_MS);
+    try {
+      const res = await fetch(`${orderServiceUrl}/api/v1/orders/internal/values`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderIds: unique }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`order-service responded ${res.status}`);
+      const rows = (await res.json()) as { orderId?: string; orderNumber?: string }[];
+      for (const r of rows) {
+        if (r.orderId && r.orderNumber) out.set(r.orderId, r.orderNumber);
+      }
+    } catch (error) {
+      // Fail SOFT, unlike getOrderTotal: this decorates a queue, it does not price anything.
+      this.logger.warn(`Order numbers unresolved: ${(error as Error).message}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    return out;
+  }
+
   /** POST to order-service over the internal-key path, failing open (logged, never thrown). */
   private async post(path: string, body: unknown, skipMsg: string): Promise<void> {
     const { orderServiceUrl, internalServiceKey } = this.config;

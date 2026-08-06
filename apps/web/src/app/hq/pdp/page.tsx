@@ -112,7 +112,8 @@ export default function HqPdpPage() {
                     <Chip tone="outline">{t(`hq.pdp.status.${row.status}`)}</Chip>
                   </div>
                   <div className="mt-0.5 text-xs text-[color:var(--text-muted)]">
-                    {t('hq.pdp.customer')} {row.customerId.slice(0, 8)} · {t('hq.pdp.requestedAt')}{' '}
+                    {t('hq.pdp.customer')} {row.customerName ?? row.customerId.slice(0, 8)} ·{' '}
+                    {t('hq.pdp.requestedAt')}{' '}
                     {formatDateTime(row.requestedAt)}
                   </div>
                   {row.reason && (

@@ -79,7 +79,11 @@ function ChurnBody() {
             <tbody>
               {customers.map((c) => (
                 <tr key={c.customerId} className="border-b border-app last:border-0">
-                  <td className="px-4 py-3 font-mono text-xs">{shortId(c.customerId)}</td>
+                  <td className="px-4 py-3">
+                    {c.customerName ?? (
+                      <span className="font-mono text-xs">{shortId(c.customerId)}</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">{formatDateTime(c.lastOrderAt)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{c.daysSince}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{c.orderCount}</td>

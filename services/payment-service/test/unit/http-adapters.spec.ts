@@ -162,3 +162,78 @@ describe('OrderCoordinationHttpAdapter', () => {
     });
   });
 });
+
+// §G-3. A payment row holds only the order id, so the refund queue asked HQ to approve
+// money against eight hex characters. This reads the numbers back from order-service.
+describe('OrderCoordinationHttpAdapter.getOrderNumbers', () => {
+  it('posts the unique ids and maps them to their numbers', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: [{ orderId: 'o1', orderNumber: 'HM-1' }, { orderId: 'o2' }] }),
+    );
+
+    const out = await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers([
+      'o1',
+      'o1',
+      'o2',
+      '',
+    ]);
+
+    expect([...out]).toEqual([['o1', 'HM-1']]);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://order:3002/api/v1/orders/internal/values');
+    expect(JSON.parse(init.body)).toEqual({ orderIds: ['o1', 'o2'] });
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('asks nothing when unconfigured or given no ids', async () => {
+    expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers([])).size).toBe(0);
+    expect(
+      (
+        await new OrderCoordinationHttpAdapter(makeConfig({ orderServiceUrl: '' })).getOrderNumbers([
+          'o1',
+        ])
+      ).size,
+    ).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Fails SOFT, unlike getOrderTotal: this decorates a queue, it does not price anything.
+  // A refund decision must never be blocked because a number could not be read.
+  it('degrades to no numbers on a refusal or an outage', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size).toBe(
+      0,
+    );
+
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    expect((await new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1'])).size).toBe(
+      0,
+    );
+  });
+});
+
+// The abort timer this adapter arms had never been let fire for the new call: a hung
+// order-service must still let the refund queue answer.
+describe('OrderCoordinationHttpAdapter.getOrderNumbers when order-service hangs', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const aborted = new Error('The operation was aborted');
+            aborted.name = 'AbortError';
+            reject(aborted);
+          });
+        }),
+    );
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('aborts and answers with no numbers', async () => {
+    // The handler has to be attached before the timer fires, or the rejection lands unhandled.
+    const settled = new OrderCoordinationHttpAdapter(makeConfig()).getOrderNumbers(['o1']);
+    await jest.advanceTimersByTimeAsync(10_000);
+    expect((await settled).size).toBe(0);
+  });
+});

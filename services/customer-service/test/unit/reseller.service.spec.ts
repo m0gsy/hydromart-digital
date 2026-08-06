@@ -10,6 +10,12 @@ import {
   ResellerNotFoundError,
 } from '../../src/domain/errors';
 
+/** Names are a decoration on the roster; every reseller test here is about the roster. */
+function fakeIdentity() {
+  return { getCustomerNames: async () => new Map(), preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }) } as never;
+}
+
+
 function row(over: Partial<Reseller> = {}): Reseller {
   return {
     customerId: 'c1',
@@ -55,7 +61,7 @@ describe('ResellerService', () => {
     const repo = makeRepo();
     repo.findById.mockResolvedValue(null);
     repo.create.mockResolvedValue(row());
-    const svc = new ResellerService(repo, makeProfiles(true));
+    const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
     const out = await svc.register(hq, {
       customerId: 'c1',
@@ -74,7 +80,7 @@ describe('ResellerService', () => {
     repo.create.mockImplementation((data) =>
       Promise.resolve(row({ customerId: data.customerId, discountPct: data.discountPct ?? 0 })),
     );
-    const svc = new ResellerService(repo, makeProfiles(true));
+    const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
     const withPct = await svc.register(hq, {
       customerId: 'c1',
@@ -97,7 +103,7 @@ describe('ResellerService', () => {
   it('creates the profile shell for a customer who has never opened theirs', async () => {
     const repo = makeRepo();
     const profiles = makeProfiles(false);
-    const svc = new ResellerService(repo, profiles);
+    const svc = new ResellerService(repo, profiles, fakeIdentity());
     await svc.register(hq, {
       customerId: 'x',
       homeDepotId: 'd1',
@@ -111,7 +117,7 @@ describe('ResellerService', () => {
   it('rejects registering the same customer twice', async () => {
     const repo = makeRepo();
     repo.findById.mockResolvedValue(row());
-    const svc = new ResellerService(repo, makeProfiles(true));
+    const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
     await expect(
       svc.register(hq, { customerId: 'c1', homeDepotId: 'd1', monthlyTargetQty: 0, joinDate: new Date() }),
     ).rejects.toBeInstanceOf(ResellerExistsError);
@@ -120,17 +126,52 @@ describe('ResellerService', () => {
   it('throws when updating an unknown reseller', async () => {
     const repo = makeRepo();
     repo.findById.mockResolvedValue(null);
-    const svc = new ResellerService(repo, makeProfiles(true));
+    const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
     await expect(svc.update(hq, 'nope', { active: false })).rejects.toBeInstanceOf(
       ResellerNotFoundError,
     );
+  });
+
+  // §G-3. The roster used to render a 36-character UUID as the whole Customer column,
+  // because the name is on the account and this table only has the id.
+  describe('the roster carries the account name', () => {
+    it('decorates each row with the name behind its customer id', async () => {
+      const repo = makeRepo();
+      repo.list.mockResolvedValue([row(), row({ customerId: 'c2' })]);
+      const identity = {
+        getCustomerNames: jest
+          .fn()
+          .mockResolvedValue(new Map([['c1', { fullName: 'Budi', phone: '0811' }]])),
+      } as never;
+
+      const out = await new ResellerService(repo, makeProfiles(true), identity).list(hq, {});
+
+      expect(out.map((r) => [r.customerId, r.customerName])).toEqual([
+        ['c1', 'Budi'],
+        // No account name (a pre-registered import that never signed in): null, so the
+        // page falls back rather than printing an empty cell as if it were the name.
+        ['c2', null],
+      ]);
+    });
+
+    // Fail-soft, like every other use of the lookup: the roster is the answer, the names
+    // are a decoration on it.
+    it('still lists the roster when the name lookup comes back empty', async () => {
+      const repo = makeRepo();
+      repo.list.mockResolvedValue([row()]);
+
+      const out = await new ResellerService(repo, makeProfiles(true), fakeIdentity()).list(hq, {});
+
+      expect(out).toHaveLength(1);
+      expect(out[0].customerName).toBeNull();
+    });
   });
 
   describe('depot tenant isolation', () => {
     it('forces a depot-locked manager list to their own depot when none is requested', async () => {
       const repo = makeRepo();
       repo.list.mockResolvedValue([]);
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await svc.list(manager('d1'), {});
 
@@ -140,7 +181,7 @@ describe('ResellerService', () => {
     it('rejects a depot-locked manager listing a different depot', async () => {
       const repo = makeRepo();
       repo.list.mockResolvedValue([]);
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(svc.list(manager('d1'), { homeDepotId: 'd2' })).rejects.toBeInstanceOf(
         ForbiddenException,
@@ -151,7 +192,7 @@ describe('ResellerService', () => {
     it('lets an HQ user list any depot (or all depots)', async () => {
       const repo = makeRepo();
       repo.list.mockResolvedValue([]);
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await svc.list(hq, { homeDepotId: 'd2' });
 
@@ -162,7 +203,7 @@ describe('ResellerService', () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(null);
       repo.create.mockResolvedValue(row({ homeDepotId: 'd1' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await svc.register(manager('d1'), {
         customerId: 'c1',
@@ -179,7 +220,7 @@ describe('ResellerService', () => {
     it('rejects a manager registering a reseller homed at another depot', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(null);
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(
         svc.register(manager('d1'), {
@@ -196,7 +237,7 @@ describe('ResellerService', () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(null);
       repo.create.mockResolvedValue(row({ homeDepotId: 'd2' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await svc.register(hq, {
         customerId: 'c1',
@@ -211,7 +252,7 @@ describe('ResellerService', () => {
     it('rejects a manager reading another depot reseller by id', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(svc.get(manager('d1'), 'c1')).rejects.toBeInstanceOf(ForbiddenException);
     });
@@ -219,7 +260,7 @@ describe('ResellerService', () => {
     it('lets a manager read their own depot reseller by id', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd1' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(svc.get(manager('d1'), 'c1')).resolves.toMatchObject({ homeDepotId: 'd1' });
     });
@@ -227,7 +268,7 @@ describe('ResellerService', () => {
     it('lets HQ read any depot reseller by id', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(svc.get(hq, 'c1')).resolves.toMatchObject({ homeDepotId: 'd2' });
     });
@@ -235,7 +276,7 @@ describe('ResellerService', () => {
     it('rejects a manager updating another depot reseller', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(
         svc.update(manager('d1'), 'c1', { active: false }),
@@ -246,7 +287,7 @@ describe('ResellerService', () => {
     it('rejects a manager moving their own reseller to another depot', async () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd1' }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(
         svc.update(manager('d1'), 'c1', { homeDepotId: 'd2' }),
@@ -258,7 +299,7 @@ describe('ResellerService', () => {
       const repo = makeRepo();
       repo.findById.mockResolvedValue(row({ homeDepotId: 'd2' }));
       repo.update.mockResolvedValue(row({ homeDepotId: 'd2', active: false }));
-      const svc = new ResellerService(repo, makeProfiles(true));
+      const svc = new ResellerService(repo, makeProfiles(true), fakeIdentity());
 
       await expect(svc.update(hq, 'c1', { active: false })).resolves.toMatchObject({
         active: false,

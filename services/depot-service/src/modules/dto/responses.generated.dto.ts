@@ -962,6 +962,9 @@ export class PriceOverrideProposalResponseDto {
   status!: string;
   @ApiProperty({ type: String })
   proposedBy!: string;
+  /** §G-3: denormalised from auth-service so HQ sees who proposed it. */
+  @ApiProperty({ type: String, nullable: true })
+  proposedByName!: string | null;
   @ApiProperty({ type: String, nullable: true })
   decidedBy!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })

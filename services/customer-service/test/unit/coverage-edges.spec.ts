@@ -11,6 +11,12 @@ import { InternalController } from '../../src/modules/internal.controller';
 import { ImportCustomersDto, ImportResellersDto } from '../../src/modules/dto/customer-import.dto';
 import { buildTestConfig } from '../support/fakes';
 
+/** Names are a decoration on the roster; every reseller test here is about the roster. */
+function fakeIdentity() {
+  return { getCustomerNames: async () => new Map(), preRegisterCustomer: async () => ({ customerId: 'x', status: 'created' as const }) } as never;
+}
+
+
 describe('DepotCrmService follow-up list', () => {
   const summary = (over: Record<string, unknown> = {}) => ({
     customerId: 'c1',
@@ -61,21 +67,21 @@ describe('DepotCrmService follow-up list', () => {
 describe('ResellerService.findMy', () => {
   it('hands back the caller own reseller row', async () => {
     const row = { id: 'c1', discountPct: 5 };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never);
+    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity());
     expect(await svc.findMy('c1')).toBe(row);
   });
 
   // Not an error: most customers are simply not resellers, and the wallet screen
   // asks unconditionally.
   it('returns null for a customer who is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never);
+    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity());
     expect(await svc.findMy('c9')).toBeNull();
   });
 });
 
 describe('ResellerService.get', () => {
   it('404s for an id that is not a reseller', async () => {
-    const svc = new ResellerService({ findById: async () => null } as never, {} as never);
+    const svc = new ResellerService({ findById: async () => null } as never, {} as never, fakeIdentity());
     await expect(svc.get({ sub: 'staff' } as never, 'c9')).rejects.toThrow();
   });
 
@@ -85,6 +91,7 @@ describe('ResellerService.get', () => {
     const svc = new ResellerService(
       { findById: async () => ({ id: 'c1', homeDepotId: 'depot-other' }) } as never,
       {} as never,
+      fakeIdentity(),
     );
     await expect(
       svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1'),
@@ -93,7 +100,7 @@ describe('ResellerService.get', () => {
 
   it('returns the row for a caller inside the right depot', async () => {
     const row = { id: 'c1', homeDepotId: 'depot-mine' };
-    const svc = new ResellerService({ findById: async () => row } as never, {} as never);
+    const svc = new ResellerService({ findById: async () => row } as never, {} as never, fakeIdentity());
     expect(await svc.get({ sub: 's', role: 'KEPALA_DEPOT', depotId: 'depot-mine' } as never, 'c1')).toBe(
       row,
     );
@@ -412,7 +419,7 @@ describe('DepotCrmService directory search and name fallbacks', () => {
 describe('InternalController.claimFavoriteDepot', () => {
   it('reports whether the depot was recorded', async () => {
     const crm = { claimFavoriteDepot: jest.fn().mockResolvedValue(true) };
-    const controller = new InternalController(crm as never, {} as never);
+    const controller = new InternalController(crm as never, {} as never, {} as never);
     await expect(
       controller.claimFavoriteDepot({ customerId: 'c1', depotId: 'd1' }),
     ).resolves.toEqual({ claimed: true });

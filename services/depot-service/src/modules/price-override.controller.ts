@@ -13,7 +13,10 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { Can, AuthenticatedUser, CurrentUser, ImportSummary, assertDepotAccess } from '@hydromart/platform';
 
-import { PriceOverrideService } from '../application/services/price-override.service';
+import {
+  PriceOverrideProposalView,
+  PriceOverrideService,
+} from '../application/services/price-override.service';
 import {
   PriceOverrideProposalRecord,
   PriceOverrideStatus,
@@ -93,7 +96,7 @@ export class PriceOverrideController {
   @ApiOkResponse({ type: PagedPriceOverrideProposalResponseDto })
   @Get()
   @ApiOperation({ summary: 'List override proposals (defaults to the pending queue)' })
-  list(@Query() query: ListPriceOverridesQueryDto): Promise<Page<PriceOverrideProposalRecord>> {
+  list(@Query() query: ListPriceOverridesQueryDto): Promise<Page<PriceOverrideProposalView>> {
     return this.overrides.list({
       page: query.page ?? 1,
       limit: query.limit ?? 20,
