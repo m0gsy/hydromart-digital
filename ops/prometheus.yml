@@ -40,7 +40,5 @@ scrape_configs:
         labels: { service: host }
       - targets: ['postgres-exporter:9187']
         labels: { service: postgres }
-      - targets: ['redis-exporter:9121']
-        labels: { service: redis }
       - targets: ['cadvisor:8080']
         labels: { service: containers }

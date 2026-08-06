@@ -16,8 +16,8 @@ TLS_PROFILE=""
 if [ -n "${WEB_DOMAIN:-}" ] || grep -qsE '^WEB_DOMAIN=.+' .env; then
   TLS_PROFILE="--profile tls"
 fi
-# Overridable so a local run can layer an extra overlay (e.g. dropping redis's host
-# port when another project already publishes 6379) without editing any script.
+# Overridable so a local run can layer an extra overlay (e.g. dropping postgres's host
+# port when another project already publishes 5432) without editing any script.
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.yml $TLS_PROFILE}"
 GATEWAY_HEALTH="${GATEWAY_HEALTH:-http://localhost:8080/health}"
 

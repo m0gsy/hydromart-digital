@@ -49,9 +49,43 @@ export function scrapeTargets(composeText) {
   return found.sort((a, b) => a.targets[0].localeCompare(b.targets[0]));
 }
 
+/**
+ * Every host named in ops/prometheus.yml's hand-written `infra` job must still be a
+ * service in the prod compose file.
+ *
+ * The generated list above only catches a service with NO target. The other direction
+ * went unnoticed for a whole release: Q-9 deleted Redis, and `redis-exporter:9121` sat
+ * in the scrape config with a `RedisDown` alert behind it — an alert whose metric no
+ * longer exists never fires and never resolves, so it reads as coverage while covering
+ * nothing.
+ *
+ * @returns {string[]} hosts scraped that no container serves
+ */
+export function orphanStaticTargets(prometheusText, composeText) {
+  const services = new Set(
+    [...composeText.matchAll(/^ {2}([a-z][a-z0-9-]*):\s*$/gm)].map((m) => m[1]),
+  );
+  const hosts = [...prometheusText.matchAll(/targets:\s*\['([a-z0-9-]+):\d+'\]/g)].map(
+    (m) => m[1],
+  );
+  return [...new Set(hosts)].filter((h) => !services.has(h)).sort();
+}
+
 const rendered = `${JSON.stringify(scrapeTargets(readFileSync(COMPOSE, 'utf8')), null, 2)}\n`;
 
 if (process.argv.includes('--check')) {
+  const orphans = orphanStaticTargets(
+    readFileSync(join(root, 'ops', 'prometheus.yml'), 'utf8'),
+    readFileSync(COMPOSE, 'utf8'),
+  );
+  if (orphans.length) {
+    console.error(
+      `ops/prometheus.yml scrapes ${orphans.join(', ')}, which no compose service serves.\n` +
+        'Remove the target (and any alert that reads its metrics), or add the container back.\n' +
+        'An alert on a metric nobody produces never fires and never resolves.',
+    );
+    process.exit(1);
+  }
   let onDisk = '';
   try {
     onDisk = readFileSync(OUT, 'utf8');

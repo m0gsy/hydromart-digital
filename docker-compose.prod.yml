@@ -79,12 +79,6 @@ services:
       - -c
       - max_connections=150
 
-  # H-34: Redis is currently used by no service (Q-9 — either wire it or remove it, PR 10),
-  # so it gets the smallest ceiling that still lets it boot and answer a healthcheck.
-  redis:
-    mem_limit: 256m
-    cpus: 0.5
-
   auth:
     <<: *svc
     # H-31/H-35: named so the image can come from a registry instead of being
@@ -709,16 +703,6 @@ services:
       postgres: { condition: service_healthy }
     environment:
       DATA_SOURCE_NAME: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
-
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.62.0
-    restart: unless-stopped
-    mem_limit: 64m
-    cpus: 0.25
-    depends_on:
-      redis: { condition: service_healthy }
-    environment:
-      REDIS_ADDR: redis://redis:6379
 
   # Containers: per-container memory, CPU and — the one that matters here — the OOM kill
   # counter. H-34 gives every container a ceiling; this is what tells you one was hit.

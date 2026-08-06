@@ -41,9 +41,9 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
   // SEC-3: edge rate-limit at the single public ingress (per-IP), using the RATE_LIMIT_*
   // config that was already carried here for this purpose. /health is exempt so probes
   // never trip it. ponytail: default in-memory store — correct for the current single
-  // gateway instance; swap in a Redis store (rate-limit-redis) once the gateway scales
-  // horizontally so counters are shared across instances (this also gives the idle Redis
-  // container a job — see OPS-2).
+  // gateway instance; swap in a shared store (rate-limit-redis, and the Redis container
+  // Q-9 removed) once the gateway scales horizontally, so counters are shared across
+  // instances instead of each replica granting the full quota on its own.
   app.use(
     rateLimit({
       windowMs: config.rateLimit.ttlSeconds * 1000,
