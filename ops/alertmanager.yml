@@ -30,6 +30,15 @@ receivers:
       - api_url_file: /etc/alertmanager/webhook-url
         channel: '#ops'   # ignored by Discord; Slack incoming-webhooks pin their own channel
         send_resolved: true
+        # Empty on purpose. Alertmanager builds this from --web.external-url, which is
+        # unset here, so it produced `http://<container-id>:9093/#/alerts` — a Docker
+        # container hostname. Discord validates the URL and answers
+        # `400 {"attachments": ["0"]}`, so EVERY notification was dropped; the link was
+        # also unopenable by anyone, being an address that only exists inside the compose
+        # network. Proven by bisecting the captured payload field by field against the
+        # real webhook: with title_link the post is refused, without it, accepted.
+        # Set --web.external-url on the container and this can point somewhere real.
+        title_link: ''
         title: '{{ .CommonLabels.severity | toUpper }}: {{ .CommonAnnotations.summary }}'
         text: >-
           {{ range .Alerts }}{{ .Annotations.description }}
