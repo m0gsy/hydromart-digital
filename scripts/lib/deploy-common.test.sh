@@ -202,5 +202,16 @@ for s in scripts/deploy.sh scripts/rollback.sh scripts/watchdog.sh; do
   fi
 done
 
+# --- a health probe must not resolve a name -----------------------------------------
+# The rebuilt images map `localhost` to ::1 as well as 127.0.0.1, busybox wget tries the
+# IPv6 address first, and Nest listens on IPv4 only: every probe answered "Connection
+# refused" while the service was serving on that exact port. Seven containers sat
+# unhealthy for over an hour and the deploy's health gate would have rolled back a good
+# release. The address is the fix; this keeps it.
+if grep -nE 'wget.*http://localhost:' "$COMPOSE_PROD"; then
+  echo "FAIL a healthcheck probes localhost — use 127.0.0.1, or ::1 answers and refuses"
+  fail=1
+fi
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"
