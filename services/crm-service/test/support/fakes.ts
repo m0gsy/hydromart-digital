@@ -93,12 +93,48 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     };
   }
 
-  async markSending(id: string): Promise<void> {
+  /**
+   * Models the real conditional update, DRAFT predicate included. A fake that flipped the
+   * status unconditionally would let the double-broadcast bug (B-17) pass its own test.
+   */
+  async markSending(id: string): Promise<boolean> {
     const c = this.campaigns.find((x) => x.id === id);
-    if (c) {
-      c.status = CampaignStatus.SENDING;
-      c.updatedAt = nextDate();
-    }
+    if (!c || c.status !== CampaignStatus.DRAFT) return false;
+    c.status = CampaignStatus.SENDING;
+    c.updatedAt = nextDate();
+    return true;
+  }
+
+  async findSending(limit: number): Promise<CampaignRecord[]> {
+    return this.campaigns
+      .filter((c) => c.status === CampaignStatus.SENDING)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit)
+      .map((c) => ({ ...this.clone(c), recipients: [] }));
+  }
+
+  /** Same claim semantics as Prisma's: only PENDING rows move, and only those come back. */
+  async claimRecipients(campaignId: string, limit: number): Promise<CampaignRecipientRecord[]> {
+    const c = this.campaigns.find((x) => x.id === campaignId);
+    if (!c) return [];
+    const claimed = c.recipients
+      .filter((r) => r.status === RecipientStatus.PENDING)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit);
+    for (const r of claimed) r.status = RecipientStatus.SENDING;
+    return claimed.map((r) => ({ ...r }));
+  }
+
+  async tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }> {
+    const c = this.campaigns.find((x) => x.id === campaignId);
+    const rows = c?.recipients ?? [];
+    const count = (s: RecipientStatus): number => rows.filter((r) => r.status === s).length;
+    return {
+      // SENDING is outstanding work, not a terminal state — see the Prisma repository.
+      pending: count(RecipientStatus.PENDING) + count(RecipientStatus.SENDING),
+      sent: count(RecipientStatus.SENT),
+      failed: count(RecipientStatus.FAILED),
+    };
   }
 
   async recordRecipientResult(

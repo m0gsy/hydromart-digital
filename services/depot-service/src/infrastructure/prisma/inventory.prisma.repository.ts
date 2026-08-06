@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
+
+import { Prisma } from '../../../prisma/generated/client';
 
 import {
   available,
@@ -164,16 +167,31 @@ export class InventoryPrismaRepository implements InventoryRepository {
       : items;
   }
 
-  async listLowStock(depotId?: string): Promise<InventoryItemRecord[]> {
-    // quantity <= minimumStock isn't expressible as a plain where on two columns, so filter
-    // the (already small) candidate set of lines that have a minimum set.
-    const rows = await this.prisma.inventoryItem.findMany({
-      where: { minimumStock: { gt: 0 }, ...(depotId ? { depotId } : {}) },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
-    return rows
-      .map((r) => this.toItem(r))
-      .filter((i) => available(i.quantity, i.reserved) <= i.minimumStock);
+  /**
+   * Low stock across one depot, several, or the whole network.
+   *
+   * The comparison is `quantity - reserved <= minimumStock`, which Prisma cannot express
+   * as a where on two columns — so this used to read EVERY line with a minimum set, for
+   * every depot, and filter them in JavaScript (audit S-13). Postgres does the comparison
+   * now, which also means the row bound cannot silently drop a depot that is out of
+   * stock: only the lines that are actually low come back.
+   */
+  async listLowStock(depotIds?: string | readonly string[]): Promise<InventoryItemRecord[]> {
+    const ids =
+      typeof depotIds === 'string' ? [depotIds] : depotIds ? [...depotIds] : undefined;
+    if (ids && ids.length === 0) return [];
+    const scope = ids
+      ? Prisma.sql`AND "depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})`
+      : Prisma.empty;
+
+    const rows = await this.prisma.$queryRaw<ItemRow[]>(Prisma.sql`
+      SELECT * FROM "inventory_items"
+      WHERE "minimumStock" > 0
+        AND ("quantity" - "reserved") <= "minimumStock"
+        ${scope}
+      ORDER BY "depotId" ASC, "itemType" ASC
+    `);
+    return rows.map((r) => this.toItem(r));
   }
 
   async update(itemId: string, patch: UpdateInventoryItemData): Promise<InventoryItemRecord> {
@@ -212,10 +230,36 @@ export class InventoryPrismaRepository implements InventoryRepository {
     return rows.map((r) => this.toMovement(r));
   }
 
+  async findLines(
+    depotId: string,
+    itemType: InventoryItemType,
+    productIds: string[],
+  ): Promise<InventoryItemRecord[]> {
+    if (productIds.length === 0) return [];
+    const rows = await this.prisma.inventoryItem.findMany({
+      where: { depotId, itemType, productId: { in: productIds } },
+    });
+    return rows.map((r) => this.toItem(r));
+  }
+
+  async itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>> {
+    if (itemIds.length === 0) return new Set();
+    const rows = await this.prisma.stockMovement.findMany({
+      where: { orderId, itemId: { in: itemIds } },
+      select: { itemId: true },
+      distinct: ['itemId'],
+    });
+    return new Set(rows.map((r) => r.itemId));
+  }
+
+  async countMovements(itemId: string, type: StockMovementType): Promise<number> {
+    return this.prisma.stockMovement.count({ where: { itemId, type } });
+  }
+
   async listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
-  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number; nextCursor: string | null }> {
     const createdAt =
       filter.from || filter.to
         ? { ...(filter.from ? { gte: filter.from } : {}), ...(filter.to ? { lt: filter.to } : {}) }
@@ -241,13 +285,14 @@ export class InventoryPrismaRepository implements InventoryRepository {
           createdAt: true,
           item: { select: { label: true, itemType: true } },
         },
-        orderBy: { createdAt: 'desc' },
-        skip: (filter.page - 1) * filter.limit,
-        take: filter.limit,
+        // `id` last so the cursor is unambiguous between movements in the same tick.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(filter),
       }),
       this.prisma.stockMovement.count({ where }),
     ]);
     return {
+      nextCursor: nextCursor(rows as { id: string }[], filter.limit),
       items: (rows as DepotMovementRow[]).map(({ item, ...row }) => ({
         ...this.toMovement(row),
         itemLabel: item.label,
@@ -306,52 +351,83 @@ export class InventoryPrismaRepository implements InventoryRepository {
       a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0,
     );
     return this.prisma.$transaction(async (tx) => {
+      // One statement locks every line the order touches (audit S-4). It used to be one
+      // SELECT ... FOR UPDATE per line, then an UPDATE and an INSERT per line — 3N
+      // round-trips with the rows LOCKED for the whole walk, so a ten-line order held a
+      // popular product's row across nine other round-trips. ORDER BY inside the statement
+      // keeps the deterministic lock order that stops two orders deadlocking on each other.
+      const locked = await tx.$queryRaw<{ id: string; quantity: number; reserved: number }[]>(
+        Prisma.sql`
+          SELECT "id", "quantity", "reserved" FROM "inventory_items"
+          WHERE "id" IN (${Prisma.join(ordered.map((p) => Prisma.sql`${p.itemId}::uuid`))})
+          ORDER BY "id" FOR UPDATE`,
+      );
+      const byId = new Map(locked.map((row) => [String(row.id), row]));
       const shortfalls: { itemId: string; requested: number; available: number }[] = [];
       for (const p of ordered) {
-        // Row lock: a concurrent reserve on the same line blocks here until we commit,
-        // then re-reads the updated `reserved` — so the last unit can't be double-sold.
-        const rows = await tx.$queryRaw<{ quantity: number; reserved: number }[]>`
-          SELECT "quantity", "reserved" FROM "inventory_items" WHERE "id" = ${p.itemId}::uuid FOR UPDATE`;
-        const sellable = rows.length
-          ? available(Number(rows[0].quantity), Number(rows[0].reserved))
-          : 0;
+        const row = byId.get(p.itemId);
+        // A line that does not exist reads as zero sellable, exactly as before.
+        const sellable = row ? available(Number(row.quantity), Number(row.reserved)) : 0;
         if (sellable < p.quantity) {
           shortfalls.push({ itemId: p.itemId, requested: p.quantity, available: sellable });
         }
       }
       if (shortfalls.length > 0) return { shortfalls }; // nothing written → clean rollback of a read-only txn
-      for (const p of ordered) {
-        await tx.inventoryItem.update({
-          where: { id: p.itemId },
-          data: { reserved: { increment: p.quantity } },
-        });
-        await tx.stockReservation.create({
-          data: { itemId: p.itemId, orderId, quantity: p.quantity },
-        });
-      }
+      // Per-line increments differ, so this is one UPDATE ... FROM (VALUES) rather than an
+      // updateMany. The reservations go in as one insert.
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "inventory_items" AS i
+        SET "reserved" = i."reserved" + v."qty"
+        FROM (VALUES ${Prisma.join(
+          ordered.map((p) => Prisma.sql`(${p.itemId}::uuid, ${p.quantity}::int)`),
+        )}) AS v("id", "qty")
+        WHERE i."id" = v."id"`);
+      await tx.stockReservation.createMany({
+        data: ordered.map((p) => ({ itemId: p.itemId, orderId, quantity: p.quantity })),
+      });
       return { shortfalls: [] };
     });
   }
 
-  /** Flip an ACTIVE reservation to a terminal status and give back its held units. */
+  /**
+   * Flip an ACTIVE reservation to a terminal status and give back its held units.
+   *
+   * B-5: this used to read the status outside the transaction and then update on `id`
+   * alone, so the ACTIVE check was a stale read by the time the write ran. Two concurrent
+   * settles — a staff cancellation racing the abandoned-order sweep, release racing
+   * consume, or a retry — both saw ACTIVE and both ran the decrement. `reserved` fell
+   * twice for a single hold, `available` over-reported, and the depot oversold silently
+   * and cumulatively, with nothing in the logs to notice.
+   *
+   * The claim is now the conditional `updateMany` itself: exactly one caller can move the
+   * row out of ACTIVE, and only that caller (count === 1) gives the units back. Everyone
+   * else sees count === 0 and stops, which is also what makes this idempotent — the same
+   * discipline `reserveAtomic` uses above, expressed as a compare-and-set instead of a
+   * row lock because there is a single row to claim.
+   */
   private async settleReservation(
     itemId: string,
     orderId: string,
     status: ReservationStatus.RELEASED | ReservationStatus.CONSUMED,
   ): Promise<void> {
-    const res = await this.prisma.stockReservation.findUnique({
-      where: { itemId_orderId: { itemId, orderId } },
-    });
-    if (!res || res.status !== ReservationStatus.ACTIVE) {
-      return; // idempotent: nothing to settle
-    }
-    await this.prisma.$transaction([
-      this.prisma.stockReservation.update({ where: { id: res.id }, data: { status } }),
-      this.prisma.inventoryItem.update({
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.stockReservation.updateMany({
+        where: { itemId, orderId, status: ReservationStatus.ACTIVE },
+        data: { status },
+      });
+      // 0 = never existed, or another transaction already settled it. Either way the units
+      // are not ours to return; returning them again is the oversell.
+      if (claimed.count === 0) return;
+
+      const res = await tx.stockReservation.findUnique({
+        where: { itemId_orderId: { itemId, orderId } },
+      });
+      if (!res) return; // unreachable in practice: we just updated this row inside the txn
+      await tx.inventoryItem.update({
         where: { id: itemId },
         data: { reserved: { decrement: res.quantity } },
-      }),
-    ]);
+      });
+    });
   }
 
   async releaseReservation(itemId: string, orderId: string): Promise<void> {

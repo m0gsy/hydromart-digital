@@ -1,6 +1,5 @@
 import { PurchaseRow } from '../../src/domain/reorder';
 import { CoBuyRow } from '../../src/domain/co-buy';
-import { DailyRow } from '../../src/domain/trending';
 import {
   IngestCommand,
   IngestItem,
@@ -143,10 +142,22 @@ export class FakeRecommendationRepository implements RecommendationRepository {
     return { rows, baseCount: ref?.buyCount ?? 0 };
   }
 
-  async trendingRows(depotId: string | null, fromDay: Date): Promise<DailyRow[]> {
-    return this.dailySales
-      .filter((d) => d.day.getTime() >= fromDay.getTime() && (depotId ? d.depotId === depotId : true))
-      .map((d) => ({ productId: d.productId, day: d.day, count: d.count }));
+  // Audit S-18: models what the database now does — sum, order, limit.
+  async trendingTotals(
+    depotId: string | null,
+    fromDay: Date,
+    limit: number,
+  ): Promise<{ productId: string; score: number }[]> {
+    const totals = new Map<string, number>();
+    for (const d of this.dailySales) {
+      if (d.day.getTime() < fromDay.getTime()) continue;
+      if (depotId && d.depotId !== depotId) continue;
+      totals.set(d.productId, (totals.get(d.productId) ?? 0) + d.count);
+    }
+    return [...totals.entries()]
+      .map(([productId, score]) => ({ productId, score }))
+      .sort((a, b) => b.score - a.score || a.productId.localeCompare(b.productId))
+      .slice(0, limit);
   }
 
   async productRefs(ids: string[]): Promise<Map<string, { name: string; sku: string; unit: string }>> {

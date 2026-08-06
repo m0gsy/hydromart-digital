@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Full backup of the bundled Postgres (ALL Hydromart service databases + roles),
-# gzipped and timestamped, with retention. Run on the VPS via cron:
-#
-#   0 3 * * * /opt/hydromart/scripts/backup-db.sh >> /var/log/hydromart-backup.log 2>&1
+# gzipped and timestamped, with retention. Scheduled by `bash scripts/install-host-cron.sh`
+# (Q-10) — the schedule lives there, not in this comment, because a comment has never
+# once run at 03:00.
 #
 # Restore (whole cluster) from a dump:
 #   gunzip -c hydromart-YYYYMMDD-HHMMSS.sql.gz | docker exec -i hydromart-postgres psql -U hydromart
@@ -11,6 +11,17 @@
 # ponytail: pg_dumpall over the whole cluster (one file restores everything) —
 # switch to per-db pg_dump only if a single DB ever needs isolated restore.
 set -euo pipefail
+
+# Cron runs this with an absolute path from an arbitrary cwd; the compose helpers below
+# resolve their config relative to the repo root.
+cd "$(dirname "$0")/.."
+. scripts/lib/deploy-common.sh
+. scripts/lib/backup-report.sh
+
+# H-37: whatever happens from here on gets recorded in admin-service, so /hq/retention
+# stops being a card that can only say NONE. The trap covers every failure path — a dump
+# that never ran is exactly the case the console must not keep reporting as fine.
+trap 'rc=$?; [ "$rc" -ne 0 ] && report_backup_run BACKUP FAILED "backup-db.sh exited $rc — see the backup log"; exit $rc' EXIT
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
@@ -41,7 +52,9 @@ if [ "$SIZE" -lt 1000 ]; then
   echo "ERROR: backup $FILE is only ${SIZE}B — dump likely failed" >&2
   exit 1
 fi
-echo "backup OK: $FILE ($(du -h "$FILE" | cut -f1))"
+HUMAN_SIZE="$(du -h "$FILE" | cut -f1)"
+echo "backup OK: $FILE ($HUMAN_SIZE)"
+report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE")"
 
 # Offsite copy to NEO (optional but recommended — if the VPS disk/box dies the
 # local backups die with it). Enable by setting BACKUP_S3_BUCKET (+ creds) in the

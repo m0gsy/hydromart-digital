@@ -53,8 +53,22 @@ export interface CampaignRepository {
   findByIdRecipients(id: string): Promise<CampaignRecipientRecord[]>;
   /** Paginated campaign list (recipients omitted from list items). */
   list(page: number, limit: number): Promise<{ items: CampaignRecord[]; total: number }>;
-  /** Flip a campaign to SENDING before dispatch. */
-  markSending(id: string): Promise<void>;
+  /**
+   * Claim a DRAFT campaign for dispatch. Conditional on `status: DRAFT` in the WHERE, so
+   * two simultaneous sends cannot both pass a read-then-write check and double-broadcast
+   * to real customers (B-17). False = somebody else already claimed it.
+   */
+  markSending(id: string): Promise<boolean>;
+  /** Campaigns still mid-broadcast, oldest first, for the sweep to continue. */
+  findSending(limit: number): Promise<CampaignRecord[]>;
+  /**
+   * Claim up to `limit` PENDING recipients of one campaign by moving them to SENDING, and
+   * return only the rows this call actually moved. The claim is the WHERE clause: a
+   * concurrent sweep tick reads back nothing and messages nobody twice.
+   */
+  claimRecipients(campaignId: string, limit: number): Promise<CampaignRecipientRecord[]>;
+  /** How many of a campaign's recipients are in each terminal/queue state. */
+  tally(campaignId: string): Promise<{ pending: number; sent: number; failed: number }>;
   /** Record a single recipient's delivery outcome. */
   recordRecipientResult(
     recipientId: string,

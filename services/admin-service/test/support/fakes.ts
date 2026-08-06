@@ -120,13 +120,26 @@ export class InMemorySystemSettingsRepository implements SystemSettingsRepositor
 
 export class InMemoryApiKeyRepository implements ApiKeyRepository {
   keys: ApiKeyRecord[] = [];
+  /** id → stored hash. Kept beside the records because a record never exposes its hash. */
+  hashes = new Map<string, string>();
 
   async list(): Promise<ApiKeyRecord[]> {
     return this.keys.map((k) => ({ ...k }));
   }
 
+  async findByHash(keyHash: string): Promise<ApiKeyRecord | null> {
+    const id = [...this.hashes.entries()].find(([, h]) => h === keyHash)?.[0];
+    const found = this.keys.find((k) => k.id === id);
+    return found ? { ...found } : null;
+  }
+
+  async touchLastUsed(id: string, at: Date): Promise<void> {
+    const k = this.keys.find((x) => x.id === id);
+    if (k) k.lastUsedAt = at;
+  }
+
   async create(data: CreateApiKeyData): Promise<ApiKeyRecord> {
-    // The hash is intentionally dropped — records never expose it.
+    // The hash is intentionally dropped from the record — records never expose it.
     const record: ApiKeyRecord = {
       id: randomUUID(),
       name: data.name,
@@ -138,14 +151,16 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
       createdAt: nextDate(),
     };
     this.keys.push(record);
+    this.hashes.set(record.id, data.keyHash);
     return { ...record };
   }
 
-  async rotate(id: string, keyPrefix: string, _keyHash: string): Promise<ApiKeyRecord | null> {
+  async rotate(id: string, keyPrefix: string, keyHash: string): Promise<ApiKeyRecord | null> {
     const k = this.keys.find((x) => x.id === id);
     if (!k) return null;
     k.keyPrefix = keyPrefix;
     k.revokedAt = null;
+    this.hashes.set(k.id, keyHash);
     return { ...k };
   }
 
@@ -489,6 +504,7 @@ import {
 } from '../../src/application/ports/sla-policy.repository';
 import {
   BackupStatusRecord,
+  RecordBackupRunData,
   RetentionPolicyRecord,
   RetentionRepository,
   UpdateRetentionData,
@@ -567,6 +583,27 @@ export class InMemoryRetentionRepository implements RetentionRepository {
 
   async getBackupStatus(): Promise<BackupStatusRecord | null> {
     return this.backup ? { ...this.backup } : null;
+  }
+
+  /**
+   * Models the real upsert's partial write: a drill result must not blank last night's
+   * backup verdict, and vice versa. A fake that overwrote the whole row would let that
+   * bug through the test suite.
+   */
+  async recordBackupRun(data: RecordBackupRunData): Promise<BackupStatusRecord> {
+    const base: BackupStatusRecord = this.backup ?? {
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    };
+    this.backup =
+      data.kind === 'BACKUP'
+        ? { ...base, status: data.status, lastBackupAt: data.at, detail: data.detail }
+        : { ...base, drillStatus: data.status, lastDrillAt: data.at, drillDetail: data.detail };
+    return { ...this.backup };
   }
 }
 

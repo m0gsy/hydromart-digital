@@ -42,7 +42,7 @@ class FakePayrollRepo implements PayrollRepository {
     this.regenerated = true;
     return { id: 'p1', status: 'DRAFT', ...data } as unknown as PayrollWithItems;
   }
-  async setStatus(_id: string, status: never): Promise<PayrollWithItems> {
+  async setStatus(_id: string, _from: never, status: never): Promise<PayrollWithItems> {
     this.status = status;
     return { ...(this.byId as PayrollWithItems), status };
   }
@@ -73,6 +73,7 @@ function build(opts: {
     patchStatus: async () => ({}) as never,
     recordAdjustment: async () => undefined,
     summary: async () => opts.summary ?? { presentDays: 0, lateDays: 0, leaveDays: 0 },
+    summaryMany: async () => new Map(),
     listWorkedMinutes: async () =>
       (opts.workedMinutes ?? []).map((d) => ({
         workDate: new Date(`${d.workDate}T00:00:00.000Z`),
@@ -102,6 +103,20 @@ function build(opts: {
     standardWorkingMinutes: () => 480,
     overtimeMultiplierPct: () => opts.overtimePct ?? 150,
     overtimeOffDayMultiplierPct: () => opts.overtimeOffDayPct ?? 200,
+    // Q-13: the real statutory defaults, not zeroes. Fixtures without a BPJS number or a
+    // PTKP status deduct nothing anyway (enrolment gates BPJS, PTKP gates PPh 21), so the
+    // existing assertions are untouched — while a test that DOES enrol someone gets the
+    // lawful numbers rather than a convenient fiction.
+    statutoryRates: () => ({
+      healthEmployeePct: 1,
+      healthCeilingIdr: 12_000_000,
+      jhtEmployeePct: 2,
+      jpEmployeePct: 1,
+      jpCeilingIdr: 10_547_400,
+      occupationalCostPct: 5,
+      occupationalCostCapIdr: 500_000,
+      noNpwpSurchargePct: 20,
+    }),
   } as unknown as HrConfigService;
   const holidays = {
     listDates: async () => opts.holidayDates ?? [],
@@ -127,6 +142,78 @@ describe('PayrollService.generate', () => {
     expect(w.totalDeduction).toBe(20_000 + 50_000); // late 2×10k + kasbon 50k
     expect(w.net).toBe(1_000_000 + 100_000 - 70_000);
     expect(w.items.filter((i) => i.kind === 'DEDUCTION')).toHaveLength(2);
+  });
+
+  // Q-13: net used to be gross + bonus − (lateness, absence, manual rows, loans). No
+  // BPJS, no PPh 21 — so every payslip overstated take-home pay and the company
+  // under-withheld tax it is on the hook for.
+  describe('statutory deductions', () => {
+    const enrolled = {
+      salaryType: 'MONTHLY' as const,
+      monthlyRate: 5_000_000 as never,
+      bpjsKes: '0001234567890',
+      bpjsTk: '9987654321',
+      ptkpStatus: 'TK0' as never,
+      npwp: '09.254.294.3-407.000',
+    };
+
+    it('withholds BPJS and PPh 21, and takes them out of net', async () => {
+      const { repo, svc } = build({
+        employee: enrolled,
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      const w = repo.lastWrite!;
+
+      expect(w.items.filter((i) => i.kind === 'DEDUCTION').map((i) => [i.label, i.amount])).toEqual(
+        [
+          ['BPJS Kesehatan (karyawan)', 50_000],
+          ['BPJS JHT (karyawan)', 100_000],
+          ['BPJS Jaminan Pensiun (karyawan)', 50_000],
+          ['PPh 21', 2_500],
+        ],
+      );
+      expect(w.gross).toBe(5_000_000);
+      expect(w.totalDeduction).toBe(202_500);
+      expect(w.net).toBe(5_000_000 - 202_500);
+    });
+
+    it('deducts nothing statutory for an employee enrolled in neither scheme', async () => {
+      const { repo, svc } = build({
+        employee: { ...enrolled, bpjsKes: null as never, bpjsTk: null as never },
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      // PPh 21 still applies — it is tax, not a scheme — and is HIGHER, because the
+      // employee has no BPJS contributions to offset against it.
+      const lines = repo.lastWrite!.items.filter((i) => i.kind === 'DEDUCTION');
+      expect(lines.map((i) => i.label)).toEqual(['PPh 21']);
+      expect(lines[0].amount).toBeGreaterThan(2_500);
+    });
+
+    it('withholds no tax when the employee has no PTKP status on file', async () => {
+      const { repo, svc } = build({
+        employee: { ...enrolled, ptkpStatus: null as never },
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      const labels = repo.lastWrite!.items.filter((i) => i.kind === 'DEDUCTION').map((i) => i.label);
+      expect(labels).not.toContain('PPh 21');
+      expect(labels).toHaveLength(3); // the three BPJS lines still apply
+    });
+
+    // The regulated base is gross (base + allowances), not the running total: a lateness
+    // deduction does not reduce the wage BPJS is reckoned on.
+    it('reckons BPJS on gross, not on gross minus the lateness deduction', async () => {
+      const { repo, svc } = build({
+        employee: enrolled,
+        summary: { presentDays: 31, lateDays: 3, leaveDays: 0 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      const health = repo
+        .lastWrite!.items.find((i) => i.label === 'BPJS Kesehatan (karyawan)')!;
+      expect(health.amount).toBe(50_000); // 1% of 5.000.000, unchanged by the 30.000 late cut
+    });
   });
 
   it('pays overtime above the standard shift as a BONUS line (M24-17)', async () => {

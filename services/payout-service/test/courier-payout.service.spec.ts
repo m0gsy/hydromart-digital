@@ -3,6 +3,7 @@ import {
   InvalidEarningRuleError,
   InvalidWithdrawalAmountError,
 } from '../src/domain/errors';
+import type { WithdrawalStatus } from '../src/domain/ledger';
 import { CourierPayoutService } from '../src/application/services/courier-payout.service';
 import type { CourierLedgerEntryType } from '../src/domain/courier-earning';
 import type {
@@ -14,6 +15,7 @@ import type {
 } from '../src/application/ports/courier-ledger.repository';
 import type {
   CourierWithdrawalRecord,
+  CourierWithdrawalOutcome,
   CourierWithdrawalRepository,
   CreateCourierWithdrawalData,
 } from '../src/application/ports/courier-withdrawal.repository';
@@ -91,8 +93,59 @@ class FakeCourierLedger implements CourierLedgerRepository {
   }
 }
 
+import { PayoutConfigService } from '../src/config/payout-config.service';
+
+/** Only `businessTimeZone` is read; WIB is pinned so the peak-hour test cannot inherit
+ * the host's zone and pass against a UTC-offset regression (H-16). */
+const courierTestConfig = (timeZone = 'Asia/Jakarta'): PayoutConfigService =>
+  ({ businessTimeZone: timeZone }) as PayoutConfigService;
+
 class FakeCourierWithdrawals implements CourierWithdrawalRepository {
+  private seq = 100_000;
+  /** Mirrors the Postgres sequence: strictly increasing, never repeated (H-13). */
+  async nextReferenceSequence(): Promise<number> {
+    this.seq += 1;
+    return this.seq;
+  }
+
   created: CreateCourierWithdrawalData[] = [];
+
+  // Reads the same ledger fake the real one aggregates over, so the balance cannot drift
+  // into a second source of truth.
+  constructor(private readonly ledger?: FakeCourierLedger) {}
+
+  // Single-threaded stand-in for the advisory-locked withdraw (B-8/B-10): the check and
+  // both writes are one step, a short balance writes nothing, and the debit carries the
+  // sourceRef that makes a retry a no-op instead of a second debit.
+  async withdrawWithDebit(input: {
+    courierId: string;
+    amount: number;
+    bankAccountRef: string;
+    reference: string;
+    status: WithdrawalStatus;
+    description: string;
+  }): Promise<CourierWithdrawalOutcome> {
+    const balance = (await this.ledger?.balanceFor(input.courierId)) ?? 0;
+    if (input.amount > balance) return { ok: false, balance };
+
+    const withdrawal = await this.create({
+      courierId: input.courierId,
+      amount: input.amount,
+      bankAccountRef: input.bankAccountRef,
+      reference: input.reference,
+      status: input.status,
+    });
+    await this.ledger?.create({
+      courierId: input.courierId,
+      depotId: null,
+      type: 'WITHDRAWAL',
+      amount: -input.amount,
+      description: input.description,
+      sourceRef: `withdrawal:${input.reference}`,
+    });
+    return { ok: true, withdrawal };
+  }
+
   async create(data: CreateCourierWithdrawalData): Promise<CourierWithdrawalRecord> {
     this.created.push(data);
     return {
@@ -129,8 +182,8 @@ describe('CourierPayoutService', () => {
 
   beforeEach(() => {
     ledger = new FakeCourierLedger();
-    withdrawals = new FakeCourierWithdrawals();
-    service = new CourierPayoutService(ledger, withdrawals);
+    withdrawals = new FakeCourierWithdrawals(ledger);
+    service = new CourierPayoutService(ledger, withdrawals, courierTestConfig());
   });
 
   it('credits base + on-time + peak using the WIB hour of deliveredAt', async () => {
@@ -205,7 +258,7 @@ describe('CourierPayoutService', () => {
     it('posts a matching debit that drops the balance to zero on a full cash-out', async () => {
       await service.recordDeliveryEarning(event('d1', PEAK_UTC, true)); // 8000
       const w = await service.requestWithdrawal(COURIER, 8000, 'BCA ···· 4821');
-      expect(w.reference).toMatch(/^WD-\d{8}-\d{4}$/);
+      expect(w.reference).toMatch(/^WD-\d{8}-\d{4,}$/);
       expect(withdrawals.created).toHaveLength(1);
       expect(await ledger.balanceFor(COURIER)).toBe(0);
       expect((await service.summary(COURIER)).recentWithdrawals).toHaveLength(1);

@@ -1,4 +1,4 @@
-import { Logger } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
@@ -19,6 +19,8 @@ import { AuditPrismaRepository } from '../../src/infrastructure/prisma/audit.pri
 import { BonusRulePrismaRepository } from '../../src/infrastructure/prisma/bonus-rule.prisma.repository';
 import { EmployeePrismaRepository } from '../../src/infrastructure/prisma/employee.prisma.repository';
 import { FaceEmbeddingPrismaRepository } from '../../src/infrastructure/prisma/face-embedding.prisma.repository';
+import { decryptVector, encryptVector } from '../../src/infrastructure/crypto/face-vector.cipher';
+import { HrConfigService } from '../../src/config/hr-config.service';
 import { HolidayPrismaRepository } from '../../src/infrastructure/prisma/holiday.prisma.repository';
 import { LoanPrismaRepository } from '../../src/infrastructure/prisma/loan.prisma.repository';
 import { PayrollPrismaRepository } from '../../src/infrastructure/prisma/payroll.prisma.repository';
@@ -87,6 +89,7 @@ function makePrisma(): FakePrisma {
   for (const name of MODELS) client[name] = model();
   client.$connect = jest.fn();
   client.$disconnect = jest.fn();
+  client.$queryRaw = jest.fn().mockResolvedValue([]);
   // Array form → resolve every op; callback form → run against the same client.
   client.$transaction = jest.fn((arg: unknown) =>
     Array.isArray(arg) ? Promise.all(arg) : (arg as (tx: unknown) => unknown)(client),
@@ -393,13 +396,56 @@ describe('AnnouncementPrismaRepository', () => {
     m(p, 'announcement').findMany.mockResolvedValue([]);
     const repo = new AnnouncementPrismaRepository(asService(p));
 
-    await repo.listPublished(5);
+    // H-18: the feed query narrows to THIS employee's audience before `take` applies —
+    // the old `where: { publishedAt: { not: null } }` took the newest 50 notices in the
+    // company and let other depots' traffic push a depot's own notice out of the window.
+    await repo.listFeedFor(
+      {
+        employeeId: 'emp-1',
+        depotId: 'depot-1',
+        departmentId: 'dept-1',
+        position: '  Kepala Depot  ',
+      },
+      5,
+    );
     expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
-      where: { publishedAt: { not: null } },
+      where: {
+        publishedAt: { not: null },
+        targets: {
+          some: {
+            OR: [
+              { dimension: 'COMPANY' },
+              { dimension: 'EMPLOYEE', value: 'emp-1' },
+              { dimension: 'DEPOT', value: 'depot-1' },
+              { dimension: 'DEPARTMENT', value: 'dept-1' },
+              { dimension: 'POSITION', value: { equals: 'Kepala Depot', mode: 'insensitive' } },
+            ],
+          },
+        },
+      },
       include: { targets: true },
       orderBy: { publishedAt: 'desc' },
       take: 5,
     });
+
+    // Staff above a single depot have no depotId: the DEPOT clause must be absent, not
+    // `value: null`, or a target with a null value would match them.
+    await repo.listFeedFor(
+      { employeeId: 'emp-2', depotId: null, departmentId: null, position: '' },
+      5,
+    );
+    expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          publishedAt: { not: null },
+          targets: {
+            some: {
+              OR: [{ dimension: 'COMPANY' }, { dimension: 'EMPLOYEE', value: 'emp-2' }],
+            },
+          },
+        },
+      }),
+    );
     await repo.listDue(now);
     expect(m(p, 'announcement').findMany).toHaveBeenLastCalledWith({
       where: { publishedAt: null, scheduledAt: { not: null, lte: now } },
@@ -870,6 +916,79 @@ describe('AnalyticsPrismaRepository', () => {
     });
   });
 
+  it('summaryMany counts PRESENT/LATE/LEAVE per employee in one grouped query', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { employeeId: 'e1', status: 'PRESENT', _count: { _all: 18 } },
+      { employeeId: 'e1', status: 'LATE', _count: { _all: 2 } },
+      { employeeId: 'e1', status: 'LEAVE', _count: { _all: 1 } },
+      { employeeId: 'e2', status: 'ABSENT', _count: { _all: 3 } },
+    ]);
+    const repo = new AttendancePrismaRepository(asService(p));
+    const out = await repo.summaryMany(['e1', 'e2'], new Date('2026-07-01'), new Date('2026-07-31'));
+
+    // Same arithmetic as summary(): presentDays counts PRESENT *and* LATE.
+    expect(out.get('e1')).toEqual({ presentDays: 20, lateDays: 2, leaveDays: 1 });
+    expect(out.get('e2')).toEqual({ presentDays: 0, lateDays: 0, leaveDays: 0 });
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
+  });
+
+  it('summaryMany asks nothing for an empty employee list', async () => {
+    const p = makePrisma();
+    const repo = new AttendancePrismaRepository(asService(p));
+    expect((await repo.summaryMany([], new Date(), new Date())).size).toBe(0);
+    expect(m(p, 'attendance').groupBy).not.toHaveBeenCalled();
+  });
+
+  it('depotSummaryFacts answers every depot in three queries, keyed by depot', async () => {
+    const p = makePrisma();
+    const wd = new Date('2026-07-01');
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { depotId: 'd1', status: 'LATE', _count: { _all: 2 } },
+      { depotId: 'd1', status: 'PRESENT', _count: { _all: 7 } },
+      { depotId: 'd2', status: 'ABSENT', _count: { _all: 1 } },
+      // A punch with no depot on it cannot be attributed and must not crash the roll-up.
+      { depotId: null, status: 'PRESENT', _count: { _all: 5 } },
+    ]);
+    m(p, 'employee').groupBy.mockResolvedValue([
+      { depotId: 'd1', _count: { _all: 9 } },
+      { depotId: null, _count: { _all: 3 } },
+    ]);
+    // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: { toString: () => '0' } }]);
+
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    const facts = await repo.depotSummaryFacts(wd, '2026-07', ['d1', 'd2', 'd3']);
+
+    expect(facts.get('d1')).toEqual({
+      lateToday: 2,
+      absentToday: 0,
+      presentToday: 7,
+      payrollMtdNet: 0,
+      activeHeadcount: 9,
+    });
+    expect(facts.get('d2')?.absentToday).toBe(1);
+    // A depot with nothing at all is simply absent — the service decides what that means.
+    expect(facts.has('d3')).toBe(false);
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('depotSummaryFacts reads a null payroll sum as zero, and asks nothing for no depots', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([]);
+    m(p, 'employee').groupBy.mockResolvedValue([]);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ depotId: 'd1', net: null }]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+
+    const facts = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', ['d1']);
+    expect(facts.get('d1')?.payrollMtdNet).toBe(0);
+
+    const none = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', []);
+    expect(none.size).toBe(0);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
   it('payrollTotals converts Decimals (and null → 0), scoped by depot', async () => {
     const p = makePrisma();
     const dec = (n: number): Prisma.Decimal => ({ toNumber: () => n }) as unknown as Prisma.Decimal;
@@ -942,7 +1061,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07' },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: { employee: { employeeCode: 'asc' } },
+      orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -953,7 +1073,8 @@ describe('AnalyticsPrismaRepository', () => {
     await repo.employeesForReport(['d1']);
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
       where: { depotId: { in: ['d1'] } },
-      orderBy: { employeeCode: 'asc' },
+      orderBy: [{ employeeCode: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -967,7 +1088,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: { not: 'PENDING' } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }],
+      orderBy: [{ workDate: 'asc' }, { employeeId: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -979,7 +1101,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: { employee: { select: { employeeCode: true, fullName: true } } },
-      orderBy: { employee: { employeeCode: 'asc' } },
+      orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -995,7 +1118,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'attendance').findMany).toHaveBeenCalledWith({
       where: { workDate: { gte: from, lte: to }, depotId: { in: ['d1'] }, status: 'LATE' },
       include: summary,
-      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }],
+      orderBy: [{ lateMinutes: 'desc' }, { workDate: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1006,7 +1130,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'leaveRequest').findMany).toHaveBeenCalledWith({
       where: { startDate: { lte: to }, endDate: { gte: from }, depotId: { in: ['d1'] } },
       include: summary,
-      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }],
+      orderBy: [{ startDate: 'asc' }, { employeeId: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1018,7 +1143,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'performanceReview').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
       include: summary,
-      orderBy: { score: 'desc' },
+      orderBy: [{ score: 'desc' }, { id: 'asc' }],
+      take: 500,
     });
     await repo.performanceForReport('2026-07');
     expect(m(p, 'performanceReview').findMany).toHaveBeenLastCalledWith(
@@ -1033,7 +1159,8 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'employeeAsset').findMany).toHaveBeenCalledWith({
       where: { depotId: { in: ['d1'] } },
       include: { holder: { select: { employeeCode: true, fullName: true } } },
-      orderBy: [{ status: 'asc' }, { code: 'asc' }],
+      orderBy: [{ status: 'asc' }, { code: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
   });
 
@@ -1044,8 +1171,32 @@ describe('AnalyticsPrismaRepository', () => {
     expect(m(p, 'announcement').findMany).toHaveBeenCalledWith({
       where: { publishedAt: { gte: from, lte: to } },
       include: { targets: true, _count: { select: { reads: true } } },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      take: 500,
     });
+  });
+
+  it('walks an export past the first page with a cursor', async () => {
+    const p = makePrisma();
+    const page = Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` }));
+    m(p, 'employee').findMany.mockResolvedValueOnce(page).mockResolvedValueOnce([{ id: 'e-500' }]);
+    const rows = await new AnalyticsPrismaRepository(asService(p)).employeesForReport(['d1']);
+    expect(rows).toHaveLength(501);
+    expect(m(p, 'employee').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: { id: 'e-499' }, skip: 1 }),
+    );
+  });
+
+  it('refuses an export past the row ceiling rather than cutting the file short', async () => {
+    const p = makePrisma();
+    // Every page full: the export would never end, which is the range that must not be
+    // silently truncated into a payroll file nobody can tell is incomplete.
+    m(p, 'employee').findMany.mockResolvedValue(
+      Array.from({ length: 500 }, (_, i) => ({ id: `e-${i}` })),
+    );
+    await expect(
+      new AnalyticsPrismaRepository(asService(p)).employeesForReport(['d1']),
+    ).rejects.toThrow(/melebihi 50000 baris/);
   });
 });
 
@@ -1158,30 +1309,39 @@ describe('AttendancePrismaRepository', () => {
     expect(m(p, 'attendance').create).toHaveBeenCalledWith({ data: input });
   });
 
-  it('summary runs 3 counts in a transaction', async () => {
+  // Q-8: summary() no longer runs three counts in a read-only transaction — it asks
+  // summaryMany() for the one employee, which is a single groupBy.
+  it('summary reads one grouped query and maps the status split', async () => {
     const p = makePrisma();
     const from = new Date('2026-07-01');
     const to = new Date('2026-07-31');
-    m(p, 'attendance')
-      .count.mockResolvedValueOnce(20)
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1);
+    m(p, 'attendance').groupBy.mockResolvedValue([
+      { employeeId: 'e1', status: 'PRESENT', _count: { _all: 17 } },
+      { employeeId: 'e1', status: 'LATE', _count: { _all: 3 } },
+      { employeeId: 'e1', status: 'LEAVE', _count: { _all: 1 } },
+    ]);
     const repo = new AttendancePrismaRepository(asService(p));
     await expect(repo.summary('e1', from, to)).resolves.toEqual({
       presentDays: 20,
       lateDays: 3,
       leaveDays: 1,
     });
-    expect(tx(p)).toHaveBeenCalled();
-    const wd = { gte: from, lte: to };
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(1, {
-      where: { employeeId: 'e1', workDate: wd, status: { in: ['PRESENT', 'LATE'] } },
+    expect(m(p, 'attendance').groupBy).toHaveBeenCalledWith({
+      by: ['employeeId', 'status'],
+      where: { employeeId: { in: ['e1'] }, workDate: { gte: from, lte: to } },
+      _count: { _all: true },
     });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(2, {
-      where: { employeeId: 'e1', workDate: wd, status: 'LATE' },
-    });
-    expect(m(p, 'attendance').count).toHaveBeenNthCalledWith(3, {
-      where: { employeeId: 'e1', workDate: wd, status: 'LEAVE' },
+    expect(m(p, 'attendance').count).not.toHaveBeenCalled();
+  });
+
+  it('summary returns zeroes for an employee with no rows in the window', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').groupBy.mockResolvedValue([]);
+    const repo = new AttendancePrismaRepository(asService(p));
+    await expect(repo.summary('e1', new Date(), new Date())).resolves.toEqual({
+      presentDays: 0,
+      lateDays: 0,
+      leaveDays: 0,
     });
   });
 
@@ -1624,44 +1784,78 @@ describe('EmployeePrismaRepository', () => {
 });
 
 // ── FaceEmbeddingPrismaRepository ──────────────────────────────────────
+// B-19: the template is biometric data that cannot be reissued, so it is written as
+// AES-256-GCM ciphertext and never as the plaintext Float[] it used to be.
+const faceConfig = { faceEncryptionKey: 'unit-test-face-key' } as HrConfigService;
+
 describe('FaceEmbeddingPrismaRepository', () => {
-  it('create → faceEmbedding.create', async () => {
+  it('create encrypts the vector and leaves the plaintext column empty', async () => {
     const p = makePrisma();
     const out = sentinel();
     m(p, 'faceEmbedding').create.mockResolvedValue(out);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     const data = { employeeId: 'e1', vector: [0.1, 0.2], quality: 0.9, sourcePhotoUrl: null };
     await expect(repo.create(data)).resolves.toBe(out);
-    expect(m(p, 'faceEmbedding').create).toHaveBeenCalledWith({ data });
+
+    const written = m(p, 'faceEmbedding').create.mock.calls[0][0].data;
+    expect(written.vector).toEqual([]);
+    expect(written.vectorEnc).toBeInstanceOf(Buffer);
+    expect(written.vectorEnc.toString('latin1')).not.toContain('0.1');
+    expect(decryptVector(written.vectorEnc, 'unit-test-face-key')).toEqual([0.1, 0.2]);
   });
 
-  it('listActiveByEmployee filters active', async () => {
+  it('create stores no ciphertext for a remote-gallery driver, which has no vector', async () => {
     const p = makePrisma();
-    m(p, 'faceEmbedding').findMany.mockResolvedValue([]);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
-    await repo.listActiveByEmployee('e1');
+    m(p, 'faceEmbedding').create.mockResolvedValue(sentinel());
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await repo.create({ employeeId: 'e1', vector: [], quality: 1, sourcePhotoUrl: null });
+    expect(m(p, 'faceEmbedding').create.mock.calls[0][0].data.vectorEnc).toBeNull();
+  });
+
+  it('listActiveByEmployee filters active and decrypts', async () => {
+    const p = makePrisma();
+    const vectorEnc = encryptVector([0.5, -0.25], 'unit-test-face-key');
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([{ employeeId: 'e1', vector: [], vectorEnc }]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.listActiveByEmployee('e1')).resolves.toEqual([
+      { employeeId: 'e1', vector: [0.5, -0.25], vectorEnc },
+    ]);
     expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', active: true },
     });
   });
 
+  // Enrolments made before B-19 have no ciphertext and must keep verifying.
+  it('reads a legacy plaintext row unchanged', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([
+      { employeeId: 'e1', vector: [0.7], vectorEnc: null },
+    ]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.listActiveByEmployee('e1')).resolves.toEqual([
+      { employeeId: 'e1', vector: [0.7], vectorEnc: null },
+    ]);
+  });
+
   it('listActiveVectorsExcept selects + maps owned vectors', async () => {
     const p = makePrisma();
-    m(p, 'faceEmbedding').findMany.mockResolvedValue([{ employeeId: 'e2', vector: [1, 2] }]);
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([
+      { employeeId: 'e2', vector: [], vectorEnc: encryptVector([1, 2], 'unit-test-face-key') },
+    ]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await expect(repo.listActiveVectorsExcept('e1')).resolves.toEqual([
       { employeeId: 'e2', vector: [1, 2] },
     ]);
     expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
       where: { active: true, employeeId: { not: 'e1' } },
-      select: { employeeId: true, vector: true },
+      select: { employeeId: true, vector: true, vectorEnc: true },
     });
   });
 
   it('deactivateForEmployee → updateMany active:false', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').updateMany.mockResolvedValue({ count: 2 });
-    const repo = new FaceEmbeddingPrismaRepository(asService(p));
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await repo.deactivateForEmployee('e1');
     expect(m(p, 'faceEmbedding').updateMany).toHaveBeenCalledWith({
       where: { employeeId: 'e1', active: true },
@@ -1840,8 +2034,9 @@ describe('PayrollPrismaRepository', () => {
     await expect(repo.regenerate('pr1', write)).resolves.toBe(out);
     expect(tx(p)).toHaveBeenCalled();
     expect(m(p, 'payrollItem').deleteMany).toHaveBeenCalledWith({ where: { payrollId: 'pr1' } });
+    // H-6: still DRAFT, or the regenerate rewrites numbers somebody has already approved.
     expect(m(p, 'payroll').update).toHaveBeenCalledWith({
-      where: { id: 'pr1' },
+      where: { id: 'pr1', status: 'DRAFT' },
       data: {
         gross: write.gross,
         totalBonus: write.totalBonus,
@@ -1860,14 +2055,33 @@ describe('PayrollPrismaRepository', () => {
     const approvedAt = new Date();
     m(p, 'payroll').update.mockResolvedValue(out);
     const repo = new PayrollPrismaRepository(asService(p));
-    await expect(repo.setStatus('pr1', 'APPROVED', { approvedBy: 'hr', approvedAt })).resolves.toBe(
-      out,
-    );
+    await expect(
+      repo.setStatus('pr1', 'DRAFT', 'APPROVED', { approvedBy: 'hr', approvedAt }),
+    ).resolves.toBe(out);
+    // H-6: the status the caller read is part of the WHERE, so an approval cannot land on
+    // a payroll somebody has already paid.
     expect(m(p, 'payroll').update).toHaveBeenCalledWith({
-      where: { id: 'pr1' },
+      where: { id: 'pr1', status: 'DRAFT' },
       data: { status: 'APPROVED', approvedBy: 'hr', approvedAt },
       include: { items: true },
     });
+  });
+
+  it('setStatus reports a lost status guard as a conflict, not a 500', async () => {
+    const p = makePrisma();
+    m(p, 'payroll').update.mockRejectedValue(Object.assign(new Error('no row'), { code: 'P2025' }));
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.setStatus('pr1', 'DRAFT', 'APPROVED', {})).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('setStatus rethrows any other write failure', async () => {
+    const p = makePrisma();
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    m(p, 'payroll').update.mockRejectedValue(boom);
+    const repo = new PayrollPrismaRepository(asService(p));
+    await expect(repo.setStatus('pr1', 'DRAFT', 'APPROVED', {})).rejects.toBe(boom);
   });
 
   it('list builds where + paginates in a transaction', async () => {

@@ -20,4 +20,11 @@ export interface StoragePutResult {
  */
 export interface StoragePort {
   put(input: StoragePutInput): Promise<StoragePutResult>;
+  /**
+   * Delete one object by key. The UU PDP retention sweep needs it: deleting the proof row
+   * while its photo stayed in the bucket meant the customer's doorstep, their face in the
+   * frame and their signature all outlived the record that was supposed to be erased.
+   * Idempotent — a key that is already gone is a success.
+   */
+  remove(key: string): Promise<void>;
 }

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Keep the stack converged between deploys, and record WHY it ever wasn't.
 #
-# Host cron, every 5 minutes:
-#   */5 * * * * cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
+# Host cron, every 5 minutes — installed by `bash scripts/install-host-cron.sh` (Q-10)
+# together with the nightly backup and the weekly restore drill.
 #
 # Why this exists. On 2026-08-02 nineteen containers sat `Exited (0)` for four hours
 # with RAM and disk fine. `restart: unless-stopped` cannot bring those back: exit 0 plus
@@ -22,6 +22,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 . scripts/lib/deploy-common.sh
+
+# A deploy recreates containers, and a container mid-recreate looks exactly like one that
+# stopped. Converging it underneath the deploy is what killed the 2026-08-05 deploy.
+if ! stack_lock 0; then
+  echo "[watchdog] $(date -Is) deploy in progress — it converges the stack itself; skipping"
+  exit 0
+fi
 
 DOWN="$(stopped_services)"
 if [ -z "$DOWN" ]; then exit 0; fi

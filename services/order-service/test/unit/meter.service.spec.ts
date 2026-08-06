@@ -103,6 +103,7 @@ class SpyNotification implements NotificationPort {
 function order(over: Partial<OrderRecord> = {}): OrderRecord {
   return {
     status: OrderStatus.DELIVERED,
+    createdAt: new Date(`${DATE}T08:00:00.000Z`),
     total: 2600000,
     items: [
       { quantity: 120, volumeMl: 19000, isGallon: true },
@@ -118,18 +119,26 @@ function build(
     alertPhone?: string;
     toleranceLiters?: number;
   } = {},
-): { service: MeterService; repo: FakeMeterRepo; notifications: SpyNotification } {
+): {
+  service: MeterService;
+  repo: FakeMeterRepo;
+  notifications: SpyNotification;
+  orders: { ordersForDepot: jest.Mock };
+} {
   const repo = new FakeMeterRepo();
   const notifications = new SpyNotification();
-  const orders = {
-    ordersForDepot: async () => opts.orders ?? [order()],
-  } as unknown as OrderRepository;
+  const orders = { ordersForDepot: jest.fn(async () => opts.orders ?? [order()]) };
   const config = {
     meterReferenceVolumeMl: () => 19000,
     meterVarianceToleranceLiters: () => opts.toleranceLiters ?? 200,
     alertPhone: opts.alertPhone ?? '+628123',
   } as unknown as OrderConfigService;
-  return { service: new MeterService(repo, orders, notifications, config), repo, notifications };
+  return {
+    service: new MeterService(repo, orders as unknown as OrderRepository, notifications, config),
+    repo,
+    notifications,
+    orders,
+  };
 }
 
 describe('MeterService.save', () => {
@@ -383,13 +392,47 @@ describe('MeterService reads', () => {
   });
 
   it('returns one history row per recorded day, oldest first', async () => {
-    const { service, repo } = build();
+    const { service, repo, orders } = build({
+      orders: [
+        order({ createdAt: new Date('2026-08-01T08:00:00.000Z') }),
+        order({ createdAt: new Date('2026-08-02T08:00:00.000Z') }),
+      ],
+    });
     repo.seed({ date: '2026-08-01', openingM3: 1000, closingM3: 1002.5 });
     repo.seed({ date: '2026-08-02', openingM3: 1002.5, closingM3: 1005 });
     const rows = await service.history(DEPOT, '2026-08-01', '2026-08-02');
     expect(rows.map((r) => r.day)).toEqual(['2026-08-01', '2026-08-02']);
     expect(rows[0].meterLiters).toBe(2500);
     expect(rows[0].varianceLiters).toBe(70);
+    // The whole window is read once and bucketed — not once per day on the chart (H-48).
+    expect(orders.ordersForDepot).toHaveBeenCalledTimes(1);
+    expect(orders.ordersForDepot).toHaveBeenCalledWith(DEPOT, {
+      from: new Date('2026-08-01T00:00:00.000Z'),
+      to: new Date('2026-08-03T00:00:00.000Z'),
+    });
+  });
+
+  it('sums every order that falls on the same day into that day s row', async () => {
+    const { service, repo } = build({
+      orders: [
+        order({ createdAt: new Date('2026-08-01T08:00:00.000Z') }),
+        order({ createdAt: new Date('2026-08-01T17:30:00.000Z') }),
+      ],
+    });
+    repo.seed({ date: '2026-08-01', openingM3: 1000, closingM3: 1002.5 });
+    const rows = await service.history(DEPOT, '2026-08-01', '2026-08-01');
+    expect(rows[0].soldLiters).toBe(4860);
+  });
+
+  it('gives a day with no orders in the window a zero sales side', async () => {
+    const { service, repo } = build({
+      orders: [order({ createdAt: new Date('2026-08-01T08:00:00.000Z') })],
+    });
+    repo.seed({ date: '2026-08-01', openingM3: 1000, closingM3: 1002.5 });
+    repo.seed({ date: '2026-08-02', openingM3: 1002.5, closingM3: 1005 });
+    const rows = await service.history(DEPOT, '2026-08-01', '2026-08-02');
+    expect(rows[0].soldLiters).toBe(2430);
+    expect(rows[1].soldLiters).toBe(0);
   });
 
   it('returns nothing for a range with no readings', async () => {

@@ -23,7 +23,13 @@ export interface OtpTokenRepository {
   create(data: CreateOtpTokenData): Promise<OtpTokenRecord>;
   /** Most recent, not-yet-consumed challenge for a customer + purpose. */
   findActive(customerId: string, purpose: OtpPurpose): Promise<OtpTokenRecord | null>;
-  incrementAttempts(id: string): Promise<void>;
+  /**
+   * Reserve one guess against the challenge: increment `attempts` only while it is still
+   * below `maxAttempts` and the challenge is unconsumed, in a single conditional write.
+   * Returns false when there was nothing left to claim — that is the attempt limit, and it
+   * must hold for parallel requests, not just sequential ones.
+   */
+  claimAttempt(id: string, maxAttempts: number): Promise<boolean>;
   markConsumed(id: string, consumedAt: Date): Promise<void>;
   /** Invalidate all outstanding challenges for a customer + purpose. */
   consumeAllForPurpose(customerId: string, purpose: OtpPurpose, at: Date): Promise<void>;

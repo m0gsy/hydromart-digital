@@ -9,5 +9,6 @@ export const DELIVERY_TOKENS = {
   Rating: Symbol('Rating'),
   DepotLocation: Symbol('DepotLocation'),
   OpsNotifier: Symbol('OpsNotifier'),
+  EventPublisher: Symbol('EventPublisher'),
   Storage: Symbol('Storage'),
 } as const;

@@ -52,14 +52,62 @@ export function alertServerError({ method, path, status, exception }: ServerErro
   const text = [
     `🚨 *${svc}* — HTTP ${status} on \`${method} ${path}\``,
     '```',
-    stack.slice(0, 1500),
+    redactAlertText(stack),
     '```',
   ].join('\n');
 
   // Never let alerting break the request path: no await, swallow every failure.
+  // The timeout matters as much as the catch — a webhook host that accepts the
+  // connection and never answers would otherwise hold a socket per 5xx.
   void fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ text, content: text }),
+    signal: AbortSignal.timeout(5000),
   }).catch(() => undefined);
+}
+
+/** `postgres://user:pass@host` → `postgres://***:***@host`. */
+const CREDENTIALED_URL = /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+:[^\s/@]+@/gi;
+/** `key=abc`, `"password": "abc"`, `x-internal-key: abc` — the value goes. */
+const SECRET_ASSIGNMENT =
+  /((?:api[_-]?key|secret|token|password|passwd|pwd|authorization|internal[_-]?key)["'\s]*[:=]\s*)(?:["']?)([^\s"',;)}]+)/gi;
+/** A bare high-entropy blob (JWT segment, hex key, base64 secret) with no label. */
+const OPAQUE_BLOB = /\b[A-Za-z0-9+_-]{32,}={0,2}\b/g;
+const EMAIL = /\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g;
+/**
+ * Indonesian mobile numbers, the PII most likely to sit in a domain error.
+ * Deliberately narrow (`+628…` / `08…`): a looser digit-run pattern eats
+ * timestamps and turns every alert into `[phone]`.
+ */
+const PHONE = /(?:\+62|\b0)8\d{7,11}\b/g;
+
+const MAX_FRAMES = 6;
+const MAX_CHARS = 1500;
+
+/**
+ * H-21: an unhandled 5xx stack goes to a third-party chat webhook — Slack or
+ * Discord — which is outside the trust boundary and usually outside the country.
+ * A stack is not just a code path: Prisma, Joi and fetch errors carry connection
+ * strings, header values and the offending record's fields into `message`, and
+ * every frame carries an absolute container path.
+ *
+ * So the alert keeps what makes it actionable (error name, message shape, the
+ * first few frames) and drops what makes it a disclosure. Exported for the test —
+ * the redaction is the point of this module, not an implementation detail.
+ */
+export function redactAlertText(raw: string): string {
+  const frames = raw.split('\n').slice(0, MAX_FRAMES).join('\n');
+  return (
+    frames
+      .replace(CREDENTIALED_URL, '$1***:***@')
+      .replace(SECRET_ASSIGNMENT, '$1***')
+      .replace(EMAIL, '[email]')
+      .replace(PHONE, '[phone]')
+      .replace(OPAQUE_BLOB, '[redacted]')
+      // Absolute paths locate the deploy and leak the build layout; the frame is
+      // just as readable relative to the workspace root.
+      .replace(/(?:\/app\/|[A-Za-z]:\\|\/home\/[^/\s]+\/)/g, '')
+      .slice(0, MAX_CHARS)
+  );
 }

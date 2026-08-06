@@ -27,7 +27,6 @@ const manager: AuthenticatedUser = {
 const punch: FacePunch = {
   image: Buffer.from('x'),
   photoUrl: null,
-  live: true,
   lat: -6.2,
   lng: 106.8,
 };
@@ -49,6 +48,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
+  }
+  async summaryMany() {
+    return new Map();
   }
   async listWorkedMinutes() {
     return [];
@@ -78,7 +80,7 @@ function make(geofence: { lat: number | null; lng: number | null; radiusM: numbe
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => ({ score: 0.9, matched: true, live: true }),
+    verify: async () => ({ score: 0.9, matched: true }),
   };
   const employees = {
     findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,

@@ -340,3 +340,16 @@ export class HandoverNotFoundError extends DomainError {
     super('Shift handover not found.');
   }
 }
+
+/**
+ * The operational report's window covers more rows than one response may materialise
+ * (audit H-44). Truncating it silently would hand a depot a day-book that omits part of
+ * its own sales, so the range is refused instead.
+ */
+export class ReportRangeTooLargeError extends DomainError {
+  readonly code = 'DEPOT_REPORT_RANGE_TOO_LARGE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor(maxRows: number) {
+    super(`This range covers more than ${maxRows} rows. Narrow the date range.`);
+  }
+}

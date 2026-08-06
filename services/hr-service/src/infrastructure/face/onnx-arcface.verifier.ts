@@ -76,11 +76,10 @@ export class OnnxArcFaceVerifier implements FaceVerifier {
   async verify(
     image: Buffer,
     enrolled: number[][],
-    live: boolean,
     _identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
     const { score } = bestMatch(await this.embed(image), enrolled);
-    return { score, matched: score >= this.config.faceMatchThreshold, live };
+    return { score, matched: score >= this.config.faceMatchThreshold };
   }
 
   private async embed(image: Buffer): Promise<number[]> {

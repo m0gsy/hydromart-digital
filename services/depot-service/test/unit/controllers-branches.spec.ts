@@ -897,8 +897,13 @@ describe('DepotController', () => {
   });
 
   describe('uploadQris', () => {
-    const file = (over: Partial<{ mimetype: string; size: number }> = {}) => ({
-      buffer: Buffer.from('x'),
+    // H-20: the upload path reads magic bytes, so a fake file needs real ones.
+    const PNG_BYTES = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.alloc(8),
+    ]);
+    const file = (over: Partial<{ mimetype: string; size: number; buffer: Buffer }> = {}) => ({
+      buffer: PNG_BYTES,
       mimetype: 'image/png',
       size: 10,
       originalname: 'q.png',
@@ -908,9 +913,12 @@ describe('DepotController', () => {
     it('rejects a missing file', async () => {
       await expect(c.uploadQris(ID, undefined)).rejects.toBeInstanceOf(BadRequestException);
     });
-    it('rejects an unsupported mime type', async () => {
+    it('rejects an unsupported file, however it was labelled', async () => {
       await expect(
-        c.uploadQris(ID, file({ mimetype: 'application/pdf' }) as never),
+        c.uploadQris(ID, file({ buffer: Buffer.from('%PDF-1.7 not an image') }) as never),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        c.uploadQris(ID, file({ buffer: Buffer.from('<script>alert(1)</script>  ') }) as never),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
     it('rejects a file over the size limit', async () => {
@@ -921,7 +929,7 @@ describe('DepotController', () => {
     it('stores the file and persists the ABSOLUTE url the storage returns', async () => {
       await c.uploadQris(ID, file() as never);
       expect(storage.put).toHaveBeenCalledWith({
-        body: Buffer.from('x'),
+        body: PNG_BYTES,
         contentType: 'image/png',
         ext: 'png',
       });

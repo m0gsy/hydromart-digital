@@ -92,7 +92,8 @@ function AmberCard({ promo }: { promo: Promotion }) {
 export function PromoCarousel() {
   const { t } = useT();
   const { data, loading, error } = useAsync<Promotion[]>(
-    () => api.get<Promotion[]>(endpoints.promotions.list),
+    // Audit F-13: home banners are reference data, not live state.
+    () => api.getCached<Promotion[]>(endpoints.promotions.list),
     [],
   );
 

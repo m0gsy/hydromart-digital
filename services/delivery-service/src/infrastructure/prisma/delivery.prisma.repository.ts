@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -8,6 +8,7 @@ import {
   CreateDeliveryData,
   DeliveredRow,
   DeliveryItem,
+  DeliveryPingState,
   DeliveryQuery,
   DeliveryRecord,
   DeliveryRepository,
@@ -19,7 +20,21 @@ import {
   ReportRange,
   SlaStats,
 } from '../../application/ports/delivery.repository';
+import { StaleDeliveryStatusError } from '../../domain/errors';
 import { PrismaService } from './prisma.service';
+
+/**
+ * Turns the status guard's "no row matched" into the courier's answer (H-5).
+ *
+ * On these writes P2025 only ever means `status: from` did not match — the delivery moved
+ * under the caller. Left raw it would be a 500 on an ordinary double tap.
+ */
+function rejectStaleStatus(error: unknown): never {
+  if ((error as { code?: string })?.code === 'P2025') {
+    throw new StaleDeliveryStatusError();
+  }
+  throw error;
+}
 
 interface ProofRow {
   photoUrl: string;
@@ -190,7 +205,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return { attempts, firstAttemptAt: first?.createdAt ?? null };
   }
 
-  async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
+  async search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
       ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
@@ -200,13 +217,17 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       this.prisma.delivery.findMany({
         where,
         include: INCLUDE,
-        orderBy: { assignedAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor is unambiguous between rows assigned in the same tick.
+        orderBy: [{ assignedAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.delivery.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
   async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
@@ -294,6 +315,24 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return [...grouped.values()];
   }
 
+  async findPingState(id: string): Promise<DeliveryPingState | null> {
+    // Columns only — the ping path never renders history or proof (audit S-17).
+    const row = await this.prisma.delivery.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        driverId: true,
+        status: true,
+        depotId: true,
+        destinationLat: true,
+        destinationLng: true,
+        lastLat: true,
+        lastLng: true,
+      },
+    });
+    return row ? { ...row, status: row.status as DeliveryStatus } : null;
+  }
+
   async updateLocation(
     id: string,
     lat: number,
@@ -315,20 +354,23 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
     note: string | null,
   ): Promise<DeliveryRecord> {
-    const row = await this.prisma.delivery.update({
-      where: { id },
-      data: {
-        status,
-        ...timestamps,
-        history: { create: { status, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
+    const row = await this.prisma.delivery
+      .update({
+        where: { id, status: from },
+        data: {
+          status,
+          ...timestamps,
+          history: { create: { status, changedBy, note } },
+        },
+        include: INCLUDE,
+      })
+      .catch(rejectStaleStatus);
     return this.toRecord(row);
   }
 
@@ -357,28 +399,40 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
   ): Promise<DeliveryRecord> {
-    const row = await this.prisma.delivery.update({
-      where: { id },
-      data: {
-        status: DeliveryStatus.DELIVERED,
-        deliveredAt: capturedAt,
-        proof: { create: { ...proof, capturedAt } },
-        history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
-      },
-      include: INCLUDE,
-    });
+    const row = await this.prisma.delivery
+      .update({
+        where: { id, status: from },
+        data: {
+          status: DeliveryStatus.DELIVERED,
+          deliveredAt: capturedAt,
+          proof: { create: { ...proof, capturedAt } },
+          history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
+        },
+        include: INCLUDE,
+      })
+      .catch(rejectStaleStatus);
     return this.toRecord(row);
   }
 
-  async purgeProofsBefore(cutoff: Date): Promise<number> {
+  async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
+    // Read the URLs before the rows go: once they are deleted there is nothing left to say
+    // which objects in the bucket belonged to them (H-22).
+    const doomed = await this.prisma.proofOfDelivery.findMany({
+      where: { capturedAt: { lt: cutoff } },
+      select: { photoUrl: true, signatureUrl: true },
+    });
     const { count } = await this.prisma.proofOfDelivery.deleteMany({
       where: { capturedAt: { lt: cutoff } },
     });
-    return count;
+    const urls = doomed.flatMap((p) =>
+      [p.photoUrl, p.signatureUrl].filter((u): u is string => !!u),
+    );
+    return { count, urls };
   }
 
   async slaStats(

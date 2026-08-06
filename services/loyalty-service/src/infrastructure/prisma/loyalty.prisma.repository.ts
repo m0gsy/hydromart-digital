@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { InvalidAdjustmentError } from '../../domain/errors';
 import { MembershipTier } from '../../domain/membership';
 import { PointsTxnType } from '../../domain/points';
 import {
@@ -42,6 +43,20 @@ interface TxnRow {
   createdAt: Date;
 }
 
+/**
+ * Turns "the WHERE matched no row" into the caller's answer (H-2).
+ *
+ * On these writes P2025 only ever means the `pointsBalance >= …` floor rejected a debit —
+ * someone else spent the points between the service's read and this write. Left raw it
+ * would surface as a 500 on an ordinary race.
+ */
+function rejectOnMissingRow(error: unknown): never {
+  if ((error as { code?: string })?.code === 'P2025') {
+    throw new InvalidAdjustmentError();
+  }
+  throw error;
+}
+
 @Injectable()
 export class LoyaltyPrismaRepository implements LoyaltyRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -60,7 +75,15 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
   }
 
   async createAccount(customerId: string): Promise<LoyaltyAccountRecord> {
-    const row = await this.prisma.loyaltyAccount.create({ data: { customerId } });
+    // Two first-ever movements for one customer race here, and `customerId` is unique.
+    // The loser reads back the winner's account instead of surfacing a P2002 as a 500 —
+    // an account is a lazily-created container, not something a caller can conflict over.
+    const row = await this.prisma.loyaltyAccount
+      .upsert({ where: { customerId }, create: { customerId }, update: {} })
+      .catch(async (error: unknown) => {
+        if ((error as { code?: string })?.code !== 'P2002') throw error;
+        return this.prisma.loyaltyAccount.findUniqueOrThrow({ where: { customerId } });
+      });
     return this.toAccount(row);
   }
 
@@ -121,9 +144,8 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
       this.prisma.loyaltyAccount.update({
         where: { id: m.accountId },
         data: {
-          pointsBalance: m.newBalance,
-          lifetimePoints: m.newLifetime,
-          tier: m.newTier as PrismaTier,
+          pointsBalance: { increment: m.points },
+          lifetimePoints: { increment: m.lifetimeDelta },
         },
       }),
     ]);
@@ -133,25 +155,43 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
   async recordAdjustment(
     m: AccountMutation & { type: PointsTxnType },
   ): Promise<LoyaltyAccountRecord> {
-    const [, account] = await this.prisma.$transaction([
-      this.prisma.pointsTransaction.create({
-        data: {
-          accountId: m.accountId,
-          customerId: m.customerId,
-          type: PrismaTxnType[m.type],
-          points: m.points,
-          reason: m.reason,
-        },
-      }),
-      this.prisma.loyaltyAccount.update({
-        where: { id: m.accountId },
-        data: {
-          pointsBalance: m.newBalance,
-          lifetimePoints: m.newLifetime,
-          tier: m.newTier as PrismaTier,
-        },
-      }),
-    ]);
+    // P2025 here means the balance floor in the WHERE below rejected the debit — someone
+    // else spent the points between the service's read and this write. It is the caller's
+    // answer, not a server fault, so it must not surface as a 500.
+    const [, account] = await this.prisma
+      .$transaction([
+        this.prisma.pointsTransaction.create({
+          data: {
+            accountId: m.accountId,
+            customerId: m.customerId,
+            type: PrismaTxnType[m.type],
+            points: m.points,
+            reason: m.reason,
+          },
+        }),
+        // The balance floor lives in the WHERE clause: a debit that the account cannot cover
+        // matches no row, Prisma raises P2025, and the whole transaction — ledger entry
+        // included — rolls back. A pre-read cannot do this; two of them both saw enough.
+        this.prisma.loyaltyAccount.update({
+          where:
+            m.points < 0
+              ? { id: m.accountId, pointsBalance: { gte: -m.points } }
+              : { id: m.accountId },
+          data: {
+            pointsBalance: { increment: m.points },
+            lifetimePoints: { increment: m.lifetimeDelta },
+          },
+        }),
+      ])
+      .catch(rejectOnMissingRow);
+    return this.toAccount(account);
+  }
+
+  async setTier(accountId: string, tier: MembershipTier): Promise<LoyaltyAccountRecord> {
+    const account = await this.prisma.loyaltyAccount.update({
+      where: { id: accountId },
+      data: { tier: tier as PrismaTier },
+    });
     return this.toAccount(account);
   }
 
@@ -196,10 +236,15 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
           reason: 'Points expired',
         },
       }),
-      this.prisma.loyaltyAccount.update({
-        where: { id: m.accountId },
-        data: { pointsBalance: m.newBalance },
-      }),
+      // GREATEST, not a pre-read clamp: the sweep runs against whatever the balance is at
+      // the moment it lands, and an expired lot larger than the remaining balance must
+      // empty the account, not drive it negative.
+      this.prisma.$executeRaw`
+        UPDATE "loyalty_accounts"
+           SET "pointsBalance" = GREATEST(0, "pointsBalance" - ${m.points}),
+               "updatedAt" = NOW()
+         WHERE "id" = ${m.accountId}
+      `,
     ]);
   }
 }

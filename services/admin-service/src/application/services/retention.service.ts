@@ -4,6 +4,7 @@ import { RetentionPolicyInvalidError, RetentionPolicyNotFoundError } from '../..
 import { DataClass, isPurgeExempt, purgeCutoff, rejectionReasonFor } from '../../domain/retention';
 import {
   BackupStatusRecord,
+  RecordBackupRunData,
   RetentionPolicyRecord,
   RetentionRepository,
   UpdateRetentionData,
@@ -12,7 +13,14 @@ import { ADMIN_TOKENS } from '../tokens';
 
 // Honest default when no backup engine has ever recorded a run (Design 19e). Never a
 // fabricated "success just now".
-const BACKUP_DEFAULT: BackupStatusRecord = { status: 'NONE', lastBackupAt: null };
+const BACKUP_DEFAULT: BackupStatusRecord = {
+  status: 'NONE',
+  lastBackupAt: null,
+  detail: null,
+  drillStatus: 'NONE',
+  lastDrillAt: null,
+  drillDetail: null,
+};
 
 /** What a purge job may delete for one dataset, and from when (M23-21). */
 export interface PurgePlanEntry {
@@ -68,8 +76,20 @@ export class RetentionService {
     }));
   }
 
-  /** Read-only backup status (no backup engine wired → honest default when unset). */
+  /** Last recorded backup + tested-restore status (honest default when neither has run). */
   async getBackupStatus(): Promise<BackupStatusRecord> {
     return (await this.repo.getBackupStatus()) ?? BACKUP_DEFAULT;
+  }
+
+  /**
+   * Record what the nightly dump or the weekly restore drill actually did (H-37).
+   *
+   * The console used to show a status nothing could ever write, next to a cron job that
+   * had been dumping the cluster for months — "NONE" forever, whether or not backups
+   * worked. FAILED is as important as OK here: a silent failure into a log nobody reads
+   * is what manufactures confidence in an unusable backup.
+   */
+  recordBackupRun(data: RecordBackupRunData): Promise<BackupStatusRecord> {
+    return this.repo.recordBackupRun(data);
   }
 }

@@ -76,6 +76,16 @@ export interface AttendanceRepository {
   /** Present/late day counts for [from, to] (inclusive), used by the payroll engine. */
   summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary>;
   /**
+   * The same counts for many employees in ONE query, keyed by employee id (audit S-6).
+   * An employee with no attendance in the window is absent from the map, not zero-filled —
+   * the caller decides what "no rows" means for it.
+   */
+  summaryMany(
+    employeeIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, AttendanceSummary>>;
+  /**
    * Per-day worked minutes for [from, to] (M24-17). The payroll engine needs the DATES,
    * not just a total, because a day that fell on a weekly-off day or national holiday is
    * paid at a different overtime rate.

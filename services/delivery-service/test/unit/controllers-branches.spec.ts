@@ -16,6 +16,12 @@ import { ReportController } from '../../src/modules/report.controller';
 import { ContactMethod } from '../../src/domain/no-show';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
 import { ShiftStatus } from '../../src/domain/shift';
+import { DeliveryConfigService } from '../../src/config/delivery-config.service';
+/** Both controllers read only `businessTimeZone`; WIB is pinned so a UTC month-window
+ * regression (H-16) fails here rather than in production reporting. */
+const deliveryTestConfig = (timeZone = 'Asia/Jakarta'): DeliveryConfigService =>
+  ({ businessTimeZone: timeZone }) as DeliveryConfigService;
+
 
 const user = { sub: 'user-1' } as AuthenticatedUser;
 const depotId = '00000000-0000-4000-8000-000000000001';
@@ -23,7 +29,7 @@ const id = '00000000-0000-4000-8000-0000000000aa';
 
 describe('CommissionController', () => {
   const commission = { run: jest.fn().mockResolvedValue({ rows: [] }) };
-  const controller = new CommissionController(commission as never);
+  const controller = new CommissionController(commission as never, deliveryTestConfig());
 
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-07-22T08:00:00.000Z'));
@@ -31,12 +37,14 @@ describe('CommissionController', () => {
   });
   afterEach(() => jest.useRealTimers());
 
-  it('defaults the window to the current UTC month', async () => {
+  // H-16: the default window is the WIB month now. 1 July 00:00 WIB is 2026-06-30T17:00Z —
+  // the old UTC bounds started at 07:00 WIB and so lost the first seven hours of the month.
+  it('defaults the window to the current WIB month', async () => {
     await controller.run({ depotId });
     expect(commission.run).toHaveBeenCalledWith(
       depotId,
-      new Date('2026-07-01T00:00:00.000Z'),
-      new Date('2026-08-01T00:00:00.000Z'),
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
     );
   });
 
@@ -336,7 +344,7 @@ describe('ReportController delegation', () => {
     sla: jest.fn().mockResolvedValue({ totalDelivered: 0 }),
     slaByDepot: jest.fn().mockResolvedValue({ depots: [] }),
   };
-  const controller = new ReportController(reports as never);
+  const controller = new ReportController(reports as never, deliveryTestConfig());
 
   it('delegates sla, translating the range and passing filters', () => {
     void controller.sla({ from: '2026-07-01T00:00:00.000Z', thresholdMinutes: 90, depotIds: [depotId] } as never);

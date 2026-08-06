@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
@@ -7,6 +7,7 @@ import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
+import { DeliveryResponseDto, PagedDeliveryResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Deliveries (staff)')
 @ApiBearerAuth()
@@ -15,6 +16,7 @@ import { AssignDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
 export class DeliveryController {
   constructor(private readonly deliveries: DeliveryService) {}
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Post()
   @ApiOperation({ summary: 'Assign a driver to an order (advances the order to DRIVER_ASSIGNED)' })
   assign(
@@ -43,6 +45,7 @@ export class DeliveryController {
     );
   }
 
+  @ApiOkResponse({ type: PagedDeliveryResponseDto })
   @Get()
   @ApiOperation({ summary: 'List all deliveries (staff), optionally filtered by status' })
   list(
@@ -56,6 +59,7 @@ export class DeliveryController {
     return this.deliveries.listAll({ ...rest, depotIds });
   }
 
+  @ApiOkResponse({ type: DeliveryResponseDto })
   @Get(':id')
   @ApiOperation({ summary: 'Get any delivery by id (staff)' })
   async get(

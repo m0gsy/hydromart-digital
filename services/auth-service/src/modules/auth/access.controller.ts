@@ -9,7 +9,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { ArrayMaxSize, IsArray, IsString, MaxLength } from 'class-validator';
 
 import { Can } from '@hydromart/platform';
@@ -19,6 +19,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalAuthGuard } from '../../common/guards/internal-auth.guard';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
+import { AccessMatrixResponseDto, InternalOverrides3ResponseDto } from '../dto/responses.generated.dto';
 
 export class SetCapabilityRolesDto {
   @IsArray()
@@ -44,6 +45,7 @@ export class AccessController {
 
   // Read is staffAdmin, not accessMatrixWrite: head office may see who can do what
   // without being able to change it.
+  @ApiOkResponse({ type: AccessMatrixResponseDto })
   @Can('staffAdmin')
   @Get('matrix')
   @ApiOperation({ summary: 'Compiled defaults, the super-admin overrides, and the effective matrix' })
@@ -51,6 +53,7 @@ export class AccessController {
     return this.matrix.view();
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('accessMatrixWrite')
   @Put('matrix/:capability')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -63,6 +66,7 @@ export class AccessController {
     await this.matrix.set(capability, dto.roles, user.sub);
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Can('accessMatrixWrite')
   @Delete('matrix/:capability')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -73,6 +77,7 @@ export class AccessController {
 
   // What the other services poll. Internal key auth, not a user token: it is read by
   // machines on a timer, and it carries policy rather than anyone's data.
+  @ApiOkResponse({ type: InternalOverrides3ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

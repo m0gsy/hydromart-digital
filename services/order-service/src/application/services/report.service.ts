@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalDays, addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 import {
@@ -13,6 +14,7 @@ import {
   ReportRange,
   SalesBucket,
 } from '../ports/order.repository';
+import { OrderConfigService } from '../../config/order-config.service';
 import { ORDER_TOKENS } from '../tokens';
 
 export interface ReportRangeView {
@@ -196,7 +198,10 @@ export const isDelivered = (s: OrderStatus): boolean =>
 export class ReportService {
   private static readonly MAX_LIMIT = 100;
 
-  constructor(@Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository) {}
+  constructor(
+    @Inject(ORDER_TOKENS.OrderRepository) private readonly orders: OrderRepository,
+    private readonly config: OrderConfigService,
+  ) {}
 
   async sales(granularity: 'daily' | 'monthly', range: ReportRange): Promise<SalesReport> {
     const buckets = await this.orders.salesSeries(granularity, range);
@@ -357,15 +362,22 @@ export class ReportService {
    * returned/damaged and the per-courier breakdown need delivery/depot/payment-service
    * data order-service can't join here (see the TODOs).
    */
-  async depotDaily(depotId: string, date: string): Promise<DepotDailyReport> {
-    const from = new Date(`${date}T00:00:00.000Z`);
-    const to = new Date(from.getTime() + DAY_MS);
+  async depotDaily(depotId: string, date?: string): Promise<DepotDailyReport> {
+    // H-16: `${date}T00:00:00.000Z` is 07:00 WIB. A depot's "daily" report therefore
+    // started mid-morning and swallowed seven hours of the day before — which is why the
+    // daily card and the meter reconciliation could disagree about the same date.
+    const tz = this.config.businessTimeZone;
+    // "Today" with no date given is the WIB today, not the UTC one — before 07:00 WIB
+    // those are different days, and the operator asking is in WIB.
+    const day = date ?? localDayKey(new Date(), tz);
+    const from = dayStartUtc(day, tz);
+    const to = addLocalDays(from, 1, tz);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const delivered = live.filter((r) => isDelivered(r.status));
     return {
       depotId,
-      date,
+      date: day,
       orders: live.length,
       revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
       gallonsDelivered: delivered.reduce((s, r) => s + gallonQty(r), 0),
@@ -428,7 +440,7 @@ export class ReportService {
     const byProduct = new Map<string, number>();
     const byCourier = new Map<string, number>();
     for (const o of live) {
-      const day = o.createdAt.toISOString().slice(0, 10);
+      const day = localDayKey(o.createdAt, this.config.businessTimeZone);
       byDay.set(day, (byDay.get(day) ?? 0) + o.total);
       for (const i of o.items)
         byProduct.set(i.productName, (byProduct.get(i.productName) ?? 0) + i.quantity);
@@ -483,8 +495,9 @@ export class ReportService {
    * real; topCourier is derived from driverName. netProfit + SLA are null (see interface).
    */
   async reportsDepotMonthly(depotId: string, month: string): Promise<DepotMonthlyReport> {
-    const from = new Date(`${month}-01T00:00:00.000Z`);
-    const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(`${month}-01`, tz);
+    const to = addLocalMonths(from, 1, tz);
     const rows = await this.orders.ordersForDepot(depotId, { from, to });
     const live = rows.filter((r) => r.status !== OrderStatus.CANCELLED);
     const byCourier = new Map<string, number>();
@@ -521,9 +534,10 @@ export class ReportService {
     if (customerIds.length === 0) return { depotId, month, rows: [] };
     const wanted = new Set(customerIds);
 
-    const from = new Date(`${month}-01T00:00:00.000Z`);
-    const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
-    const prevFrom = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() - 1, 1));
+    const tz = this.config.businessTimeZone;
+    const from = dayStartUtc(`${month}-01`, tz);
+    const to = addLocalMonths(from, 1, tz);
+    const prevFrom = addLocalMonths(from, -1, tz);
 
     const [thisRows, prevRows] = await Promise.all([
       this.orders.ordersForDepot(depotId, { from, to }),

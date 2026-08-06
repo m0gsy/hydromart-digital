@@ -1,10 +1,11 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { DeliveryService } from '../application/services/delivery.service';
 import { PurgeProofsDto } from './dto/retention.dto';
+import { PurgeExpired2ResponseDto } from './dto/responses.generated.dto';
 
 /**
  * UU PDP retention sweep, driven by admin-service's purge engine.
@@ -18,6 +19,7 @@ import { PurgeProofsDto } from './dto/retention.dto';
 export class RetentionController {
   constructor(private readonly deliveries: DeliveryService) {}
 
+  @ApiOkResponse({ type: PurgeExpired2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

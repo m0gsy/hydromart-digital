@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -31,6 +31,7 @@ import {
 } from './dto/courier-payout.dto';
 import { ExpenseQueryDto, SubmitExpenseDto } from './dto/expense-claim.dto';
 import { RequestWithdrawalDto } from './dto/payout.dto';
+import { CourierEarningRuleResponseDto, CourierEarningsResponseDto, CourierWithdrawalResponseDto, ExpenseClaimResponseDto, PagedCourierLedgerEntryResponseDto, PagedExpenseClaimResponseDto, RecordEarning2ResponseDto } from './dto/responses.generated.dto';
 
 // Courier-scoped: reads the calling courier's own earnings ledger (user.sub).
 @ApiTags('Courier Payout')
@@ -43,12 +44,14 @@ export class CourierPayoutController {
     private readonly expenses: ExpenseClaimService,
   ) {}
 
+  @ApiOkResponse({ type: CourierEarningsResponseDto })
   @Get('earnings/summary')
   @ApiOperation({ summary: "Balance, this month's earnings + recent activity (design 2c)" })
   summary(@CurrentUser() user: AuthenticatedUser): Promise<CourierEarningsSummary> {
     return this.payout.summary(user.sub);
   }
 
+  @ApiOkResponse({ type: CourierEarningRuleResponseDto })
   @Get('earning-rule')
   @ApiOperation({
     summary: "Effective earning rule for the courier's depot — monthly target + incentive tiers",
@@ -57,6 +60,7 @@ export class CourierPayoutController {
     return this.payout.effectiveRule(user.depotId ?? null);
   }
 
+  @ApiOkResponse({ type: PagedCourierLedgerEntryResponseDto })
   @Get('ledger')
   @ApiOperation({ summary: 'Paginated earnings cash-book for the calling courier' })
   ledger(
@@ -66,6 +70,7 @@ export class CourierPayoutController {
     return this.payout.ledgerPage(user.sub, query.page, query.limit);
   }
 
+  @ApiOkResponse({ type: CourierWithdrawalResponseDto })
   @Post('withdrawals')
   @ApiOperation({ summary: 'Cash out available balance to the bank (design 2c)' })
   withdraw(
@@ -75,12 +80,14 @@ export class CourierPayoutController {
     return this.payout.requestWithdrawal(user.sub, dto.amount, dto.bankAccountRef);
   }
 
+  @ApiOkResponse({ type: CourierWithdrawalResponseDto, isArray: true })
   @Get('withdrawals')
   @ApiOperation({ summary: 'Withdrawal history for the calling courier (design 2c riwayat)' })
   withdrawals(@CurrentUser() user: AuthenticatedUser): Promise<CourierWithdrawalRecord[]> {
     return this.payout.withdrawalHistory(user.sub);
   }
 
+  @ApiOkResponse({ type: ExpenseClaimResponseDto })
   @Post('expenses')
   @ApiOperation({ summary: 'File an expense claim (design 6a); auto-approves under threshold' })
   submitExpense(
@@ -96,6 +103,7 @@ export class CourierPayoutController {
     });
   }
 
+  @ApiOkResponse({ type: PagedExpenseClaimResponseDto })
   @Get('expenses')
   @ApiOperation({ summary: 'Expense claims filed by the calling courier (design 6a)' })
   expenseHistory(
@@ -108,6 +116,7 @@ export class CourierPayoutController {
   // System-triggered: delivery-service posts a completed delivery, authenticated by the
   // shared INTERNAL_SERVICE_KEY (no end-user token). @Public() skips the JWT guard;
   // InternalAuthGuard is the sole (fail-closed) auth. Idempotent by deliveryId.
+  @ApiOkResponse({ type: RecordEarning2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -129,6 +138,7 @@ export class CourierPayoutController {
 
   // System-triggered: delivery-service posts a COD deposit shortfall charged at settlement
   // verify (design 2d). Same internal-key auth; idempotent by settlementId.
+  @ApiOkResponse({ type: RecordEarning2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

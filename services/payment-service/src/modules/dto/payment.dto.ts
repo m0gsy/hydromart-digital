@@ -18,7 +18,7 @@ import {
 
 import { PaymentMethod, PaymentStatus } from '../../domain/payment';
 
-import { IsNotBefore } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class InitiatePaymentDto {
   @ApiProperty({ format: 'uuid', description: 'The order being paid for.' })
@@ -80,10 +80,21 @@ export class DepotCashQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
 export class ListPaymentsQueryDto {
+  @ApiPropertyOptional({
+    description:
+      'Keyset cursor from the previous response (`nextCursor`). Reads the next page ' +
+      'without an OFFSET; `page` is ignored when this is given.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  cursor?: string;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()
@@ -94,11 +105,12 @@ export class ListPaymentsQueryDto {
   @IsEnum(PaymentStatus)
   status?: PaymentStatus;
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
   @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
@@ -120,6 +132,7 @@ export class UnsettledByMethodQueryDto {
   @IsOptional()
   @IsDateString()
   @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }
 
@@ -171,7 +184,21 @@ export class PaymentWebhookDto {
   @IsIn(['PAID', 'FAILED'])
   event!: 'PAID' | 'FAILED';
 
-  @ApiProperty({ description: 'HMAC-SHA256 of `${reference}.${event}` with the webhook secret.' })
+  @ApiProperty({
+    example: 1785800000000,
+    description:
+      'Epoch milliseconds the provider signed at. Must be within 5 minutes of server time — ' +
+      'it is inside the HMAC, so it cannot be edited to refresh a captured request.',
+  })
+  @Type(() => Number)
+  @IsInt()
+  timestamp!: number;
+
+  @ApiProperty({
+    description:
+      'HMAC-SHA256, with the webhook secret, over every field of this payload except ' +
+      '`signature`: sorted by key and joined as `k=v&k=v`.',
+  })
   @IsString()
   @MaxLength(200)
   signature!: string;

@@ -1,6 +1,7 @@
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { LoyaltyPrismaRepository } from '../../src/infrastructure/prisma/loyalty.prisma.repository';
 import { RewardPrismaRepository } from '../../src/infrastructure/prisma/reward.prisma.repository';
+import { InsufficientPointsError, InvalidAdjustmentError } from '../../src/domain/errors';
 import { MembershipTier } from '../../src/domain/membership';
 import { PointsTxnType } from '../../src/domain/points';
 
@@ -13,6 +14,8 @@ import { PointsTxnType } from '../../src/domain/points';
 describe('LoyaltyPrismaRepository', () => {
   const loyaltyAccount = {
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
+    upsert: jest.fn(),
     create: jest.fn(),
     count: jest.fn(),
     groupBy: jest.fn(),
@@ -30,11 +33,18 @@ describe('LoyaltyPrismaRepository', () => {
   // $transaction receives an array of already-built ops; resolve it as-is so the repo's
   // positional destructuring ([, account]) sees whatever we seed the ops to return.
   const $transaction = jest.fn((ops: unknown) => Promise.resolve(ops));
+  // The expiry debit is raw SQL (GREATEST clamps it at zero); the tag returns a build-time
+  // op like every other, so the transaction still sees an array of three.
+  const $executeRaw = jest.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({
+    sql: strings.join('?'),
+    values,
+  }));
   const prisma = {
     loyaltyAccount,
     pointsTransaction,
     rewardRedemption,
     $transaction,
+    $executeRaw,
   } as unknown as PrismaService;
   const repo = new LoyaltyPrismaRepository(prisma);
 
@@ -73,10 +83,67 @@ describe('LoyaltyPrismaRepository', () => {
   });
 
   it('creates a bare account', async () => {
-    loyaltyAccount.create.mockResolvedValue(accountRow());
+    loyaltyAccount.upsert.mockResolvedValue(accountRow());
     const out = await repo.createAccount('cust-1');
     expect(out.tier).toBe(MembershipTier.GOLD);
-    expect(loyaltyAccount.create).toHaveBeenCalledWith({ data: { customerId: 'cust-1' } });
+    expect(loyaltyAccount.upsert).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1' },
+      create: { customerId: 'cust-1' },
+      update: {},
+    });
+  });
+
+  // Two first-ever movements for one customer land together; an account is a container,
+  // not something the caller can conflict over, so the loser reads the winner's back.
+  it('reads back the existing account when the create loses the race', async () => {
+    loyaltyAccount.upsert.mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+    loyaltyAccount.findUniqueOrThrow.mockResolvedValue(accountRow());
+    await expect(repo.createAccount('cust-1')).resolves.toMatchObject({ id: 'acc-1' });
+  });
+
+  it('rethrows any other failure from the account create', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    loyaltyAccount.upsert.mockRejectedValue(boom);
+    await expect(repo.createAccount('cust-1')).rejects.toBe(boom);
+  });
+
+  it('writes the tier the authoritative lifetime earns', async () => {
+    loyaltyAccount.update.mockResolvedValue(accountRow());
+    await repo.setTier('acc-1', MembershipTier.PLATINUM);
+    expect(loyaltyAccount.update).toHaveBeenCalledWith({
+      where: { id: 'acc-1' },
+      data: { tier: 'PLATINUM' },
+    });
+  });
+
+  // The balance floor rejecting a debit is the caller's answer, not a server fault.
+  it('reports a rejected balance floor as an invalid adjustment, not a 500', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    await expect(
+      repo.recordAdjustment({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        points: -50,
+        reason: null,
+        lifetimeDelta: 0,
+        type: PointsTxnType.ADJUST,
+      }),
+    ).rejects.toBeInstanceOf(InvalidAdjustmentError);
+  });
+
+  it('rethrows any other adjustment failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    $transaction.mockRejectedValueOnce(boom);
+    await expect(
+      repo.recordAdjustment({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        points: 50,
+        reason: null,
+        lifetimeDelta: 50,
+        type: PointsTxnType.ADJUST,
+      }),
+    ).rejects.toBe(boom);
   });
 
   it('counts all accounts', async () => {
@@ -145,9 +212,7 @@ describe('LoyaltyPrismaRepository', () => {
       customerId: 'cust-1',
       points: 100,
       reason: null,
-      newBalance: 1300,
-      newLifetime: 6100,
-      newTier: MembershipTier.GOLD,
+      lifetimeDelta: 100,
       orderId: 'ord-1',
       expiresAt: new Date('2026-07-01'),
     });
@@ -164,9 +229,10 @@ describe('LoyaltyPrismaRepository', () => {
         expiresAt: new Date('2026-07-01'),
       },
     });
+    // H-2: deltas the database applies, not absolutes computed from a stale read.
     expect(loyaltyAccount.update).toHaveBeenCalledWith({
       where: { id: 'acc-1' },
-      data: { pointsBalance: 1300, lifetimePoints: 6100, tier: 'GOLD' },
+      data: { pointsBalance: { increment: 100 }, lifetimePoints: { increment: 100 } },
     });
   });
 
@@ -178,9 +244,7 @@ describe('LoyaltyPrismaRepository', () => {
       customerId: 'cust-1',
       points: -50,
       reason: 'manual correction',
-      newBalance: 1150,
-      newLifetime: 6000,
-      newTier: MembershipTier.GOLD,
+      lifetimeDelta: 0,
       type: PointsTxnType.ADJUST,
     });
     expect(pointsTransaction.create).toHaveBeenCalledWith({
@@ -192,9 +256,10 @@ describe('LoyaltyPrismaRepository', () => {
         reason: 'manual correction',
       },
     });
+    // A debit carries the balance floor in its WHERE; two of them cannot both pass.
     expect(loyaltyAccount.update).toHaveBeenCalledWith({
-      where: { id: 'acc-1' },
-      data: { pointsBalance: 1150, lifetimePoints: 6000, tier: 'GOLD' },
+      where: { id: 'acc-1', pointsBalance: { gte: 50 } },
+      data: { pointsBalance: { increment: -50 }, lifetimePoints: { increment: 0 } },
     });
   });
 
@@ -234,7 +299,6 @@ describe('LoyaltyPrismaRepository', () => {
       accountId: 'acc-1',
       customerId: 'cust-1',
       points: 100,
-      newBalance: 1100,
     });
     expect($transaction).toHaveBeenCalledTimes(1);
     expect(pointsTransaction.update).toHaveBeenCalledWith({
@@ -250,10 +314,10 @@ describe('LoyaltyPrismaRepository', () => {
         reason: 'Points expired',
       },
     });
-    expect(loyaltyAccount.update).toHaveBeenCalledWith({
-      where: { id: 'acc-1' },
-      data: { pointsBalance: 1100 },
-    });
+    // GREATEST clamps at zero in the database, so an over-large lot empties the account
+    // instead of driving it negative — and it reads the balance at write time, not before.
+    expect($executeRaw.mock.calls[0][0].join('')).toContain('GREATEST(0, "pointsBalance" -');
+    expect($executeRaw.mock.calls[0].slice(1)).toEqual([100, 'acc-1']);
   });
 });
 
@@ -362,7 +426,6 @@ describe('RewardPrismaRepository', () => {
       idempotencyKey: 'idem-1',
       depotId: 'depot-1',
       pointsSpent: 500,
-      newBalance: 700,
       reason: 'Redeemed Free Galon',
       decrementStock: true,
     });
@@ -387,9 +450,11 @@ describe('RewardPrismaRepository', () => {
         reason: 'Redeemed Free Galon',
       },
     });
+    // H-2: a relative debit under a balance floor. Two concurrent redemptions can both
+    // pass the service's read; only one can match this WHERE.
     expect(loyaltyAccount.update).toHaveBeenCalledWith({
-      where: { id: 'acc-1' },
-      data: { pointsBalance: 700 },
+      where: { id: 'acc-1', pointsBalance: { gte: 500 } },
+      data: { pointsBalance: { decrement: 500 } },
     });
     expect(rewardItem.update).toHaveBeenCalledWith({
       where: { id: 'ri-1' },
@@ -408,7 +473,6 @@ describe('RewardPrismaRepository', () => {
       idempotencyKey: 'idem-2',
       depotId: 'depot-1',
       pointsSpent: 500,
-      newBalance: 700,
       reason: 'Redeemed Free Galon',
       decrementStock: false,
     });
@@ -462,7 +526,6 @@ describe('RewardPrismaRepository', () => {
       customerId: 'cust-1',
       rewardItemId: 'ri-1',
       pointsRefunded: 500,
-      newBalance: 1200,
       reason: 'Cancelled Free Galon',
       restoreStock: true,
     });
@@ -490,10 +553,44 @@ describe('RewardPrismaRepository', () => {
       customerId: 'cust-1',
       rewardItemId: 'ri-1',
       pointsRefunded: 500,
-      newBalance: 1200,
       reason: 'Cancelled Free Galon',
       restoreStock: false,
     });
     expect(rewardItem.update).not.toHaveBeenCalled();
+  });
+
+  // Losing the balance floor means somebody else spent the points first. That is the
+  // customer's answer, and it must not read as a server fault.
+  it('reports a lost balance floor as insufficient points, not a 500', async () => {
+    $transaction.mockRejectedValueOnce(Object.assign(new Error('no row'), { code: 'P2025' }));
+    await expect(
+      repo.redeem({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        idempotencyKey: 'key-1',
+        depotId: 'depot-1',
+        pointsSpent: 500,
+        reason: 'Redeemed Free Galon',
+        decrementStock: false,
+      }),
+    ).rejects.toBeInstanceOf(InsufficientPointsError);
+  });
+
+  it('rethrows any other redemption failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    $transaction.mockRejectedValueOnce(boom);
+    await expect(
+      repo.redeem({
+        accountId: 'acc-1',
+        customerId: 'cust-1',
+        rewardItemId: 'ri-1',
+        idempotencyKey: 'key-1',
+        depotId: 'depot-1',
+        pointsSpent: 500,
+        reason: 'Redeemed Free Galon',
+        decrementStock: false,
+      }),
+    ).rejects.toBe(boom);
   });
 });

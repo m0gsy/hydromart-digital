@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
 # Base file (docker-compose.yml) provides postgres (init-databases.sql creates all
-# per-service DBs) + redis. This overlay adds the 15 app services + the web app.
+# per-service DBs). This overlay adds the 15 app services + the web app.
 #
 # All secrets come from the environment (see .env.production.example). ${VAR:?msg}
 # fails the command if VAR is unset — no secret is ever hardcoded here.
@@ -27,31 +27,69 @@ x-shared: &shared
   # take the whole stack down. Set both in .env to open /docs.
   DOCS_USER: ${DOCS_USER:-}
   DOCS_PASSWORD: ${DOCS_PASSWORD:-}
+  # H-16: ONE business timezone for the whole platform. Every service reckons its day and
+  # month boundaries from this, and the scheduler's cron clock follows it too — so a
+  # "daily" number cannot mean 00:00 WIB on one screen and 07:00 WIB on another. Shared
+  # rather than per-service precisely because the split is what caused the disagreement.
+  PRICING_TZ: ${PRICING_TZ:-Asia/Jakarta}
 
 x-svc: &svc
   restart: unless-stopped
+  # H-34 — nothing bounded any of the 19 Node containers. One leaking or looping service
+  # could take the whole box with it, and the four-hour outage was reconstructed without
+  # ever being able to rule that out (`docker inspect .State.OOMKilled` was long gone).
+  # A limit turns "the VPS died" into "one container was OOM-killed and restarted", which
+  # is a fact the watchdog's incident dump can read back.
+  #
+  # These are CEILINGS, not reservations — a service idles around 150 MB and nothing is
+  # pre-allocated, so the ceilings deliberately over-commit the 16 GB box. 512 MB is
+  # roughly 3x steady state, which covers the bulk-import and report paths without
+  # letting a runaway grow unbounded. Downsize the host, downsize this number.
+  mem_limit: 512m
+  cpus: 1.0
   depends_on:
     postgres: { condition: service_healthy }
-    redis: { condition: service_healthy }
 
 services:
   # Override only the postgres password with the prod secret; user, db, volume,
   # init script AND port publishing all come from the base file (which publishes
-  # 5432/6379). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
+  # 5432). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
   # port lists across files, so a second entry would double-bind and fail to boot.
-  # Postgres/Redis therefore stay on the host's published 5432/6379 — lock them down
+  # Postgres therefore stays on the host's published 5432 — lock it down
   # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
   postgres:
+    # H-34: the one container that genuinely wants headroom — shared_buffers plus every
+    # service's connections. Given the largest slice on purpose.
+    mem_limit: 2g
+    cpus: 2.0
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # B-12: the pool was unbounded on BOTH sides. Prisma defaults to (cpus * 2 + 1)
+    # connections per service — on this 8-vCPU box that is 17 x 16 services = 272 against
+    # postgres's default max_connections of 100. It does not fail cleanly: the 101st
+    # connection is refused, Prisma surfaces it as a connection error, and it reads like an
+    # intermittent network fault rather than exhaustion.
+    #
+    # Now bounded at both ends: every *_DATABASE_URL carries connection_limit=${DB_POOL:-5}
+    # (16 x 5 = 80 steady-state) and the server allows 150 — 70 spare for psql, migrations,
+    # backup-db.sh and the exporters. Raising DB_POOL past 9 breaks that headroom, which is
+    # what scripts/lib/deploy-common.test.sh asserts.
+    command:
+      - postgres
+      - -c
+      - max_connections=150
 
   auth:
     <<: *svc
+    # H-31/H-35: named so the image can come from a registry instead of being
+    # built on the production box. IMAGE_PREFIX + IMAGE_TAG unset = the old
+    # build-on-the-VPS path, unchanged.
+    image: ${IMAGE_PREFIX:-hydromart-}auth:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/auth-service/Dockerfile }
     environment:
       <<: *shared
       AUTH_SERVICE_PORT: 3001
-      AUTH_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public
+      AUTH_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_auth?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET (min 32 chars)}
       JWT_ACCESS_TTL: 900
       JWT_REFRESH_TTL: 2592000
@@ -60,10 +98,11 @@ services:
       OTP_MAX_ATTEMPTS: 5
       OTP_RESEND_COOLDOWN_SECONDS: 60
       # `console` only prints the code to the container log — real customers can
-      # never receive it. Set OTP_DELIVERY_CHANNEL to `zenziva` (Indonesian SMS
-      # provider in use) or `sms` (generic gateway) in .env, plus that channel's
-      # credentials below, before taking real signups.
-      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:-console}
+      # never receive it, and anyone who can read logs can sign in as anyone. The
+      # service refuses to boot on it in production: set OTP_DELIVERY_CHANNEL to
+      # `zenziva` (Indonesian SMS provider in use) or `sms` (generic gateway) in
+      # .env, plus that channel's credentials below.
+      OTP_DELIVERY_CHANNEL: ${OTP_DELIVERY_CHANNEL:?set OTP_DELIVERY_CHANNEL=zenziva|sms (console is dev-only)}
       ZENZIVA_BASE_URL: ${ZENZIVA_BASE_URL:-https://console.zenziva.net}
       ZENZIVA_USERKEY: ${ZENZIVA_USERKEY:-}
       ZENZIVA_PASSKEY: ${ZENZIVA_PASSKEY:-}
@@ -92,19 +131,32 @@ services:
       STORAGE_S3_ACCESS_KEY_ID: ${AUTH_STORAGE_S3_ACCESS_KEY_ID:?set AUTH_STORAGE_S3_ACCESS_KEY_ID}
       STORAGE_S3_SECRET_ACCESS_KEY: ${AUTH_STORAGE_S3_SECRET_ACCESS_KEY:?set AUTH_STORAGE_S3_SECRET_ACCESS_KEY}
       STORAGE_PUBLIC_BASE_URL: ${AUTH_STORAGE_PUBLIC_BASE_URL:?set AUTH_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-avatars)}
+    # CI-11: this was `node -e "fetch(...)"`, which starts a whole Node runtime — ~40 MB
+    # of RSS and a V8 boot — every 10 seconds in each of 19 containers, forever. busybox
+    # wget is already in the image and costs a fork. The interval is 30s because these
+    # are liveness probes for long-running services, not a readiness race; `retries: 12`
+    # still gives a cold start six minutes to come up.
+    #
+    # 127.0.0.1, NOT localhost — and every probe below follows this one. The images the
+    # PR9 rebuild produced carry an /etc/hosts mapping `localhost` to ::1 as well as to
+    # 127.0.0.1; busybox wget tries the IPv6 address first, and Nest listens on IPv4
+    # only. The probe came back "Connection refused" while the service answered
+    # perfectly on that same port. Seven containers sat unhealthy for over an hour, and
+    # a deploy would have failed its health gate and rolled back a release that was fine.
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3001/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   customer:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}customer:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/customer-service/Dockerfile }
     environment:
       <<: *shared
       CUSTOMER_SERVICE_PORT: 3002
-      CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public
+      CUSTOMER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_customer?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       MAX_ADDRESSES_PER_CUSTOMER: 20
       LOYALTY_SERVICE_URL: http://loyalty:3009
       PRODUCT_SERVICE_URL: http://product:3003
@@ -112,18 +164,19 @@ services:
       AUTH_SERVICE_URL: http://auth:3001
       BIRTHDAY_REWARD_POINTS: 250
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3002/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   product:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}product:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/product-service/Dockerfile }
     environment:
       <<: *shared
       PRODUCT_SERVICE_PORT: 3003
-      PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public
+      PRODUCT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_product?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # DEPOT_SERVICE_URL comes from *shared (http://depot:3007) — product-service pushes
       # renames/deactivations there so depot stock lines that copied a name follow it.
       # Object storage for product images. BiznetGio NEO (S3-compatible); per-bucket
@@ -136,18 +189,19 @@ services:
       STORAGE_S3_SECRET_ACCESS_KEY: ${PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY:?set PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY}
       STORAGE_PUBLIC_BASE_URL: ${PRODUCT_STORAGE_PUBLIC_BASE_URL:?set PRODUCT_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-products)}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3003/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3003/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   order:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}order:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/order-service/Dockerfile }
     environment:
       <<: *shared
       ORDER_SERVICE_PORT: 3004
-      ORDER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_order?schema=public
+      ORDER_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_order?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_SERVICE_URL: http://depot:3007
       LOYALTY_SERVICE_URL: http://loyalty:3009
@@ -169,36 +223,43 @@ services:
       # the same fail-open convention as the low-stock alert.
       ORDER_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3004/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3004/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   payment:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payment:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payment-service/Dockerfile }
     environment:
       <<: *shared
       PAYMENT_SERVICE_PORT: 3005
-      PAYMENT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payment?schema=public
+      PAYMENT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payment?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Blank in dev/self-hosted = online charges fail closed until a real gateway is wired.
       PAYMENT_GATEWAY_BASE_URL: ${PAYMENT_GATEWAY_BASE_URL:-}
       PAYMENT_GATEWAY_API_KEY: ${PAYMENT_GATEWAY_API_KEY:-}
       PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET (min 16 chars)}
       ORDER_SERVICE_URL: http://order:3004
+      # Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
+      # default in payment-service/src/domain/payment.ts, which is now the only place the
+      # number lives. It was never set here at all, so nobody could tell whether the
+      # threshold in production was a decision or an accident.
+      REFUND_HQ_THRESHOLD: ${REFUND_HQ_THRESHOLD:-100000}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3005/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   delivery:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}delivery:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/delivery-service/Dockerfile }
     environment:
       <<: *shared
       DELIVERY_SERVICE_PORT: 3006
-      DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public
+      DELIVERY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_delivery?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
       DEPOT_SERVICE_URL: http://depot:3007
       # PAID-cash total for COD settlement (design 2d, fail-closed).
@@ -208,6 +269,9 @@ services:
       OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       # Courier earning push on delivery completion (design 6b, internal key).
       PAYOUT_SERVICE_URL: http://payout:3016
+      # H-30: a completed delivery is reported here for the partner webhook fan-out.
+      # Hardcoded like the other internal URLs — blank would silently publish nothing.
+      ADMIN_SERVICE_URL: http://admin:3017
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
       SHIFT_LENGTH_HOURS: 8
@@ -225,18 +289,19 @@ services:
       STORAGE_S3_SECRET_ACCESS_KEY: ${DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY:?set DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY}
       STORAGE_PUBLIC_BASE_URL: ${DELIVERY_STORAGE_PUBLIC_BASE_URL:?set DELIVERY_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-pod)}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3006/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3006/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   depot:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}depot:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/depot-service/Dockerfile }
     environment:
       <<: *shared
       DEPOT_SERVICE_PORT: 3007
-      DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public
+      DEPOT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_depot?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CRM_SERVICE_URL: http://crm:3012
       # Read when a PRODUK stock line is opened, to validate the product id and take the
       # catalog's own name for it. Unset here would silently fall back to localhost, which
@@ -264,13 +329,14 @@ services:
       STORAGE_S3_SECRET_ACCESS_KEY: ${PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY:?set PRODUCT_STORAGE_S3_SECRET_ACCESS_KEY}
       STORAGE_PUBLIC_BASE_URL: ${PRODUCT_STORAGE_PUBLIC_BASE_URL:?set PRODUCT_STORAGE_PUBLIC_BASE_URL (e.g. https://nos.jkt-1.neo.id/hydromart-products)}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3007/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3007/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   dashboard:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}dashboard:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/dashboard-service/Dockerfile }
     environment:
       <<: *shared
@@ -280,71 +346,75 @@ services:
       DEPOT_SERVICE_URL: http://depot:3007
       ADMIN_SERVICE_URL: http://admin:3017
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3008/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3008/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   loyalty:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}loyalty:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/loyalty-service/Dockerfile }
     environment:
       <<: *shared
       LOYALTY_SERVICE_PORT: 3009
-      LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public
+      LOYALTY_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_loyalty?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       LOYALTY_EARN_RATE_RUPIAH: 1000
       LOYALTY_POINT_EXPIRY_MONTHS: 12
       # Depot-scoped loyalty summary resolves a depot's customers via customer-service
       # (x-internal-key from *shared). Blank/unreachable → summary returns zeros (fail-open).
       CUSTOMER_SERVICE_URL: http://customer:3002
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3009/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3009/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   promo:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}promo:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/promo-service/Dockerfile }
     environment:
       <<: *shared
       PROMO_SERVICE_PORT: 3010
-      PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public
+      PROMO_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_promo?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
       # Outbound for the "voucher baru" grant notification (spec 5h). INTERNAL_SERVICE_KEY
       # comes from *shared; blank URLs → grant succeeds, notification is skipped (fail-open).
       CRM_SERVICE_URL: http://crm:3012
       CUSTOMER_SERVICE_URL: http://customer:3002
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3010/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3010/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   referral:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}referral:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/referral-service/Dockerfile }
     environment:
       <<: *shared
       REFERRAL_SERVICE_PORT: 3011
-      REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public
+      REFERRAL_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_referral?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       LOYALTY_SERVICE_URL: http://loyalty:3009
       CUSTOMER_SERVICE_URL: http://customer:3002
       REFERRAL_REFERRER_POINTS: 500
       REFERRAL_REFEREE_POINTS: 250
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3011/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3011/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   crm:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}crm:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/crm-service/Dockerfile }
     environment:
       <<: *shared
       CRM_SERVICE_PORT: 3012
-      CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public
+      CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
       WHATSAPP_API_TOKEN: ${WHATSAPP_API_TOKEN:-}
       CUSTOMER_SERVICE_URL: http://customer:3002
@@ -353,61 +423,65 @@ services:
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@hydromart.id}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3012/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3012/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   recommendation:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}recommendation:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/recommendation-service/Dockerfile }
     environment:
       <<: *shared
       RECOMMENDATION_SERVICE_PORT: 3013
-      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_recommendation?schema=public
+      RECOMMENDATION_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_recommendation?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       ORDER_SERVICE_URL: http://order:3004
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3013/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3013/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   forecast:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}forecast:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/forecast-service/Dockerfile }
     environment:
       <<: *shared
       FORECAST_SERVICE_PORT: 3014
-      FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public
+      FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CHURN_WINDOW_DAYS: 45
       DEPOT_SERVICE_URL: http://depot:3007
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3014/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3014/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   payout:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}payout:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/payout-service/Dockerfile }
     environment:
       <<: *shared
       PAYOUT_SERVICE_PORT: 3016
-      PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public
+      PAYOUT_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_payout?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       PAYOUT_COMMISSION_RATE: ${PAYOUT_COMMISSION_RATE:-0.05}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3016/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3016/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   admin:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}admin:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/admin-service/Dockerfile }
     environment:
       <<: *shared
       ADMIN_SERVICE_PORT: 3017
-      ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public
+      ADMIN_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_admin?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Peer service base URLs probed by the aggregate system-health roll-up (13b).
       AUTH_SERVICE_URL: http://auth:3001
       CUSTOMER_SERVICE_URL: http://customer:3002
@@ -427,18 +501,19 @@ services:
       # Retention: admin counts (never deletes) employee records past their window.
       HR_SERVICE_URL: http://hr:3018
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3017/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3017/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   hr:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}hr:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/hr-service/Dockerfile }
     environment:
       <<: *shared
       HR_SERVICE_PORT: 3018
-      HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public
+      HR_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_hr?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       # Provisions the staff login behind each imported employee row.
       AUTH_SERVICE_URL: http://auth:3001
       # HR notifications (leave decisions, announcements) ride crm's internal endpoint.
@@ -455,6 +530,9 @@ services:
       HR_FACE_MATCH_THRESHOLD: ${HR_FACE_MATCH_THRESHOLD:-0.62}
       HR_FACE_DUPLICATE_THRESHOLD: ${HR_FACE_DUPLICATE_THRESHOLD:-0.75}
       HR_FACE_MODEL_PATH: ${HR_FACE_MODEL_PATH:-./models/arcface.onnx}
+      # B-19: AES-256-GCM key for the enrolled face templates. `openssl rand -hex 32`.
+      # Changing it makes every existing enrolment undecryptable — employees re-enroll.
+      HR_FACE_ENCRYPTION_KEY: ${HR_FACE_ENCRYPTION_KEY:?set HR_FACE_ENCRYPTION_KEY (openssl rand -hex 32)}
       NEO_FR_ENDPOINT: ${NEO_FR_ENDPOINT:-https://fr.neoapi.id}
       NEO_FR_TOKEN: ${NEO_FR_TOKEN:-}
       NEO_FR_GALLERY_ID: ${NEO_FR_GALLERY_ID:-hydromart-hr}
@@ -469,13 +547,14 @@ services:
       STORAGE_S3_ACCESS_KEY_ID: ${HR_STORAGE_S3_ACCESS_KEY_ID:-}
       STORAGE_S3_SECRET_ACCESS_KEY: ${HR_STORAGE_S3_SECRET_ACCESS_KEY:-}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3018/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3018/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   gateway:
     <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}gateway:${IMAGE_TAG:-local}
     build: { context: ., dockerfile: services/gateway-service/Dockerfile }
     environment:
       <<: *shared
@@ -500,15 +579,25 @@ services:
       PAYOUT_SERVICE_URL: http://payout:3016
       ADMIN_SERVICE_URL: http://admin:3017
       HR_SERVICE_URL: http://hr:3018
+    # H-19: bound to loopback by DEFAULT so only Caddy can reach it. Two reasons this is
+    # not optional any more: the gateway is the single public ingress, and gateway.setup.ts
+    # now sets `trust proxy` — which means X-Forwarded-For is BELIEVED. A directly
+    # reachable port would let any client spoof that header and mint itself a fresh
+    # rate-limit bucket, turning the B-2 fix into a B-2 bypass.
+    #
+    # Bare-IP deploys (no WEB_DOMAIN, no --profile tls) have no proxy in front and MUST
+    # set PUBLIC_BIND=0.0.0.0 in .env or the stack is unreachable from outside the box.
+    # Default is the safe one; the exposed one is a deliberate choice you have to make.
     ports:
-      - "8080:8080"
+      - "${PUBLIC_BIND:-127.0.0.1}:8080:8080"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
       timeout: 5s
       retries: 12
 
   web:
+    image: ${IMAGE_PREFIX:-hydromart-}web:${IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -521,11 +610,15 @@ services:
     restart: unless-stopped
     depends_on:
       - gateway
+    # H-19, same rule as the gateway above: loopback by default, Caddy is the way in.
     ports:
-      - "3000:3000"
+      - "${PUBLIC_BIND:-127.0.0.1}:3000:3000"
+    # H-34: Next.js SSR holds the biggest working set of any Node container here.
+    mem_limit: 1g
+    cpus: 1.5
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3000"]
+      interval: 30s
       timeout: 5s
       retries: 12
       start_period: 30s
@@ -534,31 +627,113 @@ services:
   # else calls them). Hourly: place due subscription orders. Daily 08:00: refill
   # reminders. Auths with the shared INTERNAL_SERVICE_KEY over the internal network;
   # alpine's busybox crond, no extra image build. Disable with `docker compose ...
-  # up -d --scale scheduler=0`. Shift schedule times by setting TZ (e.g. TZ: Asia/Jakarta).
+  # up -d --scale scheduler=0`.
+  #
+  # H-16: TZ used to default to UTC while every sweep time in the crontab is written as
+  # an Indonesian business hour — the 08:00 "time to refill" nudge went out at 15:00 WIB,
+  # and the 03:30 retention purge ran at 10:30 WIB, in the middle of the working day. It
+  # now follows the same PRICING_TZ the services use, so one variable moves all of them.
   scheduler:
     <<: *svc
     image: alpine:3.20
+    mem_limit: 64m
+    cpus: 0.25
     environment:
       <<: *shared
-      TZ: ${SCHEDULER_TZ:-UTC}
+      TZ: ${SCHEDULER_TZ:-${PRICING_TZ:-Asia/Jakarta}}
     depends_on:
       order: { condition: service_healthy }
     volumes:
-      - ./scripts/scheduler/crontab:/etc/crontabs/root:ro
+      # Deliberately NOT mounted onto /etc/crontabs/root: a bind mount carries the host
+      # file's ownership, the checkout on the box belongs to the deploy user, and busybox
+      # crond discards every entry of a crontab it does not see as root-owned. The
+      # entrypoint installs a root-owned copy from this same directory instead.
       - ./scripts/scheduler:/scripts:ro
     command: ["sh", "/scripts/entrypoint.sh"]
+    # H-38: crond keeps running whether or not its jobs do anything, so `running` said
+    # nothing about whether sweeps were happening. This asserts a sweep has SUCCEEDED
+    # recently — the busiest job runs every 5 minutes. With the deploy gate now requiring
+    # `healthy` (H-32), a scheduler that has quietly stopped sweeping fails a deploy
+    # instead of riding along unnoticed.
+    healthcheck:
+      test: ["CMD", "sh", "/scripts/healthcheck.sh"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Prometheus scrapes every service's /metrics (enableMetrics()). Bound to
   # loopback only — reach the UI via SSH tunnel, never expose to the internet.
   prometheus:
     image: prom/prometheus:v2.54.1
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
     volumes:
       - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./ops/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      # H-49: generated from this compose file by scripts/gen-prometheus-targets.mjs and
+      # checked in CI. file_sd, so a regenerated list is picked up without a restart.
+      - ./ops/prometheus-targets.json:/etc/prometheus/targets/hydromart.json:ro
       - prometheus_data:/prometheus
     ports:
       - "127.0.0.1:9090:9090"
+
+  # H-41 — the four exporters for everything the application cannot report about itself.
+  # Before these, a full disk, a saturated connection pool or an OOM-killed container was
+  # invisible: app metrics simply stop, and a failed scrape is the only signal, after the
+  # fact. All loopback-bound or unpublished; Prometheus reaches them over the compose
+  # network.
+
+  # Host: disk, memory, load, filesystem. The 2026-08-02 outage could not be attributed
+  # because nothing recorded host state at the time it happened.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    # Host /proc, /sys and / mounted in, rather than `network_mode: host` — a host-network
+    # container has no compose DNS name, so Prometheus could not reach it. Memory, load,
+    # disk and filesystem all come from those mounts and are the host's real numbers; the
+    # network counters are the container's, which is the one thing this trade gives up.
+    pid: host
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  # Postgres: connection count against max_connections (B-12's ceiling is only useful if
+  # someone can see it being approached), replication lag, slow-query and deadlock counts.
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATA_SOURCE_NAME: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
+
+  # Containers: per-container memory, CPU and — the one that matters here — the OOM kill
+  # counter. H-34 gives every container a ceiling; this is what tells you one was hit.
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: 0.5
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
 
   # Routes Prometheus alerts (ops/alert-rules.yml) to ALERT_WEBHOOK_URL. Loopback
   # only. The webhook URL is read from ops/alertmanager.webhook-url (operator
@@ -567,6 +742,8 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.25
     volumes:
       - ./ops/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - ./ops/alertmanager.webhook-url:/etc/alertmanager/webhook-url:ro
@@ -575,14 +752,18 @@ services:
       - "127.0.0.1:9093:9093"
 
   # Grafana dashboards over Prometheus. Loopback only (SSH tunnel to view).
-  # Set GRAFANA_ADMIN_PASSWORD in .env; defaults to admin on first boot otherwise.
+  # H-27: GRAFANA_ADMIN_PASSWORD is REQUIRED (`:?`), not defaulted to `admin`.
+  # Loopback binding is a second lock, not a first one — anyone on the box, or on
+  # any SSH tunnel, reached admin/admin. Generate one with scripts/generate-secrets.sh.
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
+    mem_limit: 384m
+    cpus: 0.5
     depends_on:
       - prometheus
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env — see scripts/generate-secrets.sh}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
@@ -598,6 +779,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
     profiles: ["tls"]
     depends_on:
       - web

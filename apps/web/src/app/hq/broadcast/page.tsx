@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Broadcast } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -29,7 +30,7 @@ const CHANNELS = ['channelPush', 'channelInApp', 'channelWa'] as const;
 export default function HqBroadcastPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
   const [audience, setAudience] = useState<Audience>('all');
   const [depotId, setDepotId] = useState('');
@@ -84,13 +85,7 @@ export default function HqBroadcastPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Broadcast size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.broadcast.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.broadcast.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Broadcast} title={t('hq.broadcast.title')} subtitle={t('hq.broadcast.subtitle')} />
 
       <Card className="flex flex-col gap-4 p-5">
         {/* Audience */}

@@ -12,7 +12,10 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "sourceMap": true,
-    "incremental": true,
+    // CI-10: `incremental` was set but nothing consumes the .tsbuildinfo it writes —
+    // every container build starts from an empty context, and CI runs `tsc` once per
+    // workspace in a fresh checkout. It bought nothing and shipped a stale cache file
+    // into every working tree.
     "skipLibCheck": true,
     "strict": true,
     "strictNullChecks": true,

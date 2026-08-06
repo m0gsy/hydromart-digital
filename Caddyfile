@@ -6,19 +6,47 @@
 #
 # Set WEB_DOMAIN + API_DOMAIN in .env, and build the web image with
 # PUBLIC_API_URL=https://<API_DOMAIN> so the browser bundle calls the right host.
+#
+# H-23: HSTS and CSP are terminated HERE, which is the only place that sees TLS.
+# next.config.mjs deliberately ships neither (its comment says so) — until this
+# file existed, that meant the app shipped neither. Note the consequence: the
+# non-TLS deploy path (no `--profile tls`, bare IP) gets no HSTS and no CSP,
+# because there is no HTTPS for HSTS to assert and no proxy to attach CSP to.
+
+# One year. No `preload` — that is a one-way submission to a browser-vendor list
+# and needs a deliberate decision, not a config default.
+(hsts) {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
 
 # Redirect www → apex (Caddy auto-provisions a cert for www too; the www DNS
 # record must resolve to this VPS).
 www.{$WEB_DOMAIN} {
+	import hsts
 	redir https://{$WEB_DOMAIN}{uri} permanent
 }
 
 {$WEB_DOMAIN} {
+	import hsts
+	# script-src keeps 'unsafe-inline': Next's bootstrap and its per-route inline
+	# hydration payload are inline scripts with no nonce, and nonces would need a
+	# middleware pass on every request. The valuable directives here are the ones
+	# that are strict — frame-ancestors, object-src, base-uri, form-action — which
+	# is what stops clickjacking, plugin injection and form exfiltration.
+	# img-src allows any https origin because product photos, avatars and proof-of-
+	# delivery come from object storage whose host is deployment-specific; blob:/data:
+	# are the camera capture and the QR/canvas renders.
+	header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' https://{$API_DOMAIN}; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 	encode zstd gzip
 	reverse_proxy web:3000
 }
 
 {$API_DOMAIN} {
+	import hsts
+	# A JSON API renders nothing, so it needs nothing. `/docs` is fail-closed in
+	# production; if it is ever re-opened there, this policy must grow a
+	# script-src/style-src for Swagger UI or the page will render blank.
+	header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
 	encode zstd gzip
 	reverse_proxy gateway:8080
 }

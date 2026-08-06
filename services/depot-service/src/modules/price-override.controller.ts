@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, ImportSummary, assertDepotAccess } from '@hydromart/platform';
 
@@ -24,6 +24,7 @@ import {
   ListPriceOverridesQueryDto,
   ProposePriceOverrideDto,
 } from './dto/price-override.dto';
+import { CountByProductResponseDto, ImportResponseDto, PagedPriceOverrideProposalResponseDto, PriceOverrideProposalResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Depot-side propose (design 7a): a depot manager proposes a per-product price
@@ -35,6 +36,7 @@ import {
 export class DepotPriceOverrideController {
   constructor(private readonly overrides: PriceOverrideService) {}
 
+  @ApiOkResponse({ type: PriceOverrideProposalResponseDto })
   @Post()
   @Can('depotAdmin')
   @ApiOperation({ summary: 'Propose a per-product price override for a depot (depot manager)' })
@@ -53,6 +55,7 @@ export class DepotPriceOverrideController {
     });
   }
 
+  @ApiOkResponse({ type: ImportResponseDto })
   @Post('import')
   @Can('depotAdmin')
   @ApiOperation({ summary: 'Bulk-propose per-product price overrides from the CSV wizard' })
@@ -87,6 +90,7 @@ export class DepotPriceOverrideController {
 export class PriceOverrideController {
   constructor(private readonly overrides: PriceOverrideService) {}
 
+  @ApiOkResponse({ type: PagedPriceOverrideProposalResponseDto })
   @Get()
   @ApiOperation({ summary: 'List override proposals (defaults to the pending queue)' })
   list(@Query() query: ListPriceOverridesQueryDto): Promise<Page<PriceOverrideProposalRecord>> {
@@ -99,12 +103,14 @@ export class PriceOverrideController {
 
   // Per-product override counts for the 7a base-price list. Static path declared before
   // ':id/*' routes. Defaults to the PENDING queue.
+  @ApiOkResponse({ type: CountByProductResponseDto, isArray: true })
   @Get('count-by-product')
   @ApiOperation({ summary: 'Override proposal counts grouped by product (defaults to pending)' })
   countByProduct(): Promise<{ productId: string; count: number }[]> {
     return this.overrides.countByProduct();
   }
 
+  @ApiOkResponse({ type: PriceOverrideProposalResponseDto })
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Approve → applies the override as a winning pricing rule' })
@@ -116,6 +122,7 @@ export class PriceOverrideController {
     return this.overrides.approve(id, user.sub);
   }
 
+  @ApiOkResponse({ type: PriceOverrideProposalResponseDto })
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject an override proposal (no price change)' })

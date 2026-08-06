@@ -1,10 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
 import { ShiftService, ShiftView } from '../application/services/shift.service';
 import { ListShiftsQueryDto } from './dto/shift.dto';
+import { ShiftResponseDto } from './dto/responses.generated.dto';
 
 /** Dispatch view: who is on shift at a depot right now (design Operator 1a/1c). */
 @ApiTags('Shifts')
@@ -14,6 +15,7 @@ import { ListShiftsQueryDto } from './dto/shift.dto';
 export class ShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
+  @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List courier shifts at a depot over a window' })
   list(@Query() query: ListShiftsQueryDto): Promise<ShiftView[]> {

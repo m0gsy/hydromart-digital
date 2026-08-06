@@ -20,4 +20,7 @@ OTP_PEPPER=$(gen 32)
 PAYMENT_WEBHOOK_SECRET=$(gen 32)
 # One shared internal key — must be IDENTICAL in every service that talks internally.
 INTERNAL_SERVICE_KEY=$(gen 32)
+# Grafana admin login (H-27). The compose file requires it — the stack will not
+# come up without it, and it no longer falls back to admin/admin.
+GRAFANA_ADMIN_PASSWORD=$(gen 24)
 EOF

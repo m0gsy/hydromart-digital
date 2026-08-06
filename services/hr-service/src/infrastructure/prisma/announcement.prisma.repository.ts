@@ -7,6 +7,7 @@ import {
   AnnouncementTargetWrite,
   AnnouncementWithTargets,
   AnnouncementWrite,
+  FeedAudience,
 } from '../../application/ports/announcement.repository';
 import { PrismaService } from './prisma.service';
 
@@ -45,9 +46,37 @@ export class AnnouncementPrismaRepository implements AnnouncementRepository {
     return { rows, total };
   }
 
-  listPublished(limit: number): Promise<AnnouncementWithTargets[]> {
+  listFeedFor(audience: FeedAudience, limit: number): Promise<AnnouncementWithTargets[]> {
+    // Mirrors domain/announcement.ts targetCovers: COMPANY reaches everyone, the rest
+    // match one field, and a target with a null value reaches nobody. The service still
+    // runs audienceMatches over the result — the domain rule stays the authority, this
+    // just stops the query from returning (and the limit from consuming) other people's
+    // notices. POSITION is free text typed by HR, hence the case-insensitive compare.
+    const position = audience.position.trim();
     return this.prisma.announcement.findMany({
-      where: { publishedAt: { not: null } },
+      where: {
+        publishedAt: { not: null },
+        targets: {
+          some: {
+            OR: [
+              { dimension: 'COMPANY' },
+              { dimension: 'EMPLOYEE', value: audience.employeeId },
+              ...(audience.depotId ? [{ dimension: 'DEPOT' as const, value: audience.depotId }] : []),
+              ...(audience.departmentId
+                ? [{ dimension: 'DEPARTMENT' as const, value: audience.departmentId }]
+                : []),
+              ...(position
+                ? [
+                    {
+                      dimension: 'POSITION' as const,
+                      value: { equals: position, mode: 'insensitive' as const },
+                    },
+                  ]
+                : []),
+            ],
+          },
+        },
+      },
       include: { targets: true },
       orderBy: { publishedAt: 'desc' },
       take: limit,

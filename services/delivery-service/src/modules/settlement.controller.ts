@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -11,6 +11,7 @@ import {
   SettlementQueryDto,
   VerifySettlementDto,
 } from './dto/settlement.dto';
+import { SettlementResponseDto } from './dto/responses.generated.dto';
 
 /** Cashier-facing COD settlement: verify or dispute a courier's deposit (design 6a). */
 @ApiTags('Settlements')
@@ -40,12 +41,14 @@ export class SettlementController {
     );
   }
 
+  @ApiOkResponse({ type: SettlementResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "A depot's courier settlements, newest first (cashier)" })
   list(@Query() query: SettlementQueryDto): Promise<SettlementRecord[]> {
     return this.settlements.searchForDepot(query.depotId, query.status);
   }
 
+  @ApiOkResponse({ type: SettlementResponseDto })
   @Post(':id/verify')
   @ApiOperation({ summary: 'Accept a courier deposit; optionally charge a shortfall' })
   verify(
@@ -56,6 +59,7 @@ export class SettlementController {
     return this.settlements.verify(user, id, dto);
   }
 
+  @ApiOkResponse({ type: SettlementResponseDto })
   @Post(':id/dispute')
   @ApiOperation({ summary: 'Dispute a courier deposit (parks it for resolution)' })
   dispute(

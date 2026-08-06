@@ -19,6 +19,18 @@ export interface OwnerBalance {
 
 export interface LedgerRepository {
   create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord>;
+  /**
+   * Writes several entries as one unit (H-7).
+   *
+   * A sale and the commission it owes are one economic event: written separately, a crash
+   * between them leaves the owner credited for a sale nobody took commission on, and the
+   * gap only shows up when somebody reconciles a month of ledger by hand. The reversal
+   * pair has the same property in the opposite direction.
+   *
+   * Idempotency still rides on the unique `sourceRef`, so a retried push that lost the
+   * race raises rather than double-crediting.
+   */
+  createAll(entries: CreateLedgerEntryData[]): Promise<void>;
   /** The entry already posted under this source reference, if any (push idempotency). */
   findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null>;
   /** Signed sum of every entry for one owner (the available balance). */
@@ -27,9 +39,15 @@ export interface LedgerRepository {
   ownersWithBalance(): Promise<OwnerBalance[]>;
   /** Sum of entries of one type over an inclusive date range. */
   sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number>;
+  /**
+   * One owner's ledger page. `cursor` is the previous page's `nextCursor`: the ledger is
+   * append-only and never stops growing, so paging deep into it by OFFSET walks every
+   * earlier row (audit Q-16). `page` is ignored when a cursor is given.
+   */
   listForOwner(
     franchiseOwnerId: string,
     page: number,
     limit: number,
-  ): Promise<{ items: LedgerEntryRecord[]; total: number }>;
+    cursor?: string,
+  ): Promise<{ items: LedgerEntryRecord[]; total: number; nextCursor: string | null }>;
 }

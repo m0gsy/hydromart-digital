@@ -10,13 +10,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Public, Role, Roles } from '@hydromart/platform';
 
 import { CategoryService } from '../application/services/category.service';
 import { CategoryRecord } from '../application/ports/category.repository';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
+import { CategoryResponseDto } from './dto/responses.generated.dto';
 
 const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
@@ -25,6 +26,7 @@ const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 export class CategoryController {
   constructor(private readonly categories: CategoryService) {}
 
+  @ApiOkResponse({ type: CategoryResponseDto, isArray: true })
   @Public()
   @Get()
   @ApiOperation({ summary: 'List active categories' })
@@ -35,6 +37,7 @@ export class CategoryController {
   // Deactivated categories are invisible on the public list by design, which left the
   // console unable to bring one back. Admins get the unfiltered set on their own route
   // rather than a flag on the public one — nothing extra leaks to the shop.
+  @ApiOkResponse({ type: CategoryResponseDto, isArray: true })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Get('all')
@@ -43,6 +46,7 @@ export class CategoryController {
     return this.categories.list(false);
   }
 
+  @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Post()
@@ -51,6 +55,7 @@ export class CategoryController {
     return this.categories.create({ name: dto.name, slug: dto.slug, sortOrder: dto.sortOrder ?? 0 });
   }
 
+  @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Patch(':id')
@@ -62,6 +67,7 @@ export class CategoryController {
     return this.categories.update(id, dto);
   }
 
+  @ApiOkResponse({ type: CategoryResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Delete(':id')

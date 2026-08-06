@@ -48,6 +48,8 @@ function makeProfiles(exists = false) {
     exists: jest.fn().mockResolvedValue(exists),
     create: jest.fn().mockResolvedValue(undefined),
     updateFavoriteDepot: jest.fn().mockResolvedValue(undefined),
+    // Audit S-16: create-or-point in one statement, replacing exists + create + update.
+    upsertFavoriteDepot: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -76,8 +78,12 @@ describe('CustomerImportService.importCustomers', () => {
 
     expect(summary).toMatchObject({ created: 1, skipped: 0, failed: 0 });
     expect(identity.calls).toEqual([{ phone: '081200001111', fullName: 'Siti' }]);
-    expect(profiles.create).toHaveBeenCalledWith('cust-1');
-    expect(profiles.updateFavoriteDepot).toHaveBeenCalledWith('cust-1', DEPOT_A);
+    // Audit S-16 and its Q-17 baseline row: rows are imported one at a time so each can
+    // report its own error, which makes every round-trip per row a round-trip per row of
+    // the file. This one used to be three.
+    expect(profiles.upsertFavoriteDepot).toHaveBeenCalledWith('cust-1', DEPOT_A);
+    expect(profiles.exists).not.toHaveBeenCalled();
+    expect(profiles.create).not.toHaveBeenCalled();
     expect(addresses.create).not.toHaveBeenCalled();
   });
 

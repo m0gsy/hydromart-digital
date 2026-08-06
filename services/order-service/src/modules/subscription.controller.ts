@@ -10,13 +10,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
 import { SubscriptionRecord } from '../application/ports/subscription.repository';
 import { SubscriptionService } from '../application/services/subscription.service';
 import { CreateSubscriptionDto, DepotScopeQueryDto } from './dto/order.dto';
+import { SubscriptionNetworkSummaryView } from '../application/services/subscription.service';
+import { Discount2ResponseDto, ProcessDue2ResponseDto, SubscriptionNetworkSummaryResponseDto, SubscriptionResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -24,6 +26,7 @@ import { CreateSubscriptionDto, DepotScopeQueryDto } from './dto/order.dto';
 export class SubscriptionController {
   constructor(private readonly subscriptions: SubscriptionService) {}
 
+  @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })
   @Roles(Role.CUSTOMER)
   @Get()
   @ApiOperation({ summary: "List the current customer's subscriptions (spec 7b)" })
@@ -33,6 +36,7 @@ export class SubscriptionController {
 
   // Public like loyalty's tier ladder, and for the same reason: the shop must quote the
   // saving before anyone signs in, and a discount rate is not private.
+  @ApiOkResponse({ type: Discount2ResponseDto })
   @Public()
   @Get('discount')
   @ApiOperation({ summary: "A depot's subscription discount rate (spec 7b)" })
@@ -40,13 +44,15 @@ export class SubscriptionController {
     return { rate: this.subscriptions.discountRate(query.depotId ?? null) };
   }
 
+  @ApiOkResponse({ type: SubscriptionNetworkSummaryResponseDto })
   @Can('hqConsole')
   @Get('admin/summary')
   @ApiOperation({ summary: 'HQ network subscription aggregate (18c)' })
-  adminSummary() {
+  adminSummary(): Promise<SubscriptionNetworkSummaryView> {
     return this.subscriptions.networkSummary();
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Roles(Role.CUSTOMER)
   @Post()
   @ApiOperation({ summary: 'Create a recurring galon subscription (spec 7b)' })
@@ -74,6 +80,7 @@ export class SubscriptionController {
     });
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Roles(Role.CUSTOMER)
   @Post(':id/pause')
   @ApiOperation({ summary: 'Pause a subscription' })
@@ -84,6 +91,7 @@ export class SubscriptionController {
     return this.subscriptions.pause(user.sub, id);
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Roles(Role.CUSTOMER)
   @Post(':id/resume')
   @ApiOperation({ summary: 'Resume a paused subscription' })
@@ -94,6 +102,7 @@ export class SubscriptionController {
     return this.subscriptions.resume(user.sub, id);
   }
 
+  @ApiOkResponse({ type: SubscriptionResponseDto })
   @Roles(Role.CUSTOMER)
   @Post(':id/cancel')
   @ApiOperation({ summary: 'Cancel a subscription' })
@@ -106,6 +115,7 @@ export class SubscriptionController {
 
   // Ops/scheduler-triggered fulfilment sweep (internal service auth, not a JWT).
   // @Public() bypasses the global JWT guard; InternalAuthGuard is the sole auth.
+  @ApiOkResponse({ type: ProcessDue2ResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

@@ -10,6 +10,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -22,18 +23,20 @@ import {
 } from '../../domain/franchise-application';
 
 export class ListApplicationsQueryDto {
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @ApiPropertyOptional({ enum: FranchiseAppStage, description: 'Filter by pipeline stage.' })

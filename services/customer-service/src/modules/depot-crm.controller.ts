@@ -14,6 +14,7 @@ import {
   DepotDetailQueryDto,
 } from './dto/depot-crm.dto';
 import { ImportCustomersDto } from './dto/customer-import.dto';
+import { ImportResponseDto } from './dto/responses.generated.dto';
 
 /** Depot CRM — customer directory scoped to a depot (Depot Operator 6a/7a, Manager 12b). */
 @ApiTags('Depot CRM')
@@ -26,6 +27,7 @@ export class DepotCrmController {
     private readonly imports: CustomerImportService,
   ) {}
 
+  @ApiOkResponse({ type: ImportResponseDto })
   @Post('import')
   // Narrower than the class-level depotCrm (which HR now holds read-only): importing
   // customers is a depot-staff write. Handler @Roles overrides the class decorator.

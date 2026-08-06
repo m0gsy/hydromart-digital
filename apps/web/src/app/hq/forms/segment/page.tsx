@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UsersThree, Plus, Trash } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Input } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -80,13 +81,7 @@ export default function HqSegmentFormPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <UsersThree size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.forms.segment.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.forms.segment.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={UsersThree} title={t('hq.forms.segment.title')} subtitle={t('hq.forms.segment.subtitle')} />
 
       <Card className="flex flex-col gap-3 p-5">
         {conditions.length === 0 ? (

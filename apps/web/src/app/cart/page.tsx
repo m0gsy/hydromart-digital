@@ -29,7 +29,7 @@ import type { Cart, CartLine, LoyaltyAccount, Recommendation } from '@/lib/types
 function CartInner() {
   const { t } = useT();
   const { toast } = useToast();
-  const { refresh, bump } = useCart();
+  const { apply, bump } = useCart();
   const { location } = useLocation();
 
   const { data, error, loading, reload } = useAsync<Cart>(() => api.get(endpoints.cart.view, true));
@@ -76,8 +76,11 @@ function CartInner() {
     setBusy(productId);
     bump(delta);
     try {
-      await api.put(endpoints.cart.item(productId), { quantity }, true);
-      await refresh();
+      // Audit F-7: PUT answers with the whole priced cart. The old code discarded it
+      // and re-GET the same thing, so one quantity tap cost two round-trips.
+      const next = await api.put<Cart>(endpoints.cart.item(productId), { quantity }, true);
+      setLines(next.items);
+      apply(next);
     } catch {
       setLines(prev);
       bump(-delta);
@@ -95,8 +98,9 @@ function CartInner() {
     setBusy(productId);
     bump(-line.quantity);
     try {
-      await api.del(endpoints.cart.item(productId), true);
-      await refresh();
+      const next = await api.del<Cart>(endpoints.cart.item(productId), true);
+      setLines(next.items);
+      apply(next);
     } catch {
       setLines(prev);
       bump(line.quantity);
@@ -111,8 +115,9 @@ function CartInner() {
     setLines([]);
     bump(-totalQty);
     try {
+      // DELETE /cart is the one cart write that answers 204 — nothing to adopt.
       await api.del(endpoints.cart.clear, true);
-      await refresh();
+      apply({ items: [], subtotal: 0 });
     } catch {
       setLines(prev);
       bump(totalQty);
@@ -120,15 +125,15 @@ function CartInner() {
     }
   }
 
-  // Recommendation has no price, so we can't build the new line optimistically —
-  // re-pull the cart after the add so the priced line lands without a page skeleton.
+  // Recommendation has no price, so we can't build the new line optimistically — but
+  // POST already returns the priced cart. Audit F-7: this was THREE round-trips (post,
+  // get, refresh) for one tap; it is one now.
   async function addOn(productId: string) {
     bump(1);
     try {
-      await api.post(endpoints.cart.items, { productId, quantity: 1 }, true);
-      const fresh = await api.get<Cart>(endpoints.cart.view, true);
-      setLines(fresh.items);
-      await refresh();
+      const next = await api.post<Cart>(endpoints.cart.items, { productId, quantity: 1 }, true);
+      setLines(next.items);
+      apply(next);
       toast(t('order.toast.added'));
     } catch {
       bump(-1);

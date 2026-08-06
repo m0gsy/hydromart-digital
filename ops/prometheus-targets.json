@@ -1,0 +1,146 @@
+[
+  {
+    "targets": [
+      "admin:3017"
+    ],
+    "labels": {
+      "service": "admin-service"
+    }
+  },
+  {
+    "targets": [
+      "auth:3001"
+    ],
+    "labels": {
+      "service": "auth-service"
+    }
+  },
+  {
+    "targets": [
+      "crm:3012"
+    ],
+    "labels": {
+      "service": "crm-service"
+    }
+  },
+  {
+    "targets": [
+      "customer:3002"
+    ],
+    "labels": {
+      "service": "customer-service"
+    }
+  },
+  {
+    "targets": [
+      "dashboard:3008"
+    ],
+    "labels": {
+      "service": "dashboard-service"
+    }
+  },
+  {
+    "targets": [
+      "delivery:3006"
+    ],
+    "labels": {
+      "service": "delivery-service"
+    }
+  },
+  {
+    "targets": [
+      "depot:3007"
+    ],
+    "labels": {
+      "service": "depot-service"
+    }
+  },
+  {
+    "targets": [
+      "forecast:3014"
+    ],
+    "labels": {
+      "service": "forecast-service"
+    }
+  },
+  {
+    "targets": [
+      "gateway:8080"
+    ],
+    "labels": {
+      "service": "gateway-service"
+    }
+  },
+  {
+    "targets": [
+      "hr:3018"
+    ],
+    "labels": {
+      "service": "hr-service"
+    }
+  },
+  {
+    "targets": [
+      "loyalty:3009"
+    ],
+    "labels": {
+      "service": "loyalty-service"
+    }
+  },
+  {
+    "targets": [
+      "order:3004"
+    ],
+    "labels": {
+      "service": "order-service"
+    }
+  },
+  {
+    "targets": [
+      "payment:3005"
+    ],
+    "labels": {
+      "service": "payment-service"
+    }
+  },
+  {
+    "targets": [
+      "payout:3016"
+    ],
+    "labels": {
+      "service": "payout-service"
+    }
+  },
+  {
+    "targets": [
+      "product:3003"
+    ],
+    "labels": {
+      "service": "product-service"
+    }
+  },
+  {
+    "targets": [
+      "promo:3010"
+    ],
+    "labels": {
+      "service": "promo-service"
+    }
+  },
+  {
+    "targets": [
+      "recommendation:3013"
+    ],
+    "labels": {
+      "service": "recommendation-service"
+    }
+  },
+  {
+    "targets": [
+      "referral:3011"
+    ],
+    "labels": {
+      "service": "referral-service"
+    }
+  }
+]

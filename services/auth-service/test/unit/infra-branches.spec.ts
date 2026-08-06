@@ -278,6 +278,26 @@ describe('CustomerPrismaRepository branch gaps', () => {
     expect(model.findMany.mock.calls[0][0]).toMatchObject({ skip: 10, take: 10 });
   });
 
+  // Audit F-12: without this predicate the HQ search matched only the page the browser
+  // already held, so anyone past the first 100 rows was unfindable.
+  it('matches the staff search term against name or phone in the query, not in memory', async () => {
+    model.findMany.mockResolvedValue([]);
+    model.count.mockResolvedValue(0);
+    await repo.listStaff(1, 10, undefined, undefined, '  Budi ');
+    const where = model.findMany.mock.calls[0][0].where;
+    expect(where.OR).toEqual([
+      { fullName: { contains: 'Budi', mode: 'insensitive' } },
+      { phone: { contains: 'Budi' } },
+    ]);
+  });
+
+  it('omits the search predicate entirely when no term is given', async () => {
+    model.findMany.mockResolvedValue([]);
+    model.count.mockResolvedValue(0);
+    await repo.listStaff(1, 10, undefined, undefined, '   ');
+    expect(model.findMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
+
   it('defaults the staff list to all non-customer roles', async () => {
     model.findMany.mockResolvedValue([]);
     model.count.mockResolvedValue(0);

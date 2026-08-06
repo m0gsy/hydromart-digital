@@ -17,9 +17,14 @@ class InvStub {
   }
 }
 class DepotStub {
-  exists = true;
+  // `present` rather than `exists`: the repository port now HAS an exists() method, and a
+  // boolean field of that name would shadow it (audit S-19).
+  present = true;
   async findById() {
-    return this.exists ? ({ id: 'd1', name: 'Depot' } as never) : null;
+    return this.present ? ({ id: 'd1', name: 'Depot' } as never) : null;
+  }
+  async exists() {
+    return this.present;
   }
 }
 
@@ -62,7 +67,7 @@ const baseInput: CreateRuleInput = {
 describe('PricingService CRUD', () => {
   it('rejects create for an unknown depot', async () => {
     const { service, depots } = make();
-    depots.exists = false;
+    depots.present = false;
     await expect(service.create('d1', baseInput)).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 

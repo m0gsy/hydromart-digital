@@ -126,6 +126,77 @@ describe('PaymentService', () => {
     expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 45000 }]);
   });
 
+  // B-9: refund read the payment, checked isRefundable, called the GATEWAY, and only then
+  // wrote — on `id` alone, with no status predicate. Two concurrent refunds both passed the
+  // check and both sent money back. These pin the two halves of the fix: the claim happens
+  // before anything is spent, and a caller that loses the claim spends nothing.
+  it('claims the payment before calling the gateway, never after', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+
+    const order: string[] = [];
+    const realClaim = repo.updateIfStatus.bind(repo);
+    jest.spyOn(repo, 'updateIfStatus').mockImplementation(async (...args) => {
+      order.push('claim');
+      return realClaim(...args);
+    });
+    jest.spyOn(gateway, 'refund').mockImplementation(async (reference, amount) => {
+      order.push('gateway');
+      return { reference: `RFN-${reference}`, raw: JSON.stringify({ refunded: amount }) };
+    });
+
+    await service.refund(payment.id, 'finance');
+
+    expect(order).toEqual(['claim', 'gateway']);
+  });
+
+  it('does not pay a customer twice when a second refund loses the claim', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+
+    await service.refund(payment.id, 'finance', 'first');
+    expect(gateway.refunds).toHaveLength(1);
+
+    // The loser must be refused, and above all must not reach the gateway a second time.
+    await expect(service.refund(payment.id, 'finance', 'second')).rejects.toBeInstanceOf(
+      PaymentNotRefundableError,
+    );
+    expect(gateway.refunds).toHaveLength(1);
+  });
+
+  // The single-threaded path can never reach this: by the time a second refund runs, the
+  // isRefundable check already rejects it. Losing the CLAIM is the genuinely concurrent
+  // case — two callers past that check at the same time — so it is forced here. Without
+  // this branch the second caller would fall through and refund again.
+  it('refuses a caller that passed the check but lost the claim to a racer', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+    jest.spyOn(repo, 'updateIfStatus').mockResolvedValue(null);
+
+    await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
+      PaymentNotRefundableError,
+    );
+    expect(gateway.refunds).toHaveLength(0);
+  });
+
+  it('hands the claim back when the gateway refuses, so the refund can be retried', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    await service.confirm(payment.id, 'staff');
+    gateway.throwOnRefund = true;
+
+    await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
+      GatewayUnavailableError,
+    );
+    // Still refundable: a failed gateway call must not strand the payment as REFUNDED with
+    // the money never sent.
+    expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
+
+    gateway.throwOnRefund = false;
+    const retried = await service.refund(payment.id, 'finance');
+    expect(retried.status).toBe(PaymentStatus.REFUNDED);
+    expect(gateway.refunds).toHaveLength(1);
+  });
+
   it('refuses to refund a payment that is not PAID', async () => {
     const payment = await initiate(PaymentMethod.CASH);
     await expect(service.refund(payment.id, 'finance')).rejects.toBeInstanceOf(
@@ -172,6 +243,108 @@ describe('PaymentService', () => {
     expect((await service.listRefundQueue({})).total).toBe(0);
   });
 
+  // H-29: every one of these decisions used to leave nothing behind but a log line that
+  // rotates. "Who approved the Rp 2,000,000 refund" has to be answerable from a table.
+  describe('audit trail', () => {
+    const auditedService = () =>
+      new PaymentService(
+        repo,
+        gateway,
+        orders,
+        buildTestConfig({ AUTH_SERVICE_URL: 'http://auth:3001', INTERNAL_SERVICE_KEY: 'k'.repeat(16) }),
+      );
+    const entries = (mock: jest.SpyInstance) =>
+      mock.mock.calls.map(([, init]) => JSON.parse((init as RequestInit).body as string));
+
+    let fetchMock: jest.SpyInstance;
+    beforeEach(() => {
+      fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    });
+    afterEach(() => fetchMock.mockRestore());
+
+    it('records the request and then the settlement of an approved refund', async () => {
+      const svc = auditedService();
+      const payment = await paidOver(150_000);
+      await svc.refund(payment.id, 'finance', 'galon bocor');
+      await svc.approveRefund(payment.id, 'hq');
+
+      const logged = entries(fetchMock);
+      expect(logged.map((e) => e.action)).toEqual([
+        'payment.refund.requested',
+        'payment.refund.settled',
+      ]);
+      expect(logged[0]).toMatchObject({
+        actorId: 'finance',
+        success: true,
+        metadata: { amountIdr: 150_000, thresholdIdr: 100_000, reason: 'galon bocor' },
+      });
+      expect(logged[1]).toMatchObject({
+        actorId: 'hq',
+        metadata: { approval: RefundApproval.APPROVED, paymentId: payment.id },
+      });
+    });
+
+    it('records a rejection as an unsuccessful decision, with who refused it', async () => {
+      const svc = auditedService();
+      const payment = await paidOver(150_000);
+      await svc.refund(payment.id, 'finance');
+      await svc.rejectRefund(payment.id, 'hq', 'tidak valid');
+
+      const rejected = entries(fetchMock).find((e) => e.action === 'payment.refund.rejected');
+      expect(rejected).toMatchObject({
+        actorId: 'hq',
+        success: false,
+        metadata: { amountIdr: 150_000, reason: 'tidak valid' },
+      });
+    });
+
+    it('records a below-threshold refund too — nobody approved it, and that is the record', async () => {
+      const svc = auditedService();
+      const payment = await paidOver(80_000);
+      await svc.refund(payment.id, 'finance');
+
+      const logged = entries(fetchMock);
+      expect(logged).toHaveLength(1);
+      expect(logged[0]).toMatchObject({
+        action: 'payment.refund.settled',
+        metadata: { approval: RefundApproval.NONE },
+      });
+    });
+
+    it('falls back to the payment id when there is no gateway reference', async () => {
+      const svc = auditedService();
+      // A cash payment never gets a reference — the trail still has to name the subject.
+      const payment = await initiate(PaymentMethod.CASH);
+      await svc.confirm(payment.id, 'kasir');
+      await svc.refund(payment.id, '');
+
+      const settled = entries(fetchMock).find((e) => e.action === 'payment.refund.settled');
+      expect(settled.target).toBe(payment.id);
+      // An empty actor is recorded as a system event, not as an actor named "".
+      expect(settled.actorId).toBeUndefined();
+    });
+
+    it('records a rejection with no reason given', async () => {
+      const svc = auditedService();
+      const payment = await paidOver(150_000);
+      await svc.refund(payment.id, 'finance'); // queued, no reason
+      await svc.rejectRefund(payment.id, 'hq'); // rejected, no reason
+
+      const rejected = entries(fetchMock).find((e) => e.action === 'payment.refund.rejected');
+      expect(rejected.metadata.reason).toBeNull();
+    });
+
+    // Fail-open: the money already moved, so the trail must not be able to undo it.
+    it('still settles the refund when the audit trail is unreachable', async () => {
+      fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+      const svc = auditedService();
+      const payment = await paidOver(80_000);
+      await expect(svc.refund(payment.id, 'finance')).resolves.toMatchObject({
+        status: PaymentStatus.REFUNDED,
+      });
+    });
+  });
+
   it('refunds at/under the threshold immediately (no approval needed)', async () => {
     const payment = await paidOver(80_000);
     const refunded = await service.refund(payment.id, 'finance');
@@ -216,13 +389,29 @@ describe('PaymentService', () => {
     );
   });
 
+  /**
+   * Signs a webhook the way a provider must (Q-15): every field except `signature`,
+   * sorted by key, `k=v&k=v`. Built from the payload rather than a hand-written template
+   * so a field added to the DTO is signed here too, instead of quietly going uncovered.
+   */
+  const signedWebhook = (
+    fields: { reference: string; event: 'PAID' | 'FAILED'; timestamp?: number },
+  ) => {
+    const payload = { timestamp: Date.now(), ...fields };
+    const canonical = Object.keys(payload)
+      .sort()
+      .map((k) => `${k}=${String((payload as Record<string, unknown>)[k])}`)
+      .join('&');
+    return {
+      ...payload,
+      signature: createHmac('sha256', WEBHOOK_SECRET).update(canonical).digest('hex'),
+    };
+  };
+
   it('settles a payment from a validly-signed webhook', async () => {
     const payment = await initiate(PaymentMethod.VA);
     const reference = payment.reference!;
-    const signature = createHmac('sha256', WEBHOOK_SECRET)
-      .update(`${reference}.PAID`)
-      .digest('hex');
-    const result = await service.handleWebhook({ reference, event: 'PAID', signature });
+    const result = await service.handleWebhook(signedWebhook({ reference, event: 'PAID' }));
     expect(result.handled).toBe(true);
     expect(repo.rows[0].status).toBe(PaymentStatus.PAID);
     // The PAID webhook confirms the order too.
@@ -232,10 +421,7 @@ describe('PaymentService', () => {
   it('does not confirm the order when a webhook settles FAILED', async () => {
     const payment = await initiate(PaymentMethod.VA);
     const reference = payment.reference!;
-    const signature = createHmac('sha256', WEBHOOK_SECRET)
-      .update(`${reference}.FAILED`)
-      .digest('hex');
-    const result = await service.handleWebhook({ reference, event: 'FAILED', signature });
+    const result = await service.handleWebhook(signedWebhook({ reference, event: 'FAILED' }));
     expect(result.handled).toBe(true);
     expect(repo.rows[0].status).toBe(PaymentStatus.FAILED);
     expect(orders.confirmedOrderIds).toEqual([]);
@@ -247,14 +433,43 @@ describe('PaymentService', () => {
       service.handleWebhook({
         reference: payment.reference!,
         event: 'PAID',
+        timestamp: Date.now(),
         signature: 'deadbeef',
       }),
     ).rejects.toBeInstanceOf(InvalidWebhookSignatureError);
   });
 
+  // Q-15: the old HMAC covered `${reference}.${event}` and nothing else, so a captured
+  // PAID callback never went stale and any field the provider added later arrived
+  // unauthenticated. Both halves are pinned here.
+  it('rejects a replayed webhook whose signature is otherwise perfect', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    const stale = signedWebhook({
+      reference: payment.reference!,
+      event: 'PAID',
+      timestamp: Date.now() - 6 * 60 * 1000, // one minute past the 5-minute window
+    });
+    await expect(service.handleWebhook(stale)).rejects.toBeInstanceOf(
+      InvalidWebhookSignatureError,
+    );
+    expect(repo.rows[0].status).toBe(PaymentStatus.PENDING);
+  });
+
+  it('rejects a webhook whose timestamp was edited to look fresh', async () => {
+    const payment = await initiate(PaymentMethod.VA);
+    const captured = signedWebhook({
+      reference: payment.reference!,
+      event: 'PAID',
+      timestamp: Date.now() - 6 * 60 * 1000,
+    });
+    // The timestamp is inside the HMAC, so refreshing it breaks the signature.
+    await expect(
+      service.handleWebhook({ ...captured, timestamp: Date.now() }),
+    ).rejects.toBeInstanceOf(InvalidWebhookSignatureError);
+  });
+
   it('ignores a webhook for an unknown reference (idempotent)', async () => {
-    const signature = createHmac('sha256', WEBHOOK_SECRET).update('nope.PAID').digest('hex');
-    const result = await service.handleWebhook({ reference: 'nope', event: 'PAID', signature });
+    const result = await service.handleWebhook(signedWebhook({ reference: 'nope', event: 'PAID' }));
     expect(result.handled).toBe(false);
   });
 

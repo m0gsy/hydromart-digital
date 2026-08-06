@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import {
@@ -14,6 +14,8 @@ import {
  */
 @Injectable()
 export class IdentityHttpAdapter implements IdentityPort {
+  private readonly logger = new Logger(IdentityHttpAdapter.name);
+
   private static readonly TIMEOUT_MS = 5000;
   /** auth-service caps a single lookup at 200 ids; a depot can hold more than that. */
   private static readonly BATCH = 200;
@@ -77,8 +79,14 @@ export class IdentityHttpAdapter implements IdentityPort {
         for (const r of rows) {
           if (r.id) out.set(r.id, { fullName: r.fullName ?? null, phone: r.phone ?? null });
         }
-      } catch {
-        // degrade this batch to "no account name" — the caller keeps its own fallback
+      } catch (error) {
+        // degrade this batch to "no account name" — the caller keeps its own fallback.
+        // Q-4: at debug, not warn: a customer list rendering without account names is a
+        // cosmetic degrade, but with no log at all an auth-service outage looked like a
+        // data problem in customer-service.
+        this.logger.debug(
+          `identity batch of ${batch.length} unresolved: ${(error as Error).message}`,
+        );
       }
     }
     return out;

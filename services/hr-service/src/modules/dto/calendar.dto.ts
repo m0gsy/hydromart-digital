@@ -8,6 +8,7 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -20,7 +21,7 @@ export class CreateHolidayDto {
 export class ListHolidayDto {
   @IsOptional() @IsUUID() depotId?: string;
   @IsOptional() @IsISO8601() from?: string;
-  @IsOptional() @IsISO8601() to?: string;
+  @IsOptional() @IsISO8601() @IsNotBefore('from') @IsWithinDays('from') to?: string;
 }
 
 export class CreateShiftDto {

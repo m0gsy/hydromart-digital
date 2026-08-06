@@ -3,6 +3,7 @@ import { PromotionPrismaRepository } from '../../src/infrastructure/prisma/promo
 import { VoucherPrismaRepository } from '../../src/infrastructure/prisma/voucher.prisma.repository';
 import { VoucherRequestPrismaRepository } from '../../src/infrastructure/prisma/voucher-request.prisma.repository';
 import { DiscountType } from '../../src/domain/voucher';
+import { VoucherNotFoundError } from '../../src/domain/errors';
 import { VoucherRequestStatus } from '../../src/domain/voucher-request';
 
 describe('PromotionPrismaRepository', () => {
@@ -92,7 +93,14 @@ describe('VoucherPrismaRepository', () => {
   };
   const voucherGrant = { findUnique: jest.fn(), create: jest.fn() };
   const $transaction = jest.fn();
-  const prisma = { voucher, voucherRedemption, voucherGrant, $transaction } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = {
+    voucher,
+    voucherRedemption,
+    voucherGrant,
+    $transaction,
+    $queryRaw,
+  } as unknown as PrismaService;
   const repo = new VoucherPrismaRepository(prisma);
 
   const voucherRow = () => ({
@@ -183,6 +191,64 @@ describe('VoucherPrismaRepository', () => {
       skip: 0,
       take: 10,
     });
+  });
+
+  // Audit S-14: every analytics number comes back aggregated. The console used to read a
+  // voucher's whole redemption history and make five passes over it here.
+  it('aggregates redemptions in SQL', async () => {
+    voucherRedemption.aggregate.mockResolvedValue({
+      _count: { _all: 5 },
+      _sum: { discountApplied: 1900 },
+    });
+    voucherRedemption.count.mockResolvedValue(4);
+    voucherRedemption.groupBy.mockResolvedValue([
+      { customerId: 'c-1', _count: { _all: 2 }, _sum: { discountApplied: 900 } },
+      { customerId: 'c-2', _count: { _all: 1 }, _sum: { discountApplied: null } },
+    ]);
+    $queryRaw
+      .mockResolvedValueOnce([{ day: '2026-07-16', uses: 1n }])
+      .mockResolvedValueOnce([{ orderId: 'o-1' }, { orderId: 'o-2' }]);
+
+    const from = new Date('2026-07-16T00:00:00Z');
+    const to = new Date('2026-07-23T00:00:00Z');
+    const out = await repo.redemptionAnalytics('v-1', from, to, 10, 'Asia/Jakarta');
+
+    expect(out).toEqual({
+      totalUses: 5,
+      totalSavingsIdr: 1900,
+      usesInWindow: 4,
+      dailyUses: [{ day: '2026-07-16', uses: 1 }],
+      // A group with no sum reads as 0, never NaN.
+      topCustomers: [
+        { customerId: 'c-1', uses: 2, savingsIdr: 900 },
+        { customerId: 'c-2', uses: 1, savingsIdr: 0 },
+      ],
+      orderIds: ['o-1', 'o-2'],
+    });
+    expect(voucherRedemption.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: [{ _count: { customerId: 'desc' } }, { _sum: { discountApplied: 'desc' } }],
+        take: 10,
+      }),
+    );
+    // H-16: the day labels must be cut in the business zone. On UTC every redemption
+    // before 07:00 WIB lands on the previous bar — and the caller labels its buckets
+    // with local day keys, so a UTC label matches none of them and the chart reads zero.
+    const dailySql = $queryRaw.mock.calls[0][0];
+    expect(dailySql.strings.join('')).toContain('AT TIME ZONE');
+    expect(dailySql.values).toContain('Asia/Jakarta');
+  });
+
+  it('reports zero savings when nothing was ever redeemed', async () => {
+    voucherRedemption.aggregate.mockResolvedValue({
+      _count: { _all: 0 },
+      _sum: { discountApplied: null },
+    });
+    voucherRedemption.count.mockResolvedValue(0);
+    voucherRedemption.groupBy.mockResolvedValue([]);
+    $queryRaw.mockResolvedValue([]);
+    const out = await repo.redemptionAnalytics('v-1', new Date(0), new Date(1), 5, 'Asia/Jakarta');
+    expect(out).toMatchObject({ totalUses: 0, totalSavingsIdr: 0, orderIds: [] });
   });
 
   it('countRedemptions scopes by voucher and optionally customer', async () => {
@@ -287,6 +353,86 @@ describe('VoucherPrismaRepository', () => {
     expect(voucherGrant.create).toHaveBeenCalledWith({ data: { voucherId: 'v-1', customerId: 'c-1' } });
   });
 });
+// H-1: the burn that the voucher caps actually rest on. The row is locked FOR UPDATE, the
+// counts are read INSIDE that lock, and `decide` gets to reject before anything is
+// written — so two customers spending the last use of a voucher cannot both win.
+describe('VoucherPrismaRepository.redeemAtomic', () => {
+  const tx = {
+    $queryRaw: jest.fn(),
+    voucherRedemption: { count: jest.fn(), aggregate: jest.fn(), create: jest.fn() },
+    voucher: { update: jest.fn() },
+  };
+  const prisma = {
+    $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+  } as unknown as PrismaService;
+  const repo = new VoucherPrismaRepository(prisma);
+  const input = {
+    voucherId: '11111111-1111-4111-8111-111111111111',
+    voucherCode: 'HEMAT10',
+    customerId: 'cust-1',
+    orderId: 'ord-1',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    tx.$queryRaw.mockResolvedValue([{ usedCount: 3 }]);
+    tx.voucherRedemption.count.mockResolvedValue(1);
+    tx.voucherRedemption.aggregate.mockResolvedValue({ _sum: { discountApplied: 5000 } });
+    tx.voucherRedemption.create.mockResolvedValue({
+      id: 'r-1',
+      voucherId: input.voucherId,
+      voucherCode: 'HEMAT10',
+      customerId: 'cust-1',
+      orderId: 'ord-1',
+      discountApplied: 2000,
+      createdAt: new Date('2026-08-03'),
+    });
+  });
+
+  it('decides against the counts read under the lock, then burns', async () => {
+    const seen: unknown[] = [];
+    const out = await repo.redeemAtomic(input, (counts) => {
+      seen.push(counts);
+      return 2000;
+    });
+
+    expect(seen).toEqual([{ usedCount: 3, customerRedemptions: 1, burned: 5000 }]);
+    expect(out).toMatchObject({ id: 'r-1', discountApplied: 2000 });
+    // The counter moves by an increment, not an absolute read back from before the lock.
+    expect(tx.voucher.update).toHaveBeenCalledWith({
+      where: { id: input.voucherId },
+      data: { usedCount: { increment: 1 } },
+    });
+  });
+
+  it('treats a voucher that vanished under the lock as not found', async () => {
+    tx.$queryRaw.mockResolvedValue([]);
+    await expect(repo.redeemAtomic(input, () => 2000)).rejects.toBeInstanceOf(VoucherNotFoundError);
+    expect(tx.voucherRedemption.create).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when decide rejects the burn', async () => {
+    const boom = new Error('usage limit reached');
+    await expect(
+      repo.redeemAtomic(input, () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(tx.voucherRedemption.create).not.toHaveBeenCalled();
+    expect(tx.voucher.update).not.toHaveBeenCalled();
+  });
+
+  it('reads a never-redeemed voucher as zero burned, not null', async () => {
+    tx.voucherRedemption.aggregate.mockResolvedValue({ _sum: { discountApplied: null } });
+    const seen: { burned: number }[] = [];
+    await repo.redeemAtomic(input, (counts) => {
+      seen.push(counts);
+      return 2000;
+    });
+    expect(seen[0].burned).toBe(0);
+  });
+});
+
 
 describe('VoucherRequestPrismaRepository', () => {
   const model = {

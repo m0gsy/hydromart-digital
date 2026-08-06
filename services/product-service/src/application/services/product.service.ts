@@ -53,6 +53,16 @@ export class ProductService {
     return product;
   }
 
+  /**
+   * Audit S-7: one call for a whole cart. Missing or inactive ids are simply absent from
+   * the reply — the caller decides what a missing line means (checkout rejects it), and a
+   * single bad id must not fail the resolution of every other line.
+   */
+  async byIds(ids: string[]): Promise<ProductRecord[]> {
+    if (ids.length === 0) return [];
+    return this.products.findActiveByIds(ids);
+  }
+
   async create(data: CreateProductData): Promise<ProductRecord> {
     if (await this.products.findBySku(data.sku)) {
       throw new DuplicateSkuError();

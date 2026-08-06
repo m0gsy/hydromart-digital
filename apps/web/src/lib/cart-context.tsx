@@ -1,7 +1,6 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { usePathname } from 'next/navigation';
 
 import { api } from './api';
 import { endpoints } from './endpoints';
@@ -15,6 +14,13 @@ interface CartValue {
   ready: boolean;
   /** re-pull the authoritative cart from the server */
   refresh: () => Promise<void>;
+  /**
+   * Audit F-7: adopt the cart a mutation already returned. Every cart write
+   * (`POST /cart/items`, `PUT`, `DELETE`) answers with the full, priced CartView,
+   * and the app used to throw it away and re-`GET` the same thing — two round-trips
+   * for one action, on the slowest network the app runs on.
+   */
+  apply: (cart: Cart) => void;
   /** optimistic badge bump before a mutation resolves (server refresh corrects it) */
   bump: (delta: number) => void;
 }
@@ -26,7 +32,6 @@ const countOf = (cart: Cart | null) =>
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const { customer } = useAuth();
-  const pathname = usePathname();
   const [cart, setCart] = useState<Cart | null>(null);
   const [optimistic, setOptimistic] = useState(0);
   const [ready, setReady] = useState(false);
@@ -48,12 +53,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [customer]);
 
-  // Refresh on sign-in change and on navigation. ponytail: the per-nav refresh
-  // bridges the badge until add-to-cart callers use bump()/refresh() directly.
+  const apply = useCallback((next: Cart) => {
+    setCart(next);
+    setOptimistic(0);
+    setReady(true);
+  }, []);
+
+  // Audit F-1/F-13: this used to re-`GET /cart` on EVERY navigation, because the
+  // add-to-cart callers only nudged the badge and left the provider to catch up.
+  // They now adopt the CartView their own mutation returned (`apply`), so the cart
+  // is read exactly once per sign-in instead of once per page the shopper opens.
   useEffect(() => {
     setOptimistic(0);
     void refresh();
-  }, [refresh, pathname]);
+  }, [refresh]);
 
   const value = useMemo<CartValue>(
     () => ({
@@ -61,9 +74,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       count: Math.max(0, countOf(cart) + optimistic),
       ready,
       refresh,
+      apply,
       bump: (delta) => setOptimistic((o) => o + delta),
     }),
-    [cart, optimistic, ready, refresh],
+    [cart, optimistic, ready, refresh, apply],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

@@ -1,11 +1,12 @@
 import { Controller, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
 
 import { RecItem, RecommendationService } from '../application/services/recommendation.service';
 import { RebuildService } from '../application/services/rebuild.service';
 import { LimitQueryDto, RebuildQueryDto, TrendingQueryDto } from './dto/recommendation.dto';
+import { RebuildNow3ResponseDto, RecItemResponseDto } from './dto/responses.generated.dto';
 
 const DEFAULT_LIMIT = 10;
 const DEFAULT_TRENDING_DAYS = 7;
@@ -23,6 +24,7 @@ export class RecommendationController {
   // below to avoid capture; `products/:productId/related` is unambiguous either way since
   // it starts with the distinct literal segment "products".
 
+  @ApiOkResponse({ type: RecItemResponseDto, isArray: true })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Get('reorder')
@@ -31,6 +33,7 @@ export class RecommendationController {
     return this.recommendations.reorder(user.sub, query.limit ?? DEFAULT_LIMIT);
   }
 
+  @ApiOkResponse({ type: RecItemResponseDto, isArray: true })
   @Public()
   @Get('trending')
   @ApiOperation({ summary: 'Trending products, optionally scoped to a depot' })
@@ -42,6 +45,7 @@ export class RecommendationController {
     );
   }
 
+  @ApiOkResponse({ type: RebuildNow3ResponseDto })
   @ApiBearerAuth()
   @Roles(Role.SUPER_ADMIN)
   @Post('rebuild')
@@ -51,6 +55,7 @@ export class RecommendationController {
     return this.rebuild.run(query.limit ?? DEFAULT_REBUILD_LIMIT);
   }
 
+  @ApiOkResponse({ type: RecItemResponseDto, isArray: true })
   @Public()
   @Get('products/:productId/related')
   @ApiOperation({ summary: 'Products frequently bought together with the given product' })

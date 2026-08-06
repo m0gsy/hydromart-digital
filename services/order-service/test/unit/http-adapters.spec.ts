@@ -5,6 +5,7 @@ import { HTTP_STATUS } from '@hydromart/platform';
 import { OrderConfigService } from '../../src/config/order-config.service';
 import {
   InsufficientStockError,
+  StockCheckUnavailableError,
   PaymentReversalFailedError,
   VoucherRejectedError,
 } from '../../src/domain/errors';
@@ -119,12 +120,54 @@ describe('InventoryHttpAdapter', () => {
     await expect(a.reserve('d1', 'o1', items, '')).rejects.toBeInstanceOf(InsufficientStockError);
   });
 
-  it('reserve: happy path + fails open on other non-2xx', async () => {
+  // B-6b: reserve used to fail OPEN on everything except a 422 — the previous version of
+  // this test asserted exactly that ("fails open on other non-2xx"), which is how the
+  // behaviour survived review. A depot-service outage therefore did not stop sales, it
+  // silently turned every order in that window into an unreserved one. Reserve is the step
+  // that makes a sale safe to promise, so it now fails CLOSED on anything that is not a
+  // verdict, matching how the SEC-1 amount guard already treats money.
+  it('reserve: succeeds when the depot confirms', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: true }));
     const a = new InventoryHttpAdapter(makeConfig());
     await expect(a.reserve('d1', 'o1', items, '')).resolves.toBeUndefined();
+  });
+
+  it('reserve: fails closed on a depot-service 5xx', async () => {
     fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
-    await expect(a.reserve('d1', 'o1', items, '')).resolves.toBeUndefined();
+    const a = new InventoryHttpAdapter(makeConfig());
+    await expect(a.reserve('d1', 'o1', items, '')).rejects.toBeInstanceOf(
+      StockCheckUnavailableError,
+    );
+  });
+
+  it('reserve: fails closed when depot-service is unreachable', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    const a = new InventoryHttpAdapter(makeConfig());
+    await expect(a.reserve('d1', 'o1', items, '')).rejects.toBeInstanceOf(
+      StockCheckUnavailableError,
+    );
+  });
+
+  it('reserve: fails closed when the call times out', async () => {
+    fetchMock.mockRejectedValueOnce(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+    const a = new InventoryHttpAdapter(makeConfig());
+    await expect(a.reserve('d1', 'o1', items, '')).rejects.toBeInstanceOf(
+      StockCheckUnavailableError,
+    );
+  });
+
+  it('reserve: fails closed when the internal key is missing — that is a config fault, not a reason to oversell', async () => {
+    const a = new InventoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+    await expect(a.reserve('d1', 'o1', items, '')).rejects.toBeInstanceOf(
+      StockCheckUnavailableError,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reserve: an empty cart is the one genuinely safe skip', async () => {
+    const a = new InventoryHttpAdapter(makeConfig());
+    await expect(a.reserve('d1', 'o1', [] as never, '')).resolves.toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('restock: puts a voided sale back, skipping without key or items', async () => {
@@ -522,16 +565,14 @@ describe('PromoHttpAdapter', () => {
       new PromoHttpAdapter(makeConfig()).quote('X', 'c1', 1, 0, 'Bearer x'),
     ).rejects.toBeInstanceOf(VoucherRejectedError);
   });
-  it('redeem: skips without key + posts on happy path', async () => {
-    await new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem(
-      'X',
-      'c',
-      'o',
-      1,
-      0,
-      '',
-    );
+  // B-6: a blank internal key used to make redeem a no-op, so every voucher was honoured
+  // for free until someone noticed. A config fault is not permission to give away money.
+  it('redeem: refuses without an internal key, posts on the happy path', async () => {
+    await expect(
+      new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).redeem('X', 'c', 'o', 1, 0, ''),
+    ).rejects.toBeInstanceOf(VoucherRejectedError);
     expect(fetchMock).not.toHaveBeenCalled();
+
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new PromoHttpAdapter(makeConfig()).redeem('X', 'c', 'o', 1, 0, '');
     expect(fetchMock).toHaveBeenCalledTimes(1);

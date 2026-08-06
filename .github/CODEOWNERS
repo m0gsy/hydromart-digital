@@ -1,0 +1,57 @@
+# Code owners — who must approve a change before it merges.
+#
+# Audit Q-18: the repository had no CODEOWNERS, so `.claude/COMMIT_RULES.md`'s
+# "findings on payment, biometric and payroll paths get human review before merge"
+# was a convention with nothing enforcing it. This file is the enforcement: add
+# these paths to a branch-protection rule with "Require review from Code Owners"
+# and the rule stops being a memory test.
+#
+# The handle is the repository owner's GitHub login (verified with `gh auth status`
+# / `gh repo view`, not guessed from the git author name — those differ here).
+# GitHub silently ignores an owner it cannot resolve, so an unverified handle would
+# have made this file decoration.
+
+# Default owner for everything not matched below.
+*                                           @m0gsy
+
+# ---- Money -----------------------------------------------------------------
+# Payments, refunds, the franchise ledger, commissions and withdrawals. A defect
+# here moves real IDR and is usually discovered by someone counting cash.
+/services/payment-service/                  @m0gsy
+/services/payout-service/                   @m0gsy
+/services/promo-service/                    @m0gsy
+
+# ---- Stock -----------------------------------------------------------------
+# Reservation, settlement and the movement ledger: an oversell is silent and
+# cumulative, so these paths get the same treatment as money.
+/services/depot-service/src/infrastructure/prisma/inventory.prisma.repository.ts @m0gsy
+/services/depot-service/src/application/services/inventory.service.ts            @m0gsy
+/services/order-service/src/application/services/order.service.ts                @m0gsy
+
+# ---- Payroll and biometrics ------------------------------------------------
+# Payroll computes what people are paid; the face paths hold biometric templates
+# that cannot be reissued if they leak.
+/services/hr-service/src/application/services/payroll.service.ts   @m0gsy
+/services/hr-service/src/application/services/attendance.service.ts @m0gsy
+/services/hr-service/src/infrastructure/face/                       @m0gsy
+
+# ---- Authentication and authorization --------------------------------------
+# One capability map backs both the guards and the console; auth-service owns
+# sessions, OTP and the internal-key path.
+/services/auth-service/                     @m0gsy
+/packages/access/                           @m0gsy
+/packages/platform/src/nest/                @m0gsy
+
+# ---- The 18× multiplier and the edge ---------------------------------------
+# A change in packages/platform reaches every service (audit Q-2); the gateway is
+# the only thing the public internet talks to.
+/packages/platform/                         @m0gsy
+/services/gateway-service/                  @m0gsy
+
+# ---- Deployment, secrets, security posture ---------------------------------
+/docker-compose.prod.yml                    @m0gsy
+/Caddyfile                                  @m0gsy
+/scripts/                                   @m0gsy
+/.github/workflows/                         @m0gsy
+/SECURITY.md                                @m0gsy
+/.github/CODEOWNERS                         @m0gsy

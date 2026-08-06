@@ -90,6 +90,56 @@ describe('createSessionRouter — otp/verify', () => {
     const res = await verify(makeApp(), {});
     expect(res.status).toBe(204);
   });
+
+  // Audit F-4: this router is on the PUBLIC ingress. Before the fix a proxy's HTML
+  // error page threw a SyntaxError out of the async handler and a hung auth-service
+  // held the connection open with no deadline.
+  it('a non-JSON upstream body is passed through as a status, not a SyntaxError', async () => {
+    fetchMock.mockResolvedValue({ status: 502, text: async () => '<html>502</html>' });
+    const res = await verify(makeApp(), { otp: '000000' });
+    expect(res.status).toBe(502);
+    expect(res.headers['set-cookie']).toBeUndefined();
+  });
+
+  it('an unreachable auth-service answers 503 instead of crashing the handler', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await verify(makeApp(), { otp: '000000' });
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ statusCode: 503, message: 'Layanan masuk sedang tidak tersedia.' });
+  });
+
+  it('sends an abort signal so a hung auth-service cannot hold the request open', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, SESSION));
+    await verify(makeApp(), { otp: '000000' });
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init as { signal?: AbortSignal }).signal).toBeInstanceOf(AbortSignal);
+  });
+
+  // The signal is only half the fix — something has to FIRE it. Without the timer the
+  // deadline is a decoration and an auth-service that never answers still holds the
+  // connection open. Real timers with an injected 20ms budget: supertest's own round-trip
+  // does not complete under jest's fake ones.
+  it('aborts the upstream call once the deadline passes, and answers 503', async () => {
+    let aborted = false;
+    fetchMock.mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const { signal } = init as { signal: AbortSignal };
+          signal.addEventListener('abort', () => {
+            aborted = true;
+            reject(new Error('aborted'));
+          });
+        }),
+    );
+
+    const app = express();
+    app.use('/auth', createSessionRouter(AUTH_BASE, false, 20));
+    const res = await request(app).post('/auth/api/v1/auth/otp/verify').send({ otp: '000000' });
+
+    expect(aborted).toBe(true);
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ statusCode: 503, message: 'Layanan masuk sedang tidak tersedia.' });
+  });
 });
 
 describe('createSessionRouter — token/refresh', () => {
@@ -115,6 +165,16 @@ describe('createSessionRouter — token/refresh', () => {
       `${AUTH_BASE}/api/v1/auth/token/refresh`,
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  // A transport failure is NOT an expired session: clearing the cookies here would sign
+  // every user out on a blip they had nothing to do with.
+  it('returns 503 and KEEPS the cookies when auth-service is unreachable', async () => {
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    const res = await refresh(makeApp(), `${RT_COOKIE}=RT-456`);
+
+    expect(res.status).toBe(503);
+    expect(res.headers['set-cookie']).toBeUndefined();
   });
 
   it('clears cookies and returns 401 when the refresh is rejected upstream', async () => {

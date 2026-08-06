@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, Role, Roles } from '@hydromart/platform';
 
@@ -14,6 +14,7 @@ import { FeatureFlagDto, UpdateFeatureFlagDto } from './dto/feature-flag.dto';
 export class FeatureFlagsController {
   constructor(private readonly flags: FeatureFlagService) {}
 
+  @ApiOkResponse({ type: FeatureFlagDto, isArray: true })
   @Can('hqConsole')
   @Get()
   @ApiOperation({ summary: 'List all feature flags (8b)' })
@@ -21,6 +22,7 @@ export class FeatureFlagsController {
     return (await this.flags.list()).map((f) => FeatureFlagDto.from(f));
   }
 
+  @ApiOkResponse({ type: FeatureFlagDto })
   @Roles(Role.SUPER_ADMIN)
   @Patch(':key')
   @ApiOperation({ summary: "Toggle a feature flag's state / rollout percentage (8b)" })

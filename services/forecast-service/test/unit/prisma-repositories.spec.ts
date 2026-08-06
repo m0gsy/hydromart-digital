@@ -22,9 +22,9 @@ describe('ForecastPrismaRepository', () => {
 
   // Write-path models (tx.* inside the transaction callback)
   const tx = {
+    $executeRaw: jest.fn(),
     ingestedOrder: { findUnique: jest.fn(), create: jest.fn() },
-    productRef: { upsert: jest.fn() },
-    productDailyDemand: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    productDailyDemand: { findMany: jest.fn(), createMany: jest.fn() },
     depotDailyRevenue: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     customerActivity: { findUnique: jest.fn(), upsert: jest.fn() },
   };
@@ -64,26 +64,24 @@ describe('ForecastPrismaRepository', () => {
       ],
     };
     tx.ingestedOrder.findUnique.mockResolvedValue(null);
-    tx.productDailyDemand.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'pdd-2' });
+    // p-1 has no demand row for the day yet; p-2 already has one.
+    tx.productDailyDemand.findMany.mockResolvedValue([{ id: 'pdd-2', productId: 'p-2' }]);
     tx.depotDailyRevenue.findFirst.mockResolvedValue(null);
     tx.customerActivity.findUnique.mockResolvedValue(null);
 
     await repo.applyIngest(cmd);
 
     expect($transaction).toHaveBeenCalledTimes(1);
-    expect(tx.productRef.upsert).toHaveBeenNthCalledWith(1, {
-      where: { productId: 'p-1' },
-      create: { productId: 'p-1', name: 'Galon 19L', sku: 'G19', unit: 'galon' },
-      update: { name: 'Galon 19L', sku: 'G19', unit: 'galon' },
+    // Audit S-20 and its Q-17 baseline row: the product refs and the demand increments are
+    // one statement each for the WHOLE order — it used to be three per item.
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(tx.productDailyDemand.findMany).toHaveBeenCalledWith({
+      where: { productId: { in: ['p-1', 'p-2'] }, depotId: 'depot-1', day },
+      select: { id: true, productId: true },
     });
-    // p-1: no existing demand row -> create with item quantity + orderCount 1.
-    expect(tx.productDailyDemand.create).toHaveBeenCalledWith({
-      data: { productId: 'p-1', depotId: 'depot-1', day, quantity: 3, orderCount: 1 },
-    });
-    // p-2: existing demand row -> increment by item quantity.
-    expect(tx.productDailyDemand.update).toHaveBeenCalledWith({
-      where: { id: 'pdd-2' },
-      data: { quantity: { increment: 2 }, orderCount: { increment: 1 } },
+    // p-1: no existing demand row -> inserted with its quantity and one order.
+    expect(tx.productDailyDemand.createMany).toHaveBeenCalledWith({
+      data: [{ productId: 'p-1', depotId: 'depot-1', day, quantity: 3, orderCount: 1 }],
     });
     // No existing revenue row -> create with the order total.
     expect(tx.depotDailyRevenue.create).toHaveBeenCalledWith({
@@ -108,14 +106,14 @@ describe('ForecastPrismaRepository', () => {
       at,
       items: [{ productId: 'p-1', productName: 'Galon 19L', sku: 'G19', unit: 'galon', quantity: 3 }],
     });
-    expect(tx.productRef.upsert).not.toHaveBeenCalled();
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
     expect(tx.ingestedOrder.create).not.toHaveBeenCalled();
   });
 
   it('keeps the max lastOrderAt on the update branch when the existing activity is newer', async () => {
     const newer = new Date('2026-02-01T00:00:00Z');
     tx.ingestedOrder.findUnique.mockResolvedValue(null);
-    tx.productDailyDemand.findFirst.mockResolvedValue({ id: 'pdd-1' });
+    tx.productDailyDemand.findMany.mockResolvedValue([{ id: 'pdd-1', productId: 'p-1' }]);
     tx.depotDailyRevenue.findFirst.mockResolvedValue({ id: 'ddr-1' });
     tx.customerActivity.findUnique.mockResolvedValue({ lastOrderAt: newer });
 

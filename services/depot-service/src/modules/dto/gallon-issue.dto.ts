@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsPositive, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class CreateGallonIssueDto {
   @ApiPropertyOptional({
@@ -32,17 +32,19 @@ export class CreateGallonIssueDto {
 }
 
 export class ListIssuesQueryDto {
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 }

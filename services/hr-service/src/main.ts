@@ -10,9 +10,13 @@ import { configureDepotScope, enableMetrics, httpCapabilityLoader, httpDepotScop
 
 import { AppModule } from './app.module';
 import { HrConfigService } from './config/hr-config.service';
+import { configureBodyLimits } from './http/body-limits';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // B-15: Nest's own parsers cap JSON at Express's 100 KB default, which no face capture
+  // fits inside. Own the parsers so the face routes get the budget their DTOs allow.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, bodyParser: false });
+  configureBodyLimits(app);
   const logger = app.get(Logger);
   app.useLogger(logger);
 

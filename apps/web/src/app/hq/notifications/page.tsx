@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Bell, Warning } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
@@ -29,20 +30,20 @@ export default function HqNotificationsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Bell size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.notifications.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.notifications.subtitle')}</p>
-          </div>
-        </div>
-        {items.length > 0 && (
-          <Button variant="secondary" onClick={markAll}>
-            {t('hq.notifications.markAll')}
-          </Button>
-        )}
-      </div>
+      <HqPageHeader
+        icon={Bell}
+        title={t('hq.notifications.title')}
+        subtitle={t('hq.notifications.subtitle')}
+        action={
+          <>
+            {items.length > 0 && (
+              <Button variant="secondary" onClick={markAll}>
+                {t('hq.notifications.markAll')}
+              </Button>
+            )}
+          </>
+        }
+      />
 
       {feed.loading ? (
         <Skeleton className="h-64 w-full" />

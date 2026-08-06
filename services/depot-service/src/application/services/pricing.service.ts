@@ -70,7 +70,7 @@ export class PricingService {
   }
 
   async create(depotId: string, input: CreateRuleInput): Promise<PricingRuleRecord> {
-    if (!(await this.depots.findById(depotId, false))) {
+    if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
     }
     this.validateWindow(input);

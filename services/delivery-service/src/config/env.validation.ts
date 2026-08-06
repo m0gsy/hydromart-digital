@@ -2,6 +2,8 @@ import { optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
+  // One business timezone for the whole platform (H-16); see @hydromart/platform.
+  PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   NODE_ENV: Joi.string().valid('development', 'test', 'production').default('development'),
   DELIVERY_SERVICE_PORT: Joi.number().port().default(3006),
   DELIVERY_DATABASE_URL: Joi.string()
@@ -20,6 +22,9 @@ export const envValidationSchema = Joi.object({
   // crm-service base URL for pushing HIGH field incidents to the ops feed (design 4b).
   // Blank = incident ops alerting disabled (fail-open).
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // admin-service base URL for the partner webhook fan-out (H-30). Blank = a delivery is
+  // still completed, its event is simply never offered to partner endpoints.
+  ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // payout-service base URL for the courier earning push (delivery→payout). Blank = disabled.
   PAYOUT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // WhatsApp number that receives HIGH incident alerts (the ops number). Blank = disabled.
@@ -61,7 +66,10 @@ export const envValidationSchema = Joi.object({
     .uri()
     .when('NODE_ENV', {
       is: 'production',
-      then: Joi.string().uri().pattern(/localhost|127\.0\.0\.1/, { invert: true }).required(),
+      then: Joi.string()
+        .uri()
+        .pattern(/localhost|127\.0\.0\.1/, { invert: true })
+        .required(),
       otherwise: Joi.string().uri().default('http://localhost:3006'),
     }),
   // Which storage adapter backs uploads: 'local' (disk, dev) or 's3' (Cloudflare R2
@@ -89,4 +97,14 @@ export const envValidationSchema = Joi.object({
   CORS_ALLOWED_ORIGINS: Joi.string().default('http://localhost:3000'),
   RATE_LIMIT_TTL_SECONDS: Joi.number().integer().positive().default(60),
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(100),
+  DELIVERY_URBAN_SPEED_KMPH: Joi.number().positive().default(18),
+  // Q-6: shipped to every service by docker-compose's x-shared, and until now
+  // validated by none of them. The capability poller reads it; unset, it fails open
+  // and every service silently enforces the compiled RBAC defaults forever — which
+  // looks exactly like "the matrix edit did nothing".
+  AUTH_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });

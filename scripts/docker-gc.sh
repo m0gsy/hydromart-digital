@@ -3,7 +3,7 @@
 # versions left dangling after every `up --build` (each rebuild orphans the
 # previous image) plus stale build cache. This removes both.
 #
-# NEVER touches volumes → Postgres/Redis data is safe. No `-a` on images, so
+# NEVER touches volumes → the Postgres data directory is safe. No `-a` on images, so
 # only untagged/dangling layers go (the current running images stay tagged).
 #
 # Run weekly via cron (see DEPLOY / backup cron), and/or right after a deploy:

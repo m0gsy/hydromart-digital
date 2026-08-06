@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
 
 import { CashbookService, CashbookView } from '../application/services/cashbook.service';
 import { CashbookEntry } from '../domain/cashbook';
 import { CreateCashbookDto, ListCashbookQueryDto } from './dto/cashbook.dto';
+import { CashbookEntryResponseDto, CashbookResponseDto } from './dto/responses.generated.dto';
 
 /** Depot cashbook / daily cash-flow ledger (design 14c). */
 @ApiTags('Cashbook')
@@ -15,6 +16,7 @@ import { CreateCashbookDto, ListCashbookQueryDto } from './dto/cashbook.dto';
 export class CashbookController {
   constructor(private readonly cashbook: CashbookService) {}
 
+  @ApiOkResponse({ type: CashbookResponseDto })
   @Get()
   @ApiOperation({
     summary: "List a depot's cashbook entries (newest first) with in/out/net summary",
@@ -26,6 +28,7 @@ export class CashbookController {
     });
   }
 
+  @ApiOkResponse({ type: CashbookEntryResponseDto })
   @Post()
   @ApiOperation({ summary: 'Record a cashbook entry' })
   record(

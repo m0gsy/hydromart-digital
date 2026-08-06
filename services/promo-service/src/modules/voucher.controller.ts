@@ -13,7 +13,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -34,6 +34,7 @@ import {
   RedeemVoucherDto,
   UpdateVoucherDto,
 } from './dto/voucher.dto';
+import { BurnSummary3ResponseDto, Grant3ResponseDto, PagedVoucherResponseDto, QuoteResponseDto, RedeemResponseDto, VoucherResponseDto } from './dto/responses.generated.dto';
 
 // Vouchers are authored by marketing/depot staff and previewed/redeemed by customers.
 // RBAC role groups come from the shared @hydromart/access capability map (voucherRead/voucherWrite).
@@ -44,6 +45,7 @@ const toDate = (iso?: string): Date | undefined => (iso ? new Date(iso) : undefi
 export class VoucherController {
   constructor(private readonly vouchers: VoucherService) {}
 
+  @ApiOkResponse({ type: PagedVoucherResponseDto })
   @ApiBearerAuth()
   @Can('voucherRead')
   @Get()
@@ -54,6 +56,7 @@ export class VoucherController {
 
   // HQ voucher governance (14b): real burn per voucher + network total. Declared before
   // `@Get(':code')` so "burn-summary" is not captured as a code.
+  @ApiOkResponse({ type: BurnSummary3ResponseDto })
   @ApiBearerAuth()
   @Can('voucherRead')
   @Get('burn-summary')
@@ -63,6 +66,7 @@ export class VoucherController {
   }
 
   // Declared before the `@Get(':code')` route below so "me" is not captured as a code.
+  @ApiOkResponse({ type: MyVoucherDto, isArray: true })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Get('me')
@@ -72,6 +76,7 @@ export class VoucherController {
     return wallet.map((w) => MyVoucherDto.from(w));
   }
 
+  @ApiOkResponse({ type: QuoteResponseDto })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Post('quote')
@@ -87,6 +92,7 @@ export class VoucherController {
   // Same preview, for an order the buyer is not the caller of: a counter sale is rung up on
   // the cashier's token, and quoting against that token would price the CASHIER's wallet.
   // Internal-key only — a customer must never be able to quote someone else's voucher.
+  @ApiOkResponse({ type: QuoteResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -100,6 +106,7 @@ export class VoucherController {
   // System-to-system call from order-service at checkout, authenticated by the shared
   // INTERNAL_SERVICE_KEY (not a customer token). Idempotent per orderId. Internal auth
   // closes the prior ceiling where a customer could inflate global usage via the wire.
+  @ApiOkResponse({ type: RedeemResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -110,6 +117,7 @@ export class VoucherController {
     return this.vouchers.redeem(dto.code, dto.customerId, dto.orderId, dto.subtotal, dto.shippingFee ?? 0);
   }
 
+  @ApiOkResponse({ type: VoucherResponseDto })
   @ApiBearerAuth()
   @Can('voucherWrite')
   @Post()
@@ -131,6 +139,7 @@ export class VoucherController {
     });
   }
 
+  @ApiOkResponse({ type: Grant3ResponseDto })
   @ApiBearerAuth()
   @Can('voucherWrite')
   @Post(':id/grant')
@@ -143,6 +152,7 @@ export class VoucherController {
     return this.vouchers.grant(id, dto.customerId, authorization ?? '');
   }
 
+  @ApiOkResponse({ type: VoucherResponseDto })
   @ApiBearerAuth()
   @Can('voucherWrite')
   @Patch(':id')
@@ -166,6 +176,7 @@ export class VoucherController {
     return this.vouchers.update(id, patch);
   }
 
+  @ApiOkResponse({ type: VoucherResponseDto })
   @ApiBearerAuth()
   @Can('voucherWrite')
   @Delete(':id')
@@ -174,6 +185,7 @@ export class VoucherController {
     return this.vouchers.deactivate(id);
   }
 
+  @ApiOkResponse({ type: VoucherResponseDto })
   @Public()
   @Get(':code')
   @ApiOperation({ summary: 'Public voucher preview by code (FR-089/FR-090)' })

@@ -29,12 +29,12 @@ export interface CustomerRepository {
    * Staff directory (PRD Module 7): non-customer accounts, newest first, paginated.
    * Excludes DELETED accounts; filters to one role when given.
    */
-  /** `search` matches name or phone — the directory is long past browsing by page. */
   listStaff(
     page: number,
     limit: number,
     role?: Role,
     depotId?: string,
+    /** Case-insensitive substring matched against name or phone (audit F-12). */
     search?: string,
   ): Promise<{ items: Customer[]; total: number }>;
   /**

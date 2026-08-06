@@ -273,6 +273,22 @@ describe('DepotPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // Audit S-19 and its Q-17 baseline row: 47 call sites asked "does this depot exist" by
+  // reading the whole row. Nothing deletes a depot, so a yes is remembered; a no always
+  // goes back to the database, which is what lets a depot created a second ago be found.
+  it('remembers a depot exists, but never that one does not', async () => {
+    const fresh = new DepotPrismaRepository(prisma);
+    model.findUnique.mockResolvedValue(null);
+    expect(await fresh.exists('dep-x')).toBe(false);
+    expect(await fresh.exists('dep-x')).toBe(false);
+    expect(model.findUnique).toHaveBeenCalledTimes(2);
+
+    model.findUnique.mockResolvedValue({ id: 'dep-x' });
+    expect(await fresh.exists('dep-x')).toBe(true);
+    expect(await fresh.exists('dep-x')).toBe(true);
+    expect(model.findUnique).toHaveBeenCalledTimes(3);
+  });
+
   it('searches with paging and no filters, mapping decimals/json', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
@@ -920,10 +936,13 @@ describe('InventoryPrismaRepository', () => {
   const stockReservation = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    updateMany: jest.fn(),
     update: jest.fn(),
     create: jest.fn(),
+    createMany: jest.fn(),
   };
   const $queryRaw = jest.fn();
+  const $executeRaw = jest.fn();
   // Support both array-form ($transaction([...]) -> Promise.all) and interactive callback form.
   const $transaction = jest
     .fn()
@@ -933,6 +952,7 @@ describe('InventoryPrismaRepository', () => {
     stockMovement,
     stockReservation,
     $queryRaw,
+    $executeRaw,
     $transaction,
   } as unknown as PrismaService;
   const repo = new InventoryPrismaRepository(prisma);
@@ -1070,24 +1090,28 @@ describe('InventoryPrismaRepository', () => {
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 
-  it('lists low stock across the network, filtering by available<=min', async () => {
+  it('asks Postgres for the low-stock predicate instead of filtering rows in JS', async () => {
     const low = { ...item, id: 'it-2', quantity: 4, reserved: 2, minimumStock: 3 };
-    inventoryItem.findMany.mockResolvedValue([item, low]);
+    $queryRaw.mockResolvedValue([low]);
     const out = await repo.listLowStock();
-    expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { minimumStock: { gt: 0 } },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
+    // available <= minimumStock is a two-column comparison Prisma cannot express, so the
+    // old shape read every line with a minimum set and filtered them here (audit S-13).
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(inventoryItem.findMany).not.toHaveBeenCalled();
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 
-  it('lists low stock scoped to one depot', async () => {
-    inventoryItem.findMany.mockResolvedValue([]);
+  it('scopes low stock to one depot, or to several in one query', async () => {
+    $queryRaw.mockResolvedValue([]);
     await repo.listLowStock('depot-9');
-    expect(inventoryItem.findMany).toHaveBeenCalledWith({
-      where: { minimumStock: { gt: 0 }, depotId: 'depot-9' },
-      orderBy: [{ depotId: 'asc' }, { itemType: 'asc' }],
-    });
+    await repo.listLowStock(['depot-9', 'depot-8']);
+    expect($queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns nothing, and asks nothing, for an empty depot list', async () => {
+    $queryRaw.mockClear();
+    expect(await repo.listLowStock([])).toEqual([]);
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('updates an item', async () => {
@@ -1132,6 +1156,36 @@ describe('InventoryPrismaRepository', () => {
       orderBy: { createdAt: 'desc' },
     });
     expect(out[0].type).toBe(StockMovementType.ADJUSTMENT);
+  });
+
+  it('seeks past a movement cursor instead of an offset (stock_movements grows fastest)', async () => {
+    stockMovement.findMany.mockResolvedValue([
+      {
+        id: 'mv-9',
+        itemId: 'it-1',
+        type: 'SALE',
+        delta: -1,
+        quantityBefore: 5,
+        quantityAfter: 4,
+        reason: null,
+        actorId: 'staff-1',
+        orderId: null,
+        createdAt: new Date('2026-07-20T00:00:00.000Z'),
+        item: { label: 'Galon 19L', itemType: 'GALON' },
+      },
+    ]);
+    stockMovement.count.mockResolvedValue(5000);
+
+    const out = await repo.listForDepotMovements('depot-1', {
+      page: 40,
+      limit: 1,
+      cursor: 'mv-8',
+    });
+
+    expect(stockMovement.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'mv-8' }, skip: 1, take: 1 }),
+    );
+    expect(out.nextCursor).toBe('mv-9');
   });
 
   it('lists one page of depot movements with item labels and filters', async () => {
@@ -1182,13 +1236,14 @@ describe('InventoryPrismaRepository', () => {
         createdAt: true,
         item: { select: { label: true, itemType: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 20,
       take: 20,
     });
     expect(stockMovement.count).toHaveBeenCalledWith({ where });
     expect(out).toEqual({
       total: 21,
+      nextCursor: null,
       items: [
         expect.objectContaining({
           id: 'mv-1',
@@ -1249,6 +1304,34 @@ describe('InventoryPrismaRepository', () => {
     expect(await repo.findReservation('it-1', 'ord-2')).toBeNull();
   });
 
+  // Audit S-3/S-24: the batch reads that replaced the per-line walk.
+  it('reads many lines and prior movements in one query each, and counts by type', async () => {
+    inventoryItem.findMany.mockResolvedValue([item]);
+    expect(await repo.findLines('depot-1', InventoryItemType.PRODUK, [])).toEqual([]);
+    const lines = await repo.findLines('depot-1', InventoryItemType.PRODUK, ['prod-1']);
+    expect(lines[0].id).toBe('it-1');
+    expect(inventoryItem.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', itemType: InventoryItemType.PRODUK, productId: { in: ['prod-1'] } },
+    });
+
+    expect(await repo.itemsWithMovementForOrder('ord-1', [])).toEqual(new Set());
+    stockMovement.findMany.mockResolvedValue([{ itemId: 'it-1' }]);
+    expect(await repo.itemsWithMovementForOrder('ord-1', ['it-1', 'it-2'])).toEqual(
+      new Set(['it-1']),
+    );
+    expect(stockMovement.findMany).toHaveBeenLastCalledWith({
+      where: { orderId: 'ord-1', itemId: { in: ['it-1', 'it-2'] } },
+      select: { itemId: true },
+      distinct: ['itemId'],
+    });
+
+    stockMovement.count.mockResolvedValue(2);
+    expect(await repo.countMovements('it-1', StockMovementType.SALE)).toBe(2);
+    expect(stockMovement.count).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', type: StockMovementType.SALE },
+    });
+  });
+
   it('reserveAtomic short-circuits on empty plans', async () => {
     const out = await repo.reserveAtomic([], 'ord-1');
     expect(out).toEqual({ shortfalls: [] });
@@ -1256,17 +1339,29 @@ describe('InventoryPrismaRepository', () => {
   });
 
   it('reserveAtomic reports shortfalls and writes nothing', async () => {
-    $queryRaw.mockResolvedValue([{ quantity: 1, reserved: 1 }]); // available 0
+    $queryRaw.mockResolvedValue([{ id: 'it-1', quantity: 1, reserved: 1 }]); // available 0
     const out = await repo.reserveAtomic([{ itemId: 'it-1', quantity: 2 }], 'ord-1');
     expect(out).toEqual({ shortfalls: [{ itemId: 'it-1', requested: 2, available: 0 }] });
-    expect(inventoryItem.update).not.toHaveBeenCalled();
-    expect(stockReservation.create).not.toHaveBeenCalled();
+    expect($executeRaw).not.toHaveBeenCalled();
+    expect(stockReservation.createMany).not.toHaveBeenCalled();
   });
 
-  it('reserveAtomic increments reserved and creates rows when stock suffices', async () => {
-    $queryRaw.mockResolvedValue([{ quantity: 100, reserved: 0 }]);
-    inventoryItem.update.mockResolvedValue(item);
-    stockReservation.create.mockResolvedValue({ id: 'rs-1' });
+  // A line the lock statement did not return does not exist any more — it must read as
+  // zero sellable, not as unlimited.
+  it('reserveAtomic treats a line that vanished as a shortfall', async () => {
+    $queryRaw.mockResolvedValue([]);
+    const out = await repo.reserveAtomic([{ itemId: 'gone', quantity: 1 }], 'ord-1');
+    expect(out).toEqual({ shortfalls: [{ itemId: 'gone', requested: 1, available: 0 }] });
+  });
+
+  // Audit S-4 and its Q-17 baseline row: this used to be a SELECT ... FOR UPDATE, an UPDATE
+  // and an INSERT PER LINE — 3N statements with every row locked for the whole walk.
+  it('locks every line in one statement', async () => {
+    $queryRaw.mockResolvedValue([
+      { id: 'a', quantity: 100, reserved: 0 },
+      { id: 'b', quantity: 100, reserved: 0 },
+    ]);
+    stockReservation.createMany.mockResolvedValue({ count: 2 });
     const out = await repo.reserveAtomic(
       [
         { itemId: 'b', quantity: 1 },
@@ -1275,36 +1370,36 @@ describe('InventoryPrismaRepository', () => {
       'ord-1',
     );
     expect(out).toEqual({ shortfalls: [] });
-    // Deterministic lock order: sorted a before b.
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'a' },
-      data: { reserved: { increment: 2 } },
-    });
-    expect(inventoryItem.update).toHaveBeenNthCalledWith(2, {
-      where: { id: 'b' },
-      data: { reserved: { increment: 1 } },
-    });
-    expect(stockReservation.create).toHaveBeenCalledWith({
-      data: { itemId: 'a', orderId: 'ord-1', quantity: 2 },
-    });
-    expect(stockReservation.create).toHaveBeenCalledWith({
-      data: { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+    // Three statements for two lines, and the count does not move with the line count.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect($executeRaw).toHaveBeenCalledTimes(1);
+    expect(stockReservation.createMany).toHaveBeenCalledTimes(1);
+    // Deterministic lock order survives: sorted a before b, both in one insert.
+    expect(stockReservation.createMany).toHaveBeenCalledWith({
+      data: [
+        { itemId: 'a', orderId: 'ord-1', quantity: 2 },
+        { itemId: 'b', orderId: 'ord-1', quantity: 1 },
+      ],
     });
   });
 
-  it('releaseReservation flips an ACTIVE hold to RELEASED and gives units back', async () => {
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'ACTIVE',
-    });
-    stockReservation.update.mockResolvedValue({});
+  // B-5: settle used to read the status OUTSIDE the transaction and then update on `id`
+  // alone. Two concurrent settles (a staff cancellation racing the abandoned-order sweep,
+  // or release racing consume) both saw ACTIVE and both ran the decrement, so `reserved`
+  // fell twice for one hold, `available` over-reported, and the depot oversold silently
+  // and cumulatively. The claim is now a conditional updateMany on status: ACTIVE — the
+  // same discipline reserveAtomic already uses one function above.
+  const activeHold = { id: 'rs-1', itemId: 'it-1', orderId: 'ord-1', quantity: 2, status: 'ACTIVE' };
+
+  it('releaseReservation claims the hold conditionally and gives units back once', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'RELEASED' });
     inventoryItem.update.mockResolvedValue(item);
+
     await repo.releaseReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({
-      where: { id: 'rs-1' },
+
+    expect(stockReservation.updateMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', orderId: 'ord-1', status: ReservationStatus.ACTIVE },
       data: { status: ReservationStatus.RELEASED },
     });
     expect(inventoryItem.update).toHaveBeenCalledWith({
@@ -1313,36 +1408,46 @@ describe('InventoryPrismaRepository', () => {
     });
   });
 
-  it('consumeReservation flips an ACTIVE hold to CONSUMED', async () => {
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'ACTIVE',
-    });
-    stockReservation.update.mockResolvedValue({});
+  it('consumeReservation claims the hold conditionally as CONSUMED', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'CONSUMED' });
     inventoryItem.update.mockResolvedValue(item);
+
     await repo.consumeReservation('it-1', 'ord-1');
-    expect(stockReservation.update).toHaveBeenCalledWith({
-      where: { id: 'rs-1' },
+
+    expect(stockReservation.updateMany).toHaveBeenCalledWith({
+      where: { itemId: 'it-1', orderId: 'ord-1', status: ReservationStatus.ACTIVE },
       data: { status: ReservationStatus.CONSUMED },
     });
   });
 
-  it('settling is idempotent: no txn for a missing or already-terminal reservation', async () => {
-    stockReservation.findUnique.mockResolvedValue(null);
-    await repo.releaseReservation('it-1', 'ord-1');
-    stockReservation.findUnique.mockResolvedValue({
-      id: 'rs-1',
-      itemId: 'it-1',
-      orderId: 'ord-1',
-      quantity: 2,
-      status: 'RELEASED',
-    });
+  it('a settle that loses the race decrements nothing — this is the oversell bug', async () => {
+    // count: 0 means another transaction already flipped the row out of ACTIVE. The old
+    // code reached the decrement anyway, because its guard was a stale read.
+    stockReservation.updateMany.mockResolvedValue({ count: 0 });
+
     await repo.consumeReservation('it-1', 'ord-1');
-    expect(stockReservation.update).not.toHaveBeenCalled();
-    expect($transaction).not.toHaveBeenCalled();
+
+    expect(inventoryItem.update).not.toHaveBeenCalled();
+  });
+
+  it('settling is idempotent for a missing or already-terminal reservation', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 0 });
+    await repo.releaseReservation('it-1', 'ord-1');
+    await repo.consumeReservation('it-1', 'ord-1');
+    expect(inventoryItem.update).not.toHaveBeenCalled();
+  });
+
+  it('does the claim and the give-back in ONE transaction, not two statements', async () => {
+    stockReservation.updateMany.mockResolvedValue({ count: 1 });
+    stockReservation.findUnique.mockResolvedValue({ ...activeHold, status: 'RELEASED' });
+    inventoryItem.update.mockResolvedValue(item);
+
+    await repo.releaseReservation('it-1', 'ord-1');
+
+    // A crash between claim and decrement would otherwise leave the hold terminal with
+    // its units still held — stock lost to a ghost reservation.
+    expect($transaction).toHaveBeenCalledTimes(1);
   });
 });
 

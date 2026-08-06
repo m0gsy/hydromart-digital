@@ -89,6 +89,23 @@ describe('ApiKeyPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // H-30: the two methods that turn the registry into an authentication mechanism.
+  it('finds a key by its stored hash', async () => {
+    model.findUnique.mockResolvedValue(row());
+    const found = await repo.findByHash('deadbeef');
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { keyHash: 'deadbeef' } });
+    expect(found?.id).toBe('key-1');
+
+    model.findUnique.mockResolvedValue(null);
+    await expect(repo.findByHash('nope')).resolves.toBeNull();
+  });
+
+  it('stamps lastUsedAt', async () => {
+    const at = new Date('2026-08-04T10:00:00.000Z');
+    await repo.touchLastUsed('key-1', at);
+    expect(model.update).toHaveBeenCalledWith({ where: { id: 'key-1' }, data: { lastUsedAt: at } });
+  });
+
   it('list selects safe columns, orders newest-first and casts environment', async () => {
     model.findMany.mockResolvedValue([row()]);
     const recs = await repo.list();
@@ -356,7 +373,7 @@ describe('IncidentPrismaRepository', () => {
     expect(incident.findMany).toHaveBeenCalledWith({
       where: { status: IncidentStatus.ONGOING },
       orderBy: { startedAt: 'desc' },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     expect(recs[0].severity).toBe(IncidentSeverity.CRITICAL);
     expect(recs[0].updates).toHaveLength(1);
@@ -382,7 +399,7 @@ describe('IncidentPrismaRepository', () => {
         affectedService: 'order-service',
         note: null,
       },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
   });
 
@@ -455,7 +472,7 @@ describe('OnboardingStatePrismaRepository', () => {
 
 describe('RetentionPrismaRepository', () => {
   const retentionPolicy = { findMany: jest.fn(), findUnique: jest.fn(), update: jest.fn() };
-  const backupStatus = { findUnique: jest.fn() };
+  const backupStatus = { findUnique: jest.fn(), upsert: jest.fn() };
   const prisma = { retentionPolicy, backupStatus } as unknown as PrismaService;
   const repo = new RetentionPrismaRepository(prisma);
 
@@ -482,11 +499,70 @@ describe('RetentionPrismaRepository', () => {
   });
 
   it('getBackupStatus maps the singleton or returns null', async () => {
-    backupStatus.findUnique.mockResolvedValueOnce({ status: 'OK', lastBackupAt: now });
-    expect(await repo.getBackupStatus()).toEqual({ status: 'OK', lastBackupAt: now });
+    backupStatus.findUnique.mockResolvedValueOnce({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'OK',
+      lastDrillAt: now,
+      drillDetail: '16 databases',
+    });
+    expect(await repo.getBackupStatus()).toEqual({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'OK',
+      lastDrillAt: now,
+      drillDetail: '16 databases',
+    });
     expect(backupStatus.findUnique).toHaveBeenCalledWith({ where: { id: 'singleton' } });
     backupStatus.findUnique.mockResolvedValueOnce(null);
     expect(await repo.getBackupStatus()).toBeNull();
+  });
+
+  // H-37/H-36: each job owns one pair of columns. A whole-row write would let Monday's
+  // drill erase Sunday night's backup verdict, which is exactly the kind of silent gap
+  // this card exists to close.
+  it('recordBackupRun BACKUP patches only the backup columns', async () => {
+    backupStatus.upsert.mockResolvedValue({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    });
+    await repo.recordBackupRun({ kind: 'BACKUP', status: 'OK', at: now, detail: '1.2G' });
+    const patch = { status: 'OK', lastBackupAt: now, detail: '1.2G' };
+    expect(backupStatus.upsert).toHaveBeenCalledWith({
+      where: { id: 'singleton' },
+      update: patch,
+      create: { id: 'singleton', ...patch },
+    });
+  });
+
+  it('recordBackupRun DRILL patches only the drill columns', async () => {
+    backupStatus.upsert.mockResolvedValue({
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'FAILED',
+      lastDrillAt: now,
+      drillDetail: 'no rows',
+    });
+    const out = await repo.recordBackupRun({
+      kind: 'DRILL',
+      status: 'FAILED',
+      at: now,
+      detail: 'no rows',
+    });
+    const patch = { drillStatus: 'FAILED', lastDrillAt: now, drillDetail: 'no rows' };
+    expect(backupStatus.upsert).toHaveBeenCalledWith({
+      where: { id: 'singleton' },
+      update: patch,
+      create: { id: 'singleton', ...patch },
+    });
+    expect(out.drillDetail).toBe('no rows');
   });
 });
 
@@ -668,7 +744,7 @@ describe('SupportTicketPrismaRepository', () => {
     expect(supportTicket.findMany).toHaveBeenCalledWith({
       where: { status: TicketStatus.OPEN, priority: TicketPriority.HIGH },
       orderBy: { createdAt: 'desc' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     expect(recs[0].priority).toBe(TicketPriority.HIGH);
     expect(recs[0].messages[0].authorType).toBe(TicketAuthorType.CUSTOMER);
@@ -685,10 +761,25 @@ describe('SupportTicketPrismaRepository', () => {
     expect((await repo.findById('t-1'))?.id).toBe('t-1');
     expect(supportTicket.findUnique).toHaveBeenCalledWith({
       where: { id: 't-1' },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 50 } },
     });
     supportTicket.findUnique.mockResolvedValueOnce(null);
     expect(await repo.findById('nope')).toBeNull();
+  });
+
+  it('hands back the capped thread in chronological order', async () => {
+    // The query reads newest-first so the cap keeps the recent end of a long thread; the
+    // caller must still see it oldest-first, which is what the reversal is for.
+    const base = row();
+    supportTicket.findUnique.mockResolvedValueOnce({
+      ...base,
+      messages: [
+        { ...base.messages[0], id: 'm-2', body: 'newer', createdAt: new Date('2026-08-02') },
+        { ...base.messages[0], id: 'm-1', body: 'older', createdAt: new Date('2026-08-01') },
+      ],
+    });
+    const ticket = await repo.findById('t-1');
+    expect(ticket?.messages.map((m) => m.body)).toEqual(['older', 'newer']);
   });
 
   it('addStaffMessage appends a STAFF message then re-reads the ticket', async () => {

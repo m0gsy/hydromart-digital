@@ -75,6 +75,13 @@ export default function HqApiKeysPage() {
         action={<Button onClick={() => setCreating(true)}>{t('hq.apiKeys.create')}</Button>}
       />
 
+      {/* H-30: what the operator is actually handing a partner — the header, the scopes,
+          and what happens on failure. Written down here because the alternative is an
+          operator guessing at an integration contract. */}
+      <Card className="p-4">
+        <p className="text-sm text-muted">{t('hq.apiKeys.howItWorks')}</p>
+      </Card>
+
       {keys.length === 0 ? (
         <Card className="p-8">
           <p className="text-center text-sm text-muted">{t('hq.apiKeys.empty')}</p>

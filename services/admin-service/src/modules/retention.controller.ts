@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -8,10 +8,12 @@ import { RetentionService } from '../application/services/retention.service';
 import {
   BackupStatusDto,
   PurgePlanEntryDto,
+  RecordBackupRunDto,
   RetentionOverviewDto,
   RetentionPolicyDto,
   UpdateRetentionDto,
 } from './dto/retention.dto';
+import { PurgeRunResponseDto } from './dto/responses.generated.dto';
 
 // Design 19e — retention windows per dataset + read-only backup status. SUPER_ADMIN only.
 // Backup status has NO engine wired → it is returned and labeled honestly, never faked.
@@ -25,6 +27,7 @@ export class RetentionController {
     private readonly purge: PurgeService,
   ) {}
 
+  @ApiOkResponse({ type: RetentionOverviewDto })
   @Get()
   @ApiOperation({ summary: 'List retention windows + read-only backup status (19e)' })
   async get(): Promise<RetentionOverviewDto> {
@@ -38,6 +41,7 @@ export class RetentionController {
     };
   }
 
+  @ApiOkResponse({ type: PurgePlanEntryDto, isArray: true })
   @Get('purge-plan')
   @ApiOperation({
     summary: 'What a purge would be allowed to delete today, per dataset (M23-21)',
@@ -47,6 +51,7 @@ export class RetentionController {
     return (await this.retention.purgeCutoffs()).map(PurgePlanEntryDto.from);
   }
 
+  @ApiOkResponse({ type: PurgeRunResponseDto })
   @Post('purge')
   @ApiOperation({
     summary: 'Run the retention sweep now',
@@ -62,6 +67,7 @@ export class RetentionController {
    * crond has no JWT to present. @Public() bypasses the global JWT guard; InternalAuthGuard
    * is then the sole, fail-closed auth.
    */
+  @ApiOkResponse({ type: PurgeRunResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -71,6 +77,31 @@ export class RetentionController {
     return this.purge.run();
   }
 
+  /**
+   * H-37 — where scripts/backup-db.sh and scripts/restore-db.sh report what actually
+   * happened. Same internal-key auth as the purge sweep: these are shell jobs on the VPS
+   * with no JWT to present. Recording a FAILED run matters as much as an OK one, because
+   * a failure that only reaches a cron log nobody reads is what makes an unusable backup
+   * look like a working one.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/backup-status')
+  @ApiOperation({ summary: 'Record a backup or restore-drill outcome (internal service auth)' })
+  @ApiOkResponse({ type: BackupStatusDto })
+  async recordBackupRun(@Body() dto: RecordBackupRunDto): Promise<BackupStatusDto> {
+    return BackupStatusDto.from(
+      await this.retention.recordBackupRun({
+        kind: dto.kind,
+        status: dto.status,
+        at: new Date(),
+        detail: dto.detail ?? null,
+      }),
+    );
+  }
+
+  @ApiOkResponse({ type: RetentionPolicyDto })
   @Put(':id')
   @ApiOperation({ summary: "Update one dataset's retention window" })
   async update(

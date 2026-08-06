@@ -54,9 +54,34 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     };
   }
 
+  /**
+   * Prisma's unique-constraint violation. Matched on the code rather than the class so
+   * this does not depend on which generated client instance threw it.
+   * ponytail: local to the one repository that needs it — promote if a second caller appears.
+   */
+  private static isUniqueViolation(error: unknown): boolean {
+    return (error as { code?: string })?.code === 'P2002';
+  }
+
   async create(data: CreateCourierLedgerData): Promise<CourierLedgerEntryRecord> {
-    const row = await this.prisma.courierLedgerEntry.create({ data });
-    return this.toEntry(row as unknown as LedgerRow);
+    try {
+      const row = await this.prisma.courierLedgerEntry.create({ data });
+      return this.toEntry(row as unknown as LedgerRow);
+    } catch (error) {
+      // B-10: the callers guard with findBySourceRef, which is check-then-insert — two
+      // concurrent pushes of the same event both find nothing and both insert. The unique
+      // index on sourceRef is what actually stops the double credit; without this catch it
+      // stopped it by throwing a 500 at whoever lost, which reads as a broken payout rather
+      // than a duplicate that was correctly refused.
+      //
+      // The row the winner wrote IS the intended outcome, so return it: the operation is
+      // idempotent, which is what the at-least-once delivery→payout push needs.
+      if (CourierLedgerPrismaRepository.isUniqueViolation(error) && data.sourceRef) {
+        const existing = await this.findBySourceRef(data.sourceRef);
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   async findBySourceRef(sourceRef: string): Promise<CourierLedgerEntryRecord | null> {

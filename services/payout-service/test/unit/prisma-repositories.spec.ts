@@ -6,9 +6,86 @@ import { CourierWithdrawalPrismaRepository } from '../../src/infrastructure/pris
 import { ExpenseClaimPrismaRepository } from '../../src/infrastructure/prisma/expense-claim.prisma.repository';
 import { CourierLedgerPrismaRepository } from '../../src/infrastructure/prisma/courier-ledger.prisma.repository';
 
+// B-8: the balance check and the two writes used to be three independent statements on
+// two connections, so an owner could overdraw by sending requests at once and a crash
+// between the writes left a PROCESSING payout with the balance untouched. These assert the
+// contract the transaction provides; only real Postgres can prove the advisory lock
+// serializes, which is what the integration concurrency proofs are for.
+describe('WithdrawalPrismaRepository.withdrawWithDebit', () => {
+  const withdrawal = { create: jest.fn() };
+  const ledgerEntry = { aggregate: jest.fn(), create: jest.fn() };
+  const $executeRaw = jest.fn();
+  const prisma = {
+    withdrawal,
+    ledgerEntry,
+    $executeRaw,
+    $transaction: jest.fn((fn) => fn({ withdrawal, ledgerEntry, $executeRaw })),
+  } as unknown as PrismaService;
+  const repo = new WithdrawalPrismaRepository(prisma);
+
+  const input = {
+    franchiseOwnerId: 'own-1',
+    amount: 500,
+    bankAccountRef: 'BCA',
+    reference: 'WD-1',
+    status: 'PROCESSING' as const,
+    description: 'Pencairan saldo · WD-1',
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+
+  it('takes a lock keyed on the owner before reading the balance', async () => {
+    ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 500 } });
+    withdrawal.create.mockResolvedValue({
+      id: 'w', franchiseOwnerId: 'own-1', amount: '500', bankAccountRef: 'BCA',
+      status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+    });
+    await repo.withdrawWithDebit(input);
+    expect($executeRaw).toHaveBeenCalled();
+    // Reading the balance before the lock is the bug; order is the whole fix.
+    expect($executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      ledgerEntry.aggregate.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('writes the withdrawal and its debit in the same transaction', async () => {
+    ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
+    withdrawal.create.mockResolvedValue({
+      id: 'w', franchiseOwnerId: 'own-1', amount: '500', bankAccountRef: 'BCA',
+      status: 'PROCESSING', reference: 'WD-1', createdAt: new Date(), updatedAt: new Date(),
+    });
+
+    const out = await repo.withdrawWithDebit(input);
+
+    expect(out.ok).toBe(true);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(ledgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ type: 'WITHDRAWAL', amount: -500 }),
+    });
+  });
+
+  it('writes nothing at all when the balance is short', async () => {
+    ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 100 } });
+
+    const out = await repo.withdrawWithDebit(input);
+
+    expect(out).toEqual({ ok: false, balance: 100 });
+    expect(withdrawal.create).not.toHaveBeenCalled();
+    expect(ledgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('treats an empty ledger as a zero balance rather than throwing', async () => {
+    ledgerEntry.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    const out = await repo.withdrawWithDebit(input);
+    expect(out).toEqual({ ok: false, balance: 0 });
+  });
+});
+
 describe('WithdrawalPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn() };
-  const prisma = { withdrawal: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { withdrawal: model, $queryRaw } as unknown as PrismaService;
   const repo = new WithdrawalPrismaRepository(prisma);
 
   const row = {
@@ -23,6 +100,20 @@ describe('WithdrawalPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // H-13: both withdrawal tables share one reference counter, so both repos delegate to
+  // the same `nextval`. `?? 0` is the no-row case — impossible against a real sequence,
+  // but a 0 suffix is a visible wrong answer rather than a crash.
+  it('reads the shared reference counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(100_042) }]);
+    expect(await repo.nextReferenceSequence()).toBe(100_042);
+    expect(($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('')).toContain(
+      "nextval('withdrawal_reference_seq')",
+    );
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextReferenceSequence()).toBe(0);
+  });
 
   it('creates a withdrawal and maps the Decimal amount to a number', async () => {
     model.create.mockResolvedValue(row);
@@ -61,7 +152,8 @@ describe('WithdrawalPrismaRepository', () => {
 describe('CommissionSchemePrismaRepository', () => {
   const model = { findMany: jest.fn(), create: jest.fn() };
   const $transaction = jest.fn();
-  const prisma = { commissionScheme: model, $transaction } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { commissionScheme: model, $transaction, $queryRaw } as unknown as PrismaService;
   const repo = new CommissionSchemePrismaRepository(prisma);
 
   const row = {
@@ -76,12 +168,13 @@ describe('CommissionSchemePrismaRepository', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('lists current schemes DISTINCT ON depotId newest first, mapping pct to number', async () => {
-    model.findMany.mockResolvedValue([row]);
+    $queryRaw.mockResolvedValue([row]);
     const results = await repo.listCurrent();
-    expect(model.findMany).toHaveBeenCalledWith({
-      orderBy: [{ depotId: 'asc' }, { effectiveDate: 'desc' }],
-      distinct: ['depotId'],
-    });
+    // Postgres DISTINCT ON, not Prisma's `distinct`: the latter dedupes rows already
+    // fetched, so a page bound over the scheme history would drop whole depots — and a
+    // depot with no current pct is a commission that silently stops being paid.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(model.findMany).not.toHaveBeenCalled();
     expect(results[0].pct).toBe(12.5);
     expect(results[0].depotId).toBe('dep-1');
   });
@@ -112,7 +205,8 @@ describe('LedgerPrismaRepository', () => {
     findUnique: jest.fn(),
     count: jest.fn(),
   };
-  const prisma = { ledgerEntry: model } as unknown as PrismaService;
+  const $transaction = jest.fn((ops: unknown[]) => Promise.resolve(ops));
+  const prisma = { ledgerEntry: model, $transaction } as unknown as PrismaService;
   const repo = new LedgerPrismaRepository(prisma);
 
   const row = {
@@ -127,6 +221,29 @@ describe('LedgerPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+  // H-7: a sale and the commission it owes go in as one unit, or a crash between them
+  // leaves the owner credited for a sale HQ never took its cut of.
+  it('writes a set of entries in one transaction', async () => {
+    const entries = [
+      {
+        franchiseOwnerId: 'own-1',
+        depotId: null,
+        type: 'SALE_SETTLEMENT' as const,
+        amount: 1000,
+        description: 'Penjualan',
+      },
+      {
+        franchiseOwnerId: 'own-1',
+        depotId: null,
+        type: 'COMMISSION' as const,
+        amount: -50,
+        description: 'Komisi',
+      },
+    ];
+    await repo.createAll(entries);
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(model.create).toHaveBeenCalledTimes(2);
+  });
 
   it('creates a ledger entry and maps the amount', async () => {
     model.create.mockResolvedValue(row);
@@ -203,19 +320,101 @@ describe('LedgerPrismaRepository', () => {
     const result = await repo.listForOwner('own-1', 2, 20);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { franchiseOwnerId: 'own-1' },
-      orderBy: { occurredAt: 'desc' },
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
       skip: 20, // (2-1)*20
       take: 20,
     });
     expect(model.count).toHaveBeenCalledWith({ where: { franchiseOwnerId: 'own-1' } });
     expect(result.total).toBe(1);
     expect(result.items[0].amount).toBe(5000);
+    // A short page ends the walk: nothing to page on to.
+    expect(result.nextCursor).toBeNull();
+  });
+
+  it('seeks past a ledger cursor rather than an offset (audit Q-16)', async () => {
+    model.findMany.mockResolvedValue([row]);
+    model.count.mockResolvedValue(900);
+    const result = await repo.listForOwner('own-1', 45, 1, 'led-0');
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'led-0' }, skip: 1, take: 1 }),
+    );
+    expect(result.nextCursor).toBe(row.id);
+  });
+});
+
+// Courier twin of the B-8 fix, plus B-10: this debit was the only one of the four courier
+// ledger writes with no sourceRef, so it alone had no idempotency key.
+describe('CourierWithdrawalPrismaRepository.withdrawWithDebit', () => {
+  const courierWithdrawal = { create: jest.fn() };
+  const courierLedgerEntry = { aggregate: jest.fn(), create: jest.fn() };
+  const $executeRaw = jest.fn();
+  const prisma = {
+    courierWithdrawal,
+    courierLedgerEntry,
+    $executeRaw,
+    $transaction: jest.fn((fn) => fn({ courierWithdrawal, courierLedgerEntry, $executeRaw })),
+  } as unknown as PrismaService;
+  const repo = new CourierWithdrawalPrismaRepository(prisma);
+
+  const input = {
+    courierId: 'cou-1',
+    amount: 300,
+    bankAccountRef: 'BRI',
+    reference: 'CWD-9',
+    status: 'PROCESSING' as const,
+    description: 'Penarikan saldo · CWD-9',
+  };
+  const created = {
+    id: 'cw', courierId: 'cou-1', amount: '300', bankAccountRef: 'BRI',
+    status: 'PROCESSING', reference: 'CWD-9', createdAt: new Date(), updatedAt: new Date(),
+  };
+
+  beforeEach(() => jest.clearAllMocks());
+
+  it('debits with a sourceRef so a retry cannot debit twice', async () => {
+    courierLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
+    courierWithdrawal.create.mockResolvedValue(created);
+
+    await repo.withdrawWithDebit(input);
+
+    expect(courierLedgerEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ amount: -300, sourceRef: 'withdrawal:CWD-9' }),
+    });
+  });
+
+  it('locks per courier before reading, and writes both rows in one transaction', async () => {
+    courierLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 1000 } });
+    courierWithdrawal.create.mockResolvedValue(created);
+
+    const out = await repo.withdrawWithDebit(input);
+
+    expect(out.ok).toBe(true);
+    expect($executeRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      courierLedgerEntry.aggregate.mock.invocationCallOrder[0],
+    );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes nothing at all when the balance is short', async () => {
+    courierLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: 10 } });
+
+    const out = await repo.withdrawWithDebit(input);
+
+    expect(out).toEqual({ ok: false, balance: 10 });
+    expect(courierWithdrawal.create).not.toHaveBeenCalled();
+    expect(courierLedgerEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('treats an empty ledger as a zero balance', async () => {
+    courierLedgerEntry.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    expect(await repo.withdrawWithDebit(input)).toEqual({ ok: false, balance: 0 });
   });
 });
 
 describe('CourierWithdrawalPrismaRepository', () => {
   const model = { create: jest.fn(), findMany: jest.fn() };
-  const prisma = { courierWithdrawal: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { courierWithdrawal: model, $queryRaw } as unknown as PrismaService;
   const repo = new CourierWithdrawalPrismaRepository(prisma);
 
   const row = {
@@ -230,6 +429,20 @@ describe('CourierWithdrawalPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // H-13: both withdrawal tables share one reference counter, so both repos delegate to
+  // the same `nextval`. `?? 0` is the no-row case — impossible against a real sequence,
+  // but a 0 suffix is a visible wrong answer rather than a crash.
+  it('reads the shared reference counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(100_042) }]);
+    expect(await repo.nextReferenceSequence()).toBe(100_042);
+    expect(($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('')).toContain(
+      "nextval('withdrawal_reference_seq')",
+    );
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextReferenceSequence()).toBe(0);
+  });
 
   it('creates a courier withdrawal and maps the amount', async () => {
     model.create.mockResolvedValue(row);

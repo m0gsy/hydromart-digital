@@ -12,6 +12,7 @@ import {
   Trash,
 } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Badge,
@@ -79,7 +80,7 @@ function ProductAdmin() {
     () => api.get(endpoints.products.browseAll({ limit: 100 }), true),
     [],
   );
-  const categories = useAsync<Category[]>(() => api.get(endpoints.products.categories), []);
+  const categories = useAsync<Category[]>(() => api.getCached(endpoints.products.categories), []);
 
   const [editing, setEditing] = useState<string | null>(null); // product id, or 'new', or null
   const [form, setForm] = useState<ProductForm>(EMPTY);
@@ -213,7 +214,11 @@ function ProductAdmin() {
           <div className="flex items-start gap-4">
             <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-app bg-[color:var(--surface)]">
               {form.imageUrl ? (
-                <img src={form.imageUrl} alt="Gambar produk" className="h-full w-full object-cover" />
+                <RemoteImage
+                  src={form.imageUrl}
+                  alt="Gambar produk"
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <ImageSquare size={28} className="text-muted" />
               )}
@@ -238,7 +243,11 @@ function ProductAdmin() {
               <div className="flex flex-wrap gap-2">
                 {form.images.map((url, i) => (
                   <div key={`${url}-${i}`} className="relative h-20 w-20 overflow-hidden rounded-lg border border-app">
-                    <img src={url} alt={`Gambar tambahan ${i + 1}`} className="h-full w-full object-cover" />
+                    <RemoteImage
+                      src={url}
+                      alt={`Gambar tambahan ${i + 1}`}
+                      className="h-full w-full object-cover"
+                    />
                     <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-black/45 py-0.5">
                       <button
                         type="button"
@@ -335,7 +344,7 @@ function ProductAdmin() {
             <Card key={p.id} className="flex items-center gap-3 p-3">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-app bg-[color:var(--surface)]">
                 {p.imageUrl ? (
-                  <img src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
+                  <RemoteImage src={p.imageUrl} alt={p.name} className="h-full w-full object-cover" />
                 ) : (
                   <ImageSquare size={20} className="text-muted" />
                 )}

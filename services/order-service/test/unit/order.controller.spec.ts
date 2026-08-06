@@ -4,6 +4,7 @@ import { Role } from '@hydromart/platform';
 
 import { OrderController } from '../../src/modules/order.controller';
 import { OrderService } from '../../src/application/services/order.service';
+import { OutboxService } from '../../src/application/services/outbox.service';
 
 type Mocked = { [K in keyof OrderService]: jest.Mock };
 
@@ -42,10 +43,18 @@ function makeService(): Mocked {
 describe('OrderController', () => {
   let service: Mocked;
   let controller: OrderController;
+  let outbox: { processDue: jest.Mock; pending: jest.Mock };
 
   beforeEach(() => {
     service = makeService();
-    controller = new OrderController(service as unknown as OrderService);
+    outbox = {
+      processDue: jest.fn().mockResolvedValue({ claimed: 2, delivered: 2, failed: 0, dead: 0 }),
+      pending: jest.fn().mockResolvedValue({ PENDING: 1, DONE: 9, DEAD: 0 }),
+    };
+    controller = new OrderController(
+      service as unknown as OrderService,
+      outbox as unknown as OutboxService,
+    );
   });
 
   const address = {
@@ -70,6 +79,22 @@ describe('OrderController', () => {
     });
     expect(payload.voucherCode).toBeNull();
     expect(payload.deliveryWindow).toBeNull();
+    expect(payload.idempotencyKey).toBeNull();
+  });
+
+  // B-13: the key only ever arrives as a header, so this hand-off is the whole of the
+  // wiring — if it is dropped here, every guard behind it is dead code.
+  it('checkout: forwards the Idempotency-Key header to the service', async () => {
+    const dto = { deliveryAddress: address } as never;
+    await controller.checkout(customer, dto, 'Bearer t', 'attempt-1');
+    expect(service.checkout.mock.calls[0][1].idempotencyKey).toBe('attempt-1');
+  });
+
+  it('walk-in: forwards the Idempotency-Key header to the service', async () => {
+    const staff = { sub: 'op-1', role: 'KEPALA_DEPOT', depotId: 'd1' } as never;
+    const dto = { depotId: 'd1', lines: [{ productId: 'p1', quantity: 2 }] } as never;
+    await controller.walkIn(staff, dto, 'Bearer t', 'till-1');
+    expect(service.walkInSale.mock.calls[0][1].idempotencyKey).toBe('till-1');
   });
 
   it('walk-in: forwards the lines and nulls the optional buyer fields', async () => {
@@ -89,6 +114,7 @@ describe('OrderController', () => {
       customerName: null,
       customerPhone: null,
       voucherCode: null,
+      idempotencyKey: null,
     });
   });
 
@@ -384,5 +410,12 @@ describe('OrderController', () => {
       '0822',
       '2026-01-01T10:00:00.000Z',
     );
+  });
+
+  // H-10: the sweep is how a stock consume or an owner credit that failed at completion
+  // time eventually lands. Ops-scheduled, so the route has to exist and be SUPER_ADMIN.
+  it('outbox: runs the sweep and reports what is still owed', async () => {
+    await expect(controller.processOutbox()).resolves.toMatchObject({ delivered: 2 });
+    await expect(controller.outboxPending()).resolves.toMatchObject({ PENDING: 1 });
   });
 });

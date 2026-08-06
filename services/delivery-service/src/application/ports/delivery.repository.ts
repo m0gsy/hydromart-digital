@@ -90,6 +90,11 @@ export interface DeliveryQuery {
   status?: DeliveryStatus;
   page: number;
   limit: number;
+  /**
+   * Opaque keyset cursor — the previous page's `nextCursor`. Seeks straight to that row
+   * instead of walking every row before it (audit Q-16); `page` is ignored when set.
+   */
+  cursor?: string;
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
@@ -138,6 +143,18 @@ export interface DepotSlaStats {
   sumMinutes: number;
 }
 
+/** The projection behind `findPingState` — no history, no proof. */
+export interface DeliveryPingState {
+  id: string;
+  driverId: string | null;
+  status: DeliveryStatus;
+  depotId: string | null;
+  destinationLat: number | null;
+  destinationLng: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+}
+
 export interface DeliveryRepository {
   create(data: CreateDeliveryData): Promise<DeliveryRecord>;
   findById(id: string): Promise<DeliveryRecord | null>;
@@ -152,7 +169,9 @@ export interface DeliveryRepository {
   ): Promise<ContactState>;
   /** Contact-attempt count + first attempt time, for the no-show gate. */
   contactState(deliveryId: string): Promise<ContactState>;
-  search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }>;
+  search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }>;
   /**
    * Order ids the driver DELIVERED with `deliveredAt` in [from, to] — the orders a
    * shift's COD settlement is computed over. payment-service then filters these to
@@ -181,6 +200,13 @@ export interface DeliveryRepository {
     from: Date,
     to: Date,
   ): Promise<DepotCourierActivity[]>;
+  /**
+   * Just enough of a delivery to accept a GPS ping: who owns it, whether it is still
+   * moving, and the coordinates the ETA is computed from (audit S-17). A ping used to read
+   * the whole row — the full status history and the delivery proof — every few seconds,
+   * per courier on the road, only to check a driver id and a status.
+   */
+  findPingState(id: string): Promise<DeliveryPingState | null>;
   /** Overwrite the latest driver position and refresh ETA when one can be estimated. */
   updateLocation(
     id: string,
@@ -188,9 +214,17 @@ export interface DeliveryRepository {
     lng: number,
     estimatedArrivalAt?: Date,
   ): Promise<DeliveryRecord>;
-  /** Move the delivery to `status`, set the matching timestamp, append history. */
+  /**
+   * Move the delivery to `status`, set the matching timestamp, append history — but only
+   * from the `from` the caller read it at (H-5).
+   *
+   * The legality check runs against a snapshot. Without the compare-and-set two taps on a
+   * courier's phone, or a driver and a dispatcher acting together, both pass it and both
+   * write; the loser now gets StaleDeliveryStatusError instead of overwriting.
+   */
   applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
@@ -201,20 +235,26 @@ export interface DeliveryRepository {
    * different driver. One row per order (orderId is unique), so the retry reuses it.
    */
   reassign(id: string, driverId: string, changedBy: string, note: string | null): Promise<DeliveryRecord>;
-  /** Record proof of delivery and mark the delivery DELIVERED atomically. */
+  /**
+   * Record proof of delivery and mark the delivery DELIVERED atomically, from `from` only.
+   *
+   * The guard is what stops a re-tapped Selesai paying the courier for one handover twice
+   * (H-5); the proof row and the status move together so neither can exist without the
+   * other (H-8).
+   */
   completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     /** Handover time — server time for a live proof, clamped device time for an offline one. */
     capturedAt: Date,
   ): Promise<DeliveryRecord>;
   /**
-   * UU PDP retention: delete proof-of-delivery rows (photo/signature URL,
-   * recipient name, GPS) captured before `cutoff`. Returns the count deleted.
-   * The underlying image files are expired separately by a bucket lifecycle rule.
+   * UU PDP retention: delete proof-of-delivery rows (photo/signature URL, recipient name,
+   * GPS) captured before `cutoff`, and return every URL they held so the objects go too.
    */
-  purgeProofsBefore(cutoff: Date): Promise<number>;
+  purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }>;
   /**
    * Delivery SLA aggregates over the window: delivered on-time vs breached +
    * failures. When `depotIds` is a non-empty array, only deliveries snapshotted

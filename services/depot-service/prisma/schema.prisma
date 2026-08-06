@@ -104,6 +104,7 @@ model Depot {
   subscriptions          Subscription[]
   huddleNotes            HuddleNote[]
   shiftHandovers         ShiftHandover[]
+  serviceSettings        ServiceSetting[]
 
   @@index([active])
   @@index([ownershipType])
@@ -244,7 +245,12 @@ model StockMovement {
   createdAt      DateTime          @default(now())
 
   @@unique([itemId, orderId])
-  @@index([itemId])
+  // The fastest-growing table in the system, and every read of it is "this item's
+  // ledger, newest first" or "this depot's movements of this type in a window"
+  // (audit DB-1). The bare [itemId] index these replaced is the leftmost prefix of
+  // the first composite, so nothing lost it.
+  @@index([itemId, createdAt])
+  @@index([type, createdAt])
   @@map("stock_movements")
 }
 
@@ -877,12 +883,23 @@ model StaffDepotAssignment {
 model ServiceSetting {
   id        String   @id @default(uuid())
   scope     String   // 'GLOBAL' | 'DEPOT'
-  depotId   String?  @map("depot_id")
+  /// Null for scope=GLOBAL. Foreign key here only — the other six services carry the
+  /// same table with no Depot to point at, so theirs stays a bare id by necessity
+  /// (audit DB-5). A depot that is deleted takes its own overrides with it.
+  depotId   String?  @map("depot_id") @db.Uuid
+  depot     Depot?   @relation(fields: [depotId], references: [id], onDelete: Cascade)
   key       String
   value     String
   updatedBy String   @map("updated_by")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // H-11: also two PARTIAL unique indexes, invisible to Prisma because it cannot express a
+  // WHERE on an index: one key per depot, and one key globally. A plain @@unique here would
+  // not constrain the GLOBAL rows — depotId is null on those and Postgres treats every NULL
+  // as distinct. The repository upserts against them by catching the violation.
+  //
+  // They have existed since 20260724185000_service_settings; the audit's H-11 was true only of
+  // hr-service, which gets them in 20260803160000_service_settings_unique.
   @@index([scope, depotId])
   @@map("service_settings")
 }

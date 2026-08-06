@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { BUSINESS_TIME_ZONE } from '@hydromart/platform';
 
 @Injectable()
 export class DashboardConfigService {
@@ -51,5 +52,10 @@ export class DashboardConfigService {
   }
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
+  }
+
+  /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

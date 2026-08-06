@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AccountService } from '../../application/services/account.service';
 import { AuditService } from '../../application/services/audit.service';
@@ -16,6 +16,7 @@ import {
   PurgeBeforeDto,
   SetStaffActiveDto,
 } from './dto/internal.dto';
+import { PurgeAuditLogs3ResponseDto } from '../dto/responses.generated.dto';
 
 /**
  * Service-to-service account provisioning for bulk imports. hr-service creates the
@@ -39,6 +40,7 @@ export class InternalAccountController {
     private readonly audit: AuditService,
   ) {}
 
+  @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create or promote a staff account (internal service auth)' })
@@ -79,6 +81,7 @@ export class InternalAccountController {
   // An HR jabatan change reaching the login. Same allowlist reasoning as `staff` above,
   // one rung wider (`HR_MANAGED_ROLES`) so a promotion up the supervision chain works
   // without leaving the person's old access in place.
+  @ApiOkResponse({ type: PublicCustomerDto })
   @Post('staff/role')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Change an existing staff account's role (internal service auth)" })
@@ -87,6 +90,7 @@ export class InternalAccountController {
     return PublicCustomerDto.from(staff);
   }
 
+  @ApiOkResponse({ type: PreRegisterResultDto })
   @Post('customers/pre-register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Pre-register an imported customer as PENDING (internal service auth)' })
@@ -100,6 +104,7 @@ export class InternalAccountController {
    * with no primary address showed as "Tanpa nama". The account name lives here, so this
    * is where the directory asks for it.
    */
+  @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
   @Post('customers/by-ids')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Resolve customer ids to public profiles (internal service auth)' })
@@ -113,6 +118,7 @@ export class InternalAccountController {
    * The cutoff is passed in rather than recomputed here — one service decides what may
    * be deleted, and it is the one holding the compliance rule.
    */
+  @ApiOkResponse({ type: PurgeAuditLogs3ResponseDto })
   @Post('audit-logs/purge')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete audit rows older than the cutoff (internal service auth)' })

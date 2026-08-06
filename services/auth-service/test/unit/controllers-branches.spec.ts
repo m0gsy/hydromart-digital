@@ -249,6 +249,12 @@ describe('AuditController delegation', () => {
   });
 });
 
+// H-20: the upload path reads magic bytes, so a fake file needs real ones.
+const PNG_BYTES = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  Buffer.alloc(8),
+]);
+
 describe('AvatarController', () => {
   const storage = { put: jest.fn() };
   const account = { setAvatar: jest.fn() };
@@ -258,7 +264,7 @@ describe('AvatarController', () => {
     ({
       mimetype: 'image/png',
       size: 1024,
-      buffer: Buffer.from('img'),
+      buffer: PNG_BYTES,
       ...overrides,
     }) as Express.Multer.File;
 
@@ -268,9 +274,12 @@ describe('AvatarController', () => {
     await expect(controller.upload(user, undefined)).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('rejects an unsupported mime type', async () => {
+  it('rejects an unsupported file, however it was labelled', async () => {
     await expect(
-      controller.upload(user, file({ mimetype: 'application/pdf' }) as Express.Multer.File),
+      controller.upload(user, file({ buffer: Buffer.from('%PDF-1.7 not an image') }) as Express.Multer.File),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      controller.upload(user, file({ buffer: Buffer.from('<script>alert(1)</script>  ') }) as Express.Multer.File),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 

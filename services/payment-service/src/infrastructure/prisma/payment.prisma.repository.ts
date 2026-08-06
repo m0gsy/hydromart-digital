@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
 
 import { PaymentMethod, PaymentStatus, RefundApproval } from '../../domain/payment';
 import {
@@ -111,7 +112,9 @@ export class PaymentPrismaRepository implements PaymentRepository {
     return row ? this.toRecord(row) : null;
   }
 
-  async search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }> {
+  async search(
+    query: PaymentQuery,
+  ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }> {
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.orderId ? { orderId: query.orderId } : {}),
@@ -120,13 +123,17 @@ export class PaymentPrismaRepository implements PaymentRepository {
     const [rows, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor cannot straddle two payments in the same millisecond.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.payment.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
   async listPendingRefunds(query: {
@@ -215,5 +222,21 @@ export class PaymentPrismaRepository implements PaymentRepository {
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {
     const row = await this.prisma.payment.update({ where: { id }, data: patch });
     return this.toRecord(row);
+  }
+
+  async updateIfStatus(
+    id: string,
+    expected: PaymentStatus[],
+    patch: PaymentStatusPatch,
+  ): Promise<PaymentRecord | null> {
+    // updateMany carries the predicate; `update` cannot filter on anything but a unique
+    // field, which is exactly why the old write matched on `id` alone (B-9).
+    const claimed = await this.prisma.payment.updateMany({
+      where: { id, status: { in: expected } },
+      data: patch,
+    });
+    if (claimed.count === 0) return null;
+    const row = await this.prisma.payment.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
   }
 }

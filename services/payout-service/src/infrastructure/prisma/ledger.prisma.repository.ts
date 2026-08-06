@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { nextCursor, pageArgs } from '@hydromart/platform';
 
 import { LedgerEntryRecord, LedgerEntryType } from '../../domain/ledger';
 import {
@@ -46,6 +47,13 @@ export class LedgerPrismaRepository implements LedgerRepository {
     return this.toEntry(row as unknown as LedgerRow);
   }
 
+  async createAll(entries: CreateLedgerEntryData[]): Promise<void> {
+    // One transaction, not createMany: createMany with skipDuplicates would swallow the
+    // very P2002 that tells a retried push it already landed, and without it a partial
+    // failure would still leave half the pair written.
+    await this.prisma.$transaction(entries.map((data) => this.prisma.ledgerEntry.create({ data })));
+  }
+
   async balanceFor(franchiseOwnerId: string): Promise<number> {
     const agg = await this.prisma.ledgerEntry.aggregate({
       where: { franchiseOwnerId },
@@ -80,16 +88,21 @@ export class LedgerPrismaRepository implements LedgerRepository {
     franchiseOwnerId: string,
     page: number,
     limit: number,
-  ): Promise<{ items: LedgerEntryRecord[]; total: number }> {
+    cursor?: string,
+  ): Promise<{ items: LedgerEntryRecord[]; total: number; nextCursor: string | null }> {
     const [rows, total] = await Promise.all([
       this.prisma.ledgerEntry.findMany({
         where: { franchiseOwnerId },
-        orderBy: { occurredAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
+        // `id` last so the cursor cannot straddle two entries in the same tick.
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs({ page, limit, cursor }),
       }),
       this.prisma.ledgerEntry.count({ where: { franchiseOwnerId } }),
     ]);
-    return { items: rows.map((r) => this.toEntry(r as unknown as LedgerRow)), total };
+    return {
+      items: rows.map((r) => this.toEntry(r as unknown as LedgerRow)),
+      total,
+      nextCursor: nextCursor(rows, limit),
+    };
   }
 }

@@ -123,9 +123,10 @@ export class TierScopeQueryDto {
 }
 
 export class ListTransactionsQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()
   @Min(1)
+  @Max(1000)
   @Type(() => Number)
   page?: number = 1;
 

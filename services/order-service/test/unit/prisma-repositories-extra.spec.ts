@@ -116,9 +116,13 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
     update: jest.fn(),
   };
   const orderReview = { findUnique: jest.fn() };
+  // The status write and its outbox rows go in one transaction (H-10); resolve the ops
+  // array as-is so the repo's positional destructuring sees the row it seeded.
   const repo = new OrderPrismaRepository({
     order,
     orderReview,
+    outboxMessage: { create: jest.fn() },
+    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   } as unknown as PrismaService);
 
   beforeEach(() => jest.clearAllMocks());
@@ -182,7 +186,16 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
       items: [],
       history: [],
     });
-    await repo.applyStatus('o1', 'DRIVER_ASSIGNED' as never, 'staff', null, 'Budi', null, null);
+    await repo.applyStatus(
+      'o1',
+      'ON_DELIVERY' as never,
+      'DRIVER_ASSIGNED' as never,
+      'staff',
+      null,
+      'Budi',
+      null,
+      null,
+    );
     const data = order.update.mock.calls.at(-1)?.[0].data;
     expect(data).toMatchObject({ driverName: 'Budi' });
     expect(data.driverPhone).toBeUndefined();

@@ -2,6 +2,7 @@
 
 import { UsersThree } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
@@ -48,13 +49,7 @@ export default function HqChurnPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <UsersThree size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.churn.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.churn.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={UsersThree} title={t('hq.churn.title')} subtitle={t('hq.churn.subtitle')} />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

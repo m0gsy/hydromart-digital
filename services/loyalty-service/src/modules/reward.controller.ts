@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, Public, Role, Roles } from '@hydromart/platform';
 
@@ -22,6 +22,7 @@ const MANAGE_ROLES = [Role.MARKETING, Role.SUPER_ADMIN] as const;
 export class RewardController {
   constructor(private readonly rewards: RewardService) {}
 
+  @ApiOkResponse({ type: RewardItemDto, isArray: true })
   @Public()
   @Get('catalog')
   @ApiOperation({ summary: 'List redeemable reward items (FR-015)' })
@@ -32,6 +33,7 @@ export class RewardController {
 
   // Catalogue management (design 15c). Until this shipped the table could only be edited
   // with SQL — stock and prices had no admin path at all.
+  @ApiOkResponse({ type: RewardItemDto, isArray: true })
   @ApiBearerAuth()
   @Roles(...MANAGE_ROLES)
   @Get('items')
@@ -41,6 +43,7 @@ export class RewardController {
     return items.map((i) => RewardItemDto.from(i));
   }
 
+  @ApiOkResponse({ type: RewardItemDto })
   @ApiBearerAuth()
   @Roles(...MANAGE_ROLES)
   @Post('items')
@@ -58,6 +61,7 @@ export class RewardController {
     );
   }
 
+  @ApiOkResponse({ type: RewardItemDto })
   @ApiBearerAuth()
   @Roles(...MANAGE_ROLES)
   @Patch('items/:id')
@@ -69,6 +73,7 @@ export class RewardController {
     return RewardItemDto.from(await this.rewards.updateItem(id, dto));
   }
 
+  @ApiOkResponse({ type: RedeemResultDto })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Post('redeem')
@@ -86,6 +91,7 @@ export class RewardController {
     return RedeemResultDto.from(result);
   }
 
+  @ApiOkResponse({ type: RedemptionListItemDto, isArray: true })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Get('redemptions/me')
@@ -98,6 +104,7 @@ export class RewardController {
     return rows.map((r) => RedemptionListItemDto.fromView(r));
   }
 
+  @ApiOkResponse({ type: RedemptionListItemDto, isArray: true })
   @ApiBearerAuth()
   @Can('rewardHandover')
   @Get('redemptions/active')
@@ -111,6 +118,7 @@ export class RewardController {
     return rows.map((r) => RedemptionListItemDto.fromView(r));
   }
 
+  @ApiOkResponse({ type: RedeemResultDto })
   @ApiBearerAuth()
   @Roles(Role.CUSTOMER)
   @Post('redemptions/:id/cancel')
@@ -125,6 +133,7 @@ export class RewardController {
     return RedeemResultDto.from(await this.rewards.cancel(user.sub, id));
   }
 
+  @ApiOkResponse({ type: RedemptionDto })
   @ApiBearerAuth()
   @Can('rewardHandover')
   @Post('redemptions/:id/used')

@@ -9,7 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
@@ -20,6 +20,7 @@ import {
   UpdateWholesaleTierDto,
   WholesaleTierQueryDto,
 } from './dto/wholesale-tier.dto';
+import { RemoveResponseDto, WholesaleTierResponseDto } from './dto/responses.generated.dto';
 
 /** Depot wholesale pricing tiers (design 16b). */
 @ApiTags('Wholesale Tiers')
@@ -29,12 +30,14 @@ import {
 export class WholesaleTierController {
   constructor(private readonly tiers: WholesaleTierService) {}
 
+  @ApiOkResponse({ type: WholesaleTierResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's wholesale tiers (by minQty ascending)" })
   list(@Query() query: WholesaleTierQueryDto): Promise<WholesaleTier[]> {
     return this.tiers.list(query.depotId);
   }
 
+  @ApiOkResponse({ type: WholesaleTierResponseDto })
   @Post()
   @ApiOperation({ summary: 'Add a wholesale tier to a depot' })
   create(@Body() dto: CreateWholesaleTierDto): Promise<WholesaleTier> {
@@ -48,6 +51,7 @@ export class WholesaleTierController {
     });
   }
 
+  @ApiOkResponse({ type: WholesaleTierResponseDto })
   @Patch(':id')
   @ApiOperation({ summary: 'Update a wholesale tier' })
   async update(
@@ -59,6 +63,7 @@ export class WholesaleTierController {
     return this.tiers.update(id, dto);
   }
 
+  @ApiOkResponse({ type: RemoveResponseDto })
   @Delete(':id')
   @ApiOperation({ summary: 'Remove a wholesale tier' })
   async remove(

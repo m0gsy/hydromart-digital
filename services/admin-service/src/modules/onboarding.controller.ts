@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Patch } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -14,12 +14,14 @@ import { OnboardingStateDto, PatchOnboardingDto } from './dto/onboarding-state.d
 export class OnboardingController {
   constructor(private readonly onboarding: OnboardingStateService) {}
 
+  @ApiOkResponse({ type: OnboardingStateDto })
   @Get()
   @ApiOperation({ summary: 'Read the onboarding wizard state (23b)' })
   async get(): Promise<OnboardingStateDto> {
     return OnboardingStateDto.from(await this.onboarding.get());
   }
 
+  @ApiOkResponse({ type: OnboardingStateDto })
   @Patch()
   @ApiOperation({ summary: 'Mark one wizard step done/undone' })
   async patch(@Body() dto: PatchOnboardingDto): Promise<OnboardingStateDto> {

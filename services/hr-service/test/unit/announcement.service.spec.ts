@@ -8,7 +8,9 @@ import {
   AnnouncementTargetWrite,
   AnnouncementWithTargets,
   AnnouncementWrite,
+  FeedAudience,
 } from '../../src/application/ports/announcement.repository';
+import { audienceMatches } from '../../src/domain/announcement';
 import { EmployeeRepository } from '../../src/application/ports/employee.repository';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { AnnouncementService } from '../../src/application/services/announcement.service';
@@ -59,9 +61,35 @@ class FakeRepo implements AnnouncementRepository {
     const rows = filter.publishedOnly ? this.rows.filter((r) => r.publishedAt) : this.rows;
     return { rows: rows.slice(filter.skip, filter.skip + filter.take), total: rows.length };
   }
-  async listPublished(limit: number): Promise<AnnouncementWithTargets[]> {
-    return this.rows.filter((r) => r.publishedAt).slice(0, limit);
+  /**
+   * Models the real query, not a superset of it (H-18): the DB narrows to notices whose
+   * targets cover this person BEFORE `limit` applies. A fake that returns everything and
+   * lets the service filter afterwards would pass against the very bug this replaced.
+   */
+  async listFeedFor(audience: FeedAudience, limit: number): Promise<AnnouncementWithTargets[]> {
+    return this.rows
+      .map((row, index) => ({ row, index }))
+      .filter(
+        ({ row }) =>
+          row.publishedAt &&
+          audienceMatches(row.targets, {
+            id: audience.employeeId,
+            depotId: audience.depotId,
+            departmentId: audience.departmentId,
+            position: audience.position,
+          }),
+      )
+      // Newest first, then `limit` — the real query's order. Modelling it matters: with
+      // insertion order the oldest notice survives any window, which is the opposite of
+      // the bug and would let the H-18 regression pass unnoticed.
+      .sort((a, b) => {
+        const byTime = (b.row.publishedAt?.getTime() ?? 0) - (a.row.publishedAt?.getTime() ?? 0);
+        return byTime !== 0 ? byTime : b.index - a.index;
+      })
+      .slice(0, limit)
+      .map(({ row }) => row);
   }
+
   async listDue(now: Date): Promise<AnnouncementWithTargets[]> {
     return this.rows.filter(
       (r) => !r.publishedAt && r.scheduledAt && r.scheduledAt.getTime() <= now.getTime(),
@@ -223,6 +251,29 @@ describe('AnnouncementService (C1)', () => {
     // Idempotent: reading twice is one read in the statistics.
     await svc.markRead(hr, feed[0].id);
     expect(await repo.countReads(feed[0].id)).toBe(1);
+  });
+
+  // H-18: the feed used to be the newest 50 notices COMPANY-WIDE, filtered by audience
+  // afterwards. Fifty newer notices aimed elsewhere therefore evicted this employee's own
+  // depot notice from the window — they stopped seeing their depot's announcements at
+  // all, silently, with no error anywhere. FEED_LIMIT is 50, so 60 is past the edge.
+  it("still shows a depot notice buried under 60 newer notices for other depots", async () => {
+    const { svc } = make();
+    const mine = await svc.create(hr, {
+      title: 'Rapat depot d1',
+      body: 'x',
+      targets: [{ dimension: 'DEPOT', value: 'd1' }],
+    });
+    for (let i = 0; i < 60; i += 1) {
+      await svc.create(hr, {
+        title: `Depot d2 #${i}`,
+        body: 'x',
+        targets: [{ dimension: 'DEPOT', value: 'd2' }],
+      });
+    }
+
+    const feed = await svc.listForSelf(hr);
+    expect(feed.map((a) => a.id)).toEqual([mine.id]);
   });
 
   it('returns an empty feed rather than querying reads when nothing is addressed to them', async () => {

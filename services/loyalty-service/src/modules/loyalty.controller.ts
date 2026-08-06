@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser, InternalAuthGuard, Public, Role, Roles } from '@hydromart/platform';
 
@@ -28,6 +28,9 @@ import {
   RewardPointsDto,
   TierScopeQueryDto,
 } from './dto/loyalty.dto';
+import { TierBenefit } from '../domain/membership';
+import { DepotLoyaltySummary, ExpiryResult } from '../application/services/loyalty.service';
+import { DepotLoyaltyResponseDto, ExpiryResponseDto, MemberCountResponseDto, PagedPointsTransactionResponseDto, TierBenefitResponseDto } from './dto/responses.generated.dto';
 
 // earn + reward are system-to-system calls (order-service on completion, referral +
 // customer-service birthday) authenticated by the shared INTERNAL_SERVICE_KEY, not a JWT.
@@ -44,13 +47,15 @@ const READ_ROLES = [
 export class LoyaltyController {
   constructor(private readonly loyalty: LoyaltyService) {}
 
+  @ApiOkResponse({ type: TierBenefitResponseDto, isArray: true })
   @Public()
   @Get('tiers')
   @ApiOperation({ summary: 'List membership tiers and their benefits (FR-014)' })
-  tiers(@Query() query: TierScopeQueryDto) {
+  tiers(@Query() query: TierScopeQueryDto): TierBenefit[] {
     return this.loyalty.getTiers(query.depotId ?? null);
   }
 
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
   @Get('me')
   @ApiOperation({ summary: "Get the current customer's loyalty account (FR-014/015)" })
@@ -68,6 +73,7 @@ export class LoyaltyController {
   // Counter sale: staff ring up the purchase, so the buyer's tier cannot come from the
   // token — that token belongs to the cashier, and /me would quote the cashier's own
   // discount. Internal-key only, never a customer-reachable route.
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -84,6 +90,7 @@ export class LoyaltyController {
     return LoyaltyAccountDto.from(account, tier, discountRate);
   }
 
+  @ApiOkResponse({ type: PagedPointsTransactionResponseDto })
   @ApiBearerAuth()
   @Get('me/transactions')
   @ApiOperation({ summary: "List the current customer's points ledger" })
@@ -95,6 +102,7 @@ export class LoyaltyController {
     return { ...page, items: page.items.map((t) => PointsTransactionDto.from(t)) };
   }
 
+  @ApiOkResponse({ type: EarnResultDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -112,6 +120,7 @@ export class LoyaltyController {
     return { ...LoyaltyAccountDto.from(result.account), pointsEarned: result.pointsEarned };
   }
 
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
   @Roles(...ADJUST_ROLES)
   @Post('adjust')
@@ -122,6 +131,7 @@ export class LoyaltyController {
     );
   }
 
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -139,6 +149,7 @@ export class LoyaltyController {
   // voids it is not a MANAGER — the staff `adjust` route above is out of their reach on
   // purpose. Scoped by order, never by an amount the caller names: this service owns the
   // per-depot earn rate, so only it knows what that sale really earned.
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
@@ -150,15 +161,17 @@ export class LoyaltyController {
     );
   }
 
+  @ApiOkResponse({ type: ExpiryResponseDto })
   @ApiBearerAuth()
   @Roles(Role.SUPER_ADMIN)
   @Post('expire')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Sweep expired point lots (system/scheduler, BR-014)' })
-  expire() {
+  expire(): Promise<ExpiryResult> {
     return this.loyalty.runExpiry();
   }
 
+  @ApiOkResponse({ type: MemberCountResponseDto })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('members/count')
@@ -167,16 +180,18 @@ export class LoyaltyController {
     return { count: await this.loyalty.countMembers() };
   }
 
+  @ApiOkResponse({ type: DepotLoyaltyResponseDto })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('depot-summary')
   @ApiOperation({
     summary: 'Depot-scoped loyalty rollup: members, tiers, points outstanding, redeemed this month',
   })
-  depotSummary(@Query() query: DepotSummaryQueryDto) {
+  depotSummary(@Query() query: DepotSummaryQueryDto): Promise<DepotLoyaltySummary> {
     return this.loyalty.depotSummary(query.depotId);
   }
 
+  @ApiOkResponse({ type: LoyaltyAccountDto })
   @ApiBearerAuth()
   @Roles(...READ_ROLES)
   @Get('customers/:customerId')

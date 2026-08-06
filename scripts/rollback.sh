@@ -14,8 +14,24 @@ STATE_DIR=".deploy"
 
 log() { echo "[rollback] $*"; }
 
+# A no-op when deploy.sh already holds it — that is how a failed health check gets here.
+# A hand-run rollback takes it, so the watchdog cannot converge halfway through one.
+if ! stack_lock 900; then
+  log "!! another deploy holds the stack lock — refusing to roll back underneath it"
+  exit 1
+fi
+
 TARGET="${1:-$(cat "$STATE_DIR/prev-sha" 2>/dev/null || true)}"
 [ -z "$TARGET" ] && { echo "no rollback target (pass a SHA or run a deploy first)"; exit 2; }
+
+# Audit [G] H-18 alleged shell injection through this argument. It was not
+# reproducible: TARGET is quoted at every use, never eval'd, never interpolated
+# into a `sh -c`, and the script runs under `set -euo pipefail`. Rather than
+# argue the point in a comment, resolve it by construction — anything that is
+# not a commit this repository actually has is refused here, before it reaches
+# git, the rebuild, or the alert text.
+git rev-parse --verify --quiet "$TARGET^{commit}" >/dev/null || {
+  echo "not a commit in this repository: $TARGET"; exit 2; }
 
 CUR="$(git rev-parse HEAD)"
 log "rolling back $CUR → $TARGET"
@@ -23,7 +39,17 @@ log "rolling back $CUR → $TARGET"
 CHANGED="$(git diff --name-only "$TARGET" "$CUR")"
 git reset --hard "$TARGET"
 
-if needs_full_rebuild "$CHANGED"; then
+if registry_mode; then
+  # H-35: the point of immutable SHA tags. Rolling back is pulling the images that were
+  # already built for the target commit — seconds, and byte-identical to what ran before,
+  # rather than a fresh build on a box that is currently unhealthy.
+  log "registry mode — pulling images tagged $TARGET"
+  if ! pull_images "$TARGET"; then
+    log "!! no images published for $TARGET — cannot roll back to it"
+    alert "rollback to $TARGET impossible: no images published for that commit"
+    exit 1
+  fi
+elif needs_full_rebuild "$CHANGED"; then
   log "shared package or root build input differs → full rebuild"
   bash scripts/rebuild-stale.sh --all
 else

@@ -9,13 +9,14 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { MeterService } from '../application/services/meter.service';
 import { MeterHistoryRow, MeterReconciliation } from '../domain/meter-reading';
 import { MeterHistoryQueryDto, SaveMeterReadingDto } from './dto/meter-reading.dto';
+import { MeterHistoryRowResponseDto, MeterReconciliationResponseDto } from './dto/responses.generated.dto';
 
 const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -39,6 +40,7 @@ function toDay(value: Date): string {
 export class MeterController {
   constructor(private readonly meter: MeterService) {}
 
+  @ApiOkResponse({ type: MeterReconciliationResponseDto })
   @Can('meterWrite')
   @Put(':depotId/:date')
   @ApiOperation({
@@ -62,6 +64,7 @@ export class MeterController {
     });
   }
 
+  @ApiOkResponse({ type: MeterReconciliationResponseDto })
   @Can('meterRead')
   @Get(':depotId/:date')
   @ApiOperation({ summary: 'Water-meter reading and reconciliation for one day' })
@@ -72,6 +75,7 @@ export class MeterController {
     return this.meter.reconcile(depotId, assertDay(date));
   }
 
+  @ApiOkResponse({ type: MeterHistoryRowResponseDto, isArray: true })
   @Can('meterRead')
   @Get(':depotId')
   @ApiOperation({ summary: 'Daily water-meter history for the variance chart' })

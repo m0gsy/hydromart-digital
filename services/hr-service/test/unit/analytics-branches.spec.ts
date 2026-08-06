@@ -4,6 +4,7 @@ import { AnalyticsRepository } from '../../src/application/ports/analytics.repos
 
 function build(over: Partial<AnalyticsRepository> = {}) {
   const repo: AnalyticsRepository = {
+    depotSummaryFacts: async () => new Map(),
     headcountByStatus: async () => [{ key: 'ACTIVE', count: 7 }],
     headcountByEmploymentStatus: async () => [],
     attendanceByStatus: async () => [
@@ -56,5 +57,46 @@ describe('AnalyticsService.depotSummary', () => {
     });
     const s = await svc.depotSummary('d-2');
     expect(s).toMatchObject({ lateToday: 0, absentToday: 0, presentToday: 0, activeHeadcount: 0 });
+  });
+});
+
+describe('AnalyticsService.depotSummaryMany', () => {
+  it('answers every requested depot from ONE facts read (audit S-1)', async () => {
+    const depotSummaryFacts = jest.fn(async () =>
+      new Map([
+        [
+          'd-1',
+          {
+            lateToday: 2,
+            absentToday: 1,
+            presentToday: 4,
+            payrollMtdNet: 9_000_000,
+            activeHeadcount: 7,
+          },
+        ],
+      ]),
+    );
+    const svc = build({ depotSummaryFacts });
+
+    const rows = await svc.depotSummaryMany(['d-1', 'd-2']);
+
+    expect(depotSummaryFacts).toHaveBeenCalledTimes(1);
+    expect(rows[0]).toMatchObject({ depotId: 'd-1', lateToday: 2, payrollMtdNet: 9_000_000 });
+    // A depot with no rows still gets a card, all zeroes — a missing card reads as broken.
+    expect(rows[1]).toMatchObject({
+      depotId: 'd-2',
+      lateToday: 0,
+      absentToday: 0,
+      presentToday: 0,
+      payrollMtdNet: 0,
+      activeHeadcount: 0,
+    });
+  });
+
+  it('asks nothing for an empty depot list', async () => {
+    const depotSummaryFacts = jest.fn(async () => new Map());
+    const svc = build({ depotSummaryFacts });
+    expect(await svc.depotSummaryMany([])).toEqual([]);
+    expect(depotSummaryFacts).not.toHaveBeenCalled();
   });
 });

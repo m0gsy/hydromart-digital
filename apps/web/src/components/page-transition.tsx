@@ -1,25 +1,20 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { motion, useReducedMotion } from 'framer-motion';
 
 // Lightweight per-route enter animation. Keyed on pathname so each navigation
-// re-mounts and fades up. No AnimatePresence/exit (App Router makes exit
-// animations brittle) — a clean mount fade is enough and can't trap scroll.
+// re-mounts and fades up. No exit animation (App Router makes those brittle) — a
+// clean mount fade is enough and can't trap scroll.
+//
+// Audit F-10: this was a framer-motion `motion.div` for a 250 ms opacity+translate.
+// One CSS keyframe does the same thing and takes no runtime with it. Reduced motion
+// is handled globally in globals.css.
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const reduce = useReducedMotion();
-
-  if (reduce) return <>{children}</>;
 
   return (
-    <motion.div
-      key={pathname}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: [0.2, 0.7, 0.2, 1] }}
-    >
+    <div key={pathname} style={{ animation: 'fadeUp 0.25s var(--ease-out) both' }}>
       {children}
-    </motion.div>
+    </div>
   );
 }

@@ -63,16 +63,23 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const row = this.rows.find((r) => r.reference === reference);
     return row ? { ...row } : null;
   }
-  async search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }> {
+  async search(
+    query: PaymentQuery,
+  ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }> {
     const all = this.rows
       .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.orderId || r.orderId === query.orderId)
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    const start = (query.page - 1) * query.limit;
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((r) => r.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
     return {
-      items: all.slice(start, start + query.limit).map((r) => ({ ...r })),
+      items: items.map((r) => ({ ...r })),
       total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
   async listPendingRefunds(query: {
@@ -145,6 +152,18 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     Object.assign(row, patch, { updatedAt: nextDate() });
     return { ...row };
   }
+
+  /** Compare-and-set (B-9): applies the patch only if the row is still in `expected`. */
+  async updateIfStatus(
+    id: string,
+    expected: PaymentStatus[],
+    patch: PaymentStatusPatch,
+  ): Promise<PaymentRecord | null> {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || !expected.includes(row.status)) return null;
+    Object.assign(row, patch, { updatedAt: nextDate() });
+    return { ...row };
+  }
 }
 
 export class FakeGateway implements PaymentGatewayPort {
@@ -163,10 +182,13 @@ export class FakeGateway implements PaymentGatewayPort {
       raw: JSON.stringify({ ok: true }),
     };
   }
+  /** Every gateway refund actually sent. Money leaves per entry, so length is the assertion. */
+  refunds: { reference: string; amount: number }[] = [];
   async refund(reference: string, amount: number): Promise<RefundResult> {
     if (this.throwOnRefund) {
       throw new Error('refund gateway down');
     }
+    this.refunds.push({ reference, amount });
     return { reference: `RFN-${reference}`, raw: JSON.stringify({ refunded: amount }) };
   }
 }

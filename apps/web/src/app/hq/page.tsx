@@ -1,10 +1,10 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { ChartLineUp, Warning } from '@phosphor-icons/react';
 
-import { DepotMap } from '@/components/dashboard/depot-map';
 import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -18,6 +18,14 @@ import type {
   NetworkDashboard,
   Page,
 } from '@/lib/types';
+
+// Audit F-9: the map is one of three tabs and most opens never reach it, so it is
+// fetched on demand rather than shipped in the overview chunk. Client-only — it reads
+// depot coordinates and draws to the DOM.
+const DepotMap = dynamic(() => import('@/components/dashboard/depot-map').then((m) => m.DepotMap), {
+  ssr: false,
+  loading: () => <Skeleton className="h-96 w-full" />,
+});
 
 // Trailing-30-day window, computed once per mount (client-only). Copied from
 // franchise/page.tsx so the exec endpoint gets a stable range.
@@ -51,7 +59,7 @@ export default function HqOverviewPage() {
   const dash = useAsync<ExecutiveDashboard>(() => api.get(endpoints.hq.overview(range), true));
   const rollup = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
   const depotList = useAsync<Page<DepotAdmin>>(() =>
-    api.get(endpoints.depots.manage({ limit: 100 }), true),
+    api.getCached(endpoints.depots.manage({ limit: 100 }), true),
   );
   // Two KPI tiles fed by their own endpoints (not on the exec dashboard):
   // new customer signups in-range, and the pending franchise-application queue.

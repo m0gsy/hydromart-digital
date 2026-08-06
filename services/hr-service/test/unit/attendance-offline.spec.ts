@@ -30,7 +30,6 @@ function punchAt(capturedAt?: Date): FacePunch {
   return {
     image: Buffer.from('x'),
     photoUrl: null,
-    live: true,
     lat: -6.2,
     lng: 106.8,
     capturedAt: capturedAt ?? null,
@@ -61,6 +60,9 @@ class FakeAtt implements AttendanceRepository {
   }
   async summary() {
     return { presentDays: 0, lateDays: 0, leaveDays: 0 };
+  }
+  async summaryMany() {
+    return new Map();
   }
   async listWorkedMinutes() {
     return [];
@@ -109,7 +111,7 @@ function make(
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => ({ score: 0.9, matched: true, live: true }),
+    verify: async () => ({ score: 0.9, matched: true }),
   };
   const employees = {
     findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,
@@ -205,14 +207,18 @@ describe('AttendanceService photo storage', () => {
     expect(att.created).toMatchObject({ status: 'PRESENT', checkInPhotoUrl: null });
   });
 
-  it('stores the returned url when the bucket is healthy', async () => {
+  // B-18: the KEY is recorded, never the public URL. A permanent public link to a face
+  // frame, sitting in a column anyone with read access can copy, is what that fixes.
+  it('stores the storage key, not the public url, when the bucket is healthy', async () => {
     const { att, svc } = make({
-      storage: { put: async () => ({ url: 'https://cdn/hr/attendance/a.jpg', key: 'a.jpg' }) },
+      storage: {
+        put: async () => ({ url: 'https://cdn/hr/attendance/a.jpg', key: 'hr/attendance/a.jpg' }),
+      },
     });
 
     await svc.checkIn(user, punchAt(), AT_0810);
 
-    expect(att.created?.checkInPhotoUrl).toBe('https://cdn/hr/attendance/a.jpg');
+    expect(att.created?.checkInPhotoUrl).toBe('hr/attendance/a.jpg');
   });
 });
 

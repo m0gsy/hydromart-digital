@@ -2,6 +2,7 @@
 
 import { Truck } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -26,7 +27,9 @@ export default function HqRosterPage() {
     const [drivers, deliveries, depotList, shifts] = await Promise.all([
       api.get<Customer[]>(endpoints.auth.drivers, true),
       api.get<Page<Delivery>>(endpoints.deliveries.list({ limit: 100 }), true),
-      api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+      api.getCached<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true),
+      // Not getCached: who is on shift right now is the one read here that goes stale in
+      // seconds, and a 60s cache would show a courier who has already clocked off.
       api.get<CourierShift[]>(endpoints.deliveries.shiftsOnDuty(since.toISOString()), true),
     ]);
     const depotName = new Map(depotList.items.map((d) => [d.id, d.name]));
@@ -54,13 +57,7 @@ export default function HqRosterPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Truck size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.roster.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.roster.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Truck} title={t('hq.roster.title')} subtitle={t('hq.roster.subtitle')} />
 
       {data.loading ? (
         <Skeleton className="h-64 w-full" />

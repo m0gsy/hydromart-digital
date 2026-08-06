@@ -1,6 +1,13 @@
 import { DashboardService } from '../../src/application/services/dashboard.service';
 import { DashboardSourcesPort } from '../../src/application/ports/dashboard-sources.port';
 import { InMemoryDashboardSources } from '../support/fakes';
+import { DashboardConfigService } from '../../src/config/dashboard-config.service';
+
+/** Only `businessTimeZone` is read; WIB pinned so a UTC month-window regression (H-16)
+ * fails here rather than in a depot's P&L. */
+const dashboardTestConfig = (timeZone = 'Asia/Jakarta'): DashboardConfigService =>
+  ({ businessTimeZone: timeZone }) as DashboardConfigService;
+
 
 const DEPOT_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -56,7 +63,7 @@ const pnlSources = (
 
 describe('DashboardService', () => {
   it('combines complete monthly revenue and costs into operational profit', async () => {
-    const service = new DashboardService(pnlSources());
+    const service = new DashboardService(pnlSources(), dashboardTestConfig());
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result).toMatchObject({
@@ -72,7 +79,7 @@ describe('DashboardService', () => {
   });
 
   it('keeps revenue but nulls COGS-derived totals when cost coverage is partial', async () => {
-    const service = new DashboardService(pnlSources({ partialCogs: true }));
+    const service = new DashboardService(pnlSources({ partialCogs: true }), dashboardTestConfig());
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBe(1_000_000);
@@ -86,7 +93,7 @@ describe('DashboardService', () => {
   });
 
   it('keeps real costs but nulls revenue-derived totals when order-service is unavailable', async () => {
-    const service = new DashboardService(pnlSources({ orderDown: true }));
+    const service = new DashboardService(pnlSources({ orderDown: true }), dashboardTestConfig());
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBeNull();
@@ -99,7 +106,7 @@ describe('DashboardService', () => {
   });
 
   it('marks depot costs partial when a PO-category outflow cannot be verified', async () => {
-    const service = new DashboardService(pnlSources({ unverifiedProcurement: true }));
+    const service = new DashboardService(pnlSources({ unverifiedProcurement: true }), dashboardTestConfig());
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.opexIdr).toBeNull();
@@ -110,7 +117,7 @@ describe('DashboardService', () => {
   });
 
   it('keeps revenue but nulls every cost/derived value when depot-service is unavailable', async () => {
-    const service = new DashboardService(pnlSources({ depotDown: true }));
+    const service = new DashboardService(pnlSources({ depotDown: true }), dashboardTestConfig());
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result.revenueIdr).toBe(1_000_000);
@@ -123,7 +130,7 @@ describe('DashboardService', () => {
   });
 
   it('composes all four sections and marks both sources ok', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources());
+    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig());
     const result = await service.executive({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.from).toBe('2026-06-01');
@@ -136,7 +143,7 @@ describe('DashboardService', () => {
   });
 
   it('marks order unavailable and nulls order sections when order calls fail', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true));
+    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig());
     const result = await service.executive({}, 'Bearer t');
 
     expect(result.sales).toBeNull();
@@ -149,7 +156,7 @@ describe('DashboardService', () => {
   });
 
   it('scopes revenue + low-stock to owned depots and rolls up totals', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources());
+    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig());
     const result = await service.franchise({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
@@ -168,8 +175,22 @@ describe('DashboardService', () => {
     expect(result.crm).toEqual({ baru: 2, aktif: 6, inactive: 4, total: 12, followUpCount: 2, repeatRatePct: 50 });
   });
 
+  // Audit S-1 / Q-17 baseline. The old shape asked each source once PER OWNED DEPOT, so an
+  // owner with twelve depots opened this page with thirty-six upstream requests. The number
+  // that matters is that it does not move with the depot count.
+  it('costs three calls for many depots', async () => {
+    const sources = new InMemoryDashboardSources();
+    const service = new DashboardService(sources, dashboardTestConfig());
+
+    await service.franchise({}, 'Bearer t');
+
+    expect(sources.lowStockManyCalls).toBe(1);
+    expect(sources.hrSummaryManyCalls).toBe(1);
+    expect(sources.crmSummaryManyCalls).toBe(1);
+  });
+
   it('rolls up every depot with revenue, SLA and low-stock, null SLA when none in range', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources());
+    const service = new DashboardService(new InMemoryDashboardSources(), dashboardTestConfig());
     const result = await service.network({ from: '2026-06-01', to: '2026-06-30' }, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
@@ -190,7 +211,7 @@ describe('DashboardService', () => {
   });
 
   it('marks order unavailable in the roll-up but still lists depots + SLA', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true));
+    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig());
     const result = await service.network({}, 'Bearer t');
 
     expect(result.depots).toHaveLength(2);
@@ -206,7 +227,7 @@ describe('DashboardService', () => {
   });
 
   it('marks depot + order unavailable and empties depots when the owner directory is down', async () => {
-    const service = new DashboardService(new InMemoryDashboardSources(true));
+    const service = new DashboardService(new InMemoryDashboardSources(true), dashboardTestConfig());
     const result = await service.franchise({}, 'Bearer t');
 
     expect(result.depots).toEqual([]);
@@ -239,17 +260,20 @@ describe('DashboardService with every upstream down', () => {
       myDepots: jest.fn().mockResolvedValue(null),
       allDepots: jest.fn().mockResolvedValue(null),
       lowStock: jest.fn().mockResolvedValue(null),
+      lowStockMany: jest.fn().mockResolvedValue(null),
       slaByDepot: jest.fn().mockResolvedValue(null),
       ratingByDepot: jest.fn().mockResolvedValue(null),
       depotMonthly: jest.fn().mockResolvedValue(null),
       operationalCosts: jest.fn().mockResolvedValue(null),
       crmSummary: jest.fn().mockResolvedValue(null),
+      crmSummaryMany: jest.fn().mockResolvedValue([]),
+      hrSummaryMany: jest.fn().mockResolvedValue([]),
     }) as unknown as DashboardSourcesPort;
 
   const range = { from: null, to: null } as never;
 
   it('network reports no depots and marks every source unavailable', async () => {
-    const out = await new DashboardService(allDown()).network(range, 'Bearer t');
+    const out = await new DashboardService(allDown(), dashboardTestConfig()).network(range, 'Bearer t');
 
     expect(out.depots).toEqual([]);
     expect(out.sources).toEqual({
@@ -261,7 +285,7 @@ describe('DashboardService with every upstream down', () => {
   });
 
   it('franchise reports no depots and marks every source unavailable', async () => {
-    const out = await new DashboardService(allDown()).franchise(range, 'Bearer t');
+    const out = await new DashboardService(allDown(), dashboardTestConfig()).franchise(range, 'Bearer t');
 
     expect(out.depots).toEqual([]);
     expect(Object.values(out.sources)).toContain('unavailable');
@@ -281,6 +305,7 @@ describe('DashboardService when the depots list survives but nothing else does',
       myDepots: jest.fn().mockResolvedValue(depots),
       allDepots: jest.fn().mockResolvedValue(depots),
       lowStock: jest.fn().mockResolvedValue(null),
+      lowStockMany: jest.fn().mockResolvedValue(null),
       slaByDepot: jest.fn().mockResolvedValue(null),
       ratingByDepot: jest.fn().mockResolvedValue(null),
       crmSummary: jest.fn().mockResolvedValue({
@@ -289,13 +314,22 @@ describe('DashboardService when the depots list survives but nothing else does',
         followUps: [],
         repeatRatePct: 0,
       }),
+      crmSummaryMany: jest.fn().mockResolvedValue([
+        {
+          depotId: 'dep-1',
+          counts: { baru: 0, aktif: 0, inactive: 0, total: 0 },
+          followUps: [],
+          repeatRatePct: 0,
+        },
+      ]),
       hrSummary: jest.fn().mockResolvedValue(null),
+      hrSummaryMany: jest.fn().mockResolvedValue([null]),
     }) as unknown as DashboardSourcesPort;
 
   const range = { from: null, to: null } as never;
 
   it('reports the depot with nulls, not zeros, for what it could not measure', async () => {
-    const out = await new DashboardService(partial()).network(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig()).network(range, 'Bearer t');
 
     expect(out.depots[0]).toMatchObject({
       depotId: 'dep-1',
@@ -309,13 +343,13 @@ describe('DashboardService when the depots list survives but nothing else does',
   });
 
   it('the franchise view does the same, and a depot with no customers is 0% repeat', async () => {
-    const out = await new DashboardService(partial()).franchise(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig()).franchise(range, 'Bearer t');
 
     expect(out.depots[0]).toMatchObject({ orderCount: 0, revenue: 0, lowStockCount: 0 });
   });
 
   it('the executive view marks delivery unavailable while order data still loads', async () => {
-    const out = await new DashboardService(partial()).executive(range, 'Bearer t');
+    const out = await new DashboardService(partial(), dashboardTestConfig()).executive(range, 'Bearer t');
 
     // topDepots is the order source for this view; with it down the whole source reads as
     // unavailable rather than as an empty leaderboard.

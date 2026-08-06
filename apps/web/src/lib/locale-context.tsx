@@ -3,11 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { id, type Dictionary } from './dictionaries/id';
-import { en } from './dictionaries/en';
 
 export type Locale = 'id' | 'en';
 
-const DICTS: Record<Locale, Dictionary> = { id, en };
 const STORAGE_KEY = 'hydromart.locale';
 
 export type TVars = Record<string, string | number>;
@@ -26,6 +24,29 @@ interface LocaleValue {
 
 const LocaleContext = createContext<LocaleValue | null>(null);
 
+/**
+ * Audit F-5: both dictionaries used to be static imports, so EVERY route in the app
+ * carried ~1,900 Indonesian strings AND ~1,900 English ones — and virtually every
+ * visitor reads one of them. Indonesian is the product default and ships eagerly;
+ * English arrives as its own chunk the first time someone asks for it.
+ *
+ * The cache is module-level so a second toggle is free, and the promise is memoised so
+ * two components flipping the switch in the same tick share one download.
+ */
+const loaded: Partial<Record<Locale, Dictionary>> = { id };
+let enLoading: Promise<Dictionary> | null = null;
+
+function loadDictionary(locale: Locale): Promise<Dictionary> {
+  if (locale === 'id') return Promise.resolve(id);
+  if (!enLoading) {
+    enLoading = import('./dictionaries/en').then((m) => {
+      loaded.en = m.en;
+      return m.en;
+    });
+  }
+  return enLoading;
+}
+
 function resolve(dict: Dictionary, key: string, vars?: TVars): string {
   const value = key
     .split('.')
@@ -39,6 +60,8 @@ function resolve(dict: Dictionary, key: string, vars?: TVars): string {
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>('id');
+  // Bumped when a lazily-fetched dictionary lands, so `t` re-runs against it.
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -51,7 +74,23 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = l;
   }, []);
 
-  const t = useCallback((key: string, vars?: TVars) => resolve(DICTS[locale], key, vars), [locale]);
+  // Fetch whatever the current locale needs. Until it lands, `t` falls back to
+  // Indonesian — one paint of the default beats blocking the whole tree on a chunk.
+  useEffect(() => {
+    if (loaded[locale]) return;
+    let alive = true;
+    void loadDictionary(locale).then(() => alive && setRevision((r) => r + 1));
+    return () => {
+      alive = false;
+    };
+  }, [locale]);
+
+  const t = useCallback(
+    (key: string, vars?: TVars) => resolve(loaded[locale] ?? id, key, vars),
+    // `revision` is the signal that `loaded` changed — it has no other reader.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale, revision],
+  );
 
   const value = useMemo<LocaleValue>(
     () => ({ locale, setLocale, toggle: () => setLocale(locale === 'id' ? 'en' : 'id'), t }),

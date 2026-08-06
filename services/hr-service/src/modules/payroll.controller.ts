@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 
 import { Can, AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
 import { GeneratePayrollDto, ListPayrollDto } from './dto/payroll.dto';
+import { PayrollWithItems } from '../application/ports/payroll.repository';
+import { PayrollWithItemsResponseDto } from './dto/responses.generated.dto';
 
 /** Monthly payroll: generate (DRAFT) → approve → mark paid. Read = hrView; write = hrPayroll. */
 @ApiTags('HR Payroll')
@@ -27,10 +29,11 @@ export class PayrollController {
     return this.payroll.listSelf(user, query);
   }
 
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'Get one payroll with its item lines (salary slip)' })
-  getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.getById(user, id);
   }
 
@@ -48,24 +51,27 @@ export class PayrollController {
     res.send(pdf);
   }
 
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Post('generate')
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Generate/re-generate a DRAFT payroll for an employee + period' })
-  generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthenticatedUser) {
+  generate(@Body() dto: GeneratePayrollDto, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.generate(user, dto.employeeId, dto.periodMonth);
   }
 
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Post(':id/approve')
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Approve a DRAFT payroll' })
-  approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.approve(user, id);
   }
 
+  @ApiOkResponse({ type: PayrollWithItemsResponseDto })
   @Post(':id/pay')
   @Can('hrPayroll')
   @ApiOperation({ summary: 'Mark an APPROVED payroll as paid' })
-  pay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+  pay(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
     return this.payroll.markPaid(user, id);
   }
 }

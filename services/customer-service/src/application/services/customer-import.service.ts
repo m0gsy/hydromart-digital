@@ -66,10 +66,10 @@ export class CustomerImportService {
         return { status: 'skipped', id: customerId, message: 'Nomor sudah punya akun aktif' };
       }
 
-      if (!(await this.profiles.exists(customerId))) {
-        await this.profiles.create(customerId);
-      }
-      await this.profiles.updateFavoriteDepot(customerId, depotId);
+      // One statement, not three (audit S-16): rows are imported one at a time so each can
+      // report its own failure, which makes every round-trip per row a round-trip per row
+      // of the file.
+      await this.profiles.upsertFavoriteDepot(customerId, depotId);
 
       if (row.addressLine) {
         if (!row.city || !row.province) {

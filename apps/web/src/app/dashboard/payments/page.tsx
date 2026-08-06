@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Bank, CreditCard, Lock, Money, QrCode, Wallet } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
@@ -82,9 +83,11 @@ function QrisPanel({ depot, onUploaded }: { depot: DepotAdmin; onUploaded: (d: D
         {t('dashB.payments.qrisHint')}
       </p>
       {src ? (
-        <img
+        <RemoteImage
           src={src}
           alt={t('dashB.payments.qrisAlt')}
+          width={192}
+          height={192}
           className="mx-auto h-48 w-48 rounded-lg border border-app object-contain"
         />
       ) : (

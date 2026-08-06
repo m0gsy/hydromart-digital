@@ -4,7 +4,11 @@ import { SubscriptionPrismaRepository } from '../../src/infrastructure/prisma/su
 import { OrderPrismaRepository } from '../../src/infrastructure/prisma/order.prisma.repository';
 import { OrderStatus } from '../../src/domain/order-status';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
-import { OrderAlreadyVoidedError } from '../../src/domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  ReportRangeTooLargeError,
+} from '../../src/domain/errors';
 
 // Unit-tests the order-service Prisma repositories against per-model jest.fn() mocks of
 // PrismaService. No real database, no testcontainers: each test asserts the EXACT prisma
@@ -70,9 +74,11 @@ describe('SubscriptionPrismaRepository', () => {
     findUnique: jest.fn(),
     findMany: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
     groupBy: jest.fn(),
   };
-  const prisma = { subscription: model } as unknown as PrismaService;
+  const $queryRaw = jest.fn();
+  const prisma = { subscription: model, $queryRaw } as unknown as PrismaService;
   const repo = new SubscriptionPrismaRepository(prisma);
   const row = {
     id: 'sub-1',
@@ -161,12 +167,19 @@ describe('SubscriptionPrismaRepository', () => {
       where: { id: 'sub-1' },
       data: { status: 'PAUSED' },
     });
+    const due = new Date('2026-02-01');
     const next = new Date('2026-02-08');
-    await repo.advance('sub-1', next);
-    expect(model.update).toHaveBeenLastCalledWith({
-      where: { id: 'sub-1' },
+    model.updateMany.mockResolvedValue({ count: 1 });
+    // H-3: the schedule only moves from the date the sweep read it at, so one due
+    // delivery advances once however many sweeps are looking at it.
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'sub-1', status: 'ACTIVE', nextDeliveryAt: due },
       data: { nextDeliveryAt: next },
     });
+
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.advance('sub-1', due, next)).resolves.toBe(false);
   });
 
   it('summarizes the active network, sorted by subscriber count desc', async () => {
@@ -174,7 +187,7 @@ describe('SubscriptionPrismaRepository', () => {
       { productName: 'Galon 19L', frequency: 'WEEKLY', _count: { _all: 2 } },
       { productName: 'Botol 600ml', frequency: 'MONTHLY', _count: { _all: 5 } },
     ]);
-    model.findMany.mockResolvedValue([{ customerId: 'cust-1' }, { customerId: 'cust-2' }]);
+    $queryRaw.mockResolvedValue([{ count: BigInt(2) }]);
     const out = await repo.networkSummary();
     expect(out.activeSubscriptions).toBe(7);
     expect(out.activeSubscribers).toBe(2);
@@ -184,11 +197,14 @@ describe('SubscriptionPrismaRepository', () => {
       where: { status: 'ACTIVE' },
       _count: { _all: true },
     });
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { status: 'ACTIVE' },
-      distinct: ['customerId'],
-      select: { customerId: true },
-    });
+    // COUNT(DISTINCT) in Postgres — a page bound must not be able to lower the count.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports zero subscribers when the count query comes back empty', async () => {
+    model.groupBy.mockResolvedValue([]);
+    $queryRaw.mockResolvedValue([]);
+    expect((await repo.networkSummary()).activeSubscribers).toBe(0);
   });
 });
 
@@ -207,11 +223,17 @@ describe('OrderPrismaRepository', () => {
   const orderItem = { groupBy: jest.fn() };
   const orderStatusHistory = { create: jest.fn() };
   const $queryRaw = jest.fn();
+  // H-10: the order write and its outbox rows go in one transaction. Promise.all so a
+  // rejected op (the P2002 / P2025 cases below) still reaches the repository's catch.
+  const outboxMessage = { create: jest.fn() };
+  const $transaction = jest.fn((ops: unknown[]) => Promise.all(ops));
   const prisma = {
     order,
     orderReview,
     orderItem,
     orderStatusHistory,
+    outboxMessage,
+    $transaction,
     $queryRaw,
   } as unknown as PrismaService;
   const repo = new OrderPrismaRepository(prisma);
@@ -325,6 +347,99 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
+  // B-13. The unique index is the guard; this is the translation that lets the service
+  // recognise it and answer with the order the winning attempt placed.
+  it('translates the idempotency-key unique violation into DuplicateCheckoutError', async () => {
+    order.create.mockRejectedValue(
+      Object.assign(new Error('unique'), {
+        code: 'P2002',
+        meta: { target: ['customerId', 'idempotencyKey'] },
+      }),
+    );
+    await expect(repo.create(createData)).rejects.toBeInstanceOf(DuplicateCheckoutError);
+  });
+
+  it('rethrows a unique violation on any other column', async () => {
+    // An orderNumber collision (H-12) is ours, not the caller's — swallowing it as a
+    // duplicate checkout would hand the caller somebody else's order.
+    const clash = Object.assign(new Error('unique'), {
+      code: 'P2002',
+      meta: { target: 'orders_orderNumber_key' },
+    });
+    order.create.mockRejectedValue(clash);
+    await expect(repo.create(createData)).rejects.toBe(clash);
+  });
+
+  it('rethrows a non-unique database failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    order.create.mockRejectedValue(boom);
+    await expect(repo.create(createData)).rejects.toBe(boom);
+  });
+
+  it('rethrows a rejection that carries no error object at all', async () => {
+    order.create.mockRejectedValue('connection reset');
+    await expect(repo.create(createData)).rejects.toBe('connection reset');
+  });
+
+  it('rethrows a P2002 that names no column', async () => {
+    const vague = Object.assign(new Error('unique'), { code: 'P2002' });
+    order.create.mockRejectedValue(vague);
+    await expect(repo.create(createData)).rejects.toBe(vague);
+  });
+
+  // H-10: the effects a transition earns are written in the SAME transaction as it, so an
+  // order cannot end up COMPLETED with its stock consume and owner credit owed to nobody.
+  it('writes the outbox rows alongside the status change, in one transaction', async () => {
+    order.update.mockResolvedValue({ ...orderRow(), status: 'COMPLETED' });
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.DELIVERED,
+      OrderStatus.COMPLETED,
+      'staff',
+      null,
+      undefined,
+      undefined,
+      undefined,
+      [
+        { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+        { topic: 'FRANCHISE_REVENUE', orderId: 'ord-1' },
+      ],
+    );
+    expect($transaction).toHaveBeenCalledTimes(1);
+    expect(outboxMessage.create).toHaveBeenCalledTimes(2);
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  it('writes the outbox rows alongside a walk-in, which is born COMPLETED', async () => {
+    order.create.mockResolvedValue(orderRow());
+    await repo.create({
+      ...createData,
+      status: OrderStatus.COMPLETED,
+      isWalkIn: true,
+      outbox: [{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }],
+    });
+    expect(outboxMessage.create).toHaveBeenCalledWith({
+      data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  it('finds the order a previous attempt placed under an idempotency key', async () => {
+    order.findUnique.mockResolvedValue(orderRow());
+    const found = await repo.findByIdempotencyKey('cust-1', 'key-1');
+    expect(found?.id).toBe('ord-1');
+    expect(order.findUnique).toHaveBeenCalledWith({
+      where: { customerId_idempotencyKey: { customerId: 'cust-1', idempotencyKey: 'key-1' } },
+      include: expect.any(Object),
+    });
+  });
+
+  it('returns null when no attempt has used that key', async () => {
+    order.findUnique.mockResolvedValue(null);
+    await expect(repo.findByIdempotencyKey('cust-1', 'key-1')).resolves.toBeNull();
+  });
+
   it('finds an order by id, mapping reviewed=true when a review row exists', async () => {
     order.findUnique.mockResolvedValue({ ...orderRow(), review: { id: 'rev-1' } });
     const out = await repo.findById('ord-1');
@@ -398,7 +513,7 @@ describe('OrderPrismaRepository', () => {
     expect(order.findMany).toHaveBeenCalledWith({
       where: { customerId: 'cust-1', status: OrderStatus.CREATED, depotId: { in: ['depot-1'] } },
       include: expect.any(Object),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip: 10,
       take: 10,
     });
@@ -407,16 +522,55 @@ describe('OrderPrismaRepository', () => {
     });
   });
 
-  it('searches with an empty where when no filters are given', async () => {
+  // Audit F-12: HQ global search used to pull a page of orders and match the number in
+  // the browser, so anything older than the last twenty was unfindable.
+  it('matches an order-number term in the query, trimmed and case-insensitive', async () => {
     order.findMany.mockResolvedValue([]);
     order.count.mockResolvedValue(0);
-    await repo.search({ page: 1, limit: 20 });
+    await repo.search({ orderNumber: ' hm-2026 ', page: 1, limit: 10 });
     expect(order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: {}, skip: 0, take: 20 }),
+      expect.objectContaining({
+        where: { orderNumber: { contains: 'hm-2026', mode: 'insensitive' } },
+      }),
     );
   });
 
-  it('finds stale orders in the given statuses before a cutoff', async () => {
+  it('omits the order-number predicate when the term is blank', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    await repo.search({ orderNumber: '  ', page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {} }));
+  });
+
+  it('searches with an empty where when no filters are given', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    const out = await repo.search({ page: 1, limit: 20 });
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {}, skip: 0, take: 20 }),
+    );
+    // A short page is the end of the list, so there is nothing to page on to.
+    expect(out.nextCursor).toBeNull();
+  });
+
+  it('seeks past a cursor instead of skipping an offset, and hands the next one back', async () => {
+    const rows = [
+      { ...orderRow(), id: 'o-1' },
+      { ...orderRow(), id: 'o-2' },
+    ];
+    order.findMany.mockResolvedValue(rows);
+    order.count.mockResolvedValue(50);
+
+    const out = await repo.search({ page: 9, limit: 2, cursor: 'o-0' });
+
+    // `page` is ignored once a cursor is given — honouring both would re-read or skip rows.
+    expect(order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'o-0' }, skip: 1, take: 2 }),
+    );
+    expect(out.nextCursor).toBe('o-2');
+  });
+
+  it('finds stale orders in the given statuses before a cutoff, oldest first and capped', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     const before = new Date('2026-01-05');
     await repo.findStaleIn([OrderStatus.CREATED, OrderStatus.CONFIRMED], before);
@@ -426,7 +580,15 @@ describe('OrderPrismaRepository', () => {
         createdAt: { lt: before },
       },
       include: expect.any(Object),
+      orderBy: { createdAt: 'asc' },
+      take: 500,
     });
+  });
+
+  it('lets the caller shrink the stale-sweep batch', async () => {
+    order.findMany.mockResolvedValue([]);
+    await repo.findStaleIn([OrderStatus.CREATED], new Date('2026-01-05'), 25);
+    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 25 }));
   });
 
   it('short-circuits an empty status list without querying', async () => {
@@ -478,10 +640,18 @@ describe('OrderPrismaRepository', () => {
 
   it('applies a status transition and appends history (no driver name)', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
-    const out = await repo.applyStatus('ord-1', OrderStatus.CONFIRMED, 'admin-1', 'ok');
+    const out = await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CREATED,
+      OrderStatus.CONFIRMED,
+      'admin-1',
+      'ok',
+    );
     expect(out.status).toBe(OrderStatus.CONFIRMED);
+    // H-4: the status the caller read is part of the WHERE, so a transition computed
+    // against a stale row matches nothing instead of overwriting the newer one.
     expect(order.update).toHaveBeenCalledWith({
-      where: { id: 'ord-1' },
+      where: { id: 'ord-1', status: OrderStatus.CREATED },
       data: {
         status: OrderStatus.CONFIRMED,
         history: { create: { status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
@@ -496,38 +666,54 @@ describe('OrderPrismaRepository', () => {
       driverName: 'Joko',
       status: 'DRIVER_ASSIGNED',
     });
-    await repo.applyStatus('ord-1', OrderStatus.DRIVER_ASSIGNED, null, null, 'Joko');
+    await repo.applyStatus(
+      'ord-1',
+      OrderStatus.CONFIRMED,
+      OrderStatus.DRIVER_ASSIGNED,
+      null,
+      null,
+      'Joko',
+    );
     expect(order.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ driverName: 'Joko' }) }),
     );
   });
 
-  it('finds reorder-reminder targets (latest order older than cutoff)', async () => {
-    order.groupBy.mockResolvedValue([
-      { customerId: 'cust-old', _max: { createdAt: new Date('2025-12-01') } },
-      { customerId: 'cust-new', _max: { createdAt: new Date('2026-01-10') } },
-      { customerId: 'cust-null', _max: { createdAt: null } },
-    ]);
-    order.findMany.mockResolvedValue([
-      { customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' },
-    ]);
+  // Audit S-23 and its Q-17 baseline row. The timeline is what ONE order's card renders; a
+  // monthly depot report reads every order that depot took and renders none of them, so it
+  // was hauling a handful of history rows per order for nothing. Same for the stale sweep,
+  // which cancels and releases stock.
+  it('does not include history on the report read', async () => {
+    order.findMany.mockResolvedValue([]);
+    await repo.ordersForDepot('depot-1', {});
+    await repo.findStaleIn([OrderStatus.CREATED], new Date('2026-01-01'), 50);
+    for (const call of order.findMany.mock.calls) {
+      expect(call[0].include).not.toHaveProperty('history');
+      expect(call[0].include).toHaveProperty('items');
+    }
+    expect(order.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  // Audit S-12 and its Q-17 baseline row: the HAVING and the LIMIT belong in the statement.
+  // This used to group the WHOLE order table, ship every customer who has ever ordered back
+  // to Node, and throw all but `limit` of them away here.
+  it('filters the reminder window in SQL', async () => {
+    $queryRaw
+      .mockResolvedValueOnce([{ customerId: 'cust-old' }])
+      .mockResolvedValueOnce([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
     const cutoff = new Date('2026-01-01');
     const out = await repo.findReorderReminderTargets(cutoff, 10);
     expect(out).toEqual([{ customerId: 'cust-old', phone: '+62800', recipientName: 'Budi' }]);
-    expect(order.findMany).toHaveBeenCalledWith({
-      where: { customerId: { in: ['cust-old'] } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
+    // Two statements: who is due, then their contact snapshot. Never a groupBy in Node.
+    expect($queryRaw).toHaveBeenCalledTimes(2);
+    expect(order.groupBy).not.toHaveBeenCalled();
+    expect(order.findMany).not.toHaveBeenCalled();
   });
 
   it('returns [] and skips the snapshot query when nobody is due', async () => {
-    order.groupBy.mockResolvedValue([
-      { customerId: 'cust-new', _max: { createdAt: new Date('2026-06-01') } },
-    ]);
+    $queryRaw.mockResolvedValueOnce([]);
     expect(await repo.findReorderReminderTargets(new Date('2026-01-01'), 10)).toEqual([]);
-    expect(order.findMany).not.toHaveBeenCalled();
+    expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('creates and maps a review', async () => {
@@ -599,6 +785,35 @@ describe('OrderPrismaRepository', () => {
     expect(monthly).toEqual([{ period: '2026-01', orderCount: 3, revenue: 0 }]);
   });
 
+  // H-12: the order number's counter comes from a Postgres sequence now. `?? 0` is the
+  // no-row case — it cannot happen against a real `nextval`, but a 0 suffix is a visible
+  // wrong answer rather than a crash, so it is pinned rather than left to chance.
+  it('reads the order-number counter from the sequence', async () => {
+    $queryRaw.mockResolvedValue([{ v: BigInt(1_000_042) }]);
+    expect(await repo.nextOrderSequence()).toBe(1_000_042);
+    const sql = ($queryRaw.mock.calls.at(-1)?.[0] as string[]).join('');
+    expect(sql).toContain("nextval('order_number_seq')");
+
+    $queryRaw.mockResolvedValue([]);
+    expect(await repo.nextOrderSequence()).toBe(0);
+  });
+
+  // H-14: these four raw reports excluded only CANCELLED while every Prisma-built report
+  // beside them excluded VOIDED too — so a voided counter sale still counted as revenue
+  // and still put its buyer in a retention cohort. The status list is bound as a
+  // parameter, so asserting on the call's values is what proves the predicate.
+  it.each([
+    ['salesSeries', (r: typeof repo) => r.salesSeries('daily', {})],
+    ['retentionCohort', (r: typeof repo) => r.retentionCohort({})],
+    ['audienceReach', (r: typeof repo) => r.audienceReach()],
+    ['segmentEstimate', (r: typeof repo) => r.segmentEstimate({})],
+  ])('excludes both CANCELLED and VOIDED from %s', async (_name, run) => {
+    $queryRaw.mockResolvedValue([]);
+    await run(repo);
+    const values = ($queryRaw.mock.calls.at(-1)?.[0] as { values: unknown[] }).values;
+    expect(values).toEqual(expect.arrayContaining(['CANCELLED', 'VOIDED']));
+  });
+
   it('ranks top customers by revenue', async () => {
     order.groupBy.mockResolvedValue([
       { customerId: 'cust-1', _sum: { total: dec(500000) }, _count: { _all: 4 } },
@@ -639,7 +854,7 @@ describe('OrderPrismaRepository', () => {
   it('depotCustomerAggregates: empty groupBy short-circuits (no contact fetch)', async () => {
     order.groupBy.mockResolvedValue([]);
     expect(await repo.depotCustomerAggregates('depot-1')).toEqual([]);
-    expect(order.findMany).not.toHaveBeenCalled();
+    expect($queryRaw).not.toHaveBeenCalled();
   });
 
   it('depotCustomerAggregates: maps aggregates + latest contact, null sum/contact defaults', async () => {
@@ -660,7 +875,7 @@ describe('OrderPrismaRepository', () => {
       },
     ]);
     // c1 has a latest-order contact snapshot; c2 has none → name/phone default to null.
-    order.findMany.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
+    $queryRaw.mockResolvedValue([{ customerId: 'c1', phone: '0812', recipientName: 'Andi' }]);
 
     const out = await repo.depotCustomerAggregates('depot-1');
     expect(out).toEqual([
@@ -683,9 +898,9 @@ describe('OrderPrismaRepository', () => {
         lastOrderAt: new Date('2026-02-01'),
       },
     ]);
-    expect(order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ distinct: ['customerId'], orderBy: { createdAt: 'desc' } }),
-    );
+    // The contact snapshot is one DISTINCT ON query, scoped to this depot.
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(order.findMany).not.toHaveBeenCalled();
   });
 
   describe('voidWalkIn', () => {
@@ -808,7 +1023,7 @@ describe('OrderPrismaRepository', () => {
     expect(await repo.audienceReach()).toBe(0);
   });
 
-  it('lists every order for a depot within a range', async () => {
+  it('lists every order for a depot within a range, one keyset page at a time', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     await repo.ordersForDepot('depot-1', {
       from: new Date('2026-01-01'),
@@ -820,8 +1035,27 @@ describe('OrderPrismaRepository', () => {
         createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') },
       },
       include: expect.any(Object),
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 500,
     });
+  });
+
+  it('walks past the first page with a cursor and stops on a short page', async () => {
+    const full = Array.from({ length: 500 }, (_, i) => ({ ...orderRow(), id: `o-${i}` }));
+    order.findMany.mockResolvedValueOnce(full).mockResolvedValueOnce([orderRow()]);
+    const out = await repo.ordersForDepot('depot-1', {});
+    expect(out).toHaveLength(501);
+    expect(order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ cursor: { id: 'o-499' }, skip: 1 }),
+    );
+  });
+
+  it('refuses a window bigger than the report ceiling instead of truncating it', async () => {
+    // Every page comes back full, so the walk never terminates on its own — exactly the
+    // shape of "a report over a range nobody should ask for in one response".
+    const full = Array.from({ length: 500 }, (_, i) => ({ ...orderRow(), id: `o-${i}` }));
+    order.findMany.mockResolvedValue(full);
+    await expect(repo.ordersForDepot('depot-1', {})).rejects.toThrow(ReportRangeTooLargeError);
   });
 
   it('estimates a segment size from raw rows (default 0)', async () => {

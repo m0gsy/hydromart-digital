@@ -1,12 +1,17 @@
-# Prometheus scrape config for the single-VPS stack. Each service exposes
-# /metrics on its internal compose port (see docker-compose.prod.yml). The
-# `service` label is already set on every series by enableMetrics(), so we keep
-# one job and let the target-level `service` label below match it for clarity.
+# Prometheus scrape config for the single-VPS stack.
+#
+# The application target list is NOT here (H-49). It is generated from
+# docker-compose.prod.yml into ops/prometheus-targets.json by
+# scripts/gen-prometheus-targets.mjs, and CI fails when the two disagree. The old
+# hand-maintained list had been missing hr-service since it shipped (H-40): the service
+# was running, unmonitored, and no alert could fire about it because Prometheus did not
+# know it existed. The `service` label is set per target in that file and matches the
+# label enableMetrics() already puts on every series.
 global:
   scrape_interval: 15s
   scrape_timeout: 10s
 
-# Infra-level alerts (service down / crash-loop / 5xx / latency / event-loop lag).
+# Infra-level alerts (service down / crash-loop / 5xx / latency / event-loop lag / host).
 rule_files:
   - /etc/prometheus/alert-rules.yml
 
@@ -18,38 +23,22 @@ alerting:
 scrape_configs:
   - job_name: hydromart
     metrics_path: /metrics
+    file_sd_configs:
+      - files: ['/etc/prometheus/targets/hydromart.json']
+        # A regenerated file is picked up without restarting Prometheus, so a deploy
+        # that adds a service starts monitoring it as soon as compose converges.
+        refresh_interval: 30s
+
+  # H-41 — everything the application cannot report about itself. Until these existed,
+  # a full disk, a saturated connection pool or an OOM-killed container was invisible:
+  # the app metrics stop, and "the scrape failed" is the only signal, after the fact.
+  # Static because none of these are this repo's services and none appear in compose
+  # with a *_SERVICE_PORT to generate from.
+  - job_name: infra
     static_configs:
-      - targets: ['auth:3001']
-        labels: { service: auth-service }
-      - targets: ['customer:3002']
-        labels: { service: customer-service }
-      - targets: ['product:3003']
-        labels: { service: product-service }
-      - targets: ['order:3004']
-        labels: { service: order-service }
-      - targets: ['payment:3005']
-        labels: { service: payment-service }
-      - targets: ['delivery:3006']
-        labels: { service: delivery-service }
-      - targets: ['depot:3007']
-        labels: { service: depot-service }
-      - targets: ['dashboard:3008']
-        labels: { service: dashboard-service }
-      - targets: ['loyalty:3009']
-        labels: { service: loyalty-service }
-      - targets: ['promo:3010']
-        labels: { service: promo-service }
-      - targets: ['referral:3011']
-        labels: { service: referral-service }
-      - targets: ['crm:3012']
-        labels: { service: crm-service }
-      - targets: ['recommendation:3013']
-        labels: { service: recommendation-service }
-      - targets: ['forecast:3014']
-        labels: { service: forecast-service }
-      - targets: ['payout:3016']
-        labels: { service: payout-service }
-      - targets: ['admin:3017']
-        labels: { service: admin-service }
-      - targets: ['gateway:8080']
-        labels: { service: gateway-service }
+      - targets: ['node-exporter:9100']
+        labels: { service: host }
+      - targets: ['postgres-exporter:9187']
+        labels: { service: postgres }
+      - targets: ['cadvisor:8080']
+        labels: { service: containers }

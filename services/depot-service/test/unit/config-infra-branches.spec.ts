@@ -35,11 +35,21 @@ describe('DepotConfigService', () => {
     expect(svc.crmServiceUrl).toBe('');
     expect(svc.alertPhone).toBe('');
     expect(svc.internalServiceKey).toBe('');
+    expect(svc.paymentServiceUrl).toBe('');
+    // H-29: blank = no audit trail in this environment, and a trailing slash is stripped
+    // so the route is not built with a double slash.
+    expect(svc.authServiceUrl).toBe('');
     // Both the default (no depotId) and explicit-depotId branches of each tunable getter.
     expect(svc.gallonDepositIdr()).toBe(20000);
     expect(svc.gallonDepositIdr('depot-1')).toBe(20000);
     expect(svc.approvalAutoPassIdr()).toBe(100000);
     expect(svc.approvalAutoPassIdr('depot-1')).toBe(100000);
+  });
+
+  it('strips a trailing slash from the audit-trail base URL', () => {
+    env.AUTH_SERVICE_URL = 'http://auth:3001//';
+    expect(svc.authServiceUrl).toBe('http://auth:3001');
+    delete env.AUTH_SERVICE_URL;
   });
 
   it('trims and drops blank CORS origins', () => {

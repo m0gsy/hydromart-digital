@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { Can, InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -25,6 +25,7 @@ import { FraudFlagDto, FraudFlagQueryDto, IngestFraudFlagDto } from './dto/fraud
 export class FraudFlagsController {
   constructor(private readonly fraud: FraudFlagService) {}
 
+  @ApiOkResponse({ type: FraudFlagDto, isArray: true })
   @Can('fraudReview')
   @Get()
   @ApiOperation({ summary: 'List fraud flags (15b, highest score first, filterable)' })
@@ -33,6 +34,7 @@ export class FraudFlagsController {
     return rows.map(FraudFlagDto.from);
   }
 
+  @ApiOkResponse({ type: FraudFlagDto })
   @Can('fraudReview')
   @Post(':id/review')
   @ApiOperation({ summary: 'Mark a flag reviewed' })
@@ -40,6 +42,7 @@ export class FraudFlagsController {
     return FraudFlagDto.from(await this.fraud.review(id));
   }
 
+  @ApiOkResponse({ type: FraudFlagDto })
   @Can('fraudReview')
   @Post(':id/block')
   @ApiOperation({ summary: 'Block the flagged entity' })
@@ -47,6 +50,7 @@ export class FraudFlagsController {
     return FraudFlagDto.from(await this.fraud.block(id));
   }
 
+  @ApiOkResponse({ type: FraudFlagDto })
   @Can('fraudReview')
   @Post(':id/clear')
   @ApiOperation({ summary: 'Clear the flag (no fraud)' })
@@ -56,6 +60,7 @@ export class FraudFlagsController {
 
   // Service-to-service ingest: a scoring job records a risk flag. @Public() bypasses the JWT
   // guard; InternalAuthGuard (shared key) is then the sole, fail-closed auth.
+  @ApiOkResponse({ type: FraudFlagDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

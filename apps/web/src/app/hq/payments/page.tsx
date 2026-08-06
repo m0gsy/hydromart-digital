@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Wallet } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -86,13 +87,7 @@ export default function HqPaymentsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Wallet size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.payments.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.payments.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Wallet} title={t('hq.payments.title')} subtitle={t('hq.payments.subtitle')} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t('hq.payments.kpi.collected')} value={`Rp ${collected.toLocaleString('id-ID')}`} />

@@ -60,6 +60,16 @@ groups:
 
   - name: hydromart-runtime-health
     rules:
+      - alert: ExporterDown
+        # The infra job's own liveness. Without this, losing an exporter silently
+        # disables every alert below it and looks exactly like "nothing is wrong".
+        expr: up{job="infra"} == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} exporter is down'
+          description: 'Prometheus cannot scrape the {{ $labels.service }} exporter — the alerts that depend on it are blind.'
+
       - alert: EventLoopLagHigh
         # Node event-loop lag: the process is up and scraping but stalling on CPU or
         # blocking I/O — requests queue behind it. 200ms sustained is unhealthy.
@@ -69,3 +79,76 @@ groups:
         annotations:
           summary: '{{ $labels.service }} event-loop lag high'
           description: '{{ $labels.service }} event-loop lag is {{ $value | humanizeDuration }} (>200ms) for 5m.'
+
+  # H-41 — the failure modes the application cannot report about itself. Every rule here
+  # depends on an exporter added in docker-compose.prod.yml; ExporterDown above is what
+  # tells you when one of them has gone blind.
+  - name: hydromart-host
+    rules:
+      - alert: DiskSpaceLow
+        # Docker image layers are what fill this box: a full `--all` rebuild writes ~20
+        # images, and ENOSPC mid-build is the failure rebuild-stale.sh's batching exists
+        # to avoid. 15% left is roughly one full rebuild of headroom.
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
+            / node_filesystem_size_bytes{mountpoint="/rootfs",fstype!~"tmpfs|overlay"}
+            < 0.15
+        for: 10m
+        labels: { severity: critical }
+        annotations:
+          summary: 'host disk below 15% free'
+          description: 'Root filesystem has {{ $value | humanizePercentage }} free. A full rebuild needs more than this — run scripts/docker-gc.sh.'
+
+      - alert: HostMemoryLow
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'host memory below 10% available'
+          description: '{{ $value | humanizePercentage }} of host memory is available. Builds peak ~1.5GB each — see BATCH in scripts/rebuild-stale.sh.'
+
+      - alert: ContainerOOMKilled
+        # The counterpart to H-34's mem_limit. A ceiling nobody is told about is a
+        # container that restarts quietly and looks like a transient blip forever.
+        expr: increase(container_oom_events_total[15m]) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          summary: 'container {{ $labels.name }} was OOM-killed'
+          description: '{{ $labels.name }} hit its memory limit in the last 15m. Either it is leaking or its mem_limit in docker-compose.prod.yml is too low.'
+
+  - name: hydromart-datastores
+    rules:
+      - alert: PostgresDown
+        expr: pg_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: 'Postgres is not answering'
+          description: 'The postgres exporter cannot query the database. Every service is down behind this.'
+
+      - alert: PostgresConnectionsNearMax
+        # B-12 bounded the pool; this is what makes the ceiling visible before it is hit.
+        # Exhaustion presents as intermittent network faults, which is why it went
+        # undiagnosed for so long.
+        expr: |
+          sum(pg_stat_database_numbackends)
+            / on() group_left max(pg_settings_max_connections)
+            > 0.8
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Postgres connections above 80% of max_connections'
+          description: '{{ $value | humanizePercentage }} of max_connections in use. Past 100% this presents as random connection errors, not as a database alert.'
+
+      - alert: PostgresDeadlocks
+        expr: increase(pg_stat_database_deadlocks[1h]) > 0
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Postgres deadlock in {{ $labels.datname }}'
+          description: '{{ $value }} deadlock(s) in the last hour. Deterministic lock ordering is the fix — see reserveAtomic in depot-service.'
+
+      # RedisDown lived here until Q-9 removed Redis. An alert whose metric no longer
+      # exists never fires and never resolves — it just sits in the rules file looking
+      # like coverage. If Redis ever comes back, so does this, next to its exporter.

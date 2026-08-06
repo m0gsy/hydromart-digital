@@ -21,6 +21,21 @@ function mmss(seconds: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Audit F-16: the mm:ss clock used to live on the page, so every tick re-rendered the
+ * whole screen — contact log, buttons, the lot — to move two digits. The interval lives
+ * here now; the page above it only re-renders when the deadline actually passes.
+ */
+function Remaining({ eligibleAt }: { eligibleAt: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const eligibleMs = eligibleAt ? new Date(eligibleAt).getTime() : null;
+  return <>{eligibleMs !== null ? mmss((eligibleMs - now) / 1000) : '05:00'}</>;
+}
+
 function NoShow() {
   const router = useRouter();
   const { t } = useT();
@@ -29,18 +44,27 @@ function NoShow() {
   // Session contact log — the backend returns only an attempt count, not per-attempt
   // detail, so we record method + time locally as the courier makes each attempt.
   const [log, setLog] = useState<{ method: Method; at: number }[]>([]);
-  const [now, setNow] = useState(() => Date.now());
+  const [elapsed, setElapsed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const eligibleMs = status?.eligibleAt ? new Date(status.eligibleAt).getTime() : null;
-  const remaining = eligibleMs ? (eligibleMs - now) / 1000 : null;
-  const ready = Boolean(status?.canMarkNoShow) || (remaining !== null && remaining <= 0 && (status?.attempts ?? 0) >= 2);
+
+  // One timer that fires ONCE, when the wait is actually over — the old per-second poll
+  // existed only to notice this single transition.
+  useEffect(() => {
+    if (eligibleMs === null) return;
+    const delay = eligibleMs - Date.now();
+    if (delay <= 0) {
+      setElapsed(true);
+      return;
+    }
+    setElapsed(false);
+    const timer = setTimeout(() => setElapsed(true), delay);
+    return () => clearTimeout(timer);
+  }, [eligibleMs]);
+
+  const ready = Boolean(status?.canMarkNoShow) || (elapsed && (status?.attempts ?? 0) >= 2);
 
   const attempt = async (method: Method) => {
     setBusy(true);
@@ -81,7 +105,7 @@ function NoShow() {
         <WarningCircle size={40} weight="fill" className="text-amber-500" />
         <div className="text-sm text-[color:var(--muted)]">{t('driver.noShow.body')}</div>
         <div className="mt-1 text-3xl font-extrabold tabular-nums">
-          {remaining !== null ? mmss(remaining) : '05:00'}
+          <Remaining eligibleAt={status?.eligibleAt ?? null} />
         </div>
         <div className="text-[11px] font-bold uppercase tracking-wide text-amber-700">
           {t('courierFix.noShow.remainingLabel')}

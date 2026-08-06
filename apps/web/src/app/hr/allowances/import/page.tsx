@@ -1,5 +1,6 @@
-'use client';
-
+// Audit F-6: every one of the 226 pages was marked 'use client'. This one holds no
+// state, no effect and no handler — it only composes client components, which carry
+// their own boundary. Rendering it on the server keeps its own code out of the bundle.
 import { CsvImport, dateCell, intCell, type ImportColumn } from '@/components/csv-import';
 import { endpoints } from '@/lib/endpoints';
 

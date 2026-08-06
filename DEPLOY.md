@@ -1,29 +1,34 @@
 # Deploying Hydromart on a single VPS
 
 A production single-host deploy with Docker Compose: base infra
-(`docker-compose.yml` → Postgres + Redis) plus the production overlay
+(`docker-compose.yml` → Postgres) plus the production overlay
 (`docker-compose.prod.yml` → all 15 microservices + the Next.js web app).
 
 The app services are only reachable on the internal docker network. The two
 ports you actually serve are **8080** (API gateway) and **3000** (web).
 
-> Postgres (`5432`) and Redis (`6379`) come from the base infra file, which
-> publishes them on the host so host-side migrations can reach `localhost:5432`.
-> They are **not** locked to loopback by the compose files — you MUST block them
-> at the VPS firewall (see §1). Never let the public internet reach 5432/6379.
+> Postgres (`5432`) comes from the base infra file, which publishes it on the
+> host so host-side migrations can reach `localhost:5432`. It is **not** locked to
+> loopback by the compose files — you MUST block it at the VPS firewall (see §1).
+> Never let the public internet reach 5432.
+>
+> Redis is gone (Q-9). Nothing in the codebase ever imported a client; it was a
+> container, a volume and an open port with no reader. After pulling this change,
+> `docker compose ... up -d --remove-orphans` once, or the old container keeps
+> running with nothing talking to it.
 
 ---
 
 ## 1. Prerequisites (on the VPS)
 
 - Linux with **Docker Engine + the Compose v2 plugin** (`docker compose version`).
-- **~4 GB RAM** minimum (17 containers: Postgres, Redis, 15 Node services + web),
+- **~4 GB RAM** minimum (16 containers: Postgres, 15 Node services + web),
   8 GB comfortable. A couple of GB free disk for images.
 - **Node.js 20+** on the host — needed once, to run database migrations
   (`prisma migrate deploy`) against the compose Postgres over `localhost:5432`.
 - **Host firewall (required).** Allow only `22` (SSH) + `3000` + `8080` (or
-  `80`/`443` with a reverse proxy — see §6). Explicitly block `5432` and `6379`
-  from the internet, e.g. with ufw:
+  `80`/`443` with a reverse proxy — see §6). Explicitly block `5432` from the
+  internet, e.g. with ufw:
 
   ```bash
   ufw default deny incoming
@@ -182,8 +187,30 @@ certs. Without the profile the stack stays on plain HTTP `:3000`/`:8080`.
    Caddy gets certs on first request (ports 80/443 must be reachable from the
    internet). Then browse `https://app.your-domain.com`.
 
-The `Caddyfile` at the repo root is a plain reverse-proxy config; edit it to add
-routes, headers (HSTS/CSP), rate limits, etc. as needed.
+**Security headers (H-23).** The `Caddyfile` now sets them, because this proxy is
+the only component that sees TLS:
+
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains` on all three
+  hostnames. No `preload` — that is a one-way submission to a browser-vendor list.
+- A **Content-Security-Policy** on the web host, and a `default-src 'none'` one on
+  the API host. `script-src` keeps `'unsafe-inline'`: Next's bootstrap and its
+  hydration payload are un-nonced inline scripts. The strict directives are the
+  ones that earn their keep — `frame-ancestors 'none'`, `object-src 'none'`,
+  `base-uri`, `form-action`.
+- `img-src` allows any `https:` origin (object-storage host is deployment-specific)
+  plus `blob:`/`data:` for camera capture and canvas renders.
+
+**Without the `tls` profile there is no HSTS and no CSP** — nothing else in the
+stack sets them. A bare-IP deploy is a test posture, not a production one.
+
+Changing the API hostname means changing `connect-src` too — it is interpolated
+from `{$API_DOMAIN}`, so setting that variable is enough. Validate any edit before
+restarting:
+
+```bash
+docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+```
 
 ---
 
@@ -202,7 +229,7 @@ npm run db:migrate      # if new migrations landed (env exported as in §4)
 # stop (keeps volumes/data)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down
 
-# stop AND delete Postgres/Redis data — destructive
+# stop AND delete Postgres data — destructive
 docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 ```
 

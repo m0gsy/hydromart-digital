@@ -33,6 +33,17 @@ describe('ProductPrismaRepository', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
+  // Audit S-7: the batch behind checkout's line resolution. Active only, same as the
+  // single-product read.
+  it('reads many active products by id in one query', async () => {
+    model.findMany.mockResolvedValue([productRow()]);
+    const rows = await repo.findActiveByIds(['p-1', 'p-2']);
+    expect(rows[0].basePrice).toBe(20000);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['p-1', 'p-2'] }, active: true },
+    });
+  });
+
   it('searches with no filters and maps the Decimal basePrice to a number', async () => {
     model.findMany.mockResolvedValue([productRow()]);
     model.count.mockResolvedValue(1);

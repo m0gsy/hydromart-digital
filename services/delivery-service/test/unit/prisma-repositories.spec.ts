@@ -5,6 +5,7 @@ import { IncidentPrismaRepository } from '../../src/infrastructure/prisma/incide
 import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/settlement.prisma.repository';
 import { ShiftPrismaRepository } from '../../src/infrastructure/prisma/shift.prisma.repository';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
+import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import { ShiftAlreadyOpenError } from '../../src/domain/errors';
 import { ContactMethod } from '../../src/domain/no-show';
 import { IncidentCategory, IncidentSeverity } from '../../src/domain/incident';
@@ -21,7 +22,7 @@ describe('DeliveryPrismaRepository', () => {
     update: jest.fn(),
   };
   const contactAttempt = { create: jest.fn(), count: jest.fn(), findFirst: jest.fn() };
-  const proofOfDelivery = { deleteMany: jest.fn() };
+  const proofOfDelivery = { deleteMany: jest.fn(), findMany: jest.fn() };
   const $queryRaw = jest.fn();
   const prisma = { delivery, contactAttempt, proofOfDelivery, $queryRaw } as unknown as PrismaService;
   const repo = new DeliveryPrismaRepository(prisma);
@@ -209,21 +210,36 @@ describe('DeliveryPrismaRepository', () => {
       page: 2,
       limit: 10,
     } as never);
-    expect(res).toEqual({ items: [expect.objectContaining({ id: 'del-1' })], total: 1 });
+    expect(res).toEqual({
+      items: [expect.objectContaining({ id: 'del-1' })],
+      total: 1,
+      nextCursor: null,
+    });
     expect(delivery.findMany).toHaveBeenCalledWith({
       where: { driverId: 'drv-1', depotId: { in: ['dep-1'] }, status: DeliveryStatus.ASSIGNED },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },
-      orderBy: { assignedAt: 'desc' },
+      orderBy: [{ assignedAt: 'desc' }, { id: 'desc' }],
       skip: 10,
       take: 10,
     });
+  });
+
+  it('search seeks past a cursor and hands the next one back', async () => {
+    delivery.findMany.mockResolvedValue([deliveryRow(), { ...deliveryRow(), id: 'del-2' }]);
+    delivery.count.mockResolvedValue(99);
+    const res = await repo.search({ page: 5, limit: 2, cursor: 'del-0' } as never);
+    // `page` is ignored once a cursor is given — honouring both re-reads or skips rows.
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ cursor: { id: 'del-0' }, skip: 1, take: 2 }),
+    );
+    expect(res.nextCursor).toBe('del-2');
   });
 
   it('search omits absent filters', async () => {
     delivery.findMany.mockResolvedValue([]);
     delivery.count.mockResolvedValue(0);
     const res = await repo.search({ page: 1, limit: 20 } as never);
-    expect(res).toEqual({ items: [], total: 0 });
+    expect(res).toEqual({ items: [], total: 0, nextCursor: null });
     expect(delivery.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: {}, skip: 0, take: 20 }),
     );
@@ -341,10 +357,18 @@ describe('DeliveryPrismaRepository', () => {
   it('applyStatus writes status + timestamps + a history row', async () => {
     const pickedUpAt = new Date('2026-01-01T08:10:00Z');
     delivery.update.mockResolvedValue(deliveryRow({ status: 'PICKED_UP', pickedUpAt }));
-    const rec = await repo.applyStatus('del-1', DeliveryStatus.PICKED_UP, { pickedUpAt }, 'drv-1', 'ok');
+    const rec = await repo.applyStatus(
+      'del-1',
+      DeliveryStatus.ASSIGNED,
+      DeliveryStatus.PICKED_UP,
+      { pickedUpAt },
+      'drv-1',
+      'ok',
+    );
     expect(rec.status).toBe(DeliveryStatus.PICKED_UP);
+    // H-5: the status the caller read is part of the WHERE, so a second tap matches nothing.
     expect(delivery.update).toHaveBeenCalledWith({
-      where: { id: 'del-1' },
+      where: { id: 'del-1', status: DeliveryStatus.ASSIGNED },
       data: {
         status: DeliveryStatus.PICKED_UP,
         pickedUpAt,
@@ -352,6 +376,23 @@ describe('DeliveryPrismaRepository', () => {
       },
       include: { proof: true, history: { orderBy: { createdAt: 'asc' } } },
     });
+  });
+
+  // The status guard rejecting a write means the delivery moved under the caller — a
+  // double-tapped Selesai, not a server fault.
+  it('reports a lost status guard as a stale delivery, not a 500', async () => {
+    delivery.update.mockRejectedValue(Object.assign(new Error('no row'), { code: 'P2025' }));
+    await expect(
+      repo.applyStatus('del-1', DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, {}, null, null),
+    ).rejects.toBeInstanceOf(StaleDeliveryStatusError);
+  });
+
+  it('rethrows any other status-write failure', async () => {
+    const boom = Object.assign(new Error('down'), { code: 'P1001' });
+    delivery.update.mockRejectedValue(boom);
+    await expect(
+      repo.applyStatus('del-1', DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, {}, null, null),
+    ).rejects.toBe(boom);
   });
 
   it('completeWithProof marks DELIVERED, nests proof and a history row', async () => {
@@ -365,10 +406,16 @@ describe('DeliveryPrismaRepository', () => {
       note: 'left at gate',
     };
     const capturedAt = new Date('2026-07-29T08:15:00.000Z');
-    const rec = await repo.completeWithProof('del-1', proof, 'drv-1', capturedAt);
+    const rec = await repo.completeWithProof(
+      'del-1',
+      DeliveryStatus.ON_DELIVERY,
+      proof,
+      'drv-1',
+      capturedAt,
+    );
     expect(rec.status).toBe(DeliveryStatus.DELIVERED);
     const call = delivery.update.mock.calls[0][0];
-    expect(call.where).toEqual({ id: 'del-1' });
+    expect(call.where).toEqual({ id: 'del-1', status: DeliveryStatus.ON_DELIVERY });
     expect(call.data.status).toBe(DeliveryStatus.DELIVERED);
     // Handover time, not write time: an offline proof keeps the moment it was captured.
     expect(call.data.deliveredAt).toBe(capturedAt);
@@ -378,10 +425,19 @@ describe('DeliveryPrismaRepository', () => {
     });
   });
 
-  it('purgeProofsBefore deletes and returns the deleted count', async () => {
+  // H-22: the URLs are read BEFORE the rows go — afterwards nothing says which objects in
+  // the bucket belonged to them, and the photos outlive the record that was erased.
+  it('purgeProofsBefore returns the deleted count and every object url', async () => {
     const cutoff = new Date('2026-01-01');
-    proofOfDelivery.deleteMany.mockResolvedValue({ count: 7 });
-    expect(await repo.purgeProofsBefore(cutoff)).toBe(7);
+    proofOfDelivery.findMany.mockResolvedValue([
+      { photoUrl: 'https://cdn/pod/a.jpg', signatureUrl: 'https://cdn/pod/a-sig.png' },
+      { photoUrl: 'https://cdn/pod/b.jpg', signatureUrl: null },
+    ]);
+    proofOfDelivery.deleteMany.mockResolvedValue({ count: 2 });
+    expect(await repo.purgeProofsBefore(cutoff)).toEqual({
+      count: 2,
+      urls: ['https://cdn/pod/a.jpg', 'https://cdn/pod/a-sig.png', 'https://cdn/pod/b.jpg'],
+    });
     expect(proofOfDelivery.deleteMany).toHaveBeenCalledWith({
       where: { capturedAt: { lt: cutoff } },
     });

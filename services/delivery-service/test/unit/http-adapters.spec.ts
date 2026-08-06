@@ -2,6 +2,7 @@ import { DeliveryConfigService } from '../../src/config/delivery-config.service'
 import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
 import { DepotLocationHttpAdapter } from '../../src/infrastructure/http/depot-location.http.adapter';
 import { OpsNotifierHttpAdapter } from '../../src/infrastructure/http/ops-notifier.http.adapter';
+import { EventPublisherHttpAdapter } from '../../src/infrastructure/http/event-publisher.http.adapter';
 import { CashCollectionHttpAdapter } from '../../src/infrastructure/http/cash-collection.http.adapter';
 import { CourierPayoutHttpAdapter } from '../../src/infrastructure/http/courier-payout.http.adapter';
 import { RatingHttpAdapter } from '../../src/infrastructure/http/rating.http.adapter';
@@ -24,6 +25,7 @@ function makeConfig(over: Partial<Record<string, unknown>> = {}): DeliveryConfig
     paymentServiceUrl: 'http://payment:3004',
     crmServiceUrl: 'http://crm:3012',
     payoutServiceUrl: 'http://payout:3015',
+    adminServiceUrl: 'http://admin:3017',
     internalServiceKey: KEY,
     opsAlertPhone: '628123',
     ...over,
@@ -433,5 +435,43 @@ describe('missing fields in an owner response', () => {
       average: 4.5,
       count: 0,
     });
+  });
+});
+
+// H-30: the producer half of the partner webhook fan-out. Fail-open by contract — see
+// EventPublisherPort: a partner integration must not cost a courier their handover.
+describe('EventPublisherHttpAdapter', () => {
+  const at = new Date('2026-08-04T09:00:00.000Z');
+
+  it('POSTs the event to admin-service with the internal key', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new EventPublisherHttpAdapter(makeConfig()).publish('delivery.delivered', { a: 1 }, at);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://admin:3017/api/v1/webhooks/events');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({
+      event: 'delivery.delivered',
+      payload: { a: 1 },
+      occurredAt: at.toISOString(),
+    });
+  });
+
+  it('publishes nothing when the fan-out is not configured', async () => {
+    await new EventPublisherHttpAdapter(makeConfig({ adminServiceUrl: '' })).publish('e', {}, at);
+    await new EventPublisherHttpAdapter(makeConfig({ internalServiceKey: '' })).publish('e', {}, at);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails open on a non-2xx and on an unreachable admin-service', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(
+      new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at),
+    ).resolves.toBeUndefined();
+
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      new EventPublisherHttpAdapter(makeConfig()).publish('e', {}, at),
+    ).resolves.toBeUndefined();
   });
 });

@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# CI-4: a push that supersedes an earlier one cancels it. Scoped per ref, and
+# deliberately NOT cancelling on `main`: the Deploy workflow fires on this
+# workflow's completion, so a cancelled main run is a deploy that never happens.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Prisma 5.x evaluates env("<SVC>_DATABASE_URL") at `prisma validate`/`migrate`
 # time, so both jobs need these defined. verify only needs them to parse (no
 # connection); integration actually migrates against the compose Postgres.
@@ -28,6 +35,29 @@ env:
   HR_DATABASE_URL: postgresql://hydromart:hydromart@localhost:5432/hydromart_hr?schema=public
 
 jobs:
+  # Audit CI-2: the two Docker jobs build ~18 images and boot the whole stack. For a diff
+  # that cannot touch any of it — a README, a doc, the audit register — that is twenty
+  # minutes of runner time for no signal. `verify` still runs on everything.
+  #
+  # The rule lives in scripts/ci-affected.sh and is self-checked by ci-affected.test.sh
+  # (run in `verify` below), because a wrong "false" here is an untested image reaching
+  # main with a green tick. An undecidable diff answers "true".
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The filter diffs against the merge base, which a shallow clone does not have.
+          fetch-depth: 0
+
+      - id: filter
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          echo "docker=$(bash scripts/ci-affected.sh "$BASE")" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE affected=$(bash scripts/ci-affected.sh "$BASE")"
+
   verify:
     runs-on: ubuntu-latest
     # These are only for the unit/e2e gate. The e2e specs call
@@ -61,14 +91,34 @@ jobs:
       DASHBOARD_SERVICE_URL: https://dashboard.example.com
       HR_SERVICE_URL: https://hr.example.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
+      # so the runner, the Dockerfiles and a developer's shell all agree on one
+      # version pair. `20` alone floated across every 20.x release.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
+      - name: Pin npm to the version in package.json
+        run: |
+          want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+          [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
+          npm --version
+
       # Installs all workspaces and generates every Prisma client (postinstall).
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
+
       - name: Install
         run: npm ci
 
@@ -82,11 +132,62 @@ jobs:
       - name: Validate Prisma schemas
         run: npm run db:validate
 
+      # B-21: the missing-rollback count drifted from 25-of-98 to 39-of-135 between two
+      # audits because nothing ever checked. Backfilling fixed today; this fixes tomorrow.
+      - name: Every migration has a rollback
+        run: bash scripts/check-rollbacks.sh
+
       # The deploy scripts decide, from a file list alone, whether prod is touched at
       # all — and a wrong answer there ships as "DEPLOY OK" with nothing deployed.
       # These helpers need no Docker, so they are gated here like any other logic.
       - name: Deploy-script helpers self-check
         run: bash scripts/lib/deploy-common.test.sh
+
+      # H-38: the scheduler's lock, heartbeat and staleness logic. Needs no Docker — wget
+      # is stubbed — so it is gated here like any other logic.
+      - name: Scheduler sweep self-check
+        run: bash scripts/scheduler/sweep.test.sh
+
+      # H-49: a service added to compose without a scrape target is a service no alert
+      # can fire about. hr-service was in exactly that state from the day it shipped.
+      - name: Prometheus targets match compose
+        run: node scripts/gen-prometheus-targets.mjs --check
+
+      # The affected-only filter below decides whether the Docker jobs run at all, so a
+      # wrong answer there is an untested image merged behind a green tick (audit CI-2).
+      - name: Affected-only filter self-check
+        run: bash scripts/ci-affected.test.sh
+
+      # A new CREATE INDEX in a migration locks writes on that table for the whole build.
+      # This fails the PR unless the index also has a CONCURRENTLY build in
+      # scripts/create-indexes.sh, which is what production runs first (audit H-39).
+      - name: Index build cannot lock production
+        run: node scripts/check-index-concurrency.mjs
+
+      # The OpenAPI document still does not describe most responses (audit D-6). This
+      # does not fix that; it stops it growing — a new route with no declared response
+      # fails here until it has one.
+      - name: API response documentation ratchet
+        run: node scripts/check-api-responses.mjs
+
+      # The web client's endpoint table is hand-written (audit F-17), so a renamed route
+      # used to reach production as a 404 nobody's tests could see. Every path the client
+      # can build is resolved through the gateway's segment map to the owning service and
+      # matched against the routes that service declares.
+      - name: Frontend endpoint contracts
+        run: node scripts/check-endpoint-contracts.mjs
+
+      # The performance baseline (audit Q-17) names, per hot path, the test that holds its
+      # round-trip count. A renamed or deleted test turns that table into a promise nobody
+      # is keeping, so the reference is checked here.
+      - name: Performance baseline references
+        run: node scripts/check-perf-baseline.mjs
+
+      # Q-6: an env var a service READS must be a key its Joi schema VALIDATES.
+      # Nest passes unknown keys through untouched, so an undeclared one is not a
+      # boot error — it is `undefined` behind a `??` at 3am.
+      - name: Env contract (read ⊆ validated)
+        run: node scripts/check-env-contract.mjs
 
       - name: Typecheck
         run: npm run typecheck
@@ -108,16 +209,51 @@ jobs:
   # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
   integration:
     runs-on: ubuntu-latest
+    # CI-14: the two Docker jobs no longer start until `verify` is green. They are still
+    # independent of each other and run in parallel — the chain exists so a lockfile,
+    # typecheck or unit-test failure stops burning two more runners (each of which pays
+    # its own `npm ci` + 16 `prisma generate`) on code that already cannot ship.
+    needs: [verify, changes]
+    # Audit CI-2: skipped entirely for a diff that cannot reach an image. GitHub reports a
+    # skipped job as successful, so this does not strand a required check.
+    if: needs.changes.outputs.docker == 'true'
     # Host-side `db:migrate` (run.mjs) applies migrations to the compose Postgres over the
     # published port; each service's schema resolves env("<SVC>_DATABASE_URL") from the
     # workflow-level env above.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      # Audit CI-1: the images were built COLD here and again in `e2e`, with no layer cache
+      # at all — ~18 images, twice per run, from scratch, every time. docker-compose.cache.yml
+      # points every build at a GitHub Actions cache; COMPOSE_BAKE routes the build through
+      # buildx, which is what honours those keys. Layers are shared with `e2e` and with
+      # earlier runs, so only what actually changed rebuilds.
+      - uses: docker/setup-buildx-action@v3
+
+      # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
+      # so the runner, the Dockerfiles and a developer's shell all agree on one
+      # version pair. `20` alone floated across every 20.x release.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
+
+      - name: Pin npm to the version in package.json
+        run: |
+          want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+          [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
+          npm --version
+
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
         run: npm ci
@@ -126,7 +262,7 @@ jobs:
       # databases) so the runner's db:migrate doesn't race a cold Postgres in CI.
       - name: Start infra + wait for Postgres
         run: |
-          docker compose up -d postgres redis
+          docker compose up -d postgres
           for i in $(seq 1 30); do
             if docker compose exec -T postgres pg_isready -U hydromart -d hydromart_auth; then exit 0; fi
             sleep 2
@@ -135,6 +271,9 @@ jobs:
           exit 1
 
       - name: Integration test (build + boot all 15 images, drive core loop)
+        env:
+          COMPOSE_BAKE: 'true'
+          COMPOSE_EXTRA_FILES: docker-compose.cache.yml
         run: npm run test:integration
 
   # Browser E2E (QG-1): boots the same test backend the integration job uses, serves
@@ -143,6 +282,8 @@ jobs:
   # containerising it — same gateway, no extra image to build.
   e2e:
     runs-on: ubuntu-latest
+    needs: [verify, changes]
+    if: needs.changes.outputs.docker == 'true'
     env:
       # Must match docker-compose.test.yml so seed.mjs can mint an admin token the stack trusts.
       JWT_ACCESS_SECRET: itest-shared-access-secret-0123456789abcdef
@@ -155,19 +296,53 @@ jobs:
       # checkout dir "hydromart-digital"). cwd-independent; the OTP scraper execSyncs this.
       E2E_OTP_LOG_CMD: docker logs --tail 4000 hydromart-digital-auth-1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      # CI-13: Node comes from .nvmrc and npm from package.json's `packageManager`,
+      # so the runner, the Dockerfiles and a developer's shell all agree on one
+      # version pair. `20` alone floated across every 20.x release.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
+
+      - name: Pin npm to the version in package.json
+        run: |
+          want="$(node -p "require('./package.json').packageManager.split('@')[1]")"
+          [ "$(npm --version)" = "$want" ] || npm install -g "npm@$want"
+          npm --version
+
+      # Audit CI-3: 16 services run `prisma generate` in postinstall, so every `npm ci`
+      # regenerates 16 clients that are almost always already correct. postinstall now
+      # skips when the schema hash and CLI version match (scripts/prisma-generate-if-stale.mjs);
+      # this cache is the other half — it carries the generated clients between runs so the
+      # skip actually has something to skip.
+      - name: Cache generated Prisma clients
+        uses: actions/cache@v4
+        with:
+          path: services/*/prisma/generated
+          key: prisma-${{ runner.os }}-${{ hashFiles('services/*/prisma/schema.prisma', 'package-lock.json') }}
 
       - name: Install
         run: npm ci
 
+      - uses: docker/setup-buildx-action@v3
+
+      # Audit CI-5: apps/web/Dockerfile was never built anywhere in CI — the e2e job runs
+      # `next start` from the source tree instead, so a broken web image only surfaced on
+      # the deploy. It is built here (not booted: the Playwright run still uses the local
+      # server, which is faster and needs no extra container).
+      - name: Build the web image
+        run: |
+          docker buildx build -f apps/web/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
+            --cache-from type=gha,scope=hydromart-web \
+            --cache-to type=gha,mode=max,scope=hydromart-web \
+            --tag hydromart-web:ci .
+
       - name: Start infra + wait for Postgres
         run: |
-          docker compose up -d postgres redis
+          docker compose up -d postgres
           # Fail loudly instead of racing db:migrate against a cold Postgres — a fresh
           # runner's initdb creates all 16 databases, which can take >60s. The old loop
           # only `break`ed on ready and fell through silently on timeout, so the first
@@ -192,9 +367,23 @@ jobs:
             sleep 5
           done
           [ "$ok" = 1 ] || { echo "db:migrate failed after retries" >&2; exit 1; }
+          # Build in batches of three rather than letting compose build all seventeen at
+          # once. Every image runs a full-monorepo `npm ci` against one shared BuildKit
+          # cache, so building them together is seventeen cold downloads in the same
+          # instant — npm's cacache tmp files collide (EEXIST) and the registry cuts
+          # sockets under the burst (ECONNRESET/ETIMEDOUT). Batched, the first three
+          # populate the cache and the rest hit it warm. The service list comes from the
+          # compose config so a new service cannot quietly slip out of the batching.
+          docker compose -f docker-compose.yml -f docker-compose.test.yml config --format json \
+            | jq -r '.services | to_entries[] | select(.value.build) | .key' \
+            | xargs -n3 docker compose -f docker-compose.yml -f docker-compose.test.yml build
           # --wait blocks until every healthchecked service is healthy — the gateway
           # /health alone can be up while product-service isn't, which 504'd the seed.
-          docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build --wait --wait-timeout 300
+          # Audit CI-1: the same cache overlay `integration` writes to, so this second boot
+          # pulls layers instead of rebuilding ~18 images cold.
+          COMPOSE_BAKE=true docker compose \
+            -f docker-compose.yml -f docker-compose.test.yml -f docker-compose.cache.yml \
+            up -d --build --wait --wait-timeout 300
           for i in $(seq 1 45); do
             if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then break; fi
             sleep 2
@@ -220,7 +409,7 @@ jobs:
 
       - name: Upload report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: playwright-report
           path: apps/web/playwright-report/

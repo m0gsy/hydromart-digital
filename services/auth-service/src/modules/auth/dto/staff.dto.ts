@@ -12,6 +12,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -29,18 +30,20 @@ const EMPLOYMENT_STATUSES = ['TRAINING', 'PROBATION', 'PERMANENT'] as const;
 const SALARY_TYPES = ['DAILY', 'MONTHLY'] as const;
 
 export class ListStaffQueryDto {
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(1000)
   page?: number;
 
-  @ApiPropertyOptional({ default: 20 })
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 
   @ApiPropertyOptional({ enum: Role, description: 'Filter to a single role.' })
@@ -53,10 +56,12 @@ export class ListStaffQueryDto {
   @IsUUID()
   depotId?: string;
 
-  @ApiPropertyOptional({ description: 'Match part of a name or phone number.' })
+  // Audit F-12: the HQ global search used to pull 100 staff rows per keystroke and
+  // filter them in the browser, so it could only ever find someone on the first page.
+  @ApiPropertyOptional({ description: 'Case-insensitive substring of name or phone.' })
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(80)
   search?: string;
 }
 

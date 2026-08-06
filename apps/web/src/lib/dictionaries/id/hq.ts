@@ -120,6 +120,7 @@ export const hq = {
     stub: 'contoh data',
     unavailableSome: 'Sebagian data gagal dimuat ({sources}). Menampilkan yang tersedia.',
     dash: '—',
+    actionFailed: 'Aksi gagal. Coba lagi.',
     export: 'Ekspor',
     save: 'Simpan',
     cancel: 'Batal',
@@ -1055,7 +1056,7 @@ export const hq = {
     schedule: 'Jadwalkan',
     needTitle: 'Judul wajib diisi.',
     needMessage: 'Pesan wajib diisi.',
-    sent: 'Broadcast dikirim',
+    sent: 'Broadcast masuk antrean — pengiriman sedang berjalan',
     scheduled: 'Broadcast dijadwalkan (contoh)',
     error: 'Gagal mengirim broadcast',
     scheduleUnsupported: 'Penjadwalan belum didukung.',
@@ -1188,6 +1189,8 @@ export const hq = {
   apiKeys: {
     title: 'Kunci API',
     subtitle: 'Kredensial layanan & cakupan akses',
+    howItWorks:
+      'Kunci dipakai mitra untuk memanggil /api/v1/partner/* lewat header x-api-key. Cakupan ditegakkan per rute (webhooks:read, webhooks:write) dan pencabutan berlaku pada permintaan berikutnya. Kolom terakhir dipakai menunjukkan apakah kunci benar-benar dipanggil.',
     create: '＋ Buat kunci',
     createTitle: 'Buat kunci API',
     name: 'Nama',
@@ -1221,6 +1224,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Langganan event & keberhasilan pengiriman',
+    howItWorks:
+      'Endpoint yang berlangganan menerima POST bertanda tangan per event (X-Hydromart-Signature atas timestamp dan body). Kegagalan diulang dengan jeda menaik dan dihentikan setelah enam percobaan; angka keberhasilan di bawah dihitung dari percobaan nyata.',
     add: '＋ Endpoint',
     createTitle: 'Tambah webhook',
     url: 'URL endpoint',
@@ -1304,8 +1309,11 @@ export const hq = {
     backupTitle: 'Status backup',
     backupNone: 'Belum ada backup',
     backupNote:
-      'Belum ada mesin backup yang terhubung — status ini disimpan & ditampilkan apa adanya, bukan "berhasil" palsu.',
+      'Dilaporkan oleh dump harian dan uji restore mingguan di server. Uji restore itulah yang membuat backup benar-benar ada — dump yang belum pernah dipulihkan baru sebatas asumsi.',
     lastBackup: 'Backup terakhir',
+    drillTitle: 'Uji restore',
+    drillNone: 'Belum pernah diuji',
+    lastDrill: 'Uji terakhir',
     loadError: 'Gagal memuat kebijakan retensi.',
     saveError: 'Gagal menyimpan perubahan.',
     empty: 'Belum ada dataset.',

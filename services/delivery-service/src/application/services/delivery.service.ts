@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
   DeliveryAlreadyExistsError,
@@ -40,6 +40,17 @@ import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
+import { StoragePort } from '../ports/storage.port';
+import { EventPublisherPort } from '../ports/event-publisher.port';
+
+/**
+ * The storage key inside a stored proof URL. Both adapters build the URL as
+ * `<public base>[/uploads]/pod/<uuid>.<ext>`, so the key starts at the `pod/` segment.
+ */
+export function storageKeyFromUrl(url: string): string | null {
+  const at = url.indexOf('pod/');
+  return at === -1 ? null : url.slice(at);
+}
 
 export interface AssignInput {
   orderId: string;
@@ -66,6 +77,8 @@ export interface ListDeliveriesInput {
   status?: DeliveryStatus;
   page?: number;
   limit?: number;
+  /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
   /** Depot scope for staff lists; set by the controller from depotScopeIds (undefined = all). */
   depotIds?: readonly string[];
 }
@@ -97,6 +110,12 @@ export class DeliveryService {
     private readonly shifts: ShiftService,
     private readonly config: DeliveryConfigService,
     @Inject(DELIVERY_TOKENS.DepotLocation) private readonly depots: DepotLocationPort,
+    // Optional so an environment with storage disabled still boots; the retention sweep
+    // then says out loud that the objects were left behind rather than pretending.
+    @Optional() @Inject(DELIVERY_TOKENS.Storage) private readonly storage?: StoragePort,
+    @Optional()
+    @Inject(DELIVERY_TOKENS.EventPublisher)
+    private readonly events?: EventPublisherPort,
   ) {}
 
   /**
@@ -198,25 +217,75 @@ export class DeliveryService {
       this.config.offlineMaxAgeHours(delivery.depotId),
       delivery.assignedAt,
     );
-    await this.advanceOrder(delivery.orderId, 'DELIVERED', authorization);
+    // H-8: the proof is written FIRST, and it is what makes the rest legitimate. The order
+    // used to be marched to DELIVERED and then COMPLETED before this line ran, so a proof
+    // write that failed left an order closed, its stock consumed, its points awarded and
+    // its courier paid, with no evidence anyone had handed over anything.
+    //
+    // The status guard rides along: a re-tapped Selesai matches no row and raises rather
+    // than paying the courier twice for one handover (H-5).
+    const completed = await this.deliveries.completeWithProof(
+      id,
+      delivery.status,
+      proof,
+      driverId,
+      capturedAt,
+    );
+    this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
     // staff- or customer-driven. Without this step the order sits at DELIVERED forever and
     // order-service never runs its COMPLETED block — no loyalty points (BR-013), no referral
     // qualification (FR-092) and, worst of all, no stock consume (FR-067..074), so the
     // checkout hold is never settled and sellable stock drifts negative.
-    // Fail-open: the delivery (and the courier's earning) must not roll back if order-service
-    // is unreachable — the order simply stays at DELIVERED, exactly as before, and is logged.
-    try {
-      await this.advanceOrder(delivery.orderId, 'COMPLETED', authorization);
-    } catch {
-      this.logger.error(`Order ${delivery.orderId} delivered but could not be completed`);
+    //
+    // Both advances are fail-open now that they run after the proof: the handover happened
+    // and is recorded, and no order-service outage can un-happen it. A lagging order is
+    // recoverable by hand from the proof; a lost proof is not recoverable at all.
+    for (const status of ['DELIVERED', 'COMPLETED'] as const) {
+      try {
+        await this.advanceOrder(delivery.orderId, status, authorization);
+      } catch {
+        this.logger.error(
+          `Order ${delivery.orderId} has proof of delivery but could not be moved to ${status}`,
+        );
+        break;
+      }
     }
-    const completed = await this.deliveries.completeWithProof(id, proof, driverId, capturedAt);
-    this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Credit the courier's earnings (design 6b). Fail-open + idempotent: a completed
     // delivery must never roll back because its earning push did.
     void this.pushEarning(completed);
+    // H-30: the event partners subscribe to. Fan-out, signing and retries belong to
+    // admin-service; this only reports that the handover happened.
+    void this.publishDelivered(completed, capturedAt, proof.recipientName);
     return completed;
+  }
+
+  /**
+   * Offers `delivery.delivered` to partner webhook subscribers. Fail-open by contract.
+   *
+   * Takes the handover time and recipient as arguments rather than re-reading them off the
+   * record: at the call site both are known and non-null, and defending against a shape
+   * that cannot occur there would only add branches nothing can exercise.
+   */
+  private async publishDelivered(
+    delivery: DeliveryRecord,
+    deliveredAt: Date,
+    recipientName: string,
+  ): Promise<void> {
+    if (!this.events) return;
+    await this.events.publish(
+      'delivery.delivered',
+      {
+        deliveryId: delivery.id,
+        orderId: delivery.orderId,
+        orderNumber: delivery.orderNumber,
+        depotId: delivery.depotId,
+        driverId: delivery.driverId,
+        deliveredAt: deliveredAt.toISOString(),
+        recipientName,
+      },
+      deliveredAt,
+    );
   }
 
   /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */
@@ -250,6 +319,7 @@ export class DeliveryService {
     await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.FAILED,
       { failedAt: new Date(), failureReason: reason },
       driverId,
@@ -318,6 +388,7 @@ export class DeliveryService {
     await this.cancelOrderFor(delivery.orderId, authorization);
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.FAILED,
       { failedAt: new Date(), failureReason: reason },
       driverId,
@@ -335,6 +406,7 @@ export class DeliveryService {
     this.assertTransition(delivery.status, DeliveryStatus.RESCHEDULED);
     const updated = await this.deliveries.applyStatus(
       id,
+      delivery.status,
       DeliveryStatus.RESCHEDULED,
       {
         rescheduledFor: input.rescheduledFor,
@@ -370,11 +442,20 @@ export class DeliveryService {
    * previous one — no track history is kept in the MVP.
    */
   async reportLocation(driverId: string, id: string, lat: number, lng: number): Promise<DeliveryRecord> {
-    const delivery = await this.ownedByDriver(driverId, id);
-    if (!isActive(delivery.status)) {
+    // A projection, not the whole delivery (audit S-17): a ping arrives every few seconds
+    // per courier on the road, and it used to drag the full status history and the delivery
+    // proof back with it just to check an id and a status.
+    const state = await this.deliveries.findPingState(id);
+    if (!state) {
+      throw new DeliveryNotFoundError();
+    }
+    if (state.driverId !== driverId) {
+      throw new NotAssignedDriverError();
+    }
+    if (!isActive(state.status)) {
       throw new DeliveryNotActiveError();
     }
-    const eta = await this.estimateArrival({ ...delivery, lastLat: lat, lastLng: lng });
+    const eta = await this.estimateArrival({ ...state, lastLat: lat, lastLng: lng });
     return this.deliveries.updateLocation(id, lat, lng, eta);
   }
 
@@ -403,21 +484,43 @@ export class DeliveryService {
   }
 
   /**
-   * UU PDP retention sweep: delete proof-of-delivery records older than the
-   * configured window (default 12 months). Invoked by the internal scheduler.
-   * Image files are expired separately by an object-storage bucket lifecycle rule.
-   */
-  /**
-   * Delete proof-of-delivery records older than `cutoff`.
+   * Delete proof-of-delivery records older than `cutoff`, and the photos with them.
    *
    * The window is NOT computed here any more. admin-service owns the retention policy
    * for every dataset and sends the cutoff; deriving it a second time from a depot
    * setting gave the same legal rule two owners that could silently disagree.
+   *
+   * H-22: the row alone was never erasure. The photo is of someone's doorstep, often with
+   * them in frame, and it outlived the record by however long the bucket kept it.
    */
   async purgeProofsOlderThan(cutoff: Date): Promise<{ purged: number }> {
-    const purged = await this.deliveries.purgeProofsBefore(cutoff);
+    const { count: purged, urls } = await this.deliveries.purgeProofsBefore(cutoff);
+    for (const url of urls) {
+      const key = storageKeyFromUrl(url);
+      if (!key) {
+        this.logger.warn(`Retention: cannot derive a storage key from ${url}; object left behind`);
+        continue;
+      }
+      if (!this.storage) {
+        this.logger.warn(`Retention: no storage bound; ${key} not deleted`);
+        continue;
+      }
+      try {
+        await this.storage.remove(key);
+      } catch (err) {
+        // The row is already gone; a bucket that refuses one delete must not abort the
+        // sweep for every other customer. Logged so the leftover object is findable.
+        this.logger.error(
+          `Retention: deleted the proof row but not ${key}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
     if (purged > 0) {
-      this.logger.log(`Purged ${purged} proof-of-delivery record(s) older than ${cutoff.toISOString()}`);
+      this.logger.log(
+        `Purged ${purged} proof-of-delivery record(s) and ${urls.length} object(s) older than ${cutoff.toISOString()}`,
+      );
     }
     return { purged };
   }
@@ -446,6 +549,7 @@ export class DeliveryService {
     }
     return this.deliveries.applyStatus(
       id,
+      delivery.status,
       to,
       eta ? { ...timestamps, estimatedArrivalAt: eta } : timestamps,
       driverId,
@@ -460,7 +564,12 @@ export class DeliveryService {
    * no coordinates or no origin can be resolved — the customer UI falls back
    * gracefully. Best-effort: a depot-lookup failure never blocks the transition.
    */
-  private async estimateArrival(delivery: DeliveryRecord): Promise<Date | undefined> {
+  private async estimateArrival(
+    delivery: Pick<
+      DeliveryRecord,
+      'destinationLat' | 'destinationLng' | 'lastLat' | 'lastLng' | 'depotId'
+    >,
+  ): Promise<Date | undefined> {
     if (delivery.destinationLat == null || delivery.destinationLng == null) return undefined;
     let originLat = delivery.lastLat;
     let originLng = delivery.lastLng;
@@ -522,13 +631,14 @@ export class DeliveryService {
   ): Promise<Page<DeliveryRecord>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(DeliveryService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
-    const { items, total } = await this.deliveries.search({
+    const { items, total, nextCursor } = await this.deliveries.search({
       page,
       limit,
+      cursor: input.cursor,
       driverId: input.driverId,
       depotIds: input.depotIds,
       status: input.status,
     });
-    return buildPage(items, total, page, limit);
+    return buildPage(items, total, page, limit, nextCursor);
   }
 }

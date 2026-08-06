@@ -33,6 +33,9 @@ export default function MeCheckInPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Attendance | null>(null);
 
+  // `live` is the on-device capture gate: it keeps a blurred or still frame from being sent
+  // at all. It is NOT sent to the server — a verdict the caller fills in themselves cannot
+  // be an anti-spoofing control there (B-7); the face match is.
   async function punch(dataUrl: string, live: boolean) {
     if (!live) {
       toast('Deteksi wajah kurang meyakinkan. Gerakkan kepala/kedip lalu coba lagi.', 'error');
@@ -45,7 +48,7 @@ export default function MeCheckInPage() {
       // counts normally; one that sits here too long is held for HR to approve.
       const sent = await runOrQueue<Attendance>({
         kind: 'hrPunch',
-        payload: { mode, image: dataUrl, live, lat, lng },
+        payload: { mode, image: dataUrl, lat, lng },
       });
       if (sent.outcome === 'queued') {
         setResult(null);

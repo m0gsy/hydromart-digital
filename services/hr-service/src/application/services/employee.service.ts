@@ -223,7 +223,7 @@ export class EmployeeService {
   async create(user: AuthenticatedUser, input: CreateEmployeeInput): Promise<Employee> {
     // A depot-locked creator may only add staff to their own depot.
     assertDepotAccess(user, input.depotId);
-    this.assertSalaryShape(input.salaryType, input.dailyRate, input.monthlyRate);
+    const rates = this.salaryRates(input.salaryType, input.dailyRate, input.monthlyRate);
     this.assertContractWindow(input.joinDate, input.contractEndDate);
     await this.assertDepartmentFits(input.departmentId, input.depotId ?? null);
 
@@ -243,8 +243,8 @@ export class EmployeeService {
       employmentStatus: input.employmentStatus,
       joinDate: new Date(input.joinDate),
       salaryType: input.salaryType,
-      dailyRate: input.salaryType === 'DAILY' ? (input.dailyRate ?? null) : null,
-      monthlyRate: input.salaryType === 'MONTHLY' ? (input.monthlyRate ?? null) : null,
+      dailyRate: rates.dailyRate,
+      monthlyRate: rates.monthlyRate,
       bankName: input.bankName ?? null,
       bankAccount: input.bankAccount ?? null,
       emergencyName: input.emergencyName ?? null,
@@ -555,9 +555,12 @@ export class EmployeeService {
       input.dailyRate ?? (current.dailyRate ? Number(current.dailyRate) : undefined);
     const monthlyRate =
       input.monthlyRate ?? (current.monthlyRate ? Number(current.monthlyRate) : undefined);
-    if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
-      this.assertSalaryShape(salaryType, dailyRate, monthlyRate);
-    }
+    // Touching either rate, or the type, re-shapes BOTH — a MONTHLY employee keeps no
+    // stale dailyRate. Untouched, the pair is left exactly as it is.
+    const rates =
+      input.salaryType || input.dailyRate != null || input.monthlyRate != null
+        ? this.salaryRates(salaryType, dailyRate, monthlyRate)
+        : null;
     this.assertContractWindow(
       input.joinDate ?? current.joinDate.toISOString(),
       input.contractEndDate ?? current.contractEndDate?.toISOString(),
@@ -604,9 +607,9 @@ export class EmployeeService {
       data.contractEndDate = new Date(input.contractEndDate);
     }
     if (input.salaryType !== undefined) data.salaryType = input.salaryType;
-    if (input.salaryType || input.dailyRate != null || input.monthlyRate != null) {
-      data.dailyRate = salaryType === 'DAILY' ? (dailyRate ?? null) : null;
-      data.monthlyRate = salaryType === 'MONTHLY' ? (monthlyRate ?? null) : null;
+    if (rates) {
+      data.dailyRate = rates.dailyRate;
+      data.monthlyRate = rates.monthlyRate;
     }
 
     // A promotion that changes the jabatan but leaves the LOGIN behind is the whole bug
@@ -705,14 +708,28 @@ export class EmployeeService {
     }
   }
 
-  /** DAILY needs a dailyRate (no monthlyRate); MONTHLY the reverse. */
-  private assertSalaryShape(type: SalaryType, dailyRate?: number, monthlyRate?: number): void {
-    if (type === 'DAILY' && (dailyRate == null || dailyRate <= 0)) {
-      throw new BadRequestException('dailyRate wajib diisi untuk tipe gaji DAILY');
+  /**
+   * DAILY needs a dailyRate (no monthlyRate); MONTHLY the reverse. Returns the pair to
+   * STORE rather than only validating it, so the rule and the shaping cannot drift: the
+   * two call sites used to re-derive `type === 'DAILY' ? (rate ?? null) : null` after
+   * this had already proved the rate was there, and that `?? null` was unreachable code
+   * sitting on the money path.
+   */
+  private salaryRates(
+    type: SalaryType,
+    dailyRate?: number,
+    monthlyRate?: number,
+  ): { dailyRate: number | null; monthlyRate: number | null } {
+    if (type === 'DAILY') {
+      if (dailyRate == null || dailyRate <= 0) {
+        throw new BadRequestException('dailyRate wajib diisi untuk tipe gaji DAILY');
+      }
+      return { dailyRate, monthlyRate: null };
     }
-    if (type === 'MONTHLY' && (monthlyRate == null || monthlyRate <= 0)) {
+    if (monthlyRate == null || monthlyRate <= 0) {
       throw new BadRequestException('monthlyRate wajib diisi untuk tipe gaji MONTHLY');
     }
+    return { dailyRate: null, monthlyRate };
   }
 
   /**

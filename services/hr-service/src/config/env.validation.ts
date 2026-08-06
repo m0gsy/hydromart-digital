@@ -17,6 +17,16 @@ export const envValidationSchema = Joi.object({
     .pattern(/^\d{2}:\d{2}$/)
     .default('08:00'),
   HR_LATE_TOLERANCE_MINUTES: Joi.number().integer().min(0).default(15),
+  // Q-13 statutory payroll defaults. Percentages ×100 so the settings store stays
+  // integer-only. These must mirror config/setting-defs.ts envDefault values.
+  HR_BPJS_HEALTH_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(100),
+  HR_BPJS_HEALTH_CEILING_IDR: Joi.number().integer().min(0).default(12_000_000),
+  HR_BPJS_JHT_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(200),
+  HR_BPJS_JP_EMPLOYEE_PCT_X100: Joi.number().integer().min(0).default(100),
+  HR_BPJS_JP_CEILING_IDR: Joi.number().integer().min(0).default(10_547_400),
+  HR_OCCUPATIONAL_COST_PCT_X100: Joi.number().integer().min(0).default(500),
+  HR_OCCUPATIONAL_COST_CAP_IDR: Joi.number().integer().min(0).default(500_000),
+  HR_NO_NPWP_SURCHARGE_PCT: Joi.number().integer().min(0).max(100).default(20),
   HR_LATE_DEDUCTION_IDR: Joi.number().integer().min(0).default(10000),
   HR_DAILY_RATE_TRAINING_IDR: Joi.number().integer().min(0).default(30000),
   HR_ABSENCE_DEDUCTION_IDR: Joi.number().integer().min(0).default(0),
@@ -33,6 +43,16 @@ export const envValidationSchema = Joi.object({
   HR_FACE_DUPLICATE_THRESHOLD: Joi.number().min(0).max(1).default(0.75),
   HR_FACE_MODEL_PATH: Joi.string().default('./models/arcface.onnx'),
   FACE_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // B-19: key the enrolled face templates are encrypted with at rest (AES-256-GCM).
+  // `openssl rand -hex 32`. Production must supply it — biometrics cannot be reissued
+  // after a leak, so they must never sit in the table (or a backup dump) in the clear.
+  // Rotating it makes existing enrolments undecryptable: employees must re-enroll.
+  HR_FACE_ENCRYPTION_KEY: Joi.string()
+    .allow('')
+    .default('')
+    // `.invalid('')` because a `when` branch is concat'ed onto the base key, and the base
+    // `.allow('')` would otherwise keep an empty key legal in production.
+    .when('NODE_ENV', { is: 'production', then: Joi.string().min(32).invalid('').required() }),
   // order-service base URL + shared internal key for the SALES_TOTAL bonus aggregate.
   // Both empty → SALES rules stay dormant (salesTotal resolves null, never fabricated).
   ORDER_SERVICE_URL: Joi.string().uri().allow('').default(''),
@@ -56,4 +76,14 @@ export const envValidationSchema = Joi.object({
   STORAGE_S3_BUCKET: Joi.string().allow('').default(''),
   STORAGE_S3_ACCESS_KEY_ID: Joi.string().allow('').default(''),
   STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
+  HR_OVERTIME_MULTIPLIER_PCT: Joi.number().integer().min(100).default(150),
+  HR_OVERTIME_OFF_DAY_MULTIPLIER_PCT: Joi.number().integer().min(100).default(200),
+  HR_WEEKLY_OFF_DAYS: Joi.string().allow('').default(''),
+  // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
+  // unset value does not degrade tenant isolation — it refuses every scoped request.
+  DEPOT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });

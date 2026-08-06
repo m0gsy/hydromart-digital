@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { MagnifyingGlass, Storefront } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { DepotForm } from '@/components/hq/depot-form';
 import { Badge, Button, Card, CenterState, ErrorState, Input, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -42,7 +43,7 @@ export default function HqDepotsPage() {
     }
   }, []);
 
-  const list = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const list = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const items = list.data?.items ?? [];
 
   const filtered = useMemo(() => {
@@ -62,16 +63,16 @@ export default function HqDepotsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Storefront size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.depots.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.depots.subtitle')}</p>
-          </div>
-        </div>
-        {!creating && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
-      </div>
+      <HqPageHeader
+        icon={Storefront}
+        title={t('hq.depots.title')}
+        subtitle={t('hq.depots.subtitle')}
+        action={
+          <>
+            {!creating && <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>}
+          </>
+        }
+      />
 
       {creating && (
         <DepotForm

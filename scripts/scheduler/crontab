@@ -1,5 +1,6 @@
-# Hydromart internal sweeps (busybox crond). Times are the container's TZ (UTC by
-# default — set TZ on the scheduler service to shift). Logs go to the container.
+# Hydromart internal sweeps (busybox crond). Times are the container's TZ, which follows
+# PRICING_TZ (Asia/Jakarta by default) — so every time below is a WIB business hour, the
+# same clock the reports and day boundaries use. Logs go to the container.
 #
 # Place orders for all due recurring subscriptions — hourly.
 0 * * * * sh /scripts/sweep.sh subscriptions/process-due
@@ -15,3 +16,13 @@
 # console lets HR pick a time to the minute, and an hourly sweep would make "kirim jam 9"
 # arrive at 10. Nothing is sent twice — publishedAt is the latch.
 */15 * * * * sh /scripts/sweep.sh announcements/publish-due hr:3018
+# Broadcast campaigns (B-17): send the next batch for every campaign still SENDING. The
+# send endpoint only CLAIMS the campaign now — this sweep is what actually messages
+# customers. Every 2 minutes: staff press "kirim" and expect it to be moving, not to wait
+# an hour. Each tick is bounded and resumable, so an interrupted sweep loses nothing.
+*/2 * * * * sh /scripts/sweep.sh campaigns/internal/process-sending crm:3012
+# Partner webhook fan-out (H-30): send every delivery whose next attempt is due. Every
+# 5 minutes rather than hourly — a partner integration that learns about a delivery an
+# hour late is not an integration. Retries back off on their own (1m, 5m, 25m, ...), so
+# a dead endpoint is not hammered by this cadence.
+*/5 * * * * sh /scripts/sweep.sh webhooks/deliveries/process admin:3017

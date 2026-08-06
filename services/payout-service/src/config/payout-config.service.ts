@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SettingsCache } from '@hydromart/platform';
+import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
@@ -45,6 +45,10 @@ export class PayoutConfigService {
   }
   get rateLimit(): { ttlSeconds: number; limit: number } {
     return { ttlSeconds: this.num('RATE_LIMIT_TTL_SECONDS'), limit: this.num('RATE_LIMIT_MAX') };
+  }
+  /** The one business timezone (H-16). Every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
   /** HQ commission rate on gross sales (reporting only), default 5%. */
   get commissionRate(): number {

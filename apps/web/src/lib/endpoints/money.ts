@@ -1,0 +1,183 @@
+// Public path builders, one file per product area. The gateway strips the first
+// segment and forwards the rest to the owning service, so every path is
+// `/{segment}/api/v1/...`.
+//
+// Audit F-15: this used to be a single 1,426-line object literal imported by 232
+// files — every route touched it, and every change to any path showed up as a
+// conflict in the same file. Splitting it by area changes no path and no call site:
+// `endpoints` is still one object, assembled in ./index.ts.
+
+export const money = {
+payments: {
+  initiateStaff: '/payments/api/v1/payments/staff',
+  initiate: '/payments/api/v1/payments',
+  forOrder: (orderId: string) => `/payments/api/v1/payments?orderId=${orderId}`,
+  // Staff: an order's payments (for settlement) — not customer-scoped.
+  forOrderStaff: (orderId: string) => `/payments/api/v1/payments/for-order/${orderId}`,
+  // Staff: confirm a payment as received (cash/transfer/QRIS).
+  confirm: (id: string) => `/payments/api/v1/payments/${id}/confirm`,
+  // HQ settlement dashboard (6a): network unsettled payments by method (FINANCE/SUPER_ADMIN).
+  unsettledByMethod: (q: { from?: string; to?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (q.from) p.set('from', q.from);
+    if (q.to) p.set('to', q.to);
+    const qs = p.toString();
+    return `/payments/api/v1/payments/unsettled-by-method${qs ? `?${qs}` : ''}`;
+  },
+  // HQ report export (10a): network collected (PAID) revenue by method (FINANCE/SUPER_ADMIN).
+  revenueByMethod: (q: { from?: string; to?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (q.from) p.set('from', q.from);
+    if (q.to) p.set('to', q.to);
+    const qs = p.toString();
+    return `/payments/api/v1/payments/revenue-by-method${qs ? `?${qs}` : ''}`;
+  },
+},
+
+// HQ tax & invoice settings (payment-service, FINANCE/SUPER_ADMIN). GET current, PUT to save.
+tax: {
+  get: '/payments/api/v1/tax-settings',
+  update: '/payments/api/v1/tax-settings',
+},
+
+// HQ refund-approval queue (payment-service, FINANCE/SUPER_ADMIN). Above the HQ threshold.
+refunds: {
+  queue: (q: { page?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    const qs = p.toString();
+    return `/payments/api/v1/payments/refunds/queue${qs ? `?${qs}` : ''}`;
+  },
+  approve: (id: string) => `/payments/api/v1/payments/${id}/refund/approve`,
+  reject: (id: string) => `/payments/api/v1/payments/${id}/refund/reject`,
+},
+
+// Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).
+payout: {
+  summary: '/payout/api/v1/payout/summary',
+  ledger: (q: { page?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    const qs = p.toString();
+    return `/payout/api/v1/payout/ledger${qs ? `?${qs}` : ''}`;
+  },
+  withdrawals: '/payout/api/v1/payout/withdrawals',
+  // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
+  hqQueue: '/payout/api/v1/payout/hq/pending',
+  release: '/payout/api/v1/payout/hq/release',
+  // One owner's available balance (HEAD_OFFICE/FINANCE/SUPER_ADMIN) — depot-detail card.
+  hqOwnerBalance: (ownerId: string) => `/payout/api/v1/payout/hq/owner/${ownerId}`,
+},
+
+// Courier earnings: balance, month earnings, ledger (payout-service, STAFF_DEPOT). Design 2c.
+courierPayout: {
+  summary: '/payout/api/v1/courier/earnings/summary',
+  ledger: (q: { page?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    const qs = p.toString();
+    return `/payout/api/v1/courier/ledger${qs ? `?${qs}` : ''}`;
+  },
+  // Effective earning rule for the calling courier's depot: monthly target + incentive tiers.
+  earningRule: '/payout/api/v1/courier/earning-rule',
+  withdraw: '/payout/api/v1/courier/withdrawals',
+  withdrawals: '/payout/api/v1/courier/withdrawals',
+  expenses: '/payout/api/v1/courier/expenses',
+},
+
+// Courier earning-rule editor (payout-service, design 6b; FINANCE/SUPER_ADMIN). GET lists
+// every rule, POST applies a new effective-dated one.
+earningRules: {
+  list: '/payout/api/v1/courier-earning-rules',
+  apply: '/payout/api/v1/courier-earning-rules',
+},
+
+// Courier expense-claim approvals (payout-service, design 6a; expenseApprove cap).
+expenseApprovals: {
+  list: (q: { depotId?: string; status?: string; page?: number; limit?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (q.depotId) p.set('depotId', q.depotId);
+    if (q.status) p.set('status', q.status);
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    const qs = p.toString();
+    return `/payout/api/v1/expenses${qs ? `?${qs}` : ''}`;
+  },
+  approve: (id: string) => `/payout/api/v1/expenses/${id}/approve`,
+  reject: (id: string) => `/payout/api/v1/expenses/${id}/reject`,
+},
+
+// Courier COD settlement verification (delivery-service, design 2d/6a; courierSettle cap).
+settlements: {
+  list: (q: { depotId: string; status?: string }) => {
+    const p = new URLSearchParams({ depotId: q.depotId });
+    if (q.status) p.set('status', q.status);
+    return `/deliveries/api/v1/settlements?${p}`;
+  },
+  verify: (id: string) => `/deliveries/api/v1/settlements/${id}/verify`,
+  dispute: (id: string) => `/deliveries/api/v1/settlements/${id}/dispute`,
+},
+
+// HQ price-override approvals (depot-service, 7a). List/decide are HEAD_OFFICE/SUPER_ADMIN;
+// propose is depot-manager (under the depots segment).
+priceOverrides: {
+  queue: (q: { page?: number; limit?: number; status?: string } = {}) => {
+    const p = new URLSearchParams();
+    if (q.page) p.set('page', String(q.page));
+    if (q.limit) p.set('limit', String(q.limit));
+    if (q.status) p.set('status', q.status);
+    const qs = p.toString();
+    return `/depots/api/v1/price-overrides${qs ? `?${qs}` : ''}`;
+  },
+  approve: (id: string) => `/depots/api/v1/price-overrides/${id}/approve`,
+  reject: (id: string) => `/depots/api/v1/price-overrides/${id}/reject`,
+  propose: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides`,
+  import: (depotId: string) => `/depots/api/v1/depots/${depotId}/price-overrides/import`,
+  // Per-product pending-override counts for the 7a base list.
+  countByProduct: '/depots/api/v1/price-overrides/count-by-product',
+},
+
+// HQ commission-scheme config (payout-service, FINANCE/SUPER_ADMIN).
+commission: {
+  schemes: '/payout/api/v1/commission/schemes',
+  apply: '/payout/api/v1/commission/schemes/apply',
+},
+
+cashbook: {
+  list: (q: { depotId: string; from?: string; to?: string }) => {
+    const p = new URLSearchParams({ depotId: q.depotId });
+    if (q.from) p.set('from', q.from);
+    if (q.to) p.set('to', q.to);
+    return `/depots/api/v1/cashbook?${p}`;
+  },
+  create: '/depots/api/v1/cashbook',
+},
+
+// Counter chain of custody: who is on the till and what their drawer settled at.
+cashierShifts: {
+  open: '/depots/api/v1/cashier-shifts',
+  current: (depotId: string) =>
+    `/depots/api/v1/cashier-shifts/current?depotId=${encodeURIComponent(depotId)}`,
+  list: (depotId: string) =>
+    `/depots/api/v1/cashier-shifts?depotId=${encodeURIComponent(depotId)}`,
+  close: (id: string) => `/depots/api/v1/cashier-shifts/${id}/close`,
+},
+
+wholesale: {
+  list: (depotId: string) =>
+    `/depots/api/v1/wholesale-tiers?depotId=${encodeURIComponent(depotId)}`,
+  create: '/depots/api/v1/wholesale-tiers',
+  detail: (id: string) => `/depots/api/v1/wholesale-tiers/${id}`, // PATCH / DELETE
+},
+
+pricing: {
+  // Dynamic pricing rules for one depot (staff). All under the depots segment.
+  rules: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
+  create: (depotId: string) => `/depots/api/v1/depots/${depotId}/pricing/rules`,
+  // PATCH to update, DELETE to remove.
+  detail: (depotId: string, id: string) => `/depots/api/v1/depots/${depotId}/pricing/rules/${id}`,
+},
+} as const;

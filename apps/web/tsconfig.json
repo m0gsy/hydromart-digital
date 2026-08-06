@@ -12,7 +12,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true,
+    // CI-10: see tsconfig.base.json — nothing reads the .tsbuildinfo.
     "noUncheckedIndexedAccess": true,
     "forceConsistentCasingInFileNames": true,
     "plugins": [{ "name": "next" }],

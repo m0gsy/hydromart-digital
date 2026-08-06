@@ -69,8 +69,8 @@ export class CustomerPrismaRepository implements CustomerRepository {
       status: { not: toPrismaStatus(CustomerStatus.DELETED) },
       role: role ? toPrismaRole(role) : { not: toPrismaRole(Role.CUSTOMER) },
       ...(depotId ? { assignedDepotId: depotId } : {}),
-      // Name or phone, because half the directory has no name yet and staff are found by
-      // the number they signed in with as often as by what they are called.
+      // Audit F-12: matching happens here, over the whole directory, instead of in the
+      // browser over whatever the first page happened to contain.
       ...(term
         ? {
             OR: [

@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Trophy } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { RankBar } from '@/components/hq/charts';
 import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -47,13 +48,7 @@ export default function HqScorecardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Trophy size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.scorecard.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.scorecard.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Trophy} title={t('hq.scorecard.title')} subtitle={t('hq.scorecard.subtitle')} />
 
       <p className="text-[12.5px] text-muted">{t('hq.scorecard.scoreNote')}</p>
 

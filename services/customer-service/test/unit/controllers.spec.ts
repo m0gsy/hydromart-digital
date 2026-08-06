@@ -174,6 +174,19 @@ describe('InternalController', () => {
     expect(await c.crmSummary('d1')).toEqual({ counts: {} });
     expect(svc.getCrmDashboard).toHaveBeenCalledWith('d1');
   });
+  it('crmSummaries answers every depot in one request, each row carrying its depotId', async () => {
+    svc.getCrmDashboard.mockImplementation(async (id: string) => ({ counts: { total: id.length } }));
+    expect(await c.crmSummaries('d1, d2 ,')).toEqual([
+      { depotId: 'd1', counts: { total: 2 } },
+      { depotId: 'd2', counts: { total: 2 } },
+    ]);
+    expect(svc.getCrmDashboard).toHaveBeenCalledTimes(2);
+  });
+  it('crmSummaries asks nothing for an empty or missing depot list', async () => {
+    expect(await c.crmSummaries('')).toEqual([]);
+    expect(await c.crmSummaries(undefined as unknown as string)).toEqual([]);
+    expect(svc.getCrmDashboard).not.toHaveBeenCalled();
+  });
   it('pdpExport hands the whole customer blob back (item 13)', async () => {
     pdp.exportFor.mockResolvedValue({ profile: {}, addresses: [] });
     expect(await c.pdpExport('c1')).toEqual({ profile: {}, addresses: [] });

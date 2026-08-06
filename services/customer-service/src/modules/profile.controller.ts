@@ -14,6 +14,8 @@ import {
   UpdateNotificationsDto,
   UpdateProfileDto,
 } from './dto/profile.dto';
+import { NotificationPreferenceRecord } from '../application/ports/notification.repository';
+import { NotificationPreferenceResponseDto } from './dto/responses.generated.dto';
 
 function toProfileResponse(p: CustomerProfileRecord): ProfileResponseDto {
   return {
@@ -76,18 +78,20 @@ export class ProfileController {
     return this.profiles.runBirthdayRewards(authorization);
   }
 
+  @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   @Get('profile/notifications')
   @ApiOperation({ summary: 'Get my notification preferences' })
-  async getNotifications(@CurrentUser() user: AuthenticatedUser) {
+  async getNotifications(@CurrentUser() user: AuthenticatedUser): Promise<NotificationPreferenceRecord> {
     return this.notifications.get(user.sub);
   }
 
+  @ApiOkResponse({ type: NotificationPreferenceResponseDto })
   @Patch('profile/notifications')
   @ApiOperation({ summary: 'Update my notification preferences' })
   async updateNotifications(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateNotificationsDto,
-  ) {
+  ): Promise<NotificationPreferenceRecord> {
     return this.notifications.update(user.sub, dto);
   }
 }

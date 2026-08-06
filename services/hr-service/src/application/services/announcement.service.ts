@@ -138,7 +138,20 @@ export class AnnouncementService {
     user: AuthenticatedUser,
   ): Promise<(AnnouncementWithTargets & { read: boolean })[]> {
     const employee = await this.employees.getSelf(user);
-    const published = await this.repo.listPublished(FEED_LIMIT);
+    // H-18: the feed used to be the newest FEED_LIMIT notices company-wide, filtered by
+    // audience afterwards — so once other depots had published 50 newer notices, an
+    // employee stopped seeing their OWN depot's announcements entirely. The query is
+    // scoped to them now; audienceMatches stays as the authoritative second pass so the
+    // domain rule, not the SQL, decides what "covers" means.
+    const published = await this.repo.listFeedFor(
+      {
+        employeeId: employee.id,
+        depotId: employee.depotId,
+        departmentId: employee.departmentId,
+        position: employee.position,
+      },
+      FEED_LIMIT,
+    );
     const mine = published.filter((a) => audienceMatches(a.targets, employee));
     if (mine.length === 0) return [];
     const readIds = new Set(

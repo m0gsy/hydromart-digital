@@ -97,20 +97,37 @@ describe('ReferralPrismaRepository', () => {
     expect(referral.count).toHaveBeenCalledWith({ where: { referrerCustomerId: 'cust-1' } });
   });
 
-  it('summarizes a referrer (total, qualified, points earned)', async () => {
-    referral.count
-      .mockReturnValueOnce(5 as never) // referredCount
-      .mockReturnValueOnce(2 as never); // qualifiedCount
-    referral.aggregate.mockReturnValue({ _sum: { referrerPoints: 300 } } as never);
+  // Q-8: two counts and an aggregate in a read-only transaction became one groupBy.
+  it('summarizes a referrer from the status split (total, qualified, points earned)', async () => {
+    referral.groupBy.mockResolvedValue([
+      { status: ReferralStatus.PENDING, _count: { _all: 3 }, _sum: { referrerPoints: null } },
+      { status: ReferralStatus.QUALIFIED, _count: { _all: 2 }, _sum: { referrerPoints: 300 } },
+    ] as never);
     const out = await repo.summarizeReferrer('cust-1');
     expect(out).toEqual({ referredCount: 5, qualifiedCount: 2, pointsEarned: 300 });
+    expect(referral.groupBy).toHaveBeenCalledWith({
+      by: ['status'],
+      where: { referrerCustomerId: 'cust-1' },
+      _count: { _all: true },
+      _sum: { referrerPoints: true },
+    });
+    expect(referral.count).not.toHaveBeenCalled();
   });
 
-  it('defaults points earned to 0 when the sum is null', async () => {
-    referral.count.mockReturnValueOnce(0 as never).mockReturnValueOnce(0 as never);
-    referral.aggregate.mockReturnValue({ _sum: { referrerPoints: null } } as never);
-    const out = await repo.summarizeReferrer('cust-1');
-    expect(out.pointsEarned).toBe(0);
+  it('defaults points earned to 0 when the qualified sum is null', async () => {
+    referral.groupBy.mockResolvedValue([
+      { status: ReferralStatus.QUALIFIED, _count: { _all: 1 }, _sum: { referrerPoints: null } },
+    ] as never);
+    expect((await repo.summarizeReferrer('cust-1')).pointsEarned).toBe(0);
+  });
+
+  it('summarizes a referrer with no referrals at all', async () => {
+    referral.groupBy.mockResolvedValue([] as never);
+    await expect(repo.summarizeReferrer('cust-1')).resolves.toEqual({
+      referredCount: 0,
+      qualifiedCount: 0,
+      pointsEarned: 0,
+    });
   });
 
   it('short-circuits the depot-scoped aggregates on an empty referrer list', async () => {

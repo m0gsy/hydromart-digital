@@ -73,6 +73,10 @@ export class DepotConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** auth-service base URL — where the shared audit trail lives (H-29). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   // Static-QRIS image storage. Same contract as product/auth/delivery-service: the URL
   // handed back is absolute, because the customer's payment screen renders it directly.
   get storageLocalDir(): string {

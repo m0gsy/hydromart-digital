@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsISO8601, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 /**
  * Partial write. The morning call sends `openingM3`, the evening one `closingM3`;
@@ -52,5 +53,7 @@ export class MeterHistoryQueryDto {
   @ApiPropertyOptional({ example: '2026-07-31', description: 'Inclusive end date.' })
   @IsOptional()
   @IsISO8601()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
   to?: string;
 }

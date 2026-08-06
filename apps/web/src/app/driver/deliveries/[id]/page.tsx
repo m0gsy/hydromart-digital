@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ArrowLeft, Check, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { LiveNav } from '@/components/driver/live-nav';
 import { PodCapture } from '@/components/driver/pod-capture';
@@ -235,7 +236,7 @@ function Detail() {
             <SealCheck size={18} weight="fill" />
             Diterima {delivery.proof.recipientName}
           </div>
-          <img
+          <RemoteImage
             src={delivery.proof.photoUrl}
             alt="Bukti foto pengantaran"
             className="max-h-40 w-full rounded-xl object-cover"

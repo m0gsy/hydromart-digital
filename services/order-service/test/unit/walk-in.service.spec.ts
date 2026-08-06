@@ -37,6 +37,7 @@ import {
   FakeProductCatalog,
   InMemoryCartRepository,
   InMemoryOrderRepository,
+  buildOutbox,
   buildTestConfig,
 } from '../support/fakes';
 
@@ -104,6 +105,7 @@ describe('OrderService.walkInSale', () => {
       franchiseRevenue,
       shift,
       paymentReversal,
+      buildOutbox(orders),
     );
   });
 
@@ -132,6 +134,21 @@ describe('OrderService.walkInSale', () => {
       lines: [{ productId: product.id, quantity: 4 }],
     });
     expect(order.items[0]).toMatchObject({ volumeMl: 19000, isGallon: true, quantity: 4 });
+  });
+
+  // B-13 at the till. A cashier on a flaky depot connection taps Bayar again; the goods
+  // only left the counter once, and the drawer has to agree.
+  it('returns the same sale when the till retries with the same Idempotency-Key', async () => {
+    const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+    const sale = { depotId: DEPOT, lines: [{ productId: product.id, quantity: 2 }] };
+
+    const first = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+    const retry = await service.walkInSale(operator, { ...sale, idempotencyKey: 'till-1' });
+
+    expect(retry.id).toBe(first.id);
+    expect(orders.rows).toHaveLength(1);
+    // The completion fan-out must not run twice either — that is the stock consume.
+    expect(inventory.calls).toHaveLength(1);
   });
 
   it('completes the sale immediately with no delivery fee', async () => {
@@ -226,16 +243,24 @@ describe('OrderService.walkInSale', () => {
     expect(orders.rows).toHaveLength(0);
   });
 
-  it('still records the sale when the stock consume fails', async () => {
+  // H-10 changed this contract for the better. A failed consume used to escape and 500
+  // the till on a sale that HAD been recorded; now the sale stands and the consume stays
+  // owed in the outbox, where the sweep picks it up when depot-service is back.
+  it('records the sale and keeps owing the consume when depot-service is down', async () => {
     const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
     inventory.consume = async () => {
       throw new Error('depot-service down');
     };
     // Reserve succeeded, so the units are still held and sellable stock stays honest.
-    await expect(
-      service.walkInSale(operator, { depotId: DEPOT, lines: [{ productId: product.id, quantity: 1 }] }),
-    ).rejects.toThrow('depot-service down');
+    const sale = await service.walkInSale(operator, {
+      depotId: DEPOT,
+      lines: [{ productId: product.id, quantity: 1 }],
+    });
+
     expect(orders.rows).toHaveLength(1);
+    const owed = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
+    expect(owed).toMatchObject({ orderId: sale.id, status: 'PENDING', attempts: 1 });
+    expect(owed.lastError).toBe('depot-service down');
   });
 
   // The hold is placed before the row exists, so a create that throws used to leave the

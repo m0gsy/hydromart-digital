@@ -56,6 +56,8 @@ export interface PaymentQuery {
   status?: PaymentStatus;
   page: number;
   limit: number;
+  /** Opaque keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
 }
 
 /** One method's unsettled (PENDING) total + transaction count, network-wide. */
@@ -82,7 +84,9 @@ export interface PaymentRepository {
   /** Active = PENDING or PAID. Used to enforce one live payment per order. */
   findActiveByOrder(orderId: string): Promise<PaymentRecord | null>;
   findByReference(reference: string): Promise<PaymentRecord | null>;
-  search(query: PaymentQuery): Promise<{ items: PaymentRecord[]; total: number }>;
+  search(
+    query: PaymentQuery,
+  ): Promise<{ items: PaymentRecord[]; total: number; nextCursor: string | null }>;
   /** Cross-depot HQ queue: payments with a PENDING refund approval, newest first. */
   listPendingRefunds(query: { page: number; limit: number }): Promise<{
     items: PaymentRecord[];
@@ -101,4 +105,20 @@ export interface PaymentRepository {
    */
   sumDepotCash(depotId: string, range: DateRange): Promise<CashCollectedSummary>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
+
+  /**
+   * Compare-and-set on status: apply `patch` only if the row is still in one of
+   * `expected`. Returns null when it was not — someone else moved it first.
+   *
+   * B-9: refund read the payment, checked isRefundable, called the gateway and THEN
+   * updated on `id` alone. Two concurrent refunds both read PAID, both passed the check,
+   * and both reached the gateway — the customer was paid back twice. A status predicate on
+   * the write is what makes exactly one caller win, and it has to be claimed BEFORE the
+   * gateway call, not after.
+   */
+  updateIfStatus(
+    id: string,
+    expected: PaymentStatus[],
+    patch: PaymentStatusPatch,
+  ): Promise<PaymentRecord | null>;
 }

@@ -1,0 +1,19 @@
+{
+  "admin-service": 1,
+  "auth-service": 0,
+  "crm-service": 1,
+  "customer-service": 5,
+  "dashboard-service": 1,
+  "delivery-service": 1,
+  "depot-service": 3,
+  "forecast-service": 1,
+  "hr-service": 17,
+  "loyalty-service": 1,
+  "order-service": 1,
+  "payment-service": 1,
+  "payout-service": 1,
+  "product-service": 1,
+  "promo-service": 1,
+  "recommendation-service": 1,
+  "referral-service": 1
+}

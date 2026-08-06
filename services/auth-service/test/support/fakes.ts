@@ -190,11 +190,20 @@ export class InMemoryCustomerRepository implements CustomerRepository {
     limit: number,
     role?: Role,
     depotId?: string,
+    search?: string,
   ): Promise<{ items: Customer[]; total: number }> {
+    const term = search?.trim().toLowerCase();
     const all = [...this.rows.values()]
       .filter((p) => p.status !== CustomerStatus.DELETED)
       .filter((p) => (role ? p.role === role : p.role !== Role.CUSTOMER))
       .filter((p) => (depotId ? p.assignedDepotId === depotId : true))
+      // Models the repository's OR predicate, so a search test cannot pass against
+      // a repository that ignores the term.
+      .filter((p) =>
+        term
+          ? (p.fullName ?? '').toLowerCase().includes(term) || p.phone.toLowerCase().includes(term)
+          : true,
+      )
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     const items = all
       .slice((page - 1) * limit, page * limit)
@@ -240,11 +249,11 @@ export class InMemoryOtpTokenRepository implements OtpTokenRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return active[0] ? { ...active[0] } : null;
   }
-  async incrementAttempts(id: string): Promise<void> {
-    const row = this.rows.find((r) => r.id === id);
-    if (row) {
-      row.attempts += 1;
-    }
+  async claimAttempt(id: string, maxAttempts: number): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id && !r.consumedAt && r.attempts < maxAttempts);
+    if (!row) return false;
+    row.attempts += 1;
+    return true;
   }
   async markConsumed(id: string, consumedAt: Date): Promise<void> {
     const row = this.rows.find((r) => r.id === id);
@@ -327,7 +336,9 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
     }
     this.entries.push(entry);
   }
-  async list(query: AuditLogQuery): Promise<{ items: AuditLogListItem[]; total: number }> {
+  async list(
+    query: AuditLogQuery,
+  ): Promise<{ items: AuditLogListItem[]; total: number; nextCursor: string | null }> {
     const category = query.type ? AUDIT_CATEGORIES[query.type] : undefined;
     const all = this.entries
       .filter((e) => !query.action || e.action === query.action)
@@ -356,8 +367,16 @@ export class InMemoryAuditLogRepository implements AuditLogRepository {
         }),
       )
       .reverse();
-    const start = (query.page - 1) * query.limit;
-    return { items: all.slice(start, start + query.limit), total: all.length };
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((e) => e.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
+    return {
+      items,
+      total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
+    };
   }
   actions(): string[] {
     return this.entries.map((e) => e.action);

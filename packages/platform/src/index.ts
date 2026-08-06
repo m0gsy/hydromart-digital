@@ -1,5 +1,27 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
+export { readAllPages } from './domain/read-all';
+export {
+  pageArgs,
+  nextCursor,
+  type KeysetArgs,
+  type KeysetQuery,
+} from './domain/keyset';
 export { Role } from './domain/role.enum';
+export { money } from './domain/money';
+export {
+  BUSINESS_TIME_ZONE,
+  addLocalDays,
+  addLocalMonths,
+  dayStartUtc,
+  localDayKey,
+  localDayRange,
+  localHour,
+  localMonthKey,
+  localMonthRange,
+  startOfLocalDay,
+  startOfLocalMonth,
+  zoneOffsetMs,
+} from './domain/business-time';
 export {
   runImport,
   type ImportRowResult,
@@ -19,6 +41,11 @@ export {
   CAPABILITY_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
+export {
+  recordAuditEvent,
+  type AuditEvent,
+  type AuditTrailConfig,
+} from './nest/audit-trail';
 export {
   startCapabilityRefresh,
   httpCapabilityLoader,
@@ -51,15 +78,26 @@ export {
 } from './nest/depot-scope-resolver';
 export { httpSuperiorResolver, type SuperiorResolver } from './nest/superior-resolver';
 export { InternalAuthGuard, INTERNAL_KEY_HEADER } from './nest/internal-auth.guard';
+export { LOG_REDACT_PATHS, redactPaths } from './nest/log-redact';
 export { AllExceptionsFilter } from './nest/all-exceptions.filter';
 export { alertServerError } from './nest/error-alerter';
 export { GlobalValidationPipe } from './nest/validation.pipe';
 export { IsNotBefore } from './nest/date-range.validator';
+export { IsWithinDays, MAX_RANGE_DAYS } from './nest/date-range-span.validator';
 export { IsPublicHttpsUrl } from './nest/public-url.validator';
 export { IsIanaTimezone } from './nest/timezone.validator';
 export { enableMetrics } from './nest/metrics';
+export {
+  DEFAULT_MAX_ROWS,
+  loggedQueryBounds,
+  queryBoundsMiddleware,
+  type QueryBoundsMiddleware,
+  type QueryBoundsOptions,
+  type QueryBoundsParams,
+} from './nest/query-bounds';
 export { protectDocs } from './nest/docs-guard';
 export { requiredSecret, optionalSecret } from './config/env-secret';
+export { sniffFileType, SNIFFED_MIME, type SniffedType } from './upload/file-type';
 export {
   SettingType,
   SettingRow,
@@ -68,3 +106,9 @@ export {
   resolveRaw,
   SettingsCache,
 } from './config/settings';
+export {
+  SettingsSliceService,
+  type SettingDef,
+  type SettingsSliceRepository,
+  type PutSettingInput,
+} from './config/settings-slice';

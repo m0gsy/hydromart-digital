@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Role, Roles } from '@hydromart/platform';
 
@@ -14,12 +14,14 @@ import { SaveSystemSettingsDto, SystemSettingsDto } from './dto/system-settings.
 export class SystemSettingsController {
   constructor(private readonly settings: SystemSettingsService) {}
 
+  @ApiOkResponse({ type: SystemSettingsDto })
   @Get()
   @ApiOperation({ summary: 'Read platform settings (timezone, currency, service radius)' })
   async get(): Promise<SystemSettingsDto> {
     return SystemSettingsDto.from(await this.settings.get());
   }
 
+  @ApiOkResponse({ type: SystemSettingsDto })
   @Put()
   @ApiOperation({ summary: 'Replace platform settings' })
   async save(@Body() dto: SaveSystemSettingsDto): Promise<SystemSettingsDto> {

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalMonths, dayStartUtc } from '@hydromart/platform';
 
 import {
   DashboardSourcesPort,
@@ -39,6 +40,7 @@ export interface NetworkDashboard {
     inventory: 'ok' | 'unavailable';
   };
 }
+import { DashboardConfigService } from '../../config/dashboard-config.service';
 import { DASHBOARD_TOKENS } from '../tokens';
 
 export interface ExecutiveDashboard {
@@ -139,11 +141,16 @@ export class DashboardService {
 
   constructor(
     @Inject(DASHBOARD_TOKENS.Sources) private readonly sources: DashboardSourcesPort,
+    private readonly config: DashboardConfigService,
   ) {}
 
   async monthlyPnl(depotId: string, month: string, token: string): Promise<MonthlyOperationalPnl> {
-    const fromDate = new Date(`${month}-01T00:00:00.000Z`);
-    const toDate = new Date(Date.UTC(fromDate.getUTCFullYear(), fromDate.getUTCMonth() + 1, 1));
+    // H-16: `${month}-01T00:00Z` is 07:00 WIB on the 1st, so the P&L window started
+    // seven hours late and ended seven hours late — the first and last day of every
+    // month were both partly wrong.
+    const tz = this.config.businessTimeZone;
+    const fromDate = dayStartUtc(`${month}-01`, tz);
+    const toDate = addLocalMonths(fromDate, 1, tz);
     const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
     const [order, costs] = await Promise.all([
       this.sources.depotMonthly(depotId, month, token),
@@ -309,12 +316,18 @@ export class DashboardService {
     const depotIds = (depots ?? []).map((d) => d.id);
     const deliverySlaP =
       depotIds.length > 0 ? this.sources.deliverySla(range, token, depotIds) : Promise.resolve(null);
+    // One call per source for the whole set of owned depots, not one per depot (audit
+    // S-1): an owner with 12 depots used to open this page with 36 HTTP requests.
+    // Still best-effort per source — a null keeps that section 'unavailable' and the rest
+    // of the dashboard renders.
     const lowStockP: Promise<(LowStockLine[] | null)[]> = depots
-      ? Promise.all(depots.map((d) => this.sources.lowStock(d.id, token)))
+      ? this.sources
+          .lowStockMany(depotIds, token)
+          .then((byDepot) => depotIds.map((id) => byDepot?.get(id) ?? null))
       : Promise.resolve([]);
-    // HR + CRM per-depot summaries (Fase 5) — internal-key fan-out, best-effort per depot.
-    const hrP = Promise.all(depotIds.map((id) => this.sources.hrSummary(id)));
-    const crmP = Promise.all(depotIds.map((id) => this.sources.crmSummary(id)));
+    // HR + CRM per-depot summaries (Fase 5) — internal-key batch, best-effort per depot.
+    const hrP = this.sources.hrSummaryMany(depotIds);
+    const crmP = this.sources.crmSummaryMany(depotIds);
     const [deliverySla, lowStockLists, hrList, crmList] = await Promise.all([
       deliverySlaP,
       lowStockP,

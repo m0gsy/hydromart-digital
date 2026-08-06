@@ -317,8 +317,13 @@ model EmploymentHistory {
 model FaceEmbedding {
   id             String   @id @default(uuid()) @db.Uuid
   employeeId     String   @db.Uuid
-  /// L2-normalized 512-float embedding. Cosine similarity done in-service (no pgvector).
+  /// LEGACY plaintext embedding, kept only so enrolments made before B-19 still verify.
+  /// Written empty on every new enrolment; drop the column once no row has one.
   vector         Float[]
+  /// L2-normalized 512-float embedding, AES-256-GCM (iv||tag||ciphertext). Biometric data
+  /// cannot be reissued after a leak, so it never rests in the clear. Cosine similarity is
+  /// still done in-service on the decrypted vector (no pgvector).
+  vectorEnc      Bytes?
   quality        Float    @default(0)
   sourcePhotoUrl String?
   active         Boolean  @default(true)
@@ -848,6 +853,11 @@ model ServiceSetting {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // H-11: also two PARTIAL unique indexes, added in migration
+  // 20260803160000_service_settings_unique and invisible to Prisma, which cannot express a
+  // WHERE on an index: one key per depot, and one key globally. A plain @@unique here would
+  // not constrain the GLOBAL rows — depotId is null on those and Postgres treats every NULL
+  // as distinct. The repository upserts against them by catching the violation.
   @@index([scope, depotId])
   @@map("service_settings")
 }

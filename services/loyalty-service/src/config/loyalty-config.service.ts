@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SettingsCache } from '@hydromart/platform';
+import { SettingsCache, BUSINESS_TIME_ZONE } from '@hydromart/platform';
 
 import { MembershipTier, TIER_BENEFITS, TierBenefit } from '../domain/membership';
 import { SETTING_DEF_BY_KEY, TIER_SETTING_KEYS } from './setting-defs';
@@ -83,5 +83,10 @@ export class LoyaltyConfigService {
   /** Shared service-to-service secret (x-internal-key). Blank = internal calls disabled. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
+  }
+
+  /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

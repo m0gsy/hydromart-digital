@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { money, recordAuditEvent } from '@hydromart/platform';
 
 import {
   CashShortError,
@@ -21,6 +22,8 @@ import {
   computeChange,
   isOnlineMethod,
   isRefundable,
+  isWebhookFresh,
+  webhookSigningPayload,
 } from '../../domain/payment';
 import { PaymentConfigService } from '../../config/payment-config.service';
 import { Page, buildPage } from '../pagination';
@@ -52,6 +55,8 @@ export interface ListPaymentsInput {
   status?: PaymentStatus;
   page?: number;
   limit?: number;
+  /** Keyset cursor from the previous page's `nextCursor` (audit Q-16). */
+  cursor?: string;
 }
 
 /** Provider webhook event mapped to a settlement outcome. */
@@ -60,11 +65,10 @@ export type WebhookEvent = 'PAID' | 'FAILED';
 export interface WebhookPayload {
   reference: string;
   event: WebhookEvent;
+  /** Epoch milliseconds when the provider signed it — inside the HMAC, so it cannot be
+   *  edited to refresh a captured request (Q-15). */
+  timestamp: number;
   signature: string;
-}
-
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 @Injectable()
@@ -219,6 +223,11 @@ export class PaymentService {
       this.logger.log(
         `Refund for ${id} (${payment.amount}) queued for HQ approval by ${changedBy}`,
       );
+      await this.audit(changedBy, 'payment.refund.requested', payment, {
+        amountIdr: payment.amount,
+        thresholdIdr: this.config.refundApprovalThreshold,
+        reason: reason ?? null,
+      });
       return this.payments.update(id, {
         status: payment.status, // stays PAID until approved
         refundApproval: RefundApproval.PENDING,
@@ -311,6 +320,12 @@ export class PaymentService {
       throw new RefundNotPendingError();
     }
     this.logger.log(`Refund ${id} rejected by ${changedBy}`);
+    // success:false — a refused approval is a decision someone made, and the record of
+    // who refused what is exactly as load-bearing as the record of who approved.
+    await this.audit(changedBy, 'payment.refund.rejected', payment, {
+      amountIdr: payment.amount,
+      reason: reason ?? payment.refundReason ?? null,
+    }, false);
     return this.payments.update(id, {
       status: payment.status, // stays PAID
       refundApproval: RefundApproval.REJECTED,
@@ -332,17 +347,43 @@ export class PaymentService {
       refundedAmount: payment.amount,
       refundApproval: approval,
     };
+
+    // B-9: CLAIM FIRST. The status move used to happen after the gateway call and matched
+    // on `id` alone, so two concurrent refunds both passed the isRefundable check and both
+    // sent money back — the customer was paid twice and nothing recorded that it happened.
+    // Moving the row out of a refundable status is what makes exactly one caller the
+    // refunder, and it only counts if it happens before we spend anything.
+    const claimed = await this.payments.updateIfStatus(payment.id, [payment.status], patch);
+    if (!claimed) {
+      throw new PaymentNotRefundableError(payment.status);
+    }
+
     if (isOnlineMethod(payment.method) && payment.reference) {
       try {
         const result = await this.gateway.refund(payment.reference, payment.amount);
         patch.gatewayData = result.raw;
       } catch (error) {
+        // Hand the claim back so a retry is possible. A crash between the claim and this
+        // revert leaves the payment REFUNDED without the money having moved — visible in
+        // reconciliation and fixable, unlike paying the customer a second time.
+        await this.payments
+          .update(payment.id, { status: payment.status, refundedAt: null, refundApproval: payment.refundApproval })
+          .catch(() => {});
         this.logger.error(`Gateway refund failed for ${payment.id}: ${(error as Error).message}`);
         throw new GatewayUnavailableError();
       }
     }
     this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
     const updated = await this.payments.update(payment.id, patch);
+    // H-29: recorded AFTER the money moved, so the trail never claims a refund that the
+    // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
+    // the threshold that needed nobody — that difference is the whole point of the queue.
+    await this.audit(changedBy, 'payment.refund.settled', payment, {
+      amountIdr: payment.amount,
+      method: payment.method,
+      approval,
+      reason,
+    });
     // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
     // is already settled, so a coordination hiccup must never surface as a payment error.
     await this.orderCoordination.notifyRefunded(payment.orderId, payment.amount);
@@ -375,9 +416,48 @@ export class PaymentService {
     return { handled: true };
   }
 
-  private verifySignature(payload: WebhookPayload): boolean {
+  /**
+   * Records one refund decision to the shared audit trail (H-29).
+   *
+   * Fail-open by construction — see recordAuditEvent. The refund has already settled by
+   * the time this runs, so it cannot be allowed to throw; a dropped entry is logged at
+   * `error` rather than silently lost.
+   */
+  private async audit(
+    changedBy: string,
+    action: string,
+    payment: PaymentRecord,
+    metadata: Record<string, unknown>,
+    success = true,
+  ): Promise<void> {
+    await recordAuditEvent(
+      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+      {
+        action,
+        actorId: changedBy || null,
+        target: payment.reference ?? payment.id,
+        success,
+        metadata: { ...metadata, paymentId: payment.id, orderId: payment.orderId },
+      },
+      this.logger,
+    );
+  }
+
+  /**
+   * Q-15: the HMAC used to cover `${reference}.${event}` only — two fields of the
+   * request, and no timestamp. Any field the provider added later would have arrived
+   * unauthenticated, and a captured PAID callback stayed valid forever. It now covers
+   * every field except the signature, and the request must be fresh.
+   */
+  private verifySignature(payload: WebhookPayload, now = Date.now()): boolean {
+    if (!isWebhookFresh(Number(payload.timestamp), now)) {
+      this.logger.warn(
+        `Webhook for ${payload.reference} rejected: timestamp ${payload.timestamp} outside the replay window`,
+      );
+      return false;
+    }
     const expected = createHmac('sha256', this.config.webhookSecret)
-      .update(`${payload.reference}.${payload.event}`)
+      .update(webhookSigningPayload(payload as unknown as Record<string, unknown>))
       .digest('hex');
     const provided = payload.signature ?? '';
     if (provided.length !== expected.length) {
@@ -415,13 +495,14 @@ export class PaymentService {
   ): Promise<Page<PaymentRecord>> {
     const page = Math.max(1, input.page ?? 1);
     const limit = Math.min(PaymentService.MAX_LIMIT, Math.max(1, input.limit ?? 20));
-    const { items, total } = await this.payments.search({
+    const { items, total, nextCursor } = await this.payments.search({
       page,
       limit,
+      cursor: input.cursor,
       customerId: input.customerId,
       orderId: input.orderId,
       status: input.status,
     });
-    return buildPage(items, total, page, limit);
+    return buildPage(items, total, page, limit, nextCursor);
   }
 }

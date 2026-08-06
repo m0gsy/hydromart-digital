@@ -67,16 +67,45 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     return this.prisma.attendance.create({ data: input });
   }
 
+  /**
+   * Q-8: this was three COUNTs over the same table and the same filter, wrapped in a
+   * read-only `$transaction` — a snapshot bought for arithmetic that summaryMany()
+   * already does in one grouped query. Delegating keeps exactly one definition of what
+   * "present / late / leave" means; the two used to be kept in step by a comment.
+   */
   async summary(employeeId: string, from: Date, to: Date): Promise<AttendanceSummary> {
-    const workDate = { gte: from, lte: to };
-    const [presentDays, lateDays, leaveDays] = await this.prisma.$transaction([
-      this.prisma.attendance.count({
-        where: { employeeId, workDate, status: { in: ['PRESENT', 'LATE'] } },
-      }),
-      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LATE' } }),
-      this.prisma.attendance.count({ where: { employeeId, workDate, status: 'LEAVE' } }),
-    ]);
-    return { presentDays, lateDays, leaveDays };
+    const byEmployee = await this.summaryMany([employeeId], from, to);
+    return byEmployee.get(employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
+  }
+
+  /**
+   * The same three counts as `summary`, for a whole set of employees, in one grouped query
+   * (audit S-6). The performance dashboard used to call `summary` per employee — three
+   * counts each, 600 queries for a 200-person depot.
+   */
+  async summaryMany(
+    employeeIds: string[],
+    from: Date,
+    to: Date,
+  ): Promise<Map<string, AttendanceSummary>> {
+    const out = new Map<string, AttendanceSummary>();
+    if (employeeIds.length === 0) return out;
+
+    const rows = await this.prisma.attendance.groupBy({
+      by: ['employeeId', 'status'],
+      where: { employeeId: { in: employeeIds }, workDate: { gte: from, lte: to } },
+      _count: { _all: true },
+    });
+    for (const row of rows) {
+      const entry = out.get(row.employeeId) ?? { presentDays: 0, lateDays: 0, leaveDays: 0 };
+      // PRESENT and LATE are both days worked; LATE additionally counts as late. Same
+      // arithmetic as summary(), which counts PRESENT+LATE for presentDays.
+      if (row.status === 'PRESENT' || row.status === 'LATE') entry.presentDays += row._count._all;
+      if (row.status === 'LATE') entry.lateDays += row._count._all;
+      if (row.status === 'LEAVE') entry.leaveDays += row._count._all;
+      out.set(row.employeeId, entry);
+    }
+    return out;
   }
 
   /** M24-17: worked minutes per attended day, so payroll can rate holidays separately. */

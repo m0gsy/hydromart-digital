@@ -1,11 +1,12 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can } from '@hydromart/platform';
 
 import { CommissionService } from '../application/services/commission.service';
 import { CommissionSchemeRecord } from '../domain/commission';
 import { ApplySchemeDto } from './dto/commission.dto';
+import { CommissionSchemeResponseDto } from './dto/responses.generated.dto';
 
 /**
  * HQ commission-scheme config (design 21c). Finance-owned: FINANCE + SUPER_ADMIN,
@@ -20,12 +21,14 @@ import { ApplySchemeDto } from './dto/commission.dto';
 export class CommissionController {
   constructor(private readonly commission: CommissionService) {}
 
+  @ApiOkResponse({ type: CommissionSchemeResponseDto, isArray: true })
   @Get('schemes')
   @ApiOperation({ summary: 'Current commission percentage per depot (latest effective scheme)' })
   listSchemes(): Promise<CommissionSchemeRecord[]> {
     return this.commission.listCurrent();
   }
 
+  @ApiOkResponse({ type: CommissionSchemeResponseDto, isArray: true })
   @Post('schemes/apply')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Apply a new commission scheme (bulk per-depot %, effective date)' })

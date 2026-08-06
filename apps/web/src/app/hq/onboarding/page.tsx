@@ -32,7 +32,7 @@ export default function HqOnboardingPage() {
   const { t } = useT();
   const [depotId, setDepotId] = useState('');
 
-  const depots = useAsync<Page<DepotAdmin>>(() => api.get(endpoints.depots.manage({ limit: 100 }), true));
+  const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const depot = useAsync<DepotAdmin | null>(
     () => (depotId ? api.get<DepotAdmin>(endpoints.depots.detail(depotId), true) : Promise.resolve(null)),
     [depotId],

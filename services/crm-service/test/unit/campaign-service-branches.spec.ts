@@ -47,8 +47,9 @@ describe('CampaignService branches', () => {
     const whatsapp: WhatsappBroadcastPort = { send: async () => ({ ok: false }) };
     const svc = service(whatsapp);
     const created = await svc.create('staff', 'Blast', 'Hi {{name}}', [{ phone: '+6281' }]);
-    const sent = await svc.send(created.id);
-    const recipient = sent.recipients[0];
+    await svc.send(created.id);
+    await svc.processSending();
+    const recipient = (await svc.get(created.id)).recipients[0];
     expect(recipient.status).toBe(RecipientStatus.FAILED);
     expect(recipient.error).toBe('unknown error');
   });

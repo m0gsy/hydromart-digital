@@ -13,6 +13,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
+
 import { AccountService } from '../../application/services/account.service';
 import { StoragePort } from '../../application/ports/storage.port';
 import { AUTH_TOKENS } from '../../application/tokens';
@@ -22,12 +24,6 @@ import { PublicCustomerDto } from './dto/responses.dto';
 import { MulterExceptionFilter } from './multer-exception.filter';
 
 const MAX_BYTES = 5 * 1024 * 1024;
-const ALLOWED: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
 /**
  * Any authenticated account may set its own avatar. Auth is enforced by the global
  * JwtAuthGuard (no @Roles needed); the uploaded file is stored via the StoragePort
@@ -57,7 +53,11 @@ export class AvatarController {
     if (!file) {
       throw new BadRequestException('file is required');
     }
-    const ext = ALLOWED[file.mimetype];
+    // H-20: `file.mimetype` is the Content-Type the CLIENT typed into the multipart part.
+    // Trust the bytes instead — the bucket serves whatever lands there straight back to
+    // browsers, so a .html or an .svg wearing an image/jpeg label is a stored XSS.
+    const sniffed = sniffFileType(file.buffer);
+    const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
     if (!ext) {
       throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
     }
@@ -70,7 +70,7 @@ export class AvatarController {
     // the real cause so ops can see WHICH bucket/endpoint failed.
     let url: string;
     try {
-      ({ url } = await this.storage.put({ body: file.buffer, contentType: file.mimetype, ext }));
+      ({ url } = await this.storage.put({ body: file.buffer, contentType: SNIFFED_MIME[ext], ext }));
     } catch (error) {
       this.logger.error(`Avatar upload failed for ${user.sub}: ${(error as Error).message}`);
       throw new ServiceUnavailableException(

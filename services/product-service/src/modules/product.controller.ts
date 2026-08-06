@@ -19,6 +19,7 @@ import { ProductService } from '../application/services/product.service';
 import { ProductRecord } from '../application/ports/product.repository';
 import { Page } from '../application/pagination';
 import { BrowseProductsQueryDto, CreateProductDto, UpdateProductDto } from './dto/product.dto';
+import { PagedProductResponseDto, ProductResponseDto } from './dto/responses.generated.dto';
 
 const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 
@@ -27,6 +28,7 @@ const ADMIN_ROLES = [Role.MANAGER, Role.SUPER_ADMIN] as const;
 export class ProductController {
   constructor(private readonly products: ProductService) {}
 
+  @ApiOkResponse({ type: PagedProductResponseDto })
   @Public()
   @Get()
   @ApiOperation({ summary: 'Browse the catalog (paginated, active products only)' })
@@ -38,12 +40,30 @@ export class ProductController {
   // who unticked "aktif" could never tick it back. Admins get the unfiltered set on
   // their own route rather than a flag on the public one — nothing extra leaks to the
   // shop. Declared above `:id` so 'all' is not parsed as a product id.
+  @ApiOkResponse({ type: PagedProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Get('all')
   @ApiOperation({ summary: 'Browse every product, active or not (admin)' })
   browseAll(@Query() query: BrowseProductsQueryDto): Promise<Page<ProductRecord>> {
     return this.products.browse(query, false);
+  }
+
+  // The batch of the route below (audit S-7): checkout resolves every cart line at once,
+  // and used to open one HTTP call per line to do it. Declared above `:id` so 'batch' is
+  // not parsed as a product id. Active only, same as the single-product route; an id that
+  // does not exist is simply absent from the reply rather than failing the whole call.
+  @ApiOkResponse({ type: ProductResponseDto, isArray: true })
+  @Public()
+  @Get('batch')
+  @ApiOperation({ summary: 'Get many active products by id, comma-separated' })
+  batch(@Query('ids') ids: string): Promise<ProductRecord[]> {
+    return this.products.byIds(
+      (ids ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
   }
 
   @Public()
@@ -54,6 +74,7 @@ export class ProductController {
     return this.products.get(id, true);
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Post()
@@ -73,6 +94,7 @@ export class ProductController {
     });
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Patch(':id')
@@ -84,6 +106,7 @@ export class ProductController {
     return this.products.update(id, dto);
   }
 
+  @ApiOkResponse({ type: ProductResponseDto })
   @ApiBearerAuth()
   @Roles(...ADMIN_ROLES)
   @Delete(':id')

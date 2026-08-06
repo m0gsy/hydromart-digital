@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { rankReorder } from '../../domain/reorder';
 import { rankRelated } from '../../domain/co-buy';
-import { rankTrending } from '../../domain/trending';
 import { IngestCommand, RecommendationRepository } from '../ports/recommendation.repository';
 import { RECOMMENDATION_TOKENS } from '../tokens';
 
@@ -62,8 +61,8 @@ export class RecommendationService {
 
   async trending(depotId: string | null, days: number, limit: number, now: Date = new Date()): Promise<RecItem[]> {
     const fromDay = new Date(utcMidnight(now).getTime() - (clampDays(days) - 1) * 86_400_000);
-    const rows = await this.repo.trendingRows(depotId, fromDay);
-    const ranked = rankTrending(rows, fromDay, clampLimit(limit));
+    // Summed, ranked and limited by Postgres (audit S-18).
+    const ranked = await this.repo.trendingTotals(depotId, fromDay, clampLimit(limit));
     // ponytail: ML re-ranker seam — a future model would re-rank `ranked` before enrichment.
     return this.enrich(ranked);
   }

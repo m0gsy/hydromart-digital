@@ -11,6 +11,13 @@ import {
 } from '../../application/ports/incident.repository';
 import { PrismaService } from './prisma.service';
 
+/**
+ * Incident updates are nested inside the incident, so no middleware bound reaches them and
+ * every incident in the LIST carried its whole update history (audit H-47). Newest first,
+ * capped: a long-running incident's older notes are history, not the status page.
+ */
+const UPDATES_TAIL = { orderBy: { createdAt: 'desc' as const }, take: 50 };
+
 interface IncidentUpdateRow {
   id: string;
   incidentId: string;
@@ -48,7 +55,7 @@ export class IncidentPrismaRepository implements IncidentRepository {
     const rows = await this.prisma.incident.findMany({
       where,
       orderBy: { startedAt: 'desc' },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: UPDATES_TAIL },
     });
     return rows.map((r) => this.toRecord(r));
   }
@@ -61,7 +68,7 @@ export class IncidentPrismaRepository implements IncidentRepository {
         affectedService: data.affectedService,
         note: data.note ?? null,
       },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: UPDATES_TAIL },
     });
     return this.toRecord(row);
   }
@@ -83,7 +90,7 @@ export class IncidentPrismaRepository implements IncidentRepository {
     }
     const row = await this.prisma.incident.findUnique({
       where: { id },
-      include: { updates: { orderBy: { createdAt: 'desc' } } },
+      include: { updates: UPDATES_TAIL },
     });
     return row ? this.toRecord(row) : null;
   }

@@ -306,6 +306,7 @@ describe('RetentionController', () => {
   const retention = {
     listPolicies: jest.fn(),
     getBackupStatus: jest.fn(),
+    recordBackupRun: jest.fn(),
     updatePolicy: jest.fn(),
   };
   const purge = { run: jest.fn() };
@@ -327,7 +328,14 @@ describe('RetentionController', () => {
 
   it('get maps policies + backup status with a real lastBackupAt', async () => {
     retention.listPolicies.mockResolvedValue([makeRetentionPolicy()]);
-    const backup: BackupStatusRecord = { status: 'OK', lastBackupAt: now };
+    const backup: BackupStatusRecord = {
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G, 16 databases',
+      drillStatus: 'OK',
+      lastDrillAt: now,
+      drillDetail: '16 databases restored',
+    };
     retention.getBackupStatus.mockResolvedValue(backup);
     const out = await controller.get();
     expect(out.policies).toHaveLength(1);
@@ -336,10 +344,51 @@ describe('RetentionController', () => {
 
   it('get maps a never-run backup status (null lastBackupAt)', async () => {
     retention.listPolicies.mockResolvedValue([]);
-    const backup: BackupStatusRecord = { status: 'NONE', lastBackupAt: null };
+    const backup: BackupStatusRecord = {
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    };
     retention.getBackupStatus.mockResolvedValue(backup);
     const out = await controller.get();
     expect(out.backup.lastBackupAt).toBeNull();
+  });
+
+  // H-37: the endpoint the VPS cron jobs POST to. It stamps `at` server-side so a wrong
+  // clock on the box cannot backdate a backup into looking fresher than it is.
+  it('recordBackupRun stamps the time server-side and maps the result', async () => {
+    retention.recordBackupRun.mockResolvedValue({
+      status: 'OK',
+      lastBackupAt: now,
+      detail: '1.2G',
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    });
+    const out = await controller.recordBackupRun({ kind: 'BACKUP', status: 'OK', detail: '1.2G' });
+    expect(retention.recordBackupRun).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'BACKUP', status: 'OK', detail: '1.2G', at: expect.any(Date) }),
+    );
+    expect(out.drillStatus).toBe('NONE');
+    expect(out.lastDrillAt).toBeNull();
+  });
+
+  it('recordBackupRun normalises a missing detail to null', async () => {
+    retention.recordBackupRun.mockResolvedValue({
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'FAILED',
+      lastDrillAt: now,
+      drillDetail: null,
+    });
+    await controller.recordBackupRun({ kind: 'DRILL', status: 'FAILED' });
+    expect(retention.recordBackupRun).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'DRILL', detail: null }),
+    );
   });
 
   it('update delegates the window change', async () => {

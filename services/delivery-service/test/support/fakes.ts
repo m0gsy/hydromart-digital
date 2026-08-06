@@ -6,10 +6,12 @@ import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
+import { StaleDeliveryStatusError } from '../../src/domain/errors';
 import {
   CreateDeliveryData,
   DeliveredRow,
   DeliveryQuery,
+  DeliveryPingState,
   DeliveryRecord,
   DeliveryRepository,
   DeliveryTimestamps,
@@ -119,6 +121,25 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const row = this.rows.find((r) => r.id === id);
     return row ? clone(row) : null;
   }
+  // Audit S-17: the narrow ping read. It returns ONLY the columns the real projection
+  // selects, so a service that starts reading history off it fails here first.
+  pingStateCalls = 0;
+  async findPingState(id: string): Promise<DeliveryPingState | null> {
+    this.pingStateCalls += 1;
+    const row = this.rows.find((r) => r.id === id);
+    return row
+      ? {
+          id: row.id,
+          driverId: row.driverId,
+          status: row.status,
+          depotId: row.depotId,
+          destinationLat: row.destinationLat,
+          destinationLng: row.destinationLng,
+          lastLat: row.lastLat,
+          lastLng: row.lastLng,
+        }
+      : null;
+  }
   async findByOrder(orderId: string): Promise<DeliveryRecord | null> {
     const row = this.rows.find((r) => r.orderId === orderId);
     return row ? clone(row) : null;
@@ -141,16 +162,23 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
     return { attempts: mine.length, firstAttemptAt: mine[0]?.createdAt ?? null };
   }
-  async search(query: DeliveryQuery): Promise<{ items: DeliveryRecord[]; total: number }> {
+  async search(
+    query: DeliveryQuery,
+  ): Promise<{ items: DeliveryRecord[]; total: number; nextCursor: string | null }> {
     const all = this.rows
       .filter((r) => !query.driverId || r.driverId === query.driverId)
       .filter((r) => !query.depotIds || (r.depotId != null && query.depotIds.includes(r.depotId)))
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());
-    const start = (query.page - 1) * query.limit;
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = query.cursor
+      ? all.findIndex((r) => r.id === query.cursor) + 1
+      : (query.page - 1) * query.limit;
+    const items = all.slice(start, start + query.limit);
     return {
-      items: all.slice(start, start + query.limit).map((r) => clone(r)),
+      items: items.map((r) => clone(r)),
       total: all.length,
+      nextCursor: items.length === query.limit ? (items[items.length - 1]?.id ?? null) : null,
     };
   }
   async deliveredOrderIdsInWindow(driverId: string, from: Date, to: Date): Promise<string[]> {
@@ -260,12 +288,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   async applyStatus(
     id: string,
+    from: DeliveryStatus,
     status: DeliveryStatus,
     timestamps: DeliveryTimestamps,
     changedBy: string | null,
     note: string | null,
   ): Promise<DeliveryRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // The compare-and-set the real repository does in its WHERE (H-5).
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleDeliveryStatusError();
     Object.assign(row, timestamps, { status, updatedAt: nextDate() });
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return clone(row);
@@ -290,11 +321,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   async completeWithProof(
     id: string,
+    from: DeliveryStatus,
     proof: Omit<ProofRecord, 'capturedAt'>,
     changedBy: string,
     capturedAt: Date,
   ): Promise<DeliveryRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
+    // One handover, one proof row, one courier earning — however many times Selesai is
+    // tapped. Same guard the real repository carries (H-5).
+    const row = this.rows.find((r) => r.id === id && r.status === from);
+    if (!row) throw new StaleDeliveryStatusError();
     const now = nextDate();
     row.status = DeliveryStatus.DELIVERED;
     row.deliveredAt = capturedAt;
@@ -303,15 +338,18 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
     return clone(row);
   }
-  async purgeProofsBefore(cutoff: Date): Promise<number> {
+  async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
     let count = 0;
+    const urls: string[] = [];
     for (const r of this.rows) {
       if (r.proof && r.proof.capturedAt.getTime() < cutoff.getTime()) {
+        urls.push(r.proof.photoUrl);
+        if (r.proof.signatureUrl) urls.push(r.proof.signatureUrl);
         r.proof = null;
         count += 1;
       }
     }
-    return count;
+    return { count, urls };
   }
   async slaStats(
     range: ReportRange,

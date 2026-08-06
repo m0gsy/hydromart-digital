@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
 
 import { CrmConfigService } from '../config/crm-config.service';
 import { PushService } from '../application/services/push.service';
 import { SubscribePushDto } from './dto/push.dto';
+import { VapidPublicKey3ResponseDto } from './dto/responses.generated.dto';
 
 /**
  * Web Push subscription management (design 7b transport). Any authenticated user — the
@@ -21,12 +22,14 @@ export class PushController {
     private readonly config: CrmConfigService,
   ) {}
 
+  @ApiOkResponse({ type: VapidPublicKey3ResponseDto })
   @Get('vapid-public-key')
   @ApiOperation({ summary: 'Public VAPID key the browser needs to subscribe (empty = push off)' })
   vapidPublicKey(): { key: string } {
     return { key: this.config.vapid.publicKey };
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Post('subscriptions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Register this device for push notifications' })
@@ -38,6 +41,7 @@ export class PushController {
     });
   }
 
+  @ApiOkResponse({ description: 'No content.' })
   @Delete('subscriptions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiQuery({ name: 'endpoint', required: true })

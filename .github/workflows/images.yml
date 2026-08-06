@@ -1,0 +1,104 @@
+name: Images
+
+# H-31 + H-35 — build the production images OFF the production box, into an immutable
+# registry.
+#
+# Every image was built on the VPS that serves customers. A build peaks around 1.5 GB and
+# writes layers to the same disk Postgres uses, which is why rebuild-stale.sh exists at
+# all (serial batches, prune between them) and why a full rebuild is a capacity event on a
+# live machine. It is also how the 2026-08-02 outage happened: parallel BuildKit builds
+# tripped a daemon panic that stopped all 25 containers.
+#
+# Tags are the commit SHA and are never reused, so "which code is running" has an exact
+# answer and a rollback is a pull, not a rebuild. `main` moves; the SHA does not.
+#
+# The VPS opts in by setting IMAGE_PREFIX + IMAGE_TAG in .env (see DEPLOY.md). With them
+# unset, docker-compose.prod.yml still builds locally exactly as before — the bare-IP and
+# development paths are untouched.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    # Only ever off a green CI. An image in the registry is a thing someone will deploy.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      # One job per image: 20 runners in parallel instead of 20 serial builds on one box,
+      # and a single failing image does not cost the other nineteen their work.
+      fail-fast: false
+      matrix:
+        include:
+          - { service: auth, dockerfile: services/auth-service/Dockerfile }
+          - { service: customer, dockerfile: services/customer-service/Dockerfile }
+          - { service: product, dockerfile: services/product-service/Dockerfile }
+          - { service: order, dockerfile: services/order-service/Dockerfile }
+          - { service: payment, dockerfile: services/payment-service/Dockerfile }
+          - { service: delivery, dockerfile: services/delivery-service/Dockerfile }
+          - { service: depot, dockerfile: services/depot-service/Dockerfile }
+          - { service: dashboard, dockerfile: services/dashboard-service/Dockerfile }
+          - { service: loyalty, dockerfile: services/loyalty-service/Dockerfile }
+          - { service: promo, dockerfile: services/promo-service/Dockerfile }
+          - { service: referral, dockerfile: services/referral-service/Dockerfile }
+          - { service: crm, dockerfile: services/crm-service/Dockerfile }
+          - { service: recommendation, dockerfile: services/recommendation-service/Dockerfile }
+          - { service: forecast, dockerfile: services/forecast-service/Dockerfile }
+          - { service: payout, dockerfile: services/payout-service/Dockerfile }
+          - { service: admin, dockerfile: services/admin-service/Dockerfile }
+          - { service: hr, dockerfile: services/hr-service/Dockerfile }
+          - { service: gateway, dockerfile: services/gateway-service/Dockerfile }
+          - { service: web, dockerfile: apps/web/Dockerfile }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+        with:
+          # workflow_run checks out the default branch by default, not the commit CI
+          # actually passed on. The image tag must name the code inside it.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve tags
+        id: meta
+        run: |
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          repo="$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/${repo}-${{ matrix.service }}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          # The SHA tag is the immutable one and the only thing a deploy pins. `latest`
+          # exists for humans poking at the registry and is never deployed from.
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.sha }}
+            ${{ steps.meta.outputs.image }}:latest
+          # Layer cache lives in the Actions cache, not on the production disk. This is the
+          # cache the VPS never had — every build there was cold (CI-1, PR 9).
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.PUBLIC_API_URL }}

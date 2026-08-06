@@ -20,7 +20,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.mjs",
-    "postinstall": "prisma generate"
+    "postinstall": "node ../../scripts/prisma-generate-if-stale.mjs"
   },
   "dependencies": {
     "@hydromart/platform": "*",

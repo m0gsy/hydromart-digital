@@ -14,6 +14,8 @@ describe('ApiKeyService.rotate race guard', () => {
       create: jest.fn(),
       rotate: jest.fn().mockResolvedValue(null),
       revoke: jest.fn(),
+      findByHash: jest.fn(),
+      touchLastUsed: jest.fn(),
     };
     const service = new ApiKeyService(repo);
     await expect(service.rotate('k-1')).rejects.toBeInstanceOf(ApiKeyNotFoundError);

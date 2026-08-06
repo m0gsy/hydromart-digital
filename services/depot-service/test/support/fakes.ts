@@ -184,6 +184,13 @@ export class InMemoryDepotRepository implements DepotRepository {
     const r = this.rows.find((x) => x.id === id && (!activeOnly || x.active));
     return r ? { ...r } : null;
   }
+  // Audit S-19: the existence check the depot guard uses. Counted, so a test can prove the
+  // guard stopped reading whole rows.
+  existsCalls = 0;
+  async exists(id: string): Promise<boolean> {
+    this.existsCalls += 1;
+    return this.rows.some((x) => x.id === id);
+  }
   async findByCode(code: string): Promise<DepotRecord | null> {
     const r = this.rows.find((x) => x.code === code);
     return r ? { ...r } : null;
@@ -329,6 +336,35 @@ export class InMemoryInventoryRepository implements InventoryRepository {
     });
     return { ...rec };
   }
+  // Batch reads (audit S-3/S-24). Counted by the tests that pin the round-trip baseline,
+  // so they track calls rather than just answering.
+  findLinesCalls = 0;
+  async findLines(
+    depotId: string,
+    itemType: InventoryItemType,
+    productIds: string[],
+  ): Promise<InventoryItemRecord[]> {
+    this.findLinesCalls += 1;
+    return this.items
+      .filter(
+        (x) =>
+          x.depotId === depotId &&
+          x.itemType === itemType &&
+          x.productId !== null &&
+          productIds.includes(x.productId),
+      )
+      .map((x) => ({ ...x }));
+  }
+  movementLookupCalls = 0;
+  async itemsWithMovementForOrder(orderId: string, itemIds: string[]): Promise<Set<string>> {
+    this.movementLookupCalls += 1;
+    return new Set(
+      this.moves.filter((m) => m.orderId === orderId && itemIds.includes(m.itemId)).map((m) => m.itemId),
+    );
+  }
+  async countMovements(itemId: string, type: StockMovementType): Promise<number> {
+    return this.moves.filter((m) => m.itemId === itemId && m.type === type).length;
+  }
   async hasMovementForOrder(itemId: string, orderId: string): Promise<boolean> {
     return this.moves.some((m) => m.itemId === itemId && m.orderId === orderId);
   }
@@ -341,7 +377,7 @@ export class InMemoryInventoryRepository implements InventoryRepository {
   async listForDepotMovements(
     depotId: string,
     filter: DepotMovementFilter,
-  ): Promise<{ items: DepotStockMovementRecord[]; total: number }> {
+  ): Promise<{ items: DepotStockMovementRecord[]; total: number; nextCursor: string | null }> {
     const rows = this.moves
       .map((move) => ({ move, item: this.items.find((item) => item.id === move.itemId) }))
       .filter(({ item }) => item?.depotId === depotId)
@@ -352,15 +388,20 @@ export class InMemoryInventoryRepository implements InventoryRepository {
           (!filter.to || move.createdAt < filter.to),
       )
       .sort((a, b) => b.move.createdAt.getTime() - a.move.createdAt.getTime());
+    // Models the real repository: a cursor seeks past that row and ignores `page`.
+    const start = filter.cursor
+      ? rows.findIndex(({ move }) => move.id === filter.cursor) + 1
+      : (filter.page - 1) * filter.limit;
+    const page = rows.slice(start, start + filter.limit);
     return {
       total: rows.length,
-      items: rows
-        .slice((filter.page - 1) * filter.limit, filter.page * filter.limit)
-        .map(({ move, item }) => ({
-          ...move,
-          itemLabel: item!.label,
-          itemType: item!.itemType,
-        })),
+      nextCursor:
+        page.length === filter.limit ? (page[page.length - 1]?.move.id ?? null) : null,
+      items: page.map(({ move, item }) => ({
+        ...move,
+        itemLabel: item!.label,
+        itemType: item!.itemType,
+      })),
     };
   }
   async wastageAdjustments(

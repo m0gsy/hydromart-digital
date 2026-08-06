@@ -117,6 +117,7 @@ export const hq = {
     stub: 'sample data',
     unavailableSome: 'Some data could not be loaded ({sources}). Showing what is available.',
     dash: '—',
+    actionFailed: 'That action failed. Try again.',
     export: 'Export',
     save: 'Save',
     cancel: 'Cancel',
@@ -1051,7 +1052,9 @@ export const hq = {
     schedule: 'Schedule',
     needTitle: 'Title is required.',
     needMessage: 'Message is required.',
-    sent: 'Broadcast sent',
+    // B-17: delivery runs on the scheduler sweep now, so "sent" would be a claim we
+    // cannot make at this point. Progress is visible on the campaign itself.
+    sent: 'Broadcast queued — delivery is running now',
     scheduled: 'Broadcast scheduled (sample)',
     error: 'Failed to send the broadcast',
     scheduleUnsupported: 'Scheduling is not supported yet.',
@@ -1185,6 +1188,8 @@ export const hq = {
   apiKeys: {
     title: 'API keys',
     subtitle: 'Service credentials & access scopes',
+    howItWorks:
+      'A key authenticates partner calls to /api/v1/partner/* via the x-api-key header. Scopes are enforced per route (webhooks:read, webhooks:write) and revoking one takes effect on the next request. Last used tells you if anyone is actually calling.',
     create: '＋ Create key',
     createTitle: 'Create API key',
     name: 'Name',
@@ -1217,6 +1222,8 @@ export const hq = {
   webhooks: {
     title: 'Webhooks',
     subtitle: 'Event subscriptions & delivery success',
+    howItWorks:
+      'Subscribed endpoints receive a signed POST per event (X-Hydromart-Signature over the timestamp and body). Failures retry with backoff and are abandoned after six attempts; the success rate below is measured from real attempts.',
     add: '＋ Endpoint',
     createTitle: 'Add webhook',
     url: 'Endpoint URL',
@@ -1300,8 +1307,11 @@ export const hq = {
     backupTitle: 'Backup status',
     backupNone: 'No backup yet',
     backupNote:
-      'No backup engine is wired — this status is stored & shown as-is, never a fake "success".',
+      'Reported by the nightly dump and the weekly tested restore on the server. A restore drill is what makes a backup real — a dump nobody has restored is only an assumption.',
     lastBackup: 'Last backup',
+    drillTitle: 'Tested restore',
+    drillNone: 'Never tested',
+    lastDrill: 'Last drill',
     loadError: 'Could not load retention policies.',
     saveError: 'Could not save changes.',
     empty: 'No datasets yet.',

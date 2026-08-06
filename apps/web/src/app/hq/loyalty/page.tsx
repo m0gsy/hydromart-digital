@@ -2,6 +2,7 @@
 
 import { Crown, Gift } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Card, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -22,13 +23,7 @@ export default function HqLoyaltyPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2">
-        <Crown size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('hq.loyalty.title')}</h1>
-          <p className="text-sm text-muted">{t('hq.loyalty.subtitle')}</p>
-        </div>
-      </div>
+      <HqPageHeader icon={Crown} title={t('hq.loyalty.title')} subtitle={t('hq.loyalty.subtitle')} />
 
       {/* Tiers — REAL */}
       <Card className="flex flex-col gap-3 p-5">

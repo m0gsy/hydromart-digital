@@ -1,5 +1,22 @@
+import { randomUUID } from 'node:crypto';
+
+import { Logger } from '@nestjs/common';
 import { SettingsCache, SettingRow } from '@hydromart/platform';
 
+import { buildPage } from '../../src/application/pagination';
+import { DeliveryService } from '../../src/application/services/delivery.service';
+import { ShiftService } from '../../src/application/services/shift.service';
+import { DeliveryPrismaRepository } from '../../src/infrastructure/prisma/delivery.prisma.repository';
+import { ContactMethod } from '../../src/domain/no-show';
+import { DeliveryNotActiveError } from '../../src/domain/errors';
+import {
+  FakeCourierPayout,
+  FakeDepotLocation,
+  FakeOrderCoordination,
+  InMemoryDeliveryRepository,
+  InMemoryShiftRepository,
+  buildTestConfig,
+} from '../support/fakes';
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { ReportService } from '../../src/application/services/report.service';
 import { SettingsService } from '../../src/application/services/settings.service';
@@ -12,6 +29,10 @@ import type { SettingsRepository } from '../../src/application/ports/settings.re
 // The reads and the empty-set arithmetic: a depot that delivered nothing, a courier list that
 // has to be ordered, a settlement that belongs to somebody else, and the per-depot tunables
 // called with no depot at all (the network default).
+
+// The depot FakeDepotLocation sits at; a check-in has to be inside its radius.
+const DEPOT = '00000000-0000-4000-8000-000000000001';
+const AT_DEPOT = { lat: -6.9147, lng: 107.6098 };
 
 const repoWith = (rows: SettingRow[]): SettingsRepository => {
   const store = [...rows] as (SettingRow & { updatedBy: string })[];
@@ -179,5 +200,144 @@ describe('ReportService arithmetic on empty sets', () => {
     // No deliveries at all: rate 0, not a division by zero, and no rating to round.
     expect(report.couriers[2]).toMatchObject({ onTimeRate: 0, rating: null });
     expect(report.operators.map((o) => o.operatorId)).toEqual(['op-2', 'op-1']);
+  });
+});
+
+// The edges the happy path never reaches: a page built with no cursor, a ping read for a
+// delivery that is gone, an ETA with nowhere to measure from, a contact attempt on a
+// delivery that already ended, and a bucket that rejects a delete with something that is
+// not an Error. Each is a real branch — none of them had a test.
+describe('edges nothing else exercises', () => {
+  it('builds a page with no next cursor when the caller does not pass one', () => {
+    // Offset-paged reads (the console's tables) call this with four arguments; only the
+    // keyset readers pass a cursor. Both must produce the same envelope shape.
+    expect(buildPage([1, 2], 2, 1, 20)).toEqual({
+      items: [1, 2],
+      total: 2,
+      page: 1,
+      limit: 20,
+      totalPages: 1,
+      nextCursor: null,
+    });
+  });
+
+  it('reports a missing delivery as no ping state rather than a half-built row', async () => {
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const repo = new DeliveryPrismaRepository({ delivery: { findUnique } } as never);
+
+    expect(await repo.findPingState('gone')).toBeNull();
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'gone' } }),
+    );
+  });
+
+  it('gives no ETA when there is no ping and no depot to measure from', async () => {
+    // A delivery with a destination but no origin: no GPS ping yet, and no depot on the
+    // record (walk-in and legacy rows). An ETA would have to be invented, so there is none
+    // — the customer UI shows no estimate rather than a wrong one.
+    const repo = new InMemoryDeliveryRepository();
+    const orders = new FakeOrderCoordination();
+    const config = buildTestConfig();
+    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    const service = new DeliveryService(
+      repo,
+      orders,
+      new FakeCourierPayout(),
+      shifts,
+      config,
+      new FakeDepotLocation(),
+    );
+    const driverId = randomUUID();
+    await shifts.checkIn(driverId, DEPOT, AT_DEPOT.lat, AT_DEPOT.lng);
+    const created = await service.assign(
+      randomUUID(),
+      {
+        orderId: randomUUID(),
+        orderNumber: 'HM-9',
+        driverId,
+        destinationAddress: 'Jl. Tanpa Depot 1',
+        destinationLat: -6.2,
+        destinationLng: 106.8,
+      },
+      'Bearer t',
+    );
+    await service.pickup(driverId, created.id, 'Bearer t');
+
+    const onDelivery = await service.start(driverId, created.id, 'Bearer t');
+    expect(onDelivery.estimatedArrivalAt ?? null).toBeNull();
+  });
+
+  it('refuses a contact attempt on a delivery that has already ended', async () => {
+    const repo = new InMemoryDeliveryRepository();
+    const config = buildTestConfig();
+    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    const service = new DeliveryService(
+      repo,
+      new FakeOrderCoordination(),
+      new FakeCourierPayout(),
+      shifts,
+      config,
+      new FakeDepotLocation(),
+    );
+    const driverId = randomUUID();
+    await shifts.checkIn(driverId, DEPOT, AT_DEPOT.lat, AT_DEPOT.lng);
+    const created = await service.assign(
+      randomUUID(),
+      { orderId: randomUUID(), orderNumber: 'HM-10', driverId, destinationAddress: 'Jl. Sudah 2' },
+      'Bearer t',
+    );
+    await service.pickup(driverId, created.id, 'Bearer t');
+    await service.fail(driverId, created.id, 'alamat tidak ditemukan');
+
+    // The no-show timer belongs to a delivery in progress. On a finished one the attempt
+    // has nothing to count toward, so it is refused rather than silently recorded.
+    await expect(
+      service.recordContactAttempt(driverId, created.id, ContactMethod.CALL),
+    ).rejects.toBeInstanceOf(DeliveryNotActiveError);
+  });
+
+  it('logs a non-Error rejection from the bucket and keeps purging', async () => {
+    const repo = new InMemoryDeliveryRepository();
+    const config = buildTestConfig();
+    const shifts = new ShiftService(new InMemoryShiftRepository(), new FakeDepotLocation(), config);
+    // Buckets reject with strings and with objects, not only with Errors — and the sweep
+    // has to survive either, because the proof ROW is already deleted by then.
+    const storage = { put: jest.fn(), remove: jest.fn().mockRejectedValue('403 Forbidden') };
+    const service = new DeliveryService(
+      repo,
+      new FakeOrderCoordination(),
+      new FakeCourierPayout(),
+      shifts,
+      config,
+      new FakeDepotLocation(),
+      storage as never,
+    );
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const driverId = randomUUID();
+    await shifts.checkIn(driverId, DEPOT, AT_DEPOT.lat, AT_DEPOT.lng);
+    const created = await service.assign(
+      randomUUID(),
+      { orderId: randomUUID(), orderNumber: 'HM-11', driverId, destinationAddress: 'Jl. Bucket 3' },
+      'Bearer t',
+    );
+    await service.pickup(driverId, created.id, 'Bearer t');
+    await service.start(driverId, created.id, 'Bearer t');
+    const done = await service.complete(
+      driverId,
+      created.id,
+      {
+        photoUrl: 'https://cdn/pod/x.jpg',
+        signatureUrl: null,
+        recipientName: 'Budi',
+        latitude: -6.9147,
+        longitude: 107.6098,
+        note: null,
+      },
+      'Bearer t',
+    );
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('403 Forbidden'));
   });
 });

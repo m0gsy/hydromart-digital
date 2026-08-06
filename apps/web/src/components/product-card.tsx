@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Check, Drop, Plus } from '@phosphor-icons/react';
 
+import { RemoteImage } from '@/components/remote-image';
 import { MemberPrice, Money } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -12,7 +13,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
 import { memberPrice } from '@/lib/member';
-import type { Product } from '@/lib/types';
+import type { Cart, Product } from '@/lib/types';
 
 // 1c product card: soft-elevated tile, hover-lift, price + member chip, and a
 // round teal add-to-cart button that adds without leaving the grid. `memberRate`
@@ -30,7 +31,7 @@ export function ProductCard({
 }) {
   const router = useRouter();
   const { customer } = useAuth();
-  const { bump, refresh } = useCart();
+  const { bump, apply } = useCart();
   const { t } = useT();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -43,11 +44,12 @@ export function ProductCard({
       return;
     }
     setAdding(true);
-    bump(1); // optimistic badge; refresh reconciles
+    bump(1); // optimistic badge until the server's own cart lands
     try {
-      await api.post(endpoints.cart.items, { productId: product.id, quantity: 1 }, true);
+      // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
+      // replaces the GET that used to follow every single add.
+      apply(await api.post<Cart>(endpoints.cart.items, { productId: product.id, quantity: 1 }, true));
       setAdded(true);
-      await refresh();
     } catch {
       bump(-1); // roll the badge back on failure
     } finally {
@@ -64,10 +66,9 @@ export function ProductCard({
         {product.imageUrl ? (
           // ponytail: plain img (arbitrary depot-supplied URLs). Swap to next/image
           // with a remote allowlist once image hosts are known.
-          <img
+          <RemoteImage
             src={product.imageUrl}
             alt={product.name}
-            loading="lazy"
             className="h-full w-full object-cover"
           />
         ) : (

@@ -39,7 +39,53 @@ describe('RetentionService', () => {
 
   it('returns an honest NONE backup status when nothing recorded', async () => {
     const backup = await service.getBackupStatus();
-    expect(backup).toEqual({ status: 'NONE', lastBackupAt: null });
+    expect(backup).toEqual({
+      status: 'NONE',
+      lastBackupAt: null,
+      detail: null,
+      drillStatus: 'NONE',
+      lastDrillAt: null,
+      drillDetail: null,
+    });
+  });
+
+  describe('recording what the backup jobs did (H-37)', () => {
+    it('records a successful nightly backup', async () => {
+      const at = new Date('2026-08-04T03:00:00.000Z');
+      await service.recordBackupRun({ kind: 'BACKUP', status: 'OK', at, detail: '1.2G' });
+      expect(await service.getBackupStatus()).toMatchObject({
+        status: 'OK',
+        lastBackupAt: at,
+        detail: '1.2G',
+        drillStatus: 'NONE',
+      });
+    });
+
+    it('records a FAILED run — a silent failure is what made the old card useless', async () => {
+      const at = new Date('2026-08-04T03:00:00.000Z');
+      await service.recordBackupRun({ kind: 'BACKUP', status: 'FAILED', at, detail: 'exit 1' });
+      expect(await service.getBackupStatus()).toMatchObject({ status: 'FAILED', detail: 'exit 1' });
+    });
+
+    /**
+     * The one that matters: the two jobs run on different schedules, so a Monday drill
+     * must not blank Sunday night's backup verdict. A whole-row write would.
+     */
+    it('a drill result leaves the backup verdict alone, and vice versa', async () => {
+      const backupAt = new Date('2026-08-03T03:00:00.000Z');
+      const drillAt = new Date('2026-08-04T04:30:00.000Z');
+      await service.recordBackupRun({ kind: 'BACKUP', status: 'OK', at: backupAt, detail: '1.2G' });
+      await service.recordBackupRun({ kind: 'DRILL', status: 'FAILED', at: drillAt, detail: 'no rows' });
+
+      expect(await service.getBackupStatus()).toEqual({
+        status: 'OK',
+        lastBackupAt: backupAt,
+        detail: '1.2G',
+        drillStatus: 'FAILED',
+        lastDrillAt: drillAt,
+        drillDetail: 'no rows',
+      });
+    });
   });
 
   describe('data classes (M23-21)', () => {

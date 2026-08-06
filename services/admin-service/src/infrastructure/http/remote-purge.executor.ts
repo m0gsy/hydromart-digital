@@ -11,7 +11,14 @@ import { PurgeExecutor, PurgeMode } from '../../application/ports/purge-executor
  * exactly the confusion this whole feature exists to remove.
  */
 export class RemotePurgeExecutor implements PurgeExecutor {
-  private static readonly TIMEOUT_MS = 30_000;
+  /**
+   * Five minutes, not thirty seconds (audit S-25). A retention sweep deletes a year of a
+   * dataset the first time it runs; the old bound aborted the request while the owning
+   * service was still deleting, so the rows went and admin-service recorded a failure —
+   * the one outcome this feature exists to prevent. It stays bounded: an owner that never
+   * answers must not hold the scheduler open forever.
+   */
+  private static readonly TIMEOUT_MS = 300_000;
   private readonly logger = new Logger(RemotePurgeExecutor.name);
 
   constructor(

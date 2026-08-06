@@ -31,6 +31,13 @@ export interface ProfileRepository {
   /** Create a default (BASIC, 0 points) profile. */
   create(customerId: string): Promise<CustomerProfileRecord>;
   updateFavoriteDepot(customerId: string, favoriteDepotId: string | null): Promise<CustomerProfileRecord>;
+  /**
+   * Ensure a profile exists and point it at this depot, in one statement (audit S-16).
+   * The bulk importer used to ask "does it exist", create it, then update it — three
+   * round-trips per imported row, and rows are processed one at a time on purpose so
+   * each can report its own error.
+   */
+  upsertFavoriteDepot(customerId: string, favoriteDepotId: string): Promise<CustomerProfileRecord>;
   updateBirthdate(customerId: string, birthdate: Date | null): Promise<CustomerProfileRecord>;
   /**
    * Customer ids whose birthday falls on the given month/day and who have NOT

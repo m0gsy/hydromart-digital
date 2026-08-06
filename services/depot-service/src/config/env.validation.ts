@@ -63,4 +63,14 @@ export const envValidationSchema = Joi.object({
     is: 's3',
     then: Joi.required(),
   }),
+  // Q-6: shipped to every service by docker-compose's x-shared, and until now
+  // validated by none of them. The capability poller reads it; unset, it fails open
+  // and every service silently enforces the compiled RBAC defaults forever — which
+  // looks exactly like "the matrix edit did nothing". H-29's price-override audit trail
+  // is written over this same URL, so in production it is now required, not optional.
+  AUTH_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });

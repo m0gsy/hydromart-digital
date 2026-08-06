@@ -54,12 +54,24 @@ jobs:
           esac
 
       - name: SSH deploy
-        uses: appleboy/ssh-action@v1.2.0
+        # CI-13: pinned by commit, not by the mutable `v1.2.0` tag — this step is handed
+        # the production SSH key, so "whatever that tag points at today" is not a
+        # supply chain we want to inherit.
+        uses: appleboy/ssh-action@7eaf76671a0d7eec5d98ee897acda4f968735a17 # v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 40m
+          # A normal deploy rebuilds a handful of images and finishes well inside ten
+          # minutes. A change to a Dockerfile, .dockerignore or a root build input
+          # invalidates ALL NINETEEN, and on this box that is over forty — the PR9 deploy
+          # (7012a61) hit the old 40m ceiling mid-build.
+          #
+          # What made that worse than a slow deploy: the timeout kills the SSH SESSION,
+          # not the remote script. deploy.sh kept building, converged the stack and wrote
+          # last-good-sha, while the workflow had already reported failure — the one
+          # signal anybody reads was wrong in the dangerous direction.
+          command_timeout: 120m
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"

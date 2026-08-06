@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { addLocalDays, localDayKey, startOfLocalDay } from '@hydromart/platform';
 
 import { PromotionNotFoundError } from '../../domain/errors';
 import {
@@ -9,9 +10,11 @@ import {
 } from '../ports/promotion.repository';
 import { OrderValuePort } from '../ports/order-value.port';
 import { VoucherRepository } from '../ports/voucher.repository';
+import { PromoConfigService } from '../../config/promo-config.service';
 import { PROMO_TOKENS } from '../tokens';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** How many customers the analytics card shows; the database applies the limit. */
+const TOP_CUSTOMERS = 10;
 
 export interface PromotionAnalytics {
   promotionId: string;
@@ -34,6 +37,7 @@ export class PromotionService {
     @Inject(PROMO_TOKENS.PromotionRepository) private readonly repo: PromotionRepository,
     @Inject(PROMO_TOKENS.VoucherRepository) private readonly vouchers: VoucherRepository,
     @Inject(PROMO_TOKENS.OrderValues) private readonly orderValues: OrderValuePort,
+    private readonly config: PromoConfigService,
   ) {}
 
   /** Live promotions for the customer Home page (active + inside date window). */
@@ -62,10 +66,13 @@ export class PromotionService {
 
   async analytics(id: string, now: Date = new Date()): Promise<PromotionAnalytics> {
     const promotion = await this.getById(id);
-    const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-    const firstDayUtc = todayUtc - 6 * DAY_MS;
+    // H-16: the 7-day strip was bucketed on UTC days, so a redemption at 02:00 WIB
+    // landed on the previous bar and "today" only began at 07:00 WIB.
+    const tz = this.config.businessTimeZone;
+    const todayStart = startOfLocalDay(now, tz).getTime();
+    const firstDayUtc = addLocalDays(new Date(todayStart), -6, tz).getTime();
     const dailyUses = Array.from({ length: 7 }, (_, index) => ({
-      day: new Date(firstDayUtc + index * DAY_MS).toISOString().slice(0, 10),
+      day: localDayKey(addLocalDays(new Date(firstDayUtc), index, tz), tz),
       uses: 0,
     }));
     const empty = (): PromotionAnalytics => ({
@@ -86,50 +93,41 @@ export class PromotionService {
     if (!promotion.voucherCode) return empty();
     const voucher = await this.vouchers.findByCode(promotion.voucherCode.trim().toUpperCase());
     if (!voucher) return empty();
-    const redemptions = await this.vouchers.findRedemptionsFor(voucher.id);
-    if (redemptions.length === 0) return empty();
+    // Postgres does the counting (audit S-14). This used to read the voucher's entire
+    // redemption history and make five passes over it here, so the better a campaign did,
+    // the slower its own analytics page got.
+    // The window ends at the START of tomorrow, local — a fixed +24h divisor is the
+    // H-16 defect, and the day labels the database groups by have to be the same local
+    // labels `dailyUses` was built with or every bucket reads zero.
+    const stats = await this.vouchers.redemptionAnalytics(
+      voucher.id,
+      new Date(firstDayUtc),
+      addLocalDays(new Date(todayStart), 1, tz),
+      TOP_CUSTOMERS,
+      tz,
+    );
+    if (stats.totalUses === 0) return empty();
 
-    const customers = new Map<string, { uses: number; savingsIdr: number }>();
-    let totalSavingsIdr = 0;
-    let usesLast7Days = 0;
-    for (const redemption of redemptions) {
-      totalSavingsIdr += redemption.discountApplied;
-      const customer = customers.get(redemption.customerId) ?? { uses: 0, savingsIdr: 0 };
-      customer.uses += 1;
-      customer.savingsIdr += redemption.discountApplied;
-      customers.set(redemption.customerId, customer);
+    // The seven-day series is dense: a day with no redemptions still has to show a zero.
+    const usesByDay = new Map(stats.dailyUses.map((row) => [row.day, row.uses]));
+    for (const bucket of dailyUses) bucket.uses = usesByDay.get(bucket.day) ?? 0;
 
-      const createdAt = redemption.createdAt.getTime();
-      if (createdAt >= firstDayUtc && createdAt < todayUtc + DAY_MS) {
-        usesLast7Days += 1;
-        dailyUses[Math.floor((createdAt - firstDayUtc) / DAY_MS)].uses += 1;
-      }
-    }
-
-    const affectedOrderIds = [...new Set(redemptions.map((redemption) => redemption.orderId))];
+    const affectedOrderIds = stats.orderIds;
     const values = await this.orderValues.findOrderValues(affectedOrderIds);
     return {
       promotionId: promotion.id,
       title: promotion.title,
       voucherCode: promotion.voucherCode,
-      totalUses: redemptions.length,
-      usesLast7Days,
-      totalSavingsIdr,
+      totalUses: stats.totalUses,
+      usesLast7Days: stats.usesInWindow,
+      totalSavingsIdr: stats.totalSavingsIdr,
       affectedOrderIds,
       affectedOrderCount: affectedOrderIds.length,
       grossAffectedOrderValueIdr: values
         ? values.reduce((sum, value) => sum + value.totalIdr, 0)
         : null,
       dailyUses,
-      topCustomers: [...customers.entries()]
-        .map(([customerId, aggregate]) => ({ customerId, ...aggregate }))
-        .sort(
-          (a, b) =>
-            b.uses - a.uses ||
-            b.savingsIdr - a.savingsIdr ||
-            a.customerId.localeCompare(b.customerId),
-        )
-        .slice(0, 10),
+      topCustomers: stats.topCustomers,
       orderValueSource: values ? 'ok' : 'unavailable',
     };
   }

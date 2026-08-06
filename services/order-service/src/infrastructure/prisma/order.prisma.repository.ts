@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { depotWhere } from '@hydromart/platform';
+import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { OrderStatus } from '../../domain/order-status';
-import { OrderAlreadyVoidedError } from '../../domain/errors';
+import {
+  DuplicateCheckoutError,
+  OrderAlreadyVoidedError,
+  ReportRangeTooLargeError,
+  StaleOrderStatusError,
+} from '../../domain/errors';
 import {
   CreateOrderData,
   CreateReviewData,
@@ -27,7 +32,19 @@ import {
   SalesBucket,
   SegmentConditions,
 } from '../../application/ports/order.repository';
+import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
+
+/** Rows per keyset page when a report has to walk a whole window (audit H-46). */
+const REPORT_PAGE_SIZE = 500;
+/**
+ * Ceiling on one report's window. ~20k orders is several months for a busy depot and
+ * still fits comfortably in memory; past it the caller is asked to narrow the range
+ * rather than handed a number built from part of it.
+ */
+const MAX_REPORT_ORDERS = 20_000;
+/** Orders one stale-sweep tick will claim. The next tick picks up the rest. */
+const STALE_SWEEP_BATCH = 500;
 
 type Decimalish = { toNumber(): number };
 
@@ -89,7 +106,8 @@ interface OrderRow {
   driverPhone: string | null;
   estimatedArrivalAt: Date | null;
   items: ItemRow[];
-  history: HistoryRow[];
+  // Absent on the report and sweep reads, which do not render a timeline (audit S-23).
+  history?: HistoryRow[];
   // id-only: toRecord derives just the `reviewed` flag (INCLUDE selects id alone, DB-9).
   review: { id: string } | null;
   createdAt: Date;
@@ -102,6 +120,18 @@ interface OrderRow {
  * revenue, customer-value and depot report filters both out through this one list.
  */
 const VOID_LIKE = [DbOrderStatus.CANCELLED, DbOrderStatus.VOIDED];
+/**
+ * The same exclusion for the raw-SQL reports (H-14).
+ *
+ * Four `$queryRaw` reports — the revenue series, the retention cohort, the audience
+ * reach and the segment estimate — excluded only CANCELLED, while every Prisma-built
+ * report next to them excluded VOID_LIKE. A voided counter sale is a sale that did not
+ * happen; counting it inflated reported revenue and left the buyer in a retention cohort
+ * they never joined. One fragment so the two can no longer drift apart.
+ */
+const NOT_VOID_SQL = Prisma.sql`"status" NOT IN (${Prisma.join(
+  VOID_LIKE.map((status) => Prisma.sql`${status}::"OrderStatus"`),
+)})`;
 
 const INCLUDE = {
   items: true,
@@ -113,9 +143,41 @@ const INCLUDE = {
   review: { select: { id: true } },
 };
 
+/**
+ * A Prisma unique-constraint violation (P2002) naming `field`, detected without importing
+ * the client namespace. Matching the field keeps an unrelated unique from being read as the
+ * one the caller can recover from.
+ */
+function isUniqueViolation(error: unknown, field: string): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const { code, meta } = error as { code?: string; meta?: { target?: unknown } };
+  if (code !== 'P2002') return false;
+  const target = meta?.target;
+  return Array.isArray(target) ? target.includes(field) : String(target ?? '').includes(field);
+}
+
+/**
+ * The same row without its status history (audit S-23). The timeline is what the customer
+ * and the ops console read on ONE order; a monthly depot report reads every order that depot
+ * took and renders none of them, so it was hauling eight history rows per order for nothing.
+ * Reads that use this must not surface `history` — `toRecord` reports it as empty, which is
+ * the truth about what was fetched rather than a claim that the order has no timeline.
+ */
+const INCLUDE_NO_HISTORY = {
+  items: INCLUDE.items,
+  review: INCLUDE.review,
+};
+
 @Injectable()
 export class OrderPrismaRepository implements OrderRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async nextOrderSequence(): Promise<number> {
+    const rows = await this.prisma.$queryRaw<
+      { v: bigint }[]
+    >`SELECT nextval('order_number_seq') AS v`;
+    return Number(rows[0]?.v ?? 0);
+  }
 
   private toRecord(row: OrderRow): OrderRecord {
     return {
@@ -154,7 +216,7 @@ export class OrderPrismaRepository implements OrderRepository {
         quantity: i.quantity,
         lineTotal: i.lineTotal.toNumber(),
       })),
-      history: row.history.map((h) => ({
+      history: (row.history ?? []).map((h) => ({
         status: h.status as OrderStatus,
         changedBy: h.changedBy,
         note: h.note,
@@ -184,23 +246,48 @@ export class OrderPrismaRepository implements OrderRepository {
     limit: number,
   ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
     // Customers whose LATEST order is older than the cutoff = no order since.
-    const grouped = await this.prisma.order.groupBy({
-      by: ['customerId'],
-      _max: { createdAt: true },
-    });
-    const dueIds = grouped
-      .filter((g) => g._max.createdAt != null && g._max.createdAt < cutoff)
-      .map((g) => g.customerId)
-      .slice(0, limit);
+    //
+    // The HAVING and the LIMIT are in the statement (audit S-12). Prisma's groupBy has no
+    // HAVING over an aggregate it did not select, so this used to group the WHOLE order
+    // table, ship every customer who has ever ordered back to Node, and throw away all but
+    // `limit` of them in JavaScript — the cost of one reminder sweep was the whole customer
+    // base.
+    const rows = await this.prisma.$queryRaw<{ customerId: string }[]>(Prisma.sql`
+      SELECT "customerId"
+      FROM "orders"
+      GROUP BY "customerId"
+      HAVING MAX("createdAt") < ${cutoff}
+      ORDER BY MAX("createdAt") ASC
+      LIMIT ${limit}
+    `);
+    const dueIds = rows.map((r) => r.customerId);
     if (dueIds.length === 0) return [];
-    // One latest order per due customer (distinct + desc) for the phone/name snapshot.
-    const rows = await this.prisma.order.findMany({
-      where: { customerId: { in: dueIds } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
-    return rows;
+    return this.latestContactPerCustomer(dueIds);
+  }
+
+  /**
+   * The phone/name snapshot from each customer's most recent order.
+   *
+   * DISTINCT ON rather than Prisma's `distinct`: that option is applied to the rows the
+   * query returned, so combining it with any `take` — including the default bound every
+   * findMany now carries — can dedupe down to fewer customers than were asked for, and
+   * the missing ones simply have no contact details. Postgres does the dedupe here, so
+   * the result is exactly one row per id.
+   */
+  private latestContactPerCustomer(
+    customerIds: string[],
+    depotId?: string,
+  ): Promise<{ customerId: string; phone: string; recipientName: string }[]> {
+    const scope = depotId ? Prisma.sql`AND "depotId" = ${depotId}::uuid` : Prisma.empty;
+    return this.prisma.$queryRaw<{ customerId: string; phone: string; recipientName: string }[]>(
+      Prisma.sql`
+        SELECT DISTINCT ON ("customerId") "customerId", "phone", "recipientName"
+        FROM "orders"
+        WHERE "customerId" IN (${Prisma.join(customerIds.map((id) => Prisma.sql`${id}::uuid`))})
+        ${scope}
+        ORDER BY "customerId", "createdAt" DESC
+      `,
+    );
   }
 
   async createReview(data: CreateReviewData): Promise<OrderReviewRecord> {
@@ -224,25 +311,52 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, id, status, ...order } = data;
+    const { items, id, status, outbox = [], ...order } = data;
     // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
     // seed history row has to match the row's real status, not a CREATED it never was.
     const opening = status ?? OrderStatus.CREATED;
-    const row = await this.prisma.order.create({
-      data: {
-        ...(id ? { id } : {}),
-        ...order,
-        status: opening,
-        items: { create: items },
-        history: { create: { status: opening } },
-      },
-      include: INCLUDE,
-    });
-    return this.toRecord(row);
+    try {
+      // H-10: a walk-in is born COMPLETED, so the effects it earns are written with it
+      // rather than at a later transition. One transaction, or neither.
+      const [row] = await this.prisma.$transaction([
+        this.prisma.order.create({
+          data: {
+            ...(id ? { id } : {}),
+            ...order,
+            status: opening,
+            items: { create: items },
+            history: { create: { status: opening } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ]);
+      return this.toRecord(row);
+    } catch (error) {
+      // B-13: the retry lost the race against the attempt that is already committing.
+      // `orders_customerId_idempotencyKey_key` is the only unique this write can violate
+      // that the caller can recover from — an orderNumber collision (H-12) is ours, not
+      // theirs, and must keep surfacing as a failure.
+      if (isUniqueViolation(error, 'idempotencyKey')) {
+        throw new DuplicateCheckoutError();
+      }
+      throw error;
+    }
   }
 
   async findById(id: string): Promise<OrderRecord | null> {
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async findByIdempotencyKey(
+    customerId: string,
+    idempotencyKey: string,
+  ): Promise<OrderRecord | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
+      include: INCLUDE,
+    });
     return row ? this.toRecord(row) : null;
   }
 
@@ -275,7 +389,10 @@ export class OrderPrismaRepository implements OrderRepository {
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;
   }
 
-  async search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }> {
+  async search(
+    query: OrderQuery,
+  ): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }> {
+    const term = query.orderNumber?.trim();
     const where = {
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -284,25 +401,42 @@ export class OrderPrismaRepository implements OrderRepository {
         : query.depotIds
           ? { depotId: depotWhere(query.depotIds) }
           : {}),
+      // Audit F-12: matched over the whole table, not over whatever page the browser
+      // happened to hold. `orderNumber` is already indexed for its unique constraint.
+      ...(term ? { orderNumber: { contains: term, mode: 'insensitive' as const } } : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({
         where,
         include: INCLUDE,
-        orderBy: { createdAt: 'desc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
+        // `id` last so the cursor is unambiguous: two orders created in the same
+        // millisecond would otherwise be returned twice or skipped between pages.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...pageArgs(query),
       }),
       this.prisma.order.count({ where }),
     ]);
-    return { items: rows.map((r) => this.toRecord(r)), total };
+    return {
+      items: rows.map((r) => this.toRecord(r)),
+      total,
+      nextCursor: nextCursor(rows, query.limit),
+    };
   }
 
-  async findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]> {
+  async findStaleIn(
+    statuses: OrderStatus[],
+    before: Date,
+    limit = STALE_SWEEP_BATCH,
+  ): Promise<OrderRecord[]> {
     if (statuses.length === 0) return [];
+    // Bounded batch, oldest first: the sweep runs on a schedule, so a backlog is drained
+    // over several ticks instead of one tick trying to load every stale order at once.
     const rows = await this.prisma.order.findMany({
       where: { status: { in: statuses }, createdAt: { lt: before } },
-      include: INCLUDE,
+      // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
+      include: INCLUDE_NO_HISTORY,
+      orderBy: { createdAt: 'asc' },
+      take: limit,
     });
     return rows.map((r) => this.toRecord(r));
   }
@@ -351,24 +485,41 @@ export class OrderPrismaRepository implements OrderRepository {
 
   async applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    outbox: OutboxWrite[] = [],
   ): Promise<OrderRecord> {
-    const row = await this.prisma.order.update({
-      where: { id },
-      data: {
-        status,
-        ...(driverName != null ? { driverName } : {}),
-        ...(driverPhone != null ? { driverPhone } : {}),
-        ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
-        history: { create: { status, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
+    // `status: from` in the WHERE is the guard (H-4). No match means the order moved
+    // under us; P2025 becomes StaleOrderStatusError so the loser is told, not ignored.
+    //
+    // H-10: the effects the transition earns go in the SAME transaction. The status guard
+    // is what makes that safe to pair — only the winner writes, so only the winner owes.
+    const [row] = await this.prisma
+      .$transaction([
+        this.prisma.order.update({
+          where: { id, status: from },
+          data: {
+            status,
+            ...(driverName != null ? { driverName } : {}),
+            ...(driverPhone != null ? { driverPhone } : {}),
+            ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
+            history: { create: { status, changedBy, note } },
+          },
+          include: INCLUDE,
+        }),
+        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+      ])
+      .catch((error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2025') {
+          throw new StaleOrderStatusError();
+        }
+        throw error;
+      });
     return this.toRecord(row);
   }
 
@@ -393,7 +544,7 @@ export class OrderPrismaRepository implements OrderRepository {
     // Whitelisted so the trunc unit / format are never attacker-controlled.
     const unit = granularity === 'monthly' ? 'month' : 'day';
     const fmt = granularity === 'monthly' ? 'YYYY-MM' : 'YYYY-MM-DD';
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
     const rows = await this.prisma.$queryRaw<
@@ -595,7 +746,7 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async retentionCohort(range: ReportRange): Promise<RetentionCell[]> {
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (range.from) conds.push(Prisma.sql`"createdAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"createdAt" < ${range.to}`);
     const where = Prisma.join(conds, ' AND ');
@@ -654,14 +805,10 @@ export class OrderPrismaRepository implements OrderRepository {
       _max: { createdAt: true },
     });
     if (grouped.length === 0) return [];
-    // Latest order per customer (distinct + desc) for the name/phone WA-follow-up snapshot.
+    // Latest order per customer for the name/phone WA-follow-up snapshot — see
+    // latestContactPerCustomer for why this is DISTINCT ON and not Prisma's `distinct`.
     const ids = grouped.map((g) => g.customerId);
-    const contacts = await this.prisma.order.findMany({
-      where: { customerId: { in: ids }, depotId },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['customerId'],
-      select: { customerId: true, phone: true, recipientName: true },
-    });
+    const contacts = await this.latestContactPerCustomer(ids, depotId);
     const contactBy = new Map(contacts.map((c) => [c.customerId, c]));
     return grouped.map((g) => ({
       customerId: g.customerId,
@@ -675,7 +822,7 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async audienceReach(depotId?: string): Promise<number> {
-    const conds: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
     if (depotId) conds.push(Prisma.sql`"depotId" = ${depotId}::uuid`);
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
       SELECT COUNT(DISTINCT "customerId")::bigint AS count
@@ -685,23 +832,47 @@ export class OrderPrismaRepository implements OrderRepository {
     return Number(rows[0]?.count ?? 0);
   }
 
+  /**
+   * Every depot report is built from this, and it used to be one unbounded `findMany`
+   * with the full item/history include — the cost of a report was whatever that depot
+   * had ever sold (audit H-46).
+   *
+   * It still returns the whole window, because a report over part of a month is wrong,
+   * not slower. What changed is how: a keyset walk in fixed pages, so peak memory is one
+   * page rather than the result set, and a hard ceiling that REFUSES instead of quietly
+   * returning a partial month.
+   */
   async ordersForDepot(depotId: string, range: ReportRange): Promise<OrderRecord[]> {
     const createdAt = {
       ...(range.from ? { gte: range.from } : {}),
       ...(range.to ? { lt: range.to } : {}),
     };
-    const rows = await this.prisma.order.findMany({
-      where: { depotId, ...(range.from || range.to ? { createdAt } : {}) },
-      include: INCLUDE,
-      orderBy: { createdAt: 'asc' },
-    });
+    const where = { depotId, ...(range.from || range.to ? { createdAt } : {}) };
+
+    const rows = await readAllPages(
+      ({ take, cursor }) =>
+        this.prisma.order.findMany({
+          where,
+          include: INCLUDE_NO_HISTORY,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take,
+          ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        }),
+      {
+        pageSize: REPORT_PAGE_SIZE,
+        max: MAX_REPORT_ORDERS,
+        onOverflow: () => {
+          throw new ReportRangeTooLargeError(MAX_REPORT_ORDERS);
+        },
+      },
+    );
     return rows.map((r) => this.toRecord(r));
   }
 
   async segmentEstimate(conditions: SegmentConditions): Promise<number> {
     // Depot scopes WHERE (so frequency/recency are computed over that depot's orders);
     // frequency/recency are HAVING predicates over the per-customer aggregate.
-    const where: Prisma.Sql[] = [Prisma.sql`"status" <> 'CANCELLED'::"OrderStatus"`];
+    const where: Prisma.Sql[] = [NOT_VOID_SQL];
     if (conditions.depotId) where.push(Prisma.sql`"depotId" = ${conditions.depotId}::uuid`);
     const having: Prisma.Sql[] = [];
     if (conditions.minOrders != null) having.push(Prisma.sql`COUNT(*) >= ${conditions.minOrders}`);

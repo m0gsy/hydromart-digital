@@ -100,7 +100,9 @@ model ApiKey {
   /// Display-safe leading segment, e.g. "hm_live_a1b2c3d4".
   keyPrefix   String
   /// sha256 of the full secret; the secret itself is never stored.
-  keyHash     String
+  /// Unique: the same secret must never be issued twice, and every partner request is
+  /// authenticated by looking its hash up here.
+  keyHash     String            @unique
   scopes      String[]
   environment ApiKeyEnvironment @default(PROD)
   lastUsedAt  DateTime?
@@ -124,7 +126,41 @@ model WebhookEndpoint {
   deliveryRatePct    Int?
   createdAt          DateTime @default(now())
 
+  deliveries WebhookDelivery[]
+
   @@map("webhook_endpoints")
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+  DEAD
+}
+
+/// One attempt-tracked delivery of one event to one endpoint (H-30). Queued when a
+/// service reports an event, drained by the scheduler sweep. Kept after delivery so a
+/// partner can see — and replay — what they were sent.
+model WebhookDelivery {
+  id             String                @id @default(uuid())
+  endpointId     String
+  endpoint       WebhookEndpoint       @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event          String
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                   @default(0)
+  /// When the next attempt becomes due. Backoff moves it forward on each failure.
+  nextAttemptAt  DateTime              @default(now())
+  responseStatus Int?
+  lastError      String?
+  occurredAt     DateTime              @default(now())
+  deliveredAt    DateTime?
+  createdAt      DateTime              @default(now())
+
+  /// The claim query: due work, oldest first.
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
+  @@map("webhook_deliveries")
 }
 
 /// An immutable data-export audit entry (Design 13c). Written by export jobs via the
@@ -337,14 +373,27 @@ model RetentionPolicy {
   @@map("retention_policies")
 }
 
-/// Last-backup status (Design 19e). SINGLETON: id = "singleton". READ-ONLY — there is NO
-/// backup engine wired, so `status`/`lastBackupAt` are whatever was last recorded (or the
-/// honest "NONE" default). This is never a fabricated "success just now".
+/// Last-backup status (Design 19e). SINGLETON: id = "singleton".
+///
+/// H-37: scripts/backup-db.sh and scripts/restore-db.sh now WRITE this row through
+/// POST /retention/internal/backup-status. Before that the view was read-only with no
+/// writer anywhere — a page that could only ever say "NONE", next to a cron job that had
+/// been dumping the cluster nightly for months.
+///
+/// The drill columns are separate on purpose (H-36): a dump existing and a dump having
+/// been restored successfully are different claims, and only the second one is a backup.
 model BackupStatus {
   id           String    @id @default(uuid())
-  /// Last recorded backup outcome. "NONE" = no backup engine has ever run.
+  /// Last recorded backup outcome: NONE (never run) | OK | FAILED.
   status       String    @default("NONE")
   lastBackupAt DateTime?
+  /// Human-readable detail of the last run — size, database count, or the failure.
+  detail       String?
+  /// Last tested-restore outcome: NONE | OK | FAILED. A backup nobody has restored is
+  /// an assumption, so this is shown beside the backup status rather than folded into it.
+  drillStatus  String    @default("NONE")
+  lastDrillAt  DateTime?
+  drillDetail  String?
   updatedAt    DateTime  @updatedAt
 
   @@map("backup_status")

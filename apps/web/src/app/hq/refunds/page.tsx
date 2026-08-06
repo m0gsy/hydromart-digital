@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Receipt } from '@phosphor-icons/react';
 
+import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, Chip, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -48,16 +49,16 @@ export default function HqRefundsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Receipt size={24} weight="fill" className="text-brand-500" />
-          <div>
-            <h1 className="text-2xl font-bold">{t('hq.refunds.title')}</h1>
-            <p className="text-sm text-muted">{t('hq.refunds.subtitle')}</p>
-          </div>
-        </div>
-        <Badge tone="warning">{t('hq.refunds.count', { n: items.length })}</Badge>
-      </div>
+      <HqPageHeader
+        icon={Receipt}
+        title={t('hq.refunds.title')}
+        subtitle={t('hq.refunds.subtitle')}
+        action={
+          <>
+            <Badge tone="warning">{t('hq.refunds.count', { n: items.length })}</Badge>
+          </>
+        }
+      />
 
       {items.length === 0 ? (
         <Card className="p-8">

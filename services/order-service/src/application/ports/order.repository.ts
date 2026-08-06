@@ -1,5 +1,7 @@
 import { OrderStatus } from '../../domain/order-status';
 
+import { OutboxWrite } from './outbox.repository';
+
 export interface OrderItemRecord {
   id: string;
   productId: string;
@@ -110,6 +112,18 @@ export interface CreateOrderData extends DeliveryAddressSnapshot {
   status?: OrderStatus;
   /** Cash sale recorded at the depot counter — no cart, no courier, no delivery. */
   isWalkIn?: boolean;
+  /**
+   * Side effects the order owes the moment it exists, written in the same transaction
+   * (H-10). Only a walk-in uses this: it is born COMPLETED, so it earns the completion
+   * fan-out at creation rather than at a later transition.
+   */
+  outbox?: OutboxWrite[];
+  /**
+   * Client-supplied key for this checkout attempt (B-13). When set, the write is unique
+   * per (customerId, key) and a retry carrying the same key raises DuplicateCheckoutError
+   * instead of placing a second order.
+   */
+  idempotencyKey?: string | null;
   items: CreateOrderItemData[];
 }
 
@@ -123,8 +137,17 @@ export interface OrderQuery {
    * find and assign them. Takes precedence over `depotIds`.
    */
   unrouted?: boolean;
+  /** Case-insensitive substring matched against the order number (audit F-12). */
+  orderNumber?: string;
   page: number;
   limit: number;
+  /**
+   * Opaque keyset cursor — the `nextCursor` of the previous page. When present the read
+   * seeks straight to that row instead of walking and discarding every row before it
+   * (audit Q-16); `page` is then ignored. Absent = the page-number behaviour clients have
+   * always had.
+   */
+  cursor?: string;
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
@@ -266,17 +289,34 @@ export interface SegmentConditions {
 }
 
 export interface OrderRepository {
+  /**
+   * The next value of the order-number counter, strictly increasing and never repeated.
+   *
+   * The number used to be six random digits, and `orderNumber` is `@unique` — so a
+   * collision was not a cosmetic duplicate, it was a failed insert on a real customer's
+   * checkout. At 1,000 orders/day the birthday bound puts that near 40% of days. A
+   * Postgres sequence removes the class of bug rather than shrinking its probability:
+   * `nextval` is transactional-safe, never hands the same value to two sessions, and
+   * costs one round-trip.
+   */
+  nextOrderSequence(): Promise<number>;
   create(data: CreateOrderData): Promise<OrderRecord>;
   findById(id: string): Promise<OrderRecord | null>;
+  /** The order a previous attempt with this idempotency key already placed, if any (B-13). */
+  findByIdempotencyKey(customerId: string, idempotencyKey: string): Promise<OrderRecord | null>;
   /** Fills in the fulfilling depot of an order that had none (HQ manual routing). */
   assignDepot(id: string, depotId: string): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
-  search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number }>;
-  /** Orders in any of `statuses` placed before `before` — candidates for the stale sweep. */
-  findStaleIn(statuses: OrderStatus[], before: Date): Promise<OrderRecord[]>;
+  search(query: OrderQuery): Promise<{ items: OrderRecord[]; total: number; nextCursor: string | null }>;
+  /**
+   * Orders in any of `statuses` placed before `before` — candidates for the stale sweep.
+   * Oldest first and capped at `limit`, so one tick cannot try to load an unbounded
+   * backlog; the next tick continues where this one stopped (audit H-47).
+   */
+  findStaleIn(statuses: OrderStatus[], before: Date, limit?: number): Promise<OrderRecord[]>;
   /**
    * Keyset-paginated COMPLETED orders ordered by (createdAt asc, id asc), for the
    * recommendation-service rebuild feed. `cursor` is opaque (the id of the first
@@ -306,14 +346,29 @@ export interface OrderRepository {
    * driverPhone (at DRIVER_ASSIGNED) and estimatedArrivalAt (at ON_DELIVERY) when given —
    * each is written only when non-null, so a later transition never clobbers a snapshot.
    */
+  /**
+   * Moves an order to `status`, but only from the `from` it was read at (H-4).
+   *
+   * The compare-and-set is the whole point: the legality check runs against a row read
+   * moments earlier, and two staff — or a courier and the stall sweep — acting together
+   * would otherwise both pass it and both write, running the completion fan-out twice.
+   * A caller that loses gets StaleOrderStatusError, not a silent overwrite.
+   */
   applyStatus(
     id: string,
+    from: OrderStatus,
     status: OrderStatus,
     changedBy: string | null,
     note: string | null,
     driverName?: string | null,
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
+    /**
+     * Side effects this transition earns, written in the SAME transaction as it (H-10).
+     * That is the whole point: an order cannot end up COMPLETED without the stock consume
+     * and the owner credit being owed somewhere durable.
+     */
+    outbox?: OutboxWrite[],
   ): Promise<OrderRecord>;
   /**
    * Append a history row WITHOUT moving the order.

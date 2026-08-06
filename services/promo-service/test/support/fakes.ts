@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { localDayKey } from '@hydromart/platform';
+import { VoucherNotFoundError } from '../../src/domain/errors';
 
 import { PromoConfigService } from '../../src/config/promo-config.service';
 import {
@@ -16,6 +18,7 @@ import {
   VoucherRecord,
   VoucherRedemptionRecord,
   VoucherRepository,
+  RedemptionAnalytics,
 } from '../../src/application/ports/voucher.repository';
 
 let seq = 0;
@@ -158,6 +161,57 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     return r ? { ...r } : null;
   }
 
+  // Audit S-14: the aggregate the database now computes. Modelled on the same rows the
+  // fake already holds, so a test that seeds redemptions still gets the real numbers.
+  async redemptionAnalytics(
+    voucherId: string,
+    from: Date,
+    to: Date,
+    topCustomers: number,
+    timeZone: string,
+  ): Promise<RedemptionAnalytics> {
+    const rows = this.redemptions.filter((r) => r.voucherId === voucherId);
+    const inWindow = rows.filter((r) => r.createdAt >= from && r.createdAt < to);
+    const byDay = new Map<string, number>();
+    for (const row of inWindow) {
+      // The SQL cuts the label with AT TIME ZONE (H-16), so this must too — a fake that
+      // buckets on UTC passes the concurrency of the day boundary it is meant to prove.
+      const day = localDayKey(row.createdAt, timeZone);
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+    }
+    const byCustomer = new Map<string, { uses: number; savingsIdr: number }>();
+    for (const row of rows) {
+      const current = byCustomer.get(row.customerId) ?? { uses: 0, savingsIdr: 0 };
+      current.uses += 1;
+      current.savingsIdr += row.discountApplied;
+      byCustomer.set(row.customerId, current);
+    }
+    return {
+      totalUses: rows.length,
+      totalSavingsIdr: rows.reduce((sum, r) => sum + r.discountApplied, 0),
+      usesInWindow: inWindow.length,
+      dailyUses: [...byDay.entries()]
+        .map(([day, uses]) => ({ day, uses }))
+        .sort((a, b) => a.day.localeCompare(b.day)),
+      topCustomers: [...byCustomer.entries()]
+        .map(([customerId, aggregate]) => ({ customerId, ...aggregate }))
+        .sort(
+          (a, b) =>
+            b.uses - a.uses ||
+            b.savingsIdr - a.savingsIdr ||
+            a.customerId.localeCompare(b.customerId),
+        )
+        .slice(0, topCustomers),
+      orderIds: [
+        ...new Set(
+          [...rows]
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .map((r) => r.orderId),
+        ),
+      ],
+    };
+  }
+
   async findRedemptionsFor(voucherId: string): Promise<VoucherRedemptionRecord[]> {
     return this.redemptions
       .filter((redemption) => redemption.voucherId === voucherId)
@@ -182,6 +236,26 @@ export class InMemoryVoucherRepository implements VoucherRepository {
     const voucher = this.vouchers.find((x) => x.id === m.voucherId)!;
     voucher.usedCount += 1;
     return { ...redemption };
+  }
+
+  /**
+   * Single-threaded stand-in for the locked redeem (H-1). It cannot reproduce the race —
+   * only real Postgres can — but it does enforce the ordering the real one guarantees:
+   * the counts handed to `decide` are read now, and nothing is written if `decide` throws.
+   */
+  async redeemAtomic(
+    input: { voucherId: string; voucherCode: string; customerId: string; orderId: string },
+    decide: (counts: { usedCount: number; customerRedemptions: number; burned: number }) => number,
+  ): Promise<VoucherRedemptionRecord> {
+    const voucher = this.vouchers.find((x) => x.id === input.voucherId);
+    if (!voucher) throw new VoucherNotFoundError();
+    const forVoucher = this.redemptions.filter((r) => r.voucherId === input.voucherId);
+    const discountApplied = decide({
+      usedCount: voucher.usedCount,
+      customerRedemptions: forVoucher.filter((r) => r.customerId === input.customerId).length,
+      burned: forVoucher.reduce((sum, r) => sum + r.discountApplied, 0),
+    });
+    return this.recordRedemption({ ...input, discountApplied });
   }
 
   grants: { voucherId: string; customerId: string }[] = [];

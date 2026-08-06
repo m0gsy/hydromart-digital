@@ -1,0 +1,28 @@
+# Trivy ignore list for the runtime BASE image scan in .github/workflows/security.yml.
+#
+# Same rule as scripts/audit-gate.mjs's allowlist: an entry needs a written reason
+# and an upgrade path, and it is deleted the moment upstream ships a fix. This list
+# is the triage record, not a mute button. Anything not listed here still fails CI.
+#
+# What this gate scans is `node:20-alpine` — an image we consume and do not build.
+# We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
+# the affected component. Both are noted per entry.
+
+# openssl heap use-after-free in PKCS7_verify(). Alpine has published 3.5.7-r0;
+# the node:20-alpine tag has not been rebuilt against it yet. Not reachable from
+# this codebase — no service calls PKCS7_verify, and TLS is terminated by Caddy in
+# its own image, not by these containers. Delete this line once the base tag moves.
+CVE-2026-45447
+
+# Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
+# in that class lives in npm's OWN bundle inside the base image
+# (/usr/local/lib/node_modules/npm) — brace-expansion, cross-spawn, glob, tar. That is
+# not our dependency tree: ours is gated by scripts/audit-gate.mjs against the lockfile,
+# which is the thing we can actually fix.
+#
+# Nor is any of it shipped by something that runs: the images execute `node dist/main.js`,
+# healthchecks are busybox wget, migrations run host-side. npm is present only because
+# the base image includes it. Deleting it from the runtime stage is the real fix and
+# belongs with the image work — until then, scanning a vendor's bundled copies on every
+# PR produces a permanently red gate nobody can turn green, which is how a gate stops
+# being read.

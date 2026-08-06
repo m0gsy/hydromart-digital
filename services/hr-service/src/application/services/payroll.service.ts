@@ -21,6 +21,7 @@ import {
 } from '../../domain/bonus-rules';
 import { loanDeductionFor } from '../../domain/loan';
 import { formatMinutes, minuteRate, overtimePay, splitOvertime } from '../../domain/overtime';
+import { statutoryDeductions } from '../../domain/statutory';
 import { payrollSlipPdf } from '../../domain/payroll-pdf';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
@@ -82,11 +83,18 @@ export class PayrollService {
     }
 
     const { from, to } = this.monthRange(periodMonth);
-    const { presentDays, lateDays, leaveDays } = await this.attendance.summary(
-      employeeId,
-      from,
-      to,
-    );
+    // Five reads that need nothing from each other — attendance, allowances, manual
+    // bonuses, the depot's working days and its bonus rules — used to be awaited one after
+    // another (audit S-21). Payroll generation runs per employee, so this is the run's
+    // whole cost multiplied by headcount.
+    const [{ presentDays, lateDays, leaveDays }, allowanceRows, bonusRows, workingDays, rules] =
+      await Promise.all([
+        this.attendance.summary(employeeId, from, to),
+        this.allowances ? this.allowances.listActiveForPeriod(employeeId, from, to) : [],
+        this.bonuses.listByEmployeePeriod(employeeId, periodMonth),
+        this.bonusRules ? this.workingDays(periodMonth, employee.depotId, from, to) : 0,
+        this.bonusRules ? this.bonusRules.listActiveForDepot(employee.depotId) : [],
+      ]);
 
     const items: PayrollItemInput[] = [];
 
@@ -118,8 +126,7 @@ export class PayrollService {
     // payslip. Added before bonuses so a reader sees fixed pay first, but deliberately NOT
     // part of `BonusContext.basePay` below: a percent-of-salary rule pays on basic pay only.
     if (this.allowances) {
-      const rows = await this.allowances.listActiveForPeriod(employeeId, from, to);
-      for (const a of rows) {
+      for (const a of allowanceRows) {
         items.push({
           kind: 'ALLOWANCE',
           label: a.note ?? `Tunjangan ${a.type}`,
@@ -130,7 +137,6 @@ export class PayrollService {
     }
 
     // BONUS lines — manual rows first, then configurable auto-rules.
-    const bonusRows = await this.bonuses.listByEmployeePeriod(employeeId, periodMonth);
     for (const b of bonusRows) {
       items.push({
         kind: 'BONUS',
@@ -142,8 +148,6 @@ export class PayrollService {
 
     // Auto-bonus rules (Rule-F): base pay = BASE items so far (incl. tenure raise).
     if (this.bonusRules) {
-      const workingDays = await this.workingDays(periodMonth, employee.depotId, from, to);
-      const rules = await this.bonusRules.listActiveForDepot(employee.depotId);
       // Only pay the cross-service sales call when a SALES rule actually needs it.
       const needsSales = rules.some((r) => r.metric === 'SALES_TOTAL');
       // No home depot ⇒ no depot sales to attribute. null (not 0) so a SALES rule is
@@ -247,6 +251,29 @@ export class PayrollService {
     // Allowances are fixed pay, so they belong in gross next to BASE rather than in the
     // variable bonus total. The payslip still separates them: every item carries its kind.
     const gross = sum(items, 'BASE') + sum(items, 'ALLOWANCE');
+
+    // Statutory deductions (Q-13): BPJS employee shares, then PPh 21 on what is left.
+    // Added LAST, and computed on `gross` (base + allowances) rather than on the running
+    // total, because that is the regulated base — a lateness deduction does not reduce
+    // the wage BPJS is reckoned on, and a bonus is taxed through the annual filing rather
+    // than this month's estimate. Every rate is configuration; see domain/statutory.ts
+    // for what is and is not modelled, including the December reconciliation gap.
+    for (const line of statutoryDeductions(
+      {
+        grossIdr: gross,
+        ptkpStatus: employee.ptkpStatus,
+        // No NPWP on file is the surcharge case, and a blank string is no NPWP.
+        hasNpwp: !!employee.npwp?.trim(),
+        // A BPJS number on file IS the enrolment record — see domain/statutory.ts for
+        // why an unenrolled employee must not be deducted for.
+        enrolledHealth: !!employee.bpjsKes?.trim(),
+        enrolledEmployment: !!employee.bpjsTk?.trim(),
+      },
+      this.config.statutoryRates(employee.depotId),
+    )) {
+      items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr });
+    }
+
     const totalBonus = sum(items, 'BONUS');
     const totalDeduction = sum(items, 'DEDUCTION');
     const write = {
@@ -270,7 +297,10 @@ export class PayrollService {
         `Hanya payroll DRAFT yang bisa disetujui (saat ini ${payroll.status})`,
       );
     }
-    return this.repo.setStatus(id, 'APPROVED', { approvedBy: user.sub, approvedAt: new Date() });
+    return this.repo.setStatus(id, payroll.status, 'APPROVED', {
+      approvedBy: user.sub,
+      approvedAt: new Date(),
+    });
   }
 
   async markPaid(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {
@@ -280,7 +310,7 @@ export class PayrollService {
         `Hanya payroll APPROVED yang bisa dibayar (saat ini ${payroll.status})`,
       );
     }
-    return this.repo.setStatus(id, 'PAID', { paidAt: new Date() });
+    return this.repo.setStatus(id, payroll.status, 'PAID', { paidAt: new Date() });
   }
 
   async getById(user: AuthenticatedUser, id: string): Promise<PayrollWithItems> {

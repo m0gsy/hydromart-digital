@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SettingsCache } from '@hydromart/platform';
+import { SettingsCache, BUSINESS_TIME_ZONE } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
@@ -49,6 +49,10 @@ export class DeliveryConfigService {
   /** crm-service base URL for the internal ops-incident push. Blank = disabled. */
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+  /** admin-service base URL for the partner webhook fan-out. Blank = no events published. */
+  get adminServiceUrl(): string {
+    return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
   }
   /** payout-service base URL for the courier earning push. Blank = disabled (fail-open). */
   get payoutServiceUrl(): string {
@@ -169,5 +173,10 @@ export class DeliveryConfigService {
       accessKeyId: this.config.getOrThrow<string>('STORAGE_S3_ACCESS_KEY_ID'),
       secretAccessKey: this.config.getOrThrow<string>('STORAGE_S3_SECRET_ACCESS_KEY'),
     };
+  }
+
+  /** The one business timezone (H-16); every day/month boundary here is reckoned in it. */
+  get businessTimeZone(): string {
+    return this.config.get<string>('PRICING_TZ', BUSINESS_TIME_ZONE);
   }
 }

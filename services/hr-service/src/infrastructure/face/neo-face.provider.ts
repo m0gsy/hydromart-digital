@@ -28,8 +28,9 @@ interface NeoResponse {
  * Faces live in ONE global gallery (NEO_FR_GALLERY_ID) keyed by `user_id` = Employee.id.
  * Enroll uploads one aligned frame with `force_register` so re-enroll overwrites cleanly.
  * Check-in is 1:1 `verify-face` (the PWA already knows the logged-in employee) — cheaper
- * and safer than kiosk 1:N identify. Passive liveness stays a CLIENT gate (assertFace);
- * NEO's own `verified`/`similarity` decide the match.
+ * and safer than kiosk 1:N identify. NEO's own `verified`/`similarity` decide the match —
+ * and are the only control: the client's liveness challenge is a capture-quality gate the
+ * server no longer trusts (B-7).
  *
  * OPS: set FACE_VERIFIER_DRIVER=neo + NEO_FR_TOKEN (+ optional NEO_FR_ENDPOINT/GALLERY_ID).
  * Dev/CI stay on FACE_VERIFIER_DRIVER=stub and never touch the network.
@@ -59,7 +60,6 @@ export class NeoFaceProvider implements FaceVerifier {
   async verify(
     image: Buffer,
     _enrolled: number[][],
-    live: boolean,
     identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
     const id = this.requireIdentity(identity);
@@ -72,7 +72,7 @@ export class NeoFaceProvider implements FaceVerifier {
       image: toBase64(image),
     });
     if (res.verified === undefined) this.ensureOk('verify-face', res);
-    return { score: normalizeSimilarity(res.similarity), matched: isTruthy(res.verified), live };
+    return { score: normalizeSimilarity(res.similarity), matched: isTruthy(res.verified) };
   }
 
   private get gallery(): string {

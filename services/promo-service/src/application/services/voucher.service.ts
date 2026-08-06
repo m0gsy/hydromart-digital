@@ -168,25 +168,22 @@ export class VoucherService {
     }
 
     const voucher = await this.getByCode(code);
-    const customerRedemptionCount = await this.repo.countRedemptions(voucher.id, customerId);
-    const burned = voucher.budgetCap !== null ? await this.repo.sumRedemptionsFor(voucher.id) : 0;
-    const discount = computeDiscount(voucher, subtotal, shippingFee);
-    validateVoucher(
-      voucher,
-      subtotal,
-      new Date(),
-      voucher.usedCount,
-      customerRedemptionCount,
-      burned + discount,
-    );
 
-    const redemption = await this.repo.recordRedemption({
-      voucherId: voucher.id,
-      voucherCode: voucher.code,
-      customerId,
-      orderId,
-      discountApplied: discount,
-    });
+    // H-1: the caps are checked INSIDE the lock, not before it. Reading usedCount, the
+    // per-customer count and the burned budget on a separate connection and then writing
+    // meant N concurrent redemptions of one code all saw the same pre-write numbers, all
+    // passed, and all committed — usageLimit, perCustomerLimit and budgetCap were each
+    // bypassable by sending the requests together rather than in sequence.
+    const redemption = await this.repo.redeemAtomic(
+      { voucherId: voucher.id, voucherCode: voucher.code, customerId, orderId },
+      ({ usedCount, customerRedemptions, burned }) => {
+        const discount = computeDiscount(voucher, subtotal, shippingFee);
+        // Throws on a cap violation, which rolls the transaction back — so a voucher that
+        // ran out between quote and redeem burns nothing.
+        validateVoucher(voucher, subtotal, new Date(), usedCount, customerRedemptions, burned + discount);
+        return discount;
+      },
+    );
     return { orderId: redemption.orderId, discountApplied: redemption.discountApplied };
   }
 

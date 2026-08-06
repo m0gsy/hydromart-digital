@@ -26,6 +26,7 @@ import {
   PublicCustomerDto,
   SessionInfoDto,
 } from './dto/responses.dto';
+import { CountCustomers3ResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -90,6 +91,7 @@ export class AccountController {
 
   // Staff & roles directory (PRD Module 7). Managing who has which role is a
   // head-office / super-admin responsibility; mirrored client-side in roles.ts.
+  @ApiOkResponse({ type: ListStaff3ResponseDto })
   @Can('staffDirectory')
   @Get('auth/staff')
   @ApiOperation({ summary: 'List staff accounts (paginated, optional role filter)' })
@@ -154,6 +156,7 @@ export class AccountController {
 
   // HQ overview KPI (feature: new-customers tile): count of end-customer signups
   // in an optional [from, to) ISO window. Head-office / super-admin only.
+  @ApiOkResponse({ type: CountCustomers3ResponseDto })
   @Can('staffAdmin')
   @Get('auth/customers/count')
   @ApiOperation({ summary: 'HQ: count new customer signups in an optional date window' })
@@ -230,6 +233,7 @@ export class AccountController {
     return this.dataSubject.deleteStaffAccount(id, user.sub);
   }
 
+  @ApiOkResponse({ type: ImportResponseDto })
   @Can('staffAdmin')
   @Post('auth/staff/import')
   @HttpCode(HttpStatus.OK)

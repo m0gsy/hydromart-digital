@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { DeliveryService } from '../../src/application/services/delivery.service';
+import { DeliveryService, storageKeyFromUrl } from '../../src/application/services/delivery.service';
 import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DeliveryAlreadyExistsError,
@@ -29,8 +29,9 @@ import {
 
 const AUTH = 'Bearer token';
 const PROOF = {
-  photoUrl: 'https://cdn/x.jpg',
-  signatureUrl: 'https://cdn/sig.png',
+  // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
+  photoUrl: 'https://cdn/pod/x.jpg',
+  signatureUrl: 'https://cdn/pod/sig.png',
   recipientName: 'Budi',
   latitude: -6.9147,
   longitude: 107.6098,
@@ -44,8 +45,13 @@ const AT_DEPOT = { lat: -6.9147, lng: 107.6098 };
 describe('DeliveryService', () => {
   let repo: InMemoryDeliveryRepository;
   let orders: FakeOrderCoordination;
+  let payout: FakeCourierPayout;
   let shifts: ShiftService;
   let service: DeliveryService;
+  let storage: { put: jest.Mock; remove: jest.Mock };
+  /** Same wiring as `service`, minus the storage binding (an environment with uploads off). */
+  let makeStorageless: () => DeliveryService;
+  let events: { publish: jest.Mock };
   let urbanSpeedKmph: number;
   const driver = randomUUID();
   const staff = randomUUID();
@@ -57,7 +63,21 @@ describe('DeliveryService', () => {
     urbanSpeedKmph = config.urbanSpeedKmph();
     const depots = new FakeDepotLocation();
     shifts = new ShiftService(new InMemoryShiftRepository(), depots, config);
-    service = new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+    payout = new FakeCourierPayout();
+    storage = { put: jest.fn(), remove: jest.fn().mockResolvedValue(undefined) };
+    makeStorageless = () =>
+      new DeliveryService(repo, orders, new FakeCourierPayout(), shifts, config, depots);
+    events = { publish: jest.fn().mockResolvedValue(undefined) };
+    service = new DeliveryService(
+      repo,
+      orders,
+      payout,
+      shifts,
+      config,
+      depots,
+      storage as never,
+      events as never,
+    );
     // Assignment now requires an open ONLINE shift, so every driver clocks in first.
     await shifts.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng);
   });
@@ -245,6 +265,27 @@ describe('DeliveryService', () => {
     await expect(assign(driver)).rejects.toBeInstanceOf(DriverNotOnShiftError);
   });
 
+  // Audit S-17 and its Q-17 baseline row: a ping reads a projection, never the delivery's
+  // full history and proof. Pinned by the fake, which only returns the ping columns.
+  it('a ping does not load the history', async () => {
+    const d = await assign();
+    repo.pingStateCalls = 0;
+    await service.reportLocation(driver, d.id, -6.2, 106.8);
+    expect(repo.pingStateCalls).toBe(1);
+  });
+
+  // The ping projection carries its own guards now, so each has to be proved on it: a
+  // delivery that does not exist, and one that belongs to another driver.
+  it('refuses a ping for an unknown delivery or another driver', async () => {
+    const d = await assign();
+    await expect(
+      service.reportLocation(driver, randomUUID(), -6.2, 106.8),
+    ).rejects.toBeInstanceOf(DeliveryNotFoundError);
+    await expect(service.reportLocation(randomUUID(), d.id, -6.2, 106.8)).rejects.toBeInstanceOf(
+      NotAssignedDriverError,
+    );
+  });
+
   it('records the driver location while active and rejects it after delivery', async () => {
     const d = await assign();
     const pinged = await service.reportLocation(driver, d.id, -6.2, 106.8);
@@ -328,6 +369,39 @@ describe('DeliveryService', () => {
       // order-service (loyalty, referral, stock consume) never runs.
       'COMPLETED',
     ]);
+  });
+
+  // H-8. The order used to be marched to DELIVERED and then COMPLETED before the proof
+  // row was written. A proof write that failed left an order closed — stock consumed,
+  // points awarded, courier paid — with no evidence anyone handed over anything.
+  it('writes the proof before it closes the order, and closes nothing if the proof fails', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    jest.spyOn(repo, 'completeWithProof').mockRejectedValue(new Error('storage down'));
+    const before = orders.calls.length;
+
+    await expect(service.complete(driver, d.id, PROOF, AUTH)).rejects.toThrow('storage down');
+
+    // No DELIVERED, no COMPLETED: the order stays where the courier left it.
+    expect(orders.calls).toHaveLength(before);
+  });
+
+  // H-5. The transition check ran against a snapshot, so a courier double-tapping Selesai
+  // — the thing a driver on a bad connection actually does — completed twice, wrote two
+  // proof rows and pushed two earnings for one handover.
+  it('pays for one handover when Selesai is tapped twice', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+
+    const results = await Promise.allSettled([
+      service.complete(driver, d.id, PROOF, AUTH),
+      service.complete(driver, d.id, PROOF, AUTH),
+    ]);
+
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(payout.events).toHaveLength(1);
   });
 
   it('still completes the delivery when the order cannot be closed', async () => {
@@ -458,6 +532,37 @@ describe('DeliveryService', () => {
     expect(await repo.countActiveByDriver(driver)).toBe(0);
   });
 
+  // H-30: the event a partner subscribes to. Published after the handover is recorded, so
+  // a partner integration can never be the reason a delivery fails.
+  it('publishes delivery.delivered once the handover is stored', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    await Promise.resolve();
+
+    expect(events.publish).toHaveBeenCalledTimes(1);
+    const [event, payload] = events.publish.mock.calls[0]!;
+    expect(event).toBe('delivery.delivered');
+    expect(payload).toMatchObject({
+      deliveryId: done.id,
+      orderId: done.orderId,
+      recipientName: PROOF.recipientName,
+    });
+  });
+
+  it('completes normally when no partner fan-out is bound at all', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await bare.pickup(driver, d.id, AUTH);
+    await bare.start(driver, d.id, AUTH);
+
+    await expect(bare.complete(driver, d.id, PROOF, AUTH)).resolves.toMatchObject({
+      status: DeliveryStatus.DELIVERED,
+    });
+    expect(events.publish).not.toHaveBeenCalled();
+  });
+
   it("never reveals another driver's delivery (404)", async () => {
     const d = await assign();
     await expect(service.getForDriver(randomUUID(), d.id)).rejects.toBeInstanceOf(
@@ -488,5 +593,52 @@ describe('DeliveryService', () => {
     const later = new Date(capturedAt.getTime() + 366 * 86_400_000);
     expect(await service.purgeProofsOlderThan(later)).toEqual({ purged: 1 });
     expect((await service.getAny(d.id)).proof).toBeNull();
+
+    // H-22: deleting the row alone left the photo — someone's doorstep, often with them in
+    // frame — sitting in the bucket after the record that was supposed to be erased.
+    expect(storage.remove).toHaveBeenCalledWith(storageKeyFromUrl(PROOF.photoUrl));
+  });
+
+  // A proof URL that predates the current storage layout has no `pod/` segment to key on.
+  // The row still goes; the object is reported as left behind rather than silently skipped.
+  it('reports a proof url it cannot turn into a storage key', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(
+      driver,
+      d.id,
+      { ...PROOF, photoUrl: 'https://cdn/legacy.jpg', signatureUrl: null },
+      AUTH,
+    );
+
+    expect(storageKeyFromUrl('https://cdn/legacy.jpg')).toBeNull();
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('leaves the objects alone, loudly, when no storage is bound', async () => {
+    const bare = makeStorageless();
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    await expect(bare.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+
+  it('finishes the sweep even when the bucket refuses one delete', async () => {
+    const d = await assign();
+    await service.pickup(driver, d.id, AUTH);
+    await service.start(driver, d.id, AUTH);
+    const done = await service.complete(driver, d.id, PROOF, AUTH);
+    storage.remove.mockRejectedValueOnce(new Error('bucket unreachable'));
+
+    const later = new Date(done.proof!.capturedAt.getTime() + 366 * 86_400_000);
+    // The rows are already gone; one stubborn object must not abort erasure for everyone else.
+    await expect(service.purgeProofsOlderThan(later)).resolves.toEqual({ purged: 1 });
   });
 });

@@ -1,0 +1,48 @@
+# gitleaks config for the Security workflow (H-42).
+#
+# Extends the bundled rule set rather than replacing it — a hand-written rule list is a
+# list of the leaks we already thought of. Everything below is an ALLOWLIST, and every
+# entry has to be a place where a secret-shaped string is provably not a secret.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths whose secret-shaped strings are placeholders, not credentials"
+
+paths = [
+  # The contract files. Every value in them is a description of what to set, and the
+  # deploy checks the real .env against this list (missing_env_keys) precisely because
+  # the real values live only on the box.
+  '''^\.env\.example$''',
+  '''^\.env\.production\.example$''',
+  # A developer's local .env is gitignored; it is not in a CI checkout, but a local run
+  # of this same command must not trip on it either.
+  '''^\.env$''',
+  # Lockfiles carry integrity hashes, which are high-entropy by construction.
+  '''package-lock\.json$''',
+  # Generated Prisma clients embed schema hashes.
+  '''prisma/generated/''',
+  # Test fixtures and CI dummies: JWT secrets, webhook secrets and API keys that exist so
+  # a suite can assert a signature verifies. They authenticate nothing.
+  '''(^|/)test/''',
+  '''(^|/)e2e/''',
+  '''\.spec\.ts$''',
+  '''\.test\.ts$''',
+  '''^docker-compose\.test\.yml$''',
+  '''^\.github/workflows/ci\.yml$''',
+  # The audit register and readiness docs quote leaked-looking material verbatim.
+  '''^docs/''',
+]
+
+regexes = [
+  # Settings-schema key NAMES, not values. `key: 'bpjsJhtEmployeePctX100'` reads to
+  # generic-api-key as a high-entropy string assigned to something literally called "key";
+  # it names a statutory payroll percentage an accountant edits in the console, and the
+  # value beside it is an integer. Anchored on the ×100 suffix the whole family carries, so
+  # it allowlists those names and nothing else in the file.
+  '''^[a-z][A-Za-z]*PctX100$''',
+  # VAPID/web-push and JWT example values are documented inline in several READMEs with a
+  # literal "example"/"changeme"/"replace" marker next to them.
+  '''(?i)(example|placeholder|changeme|replace-me|your-.*-here|dummy|fake)''',
+]

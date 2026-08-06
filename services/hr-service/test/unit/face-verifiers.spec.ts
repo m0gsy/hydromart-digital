@@ -26,17 +26,15 @@ describe('StubFaceVerifier', () => {
     const frame = Buffer.from('same-face-bytes-123');
     const { vector, quality } = await svc.enroll([frame, frame]);
     expect(quality).toBeCloseTo(0.99);
-    const result = await svc.verify(frame, [vector], true);
+    const result = await svc.verify(frame, [vector]);
     expect(result.score).toBeGreaterThan(0.99);
     expect(result.matched).toBe(true);
-    expect(result.live).toBe(true);
   });
 
   it('keeps a different frame below the match threshold', async () => {
     const enrolled = (await svc.enroll([Buffer.from('face-A')])).vector;
-    const result = await svc.verify(Buffer.from('totally-different-face-B'), [enrolled], false);
+    const result = await svc.verify(Buffer.from('totally-different-face-B'), [enrolled]);
     expect(result.matched).toBe(false);
-    expect(result.live).toBe(false);
   });
 });
 
@@ -99,9 +97,8 @@ describe('OnnxArcFaceVerifier', () => {
     expect(enrolled.quality).toBe(1);
 
     // Second call reuses the cached session (exercises the `if (!this.session)` false branch).
-    const result = await svc.verify(Buffer.from('probe'), [enrolled.vector], true);
+    const result = await svc.verify(Buffer.from('probe'), [enrolled.vector]);
     expect(result.matched).toBe(true); // identical mean vector → cosine ~1
-    expect(result.live).toBe(true);
   });
 
   it('503s when the model returns no embedding', async () => {
@@ -111,7 +108,7 @@ describe('OnnxArcFaceVerifier', () => {
       });
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /embedding/,
     );
   });
@@ -127,7 +124,7 @@ describe('OnnxArcFaceVerifier', () => {
       );
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /model ArcFace/,
     );
   });
@@ -144,7 +141,7 @@ describe('OnnxArcFaceVerifier', () => {
       );
       jest.doMock('sharp', () => fakeSharp(), { virtual: true });
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /onnxruntime-node/,
     );
   });
@@ -169,7 +166,7 @@ describe('OnnxArcFaceVerifier', () => {
         { virtual: true },
       );
     });
-    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]], true)).rejects.toThrow(
+    await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /sharp/,
     );
   });

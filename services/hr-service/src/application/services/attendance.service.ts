@@ -18,7 +18,7 @@ import {
   resolveShiftStart,
   shiftIdForDay,
 } from '../../domain/shift-rotation';
-import { uploadFrame } from '../../infrastructure/storage/upload-frame';
+import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 import {
@@ -32,7 +32,6 @@ import { SHIFT_REPOSITORY, ShiftRepository } from '../ports/shift.repository';
 export interface FacePunch {
   image: Buffer;
   photoUrl: string | null;
-  live: boolean;
   lat: number;
   lng: number;
   /** Device time for a punch queued offline; null for a live punch. */
@@ -76,7 +75,7 @@ export class AttendanceService {
     const late = minutesOfDay > startMinutes + tolerance;
     const lateMinutes = late ? minutesOfDay - startMinutes : 0;
     const photoUrl =
-      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
 
     // A punch that reached us within the auto-accept window is indistinguishable from a live
     // one — face and geofence were re-checked here either way, and the clock gap is trivial.
@@ -127,7 +126,7 @@ export class AttendanceService {
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
     const photoUrl =
-      punch.photoUrl ?? (await uploadFrame(this.storage, punch.image, 'hr/attendance'));
+      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
@@ -363,7 +362,14 @@ export class AttendanceService {
     return employee;
   }
 
-  /** Liveness + face match against the employee's enrolled set; returns the match score. */
+  /**
+   * Face match against the employee's enrolled set; returns the match score.
+   *
+   * B-7: the liveness verdict used to come from the request body — the caller asserting
+   * their own anti-spoofing check had passed — so it barred nobody who was trying and only
+   * ever stopped honest clients. The face match is the control; the PWA's blink challenge
+   * stays a capture-quality gate on the device.
+   */
   private async assertFace(employee: Employee, punch: FacePunch): Promise<number> {
     const enrolled = await this.faces.listActiveByEmployee(employee.id);
     if (enrolled.length === 0) {
@@ -372,12 +378,8 @@ export class AttendanceService {
     const result = await this.verifier.verify(
       punch.image,
       enrolled.map((e) => e.vector),
-      punch.live,
       { userId: employee.id, userName: employee.fullName },
     );
-    if (!result.live) {
-      throw new BadRequestException('Deteksi liveness gagal, coba lagi');
-    }
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }

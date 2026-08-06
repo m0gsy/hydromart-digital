@@ -158,13 +158,14 @@ describe('AttendanceController', () => {
     const punch = att.checkIn.mock.calls[0][1];
     expect(att.checkIn.mock.calls[0][0]).toBe(user);
     expect(Buffer.isBuffer(punch.image)).toBe(true);
-    expect(punch).toMatchObject({ photoUrl: null, live: false, lat: 1, lng: 2 });
+    expect(punch).toMatchObject({ photoUrl: null, lat: 1, lng: 2 });
   });
   it('check-out passes through optional fields', () => {
-    const dto = { image: dataUrl, photoUrl: 'p', live: true, lat: 3, lng: 4 } as never;
+    const dto = { image: dataUrl, photoUrl: 'p', live: true, lat: 3, lng: 4 } as never; // `live` is accepted and ignored (B-7)
     c.checkOut(dto, user);
     const punch = att.checkOut.mock.calls[0][1];
-    expect(punch).toMatchObject({ photoUrl: 'p', live: true, lat: 3, lng: 4 });
+    expect(punch).toMatchObject({ photoUrl: 'p', lat: 3, lng: 4 });
+    expect(punch).not.toHaveProperty('live');
   });
   it('listSelf / list / createManual / adjust delegate', () => {
     const q = { page: 1, pageSize: 30 } as never;
