@@ -149,15 +149,49 @@ export class DepotCrmService {
     private readonly config: CustomerConfigService,
   ) {}
 
+  /**
+   * The depot's customers — §I: everyone, not just the ones somebody typed into Excel.
+   *
+   * The repository unions the profile's favourite depot with the reseller registry. The
+   * third source cannot go there: "has ordered from this depot" lives in order-service's
+   * database, and it arrives as `depotCustomerStats`. It used to be a LEFT-JOIN enrichment,
+   * so a customer who registered themselves and ordered ten times was simply dropped.
+   *
+   * `depotCustomerStats` already excludes the anonymous counter-sale sentinel at the
+   * source, so an unnamed walk-in cannot enter the directory as a person.
+   */
+  /**
+   * Record a first-checkout depot as this customer's favourite — §I. Only when they have
+   * none: see `claimFavoriteDepotIfUnset` for why moving an existing one would be wrong.
+   */
+  claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean> {
+    return this.profiles.claimFavoriteDepotIfUnset(customerId, depotId);
+  }
+
   async listDepotCustomers(depotId: string, q?: string): Promise<DepotCustomerListItem[]> {
-    const [rows, stats] = await Promise.all([
+    const [profileRows, stats] = await Promise.all([
       this.crm.listDepotCustomers(depotId),
       this.orderCrm.depotCustomerStats(depotId),
     ]);
+    const statsBy = new Map(stats.map((s) => [s.customerId, s]));
+    const known = new Set(profileRows.map((r) => r.customerId));
+    const rows = [
+      ...profileRows,
+      // Ordered here, but never recorded as belonging here. Name and phone come off the
+      // order snapshot until the account lookup below replaces them.
+      ...stats
+        .filter((s) => !known.has(s.customerId))
+        .map((s) => ({
+          customerId: s.customerId,
+          fullName: s.name ?? null,
+          phone: s.phone ?? null,
+          membershipTier: MembershipTier.BASIC,
+        })),
+    ];
+
     // The account name, not the primary address's recipient — a customer who never saved
     // an address has an account name but no address, and used to list as "Tanpa nama".
     const identities = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
-    const statsBy = new Map(stats.map((s) => [s.customerId, s]));
     const now = new Date();
     const t = this.config.crmThresholds;
     const items = rows.map((r) => {

@@ -39,6 +39,7 @@ import {
   FakePaymentReversal,
   FakeMembership,
   FakeResellerDiscount,
+  FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
   FakeInventory,
@@ -89,6 +90,7 @@ describe('OrderService', () => {
   let franchiseRevenue: FakeFranchiseRevenue;
   let membership: FakeMembership;
   let resellerDiscount: FakeResellerDiscount;
+  let customerDirectory: FakeCustomerDirectory;
   let notification: FakeNotification;
   let promo: FakePromo;
   let inventory: FakeInventory;
@@ -111,6 +113,7 @@ describe('OrderService', () => {
     franchiseRevenue = new FakeFranchiseRevenue();
     membership = new FakeMembership();
     resellerDiscount = new FakeResellerDiscount();
+    customerDirectory = new FakeCustomerDirectory();
     notification = new FakeNotification();
     promo = new FakePromo();
     inventory = new FakeInventory();
@@ -126,6 +129,7 @@ describe('OrderService', () => {
       referral,
       membership,
       resellerDiscount,
+      customerDirectory,
       notification,
       promo,
       inventory,
@@ -1784,6 +1788,7 @@ describe('OrderService', () => {
       referral,
       membership,
       resellerDiscount,
+      customerDirectory,
       notification,
       promo,
       inventory,
@@ -1909,6 +1914,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeReferralCoordination(),
       new FakeMembership(),
       new FakeResellerDiscount(),
+      new FakeCustomerDirectory(),
       new FakeNotification(),
       new FakePromo(),
       new FakeInventory(),

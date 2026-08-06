@@ -58,6 +58,7 @@ import {
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
@@ -139,6 +140,8 @@ export class OrderService {
     private readonly referral: ReferralCoordinationPort,
     @Inject(ORDER_TOKENS.Membership) private readonly membership: MembershipPort,
     @Inject(ORDER_TOKENS.ResellerDiscount) private readonly resellerDiscount: ResellerDiscountPort,
+    @Inject(ORDER_TOKENS.CustomerDirectory)
+    private readonly customerDirectory: CustomerDirectoryPort,
     @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
@@ -361,6 +364,17 @@ export class OrderService {
     );
     await this.cart.clear(customerId);
     if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
+    /*
+     * §I: the depot they just bought from becomes their depot, if they had none. Until now
+     * `favoriteDepotId` was written only by a depot's Excel import and by a `PATCH /profile`
+     * nothing calls, so a customer who registered themselves and ordered every week was in
+     * no depot's directory at all. Only when unset, decided on the far side: the last depot
+     * to sell somebody water must not steal them from the one they belong to.
+     *
+     * Fail-open — the port never throws. The order is placed; a directory row is not worth
+     * unwinding it over, and the next order tries again.
+     */
+    await this.customerDirectory.claimFavoriteDepot(order.customerId, depot.id);
 
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
@@ -571,6 +585,19 @@ export class OrderService {
     }
 
     const { items, subtotal, catalogFallback } = await this.priceLines(input.depotId, input.lines);
+    /*
+     * §I, NOT DONE and deliberately recorded rather than half-built: the buyer is resolved
+     * by the BROWSER. `dashboard/walk-in/page.tsx` posts a one-row depot Excel import to
+     * mint the customer, then sends the id here. Any other client posting `/orders/walk-in`
+     * with a phone and no `customerId` therefore records a sale against the anonymous
+     * sentinel and creates nobody — the orchestration belongs on this side.
+     *
+     * Moving it needs a customer-service port that resolves-or-creates by phone, which is a
+     * third cross-service link; the shipped POS works today, so it is written down here
+     * instead of rushed. Everything else in §I is done: the directory unions profile,
+     * reseller and orderer, the sentinel is filtered at the source, and checkout records
+     * the depot.
+     */
     const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
     const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);

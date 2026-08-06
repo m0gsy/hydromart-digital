@@ -17,8 +17,12 @@ import { PdpRepository } from '../application/ports/pdp.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
 import { CrmDashboardDto, CrmDepotDashboardDto } from './dto/depot-crm.dto';
-import { PdpCustomerDto } from './dto/pdp.dto';
-import { CrmDashboardResponseDto, CustomerIdsByDepot2ResponseDto } from './dto/responses.generated.dto';
+import { ClaimFavoriteDepotDto, PdpCustomerDto } from './dto/pdp.dto';
+import {
+  ClaimFavoriteDepotResponseDto,
+  CrmDashboardResponseDto,
+  CustomerIdsByDepot2ResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * Service-to-service reads (no end-user token). @Public() bypasses the global JWT guard;
@@ -56,6 +60,23 @@ export class InternalController {
   })
   pdpAnonymise(@Body() dto: PdpCustomerDto): Promise<void> {
     return this.pdp.anonymise(dto.customerId);
+  }
+
+  /**
+   * §I: a customer who has never ordered belonged to no depot's directory, because
+   * `favoriteDepotId` was written by the Excel importer and by a `PATCH /profile` the
+   * console never calls. order-service reports the fulfilling depot at checkout, and this
+   * records it — ONLY when there is none, so the last depot to sell somebody water can
+   * never steal them from the depot they actually belong to.
+   *
+   * Fail-soft on the caller's side: the order is already placed either way.
+   */
+  @ApiOkResponse({ type: ClaimFavoriteDepotResponseDto })
+  @Post('internal/favorite-depot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Record a first-checkout depot as the favourite, if none is set' })
+  async claimFavoriteDepot(@Body() dto: ClaimFavoriteDepotDto): Promise<{ claimed: boolean }> {
+    return { claimed: await this.crm.claimFavoriteDepot(dto.customerId, dto.depotId) };
   }
 
   @ApiOkResponse({ type: CustomerIdsByDepot2ResponseDto })

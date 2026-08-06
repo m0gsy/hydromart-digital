@@ -38,6 +38,16 @@ export interface ProfileRepository {
    * each can report its own error.
    */
   upsertFavoriteDepot(customerId: string, favoriteDepotId: string): Promise<CustomerProfileRecord>;
+  /**
+   * Point a customer at this depot ONLY if they have no favourite yet (§I).
+   *
+   * The unqualified upsert above is the importer's: a depot typing somebody into its
+   * spreadsheet is claiming them. This one is order-service reporting a first checkout, and
+   * it must never move a customer a depot already recorded — or the last depot to sell them
+   * water would silently steal them from whoever they actually belong to. Returns whether it
+   * wrote, so the caller can say so.
+   */
+  claimFavoriteDepotIfUnset(customerId: string, favoriteDepotId: string): Promise<boolean>;
   updateBirthdate(customerId: string, birthdate: Date | null): Promise<CustomerProfileRecord>;
   /**
    * Customer ids whose birthday falls on the given month/day and who have NOT

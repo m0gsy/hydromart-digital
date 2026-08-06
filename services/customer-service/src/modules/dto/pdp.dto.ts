@@ -7,3 +7,16 @@ export class PdpCustomerDto {
   @IsUUID()
   customerId!: string;
 }
+
+/**
+ * order-service reporting where a customer just bought water, so a self-registered
+ * customer appears in that depot's directory (§I). Not a "set my favourite depot": the
+ * service only writes it when there is none.
+ */
+export class ClaimFavoriteDepotDto {
+  @IsUUID()
+  customerId!: string;
+
+  @IsUUID()
+  depotId!: string;
+}

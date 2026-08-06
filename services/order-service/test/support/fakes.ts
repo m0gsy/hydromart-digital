@@ -62,6 +62,7 @@ import {
   ResellerDiscount,
   ResellerDiscountPort,
 } from '../../src/application/ports/reseller-discount.port';
+import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
@@ -979,6 +980,18 @@ export class FakeResellerDiscount implements ResellerDiscountPort {
   result: ResellerDiscount | null = null;
   async get(_authorization: string): Promise<ResellerDiscount | null> {
     return this.result;
+  }
+}
+
+/** §I: records which depot each checkout claimed, and whether it was the first. */
+export class FakeCustomerDirectory implements CustomerDirectoryPort {
+  readonly claims: { customerId: string; depotId: string }[] = [];
+  private readonly claimed = new Set<string>();
+  async claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean> {
+    this.claims.push({ customerId, depotId });
+    if (this.claimed.has(customerId)) return false;
+    this.claimed.add(customerId);
+    return true;
   }
 }
 

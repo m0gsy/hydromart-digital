@@ -162,6 +162,12 @@ services:
       PRODUCT_SERVICE_URL: http://product:3003
       # Pre-registers phones during a depot's bulk customer/reseller import.
       AUTH_SERVICE_URL: http://auth:3001
+      # J-1: the depot customer directory's order count, last order and segment all come
+      # from here. Seven other services had it and customer-service did not, so
+      # `order-crm.http.adapter` returned [] on every call, /dashboard/crm showed all-zero
+      # segments and an empty follow-up queue, and the franchise dashboard was fed those
+      # zeros too. It fails soft, so nothing ever logged.
+      ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3002/api/v1/health"]

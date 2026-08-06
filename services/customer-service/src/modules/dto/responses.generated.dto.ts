@@ -198,3 +198,9 @@ export class Me2ResponseDto {
   @ApiProperty({ type: Number })
   discountPct!: number;
 }
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class ClaimFavoriteDepotResponseDto {
+  @ApiProperty({ type: Boolean })
+  claimed!: boolean;
+}

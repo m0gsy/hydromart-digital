@@ -37,7 +37,6 @@ import { OtpTokenPrismaRepository } from '../../infrastructure/prisma/repositori
 import { RefreshTokenPrismaRepository } from '../../infrastructure/prisma/repositories/refresh-token.prisma.repository';
 import { AccessTokenSigner } from '../../infrastructure/security/access-token-signer';
 import { CryptoService } from '../../infrastructure/security/crypto.service';
-import { GoogleVerifier } from '../../infrastructure/security/google-verifier';
 import { SystemClock } from '../../infrastructure/security/system-clock';
 import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
@@ -72,7 +71,6 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
-  { provide: AUTH_TOKENS.GoogleVerifierPort, useClass: GoogleVerifier },
   { provide: AUTH_TOKENS.CustomerNotificationPort, useClass: CustomerNotificationHttpAdapter },
   {
     provide: AUTH_TOKENS.Storage,

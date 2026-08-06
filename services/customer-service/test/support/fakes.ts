@@ -74,6 +74,14 @@ export class InMemoryProfileRepository implements ProfileRepository {
     if (!this.rows.has(customerId)) await this.create(customerId);
     return this.updateFavoriteDepot(customerId, favoriteDepotId);
   }
+  /** §I: writes only when there is no favourite, and says whether it wrote. */
+  async claimFavoriteDepotIfUnset(customerId: string, favoriteDepotId: string) {
+    const rec = this.rows.get(customerId);
+    if (rec && rec.favoriteDepotId) return false;
+    if (!rec) await this.create(customerId);
+    await this.updateFavoriteDepot(customerId, favoriteDepotId);
+    return true;
+  }
   async updateFavoriteDepot(customerId: string, favoriteDepotId: string | null) {
     const rec = this.rows.get(customerId)!;
     rec.favoriteDepotId = favoriteDepotId;
