@@ -585,6 +585,27 @@ describe('GallonIssuePrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1' } });
   });
 
+  /*
+   * J-2: issue totals per CUSTOMER at one depot. Rows with no customer are excluded in the
+   * `where` — an anonymous counter issue is not somebody anybody can chase for a gallon.
+   */
+  it('groups issues per customer, skipping the ones with none', async () => {
+    model.groupBy.mockResolvedValue([
+      { customerId: 'c1', _sum: { quantity: 4, depositHeld: 80_000 } },
+      { customerId: 'c2', _sum: { quantity: null, depositHeld: null } },
+    ]);
+    await expect(repo.perCustomerForDepot('depot-1')).resolves.toEqual([
+      { customerId: 'c1', gallons: 4, amountIdr: 80_000 },
+      // A group with no sum is 0, not NaN and not absent.
+      { customerId: 'c2', gallons: 0, amountIdr: 0 },
+    ]);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['customerId'],
+      where: { depotId: 'depot-1', customerId: { not: null } },
+      _sum: { quantity: true, depositHeld: true },
+    });
+  });
+
   it('lists with paging plus total', async () => {
     model.findMany.mockResolvedValue([row]);
     model.count.mockResolvedValue(1);
@@ -636,6 +657,26 @@ describe('GallonReturnPrismaRepository', () => {
   };
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
+
+  // J-2, the other half of the netting. `depositRefunded` is a Decimal column, so the sum
+  // comes back as a Decimal and has to be coerced — a Decimal reaching the DTO serialises
+  // as an object, not a number.
+  it('groups returns per customer and coerces the Decimal refund', async () => {
+    model.groupBy.mockResolvedValue([
+      { customerId: 'c1', _sum: { quantity: 2, depositRefunded: { toString: () => '40000' } } },
+      { customerId: 'c2', _sum: { quantity: null, depositRefunded: null } },
+    ]);
+    await expect(repo.perCustomerForDepot('depot-1')).resolves.toEqual([
+      { customerId: 'c1', gallons: 2, amountIdr: 40_000 },
+      { customerId: 'c2', gallons: 0, amountIdr: 0 },
+    ]);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['customerId'],
+      where: { depotId: 'depot-1', customerId: { not: null } },
+      _sum: { quantity: true, depositRefunded: true },
+    });
+  });
+
   const row = {
     id: 'gr-1',
     depotId: 'depot-1',

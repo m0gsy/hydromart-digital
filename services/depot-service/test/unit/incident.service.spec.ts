@@ -147,6 +147,15 @@ describe('IncidentService', () => {
     expect(moved.resolutionNote).toBeNull();
   });
 
+  // The other side of the same branch: RESOLVED reached through updateStatus rather than
+  // through resolve(), so it stamps the time but has no note or resolver to record.
+  it('updateStatus to RESOLVED stamps the time without inventing a resolver', async () => {
+    const inc = await record();
+    const done = await service.updateStatus(inc.id, IncidentStatus.RESOLVED);
+    expect(done.status).toBe(IncidentStatus.RESOLVED);
+    expect(done.resolvedAt).toBeInstanceOf(Date);
+  });
+
   it('updateStatus back from RESOLVED drops the resolution note/resolver', async () => {
     const inc = await record();
     await service.resolve(inc.id, 'done', 'mgr-1');

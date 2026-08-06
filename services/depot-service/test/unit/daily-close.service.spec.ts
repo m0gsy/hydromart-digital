@@ -218,13 +218,26 @@ describe('DailyCloseService', () => {
       sourceRef: null,
       actorId: 'kd-1',
     });
+    // A late payment OUT nets against the late money in — the figure reported is the
+    // change to the day's total, not the gross of whatever arrived afterwards.
+    const lateOut = await cashbook.create({
+      depotId,
+      direction: CashDirection.OUT,
+      category: 'PO',
+      label: 'Bayar galon telat',
+      occurredAt: new Date(`${DAY}T14:30:00.000Z`),
+      amountIdr: 25_000,
+      sourceRef: null,
+      actorId: 'kd-1',
+    });
+    cashbook.rows.find((r) => r.id === lateOut.id)!.createdAt = new Date(Date.now() + 60_000);
     // Recorded a minute after the book was shut; the fake would otherwise stamp both in
     // the same millisecond, which never happens with a human in the loop.
     cashbook.rows.find((r) => r.id === late.id)!.createdAt = new Date(Date.now() + 60_000);
 
     const view = await service.get(kepalaDepot(depotId), depotId, DAY);
-    expect(view.lateEntries).toBe(1);
-    expect(view.lateAmountIdr).toBe(75_000);
+    expect(view.lateEntries).toBe(2);
+    expect(view.lateAmountIdr).toBe(50_000);
   });
 
   it('reports an unclosed day as unclosed rather than failing', async () => {

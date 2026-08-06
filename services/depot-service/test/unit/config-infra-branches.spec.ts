@@ -31,7 +31,12 @@ describe('DepotConfigService', () => {
     expect(svc.isProduction).toBe(false);
     expect(svc.port).toBe(3010);
     expect(svc.rateLimit).toEqual({ ttlSeconds: 60, limit: 100 });
+    // K-1: one getter behind both names, so a pricing rule's "today" and a daily close's
+    // "today" are the same day.
     expect(svc.pricingTimeZone).toBe('Asia/Jakarta');
+    expect(svc.businessTimeZone).toBe(svc.pricingTimeZone);
+    // Blank = the daily close's courier-COD half fails closed rather than reporting zero.
+    expect(svc.deliveryServiceUrl).toBe('');
     expect(svc.crmServiceUrl).toBe('');
     expect(svc.alertPhone).toBe('');
     expect(svc.internalServiceKey).toBe('');
