@@ -260,3 +260,37 @@ describe('DailyCloseService', () => {
     await expect(service.reopen(depotId, DAY, 'hq-1')).rejects.toBeInstanceOf(BadRequestException);
   });
 });
+
+/* The refusal paths of the close, and the reopen's idempotence. */
+describe('DailyCloseService guards', () => {
+  it('refuses a date that is not a date at all', async () => {
+    const { service, depots } = make();
+    const depotId = await seedDepot(depots);
+    await expect(
+      service.close(kepalaDepot(depotId), depotId, 'kemarin', null),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('refuses a depot that does not exist', async () => {
+    const { service } = make();
+    await expect(
+      service.close(
+        { sub: 'hq', role: 'SUPER_ADMIN', phone: '0822' } as never,
+        '99999999-9999-4999-8999-999999999999',
+        DAY,
+        null,
+      ),
+    ).rejects.toBeTruthy();
+  });
+
+  // Reopening a day that is already reopened is a no-op, not a second reopen: the marker
+  // records WHO first reopened it, and overwriting that loses the answer.
+  it('returns an already-reopened day untouched', async () => {
+    const { service, depots } = make();
+    const depotId = await seedDepot(depots);
+    await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    const first = await service.reopen(depotId, DAY, 'hq-1');
+    const second = await service.reopen(depotId, DAY, 'hq-2');
+    expect(second.reopenedBy).toBe(first.reopenedBy);
+  });
+});

@@ -390,12 +390,20 @@ describe('GallonIssueController', () => {
 });
 
 describe('GallonNetworkController', () => {
-  const gallon = { outstanding: jest.fn() };
+  const gallon = { outstanding: jest.fn(), perCustomer: jest.fn() };
   const depots = { listMine: jest.fn() };
   const c = new GallonNetworkController(gallon as never, depots as never);
   beforeEach(() => {
     jest.clearAllMocks();
     gallon.outstanding.mockResolvedValue([{ depotId: DEPOT }, { depotId: 'other' }]);
+    gallon.perCustomer.mockResolvedValue([]);
+  });
+
+  // J-2: the per-customer read customer-service calls over the internal key. No depot
+  // filtering here — the caller names one depot and the guard is the key itself.
+  it('passes the depot straight through to the per-customer ledger', async () => {
+    await expect(c.perCustomer(DEPOT)).resolves.toEqual([]);
+    expect(gallon.perCustomer).toHaveBeenCalledWith(DEPOT);
   });
 
   it('returns the full network rollup for HQ roles', async () => {
