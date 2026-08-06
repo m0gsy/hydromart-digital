@@ -1,4 +1,4 @@
-import { alertServerError } from './error-alerter';
+import { alertServerError, redactAlertText } from './error-alerter';
 
 /**
  * Alerting sits on the 5xx path, so its own failure modes matter more than its
@@ -124,5 +124,49 @@ describe('alertServerError', () => {
   it('clears the dedupe map instead of growing without bound', () => {
     for (let i = 0; i < 520; i += 1) alert({ path: `/api/v1/p${i}` });
     expect(fetchMock).toHaveBeenCalledTimes(520);
+  });
+
+  it('aborts a webhook that accepts the connection and never answers', () => {
+    alert({ path: '/api/v1/slowhook' });
+    const init = fetchMock.mock.calls[0][1] as { signal?: AbortSignal };
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  // H-21: the destination is a third-party chat webhook. What reaches it must be
+  // actionable, not disclosive.
+  it('strips secrets, credentials and PII out of the stack it posts', () => {
+    const err = new Error(
+      'connect failed postgres://hydromart:s3cr3t@db:5432/hydromart for +6281234567890 ' +
+        '(budi@example.com) x-internal-key: aVeryLongInternalServiceKeyValue123456',
+    );
+    err.stack = `${err.message}\n    at handler (/app/services/order-service/dist/main.js:1:1)`;
+    alert({ path: '/api/v1/leaky', exception: err });
+
+    const { text } = JSON.parse((fetchMock.mock.calls[0][1] as { body: string }).body) as {
+      text: string;
+    };
+    expect(text).not.toContain('s3cr3t');
+    expect(text).not.toContain('aVeryLongInternalServiceKeyValue123456');
+    expect(text).not.toContain('6281234567890');
+    expect(text).not.toContain('budi@example.com');
+    expect(text).not.toContain('/app/');
+    // Still worth waking someone for: the failure is legible.
+    expect(text).toContain('connect failed');
+    expect(text).toContain('services/order-service/dist/main.js');
+  });
+});
+
+describe('redactAlertText', () => {
+  it('keeps only the first frames, so a 40-frame stack cannot page a whole channel', () => {
+    const long = ['Error: boom', ...Array.from({ length: 40 }, (_, i) => `    at f${i} (a.js:1:1)`)];
+    expect(redactAlertText(long.join('\n')).split('\n')).toHaveLength(6);
+  });
+
+  it('leaves an ordinary message alone', () => {
+    expect(redactAlertText('Error: order 8f2 not found')).toBe('Error: order 8f2 not found');
+  });
+
+  it('does not mistake a timestamp for a phone number', () => {
+    expect(redactAlertText('failed at 2026-08-05 10:11:12')).toContain('2026-08-05');
   });
 });

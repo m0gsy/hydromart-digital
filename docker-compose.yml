@@ -1,6 +1,13 @@
 # Local development infrastructure for Hydromart.
-# Requires Docker. Brings up PostgreSQL and Redis for the auth-service.
+# Requires Docker. Brings up PostgreSQL — every service's database.
 #   docker compose up -d
+#
+# Q-9: a redis:7-alpine container used to run here and in production. Nothing
+# imported a Redis client — not one service, not the rate limiter (in-process
+# store), not the scheduler (a DB cursor, by design). It was an unauthenticated
+# data store, a persistent volume and a container's worth of RAM, kept alive by
+# this entry and three `depends_on` lines. Removed rather than "kept for later":
+# later can add the eight lines back.
 services:
   postgres:
     image: postgres:16-alpine
@@ -25,22 +32,5 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: hydromart-redis
-    restart: unless-stopped
-    command: ['redis-server', '--appendonly', 'yes']
-    ports:
-      # Loopback only (see postgres above) — never expose Redis to the internet.
-      - '127.0.0.1:6379:6379'
-    volumes:
-      - hydromart_redisdata:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
 volumes:
   hydromart_pgdata:
-  hydromart_redisdata:

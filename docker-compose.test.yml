@@ -1,6 +1,6 @@
 # Integration-test overlay. Merge with the base file:
 #   docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --build
-# Base file provides postgres (with init-databases.sql creating all 13 DBs) + redis.
+# Base file provides postgres (with init-databases.sql creating all 13 DBs).
 
 x-shared: &shared
   NODE_ENV: production
@@ -15,7 +15,6 @@ x-svc: &svc
   restart: "no"
   depends_on:
     postgres: { condition: service_healthy }
-    redis: { condition: service_healthy }
 
 services:
   auth:

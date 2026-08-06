@@ -78,17 +78,25 @@ export class ReferralPrismaRepository implements ReferralRepository {
   async summarizeReferrer(
     referrerCustomerId: string,
   ): Promise<{ referredCount: number; qualifiedCount: number; pointsEarned: number }> {
-    const [referredCount, qualifiedCount, aggregate] = await this.prisma.$transaction([
-      this.prisma.referral.count({ where: { referrerCustomerId } }),
-      this.prisma.referral.count({
-        where: { referrerCustomerId, status: PrismaReferralStatus.QUALIFIED },
-      }),
-      this.prisma.referral.aggregate({
-        where: { referrerCustomerId, status: PrismaReferralStatus.QUALIFIED },
-        _sum: { referrerPoints: true },
-      }),
-    ]);
-    return { referredCount, qualifiedCount, pointsEarned: aggregate._sum.referrerPoints ?? 0 };
+    // Q-8: was two COUNTs and an aggregate over one table, in a read-only
+    // `$transaction`. One groupBy answers all three — the status split IS the summary.
+    const rows = await this.prisma.referral.groupBy({
+      by: ['status'],
+      where: { referrerCustomerId },
+      _count: { _all: true },
+      _sum: { referrerPoints: true },
+    });
+    let referredCount = 0;
+    let qualifiedCount = 0;
+    let pointsEarned = 0;
+    for (const row of rows) {
+      referredCount += row._count._all;
+      if (row.status === PrismaReferralStatus.QUALIFIED) {
+        qualifiedCount = row._count._all;
+        pointsEarned = row._sum.referrerPoints ?? 0;
+      }
+    }
+    return { referredCount, qualifiedCount, pointsEarned };
   }
 
   async countReferrals(referrerIds: string[]): Promise<number> {

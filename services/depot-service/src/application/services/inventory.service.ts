@@ -416,8 +416,14 @@ export class InventoryService {
         },
         actorId,
       );
-    } catch {
+    } catch (error) {
       // Approval emission is a side channel — a failure here must not fail the opname.
+      // Q-4: logged, because a lost emission means a stock variance nobody is asked to
+      // approve; the count still stands, but the review it was supposed to trigger does not.
+      this.logger.warn(
+        `Opname variance approval not raised for ${item.label} (depot ${item.depotId}, ` +
+          `variance ${variance}): ${(error as Error).message}`,
+      );
     }
   }
 

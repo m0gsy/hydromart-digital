@@ -19,7 +19,7 @@ const EXTRA = (process.env.COMPOSE_EXTRA_FILES ?? '')
 const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml', ...EXTRA];
 const APP = ['auth', 'customer', 'product', 'order', 'payment', 'delivery', 'depot', 'dashboard',
   'loyalty', 'promo', 'referral', 'crm', 'recommendation', 'forecast', 'gateway'];
-const ALL = [...APP, 'gateway-stub', 'postgres', 'redis'];
+const ALL = [...APP, 'gateway-stub', 'postgres'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function run(cmd, args, opts = {}) {
@@ -68,7 +68,7 @@ async function waitHealthy(timeoutMs = 180000) {
 }
 
 async function main() {
-  if (compose(['up', '-d', 'postgres', 'redis'])) throw new Error('infra up failed');
+  if (compose(['up', '-d', 'postgres'])) throw new Error('infra up failed');
   await sleep(8000);
   if (run('npm', ['run', 'db:migrate'])) throw new Error('db:migrate failed');
   // Build in small batches instead of letting compose start all 15 at once.

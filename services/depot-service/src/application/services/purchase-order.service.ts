@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 
 import { computeTotal, PoLine, PoStatus, PurchaseOrder } from '../../domain/purchase-order';
 import {
@@ -34,6 +34,8 @@ export interface ListPurchaseOrderFilters {
  */
 @Injectable()
 export class PurchaseOrderService {
+  private readonly logger = new Logger(PurchaseOrderService.name);
+
   constructor(
     @Inject(DEPOT_TOKENS.PurchaseOrderRepository) private readonly orders: PurchaseOrderRepository,
     @Inject(DEPOT_TOKENS.SupplierRepository) private readonly suppliers: SupplierRepository,
@@ -114,8 +116,15 @@ export class PurchaseOrderService {
           actorId,
           `PO ${po.poNumber} · ${line.label}`,
         );
-      } catch {
+      } catch (error) {
         // Best-effort: a missing/unconfigured stock line must not fail the whole receipt.
+        // Q-4: but it must not be SILENT either. This is the stock ledger — a swallowed
+        // line means the PO reads RECEIVED while the goods were never booked in, and the
+        // only evidence used to be the discrepancy someone finds at the next opname.
+        this.logger.error(
+          `PO ${po.poNumber} (depot ${po.depotId}): stock not booked for "${line.label}" ` +
+            `×${line.quantity} — ${(error as Error).message}. Receipt continues; reconcile manually.`,
+        );
       }
     }
     return this.orders.update(id, { status: PoStatus.RECEIVED, receivedAt: new Date() });

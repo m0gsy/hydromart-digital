@@ -72,9 +72,9 @@ describe('ReferralController', () => {
     expect(out.id).toBe('ref-1');
   });
 
-  it('qualify delegates the internal payload with an empty authorization', () => {
+  it('qualify delegates the internal payload with an empty authorization', async () => {
     const { controller, service } = makeController();
-    controller.qualify({ customerId: 'u2', orderId: 'ord-1' });
+    await controller.qualify({ customerId: 'u2', orderId: 'ord-1' });
     expect(service.qualify).toHaveBeenCalledWith('u2', 'ord-1', '');
   });
 

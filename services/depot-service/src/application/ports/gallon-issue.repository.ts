@@ -1,3 +1,13 @@
+// Gallon-issue domain vocabulary (PRD Module 11c). The mirror of retur galon: empties
+// handed OUT on deposit. Issues carry no condition (nothing to grade on the way out), so
+// — unlike gallon-return — there is no enum; the record shape lives here, with its port.
+//
+// ponytail: manual ledger only. Auto-ingesting issues from an order-completed event
+// (order-service coupling) is a deliberate follow-up, not built here.
+//
+// Q-3: this comment used to live in src/domain/gallon-issue.ts, a file whose entire
+// runtime content was `export {}` — a doc comment nothing imported, so nobody read it
+// where it mattered. The prose moved here; the module is gone.
 export interface GallonIssueRecord {
   id: string;
   depotId: string;

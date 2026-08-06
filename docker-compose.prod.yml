@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 #
 # Base file (docker-compose.yml) provides postgres (init-databases.sql creates all
-# per-service DBs) + redis. This overlay adds the 15 app services + the web app.
+# per-service DBs). This overlay adds the 15 app services + the web app.
 #
 # All secrets come from the environment (see .env.production.example). ${VAR:?msg}
 # fails the command if VAR is unset — no secret is ever hardcoded here.
@@ -49,14 +49,13 @@ x-svc: &svc
   cpus: 1.0
   depends_on:
     postgres: { condition: service_healthy }
-    redis: { condition: service_healthy }
 
 services:
   # Override only the postgres password with the prod secret; user, db, volume,
   # init script AND port publishing all come from the base file (which publishes
-  # 5432/6379). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
+  # 5432). We deliberately do NOT re-declare `ports` here: Compose CONCATENATES
   # port lists across files, so a second entry would double-bind and fail to boot.
-  # Postgres/Redis therefore stay on the host's published 5432/6379 — lock them down
+  # Postgres therefore stays on the host's published 5432 — lock it down
   # with a host firewall (see DEPLOY.md §1); the internet must not reach them.
   postgres:
     # H-34: the one container that genuinely wants headroom — shared_buffers plus every
@@ -79,12 +78,6 @@ services:
       - postgres
       - -c
       - max_connections=150
-
-  # H-34: Redis is currently used by no service (Q-9 — either wire it or remove it, PR 10),
-  # so it gets the smallest ceiling that still lets it boot and answer a healthcheck.
-  redis:
-    mem_limit: 256m
-    cpus: 0.5
 
   auth:
     <<: *svc
@@ -718,16 +711,6 @@ services:
     environment:
       DATA_SOURCE_NAME: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
 
-  redis-exporter:
-    image: oliver006/redis_exporter:v1.62.0
-    restart: unless-stopped
-    mem_limit: 64m
-    cpus: 0.25
-    depends_on:
-      redis: { condition: service_healthy }
-    environment:
-      REDIS_ADDR: redis://redis:6379
-
   # Containers: per-container memory, CPU and — the one that matters here — the OOM kill
   # counter. H-34 gives every container a ceiling; this is what tells you one was hit.
   cadvisor:
@@ -761,7 +744,9 @@ services:
       - "127.0.0.1:9093:9093"
 
   # Grafana dashboards over Prometheus. Loopback only (SSH tunnel to view).
-  # Set GRAFANA_ADMIN_PASSWORD in .env; defaults to admin on first boot otherwise.
+  # H-27: GRAFANA_ADMIN_PASSWORD is REQUIRED (`:?`), not defaulted to `admin`.
+  # Loopback binding is a second lock, not a first one — anyone on the box, or on
+  # any SSH tunnel, reached admin/admin. Generate one with scripts/generate-secrets.sh.
   grafana:
     image: grafana/grafana:11.2.0
     restart: unless-stopped
@@ -770,7 +755,7 @@ services:
     depends_on:
       - prometheus
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env — see scripts/generate-secrets.sh}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./ops/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro

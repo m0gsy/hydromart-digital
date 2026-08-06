@@ -149,10 +149,6 @@ groups:
           summary: 'Postgres deadlock in {{ $labels.datname }}'
           description: '{{ $value }} deadlock(s) in the last hour. Deterministic lock ordering is the fix — see reserveAtomic in depot-service.'
 
-      - alert: RedisDown
-        expr: redis_up == 0
-        for: 5m
-        labels: { severity: warning }
-        annotations:
-          summary: 'Redis is not answering'
-          description: 'Redis is unreachable. Severity is warning, not critical, because no service reads from it yet (Q-9) — raise this the moment one does.'
+      # RedisDown lived here until Q-9 removed Redis. An alert whose metric no longer
+      # exists never fires and never resolves — it just sits in the rules file looking
+      # like coverage. If Redis ever comes back, so does this, next to its exporter.

@@ -76,4 +76,14 @@ export const envValidationSchema = Joi.object({
   STORAGE_S3_BUCKET: Joi.string().allow('').default(''),
   STORAGE_S3_ACCESS_KEY_ID: Joi.string().allow('').default(''),
   STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
+  HR_OVERTIME_MULTIPLIER_PCT: Joi.number().integer().min(100).default(150),
+  HR_OVERTIME_OFF_DAY_MULTIPLIER_PCT: Joi.number().integer().min(100).default(200),
+  HR_WEEKLY_OFF_DAYS: Joi.string().allow('').default(''),
+  // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
+  // unset value does not degrade tenant isolation — it refuses every scoped request.
+  DEPOT_SERVICE_URL: Joi.string()
+    .uri()
+    .allow('')
+    .default('')
+    .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
 });
