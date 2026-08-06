@@ -74,13 +74,40 @@ export default function HqHierarchyPage() {
     () => (staffId ? api.get<Described>(endpoints.hierarchy.describe(staffId), true) : Promise.resolve(null)),
     [staffId],
   );
+  const assistantPage = useAsync<Page<Customer>>(
+    () => api.get(endpoints.auth.staff({ limit: 200, role: 'ASSISTANT_SUPERVISOR' }), true),
+    [],
+  );
+
+  const d = detail.data;
+  /*
+   * C-4: the SELECTED person's record, resolved by id rather than looked up in whatever the
+   * search box last returned. `staffId` survives a query change and `people` does not, so
+   * `people.find(...)` came back undefined, `grantsDepots('')` was false, and the label
+   * claimed "reporting line only" for an ASSISTANT_SUPERVISOR whose link genuinely widens
+   * RBAC scope. Defaulting to the reassuring answer is the one thing that label must not do.
+   *
+   * Same read resolves the recorded superior for C-3, so both survive a query change.
+   */
+  const linkedIds = [staffId, d?.superiorId ?? ''].filter(Boolean) as string[];
+  const linked = useAsync<Customer[]>(
+    () =>
+      linkedIds.length > 0
+        ? api.get<Customer[]>(endpoints.auth.customersByIds(linkedIds), true).catch(() => [])
+        : Promise.resolve([]),
+    [linkedIds.join(',')],
+  );
+  const selected = linked.data?.find((p) => p.id === staffId) ?? null;
+  const superior = linked.data?.find((p) => p.id === d?.superiorId) ?? null;
 
   const people = useMemo(() => staff.data?.items ?? [], [staff.data]);
   const depotRows = useMemo(() => depots.data?.items ?? [], [depots.data]);
   const nameOf = useMemo(() => {
-    const map = new Map(people.map((p) => [p.id, p.fullName || p.phone]));
+    const map = new Map(
+      [...people, ...(linked.data ?? [])].map((p) => [p.id, p.fullName || p.phone]),
+    );
     return (id: string) => map.get(id) ?? id;
-  }, [people]);
+  }, [people, linked.data]);
   const depotName = useMemo(() => {
     const map = new Map(depotRows.map((d) => [d.id, `${d.code} · ${d.name}`]));
     return (id: string) => map.get(id) ?? id;
@@ -89,9 +116,24 @@ export default function HqHierarchyPage() {
   // Candidate superiors: ANY other staff member. A courier reports to a kepala depot and a
   // kepala depot to an assistant — refusing to record those was what made the chain look
   // broken. The server rejects a cycle; this only keeps the obvious mistake off the list.
-  const superiors = people.filter((p) => p.id !== staffId);
+  //
+  // C-3: the recorded superior is always in the option set, even when they are outside the
+  // current 25 results. A `<select value={id}>` with no matching `<option>` falls back to
+  // the first one, so the screen read "Tanpa atasan" for somebody who has one.
+  const superiors = useMemo(() => {
+    const list = people.filter((p) => p.id !== staffId);
+    const current = d?.superiorId;
+    if (current && !list.some((p) => p.id === current) && superior) list.unshift(superior);
+    return list;
+  }, [people, staffId, d?.superiorId, superior]);
   const grantsDepots = (role: string) => (DEPOT_GRANTING_ROLES as readonly string[]).includes(role);
-  const assistants = people.filter((p) => p.role === 'ASSISTANT_SUPERVISOR');
+  /*
+   * C-3: the depot → assistant picker reads for itself. Filtering the 25-row NAME SEARCH
+   * for `ASSISTANT_SUPERVISOR` left the bottom rung of the whole chain empty unless the
+   * operator happened to have searched an assistant by name — a hard regression against the
+   * `limit: 200` this page replaced, on the one control that must always be usable.
+   */
+  const assistants = assistantPage.data?.items ?? [];
 
   if (!can('hierarchyAdmin', customer?.role)) return <AccessDeniedHq role={customer?.role} />;
 
@@ -107,8 +149,6 @@ export default function HqHierarchyPage() {
       setBusy(false);
     }
   }
-
-  const d = detail.data;
 
   return (
     <div className="flex flex-col gap-6">
@@ -234,7 +274,7 @@ export default function HqHierarchyPage() {
                   is a reporting line and nothing more. */}
               <span className="text-xs text-muted">
                 {d.superiorId
-                  ? grantsDepots(people.find((p) => p.id === staffId)?.role ?? '')
+                  ? grantsDepots(selected?.role ?? '')
                     ? t('hq.hierarchy.linkGrants')
                     : t('hq.hierarchy.linkReportsOnly')
                   : t('hq.hierarchy.linkNone')}

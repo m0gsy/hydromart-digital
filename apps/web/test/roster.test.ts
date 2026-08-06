@@ -100,6 +100,43 @@ describe('deriveRoster', () => {
     expect(row.depotId).toBeNull();
     expect(row.state).toBe('offshift');
   });
+
+  /*
+   * C-7. A courier on BREAK has checked in somewhere and is standing in that depot; the
+   * depot came off the DISPATCHABLE set, so they contributed none and the roster showed
+   * their home depot while they were at another. The state is still `offshift` — that part
+   * was right — but where they are is a separate question from whether they may take work.
+   */
+  it('shows the depot a resting courier is actually standing in', () => {
+    const row = one(
+      [driver()],
+      [],
+      [shift({ depotId: DEPOT_B, status: 'BREAK', acceptsAssignments: false })],
+    );
+    expect(row.depotId).toBe(DEPOT_A);
+    expect(row.activeDepotId).toBe(DEPOT_B);
+    expect(row.state).toBe('offshift');
+  });
+
+  it('forgets an ended shift — that courier is not at a depot at all', () => {
+    const row = one(
+      [driver()],
+      [],
+      [shift({ depotId: DEPOT_B, status: 'ENDED', acceptsAssignments: false })],
+    );
+    expect(row.activeDepotId).toBeNull();
+  });
+
+  /*
+   * C-8. "Working away" needs both depots known. With no home recorded the comparison was
+   * still true, and the page rendered "— (bertugas di Depot B)": away from nowhere.
+   */
+  it('does not call a courier with no home depot "working away"', () => {
+    const row = one([driver({ assignedDepotId: null })], [], [shift({ depotId: DEPOT_B })]);
+    expect(row.activeDepotId).toBeNull();
+    // Where they are IS their depot when there is no other answer.
+    expect(row.depotId).toBe(DEPOT_B);
+  });
 });
 
 describe('dispatchableDrivers', () => {

@@ -48,7 +48,14 @@ export function deriveRoster(
   shifts: readonly CourierShift[],
 ): RosterRow[] {
   const dispatchable = dispatchableDrivers(shifts);
-  const openShift = new Map(shifts.filter((s) => s.acceptsAssignments).map((s) => [s.driverId, s]));
+  /*
+   * C-7: an OPEN shift, which is not the same question as a DISPATCHABLE one. This used the
+   * `acceptsAssignments` predicate, so a courier on BREAK — who has checked in somewhere and
+   * is standing in that depot — contributed no depot at all, and the roster showed their home
+   * depot while they were at another. `ENDED` is the only state that means they are not
+   * anywhere; everything else is somebody at a depot, whether or not they may take work.
+   */
+  const openShift = new Map(shifts.filter((s) => s.status !== 'ENDED').map((s) => [s.driverId, s]));
 
   return drivers.map((driver) => {
     const own = deliveries.filter((d) => d.driverId === driver.id && ACTIVE.includes(d.status));
@@ -65,10 +72,19 @@ export function deriveRoster(
             ? 'available'
             : 'offshift';
 
+    /*
+     * C-8: "working away" needs BOTH depots to be known. `activeDepotId !== assignedDepotId`
+     * was true when the home depot was simply unrecorded, and the page rendered
+     * "— (bertugas di Depot B)" — a courier away from nowhere. With no home to be away from,
+     * where they are IS their depot.
+     */
+    const homeDepotId = driver.assignedDepotId ?? null;
+    const away = activeDepotId && homeDepotId && activeDepotId !== homeDepotId;
+
     return {
       driver,
-      depotId: driver.assignedDepotId ?? null,
-      activeDepotId: activeDepotId && activeDepotId !== driver.assignedDepotId ? activeDepotId : null,
+      depotId: homeDepotId ?? activeDepotId,
+      activeDepotId: away ? activeDepotId : null,
       load: own.length,
       state,
     };

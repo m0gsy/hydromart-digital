@@ -68,7 +68,20 @@ export class AccountController {
   // HR is here for a different reason: adding an employee promotes the account behind that
   // phone if one exists, so one mistyped digit turns a customer into a KEPALA_DEPOT. HR has
   // to be able to see whose number they typed BEFORE they save it.
-  @Roles(Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN, Role.HR)
+  //
+  // C-5: HEAD_OFFICE and DIREKTUR for the same reason, because `hrAdmin` is
+  // ['HR','HEAD_OFFICE','DIREKTUR','SUPER_ADMIN'] — those two can open the employee form and
+  // were the only ones the confirmation never reached. The form catches the 403 into "no
+  // dialog", so they promoted a mistyped customer in silence: precisely the failure the
+  // confirmation exists to prevent, for half the people who can trigger it.
+  @Roles(
+    Role.MARKETING,
+    Role.MANAGER,
+    Role.SUPER_ADMIN,
+    Role.HR,
+    Role.HEAD_OFFICE,
+    Role.DIREKTUR,
+  )
   @Get('auth/customers/lookup')
   @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
   @ApiOkResponse({ type: PublicCustomerDto })

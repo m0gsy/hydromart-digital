@@ -6,6 +6,8 @@ import { UserGear } from '@phosphor-icons/react';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { HR_MANAGED_ROLES } from '@hydromart/access';
+
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -28,6 +30,11 @@ const FILTER_ROLES = [
   'HEAD_OFFICE',
   'SUPER_ADMIN',
 ] as const;
+
+/** Roles the HR "tambah karyawan" form can actually offer in its jabatan dropdown. */
+function hrManaged(role: string): boolean {
+  return (HR_MANAGED_ROLES as readonly string[]).includes(role);
+}
 
 function initials(c: Customer): string {
   const base = c.fullName || c.phone;
@@ -143,10 +150,16 @@ export default function HqStaffPage() {
                   <p className="truncate font-semibold">{s.fullName || s.phone}</p>
                   <p className="truncate text-xs text-muted">{s.phone}</p>
                   {/* Salary and join date are NEVER guessed: the link prefills only what
-                      this page actually knows, and HR fills in the rest. */}
+                      this page actually knows, and HR fills in the rest.
+
+                      C-6: `role` rides along only when the HR form can actually offer it.
+                      Its `<select>` is bounded to HR_MANAGED_ROLES, so sending `HR` or
+                      `FINANCE` produced a blank dropdown holding a value the server then
+                      rejected. The badge still links — that record still needs making —
+                      it just leaves the jabatan to be chosen on the form. */}
                   {linked && !linked.has(s.id) && s.role !== 'FRANCHISE_OWNER' && (
                     <a
-                      href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}&role=${s.role}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
+                      href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}${hrManaged(s.role) ? `&role=${s.role}` : ''}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
                       className="text-xs font-bold text-amber-700 underline"
                     >
                       {t('hq.staff.noEmployeeRecord')}

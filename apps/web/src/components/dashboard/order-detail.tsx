@@ -98,7 +98,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   // Who may actually be handed a delivery right now. delivery-service refuses an
   // assignment to a courier with no open shift, so offering them here only produced a
   // rejection after the click — the dropdown says so up front instead.
-  const { data: shifts } = useAsync<CourierShift[]>(() => {
+  const { data: shifts } = useAsync<CourierShift[] | null>(() => {
     const since = new Date();
     since.setHours(0, 0, 0, 0);
     return api
@@ -106,9 +106,15 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
         endpoints.deliveries.shiftsOnDuty(since.toISOString(), order.depotId ?? undefined),
         true,
       )
-      // Fail-soft: if the shift view is unreachable the list stays selectable and the
-      // service still has the final say — better than blocking every dispatch.
-      .catch(() => [] as CourierShift[]);
+      /*
+       * C-1: `null`, NOT `[]`. Fail-soft means the list stays selectable and the service
+       * keeps the final say — but an empty array is a real answer meaning "nobody is on
+       * shift", and the guard below reads `shifts != null`. Catching to `[]` therefore
+       * disabled every courier and labelled them all "belum buka shift", so one transient
+       * 5xx from delivery-service blocked dispatch entirely — the exact opposite of what
+       * this catch is for.
+       */
+      .catch(() => null);
   }, [order.depotId]);
   const onDuty = dispatchableDrivers(shifts ?? []);
   // The order's payment (staff read) → a CASH order dispatches with the COD amount the
