@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
 import { Button, Card, Input, LinkButton, Money, SectionHeader } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -92,7 +93,8 @@ export default function AdjustmentsPage() {
       />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">Employee ID<Input value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="UUID karyawan" className="w-64" /></label>
+        {/* G-1: was `placeholder="UUID karyawan"` — a human being asked to paste a UUID. */}
+        <EmployeeSelect value={employeeId} onChange={setEmployeeId} className="w-64" />
         <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
         <Button variant="secondary" onClick={load}>Muat</Button>
       </Card>

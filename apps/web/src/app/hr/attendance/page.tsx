@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -122,7 +123,8 @@ function AttendanceInner() {
       {isAdmin && (
         <Card className="flex flex-wrap items-end gap-2 p-4">
           <span className="w-full text-sm font-bold">Entri / koreksi manual</span>
-          <label className="text-sm">Employee ID<Input value={mEmp} onChange={(e) => setMEmp(e.target.value)} placeholder="UUID" className="w-56" /></label>
+          {/* G-1: manual attendance was typed against a pasted UUID. */}
+          <EmployeeSelect value={mEmp} onChange={setMEmp} className="w-56" />
           <label className="text-sm">Tanggal<Input type="date" value={mDate} onChange={(e) => setMDate(e.target.value)} /></label>
           <label className="text-sm">Status
             <select value={mStatus} onChange={(e) => setMStatus(e.target.value as AttendanceStatus)} className="surface-elevated block rounded-lg border border-app px-3 py-2.5 text-sm">

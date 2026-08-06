@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { EmployeeAllowances } from '@/components/hr/employee-allowances';
 import { Card, ErrorState, LinkButton, SectionHeader, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -16,12 +17,6 @@ export default function AllowancesPage() {
   const { customer } = useAuth();
   const isAdmin = canManageHr(customer?.role);
   const [employeeId, setEmployeeId] = useState('');
-
-  const employees = useAsync<HrPage<Employee>>(
-    () =>
-      api.get<HrPage<Employee>>(endpoints.hr.employees({ status: 'ACTIVE', pageSize: 200 }), true),
-    [],
-  );
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -42,27 +37,11 @@ export default function AllowancesPage() {
         }
       />
 
-      {employees.loading && <Skeleton className="h-12" />}
-      {employees.error && <ErrorState message={employees.error} onRetry={employees.reload} />}
-      {employees.data && (
-        <Card className="p-5">
-          <label className="text-sm">
-            Karyawan
-            <select
-              value={employeeId}
-              onChange={(e) => setEmployeeId(e.target.value)}
-              className="surface-elevated mt-1 block w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
-            >
-              <option value="">Pilih karyawan…</option>
-              {employees.data.rows.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.employeeCode} — {e.fullName}
-                </option>
-              ))}
-            </select>
-          </label>
-        </Card>
-      )}
+      {/* G-1: this dropdown is the component the five UUID fields now use — the copy that
+          lived here is gone, and its loading and error states moved with it. */}
+      <Card className="p-5">
+        <EmployeeSelect value={employeeId} onChange={setEmployeeId} />
+      </Card>
 
       {employeeId && <EmployeeAllowances employeeId={employeeId} isAdmin={isAdmin} />}
     </div>

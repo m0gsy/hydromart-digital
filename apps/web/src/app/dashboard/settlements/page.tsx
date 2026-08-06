@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { CaretDown, Lock, Money, Wallet } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -12,7 +12,7 @@ import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canVerifySettlement } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { CashSettlement, SettlementStatus } from '@/lib/types';
+import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
 
 const STATUSES: SettlementStatus[] = ['SUBMITTED', 'VERIFIED', 'DISPUTED'];
 const STATUS_LABEL: Record<SettlementStatus, string> = {
@@ -26,7 +26,32 @@ const DAY = new Intl.DateTimeFormat('id-ID', { dateStyle: 'long' });
 const shortId = (id: string) => id.slice(0, 8);
 const initials = (id: string) => id.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase();
 
-function SettlementRow({ s, onDone }: { s: CashSettlement; onDone: () => void }) {
+/**
+ * G-2: the courier's NAME. Three places on this screen rendered `driverId.slice(0, 8)` —
+ * an id fragment as a person — while `endpoints.auth.drivers` is one cached read away.
+ * `dashboard/commission` already builds this exact id→name map. Falls back to the short id
+ * when the roster cannot be read, which is what the screen showed before.
+ */
+function useDriverNames(): (id: string) => string {
+  const drivers = useAsync<Customer[]>(
+    () => api.getCached<Customer[]>(endpoints.auth.drivers, true).catch(() => []),
+    [],
+  );
+  return useMemo(() => {
+    const byId = new Map((drivers.data ?? []).map((d) => [d.id, d.fullName || d.phone]));
+    return (id: string) => byId.get(id) ?? `Kurir ${shortId(id)}`;
+  }, [drivers.data]);
+}
+
+function SettlementRow({
+  s,
+  onDone,
+  driverName,
+}: {
+  s: CashSettlement;
+  onDone: () => void;
+  driverName: (id: string) => string;
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<'verify' | 'dispute' | null>(null);
   const [charge, setCharge] = useState(true);
@@ -71,7 +96,7 @@ function SettlementRow({ s, onDone }: { s: CashSettlement; onDone: () => void })
             {initials(s.driverId)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold">Kurir {shortId(s.driverId)}</p>
+            <p className="truncate text-sm font-bold">{driverName(s.driverId)}</p>
             <p className="text-xs text-[color:var(--text-muted)]">
               {s.orderIds.length} pesanan COD · setor {TIME.format(new Date(s.createdAt))}
             </p>
@@ -192,6 +217,7 @@ function SettlementRow({ s, onDone }: { s: CashSettlement; onDone: () => void })
 function Body() {
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<SettlementStatus>('SUBMITTED');
+  const driverName = useDriverNames();
   const list = useAsync<CashSettlement[]>(
     () => (scopedId ? api.get(endpoints.settlements.list({ depotId: scopedId, status }), true) : Promise.resolve([])),
     [scopedId, status],
@@ -243,7 +269,7 @@ function Body() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {list.data.map((s) => (
-            <SettlementRow key={s.id} s={s} onDone={list.reload} />
+            <SettlementRow key={s.id} s={s} onDone={list.reload} driverName={driverName} />
           ))}
         </div>
       )}

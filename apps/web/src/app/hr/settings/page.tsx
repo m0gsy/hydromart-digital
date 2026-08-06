@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -58,7 +59,10 @@ export default function HrSettingsPage() {
             <option value="DEPOT">DEPOT</option>
           </select>
         </label>
-        {scope === 'DEPOT' && <label className="text-sm">Depot ID<Input value={depotId} onChange={(e) => setDepotId(e.target.value)} placeholder="UUID depot" className="w-64" /></label>}
+        {/* G-1: was `placeholder="UUID depot"`, next to a depot list this app already holds. */}
+        {scope === 'DEPOT' && (
+          <HrDepotPicker value={depotId} onChange={setDepotId} includeEmpty="Pilih depot…" />
+        )}
       </Card>
 
       {scope === 'GLOBAL' && !superAdmin && <p className="text-sm text-amber-600">Hanya SUPER_ADMIN yang dapat mengubah default GLOBAL.</p>}
