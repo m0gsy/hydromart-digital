@@ -1,14 +1,25 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, ParseUUIDPipe, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser, Role } from '@hydromart/platform';
+import {
+  Can,
+  CurrentUser,
+  AuthenticatedUser,
+  InternalAuthGuard,
+  Public,
+  Role,
+} from '@hydromart/platform';
 
 import { DepotService } from '../application/services/depot.service';
 import {
+  CustomerGallonRow,
   GallonNetworkService,
   GallonOutstandingRow,
 } from '../application/services/gallon-network.service';
-import { GallonOutstandingRowResponseDto } from './dto/responses.generated.dto';
+import {
+  CustomerGallonRowResponseDto,
+  GallonOutstandingRowResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * Network gallon rollup (HQ compare 14d + reconciliation 22a). Distinct static path so
@@ -22,6 +33,25 @@ export class GallonNetworkController {
     private readonly gallon: GallonNetworkService,
     private readonly depots: DepotService,
   ) {}
+
+  /**
+   * J-2: the two columns the depot customer directory rendered as a hardcoded null —
+   * gallons on loan and deposit held, per customer. customer-service asks for one depot at
+   * a time and merges by customer id.
+   *
+   * Internal key, not the cashier capability: the caller is customer-service assembling a
+   * screen, and it holds no user token for the depot in question. Declared FIRST so the
+   * static `internal` segment cannot be read as anything else.
+   */
+  @ApiOkResponse({ type: CustomerGallonRowResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/by-customer')
+  @ApiOperation({ summary: "One depot's outstanding empties + deposit per customer (internal)" })
+  perCustomer(@Query('depotId', ParseUUIDPipe) depotId: string): Promise<CustomerGallonRow[]> {
+    return this.gallon.perCustomer(depotId);
+  }
 
   @ApiOkResponse({ type: GallonOutstandingRowResponseDto, isArray: true })
   @Can('returnsRead')

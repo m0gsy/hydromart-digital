@@ -34,7 +34,7 @@ describe('DepotCrmService.listCustomerIdsByDepot', () => {
     const repo = new FakeDepotCrmRepository();
     repo.byDepot.set('depot-a', ['c1', 'c2']);
     repo.byDepot.set('depot-b', ['c3']);
-    const service = new DepotCrmService(repo, {} as never, {} as never, {} as never, new FakeIdentity(), {} as never);
+    const service = new DepotCrmService(repo, {} as never, {} as never, {} as never, { gallonsByCustomer: async () => null } as never, new FakeIdentity(), {} as never);
 
     expect(await service.listCustomerIdsByDepot('depot-a')).toEqual(['c1', 'c2']);
     expect(await service.listCustomerIdsByDepot('depot-b')).toEqual(['c3']);
@@ -48,7 +48,7 @@ describe('DepotCrmService.getCrmDashboard', () => {
 
   function serviceWithStats(stats: DepotCustomerOrderStats[]): DepotCrmService {
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
-    return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, new FakeIdentity(), config);
+    return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, new FakeIdentity(), config);
   }
 
   it('counts segments, repeat rate, and overdue follow-ups (most-overdue first)', async () => {
@@ -90,7 +90,7 @@ describe('DepotCrmService.listDepotCustomers', () => {
     const repo = new FakeDepotCrmRepository();
     repo.rows = rows;
     const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
-    return new DepotCrmService(repo, {} as never, {} as never, orderCrm, identity, config);
+    return new DepotCrmService(repo, {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, identity, config);
   }
 
   it('merges order stats onto rows that have them, and nulls the rest', async () => {
@@ -176,7 +176,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   ): DepotCrmService {
     const profiles: ProfileRepository = { findByCustomerId: async () => profile } as unknown as ProfileRepository;
     const addressRepo: AddressRepository = { listByCustomer: async () => addresses } as unknown as AddressRepository;
-    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, {} as never, identity, {} as never);
+    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, {} as never, { gallonsByCustomer: async () => null } as never, identity, {} as never);
   }
 
   const profile = (tier: MembershipTier): CustomerProfileRecord => ({

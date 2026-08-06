@@ -1241,3 +1241,13 @@ export class InternalDescribeResponseDto {
   @ApiProperty({ type: [String] })
   directDepotIds!: string[];
 }
+
+/** Mirrors `CustomerGallonRow` exactly — generated for audit D-6, no field added or removed. */
+export class CustomerGallonRowResponseDto {
+  @ApiProperty({ type: String })
+  customerId!: string;
+  @ApiProperty({ type: Number })
+  gallonsOnLoan!: number;
+  @ApiProperty({ type: Number })
+  depositHeldIdr!: number;
+}

@@ -41,7 +41,21 @@ function Avatar({ name }: { name: string | null }) {
   );
 }
 
+/**
+ * J-2: `null` and `0` are different answers and must not look the same.
+ *
+ * `null` means the depot's gallon ledger could not be read at all; a bare "—" there says
+ * "no gallons on loan", and that is a deposit quietly disappearing. `0` is a real answer
+ * and keeps the plain dash.
+ */
 function GallonCell({ gallons, deposit }: { gallons: number | null; deposit: number | null }) {
+  if (gallons == null) {
+    return (
+      <span className="text-[color:var(--text-muted)]" title="Data galon depot belum tersambung">
+        — <span className="text-xs">belum tersambung</span>
+      </span>
+    );
+  }
   if (!gallons) return <span className="text-[color:var(--text-muted)]">—</span>;
   return (
     <span className={gallons >= HIGH_LOAN ? 'font-semibold text-red-600' : ''}>

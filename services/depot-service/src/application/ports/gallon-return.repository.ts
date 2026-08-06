@@ -1,3 +1,4 @@
+import type { GallonCustomerRow } from './gallon-issue.repository';
 import { GallonCondition } from '../../domain/gallon-return';
 
 export interface GallonReturnRecord {
@@ -49,4 +50,6 @@ export interface GallonReturnRepository {
   summaryForDepot(depotId: string): Promise<GallonReturnSummary>;
   /** Per-depot return totals across the network (SUM quantity, depositRefunded). */
   networkSummary(): Promise<GallonReturnDepotRow[]>;
+  /** Return totals per CUSTOMER at one depot (J-2); rows with no customer are excluded. */
+  perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
 }

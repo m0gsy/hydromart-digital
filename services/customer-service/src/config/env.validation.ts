@@ -32,6 +32,9 @@ export const envValidationSchema = Joi.object({
   CRM_FOLLOWUP_DAYS: Joi.number().integer().positive().default(60),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
+  //
+  // J-2 reads the same key for the directory's gallons-on-loan and deposit-held columns;
+  // blank there means both render "belum tersambung" rather than a zero nobody checked.
   DEPOT_SERVICE_URL: Joi.string()
     .uri()
     .allow('')

@@ -100,8 +100,9 @@ function DetailBody({ id }: { id: string }) {
                   {profile.totalSpentIdr == null ? '—' : <Money amount={profile.totalSpentIdr} />}
                 </Stat>
                 <Stat label={t('dashA.customerDetail.gallonsOnLoan')}>
+                  {/* J-2: unread and zero are different answers — see GallonCell. */}
                   {profile.gallonsOnLoan == null ? (
-                    '—'
+                    <span className="text-[color:var(--text-muted)]">— belum tersambung</span>
                   ) : (
                     <span className={profile.gallonsOnLoan >= 3 ? 'text-red-600' : ''}>
                       {profile.gallonsOnLoan}

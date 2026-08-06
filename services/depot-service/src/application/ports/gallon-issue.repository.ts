@@ -36,6 +36,13 @@ export interface GallonIssueSummary {
 }
 
 /** One depot's all-time issue totals (network rollup). */
+/** One customer's issue (or return) totals at one depot. */
+export interface GallonCustomerRow {
+  customerId: string;
+  gallons: number;
+  amountIdr: number;
+}
+
 export interface GallonIssueDepotRow {
   depotId: string;
   gallons: number;
@@ -52,4 +59,9 @@ export interface GallonIssueRepository {
   summaryForDepot(depotId: string): Promise<GallonIssueSummary>;
   /** Per-depot issue totals across the network (SUM quantity, depositHeld). */
   networkSummary(): Promise<GallonIssueDepotRow[]>;
+  /**
+   * Issue totals per CUSTOMER at one depot (J-2). Rows with no customer are excluded —
+   * an anonymous counter issue is not a person anybody can chase for a gallon back.
+   */
+  perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
 }

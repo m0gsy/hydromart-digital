@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
@@ -913,10 +914,7 @@ describe('EmployeeService.provisionFromInvite (B-3)', () => {
  */
 describe('EmployeePrismaRepository.anonymiseByAuthSubjectId (B-7)', () => {
   it('clears the jabatan along with the identity', () => {
-    const source = require('node:fs').readFileSync(
-      'src/infrastructure/prisma/employee.prisma.repository.ts',
-      'utf8',
-    );
+    const source = readFileSync('src/infrastructure/prisma/employee.prisma.repository.ts', 'utf8');
     const body = source.slice(source.indexOf('async anonymiseByAuthSubjectId'));
     const update = body.slice(0, body.indexOf('return 1;'));
     expect(update).toContain('role: null');

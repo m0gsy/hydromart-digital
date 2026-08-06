@@ -7,6 +7,7 @@ export const CUSTOMER_TOKENS = {
   LoyaltyRewardPort: Symbol('LoyaltyRewardPort'),
   DepotCrmRepository: Symbol('DepotCrmRepository'),
   OrderCrmPort: Symbol('OrderCrmPort'),
+  DepotLedgerPort: Symbol('DepotLedgerPort'),
   FavoriteRepository: Symbol('FavoriteRepository'),
   ProductCatalogPort: Symbol('ProductCatalogPort'),
   ResellerRepository: Symbol('ResellerRepository'),
