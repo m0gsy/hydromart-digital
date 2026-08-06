@@ -150,6 +150,15 @@ if health_ok; then
   if [ -n "$MISSING" ]; then
     log "!! .env.example declares keys the live .env does not set: $MISSING"
   fi
+  # Alertmanager reads its destination from a file the operator creates (it is a secret,
+  # so it is not in the repo). Without it every alert is routed, rendered and dropped —
+  # silently, because a monitoring stack that alerts nobody looks exactly like a quiet
+  # week. It was in that state on this box from the day monitoring shipped.
+  if [ ! -s ops/alertmanager.webhook-url ]; then
+    log "!! ops/alertmanager.webhook-url is empty — every Prometheus alert goes nowhere."
+    log "   Fix: printf '%s' \"\$ALERT_WEBHOOK_URL\" > ops/alertmanager.webhook-url && \\"
+    log "        $COMPOSE restart alertmanager"
+  fi
 else
   log "!! health check FAILED after deploy — auto-rolling back to $PREV_SHA"
   bash scripts/rollback.sh "$PREV_SHA"
