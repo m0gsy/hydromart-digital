@@ -947,6 +947,34 @@ describe('EmployeeService.provisionFromInvite (B-3)', () => {
     return row;
   }
 
+  /*
+   * The bug CI's first e2e run found, and the one these fakes are structurally blind to:
+   * `createdBy`, `updatedBy` and `EmploymentHistory.createdBy` are all `@db.Uuid`, and this
+   * path acts as a system actor whose `sub` is the string 'system'. Postgres rejects that
+   * outright, so EVERY staff invite came back 500 from auth-service — while the fake repo,
+   * which only pushes the row into an array, accepted it happily.
+   *
+   * `null` is the honest author: the platform wrote this, not a person.
+   */
+  it('records no author when the platform, not a person, opened the record', async () => {
+    const { repo, svc } = make();
+
+    await svc.provisionFromInvite(invite);
+
+    expect(repo.rows[0]).toMatchObject({ createdBy: null, updatedBy: null });
+    expect(repo.history[0].createdBy).toBeNull();
+  });
+
+  it('still names a real person when one is the author', async () => {
+    const { repo, svc } = make();
+    // A real token's `sub` IS an account id — that is what the column is typed for.
+    const person = { ...hr, sub: '00000000-0000-4000-8000-0000000000bb' };
+
+    await svc.create(person, baseInput);
+
+    expect(repo.rows[0]).toMatchObject({ createdBy: person.sub, updatedBy: person.sub });
+  });
+
   it('adopts an unlinked row with the same phone, and records that it did', async () => {
     const { repo, svc } = make();
     const existing = seedUnlinked(repo);

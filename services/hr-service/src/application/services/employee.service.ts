@@ -37,6 +37,24 @@ const SYSTEM_ACTOR = {
   depotId: null,
 } as unknown as AuthenticatedUser;
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Who to record as the author of a write.
+ *
+ * Every `createdBy`/`updatedBy` column is `@db.Uuid`, and the two routes auth-service calls
+ * act as SYSTEM_ACTOR — whose `sub` is the string 'system'. Postgres rejects that outright,
+ * so EVERY staff invite came back 500 from the one route that opens an employee record, and
+ * every console switch-off did the same. The unit fakes could not see it: they push the row
+ * into an array, which accepts any string.
+ *
+ * `null` is the honest answer, not a workaround — the columns are nullable precisely because
+ * a write can come from the platform rather than from a person.
+ */
+function actorId(sub: string): string | null {
+  return UUID.test(sub) ? sub : null;
+}
+
 /** Fields whose transitions are worth an employment-history row (status/position/salary). */
 const TRACKED: readonly (keyof Employee)[] = [
   'employmentStatus',
@@ -278,15 +296,15 @@ export class EmployeeService {
       address: input.address ?? null,
       ptkpStatus: input.ptkpStatus ?? null,
       contractEndDate: input.contractEndDate ? new Date(input.contractEndDate) : null,
-      createdBy: user.sub,
-      updatedBy: user.sub,
+      createdBy: actorId(user.sub),
+      updatedBy: actorId(user.sub),
     };
 
     const history: Prisma.EmploymentHistoryCreateWithoutEmployeeInput = {
       changeType: 'HIRED',
       toValue: { employmentStatus: input.employmentStatus, position: input.position },
       effectiveDate: new Date(input.joinDate),
-      createdBy: user.sub,
+      createdBy: actorId(user.sub),
     };
 
     // Sequential code (HR-0001). ponytail: retry on the unique-collision from a concurrent
@@ -340,7 +358,7 @@ export class EmployeeService {
       fullName: employee.fullName,
       depotId: employee.depotId ?? undefined,
     });
-    return this.repo.update(id, { authSubjectId: customerId, updatedBy: user.sub }, []);
+    return this.repo.update(id, { authSubjectId: customerId, updatedBy: actorId(user.sub) }, []);
   }
 
   /**
@@ -692,7 +710,7 @@ export class EmployeeService {
       input.depotId ?? current.depotId,
     );
 
-    const data: Prisma.EmployeeUpdateInput = { updatedBy: user.sub };
+    const data: Prisma.EmployeeUpdateInput = { updatedBy: actorId(user.sub) };
     for (const key of [
       'fullName',
       'phone',
@@ -775,7 +793,7 @@ export class EmployeeService {
       await this.identity.setStaffActive(current.authSubjectId, input.status === 'ACTIVE');
     }
 
-    const history = this.diffHistory(current, data, user.sub);
+    const history = this.diffHistory(current, data, actorId(user.sub));
     return this.repo.update(id, data, history);
   }
 
@@ -809,7 +827,7 @@ export class EmployeeService {
       employee.id,
       { status },
       // Actor is the staff console via auth-service, not a person this service can name.
-      this.diffHistory(employee, { status } as Prisma.EmployeeUpdateInput, 'system'),
+      this.diffHistory(employee, { status } as Prisma.EmployeeUpdateInput, null),
     );
     return { updated: true };
   }
@@ -867,7 +885,7 @@ export class EmployeeService {
   private diffHistory(
     current: Employee,
     data: Prisma.EmployeeUpdateInput,
-    actor: string,
+    actor: string | null,
   ): Prisma.EmploymentHistoryCreateWithoutEmployeeInput[] {
     const rows: Prisma.EmploymentHistoryCreateWithoutEmployeeInput[] = [];
     for (const field of TRACKED) {
