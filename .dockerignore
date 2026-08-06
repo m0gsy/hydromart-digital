@@ -4,6 +4,12 @@
 **/node_modules
 **/dist
 **/.next
+# Generated Prisma clients are BUILD OUTPUT, and they carry a platform-specific query
+# engine binary. Shipping a developer's copy into the build context risked baking a
+# Windows or macOS engine into an Alpine image — and, now that postinstall skips a
+# generate whose schema hash already matches (audit CI-3), it could even be *believed*.
+# The image generates its own, always.
+**/prisma/generated
 .git
 .github
 **/.env

@@ -8,7 +8,15 @@ const KEEP = process.argv.includes('--keep');
 const win = process.platform === 'win32';
 if (win) process.env.PATH = `${process.env.PATH};C:\\Program Files\\Docker\\Docker\\resources\\bin`;
 
-const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml'];
+// Audit CI-1: CI layers docker-compose.cache.yml on top so the images build against a
+// shared buildx cache instead of cold, twice per run. Comma-separated, empty by default —
+// a local run is unchanged and never touches a cache backend it cannot reach.
+const EXTRA = (process.env.COMPOSE_EXTRA_FILES ?? '')
+  .split(',')
+  .map((f) => f.trim())
+  .filter(Boolean)
+  .flatMap((f) => ['-f', f]);
+const COMPOSE = ['-f', 'docker-compose.yml', '-f', 'docker-compose.test.yml', ...EXTRA];
 const APP = ['auth', 'customer', 'product', 'order', 'payment', 'delivery', 'depot', 'dashboard',
   'loyalty', 'promo', 'referral', 'crm', 'recommendation', 'forecast', 'gateway'];
 const ALL = [...APP, 'gateway-stub', 'postgres', 'redis'];

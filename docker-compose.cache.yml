@@ -1,0 +1,135 @@
+# CI-only build-cache overlay (audit CI-1).
+#
+# Every image was built COLD in `integration` and COLD AGAIN in `e2e` — ~18 images, twice
+# per run, from scratch, with no layer cache anywhere. This overlay points each build at a
+# GitHub Actions cache so the two jobs share layers with each other and with earlier runs;
+# `mode=max` caches the intermediate stages too, which is what makes the expensive `npm ci`
+# layer reusable.
+#
+# NOT for local use: `type=gha` needs the ACTIONS_* variables GitHub injects, and without
+# them buildx logs a warning per service. Used as:
+#
+#   COMPOSE_BAKE=true docker compose -f docker-compose.yml -f docker-compose.test.yml #     -f docker-compose.cache.yml up -d --build
+#
+# COMPOSE_BAKE is what routes the build through buildx, which is what honours these keys.
+# A cache miss or an unavailable backend degrades to a normal cold build — never a failure.
+
+services:
+  auth:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-auth
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-auth
+
+  customer:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-customer
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-customer
+
+  product:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-product
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-product
+
+  order:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-order
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-order
+
+  payment:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-payment
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-payment
+
+  delivery:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-delivery
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-delivery
+
+  depot:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-depot
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-depot
+
+  dashboard:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-dashboard
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-dashboard
+
+  loyalty:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-loyalty
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-loyalty
+
+  promo:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-promo
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-promo
+
+  referral:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-referral
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-referral
+
+  crm:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-crm
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-crm
+
+  recommendation:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-recommendation
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-recommendation
+
+  forecast:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-forecast
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-forecast
+
+  payout:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-payout
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-payout
+
+  hr:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-hr
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-hr
+
+  gateway:
+    build:
+      cache_from:
+        - type=gha,scope=hydromart-gateway
+      cache_to:
+        - type=gha,mode=max,scope=hydromart-gateway

@@ -20,7 +20,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "postinstall": "prisma generate"
+    "postinstall": "node ../../scripts/prisma-generate-if-stale.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
