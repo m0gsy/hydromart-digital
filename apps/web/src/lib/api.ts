@@ -13,7 +13,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
  * on a phone connection legitimately outlives a JSON round-trip.
  */
 const TIMEOUT_MS = 15_000;
-const UPLOAD_TIMEOUT_MS = 60_000;
+/** File transfers both ways: a 5 MB PoD photo up, a payroll PDF or XLSX report down. */
+const FILE_TIMEOUT_MS = 60_000;
 
 /** One automatic retry after a 429, capped so a long Retry-After never freezes the UI. */
 const MAX_RETRY_AFTER_MS = 3_000;
@@ -216,14 +217,21 @@ function invalidate(): void {
 /**
  * Multipart upload (always authenticated). The JSON `api` helpers force a JSON
  * Content-Type, so file uploads need this path: it lets the browser set the
- * multipart boundary and attaches the bearer token. No 401 refresh-retry — the
- * caller loads its data with `api` first, so the token is already fresh.
+ * multipart boundary and attaches the bearer token.
+ *
+ * The 401 refresh-retry used to be skipped here, on the reasoning that the caller
+ * had just loaded its data with `api` so the token was fresh. That assumption does
+ * not hold for `offline-queue.ts`, which flushes a proof-of-delivery photo captured
+ * hours earlier the moment signal returns — with no read in front of it. Without the
+ * retry EVERY queued PoD upload fails 401 and the courier's proof is lost.
  */
 export async function uploadFile<T = { url: string }>(
   path: string,
   file: File | Blob,
   /** Extra form fields sent alongside the file (e.g. which employee a document belongs to). */
   fields: Record<string, string> = {},
+  /** internal: prevents an infinite refresh loop */
+  _retry = false,
 ): Promise<T> {
   const form = new FormData();
   form.append('file', file);
@@ -237,13 +245,40 @@ export async function uploadFile<T = { url: string }>(
       credentials: 'include',
       body: form,
     },
-    UPLOAD_TIMEOUT_MS,
+    FILE_TIMEOUT_MS,
   );
+
+  // Recursing rebuilds the FormData from the original arguments, so the retry never
+  // re-sends a body the first attempt already consumed.
+  if (res.status === 401 && !_retry && (await refreshSession())) {
+    return uploadFile<T>(path, file, fields, true);
+  }
 
   const data = parseBody(await res.text());
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
   invalidate();
   return data as T;
+}
+
+/**
+ * Authenticated GET whose body is a file, not JSON — payroll slip PDFs and the HR
+ * report exports (CSV/XLSX/PDF). Those two screens used to call `fetch` directly and
+ * so inherited none of this module's guarantees: no deadline, no 401 refresh-retry,
+ * and — once the native shell sends a bearer instead of a cookie — no auth at all.
+ */
+export async function getBlob(path: string, _retry = false): Promise<Blob> {
+  const res = await fetchWithTimeout(
+    `${BASE_URL}${path}`,
+    { method: 'GET', credentials: 'include' },
+    FILE_TIMEOUT_MS,
+  );
+
+  if (res.status === 401 && !_retry && (await refreshSession())) {
+    return getBlob(path, true);
+  }
+
+  if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, parseBody(await res.text())));
+  return res.blob();
 }
 
 // DELETE overload: most callers take no body (`api.del(path, true)`); the settings

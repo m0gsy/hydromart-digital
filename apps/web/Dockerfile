@@ -15,6 +15,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN test -n "$NEXT_PUBLIC_API_URL" || (echo "ERROR: build arg NEXT_PUBLIC_API_URL is required (the PUBLIC gateway origin, e.g. https://api.example.com or http://<vps-ip>:8080)." >&2 && false)
+# Shown on the account screen so a support conversation can start from which build the
+# user is on. Optional, unlike the URL above: an unset version is a cosmetic annoyance,
+# not a broken deployment, so it defaults instead of failing the build.
+ARG NEXT_PUBLIC_APP_VERSION=dev
+ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 # Install against the root lockfile (workspaces), then build the shared RBAC
 # package (roles.ts imports @hydromart/access) and only @hydromart/web.
 COPY package.json package-lock.json tsconfig.base.json ./

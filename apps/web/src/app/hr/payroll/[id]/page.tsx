@@ -5,7 +5,8 @@ import { use, useState } from 'react';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, getBlob } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { PAYROLL_STATUS_LABEL, type Payroll, type PayrollStatus } from '@/lib/hr';
 import { canRunPayroll } from '@/lib/roles';
@@ -35,16 +36,8 @@ export default function PayrollDetailPage({ params }: { params: Promise<{ id: st
   }
 
   async function downloadSlip() {
-    const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
     try {
-      const r = await fetch(`${base}${endpoints.hr.payrollSlip(id)}`, { credentials: 'include' });
-      if (!r.ok) throw new Error(`Gagal (${r.status})`);
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `slip-${id}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadBlob(`slip-${id}.pdf`, await getBlob(endpoints.hr.payrollSlip(id)));
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Gagal unduh', 'error');
     }

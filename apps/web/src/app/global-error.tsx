@@ -16,7 +16,10 @@ export default function GlobalError({
         style={{
           fontFamily: 'system-ui, -apple-system, sans-serif',
           display: 'flex',
-          minHeight: '100vh',
+          // `dvh`, not `vh`: on mobile `100vh` is the viewport with the browser chrome
+          // hidden, so the last full-height holdout in the app pushed its own content
+          // below the fold on the exact screen a user is already confused on.
+          minHeight: '100dvh',
           alignItems: 'center',
           justifyContent: 'center',
           margin: 0,

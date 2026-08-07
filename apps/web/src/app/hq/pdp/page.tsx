@@ -7,6 +7,7 @@ import { Button, Card, Chip, ErrorState, Skeleton } from '@/components/ui';
 import { ConfirmDialog } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
@@ -36,14 +37,10 @@ export default function HqPdpPage() {
     try {
       const result = await api.post<{ export?: unknown }>(endpoints.pdp.approve(row.id), {}, true);
       if (result.export) {
-        const url = URL.createObjectURL(
+        downloadBlob(
+          `pdp-export-${row.customerId}.json`,
           new Blob([JSON.stringify(result.export, null, 2)], { type: 'application/json' }),
         );
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `pdp-export-${row.customerId}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
         toast(t('hq.pdp.exportReady'), 'success');
       } else {
         toast(t('hq.pdp.approved'), 'success');

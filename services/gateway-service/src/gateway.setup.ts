@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
+
 import { INestApplication } from '@nestjs/common';
-import type { Express, RequestHandler } from 'express';
+import type { Express, Request, RequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -12,6 +14,34 @@ import { AT_COOKIE, createSessionRouter, readCookie } from './routing/session-bf
 // gateway (a pure proxy) doesn't import the platform barrel, which transitively
 // pulls the JWT guard + @nestjs/jwt the gateway has no reason to depend on.
 const INTERNAL_KEY_HEADER = 'x-internal-key';
+
+/**
+ * J5: the limiter's default key is `req.ip`, which makes a bucket belong to a NETWORK,
+ * not to a person. Eight couriers behind one depot router or one 4G hotspot share a
+ * single NAT address and therefore a single counter — and `offline-queue.ts` makes them
+ * all flush at the same instant when signal returns, so the burst is not hypothetical.
+ * Keying on the caller's own credential gives each of them their own budget. Web gains
+ * the same fix for free: two staff on one office line stop sharing a counter.
+ *
+ * Deliberately reads BOTH transports, because this middleware runs ahead of the
+ * cookie -> Authorization translation further down: the browser sends the httpOnly
+ * access cookie, the native shell will send the header. Anonymous traffic (login,
+ * catalogue browsing) has neither and keeps the IP bucket, which is the right answer
+ * there — an unauthenticated flood has no identity to charge.
+ *
+ * Hashed rather than stored raw so the limiter's key set never holds a usable token.
+ *
+ * ponytail: the access token rotates on refresh, so a bucket resets every ~15 min.
+ * Harmless (refresh is itself limited, and reuse detection revokes a family that spams
+ * it); key on the JWT `sub` claim instead if that ever proves too generous.
+ */
+export function rateLimitKey(req: Request): string {
+  const credential = req.headers.authorization ?? readCookie(req, AT_COOKIE);
+  if (credential) {
+    return `t:${createHash('sha256').update(credential).digest('base64url').slice(0, 22)}`;
+  }
+  return `i:${req.ip ?? 'unknown'}`;
+}
 
 /**
  * Wires the gateway's request pipeline onto the underlying Express instance:
@@ -50,6 +80,7 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
       limit: config.rateLimit.limit,
       standardHeaders: true,
       legacyHeaders: false,
+      keyGenerator: rateLimitKey,
       skip: (req) => req.path === '/health',
       message: { statusCode: 429, message: 'Too many requests' },
     }),

@@ -4,10 +4,10 @@ import { useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { Button, Card, Input, SectionHeader } from '@/components/ui';
+import { getBlob } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { currentPeriod } from '@/lib/hr';
-
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 type Format = 'csv' | 'xlsx' | 'pdf';
 
@@ -17,17 +17,9 @@ const FORMATS: { key: Format; label: string }[] = [
   { key: 'pdf', label: 'PDF' },
 ];
 
-/** Fetch an export (cookie-authenticated) and trigger a browser download. */
+/** Fetch an export (authenticated) and trigger a browser download. */
 async function download(path: string, filename: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}${path}`, { credentials: 'include' });
-  if (!res.ok) throw new Error(`Gagal mengunduh (${res.status})`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(filename, await getBlob(path));
 }
 
 export default function ReportsPage() {

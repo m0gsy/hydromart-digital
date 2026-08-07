@@ -33,6 +33,7 @@ import { Sheet, ConfirmDialog } from '@/components/overlay';
 import { Button, Chip, ErrorState, Field, Input, CenterState, LinkButton, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
+import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -52,7 +53,10 @@ import type {
   SavedPaymentType,
 } from '@/lib/types';
 
-const APP_VERSION = '3.0.1';
+// Hardcoding this meant the number on the screen was whoever last remembered to bump
+// it, and support has no way to tell which build a user is actually on. Baked at build
+// time from the release tag (see apps/web/Dockerfile); `dev` on a local run.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || 'dev';
 
 // Shared right-column card shell (spec 4f: white, 1px border, radius 20, pad 24).
 const CARD = 'surface rounded-[20px] border border-app p-6';
@@ -377,14 +381,10 @@ function PrivacyDataSection() {
   async function download() {
     try {
       const payload = await api.get<unknown>(endpoints.pdp.myExport, true);
-      const url = URL.createObjectURL(
+      downloadBlob(
+        'hydromart-data.json',
         new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
       );
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'hydromart-data.json';
-      link.click();
-      URL.revokeObjectURL(url);
     } catch {
       toast(t('account.privacyData.downloadError'), 'error');
     }
