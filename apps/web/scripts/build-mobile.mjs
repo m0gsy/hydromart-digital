@@ -24,11 +24,23 @@
  * Moving source files around is the risky part, so the stash lives in the working tree
  * where `git status` can see it, and a run that finds a leftover stash puts it back
  * before doing anything else. If this ever dies in a way that skips both, the recovery
- * is `node scripts/build-mobile.mjs --restore` (or just move `.route-stash/*` back).
+ * is `node scripts/build-mobile.mjs --restore` (or just move `.route-stash/*` back);
+ * `--self-check` round-trips that logic against a throwaway tree.
  */
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const WEB = resolve(dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
@@ -80,6 +92,10 @@ const SURFACES = {
 };
 
 const target = process.argv[2];
+if (target === '--self-check') {
+  selfCheck();
+  process.exit(0);
+}
 if (target === '--restore') {
   restore();
   console.log('stash restored');
@@ -103,41 +119,95 @@ function sizeOf(dir) {
 const mb = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 /** Put every stashed path back where it came from. Safe to call when there is no stash. */
-function restore() {
-  if (!existsSync(STASH)) return;
-  for (const from of walkStash(STASH)) {
-    const to = join(APP, relative(STASH, from));
+function restore(app = APP, stashRoot = STASH) {
+  if (!existsSync(stashRoot)) return;
+  for (const from of walkStash(stashRoot, app, stashRoot)) {
+    const to = join(app, relative(stashRoot, from));
     mkdirSync(dirname(to), { recursive: true });
     renameSync(from, to);
   }
-  rmSync(STASH, { recursive: true, force: true });
+  rmSync(stashRoot, { recursive: true, force: true });
 }
 
-/** The stashed paths themselves — the deepest entry that exists, not its contents. */
-function walkStash(dir) {
+/**
+ * The stashed paths themselves — the deepest entry that exists, not its contents.
+ *
+ * The distinction is why this recurses at all. `hr/payroll` is stashed while `hr/` is
+ * not, so the stash holds an `hr/` to descend into and a `payroll/` to move back whole.
+ * "Does this path still exist in src/app" is what tells the two apart.
+ */
+function walkStash(dir, app, stashRoot) {
   const out = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
-    // A stashed route folder is restored whole; a directory that only exists to hold one
-    // (`hr/` holding `hr/payroll`) is descended into.
-    if (entry.isDirectory() && !existsSync(join(APP, relative(STASH, full)))) out.push(full);
-    else if (entry.isDirectory()) out.push(...walkStash(full));
+    if (entry.isDirectory() && !existsSync(join(app, relative(stashRoot, full)))) out.push(full);
+    else if (entry.isDirectory()) out.push(...walkStash(full, app, stashRoot));
     else out.push(full);
   }
   return out;
 }
 
-function stash(paths) {
+function stash(paths, app = APP, stashRoot = STASH) {
   for (const path of paths) {
-    const from = join(APP, path);
+    const from = join(app, path);
     if (!existsSync(from)) {
       console.error(`Nothing at src/app/${path} — the prune list is out of date.`);
       process.exit(1);
     }
-    const to = join(STASH, path);
+    const to = join(stashRoot, path);
     mkdirSync(dirname(to), { recursive: true });
     renameSync(from, to);
   }
+}
+
+/**
+ * Round-trips the stash against a throwaway tree, because the branch a normal build
+ * never exercises is the one that matters most: recovering a stash a dead run left
+ * behind. Getting it wrong leaves source files outside src/app.
+ *
+ *   node scripts/build-mobile.mjs --self-check
+ */
+function selfCheck() {
+  const root = mkdtempSync(join(tmpdir(), 'hm-stash-'));
+  const app = join(root, 'app');
+  const stashRoot = join(root, 'stash');
+  const files = [
+    'hq/page.tsx',
+    'hr/layout.tsx',
+    'hr/page.tsx',
+    'hr/payroll/page.tsx',
+    'hr/me/page.tsx',
+  ];
+  for (const f of files) {
+    mkdirSync(dirname(join(app, f)), { recursive: true });
+    writeFileSync(join(app, f), f);
+  }
+
+  // Exactly the Ops shape: a whole top-level folder, one nested folder, and one loose
+  // file inside a folder that itself stays put.
+  stash(['hq', 'hr/payroll', 'hr/page.tsx'], app, stashRoot);
+  const kept = ['hq/page.tsx', 'hr/payroll/page.tsx', 'hr/page.tsx'].filter((f) =>
+    existsSync(join(app, f)),
+  );
+  const lost = ['hr/layout.tsx', 'hr/me/page.tsx'].filter((f) => !existsSync(join(app, f)));
+
+  restore(app, stashRoot);
+  const wrong = files.filter((f) => readFileSync(join(app, f), 'utf8') !== f);
+  const leftover = existsSync(stashRoot);
+  rmSync(root, { recursive: true, force: true });
+
+  const problems = [
+    kept.length && `not stashed: ${kept.join(', ')}`,
+    lost.length && `stashed but should have stayed: ${lost.join(', ')}`,
+    wrong.length && `not restored: ${wrong.join(', ')}`,
+    leftover && 'stash directory survived the restore',
+  ].filter(Boolean);
+
+  if (problems.length) {
+    console.error(['self-check FAILED', ...problems].join('\n  '));
+    process.exit(1);
+  }
+  console.log('self-check ok: stash and restore round-trip cleanly');
 }
 
 // Recover first: a previous run that died between stash and restore left source files

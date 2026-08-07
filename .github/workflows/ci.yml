@@ -214,6 +214,13 @@ jobs:
       # Both are caught here, per binary, with no secrets and no backend. The surface
       # assertions are the other half: a customer app that also shipped the depot cash book
       # would build perfectly.
+      # Pruning moves real source files out of src/app and back. The branch a normal
+      # build never takes is recovering a stash a dead run left behind, and getting that
+      # wrong leaves files outside src/app — so it is round-tripped against a throwaway
+      # tree before any build depends on it.
+      - name: Route-stash round trip
+        run: node apps/web/scripts/build-mobile.mjs --self-check
+
       - name: Mobile export — customer binary
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8080
