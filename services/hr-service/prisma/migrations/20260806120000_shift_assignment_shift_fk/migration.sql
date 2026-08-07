@@ -1,3 +1,8 @@
+-- RERUNNABLE: every statement is idempotent (DROP CONSTRAINT IF EXISTS, then an UPDATE
+-- whose WHERE no longer matches once it has run) and Postgres runs the whole file in one
+-- transaction, so a failed attempt leaves nothing behind. migrate-prod.sh may clear a failed
+-- record for this migration and apply it again without a human first.
+--
 -- B2: `shift_assignments."shiftId"` was a bare UUID column with no foreign key, so deleting
 -- a shift still in use left every assignment pointing at nothing. `shiftIdForDay` then
 -- returns an id `findById` cannot resolve, `assignedShiftStart` becomes null, and the
