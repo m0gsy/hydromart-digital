@@ -39,6 +39,7 @@ import {
   FakePaymentReversal,
   FakeMembership,
   FakeResellerDiscount,
+  FakeCustomerDirectory,
   FakeNotification,
   FakePromo,
   FakeInventory,
@@ -89,6 +90,7 @@ describe('OrderService', () => {
   let franchiseRevenue: FakeFranchiseRevenue;
   let membership: FakeMembership;
   let resellerDiscount: FakeResellerDiscount;
+  let customerDirectory: FakeCustomerDirectory;
   let notification: FakeNotification;
   let promo: FakePromo;
   let inventory: FakeInventory;
@@ -111,6 +113,7 @@ describe('OrderService', () => {
     franchiseRevenue = new FakeFranchiseRevenue();
     membership = new FakeMembership();
     resellerDiscount = new FakeResellerDiscount();
+    customerDirectory = new FakeCustomerDirectory();
     notification = new FakeNotification();
     promo = new FakePromo();
     inventory = new FakeInventory();
@@ -126,6 +129,7 @@ describe('OrderService', () => {
       referral,
       membership,
       resellerDiscount,
+      customerDirectory,
       notification,
       promo,
       inventory,
@@ -149,6 +153,71 @@ describe('OrderService', () => {
   // The reconciliation reads litres off the ORDER LINE, not the live catalog. If the
   // snapshot ever stops being written, every meter comparison silently reports the
   // whole day's production as unaccounted-for water. These two guard that.
+  // Failing open is still right — nobody should be stopped from buying water because a
+  // pricing service blinked — but the order used to carry no sign it had happened, so a
+  // wrongly-priced order only turned up as a money difference at reconciliation.
+  describe('catalog pricing fallback leaves a trace', () => {
+    it('marks an order priced from the catalog because the depot was unreachable', async () => {
+      await addToCart(20000, 2);
+      pricing.unavailable = true;
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
+    it('says nothing when the depot answered', async () => {
+      await addToCart(20000, 1);
+
+      await service.checkout(customer, { deliveryAddress: address });
+
+      expect(orders.notes).toEqual([]);
+    });
+
+    // A subscription delivery is placed by a sweep with nobody watching it, so the note on
+    // the order is the ONLY trace that it was billed from the catalog instead of the depot.
+    it('marks a scheduled delivery the same way', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      pricing.unavailable = true;
+
+      const order = await service.placeScheduled(
+        customer,
+        [{ productId: p.id, quantity: 2 }],
+        address,
+      );
+
+      expect(orders.notes).toEqual([
+        {
+          id: order.id,
+          status: order.status,
+          changedBy: 'order-service',
+          note: 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout',
+        },
+      ]);
+    });
+
+    // Fail-open all the way down: an order already placed and paid for must not unwind
+    // because the marker could not be written.
+    it('still places the order when the marker cannot be written', async () => {
+      await addToCart(20000, 1);
+      pricing.unavailable = true;
+      orders.appendNote = async () => {
+        throw new Error('history table down');
+      };
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address }),
+      ).resolves.toBeDefined();
+    });
+  });
+
   describe('catalog volume snapshot', () => {
     it('freezes volumeMl and isGallon onto each checked-out line', async () => {
       const galon = catalog.seed({
@@ -318,6 +387,26 @@ describe('OrderService', () => {
       const row = orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!;
       expect(row.status).toBe('DEAD');
       expect(await outbox.pending()).toMatchObject({ DEAD: 1 });
+    });
+
+    // A legacy unrouted row can still reach COMPLETED, and the sweep has to settle its
+    // consume rather than retry forever against a depot that is not there.
+    it('settles the owed consume of an order that has no depot, without touching stock', async () => {
+      inventory.consume = async () => {
+        throw new Error('depot-service down');
+      };
+      const order = await complete();
+      orders.rows.find((r) => r.id === order.id)!.depotId = null;
+
+      const consumed: string[] = [];
+      inventory.consume = async (_d, orderId) => {
+        consumed.push(orderId);
+      };
+      const swept = await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+
+      expect(swept.delivered).toBe(1);
+      expect(consumed).toEqual([]);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'INVENTORY_CONSUME')!.status).toBe('DONE');
     });
 
     it('marks every effect delivered on the happy path', async () => {
@@ -587,11 +676,15 @@ describe('OrderService', () => {
 
     const result = await (
       service as unknown as {
-        findOrderValues(ids: string[]): Promise<{ orderId: string; totalIdr: number }[]>;
+        findOrderValues(
+          ids: string[],
+        ): Promise<{ orderId: string; orderNumber: string; totalIdr: number }[]>;
       }
     ).findOrderValues([order.id, missingId]);
 
-    expect(result).toEqual([{ orderId: order.id, totalIdr: order.total }]);
+    expect(result).toEqual([
+      { orderId: order.id, orderNumber: order.orderNumber, totalIdr: order.total },
+    ]);
   });
 
   it('round-trips an optional delivery window, defaulting to null when omitted', async () => {
@@ -1288,6 +1381,16 @@ describe('OrderService', () => {
           OrderAlreadyRoutedError,
         );
       });
+
+      // Fail closed while the directory is down: routing an order into a depot nobody can
+      // confirm is active would hand it to a depot that may no longer be trading.
+      it('refuses to route while the depot directory is unreachable', async () => {
+        const id = await unroute();
+        depots.unreachable = true;
+        await expect(service.assignDepot(id, homeDepot.id)).rejects.toBeInstanceOf(
+          DepotUnavailableError,
+        );
+      });
     });
 
     it('rejects checkout while the depot directory is unreachable', async () => {
@@ -1741,6 +1844,7 @@ describe('OrderService', () => {
       referral,
       membership,
       resellerDiscount,
+      customerDirectory,
       notification,
       promo,
       inventory,
@@ -1821,6 +1925,59 @@ describe('OrderService', () => {
       OrderNotFoundError,
     );
   });
+  /*
+   * An order priced from the CATALOG because the depot's own prices could not be read is a
+   * money difference: the customer is billed at a number the depot did not set. It used to
+   * leave no trace at all, so it surfaced weeks later at reconciliation with no way back to
+   * the cause. Now it lands on the order's own timeline, where the person handling the
+   * complaint can see it.
+   */
+  describe('catalog-price fallback leaves a trace', () => {
+    it('notes on the order when the depot could not be priced', async () => {
+      pricing.unavailable = true;
+      const productId = await addToCart(20_000, 2);
+      expect(productId).toBeDefined();
+
+      const order = await service.checkout(customer, { deliveryAddress: address });
+
+      const notes = orders.notes.filter((n) => n.id === order.id).map((n) => n.note);
+      expect(notes.some((n) => n.includes('Harga dasar katalog'))).toBe(true);
+      expect(notes.some((n) => n.includes('tidak terjangkau'))).toBe(true);
+    });
+
+    // A depot that priced normally leaves nothing behind — the note has to mean something.
+    it('says nothing when the depot priced the order itself', async () => {
+      await addToCart(20_000, 2);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const notes = orders.notes.filter((n) => n.id === order.id).map((n) => n.note);
+      expect(notes.some((n) => n.includes('Harga dasar katalog'))).toBe(false);
+    });
+
+    // Fail-open on the note itself: an order that is already placed and paid for must not
+    // be unwound because the timeline write failed.
+    it('does not unwind a placed order when the note cannot be written', async () => {
+      pricing.unavailable = true;
+      jest.spyOn(orders, 'appendNote').mockRejectedValue(new Error('db down'));
+      await addToCart(20_000, 2);
+
+      await expect(
+        service.checkout(customer, { deliveryAddress: address }),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  describe('assignDepot', () => {
+    it('refuses an unknown order and an already-routed one', async () => {
+      await expect(service.assignDepot(randomUUID(), 'depot-near')).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+      await addToCart(20_000, 1);
+      const routed = await service.checkout(customer, { deliveryAddress: address });
+      await expect(service.assignDepot(routed.id, routed.depotId!)).rejects.toBeInstanceOf(
+        OrderAlreadyRoutedError,
+      );
+    });
+  });
 });
 
 describe('OrderService franchise revenue on completion', () => {
@@ -1866,6 +2023,7 @@ describe('OrderService franchise revenue on completion', () => {
       new FakeReferralCoordination(),
       new FakeMembership(),
       new FakeResellerDiscount(),
+      new FakeCustomerDirectory(),
       new FakeNotification(),
       new FakePromo(),
       new FakeInventory(),

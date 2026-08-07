@@ -156,7 +156,18 @@ async function ensureDepots() {
 async function ensureAccounts(depotIds) {
   const ids = {};
   for (const a of ACCOUNTS) {
-    const body = { phone: a.phone, role: a.role, fullName: a.fullName };
+    // The employment fields are required since inviting somebody also opens their HR
+    // record. Fixed values: this fixture is about the supervision chain, not about pay.
+    const body = {
+      phone: a.phone,
+      role: a.role,
+      fullName: a.fullName,
+      position: 'Staf',
+      joinDate: '2026-01-01',
+      employmentStatus: 'PERMANENT',
+      salaryType: 'MONTHLY',
+      monthlyRate: 5_000_000,
+    };
     if (a.depot) body.depotId = depotIds[a.depot];
     // inviteStaff promotes an existing phone rather than failing, so this is the
     // idempotent path for both a first run and a re-run.

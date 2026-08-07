@@ -9,6 +9,8 @@ import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/se
 import { SettingsService } from '../application/services/settings.service';
 import { EMPLOYEE_REPOSITORY } from '../application/ports/employee.repository';
 import { IDENTITY_PORT } from '../application/ports/identity.port';
+import { SUPERVISION_PORT } from '../application/ports/supervision.port';
+import { SupervisionHttpAdapter } from '../infrastructure/http/supervision.http.adapter';
 import { EmployeeService } from '../application/services/employee.service';
 import { FACE_EMBEDDING_REPOSITORY } from '../application/ports/face-embedding.repository';
 import { ATTENDANCE_REPOSITORY } from '../application/ports/attendance.repository';
@@ -155,6 +157,7 @@ const providers: Provider[] = [
   // Outbound HR notifications (leave decisions, announcements) via crm-service.
   { provide: NOTIFICATION_PORT, useClass: NotificationHttpAdapter },
   { provide: IDENTITY_PORT, useClass: IdentityHttpAdapter },
+  { provide: SUPERVISION_PORT, useClass: SupervisionHttpAdapter },
   { provide: PERFORMANCE_REPOSITORY, useClass: PerformancePrismaRepository },
   PerformanceService,
   { provide: AUDIT_REPOSITORY, useClass: AuditPrismaRepository },

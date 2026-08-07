@@ -962,6 +962,9 @@ export class PriceOverrideProposalResponseDto {
   status!: string;
   @ApiProperty({ type: String })
   proposedBy!: string;
+  /** §G-3: denormalised from auth-service so HQ sees who proposed it. */
+  @ApiProperty({ type: String, nullable: true })
+  proposedByName!: string | null;
   @ApiProperty({ type: String, nullable: true })
   decidedBy!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -1188,4 +1191,66 @@ export class WholesaleTierResponseDto {
   createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+}
+
+/** Mirrors `DailyCloseRecord` exactly — generated for audit D-6, no field added or removed. */
+export class DailyCloseRecordResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  depotId!: string;
+  @ApiProperty({ type: String })
+  businessDate!: string;
+  @ApiProperty({ type: String, format: 'date-time' })
+  closedAt!: Date;
+  @ApiProperty({ type: String })
+  closedBy!: string;
+  @ApiProperty({ type: Number })
+  cashInIdr!: number;
+  @ApiProperty({ type: Number })
+  cashOutIdr!: number;
+  @ApiProperty({ type: Number })
+  konterIdr!: number;
+  @ApiProperty({ type: Number })
+  codDepositedIdr!: number;
+  @ApiProperty({ type: Number })
+  codExpectedIdr!: number;
+  @ApiProperty({ type: String, nullable: true })
+  note!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  reopenedAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true })
+  reopenedBy!: string | null;
+}
+
+/** Mirrors `DailyCloseView` exactly — generated for audit D-6, no field added or removed. */
+export class DailyCloseViewResponseDto {
+  @ApiProperty({ type: DailyCloseRecordResponseDto, nullable: true })
+  close!: DailyCloseRecordResponseDto | null;
+  @ApiProperty({ type: Number })
+  lateEntries!: number;
+  @ApiProperty({ type: Number })
+  lateAmountIdr!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalDescribeResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  superiorId!: string | null;
+  @ApiProperty({ type: [String] })
+  subordinateIds!: string[];
+  @ApiProperty({ type: [String] })
+  assistantDepotIds!: string[];
+  @ApiProperty({ type: [String] })
+  directDepotIds!: string[];
+}
+
+/** Mirrors `CustomerGallonRow` exactly — generated for audit D-6, no field added or removed. */
+export class CustomerGallonRowResponseDto {
+  @ApiProperty({ type: String })
+  customerId!: string;
+  @ApiProperty({ type: Number })
+  gallonsOnLoan!: number;
+  @ApiProperty({ type: Number })
+  depositHeldIdr!: number;
 }

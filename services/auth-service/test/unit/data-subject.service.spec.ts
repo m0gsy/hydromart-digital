@@ -1,4 +1,7 @@
+import { BadRequestException } from '@nestjs/common';
+
 import {
+  CustomerNotFoundError,
   DataSubjectRequestAlreadyDecidedError,
   DataSubjectRequestNotFoundError,
   DuplicateDataSubjectRequestError,
@@ -74,7 +77,7 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
   let requests: FakeRequestRepo;
   let customerData: { export: jest.Mock; anonymise: jest.Mock };
   let audit: { record: jest.Mock };
-  let customers: { findById: jest.Mock };
+  let customers: { findById: jest.Mock; findByIds: jest.Mock };
   let service: DataSubjectService;
 
   beforeEach(() => {
@@ -82,6 +85,10 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     customerData = { export: jest.fn(async () => ({ addresses: [] })), anonymise: jest.fn() };
     audit = { record: jest.fn() };
     customers = {
+      // §G-3: the staff queue names whoever raised each request.
+      findByIds: jest.fn(async (ids: string[]) =>
+        ids.map((id) => ({ id, fullName: id === CUSTOMER ? 'Budi' : null })),
+      ),
       findById: jest.fn(async () => ({
         id: CUSTOMER,
         phone: '+628111',
@@ -99,6 +106,145 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
       audit as never,
       new ConsentService(new InMemoryConsentRepository()),
     );
+  });
+
+  // HQ deleting a staff account: the same machinery, a different trigger. Every guard here
+  // exists because the action cannot be undone.
+  describe('deleteStaffAccount', () => {
+    const ACTOR = '99999999-9999-4999-8999-999999999999';
+    const TARGET = '11111111-1111-4111-8111-111111111111';
+
+    function makeService(overrides: {
+      role?: string;
+      superAdminTotal?: number;
+      hr?: { anonymiseEmployee: jest.Mock };
+    }) {
+      const saved: { id: string; status: string }[] = [];
+      const makeRow = (id: string) => {
+        const row = { id, role: overrides.role ?? 'KEPALA_DEPOT', status: 'ACTIVE' };
+        return { ...row, markDeleted: () => void (row.status = 'DELETED'), get status() { return row.status; } };
+      };
+      // B-4: the guard and the write are ONE repository call now, so the fake decides both
+      // together — which is the whole point, and what a `listStaff` count could not express.
+      const superAdmins = overrides.superAdminTotal ?? 3;
+      const repo = {
+        findById: jest.fn(async (id: string) => makeRow(id)),
+        listStaff: jest.fn(async () => ({ items: [], total: superAdmins })),
+        markDeletedGuardingLastSuperAdmin: jest.fn(async (id: string) => {
+          if ((overrides.role ?? 'KEPALA_DEPOT') === 'SUPER_ADMIN' && superAdmins <= 1) {
+            return 'last-super-admin' as const;
+          }
+          saved.push({ id, status: 'DELETED' });
+          return 'deleted' as const;
+        }),
+        save: jest.fn(async (c: { id: string; status: string }) => {
+          saved.push({ id: c.id, status: c.status });
+          return c;
+        }),
+      };
+      return {
+        repo,
+        saved,
+        svc: new DataSubjectService(
+          requests as never,
+          repo as never,
+          customerData as never,
+          audit as never,
+          new ConsentService(new InMemoryConsentRepository()),
+          overrides.hr as never,
+        ),
+      };
+    }
+
+    it('anonymises across services, closes the login, and audits it as an admin action', async () => {
+      const hr = { anonymiseEmployee: jest.fn() };
+      const { svc, saved } = makeService({ hr });
+
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+        employeeAnonymised: true,
+      });
+
+      expect(customerData.anonymise).toHaveBeenCalledWith(TARGET);
+      expect(requests.anonymised).toContain(TARGET);
+      expect(hr.anonymiseEmployee).toHaveBeenCalledWith(TARGET);
+      expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
+      // Its own action: "the owner asked" and "an admin did it" must stay distinguishable.
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'staff.account.deleted', customerId: ACTOR }),
+      );
+    });
+
+    /*
+     * B-5. This is the STAFF console's delete: it skips the PDP request queue (who asked,
+     * who decided) and files the result as `staff.account.deleted`. Its two siblings,
+     * `setStaffDepot` and `setStaffActiveInternal`, both refuse a customer; this one did
+     * not, so a SUPER_ADMIN could erase an end customer through the staff route.
+     */
+    it('refuses an end customer — that deletion belongs to the PDP queue', async () => {
+      const { svc, repo } = makeService({ role: 'CUSTOMER' });
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+      expect(repo.markDeletedGuardingLastSuperAdmin).not.toHaveBeenCalled();
+    });
+
+    // The row vanished between the read and the write — a concurrent delete. The repository
+    // is the one that notices, and the caller has to translate that, not ignore it.
+    it('reports not-found when the account disappears mid-delete', async () => {
+      const { svc, repo } = makeService({});
+      repo.markDeletedGuardingLastSuperAdmin = jest.fn(
+        async (_id: string) => 'not-found',
+      ) as never;
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        CustomerNotFoundError,
+      );
+    });
+
+    it('refuses to delete the acting account', async () => {
+      const { svc } = makeService({});
+      await expect(svc.deleteStaffAccount(ACTOR, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(customerData.anonymise).not.toHaveBeenCalled();
+    });
+
+    // Deleting the last one would leave a system nobody can administer — including to
+    // undo this.
+    it('refuses to delete the last super admin, but allows one of several', async () => {
+      const last = makeService({ role: 'SUPER_ADMIN', superAdminTotal: 1 });
+      await expect(last.svc.deleteStaffAccount(TARGET, ACTOR)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+
+      const oneOfMany = makeService({ role: 'SUPER_ADMIN', superAdminTotal: 2 });
+      await expect(oneOfMany.svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+        employeeAnonymised: true,
+      });
+    });
+
+    // The login is already gone by then; raising here would report a failure for a
+    // deletion that did happen.
+    // B-10: it completes, and it SAYS the other half did not. `{deleted: true}` on its own
+    // reads as finished, and the orphaned employee record is exactly what somebody has to
+    // go and clean up by hand.
+    it('still completes when hr-service cannot be told, and reports the half that failed', async () => {
+      const hr = { anonymiseEmployee: jest.fn(async () => Promise.reject(new Error('hr down'))) };
+      const { svc, saved } = makeService({ hr });
+
+      await expect(svc.deleteStaffAccount(TARGET, ACTOR)).resolves.toEqual({
+        deleted: true,
+        employeeAnonymised: false,
+      });
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ employeeAnonymised: false }),
+        }),
+      );
+      expect(saved).toEqual([{ id: TARGET, status: 'DELETED' }]);
+    });
   });
 
   it('refuses a second open request of the same type', async () => {
@@ -192,7 +338,13 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     await service.request('33333333-3333-3333-3333-333333333333', 'EXPORT', null);
 
     expect(await service.listMine(CUSTOMER)).toHaveLength(1);
-    expect(await service.listForStaff('PENDING')).toHaveLength(2);
+
+    // §G-3: HQ decides a deletion request; it has to say who is asking, not eight hex
+    // characters. An account with no name stays null so the console falls back.
+    const queue = await service.listForStaff('PENDING');
+    expect(queue).toHaveLength(2);
+    expect(queue.find((r) => r.customerId === CUSTOMER)?.customerName).toBe('Budi');
+    expect(queue.find((r) => r.customerId !== CUSTOMER)?.customerName).toBeNull();
   });
 
   it('exports on demand for the customer without a queue entry', async () => {

@@ -5,17 +5,209 @@ import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/re
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
+import { downloadCsv, toCsv } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
-import { canViewDashboard, isStaff } from '@/lib/roles';
+import { can, canViewDashboard, isStaff } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
 const today = () => new Date().toISOString().slice(0, 10);
+
+/** One order of the exported day, as order-service returns it. */
+interface DailyExportRow {
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  cancelled: boolean;
+  recipientName: string;
+  driverName: string | null;
+  gallons: number;
+  subtotalIdr: number;
+  deliveryFeeIdr: number;
+  discountIdr: number;
+  totalIdr: number;
+  isWalkIn: boolean;
+}
+
+/**
+ * Download the day's orders as CSV. The button used to be `onClick={() => undefined}`.
+ *
+ * Formatting happens here rather than server-side because the console already owns the
+ * CSV rules (separator, BOM for Excel); a rendered file from the API would be a second
+ * copy of those rules to keep in step.
+ */
+function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const rows = await api.get<DailyExportRow[]>(
+        endpoints.reports.depotDailyExport(depotId, date),
+        true,
+      );
+      downloadCsv(
+        `laporan-harian-${date}.csv`,
+        toCsv(
+          [
+            'No. pesanan',
+            'Waktu',
+            'Status',
+            'Dibatalkan',
+            'Penerima',
+            'Kurir',
+            'Galon',
+            'Subtotal',
+            'Ongkir',
+            'Diskon',
+            'Total',
+            'Penjualan konter',
+          ],
+          rows.map((r) => [
+            r.orderNumber,
+            r.createdAt,
+            r.status,
+            r.cancelled ? 'YA' : '',
+            r.recipientName,
+            r.driverName ?? '',
+            r.gallons,
+            r.subtotalIdr,
+            r.deliveryFeeIdr,
+            r.discountIdr,
+            r.totalIdr,
+            r.isWalkIn ? 'YA' : '',
+          ]),
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal mengekspor laporan.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button variant="ghost" onClick={() => void run()} loading={busy}>
+        <Export size={16} weight="bold" /> Ekspor CSV
+      </Button>
+      {error && (
+        <p className="text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** What depot-service reports about one depot's day. */
+interface DailyCloseView {
+  close: {
+    businessDate: string;
+    closedAt: string;
+    cashInIdr: number;
+    cashOutIdr: number;
+    konterIdr: number;
+    codDepositedIdr: number;
+    codExpectedIdr: number;
+    reopenedAt: string | null;
+  } | null;
+  lateEntries: number;
+  lateAmountIdr: number;
+}
+
+/**
+ * "Tutup buku" — the depot saying this day is counted.
+ *
+ * It adds up the two halves of the money that never met: counter cash from the depot
+ * cashbook, and the COD the cashier accepted from couriers (delivery-service). The server
+ * refuses while a cashier shift is still open, and that refusal is shown here rather than
+ * swallowed — it is the most common reason a close is not allowed yet.
+ */
+function CloseBooks({ depotId, date }: { depotId: string; date: string }) {
+  const { customer } = useAuth();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const state = useAsync<DailyCloseView>(
+    () => api.get(endpoints.depots.dailyClose(depotId, date), true),
+    [depotId, date],
+  );
+
+  const closed = state.data?.close && !state.data.close.reopenedAt;
+
+  async function run(reopen: boolean) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(
+        reopen ? endpoints.depots.reopenDay(depotId) : endpoints.depots.closeDay(depotId),
+        { businessDate: date },
+        true,
+      );
+      state.reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Gagal menutup buku.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (state.loading) return null;
+  /*
+   * D-7: a 403, or a depot-service outage, used to fall straight through to the button —
+   * an inviting "Tutup buku" for a day that may already be closed. Saying nothing is known
+   * beats offering an action whose precondition was never read.
+   */
+  if (state.error) {
+    return (
+      <p className="text-xs font-medium text-muted" role="status">
+        Status tutup buku tidak bisa dibaca.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      {closed ? (
+        <div className="flex items-center gap-2">
+          <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+            <Lock size={12} weight="bold" className="inline" /> Buku ditutup
+          </span>
+          {/* Reopening is head office only — a depot that can reopen its own books can
+              rewrite a total it already signed off. */}
+          {can('dailyCloseReopen', customer?.role) && (
+            <Button variant="ghost" onClick={() => void run(true)} loading={busy}>
+              Buka kembali
+            </Button>
+          )}
+        </div>
+      ) : (
+        <Button variant="ghost" onClick={() => void run(false)} loading={busy}>
+          <Lock size={16} weight="bold" /> Tutup buku
+        </Button>
+      )}
+      {/* Money that arrived after the book was shut. Never hidden: the cash exists whether
+          or not the day was closed. */}
+      {closed && (state.data?.lateEntries ?? 0) > 0 && (
+        <p className="text-[11px] font-semibold text-amber-700">
+          {state.data!.lateEntries} entri masuk setelah tutup ({formatIDR(state.data!.lateAmountIdr)})
+        </p>
+      )}
+      {error && (
+        <p className="max-w-[280px] text-right text-[11px] font-medium text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function StatCard({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -47,9 +239,8 @@ function Harian({ depotId }: { depotId: string }) {
             onChange={(e) => setDate(e.target.value)}
             className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium"
           />
-          <Button variant="ghost" onClick={() => undefined}>
-            <Export size={16} weight="bold" /> Ekspor & tutup buku
-          </Button>
+          <ExportDaily depotId={depotId} date={date} />
+          <CloseBooks depotId={depotId} date={date} />
         </div>
       </div>
 

@@ -27,6 +27,14 @@ const STAFF_ROLES = [
   'SUPER_ADMIN',
 ] as const;
 
+const EMPLOYMENT_STATUSES = ['TRAINING', 'PROBATION', 'PERMANENT'] as const;
+
+/** Today, as the `yyyy-mm-dd` a date input wants. Local, because a join date is a calendar day. */
+function today(): string {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -34,13 +42,29 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<string>('KEPALA_DEPOT');
   const [depotId, setDepotId] = useState('');
+  // Inviting somebody now opens their employee record too, so the console has to ask for
+  // what HR needs to pay and roster them. A franchise owner is skipped server-side.
+  const [position, setPosition] = useState('');
+  const [joinDate, setJoinDate] = useState(today());
+  const [employmentStatus, setEmploymentStatus] = useState<string>('PROBATION');
+  const [salaryType, setSalaryType] = useState<'DAILY' | 'MONTHLY'>('MONTHLY');
+  const [rate, setRate] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const depots = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
 
+  const isOwner = role === 'FRANCHISE_OWNER';
+
   async function submit() {
     if (phone.trim() === '') {
       setError(t('hq.staff.form.phoneRequired'));
+      return;
+    }
+    // D-11: `Number('') <= 0` is false for NaN, so a rate that will not parse got through
+    // the guard and serialised to null. Near-unreachable behind `<Input type="number">`, but
+    // the guard should mean what it says.
+    if (!isOwner && (position.trim() === '' || !(Number(rate) > 0))) {
+      setError(t('hq.staff.form.employmentRequired'));
       return;
     }
     setBusy(true);
@@ -48,12 +72,30 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
     try {
       await api.post(
         endpoints.auth.inviteStaff,
-        { phone: phone.trim(), role, fullName: fullName || undefined, depotId: depotId || undefined },
+        {
+          phone: phone.trim(),
+          role,
+          fullName: fullName || undefined,
+          depotId: depotId || undefined,
+          // A franchise owner gets no employee record, but the API still validates the
+          // shape — send something honest rather than blank.
+          position: isOwner ? 'Pemilik waralaba' : position.trim(),
+          joinDate,
+          employmentStatus: isOwner ? 'PERMANENT' : employmentStatus,
+          salaryType: isOwner ? 'MONTHLY' : salaryType,
+          ...(isOwner
+            ? { monthlyRate: 0 }
+            : salaryType === 'DAILY'
+              ? { dailyRate: Number(rate) }
+              : { monthlyRate: Number(rate) }),
+        },
         true,
       );
       setPhone('');
       setFullName('');
       setDepotId('');
+      setPosition('');
+      setRate('');
       setOpen(false);
       onSaved();
     } catch (err) {
@@ -126,6 +168,62 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
           ))}
         </select>
       </Field>
+      {/* Hidden for a franchise owner: they are a business counterpart, not headcount. */}
+      {!isOwner && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('hq.staff.form.position')} htmlFor="hq-st-position">
+            <Input
+              id="hq-st-position"
+              value={position}
+              onChange={(e) => setPosition(e.target.value)}
+              placeholder="mis. Kurir"
+            />
+          </Field>
+          <Field label={t('hq.staff.form.joinDate')} htmlFor="hq-st-join">
+            <Input
+              id="hq-st-join"
+              type="date"
+              value={joinDate}
+              onChange={(e) => setJoinDate(e.target.value)}
+            />
+          </Field>
+          <Field label={t('hq.staff.form.employmentStatus')} htmlFor="hq-st-emp">
+            <select
+              id="hq-st-emp"
+              value={employmentStatus}
+              onChange={(e) => setEmploymentStatus(e.target.value)}
+              className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
+            >
+              {EMPLOYMENT_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`hq.staff.form.employment.${s}`)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('hq.staff.form.salary')} htmlFor="hq-st-rate">
+            <div className="flex gap-2">
+              <select
+                value={salaryType}
+                onChange={(e) => setSalaryType(e.target.value as 'DAILY' | 'MONTHLY')}
+                className="surface-elevated rounded-lg border border-app px-2 py-2.5 text-sm"
+              >
+                <option value="MONTHLY">{t('hq.staff.form.salaryMonthly')}</option>
+                <option value="DAILY">{t('hq.staff.form.salaryDaily')}</option>
+              </select>
+              <Input
+                id="hq-st-rate"
+                type="number"
+                min={0}
+                value={rate}
+                onChange={(e) => setRate(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </Field>
+        </div>
+      )}
+
       {error && (
         <p className="text-sm font-medium text-red-600" role="alert">
           {error}

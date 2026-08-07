@@ -27,7 +27,7 @@ export default function HqRefundsPage() {
 
   async function decide(r: RefundQueueItem, approved: boolean) {
     setBusyId(r.id);
-    const ref = r.orderId.slice(0, 8);
+    const ref = r.orderNumber ?? r.orderId.slice(0, 8);
     try {
       await api.post(approved ? endpoints.refunds.approve(r.id) : endpoints.refunds.reject(r.id), {}, true);
       toast(
@@ -71,7 +71,7 @@ export default function HqRefundsPage() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">
-                    {t('hq.refunds.order')} {r.orderId.slice(0, 8)}
+                    {t('hq.refunds.order')} {r.orderNumber ?? r.orderId.slice(0, 8)}
                   </span>
                   <Chip tone="outline">{r.method}</Chip>
                 </div>

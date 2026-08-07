@@ -20,4 +20,13 @@ export interface OrderCoordinationPort {
    * is already settled, so a coordination hiccup must never surface as a payment error.
    */
   notifyRefunded(orderId: string, amount: number): Promise<void>;
+  /**
+   * Human-readable HM-… numbers for a batch of order ids (§G-3). The refund queue is the
+   * one screen in the console that had no order number on it, because payment rows carry
+   * only the id — HQ was approving refunds against eight hex characters.
+   *
+   * Fails SOFT: an id with no number simply stays absent from the map, and the queue
+   * falls back to the short id. A refund decision must never be blocked by a decoration.
+   */
+  getOrderNumbers(orderIds: string[]): Promise<Map<string, string>>;
 }

@@ -4,6 +4,8 @@
 
 export interface Reseller {
   customerId: string;
+  /** Account name behind `customerId` (§G-3). Null when the account has none. */
+  customerName: string | null;
   homeDepotId: string;
   monthlyTargetQty: number;
   discountPct: number;

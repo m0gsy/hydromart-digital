@@ -16,9 +16,15 @@ import { InternalAuthGuard, Public } from '@hydromart/platform';
 import { PdpRepository } from '../application/ports/pdp.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { CrmDashboard, DepotCrmService } from '../application/services/depot-crm.service';
+import { CustomerImportService } from '../application/services/customer-import.service';
 import { CrmDashboardDto, CrmDepotDashboardDto } from './dto/depot-crm.dto';
-import { PdpCustomerDto } from './dto/pdp.dto';
-import { CrmDashboardResponseDto, CustomerIdsByDepot2ResponseDto } from './dto/responses.generated.dto';
+import { ClaimFavoriteDepotDto, PdpCustomerDto, ResolveByPhoneDto } from './dto/pdp.dto';
+import {
+  ClaimFavoriteDepotResponseDto,
+  CrmDashboardResponseDto,
+  CustomerIdsByDepot2ResponseDto,
+  ResolveByPhoneResponseDto,
+} from './dto/responses.generated.dto';
 
 /**
  * Service-to-service reads (no end-user token). @Public() bypasses the global JWT guard;
@@ -32,8 +38,25 @@ import { CrmDashboardResponseDto, CustomerIdsByDepot2ResponseDto } from './dto/r
 export class InternalController {
   constructor(
     private readonly crm: DepotCrmService,
+    private readonly customers: CustomerImportService,
     @Inject(CUSTOMER_TOKENS.PdpRepository) private readonly pdp: PdpRepository,
   ) {}
+
+  /**
+   * §I: the counter buyer, resolved (or pre-registered) by phone. order-service calls this
+   * when a walk-in sale carries a phone but no customerId — the resolution used to happen
+   * in the POS page's browser, so every other client booked the sale against the anonymous
+   * sentinel and created nobody.
+   */
+  @ApiOkResponse({ type: ResolveByPhoneResponseDto })
+  @Post('internal/resolve-by-phone')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Resolve or pre-register a customer by phone (internal service auth)' })
+  resolveByPhone(
+    @Body() dto: ResolveByPhoneDto,
+  ): Promise<{ customerId: string; status: 'created' | 'pending' | 'active' }> {
+    return this.customers.resolveByPhone(dto.phone, dto.fullName ?? dto.phone, dto.depotId);
+  }
 
   /**
    * UU PDP tahap 1 (item 13). auth-service owns the request queue and calls these two
@@ -56,6 +79,23 @@ export class InternalController {
   })
   pdpAnonymise(@Body() dto: PdpCustomerDto): Promise<void> {
     return this.pdp.anonymise(dto.customerId);
+  }
+
+  /**
+   * §I: a customer who has never ordered belonged to no depot's directory, because
+   * `favoriteDepotId` was written by the Excel importer and by a `PATCH /profile` the
+   * console never calls. order-service reports the fulfilling depot at checkout, and this
+   * records it — ONLY when there is none, so the last depot to sell somebody water can
+   * never steal them from the depot they actually belong to.
+   *
+   * Fail-soft on the caller's side: the order is already placed either way.
+   */
+  @ApiOkResponse({ type: ClaimFavoriteDepotResponseDto })
+  @Post('internal/favorite-depot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Record a first-checkout depot as the favourite, if none is set' })
+  async claimFavoriteDepot(@Body() dto: ClaimFavoriteDepotDto): Promise<{ claimed: boolean }> {
+    return { claimed: await this.crm.claimFavoriteDepot(dto.customerId, dto.depotId) };
   }
 
   @ApiOkResponse({ type: CustomerIdsByDepot2ResponseDto })

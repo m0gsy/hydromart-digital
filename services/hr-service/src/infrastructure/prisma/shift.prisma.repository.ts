@@ -30,9 +30,37 @@ export class ShiftPrismaRepository implements ShiftRepository {
     return this.prisma.shift.findUnique({ where: { id } });
   }
 
+  async countReferences(shiftId: string): Promise<number> {
+    // `pattern` is JSON, so the rotations are matched in SQL rather than loaded: a rotation
+    // names shifts as VALUES of a `{weekday: shiftId}` object, which no Prisma filter can
+    // express. `jsonb_each_text` unrolls it; the cast is needed because the column is `Json`.
+    const [assignments, employees, rotations] = await Promise.all([
+      this.prisma.shiftAssignment.count({ where: { shiftId } }),
+      this.prisma.employee.count({ where: { shiftId } }),
+      this.prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT COUNT(*)::bigint AS n
+        FROM "shift_rotations" r
+        WHERE EXISTS (
+          SELECT 1 FROM jsonb_each_text(r."pattern"::jsonb) AS kv(day, "shiftId")
+          WHERE kv."shiftId" = ${shiftId}
+        )
+      `,
+    ]);
+    return assignments + employees + Number(rotations[0]?.n ?? 0);
+  }
+
+  /**
+   * B4: a depot sees its own shifts PLUS the network-wide ones — the same rule
+   * `listRotations` below and `findActiveForDepot` above already follow.
+   *
+   * This one excluded `depotId: null`, so the three methods disagreed about the same rows.
+   * A depot-scoped HR user got rotations pointing at shifts their own list did not contain:
+   * `/hr/shift` printed "shift terhapus" for a shift that exists and is in daily use, and
+   * `/hr/calendar` hid the very shift that decides that depot's clock-in time.
+   */
   list(depotIds?: readonly string[]): Promise<Shift[]> {
     return this.prisma.shift.findMany({
-      where: depotIds ? { depotId: depotWhere(depotIds) } : {},
+      where: depotIds ? { OR: [{ depotId: depotWhere(depotIds) }, { depotId: null }] } : {},
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
   }

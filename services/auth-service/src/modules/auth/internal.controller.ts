@@ -11,8 +11,10 @@ import {
   LookupCustomerIdsDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
+  ProvisionManagedStaffDto,
   ProvisionStaffDto,
   PurgeBeforeDto,
+  SetStaffActiveDto,
 } from './dto/internal.dto';
 import { PurgeAuditLogs3ResponseDto } from '../dto/responses.generated.dto';
 
@@ -44,6 +46,37 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Create or promote a staff account (internal service auth)' })
   async provisionStaff(@Body() dto: ProvisionStaffDto): Promise<PublicCustomerDto> {
     const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * The same provisioning, for the single-employee HR form rather than an import file.
+   *
+   * A separate route rather than a wider `ProvisionStaffDto`: widening that one would have
+   * handed the spreadsheet path the supervision roles too, and a file of a thousand rows
+   * is exactly the place those must not be reachable from.
+   */
+  @ApiOkResponse({ type: PublicCustomerDto })
+  @Post('staff/managed')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create or promote an HR-managed staff account (internal service auth)' })
+  async provisionManagedStaff(@Body() dto: ProvisionManagedStaffDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * hr-service reporting that somebody resigned (or came back): the login follows.
+   *
+   * Writes only — see AccountService.setStaffActiveInternal. Answering with a push back to
+   * hr-service would bounce the same change between the two services forever.
+   */
+  @ApiOkResponse({ type: PublicCustomerDto })
+  @Post('staff/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Enable/disable a staff login (internal service auth)' })
+  async setStaffActive(@Body() dto: SetStaffActiveDto): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffActiveInternal(dto.customerId, dto.active);
     return PublicCustomerDto.from(staff);
   }
 

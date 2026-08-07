@@ -186,4 +186,46 @@ describe('endpoints', () => {
       '/depots/api/v1/depots/d1/inventory/movements?type=SALE&from=2026-07-01T00%3A00%3A00.000Z&to=2026-08-01T00%3A00%3A00.000Z&page=2&limit=50',
     );
   });
+  /*
+   * D-16. Nine paths came in with this release and none was asserted here. Every one of
+   * them is checked against a real `@Controller` route by `scripts/check-endpoint-contracts.mjs`
+   * with an EMPTY allowlist, so a typo is a CI failure rather than a 404 somebody finds in
+   * a browser — but these hold the shape the gateway needs: `/{segment}/api/v1/...`.
+   */
+  it('builds the staff-lifecycle paths this release added', () => {
+    expect(endpoints.auth.setStaffDepot('s1')).toBe('/auth/api/v1/auth/staff/s1/depot');
+    expect(endpoints.auth.setStaffActive('s1')).toBe('/auth/api/v1/auth/staff/s1/status');
+    expect(endpoints.auth.deleteStaff('s1')).toBe('/auth/api/v1/auth/staff/s1');
+    expect(endpoints.hr.createEmployeeAccount('e1')).toBe(
+      '/employees/api/v1/employees/e1/account',
+    );
+  });
+
+  it('builds the daily-close paths, with the business date on the read', () => {
+    expect(endpoints.depots.dailyClose('d1', '2026-08-04')).toBe(
+      '/depots/api/v1/depots/d1/daily-close?businessDate=2026-08-04',
+    );
+    expect(endpoints.depots.closeDay('d1')).toBe('/depots/api/v1/depots/d1/daily-close');
+    expect(endpoints.depots.reopenDay('d1')).toBe('/depots/api/v1/depots/d1/daily-close/reopen');
+  });
+
+  // `from` is never optional: the service filters on checkInAt with no default window, so
+  // an unbounded call would scan every shift ever recorded.
+  it('always bounds the dispatch shift read, and scopes it when asked', () => {
+    expect(endpoints.deliveries.shiftsOnDuty('2026-08-04T00:00:00.000Z')).toBe(
+      '/deliveries/api/v1/shifts?from=2026-08-04T00%3A00%3A00.000Z',
+    );
+    expect(endpoints.deliveries.shiftsOnDuty('2026-08-04T00:00:00.000Z', 'd1')).toBe(
+      '/deliveries/api/v1/shifts?from=2026-08-04T00%3A00%3A00.000Z&depotId=d1',
+    );
+  });
+
+  it('exports the daily report on the same path family as the report itself', () => {
+    expect(endpoints.reports.depotDailyExport('d1')).toBe(
+      '/orders/api/v1/reports/depot-daily/export?depotId=d1',
+    );
+    expect(endpoints.reports.depotDailyExport('d1', '2026-08-04')).toBe(
+      '/orders/api/v1/reports/depot-daily/export?depotId=d1&date=2026-08-04',
+    );
+  });
 });

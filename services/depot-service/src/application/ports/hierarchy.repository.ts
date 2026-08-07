@@ -29,6 +29,14 @@ export interface HierarchyRepository {
   grantDepot(staffId: string, depotId: string, updatedBy: string | null): Promise<void>;
   /** Revoke a direct grant. */
   revokeDepot(staffId: string, depotId: string): Promise<void>;
+  /**
+   * Just the superior link, for the cycle walk (D-14).
+   *
+   * `describe()` fires four queries and the walk discarded three of them at every hop, so
+   * attaching somebody eight levels down cost 32 queries to answer one question about one
+   * column.
+   */
+  superiorOf(staffId: string): Promise<string | null>;
   /** Everything recorded for one person, for the admin screen. */
   describe(staffId: string): Promise<{
     superiorId: string | null;

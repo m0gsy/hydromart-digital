@@ -161,7 +161,23 @@ describe('DepotCrmController', () => {
 describe('InternalController', () => {
   const svc = { listCustomerIdsByDepot: jest.fn(), getCrmDashboard: jest.fn() };
   const pdp = { exportFor: jest.fn(), anonymise: jest.fn() };
-  const c = new InternalController(svc as never, pdp as never);
+  const imports = { resolveByPhone: jest.fn() };
+  const c = new InternalController(svc as never, imports as never, pdp as never);
+
+  // §I: order-service resolving the counter buyer. The name defaults to the phone so a
+  // cashier who typed only a number still creates a usable account rather than a blank one.
+  it('resolveByPhone forwards the row, defaulting the name to the phone', async () => {
+    imports.resolveByPhone.mockResolvedValue({ customerId: 'c9', status: 'created' });
+
+    await expect(c.resolveByPhone({ phone: '0811', depotId: 'd1' })).resolves.toEqual({
+      customerId: 'c9',
+      status: 'created',
+    });
+    expect(imports.resolveByPhone).toHaveBeenCalledWith('0811', '0811', 'd1');
+
+    await c.resolveByPhone({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
+    expect(imports.resolveByPhone).toHaveBeenLastCalledWith('0811', 'Budi', 'd1');
+  });
   beforeEach(() => jest.clearAllMocks());
 
   it('customerIdsByDepot wraps the id array as { customerIds }', async () => {

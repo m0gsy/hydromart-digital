@@ -29,5 +29,18 @@ export interface DepotPricingPort {
     depotId: string,
     productIds: string[],
     quantities?: number[],
-  ): Promise<Map<string, DepotPrice>>;
+  ): Promise<DepotPriceLookup>;
+}
+
+/**
+ * The prices, and whether they are actually the depot's.
+ *
+ * `unavailable` is the part that used to be missing. Failing open is still the right
+ * call — a pricing outage must not stop somebody buying water — but an order billed at
+ * catalog prices when the depot sells at its own is a money difference, and it used to
+ * leave no trace at all. It surfaces on the order's own timeline and as an alert.
+ */
+export interface DepotPriceLookup {
+  prices: Map<string, DepotPrice>;
+  unavailable: boolean;
 }

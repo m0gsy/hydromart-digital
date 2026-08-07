@@ -3,18 +3,31 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
+  IsIn,
+  IsISO8601,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
 import { Role } from '../../../domain/customer/role.enum';
+
+/**
+ * hr-service's own enums, mirrored as plain strings rather than imported: auth-service does
+ * not depend on hr-service's Prisma client, and this DTO only carries the values through.
+ * hr-service validates them again on arrival, where the enum actually lives.
+ */
+const EMPLOYMENT_STATUSES = ['TRAINING', 'PROBATION', 'PERMANENT'] as const;
+const SALARY_TYPES = ['DAILY', 'MONTHLY'] as const;
 
 export class ListStaffQueryDto {
   @ApiPropertyOptional({ default: 1, maximum: 1000 })
@@ -52,6 +65,19 @@ export class ListStaffQueryDto {
   search?: string;
 }
 
+/**
+ * D-5: `listDrivers` took `@Query() query: { depotId?: string }` — a bare object literal,
+ * the only unvalidated query param on a controller where everything else is a DTO class.
+ * Nothing validated the shape, so an unparseable `depotId` reached the repository as a
+ * `where` value instead of being refused at the edge.
+ */
+export class ListDriversQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Restrict to one depot (HQ only).' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
+}
+
 export class InviteStaffDto {
   @ApiProperty({ example: '+628123456789', description: 'Phone of the account to grant a staff role.' })
   @IsString()
@@ -83,6 +109,62 @@ export class InviteStaffDto {
   @IsString()
   @MaxLength(20)
   plateNumber?: string;
+
+  /*
+   * Employment fields. Required, because inviting somebody now opens their employee record
+   * too — an account with no employee is a person who cannot be paid, rostered or clocked
+   * in, which is the exact half-a-person this release exists to stop creating.
+   *
+   * FRANCHISE_OWNER is the one role that skips the employee record (a business counterpart,
+   * not headcount); the console hides these fields for it and sends the defaults.
+   */
+  @ApiProperty({ example: 'Kurir' })
+  @IsString()
+  @MaxLength(80)
+  position!: string;
+
+  @ApiProperty({ example: '2026-08-04' })
+  @IsISO8601()
+  joinDate!: string;
+
+  @ApiProperty({ enum: EMPLOYMENT_STATUSES, example: 'PROBATION' })
+  @IsIn(EMPLOYMENT_STATUSES)
+  employmentStatus!: string;
+
+  @ApiProperty({ enum: SALARY_TYPES, example: 'MONTHLY' })
+  @IsIn(SALARY_TYPES)
+  salaryType!: string;
+
+  @ApiPropertyOptional({ example: 150000, description: 'Required when salaryType is DAILY.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  dailyRate?: number;
+
+  @ApiPropertyOptional({ example: 4500000, description: 'Required when salaryType is MONTHLY.' })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  monthlyRate?: number;
+}
+
+/**
+ * Move an existing staff account to another depot. `null` clears it, which only staff
+ * above depot level may end up with — the service refuses it for a depot-locked role.
+ */
+export class SetStaffDepotDto {
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsUUID()
+  depotId?: string | null;
+}
+
+/** Console switch: `false` suspends the login (and the employee record), `true` restores it. */
+export class SetStaffActiveConsoleDto {
+  @ApiProperty({ example: false })
+  @IsBoolean()
+  active!: boolean;
 }
 
 /**

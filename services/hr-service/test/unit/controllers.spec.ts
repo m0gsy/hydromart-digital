@@ -390,6 +390,11 @@ describe('EmployeesController', () => {
     'retentionReport',
     'retentionAnonymise',
     'purgeBiometrics',
+    'provisionFromInvite',
+    'provisionManyFromInvite',
+    'setActiveInternal',
+    'anonymiseByAccount',
+    'createAccountFor',
   ]);
   const c = new EmployeesController(emp as never);
 
@@ -423,6 +428,28 @@ describe('EmployeesController', () => {
     const rows = [{ fullName: 'Budi', role: 'STAFF_DEPOT' }] as never;
     c.import({ rows } as never, user);
     expect(emp.importMany).toHaveBeenCalledWith(user, rows, 'CREATE');
+  });
+
+  // The four internal routes auth-service drives, plus the badge that mints a login.
+  // Each is a pure passthrough — the point is that the right half of the DTO reaches the
+  // service, since a wrong field here silently creates nobody.
+  it('delegates the account-side routes', () => {
+    const invite = { authSubjectId: 'a1', phone: '+628', fullName: 'Budi' } as never;
+    c.provisionFromInvite(invite);
+    expect(emp.provisionFromInvite).toHaveBeenCalledWith(invite);
+
+    const rows = [invite];
+    c.provisionManyFromInvite({ rows } as never);
+    expect(emp.provisionManyFromInvite).toHaveBeenCalledWith(rows);
+
+    c.setActive({ authSubjectId: 'a1', active: false } as never);
+    expect(emp.setActiveInternal).toHaveBeenCalledWith('a1', false);
+
+    c.anonymiseByAccount({ authSubjectId: 'a1' } as never);
+    expect(emp.anonymiseByAccount).toHaveBeenCalledWith('a1');
+
+    c.createAccount('e1', user);
+    expect(emp.createAccountFor).toHaveBeenCalledWith(user, 'e1');
   });
 
   it('defaults the import to CREATE and passes UPSERT through when asked', () => {
@@ -531,6 +558,7 @@ describe('ReportsController', () => {
       employeeReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
       attendanceReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
       payrollReport: jest.fn().mockResolvedValue({ headers: ['h'], rows: [['r']] }),
+      depotSummaryMany: jest.fn().mockResolvedValue([]),
       csv: jest.fn().mockReturnValue('a,b\n1,2'),
     };
     return { analytics, c: new ReportsController(analytics as never) };
@@ -543,6 +571,17 @@ describe('ReportsController', () => {
     expect(analytics.dashboard).toHaveBeenCalledWith(user, q);
     c.depotSummary('d1');
     expect(analytics.depotSummary).toHaveBeenCalledWith('d1');
+  });
+
+  // The many-depot variant takes one comma list instead of N round trips; blanks and
+  // stray spaces come from the caller joining an array that had a hole in it.
+  it('splits the depot-id list, trimming blanks', () => {
+    const { analytics, c } = make();
+    c.depotSummaries(' d1 , ,d2,');
+    expect(analytics.depotSummaryMany).toHaveBeenCalledWith(['d1', 'd2']);
+
+    c.depotSummaries(undefined as never);
+    expect(analytics.depotSummaryMany).toHaveBeenLastCalledWith([]);
   });
 
   it('employees export defaults to CSV with a BOM', async () => {

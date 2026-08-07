@@ -44,6 +44,13 @@ deliveries: {
     // Multipart PoD upload (photo + signature); returns { url }.
     upload: '/deliveries/api/v1/driver/deliveries/uploads',
   },
+  // Dispatch view of courier shifts (cap: tracking) — who may be handed a delivery right
+  // now. Always send `from`: the service filters on checkInAt with no default window, so
+  // an unbounded call would scan every shift ever recorded.
+  shiftsOnDuty: (from: string, depotId?: string) =>
+    `/deliveries/api/v1/shifts?from=${encodeURIComponent(from)}${
+      depotId ? `&depotId=${encodeURIComponent(depotId)}` : ''
+    }`,
   // Courier shift (design 3a/3b). check-in/out are POST; status is PATCH.
   shifts: {
     current: '/deliveries/api/v1/driver/shifts/current',

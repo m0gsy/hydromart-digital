@@ -10,7 +10,6 @@ export const AUTH_TOKENS = {
   OtpDeliveryPort: Symbol('OtpDeliveryPort'),
   CryptoPort: Symbol('CryptoPort'),
   AccessTokenSignerPort: Symbol('AccessTokenSignerPort'),
-  GoogleVerifierPort: Symbol('GoogleVerifierPort'),
   ClockPort: Symbol('ClockPort'),
   CustomerNotificationPort: Symbol('CustomerNotificationPort'),
   Storage: Symbol('Storage'),

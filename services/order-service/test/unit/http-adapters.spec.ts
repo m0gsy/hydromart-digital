@@ -24,6 +24,7 @@ import { RecommendationCoordinationHttpAdapter } from '../../src/infrastructure/
 import { FranchiseRevenueHttpAdapter } from '../../src/infrastructure/http/franchise-revenue.http.adapter';
 import { CashierShiftHttpAdapter } from '../../src/infrastructure/http/cashier-shift.http.adapter';
 import { PaymentReversalHttpAdapter } from '../../src/infrastructure/http/payment-reversal.http.adapter';
+import { CustomerDirectoryHttpAdapter } from '../../src/infrastructure/http/customer-directory.http.adapter';
 
 // These specs exercise the REAL HTTP adapter code (URL building, headers, res.ok
 // branches, fail-open catch, response parsing) against a mocked global.fetch — the
@@ -327,12 +328,50 @@ describe('FranchiseRevenueHttpAdapter', () => {
       ).orderCompleted(event),
     ).resolves.toBeUndefined();
   });
+
+  it('posts the void so the owner stops being paid for a reversed order', async () => {
+    fetchMock.mockResolvedValue(res({ body: { voided: true } }));
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+    ).orderVoided('o1', 'refund');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://payout:3016/api/v1/payout/revenue/internal/void');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({ orderId: 'o1', reason: 'refund' });
+  });
+
+  it('skips the void when payout integration is not configured', async () => {
+    await new FranchiseRevenueHttpAdapter(makeConfig({ payoutServiceUrl: '' })).orderVoided(
+      'o1',
+      'refund',
+    );
+    await new FranchiseRevenueHttpAdapter(
+      makeConfig({ payoutServiceUrl: 'http://payout:3016', internalServiceKey: '' }),
+    ).orderVoided('o1', 'refund');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('swallows a payout failure on the void — the refund must still go through', async () => {
+    fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderVoided('o1', 'refund'),
+    ).resolves.toBeUndefined();
+
+    fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    await expect(
+      new FranchiseRevenueHttpAdapter(
+        makeConfig({ payoutServiceUrl: 'http://payout:3016' }),
+      ).orderVoided('o1', 'refund'),
+    ).resolves.toBeUndefined();
+  });
 });
 
 describe('DepotPricingHttpAdapter', () => {
   it('returns empty map for no product ids', async () => {
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', []);
-    expect(out.size).toBe(0);
+    expect(out.prices.size).toBe(0);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -346,14 +385,14 @@ describe('DepotPricingHttpAdapter', () => {
       }),
     );
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1', 'p2']);
-    expect(out.get('p1')).toEqual({ sellPrice: 21000 });
-    expect(out.get('p2')).toEqual({ adjustType: 'PERCENT', value: 10 });
+    expect(out.prices.get('p1')).toEqual({ sellPrice: 21000 });
+    expect(out.prices.get('p2')).toEqual({ adjustType: 'PERCENT', value: 10 });
   });
 
   it('returns empty map (fail open) on non-2xx', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     const out = await new DepotPricingHttpAdapter(makeConfig()).getPrices('d1', ['p1']);
-    expect(out.size).toBe(0);
+    expect(out.prices.size).toBe(0);
   });
 });
 
@@ -738,5 +777,126 @@ describe('ReferralCoordinationHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new ReferralCoordinationHttpAdapter(makeConfig()).qualify('c1', 'o1', '');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * §I: order-service telling customer-service where somebody just bought, so a
+ * self-registered customer appears in that depot's directory.
+ *
+ * Fails OPEN on every path — the order is already placed and paid for, and a directory row
+ * is not worth unwinding it over. `false` therefore means "not recorded", never an error.
+ */
+describe('CustomerDirectoryHttpAdapter', () => {
+  const config = makeConfig({ customerServiceUrl: 'http://customer:3002' });
+  const originalFetch = globalThis.fetch;
+  afterEach(() => {
+    (globalThis as { fetch: unknown }).fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  function quiet(adapter: CustomerDirectoryHttpAdapter) {
+    jest.spyOn(adapter['logger'], 'warn').mockImplementation(() => undefined);
+    return adapter;
+  }
+
+  it('posts the claim over the internal key and reports what was written', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(res({ body: { claimed: true } }));
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+    await expect(
+      new CustomerDirectoryHttpAdapter(config).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://customer:3002/api/v1/customers/internal/favorite-depot');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({ customerId: 'c1', depotId: 'd1' });
+  });
+
+  it('reports false when the customer already had a favourite', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(res({ body: { claimed: false } }));
+    await expect(
+      new CustomerDirectoryHttpAdapter(config).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+  });
+
+  it('calls nothing when there is no internal key', async () => {
+    const fetchMock = jest.fn();
+    (globalThis as { fetch: unknown }).fetch = fetchMock;
+    const adapter = new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+    await expect(adapter.claimFavoriteDepot('c1', 'd1')).resolves.toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails open on a refusal, on an unreachable service, and on an unreadable body', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+
+    (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(res({ throwJson: true }));
+    await expect(
+      quiet(new CustomerDirectoryHttpAdapter(config)).claimFavoriteDepot('c1', 'd1'),
+    ).resolves.toBe(false);
+  });
+
+  // §I: the counter buyer. Resolution used to happen in the POS page's browser, so any
+  // other client posting /orders/walk-in with a phone created nobody.
+  describe('resolveByPhone', () => {
+    it('posts the phone and hands back the account it resolved', async () => {
+      const fetchMock = jest.fn().mockResolvedValue(res({ body: { customerId: 'c9' } }));
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBe('c9');
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe('http://customer:3002/api/v1/customers/internal/resolve-by-phone');
+      expect(init.headers['x-internal-key']).toBe(KEY);
+      expect(JSON.parse(init.body)).toEqual({ phone: '0811', fullName: 'Budi', depotId: 'd1' });
+    });
+
+    it('calls nothing when there is no internal key', async () => {
+      const fetchMock = jest.fn();
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+      const adapter = new CustomerDirectoryHttpAdapter(makeConfig({ internalServiceKey: '' }));
+
+      await expect(adapter.resolveByPhone('0811', 'Budi', 'd1')).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    // Fails OPEN: the sale is booked anonymously rather than a cashier being stopped with
+    // the buyer standing at the counter.
+    it('answers null on a refusal, an outage, and an unreadable body', async () => {
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+
+      (globalThis as { fetch: unknown }).fetch = jest
+        .fn()
+        .mockResolvedValue(res({ throwJson: true }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).resolveByPhone('0811', 'Budi', 'd1'),
+      ).resolves.toBeNull();
+    });
   });
 });

@@ -368,6 +368,8 @@ export type DataSubjectRequestStatus = 'PENDING' | 'COMPLETED' | 'REJECTED';
 export interface DataSubjectRequest {
   id: string;
   customerId: string;
+  /** Account name behind `customerId` (§G-3). Only the staff queue fills it. */
+  customerName: string | null;
   type: DataSubjectRequestType;
   status: DataSubjectRequestStatus;
   reason: string | null;
@@ -601,7 +603,8 @@ export interface SalesReport {
 export interface TopCustomers {
   from: string | null;
   to: string | null;
-  items: { customerId: string; orderCount: number; revenue: number }[];
+  /** `customerName` is filled by dashboard-service (§G-3); null when the account has none. */
+  items: { customerId: string; customerName: string | null; orderCount: number; revenue: number }[];
 }
 
 // 22b — revenue share per product (order-service has no category column, so grouping
@@ -1432,6 +1435,8 @@ export type ChurnRiskBand = 'LOW' | 'MEDIUM' | 'HIGH';
 // One at-risk customer row (mirrors forecast-service churn response item).
 export interface ChurnCustomer {
   customerId: string;
+  /** Account name behind `customerId` (§G-3). Null when the account has none. */
+  customerName: string | null;
   lastOrderAt: string;
   orderCount: number;
   daysSince: number;
@@ -1502,6 +1507,8 @@ export type RefundApproval = 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED';
 export interface RefundQueueItem {
   id: string;
   orderId: string;
+  /** The order's HM-… number (§G-3). Null when order-service could not be read. */
+  orderNumber: string | null;
   customerId: string;
   method: PaymentMethod;
   status: PaymentStatus;
@@ -1544,6 +1551,8 @@ export interface PriceOverrideProposalItem {
   note: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   proposedBy: string;
+  /** Account name behind `proposedBy` (§G-3). Null when the account has none. */
+  proposedByName: string | null;
   decidedBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -1565,6 +1574,8 @@ export interface VoucherRequestItem {
   note: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   requestedBy: string;
+  /** Account name behind `requestedBy` (§G-3). Null when the account has none. */
+  requestedByName: string | null;
   decidedBy: string | null;
   createdVoucherId: string | null;
   createdAt: string;

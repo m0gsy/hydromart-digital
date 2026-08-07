@@ -137,7 +137,10 @@ export default function HqPricingPage() {
                       <span className="min-w-0 truncate font-medium">{p.productName}</span>
                     </div>
                     <p className="text-xs text-muted">
-                      {t('hq.pricing.queue.by', { who: `#${p.proposedBy.slice(0, 8)}`, depot: p.depotName })}
+                      {t('hq.pricing.queue.by', {
+                        who: p.proposedByName ?? `#${p.proposedBy.slice(0, 8)}`,
+                        depot: p.depotName,
+                      })}
                     </p>
                     {p.note ? <p className="text-xs text-muted">{p.note}</p> : null}
                     <p className="flex items-center gap-2 text-sm">

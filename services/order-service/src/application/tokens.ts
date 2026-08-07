@@ -15,6 +15,7 @@ export const ORDER_TOKENS = {
   PaymentReversal: Symbol('PaymentReversal'),
   Membership: Symbol('Membership'),
   ResellerDiscount: Symbol('ResellerDiscount'),
+  CustomerDirectory: Symbol('CustomerDirectory'),
   Notification: Symbol('Notification'),
   Promo: Symbol('Promo'),
   Inventory: Symbol('Inventory'),

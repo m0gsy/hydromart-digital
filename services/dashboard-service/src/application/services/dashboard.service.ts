@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { addLocalMonths, dayStartUtc } from '@hydromart/platform';
+import { AccountNameResolver, addLocalMonths, dayStartUtc } from '@hydromart/platform';
 
 import {
   DashboardSourcesPort,
@@ -142,6 +142,7 @@ export class DashboardService {
   constructor(
     @Inject(DASHBOARD_TOKENS.Sources) private readonly sources: DashboardSourcesPort,
     private readonly config: DashboardConfigService,
+    @Inject(DASHBOARD_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
   ) {}
 
   async monthlyPnl(depotId: string, month: string, token: string): Promise<MonthlyOperationalPnl> {
@@ -207,6 +208,16 @@ export class DashboardService {
     ]);
 
     const orderOk = sales !== null && topCustomers !== null && topDepots !== null;
+
+    // §G-3. The card next to this one lists depots by name; this one listed its customers
+    // as the first eight characters of a UUID. Fail-soft: no name changes nothing else.
+    if (topCustomers) {
+      const names = await this.accountNames(topCustomers.items.map((i) => i.customerId));
+      topCustomers.items = topCustomers.items.map((i) => ({
+        ...i,
+        customerName: names.get(i.customerId) ?? null,
+      }));
+    }
 
     return {
       from: range.from ?? null,

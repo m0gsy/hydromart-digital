@@ -472,24 +472,26 @@ describe('OrderPrismaRepository', () => {
 
   it('batch-reads order totals in one selected findMany query', async () => {
     order.findMany.mockResolvedValue([
-      { id: 'ord-1', total: dec(103_000) },
-      { id: 'ord-2', total: dec(47_500) },
+      { id: 'ord-1', orderNumber: 'HM-1', total: dec(103_000) },
+      { id: 'ord-2', orderNumber: 'HM-2', total: dec(47_500) },
     ]);
 
     const result = await (
       repo as unknown as {
-        findOrderValues(ids: string[]): Promise<{ orderId: string; totalIdr: number }[]>;
+        findOrderValues(
+          ids: string[],
+        ): Promise<{ orderId: string; orderNumber: string; totalIdr: number }[]>;
       }
     ).findOrderValues(['ord-1', 'ord-2', 'missing']);
 
     expect(result).toEqual([
-      { orderId: 'ord-1', totalIdr: 103_000 },
-      { orderId: 'ord-2', totalIdr: 47_500 },
+      { orderId: 'ord-1', orderNumber: 'HM-1', totalIdr: 103_000 },
+      { orderId: 'ord-2', orderNumber: 'HM-2', totalIdr: 47_500 },
     ]);
     expect(order.findMany).toHaveBeenCalledTimes(1);
     expect(order.findMany).toHaveBeenCalledWith({
       where: { id: { in: ['ord-1', 'ord-2', 'missing'] } },
-      select: { id: true, total: true },
+      select: { id: true, orderNumber: true, total: true },
     });
   });
 
@@ -619,6 +621,23 @@ describe('OrderPrismaRepository', () => {
       where: { id: 'ord-0' },
       select: { createdAt: true, id: true },
     });
+  });
+
+  // A fact about an order that is not a transition — "priced from the catalog because the
+  // depot was unreachable". Reusing applyStatus would repeat the status on the timeline,
+  // which staff read as something having happened twice.
+  it('appendNote writes a history row without touching the order', async () => {
+    await repo.appendNote('ord-1', OrderStatus.CONFIRMED, 'order-service', 'harga katalog');
+
+    expect(orderStatusHistory.create).toHaveBeenCalledWith({
+      data: {
+        orderId: 'ord-1',
+        status: OrderStatus.CONFIRMED,
+        changedBy: 'order-service',
+        note: 'harga katalog',
+      },
+    });
+    expect(order.update).not.toHaveBeenCalled();
   });
 
   it('applies a status transition and appends history (no driver name)', async () => {

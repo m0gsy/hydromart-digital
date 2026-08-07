@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   canManageEarningRules,
+  canManageRoster,
   canManagePricing,
   canViewDashboard,
   canPunchAttendance,
@@ -167,5 +168,25 @@ describe('consoleHome', () => {
   it('never lands a role on a page its own gate would deny', () => {
     expect(isConsolePath(consoleHome('DIREKTUR'))).toBe(true);
     expect(consoleHome('DIREKTUR')).toBe('/hq');
+  });
+});
+
+/*
+ * B7. `/dashboard/shift` gated its Atur-shift button on `isStaff` — "anybody who is not a
+ * customer" — while writing the roster needs `driverRoster`. A DEPOT_OPERATOR got a
+ * clickable grid where every click 403'd and the cell snapped back with no explanation.
+ */
+describe('canManageRoster', () => {
+  it('lets the roles that actually hold driverRoster edit the roster', () => {
+    expect(canManageRoster('KEPALA_DEPOT')).toBe(true);
+    expect(canManageRoster('MANAGER')).toBe(true);
+    expect(canManageRoster('SUPER_ADMIN')).toBe(true);
+  });
+
+  it('refuses depot staff, who can read the grid but not write it', () => {
+    expect(canManageRoster('STAFF_DEPOT')).toBe(false);
+    expect(canManageRoster('CUSTOMER')).toBe(false);
+    expect(canManageRoster(null)).toBe(false);
+    expect(canManageRoster(undefined)).toBe(false);
   });
 });

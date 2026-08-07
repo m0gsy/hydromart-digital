@@ -116,6 +116,10 @@ services:
       # makes every PDP approval error rather than half-complete — hardcoded like the
       # other internal URLs, not an env knob that can be forgotten.
       CUSTOMER_SERVICE_URL: http://customer:3002
+      # Inviting staff also opens their employee record in hr-service. Fails closed like the
+      # line above: a blank value makes the invite error rather than create an account
+      # nobody in HR can pay or roster. Hardcoded for the same reason.
+      HR_SERVICE_URL: http://hr:3018
       # Object storage for customer avatar photos. BiznetGio NEO (S3-compatible);
       # per-bucket keys, so auth uses its own bucket/creds (see AUTH_STORAGE_* in .env).
       # Reuse the product bucket+creds if you prefer one bucket — avatars live under
@@ -158,6 +162,12 @@ services:
       PRODUCT_SERVICE_URL: http://product:3003
       # Pre-registers phones during a depot's bulk customer/reseller import.
       AUTH_SERVICE_URL: http://auth:3001
+      # J-1: the depot customer directory's order count, last order and segment all come
+      # from here. Seven other services had it and customer-service did not, so
+      # `order-crm.http.adapter` returned [] on every call, /dashboard/crm showed all-zero
+      # segments and an empty follow-up queue, and the franchise dashboard was fed those
+      # zeros too. It fails soft, so nothing ever logged.
+      ORDER_SERVICE_URL: http://order:3004
       BIRTHDAY_REWARD_POINTS: 250
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3002/api/v1/health"]
@@ -271,7 +281,9 @@ services:
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: 1
       SHIFT_CHECKIN_RADIUS_M: 200
       SHIFT_LENGTH_HOURS: 8
-      SHIFT_BREAK_QUOTA_MINUTES: 30
+      # B6: was 30 here while the settings UI showed 60 — see setting-defs.ts. Depots with
+      # no override get the advertised 60 from this release on.
+      SHIFT_BREAK_QUOTA_MINUTES: 60
       NO_SHOW_MIN_CONTACT_ATTEMPTS: 2
       NO_SHOW_MIN_WAIT_SECONDS: 300
       DELIVERY_SLA_MINUTES: 120
@@ -307,6 +319,10 @@ services:
       # Closing a cashier's shift reads that depot's takings from here. Without it a shift
       # can be opened but never closed — no drawer is ever settled against a guess.
       PAYMENT_SERVICE_URL: http://payment:3005
+      # Closing the DAY's books reads the COD couriers deposited from here. Same fail-closed
+      # rule: counting only the counter cash and calling it the day's takings is worse than
+      # refusing to close.
+      DELIVERY_SERVICE_URL: http://delivery:3006
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

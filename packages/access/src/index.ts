@@ -113,6 +113,16 @@ export const CAPABILITIES = {
   // auth-service — staff & roles directory. NOT granted to DIREKTUR: minting accounts
   // stays with head office and the superuser.
   staffAdmin: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  // Deleting a staff account: anonymises the identity across services and cannot be undone.
+  // Deliberately NOT staffAdmin — head office holds that, and inviting somebody by mistake
+  // is a click away from being fixed while deleting them is not.
+  staffDelete: ['SUPER_ADMIN'],
+  // depot-service — declaring a depot's day counted. The depot's own leadership closes it,
+  // because they are the ones who counted the drawer.
+  dailyClose: ['KEPALA_DEPOT', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // Reopening is head office only: a depot that can reopen its own books can rewrite a
+  // total it already signed off.
+  dailyCloseReopen: ['HEAD_OFFICE', 'SUPER_ADMIN'],
   // depot-service — the supervision hierarchy (which depot belongs to which assistant
   // supervisor, who reports to whom, direct depot grants). Superuser only by decision:
   // this map is what every multi-depot scope resolves from.
@@ -334,6 +344,36 @@ export const HR_MANAGED_ROLES = [
 ] as const satisfies readonly Role[];
 
 export type HrManagedRole = (typeof HR_MANAGED_ROLES)[number];
+
+/**
+ * Every role that can be on the payroll — the whole enum except `CUSTOMER`.
+ *
+ * Wider than either allowlist above and deliberately so: those two bound what may be
+ * ASSIGNED, this one bounds which employees may EXIST. A head-office clerk, a finance
+ * officer and the super admin are all people who get paid, and the staff console can
+ * invite them; refusing their employee record made every office invite fail.
+ *
+ * `CUSTOMER` stays out, and that exclusion is the whole point of the type — an end
+ * customer is not headcount, and an employee record for one is always a mistake.
+ * FRANCHISE_OWNER is in, because the type describes what is *acceptable*; whether an
+ * owner gets an employee row is decided at the call site, not by a validation rule.
+ */
+export const EMPLOYABLE_ROLES = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+  'DIREKTUR',
+  'FRANCHISE_OWNER',
+  'HEAD_OFFICE',
+  'FINANCE',
+  'HR',
+  'MARKETING',
+  'SUPER_ADMIN',
+] as const satisfies readonly Role[];
+
+export type EmployableRole = (typeof EMPLOYABLE_ROLES)[number];
 
 /**
  * SUPER_ADMIN edits to the map above, as a sparse patch: one entry per CHANGED

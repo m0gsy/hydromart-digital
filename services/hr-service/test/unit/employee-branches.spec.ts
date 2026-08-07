@@ -21,6 +21,13 @@ function p2002(target: string): Prisma.PrismaClientKnownRequestError {
 }
 
 class FakeRepo implements EmployeeRepository {
+  /** HQ deleted the account behind this employee (Fase 6). */
+  anonymisedAccounts: string[] = [];
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    this.anonymisedAccounts.push(authSubjectId);
+    return 1;
+  }
+
   /** Retention report: departed rows dormant since before the cutoff. */
   retentionEligible = 0;
   /** Retention enforcement: rows anonymised / embeddings purged, recorded for assertions. */
@@ -65,6 +72,24 @@ class FakeRepo implements EmployeeRepository {
   async findByNik(nik: string): Promise<Employee | null> {
     return this.rows.find((r) => r.nik === nik) ?? null;
   }
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    if (keys.employeeCode && (await this.findByEmployeeCode(keys.employeeCode))) return 'employeeCode';
+    if (keys.nik && (await this.findByNik(keys.nik))) return 'nik';
+    return (await this.findByPhone(keys.phone)) ? 'phone' : null;
+  }
+  async findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    return {
+      linked: await this.findByAuthSubjectId(authSubjectId),
+      oldestByPhone: await this.findByPhone(phone),
+    };
+  }
   async listHistory(_employeeId: string): Promise<EmploymentHistory[]> {
     // Fake: HIRED rows are written without an employeeId (WithoutEmployeeInput), so return all.
     return this.history.map((h) => h as unknown as EmploymentHistory);
@@ -97,6 +122,8 @@ const baseInput = {
   phone: '0811',
   depotId: DEPOT_A,
   position: 'Kurir',
+  // "+ Tambah" mints the login too, so a new employee always carries a jabatan.
+  role: 'STAFF_DEPOT' as const,
   employmentStatus: 'PROBATION' as const,
   joinDate: '2026-01-01',
   salaryType: 'DAILY' as const,

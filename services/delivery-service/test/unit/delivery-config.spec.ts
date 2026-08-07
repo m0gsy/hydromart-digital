@@ -45,7 +45,7 @@ describe('DeliveryConfigService with settings cache', () => {
       MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
       SHIFT_CHECKIN_RADIUS_M: '200',
       SHIFT_LENGTH_HOURS: '8',
-      SHIFT_BREAK_QUOTA_MINUTES: '30',
+      SHIFT_BREAK_QUOTA_MINUTES: '60',
       NO_SHOW_MIN_CONTACT_ATTEMPTS: '2',
       NO_SHOW_MIN_WAIT_SECONDS: '300',
       DELIVERY_SLA_MINUTES: '120',
@@ -58,12 +58,30 @@ describe('DeliveryConfigService with settings cache', () => {
     expect(cfg.maxActiveDeliveriesPerDriver()).toBe(1);
     expect(cfg.shiftCheckInRadiusMeters()).toBe(200);
     expect(cfg.shiftLengthHours()).toBe(8);
-    expect(cfg.shiftBreakQuotaMinutes()).toBe(30);
+    expect(cfg.shiftBreakQuotaMinutes()).toBe(60);
     expect(cfg.noShowMinContactAttempts()).toBe(2);
     expect(cfg.noShowMinWaitSeconds()).toBe(300);
     expect(cfg.slaMinutes()).toBe(120);
     expect(cfg.urbanSpeedKmph()).toBe(18);
     expect(cfg.courierWeeklyTarget()).toBe(45);
     expect(cfg.courierRatePerDeliveryIdr()).toBe(12000);
+  });
+});
+
+/*
+ * B6. `setting-defs.ts` says right above its own table that "envDefault must mirror this
+ * service's env.validation.ts defaults", and for the break quota it did not: the settings
+ * screen showed a depot 60 minutes while `breakSecondsRemaining` counted down from 30.
+ * This is the lock — the two numbers are read from their two sources and compared, so the
+ * next person to change one has to change the other.
+ */
+describe('setting-defs mirrors env.validation (B6)', () => {
+  it('advertises the same break quota the service actually gives', async () => {
+    const { SETTING_DEFS } = await import('../../src/config/setting-defs');
+    const advertised = SETTING_DEFS.find((d) => d.key === 'shiftBreakQuotaMinutes')?.envDefault;
+    const { envValidationSchema } = await import('../../src/config/env.validation');
+    const applied = envValidationSchema.validate({}, { allowUnknown: true, abortEarly: false })
+      .value.SHIFT_BREAK_QUOTA_MINUTES;
+    expect(applied).toBe(advertised);
   });
 });

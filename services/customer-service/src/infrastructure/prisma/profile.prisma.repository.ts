@@ -54,6 +54,24 @@ export class ProfilePrismaRepository implements ProfileRepository {
     return this.toRecord(row);
   }
 
+  async claimFavoriteDepotIfUnset(customerId: string, favoriteDepotId: string): Promise<boolean> {
+    // One statement, no read-then-write: `updateMany` with the null guard in its `where`
+    // cannot lose a race with a second checkout, and the create half is a plain upsert for
+    // the customer who has never had a profile row at all (registration makes one lazily).
+    const updated = await this.prisma.customerProfile.updateMany({
+      where: { customerId, favoriteDepotId: null },
+      data: { favoriteDepotId },
+    });
+    if (updated.count > 0) return true;
+    const existing = await this.prisma.customerProfile.findUnique({
+      where: { customerId },
+      select: { favoriteDepotId: true },
+    });
+    if (existing) return false;
+    await this.prisma.customerProfile.create({ data: { customerId, favoriteDepotId } });
+    return true;
+  }
+
   async updateFavoriteDepot(
     customerId: string,
     favoriteDepotId: string | null,

@@ -11,7 +11,7 @@ describe('AccountController.listStaff depot-manager scope', () => {
     getProfile: jest.fn(),
     listStaff: jest.fn(),
   };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -48,9 +48,72 @@ describe('AccountController.listStaff depot-manager scope', () => {
   });
 });
 
+// The dispatch roster used to be network-wide: a dispatcher at depot A could assign a
+// courier who belongs to depot B, and only the delivery would notice.
+describe('AccountController.listDrivers depot scope', () => {
+  const ownDepot = '11111111-1111-4111-8111-111111111111';
+  const otherDepot = '22222222-2222-4222-8222-222222222222';
+
+  const account = { getProfile: jest.fn(), listDrivers: jest.fn() };
+  const controller = new AccountController(account as never, {} as never, {} as never);
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    account.getProfile.mockResolvedValue({ assignedDepotId: ownDepot });
+    account.listDrivers.mockResolvedValue([]);
+  });
+
+  it('scopes a depot-locked caller to their own depot', async () => {
+    await controller.listDrivers({}, { sub: 'kd-1', role: Role.KEPALA_DEPOT, phone: '+62811' } as never);
+    expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
+  });
+
+  // Refused rather than silently rewritten, exactly as the staff directory does it: a
+  // request for another depot's couriers is a mistake worth telling somebody about.
+  it('refuses a depot-locked caller asking for another depot', async () => {
+    await expect(
+      controller.listDrivers(
+        { depotId: otherDepot },
+        { sub: 'kd-1', role: Role.KEPALA_DEPOT, phone: '+62811' } as never,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listDrivers).not.toHaveBeenCalled();
+  });
+
+  it('refuses a depot-locked caller with no depot at all — never falls back to all', async () => {
+    account.getProfile.mockResolvedValue({ assignedDepotId: null });
+    await expect(
+      controller.listDrivers(
+        {},
+        { sub: 'kd-2', role: Role.KEPALA_DEPOT, phone: '+62811' } as never,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(account.listDrivers).not.toHaveBeenCalled();
+  });
+
+  it('scopes a depot manager to their assigned depot, as the staff directory does', async () => {
+    await controller.listDrivers(
+      {},
+      { sub: 'mgr-1', role: Role.MANAGER, phone: '+62811' } as never,
+    );
+    expect(account.listDrivers).toHaveBeenCalledWith(ownDepot);
+  });
+
+  it('lets HQ read one depot, or the whole network when it asks for neither', async () => {
+    await controller.listDrivers(
+      { depotId: otherDepot },
+      { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: '+62822' } as never,
+    );
+    expect(account.listDrivers).toHaveBeenCalledWith(otherDepot);
+
+    await controller.listDrivers({}, { sub: 'hq-1', role: Role.SUPER_ADMIN, phone: '+62822' } as never);
+    expect(account.listDrivers).toHaveBeenLastCalledWith(undefined);
+  });
+});
+
 describe('AccountController.importStaff', () => {
   const account = { importStaff: jest.fn() };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   it('hands the rows to the service and returns the summary untouched', async () => {
     const summary = { created: 1, updated: 0, skipped: 0, failed: 0, results: [{ row: 1, status: 'created' }] };
@@ -64,7 +127,7 @@ describe('AccountController.importStaff', () => {
 
 describe('AccountController.lookupByIds', () => {
   const account = { lookupByIds: jest.fn() };
-  const controller = new AccountController(account as never, {} as never);
+  const controller = new AccountController(account as never, {} as never, {} as never);
 
   beforeEach(() => {
     jest.clearAllMocks();

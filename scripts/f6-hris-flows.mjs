@@ -150,6 +150,12 @@ async function main() {
     role: 'STAFF_DEPOT',
     fullName: employee.fullName,
     depotId,
+    // Required since an invite also opens an HR record; this fixture is about leave.
+    position: 'Kurir',
+    joinDate: '2026-01-01',
+    employmentStatus: 'PERMANENT',
+    salaryType: 'MONTHLY',
+    monthlyRate: 5_000_000,
   });
   const authSubjectId = invited.body?.id;
   if (!authSubjectId) {

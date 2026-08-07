@@ -207,6 +207,11 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   async notifyRefunded(orderId: string, amount: number): Promise<void> {
     this.refunded.push({ orderId, amount });
   }
+  /** orderId -> HM-… number. Empty = order-service could not be read (fail-soft). */
+  orderNumbers = new Map<string, string>();
+  async getOrderNumbers(orderIds: string[]): Promise<Map<string, string>> {
+    return new Map(orderIds.filter((id) => this.orderNumbers.has(id)).map((id) => [id, this.orderNumbers.get(id)!]));
+  }
 }
 
 export const WEBHOOK_SECRET = 'test-webhook-secret-01';

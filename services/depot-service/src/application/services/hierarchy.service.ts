@@ -4,15 +4,12 @@ import { Role } from '@hydromart/platform';
 
 import { HIERARCHY_REPOSITORY, HierarchyRepository } from '../ports/hierarchy.repository';
 
-/** Depth of the walk: MANAGER -> SUPERVISOR -> ASSISTANT_SUPERVISOR -> depots. */
-const MAX_HOPS = 3;
-
 /**
  * Resolves a multi-depot role's depots, and records the hierarchy that decides them.
  *
- * The walk is DOWN the chain and bounded: `MAX_HOPS` is the cycle guard, so a
- * mis-entered `staff_supervision` row terminates instead of looping. An empty result
- * means "sees nothing" — never "sees everything".
+ * The scope walk is DOWN the chain and written as explicit levels (see `derive`), so it
+ * cannot be sent round a cycle at all. Cycles are refused at write time by `setSuperior`.
+ * An empty result means "sees nothing" — never "sees everything".
  */
 @Injectable()
 export class HierarchyService {
@@ -67,15 +64,24 @@ export class HierarchyService {
     if (staffId === superiorId) {
       throw new BadRequestException('Seseorang tidak bisa menjadi atasan dirinya sendiri.');
     }
-    // Walk UP from the proposed superior: if we reach staffId, the link would close a loop
-    // and the resolver would depend on its own hop bound to terminate.
+    // Walk UP from the proposed superior to the top: if we reach staffId, the link would
+    // close a loop and the resolver would depend on its own hop bound to terminate.
+    //
+    // The walk is bounded by a visited Set, not by a hop count. The reporting line is no
+    // longer three levels deep (kurir -> kepala depot -> asisten -> SPV -> manager ->
+    // direktur), so a depth-bounded guard would wave through exactly the long chains that
+    // need it most. The Set also survives a cycle that is already in the table.
+    const seen = new Set<string>([staffId]);
     let cursor: string | null = superiorId;
-    for (let hop = 0; hop < MAX_HOPS + 1 && cursor; hop += 1) {
-      const described = await this.repo.describe(cursor);
-      if (described.superiorId === staffId) {
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      // D-14: one column, one query. `describe()` fires four and this used a quarter of
+      // the answer at every hop.
+      const next = await this.repo.superiorOf(cursor);
+      if (next === staffId) {
         throw new BadRequestException('Penugasan ini membentuk lingkaran atasan-bawahan.');
       }
-      cursor = described.superiorId;
+      cursor = next;
     }
     await this.repo.setSuperior(staffId, superiorId, actorId);
   }

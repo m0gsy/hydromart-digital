@@ -52,6 +52,13 @@ reports: {
     if (date) p.set('date', date);
     return `/orders/api/v1/reports/depot-daily?${p}`;
   },
+  // The same day, order by order — what the export button downloads. Same window as
+  // depotDaily above, from the same service method, so file and screen cannot disagree.
+  depotDailyExport: (depotId: string, date?: string) => {
+    const p = new URLSearchParams({ depotId });
+    if (date) p.set('date', date);
+    return `/orders/api/v1/reports/depot-daily/export?${p}`;
+  },
   // Depot water-meter reading. The SAME path serves the morning (openingM3) and the
   // evening (closingM3) write — one partial upsert, not two endpoints.
   meterSave: (depotId: string, date: string) => `/orders/api/v1/reports/meter/${depotId}/${date}`,

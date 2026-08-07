@@ -11,6 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
+  Customer,
   ExecutiveDashboard,
   Page,
   Payment,
@@ -58,6 +59,26 @@ export default function HqPaymentsPage() {
     api.get(endpoints.payments.unsettledByMethod(range), true),
   );
   const queueQ = useAsync<PendingPayout[]>(() => api.get(endpoints.payout.hqQueue, true));
+  /*
+   * G-2: the owner's NAME. payout-service exposes only the account id, and the comment
+   * here used to say there was no name source — there is: `auth.staff({role})`, the same
+   * read `dashboard/commission` already uses to turn driver ids into names. Fails soft to
+   * the short id, which is what the screen showed before.
+   */
+  const ownersQ = useAsync<Page<Customer>>(
+    () =>
+      api
+        .getCached<Page<Customer>>(
+          endpoints.auth.staff({ role: 'FRANCHISE_OWNER', limit: 100 }),
+          true,
+        )
+        .catch(() => ({ items: [], total: 0, page: 1, limit: 100 })),
+    [],
+  );
+  const ownerName = useMemo(() => {
+    const byId = new Map((ownersQ.data?.items ?? []).map((o) => [o.id, o.fullName || o.phone]));
+    return (id: string) => byId.get(id) ?? shortId(id);
+  }, [ownersQ.data]);
   // Real "needs attention" count: payments awaiting HQ refund approval (the queue total).
   const refundsQ = useAsync<Page<Payment>>(() => api.get(endpoints.refunds.queue({ limit: 1 }), true));
   const [releasing, setReleasing] = useState<string | null>(null);
@@ -76,7 +97,7 @@ export default function HqPaymentsPage() {
     setReleasing(row.franchiseOwnerId);
     try {
       await api.post(endpoints.payout.release, { franchiseOwnerId: row.franchiseOwnerId }, true);
-      toast(t('hq.payments.release.released', { owner: ownerLabel(row.franchiseOwnerId) }), 'success');
+      toast(t('hq.payments.release.released', { owner: ownerName(row.franchiseOwnerId) }), 'success');
       queueQ.reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.message : String(err), 'error');
@@ -149,7 +170,7 @@ export default function HqPaymentsPage() {
                   className="flex items-center justify-between gap-3 rounded-xl border border-app p-3"
                 >
                   <span className="min-w-0">
-                    <span className="truncate font-medium">{ownerLabel(r.franchiseOwnerId)}</span>
+                    <span className="truncate font-medium">{ownerName(r.franchiseOwnerId)}</span>
                     <span className="mt-0.5 block truncate text-xs text-muted">
                       {t('hq.payments.release.due', { date: formatDue(r.nextPayoutDate) })}
                     </span>
@@ -173,8 +194,8 @@ export default function HqPaymentsPage() {
   );
 }
 
-// payout-service exposes only the owner id (no name source); shorten it for display.
-function ownerLabel(id: string): string {
+/** Last resort when the owner directory could not be read — see `ownerName` above. */
+function shortId(id: string): string {
   return `#${id.slice(0, 8)}`;
 }
 

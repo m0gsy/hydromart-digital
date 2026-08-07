@@ -163,6 +163,25 @@ export class NoOpenShiftError extends DomainError {
   }
 }
 
+/**
+ * §I: the cashier typed a phone and customer-service could not say who it belongs to.
+ *
+ * Fail CLOSED, deliberately, even though every other counter coordination call fails open.
+ * The replay guard (B-13) is keyed by customer id, so booking this sale to the anonymous
+ * sentinel would hide a retry of a sale already recorded under the resolved buyer — and
+ * the till would sell the same goods twice. Refusing is recoverable: the cashier taps
+ * Bayar again, or clears the phone field and rings it up anonymously.
+ */
+export class CounterBuyerUnresolvedError extends DomainError {
+  readonly code = 'ORDER_COUNTER_BUYER_UNRESOLVED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Nomor pembeli belum bisa dicek sekarang. Coba lagi, atau kosongkan nomornya untuk jual tanpa nama.',
+    );
+  }
+}
+
 /** A voucher lives in one buyer's wallet — an anonymous counter sale has none to spend. */
 export class AnonymousVoucherNotAllowedError extends DomainError {
   readonly code = 'ORDER_ANONYMOUS_VOUCHER_FORBIDDEN';

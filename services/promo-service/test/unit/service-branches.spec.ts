@@ -23,6 +23,10 @@ import {
   InMemoryVoucherRepository,
 } from '../support/fakes';
 import { PromoConfigService } from '../../src/config/promo-config.service';
+
+/** The queue is what these tests are about; the names decorate it. */
+const noNames = async () => new Map<string, string>();
+
 /** Only `businessTimeZone` is read; WIB pinned so a UTC-bucket regression (H-16) fails here. */
 const promoTestConfig = (timeZone = 'Asia/Jakarta'): PromoConfigService =>
   ({ businessTimeZone: timeZone }) as PromoConfigService;
@@ -136,7 +140,7 @@ describe('VoucherRequestService branch gaps', () => {
       new FakeCustomerLookup(),
       new FakeNotification(),
     );
-    return { service: new VoucherRequestService(requests, voucherService), requests };
+    return { service: new VoucherRequestService(requests, voucherService, noNames), requests };
   }
 
   it('list paginates requests through buildPage', async () => {
@@ -146,6 +150,31 @@ describe('VoucherRequestService branch gaps', () => {
     expect(page.total).toBe(1);
     expect(page.items).toHaveLength(1);
     expect(page.totalPages).toBe(1);
+  });
+
+  // §G-3: the approver could see eight characters of the requester's account id, which
+  // says nothing about whose depot wants the discount.
+  it('names the manager who raised each request, and copes when it cannot', async () => {
+    const requests = new InMemoryVoucherRequestRepository();
+    const voucherService = new VoucherService(
+      new InMemoryVoucherRepository(),
+      new FakeCustomerLookup(),
+      new FakeNotification(),
+    );
+    const named = new VoucherRequestService(
+      requests,
+      voucherService,
+      async () => new Map([['user-1', 'Budi']]),
+    );
+    await named.propose('depot-1', 'user-1', INPUT);
+    await named.propose('depot-1', 'user-2', { ...INPUT, code: 'depot20' });
+
+    const page = await named.list({ page: 1, limit: 10 });
+
+    expect(page.items.map((i) => [i.requestedBy, i.requestedByName]).sort()).toEqual([
+      ['user-1', 'Budi'],
+      ['user-2', null],
+    ]);
   });
 
   it('reject throws when the request was already decided', async () => {

@@ -17,14 +17,18 @@ import { AuthenticatedUser, Can, CurrentUser, ImportSummary, InternalAuthGuard, 
 
 import { EmployeeService } from '../application/services/employee.service';
 import {
+  AnonymiseEmployeeDto,
   CreateEmployeeDto,
   ImportEmployeesDto,
   ListEmployeesDto,
+  ProvisionEmployeeDto,
+  ProvisionEmployeesDto,
   RetentionReportDto,
+  SetEmployeeActiveDto,
   UpdateEmployeeDto,
 } from './dto/employee.dto';
 import { Employee, EmploymentHistory } from '../../prisma/generated/client';
-import { EmployeeResponseDto, EmploymentHistoryResponseDto, ImportResponseDto, List6ResponseDto, RetentionAnonymise2ResponseDto, RetentionReport2ResponseDto } from './dto/responses.generated.dto';
+import { AnonymiseByAccountResponseDto, EmployeeResponseDto, EmploymentHistoryResponseDto, ImportResponseDto, List6ResponseDto, ProvisionMany2ResponseDto, RetentionAnonymise2ResponseDto, RetentionReport2ResponseDto, SetActive2ResponseDto } from './dto/responses.generated.dto';
 
 /** Employee directory (M1). Read = hrView (incl. depot manager, depot-scoped); write = hrAdmin. */
 @ApiTags('HR Employees')
@@ -75,6 +79,87 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Delete face embeddings of departed staff past the cutoff (internal)' })
   purgeBiometrics(@Body() dto: RetentionReportDto): Promise<{ deleted: number }> {
     return this.employees.purgeBiometrics(new Date(dto.cutoff));
+  }
+
+  /**
+   * The staff console inviting somebody: auth-service has just minted the account and hands
+   * it here so HR is not the last to know. Internal key, same shape as the routes above.
+   *
+   * Idempotent — see EmployeeService.provisionFromInvite. Re-inviting a phone returns the
+   * employee that is already there rather than writing a second one.
+   */
+  @ApiOkResponse({ type: EmployeeResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/provision')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create (or return) the employee row behind an invited account' })
+  provisionFromInvite(@Body() dto: ProvisionEmployeeDto) {
+    return this.employees.provisionFromInvite(dto);
+  }
+
+  /**
+   * The same thing for a whole spreadsheet (K-4). One call instead of one per row: the
+   * bulk staff import used to make 500 sequential HTTP hops inside a single request.
+   *
+   * Per-row verdicts come back rather than one status, because auth-service has already
+   * created those accounts and has to report which rows are still missing their half.
+   */
+  @ApiOkResponse({ type: ProvisionMany2ResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/provision-many')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create (or return) the employee rows behind a file of invites' })
+  provisionManyFromInvite(
+    @Body() dto: ProvisionEmployeesDto,
+  ): Promise<{ results: { index: number; ok: boolean; message: string | null }[] }> {
+    return this.employees.provisionManyFromInvite(dto.rows);
+  }
+
+  /**
+   * auth-service reporting that a staff login was switched off or back on in the console.
+   *
+   * Writes only — see EmployeeService.setActiveInternal for why it must not answer back.
+   */
+  @ApiOkResponse({ type: SetActive2ResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mirror a login enable/disable onto the employee record' })
+  setActive(@Body() dto: SetEmployeeActiveDto): Promise<{ updated: boolean }> {
+    return this.employees.setActiveInternal(dto.authSubjectId, dto.active);
+  }
+
+  /**
+   * HQ deleted a staff account: scrub the employee record behind it. Same split as the
+   * retention sweep — see EmployeePrismaRepository.anonymiseByAuthSubjectId.
+   */
+  @ApiOkResponse({ type: AnonymiseByAccountResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/anonymise')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Strip identity from the employee behind a deleted account' })
+  anonymiseByAccount(@Body() dto: AnonymiseEmployeeDto): Promise<{ anonymised: number }> {
+    return this.employees.anonymiseByAccount(dto.authSubjectId);
+  }
+
+  /**
+   * Give an existing employee the login they never had. Backs the reconciliation badge on
+   * `/hr/employees`; idempotent, so clicking twice mints one account.
+   */
+  @ApiOkResponse({ type: EmployeeResponseDto })
+  @Post(':id/account')
+  @Can('hrAdmin')
+  @ApiOperation({ summary: 'Create the login account for an employee that has none' })
+  createAccount(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.employees.createAccountFor(user, id);
   }
 
   @ApiOkResponse({ type: List6ResponseDto })

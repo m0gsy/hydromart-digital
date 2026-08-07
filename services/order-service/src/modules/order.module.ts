@@ -33,6 +33,7 @@ import { CashierShiftHttpAdapter } from '../infrastructure/http/cashier-shift.ht
 import { PaymentReversalHttpAdapter } from '../infrastructure/http/payment-reversal.http.adapter';
 import { MembershipHttpAdapter } from '../infrastructure/http/membership.http.adapter';
 import { ResellerDiscountHttpAdapter } from '../infrastructure/http/reseller-discount.http.adapter';
+import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
 import { PromoHttpAdapter } from '../infrastructure/http/promo.http.adapter';
 import { InventoryHttpAdapter } from '../infrastructure/http/inventory.http.adapter';
@@ -79,6 +80,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.PaymentReversal, useClass: PaymentReversalHttpAdapter },
   { provide: ORDER_TOKENS.Membership, useClass: MembershipHttpAdapter },
   { provide: ORDER_TOKENS.ResellerDiscount, useClass: ResellerDiscountHttpAdapter },
+  { provide: ORDER_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: ORDER_TOKENS.Notification, useClass: NotificationHttpAdapter },
   { provide: ORDER_TOKENS.Promo, useClass: PromoHttpAdapter },
   { provide: ORDER_TOKENS.Inventory, useClass: InventoryHttpAdapter },

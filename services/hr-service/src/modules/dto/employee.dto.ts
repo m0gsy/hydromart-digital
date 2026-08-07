@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -20,8 +21,10 @@ import {
 } from 'class-validator';
 
 import {
+  EMPLOYABLE_ROLES,
   HR_MANAGED_ROLES,
   STAFF_IMPORT_ROLES,
+  type EmployableRole,
   type HrManagedRole,
   type StaffImportRole,
 } from '@hydromart/access';
@@ -67,10 +70,13 @@ export class CreateEmployeeDto {
   /**
    * Login role (jabatan). Bounded to `HR_MANAGED_ROLES`, not the whole enum: an employee
    * form must not be a path to a HEAD_OFFICE or SUPER_ADMIN account.
+   *
+   * REQUIRED on create, because creating an employee now mints their login as well and the
+   * account cannot be minted without a role. It stays optional on update — rows written
+   * before this release have `role` null and must not become uneditable.
    */
-  @IsOptional()
   @IsIn(HR_MANAGED_ROLES as readonly string[])
-  role?: HrManagedRole;
+  role!: HrManagedRole;
 
   @IsEnum(EmploymentStatus)
   employmentStatus!: EmploymentStatus;
@@ -174,6 +180,71 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsISO8601()
   contractEndDate?: string;
+}
+
+/**
+ * An account invited from the HQ staff console, arriving over the internal key so HR gets
+ * the employee row that makes them payable and rosterable.
+ *
+ * `authSubjectId` is REQUIRED here and is the idempotency key: inviting the same phone
+ * again is a promotion, never a second employee.
+ */
+export class ProvisionEmployeeDto extends OmitType(CreateEmployeeDto, [
+  'authSubjectId',
+  'role',
+] as const) {
+  @IsUUID()
+  authSubjectId!: string;
+
+  /**
+   * WIDER than the form's `HR_MANAGED_ROLES`, deliberately.
+   *
+   * That allowlist bounds what an HR user may ASSIGN as somebody's login role — it must not
+   * also bound which employees may EXIST. A head-office clerk, a finance officer and the
+   * super admin are all on the payroll, and the staff console can invite them; refusing
+   * their employee record made every office invite fail 503 and left the account half-made,
+   * which is the exact failure this release exists to remove.
+   *
+   * CUSTOMER stays out: an end customer is not staff, and this route only ever runs behind
+   * auth-service's own staff-invite path.
+   */
+  @IsIn(EMPLOYABLE_ROLES as readonly string[])
+  role!: EmployableRole;
+}
+
+/**
+ * A whole spreadsheet of invites, provisioned in one call (K-4).
+ *
+ * auth-service used to POST `internal/provision` once per row: a 500-row import was 500
+ * sequential HTTP hops inside one request, on top of the per-row database work. The rows
+ * are identical to the single form, and the verdict comes back per row, so a bad row still
+ * fails only itself.
+ *
+ * `@ArrayMaxSize(500)` mirrors auth's own `ImportStaffDto` — this endpoint can never be
+ * asked for more than that endpoint accepts.
+ */
+export class ProvisionEmployeesDto {
+  @ApiProperty({ type: [ProvisionEmployeeDto], description: 'Rows to provision, in file order.' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => ProvisionEmployeeDto)
+  rows!: ProvisionEmployeeDto[];
+}
+
+/** An account deleted in the staff console; the employee record behind it is scrubbed. */
+export class AnonymiseEmployeeDto {
+  @IsUUID()
+  authSubjectId!: string;
+}
+
+/** A login switched off (or back on) in the staff console, arriving over the internal key. */
+export class SetEmployeeActiveDto {
+  @IsUUID()
+  authSubjectId!: string;
+
+  @IsBoolean()
+  active!: boolean;
 }
 
 /** One CSV row: the create fields plus the login role to provision, minus authSubjectId

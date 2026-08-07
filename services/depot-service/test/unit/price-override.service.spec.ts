@@ -18,6 +18,10 @@ import {
 import { PriceOverrideProposalRecord } from '../../src/domain/price-override-proposal';
 import { DepotRecord, DepotRepository } from '../../src/application/ports/depot.repository';
 
+/** The queue is what these tests are about; the names decorate it. */
+const noNames = async () => new Map<string, string>();
+
+
 class InMemoryProposalRepository implements PriceOverrideProposalRepository {
   rows: PriceOverrideProposalRecord[] = [];
   private seq = 0;
@@ -109,6 +113,7 @@ describe('PriceOverrideService', () => {
       fakeDepots(depotName),
       pricing,
       fakeConfig(autoPassIdr, audited),
+      noNames,
     );
 
   // H-29: a price override is money — the comment in this service used to say outright
@@ -302,5 +307,26 @@ describe('PriceOverrideService', () => {
     const page = await svc.list({ page: 1, limit: 20, status: PriceOverrideStatus.PENDING });
     expect(page.total).toBe(2);
     expect(page.items[0].productName).toBe('Newest');
+  });
+
+  // §G-3. The four-eyes rule below turns on WHO proposed it, and the queue was showing
+  // eight characters of an account id.
+  it('names the manager who proposed each row, and copes when it cannot', async () => {
+    const svc = new PriceOverrideService(
+      repo,
+      fakeDepots('Depot Kelapa Gading'),
+      pricing,
+      fakeConfig(100000, false),
+      async () => new Map([['mgr-1', 'Budi']]),
+    );
+    await svc.propose('d1', 'mgr-1', PROPOSE);
+    await svc.propose('d1', 'mgr-2', { ...PROPOSE, productId: 'p2' });
+
+    const page = await svc.list({ page: 1, limit: 20, status: PriceOverrideStatus.PENDING });
+
+    expect(page.items.map((i) => [i.proposedBy, i.proposedByName]).sort()).toEqual([
+      ['mgr-1', 'Budi'],
+      ['mgr-2', null],
+    ]);
   });
 });

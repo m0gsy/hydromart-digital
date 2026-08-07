@@ -1,11 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, HttpStatus, NotFoundException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 
 import { AccountService } from '../../application/services/account.service';
+import { DataSubjectService } from '../../application/services/data-subject.service';
 import { TokenService } from '../../application/services/token.service';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Can, ImportSummary, Roles } from '@hydromart/platform';
+import { Can, ImportSummary, Role as PlatformRole, Roles, isDepotLocked } from '@hydromart/platform';
 import { Role } from '../../domain/customer/role.enum';
 
 import { getRequestContext } from '../../common/http/request-context';
@@ -13,13 +14,20 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { CustomerLookupDto } from './dto/customer-lookup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UpdateAccountDto } from './dto/update-account.dto';
-import { ImportStaffDto, InviteStaffDto, ListStaffQueryDto } from './dto/staff.dto';
+import {
+  ImportStaffDto,
+  InviteStaffDto,
+  ListDriversQueryDto,
+  ListStaffQueryDto,
+  SetStaffActiveConsoleDto,
+  SetStaffDepotDto,
+} from './dto/staff.dto';
 import {
   MessageResponseDto,
   PublicCustomerDto,
   SessionInfoDto,
 } from './dto/responses.dto';
-import { CountCustomers3ResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
+import { CountCustomers3ResponseDto, DeleteStaffResponseDto, ImportResponseDto, ListStaff3ResponseDto } from '../dto/responses.generated.dto';
 
 @ApiTags('Account')
 @ApiBearerAuth()
@@ -28,6 +36,9 @@ export class AccountController {
   constructor(
     private readonly account: AccountService,
     private readonly tokens: TokenService,
+    // Deleting a staff account runs the same anonymisation the PDP queue does; the trigger
+    // differs, the machinery must not.
+    private readonly dataSubject: DataSubjectService,
   ) {}
 
   @Get('auth/me')
@@ -54,7 +65,24 @@ export class AccountController {
 
   // Staff-only: resolve a phone to a customer id for voucher grant. Mirrors the
   // promo-service voucher-write roles (marketing / depot-manager / super-admin).
-  @Roles(Role.MARKETING, Role.MANAGER, Role.SUPER_ADMIN)
+  //
+  // HR is here for a different reason: adding an employee promotes the account behind that
+  // phone if one exists, so one mistyped digit turns a customer into a KEPALA_DEPOT. HR has
+  // to be able to see whose number they typed BEFORE they save it.
+  //
+  // C-5: HEAD_OFFICE and DIREKTUR for the same reason, because `hrAdmin` is
+  // ['HR','HEAD_OFFICE','DIREKTUR','SUPER_ADMIN'] — those two can open the employee form and
+  // were the only ones the confirmation never reached. The form catches the 403 into "no
+  // dialog", so they promoted a mistyped customer in silence: precisely the failure the
+  // confirmation exists to prevent, for half the people who can trigger it.
+  @Roles(
+    Role.MARKETING,
+    Role.MANAGER,
+    Role.SUPER_ADMIN,
+    Role.HR,
+    Role.HEAD_OFFICE,
+    Role.DIREKTUR,
+  )
   @Get('auth/customers/lookup')
   @ApiOperation({ summary: 'Staff: look up a customer by exact phone (for voucher grant)' })
   @ApiOkResponse({ type: PublicCustomerDto })
@@ -90,14 +118,7 @@ export class AccountController {
     page: number;
     limit: number;
   }> {
-    let depotId = query.depotId;
-    if (user.role === Role.MANAGER) {
-      const manager = await this.account.getProfile(user.sub);
-      if (!manager.assignedDepotId || (depotId && depotId !== manager.assignedDepotId)) {
-        throw new ForbiddenException('Depot managers may only list staff at their assigned depot.');
-      }
-      depotId = manager.assignedDepotId;
-    }
+    const depotId = await this.scopedDepotFilter(user, query.depotId);
     const result = await this.account.listStaff(
       query.page ?? 1,
       query.limit ?? 20,
@@ -108,15 +129,42 @@ export class AccountController {
     return { ...result, items: result.items.map(PublicCustomerDto.from) };
   }
 
+  /**
+   * The depot a staff-facing list must be narrowed to, decided from the CALLER.
+   *
+   * - depot-locked roles (kepala depot, depot staff) and depot managers: their own depot.
+   *   Read from the ACCOUNT, not the token: a depot assigned after sign-in is not in the
+   *   claim yet, and an account with no depot must deny rather than widen to the network.
+   * - everyone else (HQ, direktur, super admin): whatever they asked for, or all.
+   */
+  private async scopedDepotFilter(
+    user: AuthenticatedUser,
+    requested?: string,
+  ): Promise<string | undefined> {
+    const ownDepotOnly =
+      isDepotLocked(user.role as unknown as PlatformRole) || user.role === Role.MANAGER;
+    if (!ownDepotOnly) {
+      return requested;
+    }
+    const self = await this.account.getProfile(user.sub);
+    if (!self.assignedDepotId || (requested && requested !== self.assignedDepotId)) {
+      throw new ForbiddenException('Akun ini hanya boleh melihat staf depot yang ditugaskan padanya.');
+    }
+    return self.assignedDepotId;
+  }
+
   // Driver roster for dispatch (feature 9b): pick a courier by name. Unlike the
   // staff directory above (head-office / super-admin only), dispatchers must be
   // able to read this, so it also allows the depot dispatch roles.
   @Can('driverRoster')
   @Get('auth/drivers')
-  @ApiOperation({ summary: 'List active drivers (couriers) for dispatch' })
+  @ApiOperation({ summary: 'List active drivers (couriers) for dispatch, scoped to the caller' })
   @ApiOkResponse({ type: PublicCustomerDto, isArray: true })
-  async listDrivers(): Promise<PublicCustomerDto[]> {
-    const drivers = await this.account.listDrivers();
+  async listDrivers(
+    @Query() query: ListDriversQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<PublicCustomerDto[]> {
+    const drivers = await this.account.listDrivers(await this.scopedDepotFilter(user, query.depotId));
     return drivers.map(PublicCustomerDto.from);
   }
 
@@ -144,11 +192,60 @@ export class AccountController {
   @ApiOperation({ summary: 'Invite (create) or promote an account to a staff role' })
   @ApiOkResponse({ type: PublicCustomerDto })
   async inviteStaff(@Body() dto: InviteStaffDto): Promise<PublicCustomerDto> {
-    const staff = await this.account.inviteStaff(dto.phone, dto.role, dto.fullName, dto.depotId, {
-      vehicleType: dto.vehicleType,
-      plateNumber: dto.plateNumber,
-    });
+    // The console path: account AND employee record. See inviteStaffWithEmployee for why
+    // the internal (hr-service) route deliberately does not come through here.
+    const staff = await this.account.inviteStaffWithEmployee(dto);
     return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Move a staff account to another depot. Separate from the invite: re-inviting the same
+   * phone was the only way to do this, and it carried a role and a reactivation with it.
+   */
+  @Can('staffAdmin')
+  @Patch('auth/staff/:id/depot')
+  @ApiOperation({ summary: "Move a staff account to another depot" })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async setStaffDepot(
+    @Param('id') id: string,
+    @Body() dto: SetStaffDepotDto,
+  ): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffDepot(id, dto.depotId ?? null);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Switch a staff login off or back on from the console — and carry it to their employee
+   * record. The console had no way to do this at all, which is what made the other
+   * direction (hr-service reporting a resignation) the only one that ever fired.
+   */
+  @Can('staffAdmin')
+  @Patch('auth/staff/:id/status')
+  @ApiOperation({ summary: 'Enable or disable a staff login (and their employee record)' })
+  @ApiOkResponse({ type: PublicCustomerDto })
+  async setStaffActive(
+    @Param('id') id: string,
+    @Body() dto: SetStaffActiveConsoleDto,
+  ): Promise<PublicCustomerDto> {
+    const staff = await this.account.setStaffActive(id, dto.active);
+    return PublicCustomerDto.from(staff);
+  }
+
+  /**
+   * Delete a staff account: anonymise the identity everywhere and close the login for good.
+   *
+   * `staffDelete` (SUPER_ADMIN), not `staffAdmin`: head office may invite, and a mistaken
+   * invite is one click from being fixed. This one is not undoable.
+   */
+  @ApiOkResponse({ type: DeleteStaffResponseDto })
+  @Can('staffDelete')
+  @Delete('auth/staff/:id')
+  @ApiOperation({ summary: 'Delete (anonymise) a staff account — irreversible' })
+  async deleteStaff(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ deleted: true; employeeAnonymised: boolean }> {
+    return this.dataSubject.deleteStaffAccount(id, user.sub);
   }
 
   @ApiOkResponse({ type: ImportResponseDto })

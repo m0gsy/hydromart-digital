@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { ImportSummary, recordAuditEvent, runImport } from '@hydromart/platform';
+import {
+  AccountNameResolver,
+  ImportSummary,
+  recordAuditEvent,
+  runImport,
+} from '@hydromart/platform';
 
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
@@ -44,6 +49,11 @@ const APPROVED_OVERRIDE_PRIORITY = 100;
  * the EXISTING mechanism (PricingService.create) at a winning priority — no duplicated
  * pricing logic. Rejecting just closes the proposal; no price changes.
  */
+/** A queue row plus the name behind `proposedBy` (§G-3). */
+export type PriceOverrideProposalView = PriceOverrideProposalRecord & {
+  proposedByName: string | null;
+};
+
 @Injectable()
 export class PriceOverrideService {
   private readonly logger = new Logger(PriceOverrideService.name);
@@ -54,6 +64,7 @@ export class PriceOverrideService {
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
     private readonly pricing: PricingService,
     private readonly config: DepotConfigService,
+    @Inject(DEPOT_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
   ) {}
 
   /** Bulk-propose overrides from the CSV wizard; each row still enters the HQ queue. */
@@ -88,9 +99,21 @@ export class PriceOverrideService {
     });
   }
 
-  async list(filter: ListProposalsFilter): Promise<Page<PriceOverrideProposalRecord>> {
+  /**
+   * The HQ queue. Each row carries the name of the manager who proposed it (§G-3) — the
+   * four-eyes rule below turns on WHO proposed it, and the console was showing eight
+   * characters of an account id.
+   *
+   * Fail-soft: an unreachable auth-service costs the names, not the queue.
+   */
+  async list(filter: ListProposalsFilter): Promise<Page<PriceOverrideProposalView>> {
     const { items, total } = await this.proposals.list(filter);
-    return buildPage(items, total, filter.page, filter.limit);
+    const names = await this.accountNames(items.map((i) => i.proposedBy));
+    const decorated = items.map((i) => ({
+      ...i,
+      proposedByName: names.get(i.proposedBy) ?? null,
+    }));
+    return buildPage(decorated, total, filter.page, filter.limit);
   }
 
   /** Per-product proposal count (7a base list); HQ defaults to the PENDING queue. */

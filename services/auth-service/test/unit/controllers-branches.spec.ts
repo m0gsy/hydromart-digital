@@ -40,12 +40,13 @@ describe('AccountController delegation', () => {
     listDrivers: jest.fn(),
     countNewCustomers: jest.fn(),
     inviteStaff: jest.fn(),
+    inviteStaffWithEmployee: jest.fn(),
     listSessions: jest.fn(),
     revokeSession: jest.fn(),
     logoutAll: jest.fn(),
   };
   const tokens = { logout: jest.fn() };
-  const controller = new AccountController(account as never, tokens as never);
+  const controller = new AccountController(account as never, tokens as never, { deleteStaffAccount: jest.fn() } as never);
   const user = { sub: 'cust-1', role: Role.CUSTOMER, phone: '+6281234567890' };
 
   beforeEach(() => jest.clearAllMocks());
@@ -75,7 +76,7 @@ describe('AccountController delegation', () => {
 
   it('lists drivers for dispatch', async () => {
     account.listDrivers.mockResolvedValue([publicCustomer({ role: Role.STAFF_DEPOT })]);
-    const drivers = await controller.listDrivers();
+    const drivers = await controller.listDrivers({}, user);
     expect(drivers).toHaveLength(1);
   });
 
@@ -102,26 +103,28 @@ describe('AccountController delegation', () => {
     expect(account.countNewCustomers.mock.calls[0][0]).toBeUndefined();
   });
 
-  it('invites a staff member', async () => {
-    account.inviteStaff.mockResolvedValue(publicCustomer({ role: Role.STAFF_DEPOT }));
-    await controller.inviteStaff({
+  // The console route goes through the variant that also opens the employee record; the
+  // plain inviteStaff stays for hr-service's internal calls, which must not push back.
+  it('invites a staff member through the account+employee path', async () => {
+    account.inviteStaffWithEmployee.mockResolvedValue(publicCustomer({ role: Role.STAFF_DEPOT }));
+    const dto = {
       phone: '+628990001111',
       role: Role.STAFF_DEPOT,
       fullName: 'Joko',
       depotId: 'depot-1',
       vehicleType: 'MOTOR',
       plateNumber: 'B 1 A',
-    });
-    expect(account.inviteStaff).toHaveBeenCalledWith(
-      '+628990001111',
-      Role.STAFF_DEPOT,
-      'Joko',
-      'depot-1',
-      {
-        vehicleType: 'MOTOR',
-        plateNumber: 'B 1 A',
-      },
-    );
+      position: 'Kurir',
+      joinDate: '2026-08-04',
+      employmentStatus: 'PROBATION',
+      salaryType: 'MONTHLY',
+      monthlyRate: 4_500_000,
+    };
+
+    await controller.inviteStaff(dto);
+
+    expect(account.inviteStaffWithEmployee).toHaveBeenCalledWith(dto);
+    expect(account.inviteStaff).not.toHaveBeenCalled();
   });
 
   it('lists active device sessions', async () => {

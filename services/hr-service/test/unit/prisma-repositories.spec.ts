@@ -710,6 +710,30 @@ describe('ShiftPrismaRepository', () => {
     expect(m(p, 'shift').delete).toHaveBeenCalledWith({ where: { id: 'id1' } });
   });
 
+  // B2: deleting a shift that is still in use now 409s, and this count is what decides.
+  // Missing one of the three references would delete a shift out from under a roster.
+  it('counts assignments, employees and rotations as one number', async () => {
+    const p = makePrisma();
+    m(p, 'shiftAssignment').count.mockResolvedValue(2);
+    m(p, 'employee').count.mockResolvedValue(3);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([{ n: BigInt(4) }]);
+
+    await expect(new ShiftPrismaRepository(asService(p)).countReferences('s1')).resolves.toBe(9);
+    expect(m(p, 'shiftAssignment').count).toHaveBeenCalledWith({ where: { shiftId: 's1' } });
+    expect(m(p, 'employee').count).toHaveBeenCalledWith({ where: { shiftId: 's1' } });
+  });
+
+  // COUNT(*) always returns a row, but an empty result must read as "unused" rather than
+  // NaN — a NaN here compares false against every threshold and the delete goes through.
+  it('reads a rotation count of nothing as zero', async () => {
+    const p = makePrisma();
+    m(p, 'shiftAssignment').count.mockResolvedValue(0);
+    m(p, 'employee').count.mockResolvedValue(0);
+    (p.$queryRaw as jest.Mock).mockResolvedValue([]);
+
+    await expect(new ShiftPrismaRepository(asService(p)).countReferences('s1')).resolves.toBe(0);
+  });
+
   it('findById → shift.findUnique', async () => {
     const p = makePrisma();
     const out = sentinel();
@@ -719,13 +743,19 @@ describe('ShiftPrismaRepository', () => {
     expect(m(p, 'shift').findUnique).toHaveBeenCalledWith({ where: { id: 'id1' } });
   });
 
-  it('list(depotId) filters; list() does not', async () => {
+  /*
+   * B4: a depot sees its own shifts PLUS the network-wide ones, exactly as `listRotations`
+   * and `findActiveForDepot` already do. This one excluded `depotId: null`, so the three
+   * methods disagreed about the same rows — `/hr/shift` printed "shift terhapus" for a
+   * shift in daily use, and `/hr/calendar` hid the shift that sets that depot's clock-in.
+   */
+  it('list(depotId) includes the network-wide shifts too; list() filters nothing', async () => {
     const p = makePrisma();
     m(p, 'shift').findMany.mockResolvedValue([]);
     const repo = new ShiftPrismaRepository(asService(p));
     await repo.list(['d1']);
     expect(m(p, 'shift').findMany).toHaveBeenCalledWith({
-      where: { depotId: { in: ['d1'] } },
+      where: { OR: [{ depotId: { in: ['d1'] } }, { depotId: null }] },
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
     await repo.list();
@@ -733,6 +763,19 @@ describe('ShiftPrismaRepository', () => {
       where: {},
       orderBy: [{ depotId: 'asc' }, { startTime: 'asc' }],
     });
+  });
+
+  // The lock that matters: all three reads answer the same question about a null depot.
+  it('agrees with listRotations about network-wide rows', async () => {
+    const p = makePrisma();
+    m(p, 'shift').findMany.mockResolvedValue([]);
+    m(p, 'shiftRotation').findMany.mockResolvedValue([]);
+    const repo = new ShiftPrismaRepository(asService(p));
+    await repo.list(['d1']);
+    await repo.listRotations(['d1']);
+    const shiftWhere = m(p, 'shift').findMany.mock.calls[0][0].where;
+    const rotationWhere = m(p, 'shiftRotation').findMany.mock.calls[0][0].where;
+    expect(shiftWhere).toEqual(rotationWhere);
   });
 
   it('findActiveForDepot → findFirst with OR + orderBy', async () => {
@@ -1640,6 +1683,44 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     });
   });
 
+  // HQ deleting ONE account. Same split as the retention sweep, so "deleted" means one
+  // thing: identity and biometrics go, the wage records survive the tax window.
+  it('anonymises the one employee behind an auth account', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findUnique.mockResolvedValue({ id: 'e9' });
+
+    const out = await new EmployeePrismaRepository(p as never).anonymiseByAuthSubjectId('auth-9');
+
+    expect(out).toBe(1);
+    const ids = { employeeId: 'e9' };
+    expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({ where: ids });
+    expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({ where: ids });
+    expect(m(p, 'performanceReview').deleteMany).toHaveBeenCalledWith({ where: ids });
+    expect(m(p, 'payroll').deleteMany).not.toHaveBeenCalled();
+    expect(m(p, 'employee').update).toHaveBeenCalledWith({
+      where: { id: 'e9' },
+      data: {
+        fullName: 'Karyawan dihapus',
+        phone: '-',
+        email: null,
+        photoUrl: null,
+        authSubjectId: null,
+        // B-7: the jabatan leaves with the person, or the "buatkan akun" badge lights
+        // forever on a row with nobody behind it.
+        role: null,
+        status: 'RESIGNED',
+      },
+    });
+  });
+
+  it('writes nothing when the auth account has no employee', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findUnique.mockResolvedValue(null);
+
+    expect(await new EmployeePrismaRepository(p as never).anonymiseByAuthSubjectId('ghost')).toBe(0);
+    expect(p.$transaction).not.toHaveBeenCalled();
+  });
+
   it('purges biometrics through the employee relation, on their own window', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').deleteMany.mockResolvedValue({ count: 4 });
@@ -1747,6 +1828,91 @@ describe('EmployeePrismaRepository', () => {
     expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
       where: { phone: '+628123' },
       orderBy: { createdAt: 'asc' },
+    });
+  });
+
+  // The import's duplicate check. Which key collided decides what the row's error says,
+  // and the order is deliberate: a staff code is typed by hand, a NIK is copied off a card,
+  // a shared phone is the likeliest innocent one.
+  describe('findConflicting', () => {
+    const repoWith = (hit: unknown) => {
+      const p = makePrisma();
+      m(p, 'employee').findFirst.mockResolvedValue(hit);
+      return { p, repo: new EmployeePrismaRepository(asService(p)) };
+    };
+
+    it('asks only about the keys it was given, and only for the three columns', async () => {
+      const { p, repo } = repoWith(null);
+
+      await expect(repo.findConflicting({ phone: '+628123' })).resolves.toBeNull();
+
+      expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ phone: '+628123' }] },
+        select: { employeeCode: true, nik: true, phone: true },
+      });
+    });
+
+    it('widens the OR with the staff code and NIK when the row carries them', async () => {
+      const { p, repo } = repoWith(null);
+
+      await repo.findConflicting({ phone: '+628123', employeeCode: 'HR-1', nik: '3201' });
+
+      expect(m(p, 'employee').findFirst).toHaveBeenCalledWith({
+        where: { OR: [{ phone: '+628123' }, { employeeCode: 'HR-1' }, { nik: '3201' }] },
+        select: { employeeCode: true, nik: true, phone: true },
+      });
+    });
+
+    it('names the most specific collision it can', async () => {
+      const both = { employeeCode: 'HR-1', nik: '3201', phone: '+628123' };
+      await expect(
+        repoWith(both).repo.findConflicting({ phone: '+628123', employeeCode: 'HR-1', nik: '3201' }),
+      ).resolves.toBe('employeeCode');
+
+      await expect(
+        repoWith(both).repo.findConflicting({ phone: '+628123', nik: '3201' }),
+      ).resolves.toBe('nik');
+
+      // Same phone, different code and NIK: the family share a number.
+      await expect(
+        repoWith({ employeeCode: 'HR-2', nik: '9999', phone: '+628123' }).repo.findConflicting({
+          phone: '+628123',
+          employeeCode: 'HR-1',
+          nik: '3201',
+        }),
+      ).resolves.toBe('phone');
+    });
+  });
+
+  // One bounded read for both questions the re-upload path asks, instead of two.
+  it('finds the linked row and the oldest phone match in one read', async () => {
+    const p = makePrisma();
+    const rows = [
+      { id: 'e1', authSubjectId: null, phone: '+628123' },
+      { id: 'e2', authSubjectId: 'auth-1', phone: '+628999' },
+    ];
+    m(p, 'employee').findMany.mockResolvedValue(rows);
+    const repo = new EmployeePrismaRepository(asService(p));
+
+    await expect(repo.findByAuthSubjectIdOrPhone('auth-1', '+628123')).resolves.toEqual({
+      linked: rows[1],
+      oldestByPhone: rows[0],
+    });
+    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
+      where: { OR: [{ authSubjectId: 'auth-1' }, { phone: '+628123' }] },
+      orderBy: { createdAt: 'asc' },
+      take: expect.any(Number),
+    });
+  });
+
+  it('reports nulls rather than a wrong row when neither key matches', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([]);
+    const repo = new EmployeePrismaRepository(asService(p));
+
+    await expect(repo.findByAuthSubjectIdOrPhone('auth-1', '+628123')).resolves.toEqual({
+      linked: null,
+      oldestByPhone: null,
     });
   });
 
@@ -2146,6 +2312,24 @@ describe('PerformancePrismaRepository', () => {
       },
       update: { score: 90, metrics: { punctuality: 1 }, reviewerId: 'hr', note: 'ok' },
     });
+  });
+
+  // A recomputation omits managerNote; only a manager writing one passes it. Spreading it
+  // in unconditionally would null the manager's words on every score recalculation.
+  it('writes managerNote only when the caller passed one', async () => {
+    const p = makePrisma();
+    const repo = new PerformancePrismaRepository(asService(p));
+    const base = { employeeId: 'e1', periodMonth: '2026-07', score: 90 } as never;
+
+    await repo.upsert({ ...(base as object), managerNote: 'bagus' } as never);
+    expect(m(p, 'performanceReview').upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ managerNote: 'bagus' }) }),
+    );
+
+    await repo.upsert(base);
+    expect(m(p, 'performanceReview').upsert.mock.calls[1][0].update).not.toHaveProperty(
+      'managerNote',
+    );
   });
 
   it('listByEmployee / findById passthrough', async () => {

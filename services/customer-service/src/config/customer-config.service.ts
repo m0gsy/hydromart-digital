@@ -58,6 +58,10 @@ export class CustomerConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
   }
+  /** depot-service, for the directory's gallons-on-loan and deposit-held columns (J-2). */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').trim();
+  }
   /** CRM lifecycle thresholds (Fase 4). Env-overridable; company-policy defaults. */
   get crmThresholds(): { newDays: number; activeDays: number; followUpDays: number } {
     return {

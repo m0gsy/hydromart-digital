@@ -31,6 +31,10 @@ export class ForecastConfigService {
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** auth-service base URL; used to put a name on each churn row (§G-3). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** depot-service base URL; used to resolve a franchise owner's depots for the ownership check. */
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');

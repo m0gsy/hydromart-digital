@@ -69,6 +69,9 @@ export class SalesForecastResponseDto {
 export class ChurnItemResponseDto {
   @ApiProperty({ type: String })
   customerId!: string;
+  /** §G-3: denormalised from auth-service so the list reads as people. */
+  @ApiProperty({ type: String, nullable: true })
+  customerName!: string | null;
   @ApiProperty({ type: String })
   lastOrderAt!: string;
   @ApiProperty({ type: Number })

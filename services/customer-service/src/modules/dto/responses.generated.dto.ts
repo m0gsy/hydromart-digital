@@ -37,6 +37,9 @@ export class ResellerResponseDto {
   createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+  /** §G-3: denormalised from auth-service so the console never renders a bare UUID. */
+  @ApiProperty({ type: String, nullable: true })
+  customerName!: string | null;
 }
 
 /** Mirrors `AddressRecord` exactly — generated for audit D-6, no field added or removed. */
@@ -197,4 +200,18 @@ export class Me2ResponseDto {
   active!: boolean;
   @ApiProperty({ type: Number })
   discountPct!: number;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class ClaimFavoriteDepotResponseDto {
+  @ApiProperty({ type: Boolean })
+  claimed!: boolean;
+}
+
+/** Mirrors the inline response shape the §I resolve-by-phone route returns. */
+export class ResolveByPhoneResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  customerId!: string;
+  @ApiProperty({ enum: ['created', 'pending', 'active'] })
+  status!: 'created' | 'pending' | 'active';
 }

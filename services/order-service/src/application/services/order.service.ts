@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   AuthenticatedUser,
+  alertServerError,
   assertDepotAccess,
   localDayKey,
   money,
@@ -25,6 +26,7 @@ import {
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   AnonymousVoucherNotAllowedError,
+  CounterBuyerUnresolvedError,
   ShippingVoucherAtCounterError,
   NoOpenShiftError,
   NotACounterSaleError,
@@ -57,7 +59,8 @@ import {
 } from '../ports/order.repository';
 import { CatalogProduct, ProductCatalogPort } from '../ports/product-catalog.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
-import { DepotPricingPort } from '../ports/depot-pricing.port';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
+import { DepotPrice, DepotPricingPort } from '../ports/depot-pricing.port';
 import { LoyaltyCoordinationPort } from '../ports/loyalty-coordination.port';
 import { ReferralCoordinationPort } from '../ports/referral-coordination.port';
 import { RecommendationCoordinationPort } from '../ports/recommendation-coordination.port';
@@ -138,6 +141,8 @@ export class OrderService {
     private readonly referral: ReferralCoordinationPort,
     @Inject(ORDER_TOKENS.Membership) private readonly membership: MembershipPort,
     @Inject(ORDER_TOKENS.ResellerDiscount) private readonly resellerDiscount: ResellerDiscountPort,
+    @Inject(ORDER_TOKENS.CustomerDirectory)
+    private readonly customerDirectory: CustomerDirectoryPort,
     @Inject(ORDER_TOKENS.Notification) private readonly notification: NotificationPort,
     @Inject(ORDER_TOKENS.Promo) private readonly promo: PromoPort,
     @Inject(ORDER_TOKENS.Inventory) private readonly inventory: InventoryPort,
@@ -253,7 +258,7 @@ export class OrderService {
     // Pricing and reseller status are independent of each other — the reseller lookup only
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
     // wait out seven upstream calls end to end.
-    const [{ items, subtotal, tierPricedTotal }, reseller] = await Promise.all([
+    const [{ items, subtotal, tierPricedTotal, catalogFallback }, reseller] = await Promise.all([
       this.priceLines(depot.id, lines),
       this.resellerDiscount.get(authorization),
     ]);
@@ -359,6 +364,18 @@ export class OrderService {
         : undefined,
     );
     await this.cart.clear(customerId);
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
+    /*
+     * §I: the depot they just bought from becomes their depot, if they had none. Until now
+     * `favoriteDepotId` was written only by a depot's Excel import and by a `PATCH /profile`
+     * nothing calls, so a customer who registered themselves and ordered every week was in
+     * no depot's directory at all. Only when unset, decided on the far side: the last depot
+     * to sell somebody water must not steal them from the one they belong to.
+     *
+     * Fail-open — the port never throws. The order is placed; a directory row is not worth
+     * unwinding it over, and the next order tries again.
+     */
+    await this.customerDirectory.claimFavoriteDepot(order.customerId, depot.id);
 
     // FR-093/FR-094: confirm receipt of the placed order over WhatsApp. Fail-open
     // (the adapter never throws) — a notification hiccup must not unwind a placed order.
@@ -385,18 +402,28 @@ export class OrderService {
   private async priceLines(
     depotId: string,
     lines: { productId: string; quantity: number }[],
-  ): Promise<{ items: CreateOrderItemData[]; subtotal: number; tierPricedTotal: number }> {
+  ): Promise<{
+    items: CreateOrderItemData[];
+    subtotal: number;
+    tierPricedTotal: number;
+    /** Set when these are catalog prices standing in for the depot's own. */
+    catalogFallback: 'DEPOT_UNREACHABLE' | 'NO_DEPOT' | null;
+  }> {
     // The depot's overrides and the catalog rows are two different services and neither
     // needs the other's answer, so they are asked at the same time (audit S-22). Waiting
     // for the first before starting the second doubled the latency of every order path.
-    const [prices, productById] = await Promise.all([
-      this.depotPricing.getPrices(
-        depotId,
-        lines.map((l) => l.productId),
-        lines.map((l) => l.quantity),
-      ),
+    const [lookup, productById] = await Promise.all([
+      depotId
+        ? this.depotPricing.getPrices(
+            depotId,
+            lines.map((l) => l.productId),
+            lines.map((l) => l.quantity),
+          )
+        : Promise.resolve({ prices: new Map<string, DepotPrice>(), unavailable: false }),
       this.pricedAll(lines.map((l) => l.productId)),
     ]);
+    const prices = lookup.prices;
+    const catalogFallback = !depotId ? 'NO_DEPOT' : lookup.unavailable ? 'DEPOT_UNREACHABLE' : null;
     const items: CreateOrderItemData[] = [];
     let tierPricedTotal = 0;
     for (const line of lines) {
@@ -428,7 +455,45 @@ export class OrderService {
       items,
       subtotal: money(items.reduce((sum, i) => sum + i.lineTotal, 0)),
       tierPricedTotal,
+      catalogFallback,
     };
+  }
+
+  /**
+   * Leave a trace when an order was priced from the catalog instead of from its depot.
+   *
+   * On the order's own timeline, so reconciliation and whoever handles the complaint can
+   * both see it — an order billed at the wrong price that nobody knows about is a money
+   * difference discovered weeks later, at reconciliation, with no way back to the cause.
+   *
+   * Fail-open, like the pricing lookup it reports on: a failure to write the note must not
+   * unwind an order that has already been placed and paid for.
+   */
+  private async markCatalogPricing(
+    order: { id: string; status: OrderStatus; orderNumber: string; depotId: string | null },
+    reason: 'DEPOT_UNREACHABLE' | 'NO_DEPOT',
+  ): Promise<void> {
+    const note =
+      reason === 'DEPOT_UNREACHABLE'
+        ? 'Harga dasar katalog dipakai: depot tidak terjangkau saat checkout'
+        : 'Harga dasar katalog dipakai: order tidak terikat depot';
+    try {
+      await this.orders.appendNote(order.id, order.status, 'order-service', note);
+    } catch (err) {
+      this.logger.warn(`Gagal menandai order ${order.orderNumber}: ${(err as Error).message}`);
+    }
+    // Only the unreachable case alerts. An address with no depot is an ordinary,
+    // already-visible state; paging somebody for each one would bury the real outage.
+    if (reason === 'DEPOT_UNREACHABLE') {
+      alertServerError({
+        method: 'POST',
+        path: 'checkout/pricing',
+        status: 200,
+        exception: new Error(
+          `Order ${order.orderNumber} (depot ${order.depotId}) dihargai dari katalog: depot-service tidak terjangkau`,
+        ),
+      });
+    }
   }
 
   /**
@@ -454,7 +519,7 @@ export class OrderService {
     // cannot be routed and there is nobody to ask, so the sweep skips it with a log
     // (subscription.service isolates each run) instead of placing a lost order.
     const depot = await this.resolveDepot(address);
-    const { items, subtotal } = await this.priceLines(depot.id, lines);
+    const { items, subtotal, catalogFallback } = await this.priceLines(depot.id, lines);
     const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
     const discountRate = this.config.subscriptionDiscountRate(depot.id);
     const discount = money(Math.min(subtotal, subtotal * discountRate));
@@ -476,6 +541,7 @@ export class OrderService {
       },
       '',
     );
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
 
     await this.notification.notify(
       'ORDER_RECEIVED',
@@ -506,10 +572,15 @@ export class OrderService {
   ): Promise<OrderRecord> {
     if (input.lines.length === 0) throw new EmptyCartError();
     assertDepotAccess(user, input.depotId);
+    // §I: the buyer is resolved HERE, before anything else, because the replay guard below
+    // is keyed by customer id — resolving after it would look the retry up under the
+    // sentinel and sell the goods a second time. Pre-registration is idempotent per phone,
+    // so both attempts resolve to the same account.
+    const customerId = await this.resolveCounterBuyer(input);
     // Same replay guard as checkout (B-13). A till on a flaky depot connection is the case
     // that matters most here: the cashier taps Bayar again and must not sell the goods twice.
     const idempotencyKey = OrderService.idempotencyKeyOf(input);
-    const replay = await this.findReplay(input.customerId ?? ANONYMOUS_CUSTOMER_ID, idempotencyKey);
+    const replay = await this.findReplay(customerId, idempotencyKey);
     if (replay) {
       return replay;
     }
@@ -519,8 +590,7 @@ export class OrderService {
       throw new NoOpenShiftError();
     }
 
-    const { items, subtotal } = await this.priceLines(input.depotId, input.lines);
-    const customerId = input.customerId ?? ANONYMOUS_CUSTOMER_ID;
+    const { items, subtotal, catalogFallback } = await this.priceLines(input.depotId, input.lines);
     const voucherCode = input.voucherCode?.trim().toUpperCase() || null;
     const discount = await this.counterDiscount(customerId, input.depotId, subtotal, voucherCode);
 
@@ -567,6 +637,7 @@ export class OrderService {
         : undefined,
     );
 
+    if (catalogFallback) await this.markCatalogPricing(order, catalogFallback);
     // No ORDER_RECEIVED: the goods are already in the buyer's hands.
     await this.runCompletion(order, authorization);
     return order;
@@ -632,6 +703,35 @@ export class OrderService {
         .catch(() => {});
     }
     return voided;
+  }
+
+  /**
+   * §I: who the counter sale belongs to.
+   *
+   * A caller that already knows the id (the POS, which has just looked the buyer up) sends
+   * it. A caller that only has the phone the cashier typed gets the buyer resolved — or
+   * pre-registered — here, rather than being expected to orchestrate that itself. That
+   * orchestration used to live in the POS page's browser, so every other client booked the
+   * sale against the anonymous sentinel and created nobody.
+   *
+   * No phone means a genuinely anonymous sale: cash over the counter, nobody named. That is
+   * the sentinel's whole purpose and it stays.
+   */
+  private async resolveCounterBuyer(input: WalkInSaleInput): Promise<string> {
+    if (input.customerId) return input.customerId;
+    const phone = input.customerPhone?.trim();
+    if (!phone) return ANONYMOUS_CUSTOMER_ID;
+    const resolved = await this.customerDirectory.resolveByPhone(
+      phone,
+      input.customerName?.trim() || phone,
+      input.depotId,
+    );
+    // The one counter call that fails CLOSED. Falling back to the sentinel here would make
+    // the id non-deterministic, and the replay guard below is keyed by it: a retry after a
+    // customer-service blip would miss the sale already recorded under the resolved buyer
+    // and sell the same goods a second time. See CounterBuyerUnresolvedError.
+    if (!resolved) throw new CounterBuyerUnresolvedError();
+    return resolved;
   }
 
   /**

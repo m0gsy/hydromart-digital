@@ -797,7 +797,14 @@ export function employeeToForm(e: Employee): EmployeeForm {
 /** Validate + coerce the string form into an API payload, mirroring CreateEmployeeDto. */
 export function toEmployeePayload(
   f: EmployeeForm,
+  opts: { creating?: boolean } = {},
 ): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  // Adding an employee mints their login too, and an account cannot be minted without a
+  // role. On edit it stays optional — "" means "leave the jabatan as it is", and rows
+  // written before this release have none at all.
+  if (opts.creating && !f.role) {
+    return { ok: false, error: 'Jabatan (peran login) wajib diisi.' };
+  }
   // Staff above a single depot (Asisten SPV and up) have no home depot — same rule the
   // server enforces, so the form does not demand a value the API would ignore.
   const aboveDepot = f.role === 'ASSISTANT_SUPERVISOR' || f.role === 'SUPERVISOR' || f.role === 'MANAGER';
@@ -830,7 +837,9 @@ export function toEmployeePayload(
   if (f.bankAccount.trim()) value.bankAccount = f.bankAccount.trim();
   if (f.emergencyName.trim()) value.emergencyName = f.emergencyName.trim();
   if (f.emergencyPhone.trim()) value.emergencyPhone = f.emergencyPhone.trim();
-  if (f.supervisorId.trim()) value.supervisorId = f.supervisorId.trim();
+  // supervisorId is deliberately NOT sent any more: the reporting line lives in
+  // depot-service's supervision table, written at /hq/hierarchy. The form field is gone,
+  // and this stops an older cached form value from writing the column behind its back.
   if (f.departmentId.trim()) value.departmentId = f.departmentId.trim();
   if (f.npwp.trim()) value.npwp = f.npwp.trim();
   if (f.bpjsKes.trim()) value.bpjsKes = f.bpjsKes.trim();

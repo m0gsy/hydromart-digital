@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsISO8601,
   IsOptional,
@@ -24,6 +25,17 @@ import { Role } from '../../../domain/customer/role.enum';
  * `ProvisionStaffDto`, one rung wider: a promotion up the supervision chain is ordinary
  * HR work, but the office roles and SUPER_ADMIN stay out of reach of an employee form.
  */
+/** hr-service switching a login off or on when somebody resigns or is re-hired. */
+export class SetStaffActiveDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  customerId!: string;
+
+  @ApiProperty({ example: false, description: 'false suspends the login; true restores it.' })
+  @IsBoolean()
+  active!: boolean;
+}
+
 export class AssignStaffRoleDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -39,19 +51,11 @@ export class AssignStaffRoleDto {
   depotId?: string | null;
 }
 
-export class ProvisionStaffDto {
+/** Everything a provisioning call carries except the one field that decides its power. */
+abstract class ProvisionStaffBaseDto {
   @ApiProperty({ example: '+628123456789' })
   @IsString()
   phone!: string;
-
-  /**
-   * Deliberately `@IsIn(STAFF_IMPORT_ROLES)` and not `@IsEnum(Role)`: this route
-   * provisions accounts on behalf of an HR user who does not hold `staffAdmin`, so
-   * HEAD_OFFICE/SUPER_ADMIN must be unreachable from here.
-   */
-  @ApiProperty({ enum: STAFF_IMPORT_ROLES })
-  @IsIn(STAFF_IMPORT_ROLES as readonly string[])
-  role!: StaffImportRole & Role;
 
   @ApiPropertyOptional({ example: 'Budi Santoso' })
   @IsOptional()
@@ -63,6 +67,36 @@ export class ProvisionStaffDto {
   @IsOptional()
   @IsUUID()
   depotId?: string;
+}
+
+export class ProvisionStaffDto extends ProvisionStaffBaseDto {
+  /**
+   * Deliberately `@IsIn(STAFF_IMPORT_ROLES)` and not `@IsEnum(Role)`: this route
+   * provisions accounts on behalf of an HR user who does not hold `staffAdmin`, so
+   * HEAD_OFFICE/SUPER_ADMIN must be unreachable from here.
+   *
+   * This is the SPREADSHEET path and stays at its narrow allowlist. The single-employee
+   * form uses `ProvisionManagedStaffDto` below — same reasoning, one rung wider, because
+   * a human typing one name is not the same risk as a file of a thousand rows.
+   */
+  @ApiProperty({ enum: STAFF_IMPORT_ROLES })
+  @IsIn(STAFF_IMPORT_ROLES as readonly string[])
+  role!: StaffImportRole & Role;
+}
+
+/**
+ * Single-employee provisioning from the HR form (`/hr/employees/new`).
+ *
+ * `HR_MANAGED_ROLES`, matching `AssignStaffRoleDto`: HR may already MOVE an existing
+ * account onto SUPERVISOR, so being able to MINT one is not a new authority — it just
+ * stops "add employee" from producing someone who cannot log in. The office roles,
+ * DIREKTUR, FRANCHISE_OWNER and SUPER_ADMIN stay out of reach of an employee form, and
+ * a CSV row still cannot reach even this set.
+ */
+export class ProvisionManagedStaffDto extends ProvisionStaffBaseDto {
+  @ApiProperty({ enum: HR_MANAGED_ROLES })
+  @IsIn(HR_MANAGED_ROLES as readonly string[])
+  role!: HrManagedRole & Role;
 }
 
 export class PreRegisterCustomerDto {

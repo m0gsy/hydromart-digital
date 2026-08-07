@@ -37,6 +37,19 @@ export function can(capability: Capability, role: string | null | undefined): bo
   return compiledCan(capability, role);
 }
 
+/**
+ * May this role edit the courier shift roster? (B7)
+ *
+ * `/dashboard/shift` gated its Atur-shift button on `isStaff`, which is "anybody who is not
+ * a customer" — but writing the roster needs `driverRoster`, which DEPOT_OPERATOR and
+ * STAFF_DEPOT do not have. They got a clickable grid where every click 403'd and the cell
+ * snapped back, with nothing on screen saying why. Reading stays open to any depot staff:
+ * knowing when you work is not a privilege.
+ */
+export function canManageRoster(role: string | null | undefined): boolean {
+  return can('driverRoster', role);
+}
+
 /** Any non-customer role — used to gate the staff surfaces broadly. Not a capability set. */
 export function isStaff(role: string | null | undefined): boolean {
   return role != null && role !== '' && role !== 'CUSTOMER';

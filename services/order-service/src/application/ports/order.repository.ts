@@ -222,6 +222,8 @@ export interface RatingSummary {
 
 export interface OrderValue {
   orderId: string;
+  /** The human-readable HM-… number (§G-3): what every other console shows for an order. */
+  orderNumber: string;
   totalIdr: number;
 }
 
@@ -370,6 +372,14 @@ export interface OrderRepository {
      */
     outbox?: OutboxWrite[],
   ): Promise<OrderRecord>;
+  /**
+   * Append a history row WITHOUT moving the order.
+   *
+   * For facts about an order that are not transitions — "this was priced from the catalog
+   * because the depot was unreachable". Reusing `applyStatus` would work, but the timeline
+   * is read by staff, and a repeated status entry reads as something having happened twice.
+   */
+  appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void>;
   /**
    * Reverses a counter sale: stamps VOIDED with the reason and appends the history row.
    *

@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Shift, ShiftAssignment, ShiftRotation } from '../../prisma/generated/client';
@@ -48,6 +53,19 @@ class FakeRepo implements ShiftRepository {
   async findActiveForDepot(): Promise<Shift | null> {
     return null;
   }
+  /** B2: the same three sources the Prisma repository counts. */
+  async countReferences(shiftId: string): Promise<number> {
+    const inRotations = this.rotations.filter((r) =>
+      Object.values((r.pattern ?? {}) as Record<string, string | null>).includes(shiftId),
+    ).length;
+    return (
+      this.assignments.filter((a) => a.shiftId === shiftId).length +
+      this.employeesWithShift.filter((id) => id === shiftId).length +
+      inRotations
+    );
+  }
+  /** Employees whose `shiftId` column points at a shift — rung 2 of the precedence. */
+  employeesWithShift: string[] = [];
 
   // ── rotations & assignments (C3) ──────────────────────────────────
   rotations: ShiftRotation[] = [];
@@ -215,11 +233,13 @@ describe('ShiftService rotations & assignments (C3)', () => {
 
   it('keeps only weekday keys and turns a blank shift id into a day off', async () => {
     const { svc, repo } = make();
+    // B3: the ids in a pattern have to be real shifts now, so this one is created first.
+    const s1 = await shift(svc);
     await svc.createRotation(hr, {
       name: 'Rotasi A',
-      pattern: { '0': null, '1': ' s-1 ', '6': '', '9': 's-1', abc: 's-1' },
+      pattern: { '0': null, '1': ` ${s1.id} `, '6': '', '9': s1.id, abc: s1.id },
     });
-    expect(repo.rotations[0].pattern).toEqual({ '0': null, '1': 's-1', '6': null });
+    expect(repo.rotations[0].pattern).toEqual({ '0': null, '1': s1.id, '6': null });
     expect(repo.rotations[0]).toMatchObject({ depotId: null, active: true });
   });
 
@@ -237,14 +257,16 @@ describe('ShiftService rotations & assignments (C3)', () => {
 
   it('patches a rotation and 404s on a missing one', async () => {
     const { svc } = make();
-    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': 's-1' } });
+    const s1 = await shift(svc);
+    const s2 = await shift(svc);
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': s1.id } });
     const updated = await svc.updateRotation(hr, rot.id, {
       name: 'B',
       active: false,
-      pattern: { '2': 's-2' },
+      pattern: { '2': s2.id },
       depotId: DEPOT_A,
     });
-    expect(updated).toMatchObject({ name: 'B', active: false, pattern: { '2': 's-2' } });
+    expect(updated).toMatchObject({ name: 'B', active: false, pattern: { '2': s2.id } });
     // A patch with nothing in it is a no-op, not a wipe.
     expect(await svc.updateRotation(hr, rot.id, {})).toMatchObject({ name: 'B' });
     await expect(svc.updateRotation(hr, 'ghost', { name: 'x' })).rejects.toThrow(NotFoundException);
@@ -272,7 +294,8 @@ describe('ShiftService rotations & assignments (C3)', () => {
 
   it('assigns a rotation, leaving the fixed shift empty', async () => {
     const { svc, repo } = make();
-    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': 's-1' } });
+    const s1 = await shift(svc);
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: { '1': s1.id } });
     await svc.assign(hr, { employeeId: 'e1', rotationId: rot.id, effectiveFrom: '2026-08-01' });
     expect(repo.assignments[0]).toMatchObject({ rotationId: rot.id, shiftId: null, note: null });
   });
@@ -330,5 +353,120 @@ describe('ShiftService.remove', () => {
     await expect(svc.remove(manager(DEPOT_B), s.id)).rejects.toThrow(ForbiddenException);
     await svc.remove(manager(DEPOT_A), s.id);
     expect(repo.rows).toHaveLength(0);
+  });
+});
+
+/*
+ * B2. `ShiftAssignment.shiftId` and `Employee.shiftId` are bare UUID columns with no foreign
+ * key, and a rotation names shifts inside its `pattern` JSON — so deleting a shift in use
+ * used to succeed and leave every one of those pointing at nothing. `shiftIdForDay` then
+ * returns an id `findById` cannot resolve, `assignedShiftStart` becomes null, and the
+ * clock-in time drops to another rung of the precedence. Lateness changes — and
+ * `lateMinutes` reaches payroll — with no trace and no screen saying so.
+ */
+describe('ShiftService.remove guards a shift that is still in use (B2)', () => {
+  async function withShift() {
+    const { repo, svc } = make();
+    const shift = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_A,
+    });
+    return { repo, svc, shift };
+  }
+
+  it('refuses when an assignment still points at it, and says to deactivate instead', async () => {
+    const { repo, svc, shift } = await withShift();
+    await svc.assign(hr, { employeeId: 'e1', shiftId: shift.id, effectiveFrom: '2026-08-03' });
+
+    await expect(svc.remove(hr, shift.id)).rejects.toThrow(ConflictException);
+    await expect(svc.remove(hr, shift.id)).rejects.toThrow(/[Nn]onaktifkan/);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('refuses when a rotation names it in its pattern', async () => {
+    const { repo, svc, shift } = await withShift();
+    await svc.createRotation(hr, { name: 'A', pattern: { '1': shift.id, '2': null } });
+
+    await expect(svc.remove(hr, shift.id)).rejects.toThrow(ConflictException);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it("refuses when an employee's own shiftId column points at it", async () => {
+    const { repo, svc, shift } = await withShift();
+    repo.employeesWithShift.push(shift.id);
+
+    await expect(svc.remove(hr, shift.id)).rejects.toThrow(ConflictException);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('still deletes a shift nothing references', async () => {
+    const { repo, svc, shift } = await withShift();
+    await svc.remove(hr, shift.id);
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  // The way out the refusal names has to actually work, or the guard is a dead end.
+  it('lets the same shift be deactivated instead', async () => {
+    const { svc, shift } = await withShift();
+    await svc.assign(hr, { employeeId: 'e1', shiftId: shift.id, effectiveFrom: '2026-08-03' });
+
+    const off = await svc.update(hr, shift.id, { active: false });
+    expect(off.active).toBe(false);
+  });
+});
+
+/*
+ * B3. `cleanPattern` only ever tidied the KEYS, while `assign` in the same service DOES
+ * validate that a `shiftId` exists. So one write path checked and the other did not, and a
+ * rotation could name a random id, another depot's shift, or one already deleted — landing
+ * in exactly the dangling state B2 above is about.
+ */
+describe('ShiftService rotation patterns name real shifts (B3)', () => {
+  it('refuses a pattern naming a shift that does not exist', async () => {
+    const { repo, svc } = make();
+    await expect(
+      svc.createRotation(hr, { name: 'A', pattern: { '1': 'no-such-shift' } }),
+    ).rejects.toThrow(NotFoundException);
+    expect(repo.rotations).toHaveLength(0);
+  });
+
+  it("refuses a pattern naming another depot's shift", async () => {
+    const { repo, svc } = make();
+    const other = await svc.create(hr, {
+      name: 'Pagi B',
+      startTime: '08:00',
+      endTime: '16:00',
+      depotId: DEPOT_B,
+    });
+    await expect(
+      svc.createRotation(manager(DEPOT_A), { name: 'A', pattern: { '1': other.id } }),
+    ).rejects.toThrow(ForbiddenException);
+    expect(repo.rotations).toHaveLength(0);
+  });
+
+  it('accepts a network-wide shift, and a day off', async () => {
+    const { repo, svc } = make();
+    const network = await svc.create(hr, {
+      name: 'Pagi',
+      startTime: '08:00',
+      endTime: '16:00',
+    });
+    await svc.createRotation(manager(DEPOT_A), {
+      name: 'A',
+      pattern: { '1': network.id, '2': null },
+      depotId: DEPOT_A,
+    });
+    expect(repo.rotations).toHaveLength(1);
+  });
+
+  it('applies the same check when a pattern is edited', async () => {
+    const { repo, svc } = make();
+    const rot = await svc.createRotation(hr, { name: 'A', pattern: {} });
+    await expect(
+      svc.updateRotation(hr, rot.id, { pattern: { '3': 'no-such-shift' } }),
+    ).rejects.toThrow(NotFoundException);
+    expect(repo.rotations[0]?.pattern).toEqual({});
   });
 });

@@ -1,7 +1,13 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { Role, Roles } from '@hydromart/platform';
+import {
+  AuthenticatedUser,
+  CurrentUser,
+  Role,
+  Roles,
+  assertDepotAccess,
+} from '@hydromart/platform';
 
 import { ReportRange } from '../application/ports/order.repository';
 import { ReportService } from '../application/services/report.service';
@@ -20,7 +26,7 @@ import {
 } from './dto/report.dto';
 import { CustomerSummary, DepotCompareReport, DepotDailyReport, DepotMonthlyReport, DepotRatingsReport, DepotWeeklyReport, ReportRangeView, ResellerRollupReport, RetentionCohortReport, RevenueByProductReport, SalesReport } from '../application/services/report.service';
 import { CustomerSales, DepotRating, DepotRefund, DepotSales, DepotShipping } from '../application/ports/order.repository';
-import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
+import { AudienceReach3ResponseDto, CustomerResponseDto, DepotCompareReportResponseDto, DepotDailyReportResponseDto, DepotDailyRowResponseDto, DepotMonthlyReportResponseDto, DepotRatingsReportResponseDto, DepotWeeklyReportResponseDto, RatingByDepotResponseDto, RefundsByDepotResponseDto, ResellerRollupReportResponseDto, RetentionCohortReportResponseDto, RevenueByProductReportResponseDto, SalesReportResponseDto, SegmentEstimate3ResponseDto, ShippingByDepotResponseDto, TopCustomersResponseDto, TopDepotsResponseDto } from './dto/responses.generated.dto';
 
 const REPORT_ROLES = [Role.HEAD_OFFICE, Role.MANAGER, Role.SUPER_ADMIN] as const;
 // Depot daily/weekly (2d/7d) are the operator's own console screens, so KEPALA_DEPOT
@@ -117,6 +123,31 @@ export class ReportController {
   // H-16 owns the "no date given" default (WIB today), in the service — not here.
   depotDaily(@Query() q: DepotDailyQueryDto): Promise<DepotDailyReport> {
     return this.reports.depotDaily(q.depotId, q.date);
+  }
+
+  /**
+   * The day's orders, one row each, for the export button on the daily report.
+   *
+   * Returns rows rather than a rendered file: the console already owns CSV formatting (and
+   * the locale that decides the separator), so a server-rendered file would be a second
+   * place to keep those rules in step.
+   *
+   * B-8: `depotId` comes from the client and `DEPOT_REPORT_ROLES` includes KEPALA_DEPOT, so
+   * this is checked against the CALLER. The neighbouring `depot-daily` has the same hole and
+   * is left alone — that is main's surface — but it returns aggregates, while this returns
+   * every customer's name and every courier's name for a day. Widening one depot's report
+   * into another depot's customer list is a different order of mistake.
+   */
+  @ApiOkResponse({ type: DepotDailyRowResponseDto, isArray: true })
+  @Roles(...DEPOT_REPORT_ROLES)
+  @Get('depot-daily/export')
+  @ApiOperation({ summary: "The day's orders behind the daily report, one row per order" })
+  // Same as depotDaily above: the "no date given" default is WIB today, decided in the
+  // service. A `new Date().toISOString().slice(0,10)` here would be the UTC today, and
+  // before 07:00 WIB the export would offer a different day than the screen it sits on.
+  depotDailyExport(@Query() q: DepotDailyQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    assertDepotAccess(user, q.depotId);
+    return this.reports.depotDailyRows(q.depotId, q.date);
   }
 
   @ApiOkResponse({ type: DepotWeeklyReportResponseDto })

@@ -1,3 +1,4 @@
+import type { GallonCustomerRow } from '../../application/ports/gallon-issue.repository';
 import { Injectable } from '@nestjs/common';
 
 import { GallonCondition } from '../../domain/gallon-return';
@@ -72,6 +73,19 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
       damaged,
       depositRefunded: Number(agg._sum.depositRefunded ?? 0),
     };
+  }
+
+  async perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]> {
+    const grouped = await this.prisma.gallonReturn.groupBy({
+      by: ['customerId'],
+      where: { depotId, customerId: { not: null } },
+      _sum: { quantity: true, depositRefunded: true },
+    });
+    return grouped.map((g) => ({
+      customerId: g.customerId as string,
+      gallons: g._sum.quantity ?? 0,
+      amountIdr: Number(g._sum.depositRefunded ?? 0),
+    }));
   }
 
   async networkSummary(): Promise<GallonReturnDepotRow[]> {

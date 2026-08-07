@@ -16,6 +16,8 @@ const baseInput = {
   phone: '0811',
   depotId: DEPOT_A,
   position: 'Kurir',
+  // "+ Tambah" mints the login too, so a new employee always carries a jabatan.
+  role: 'STAFF_DEPOT' as const,
   employmentStatus: 'PROBATION' as const,
   joinDate: '2026-01-01',
   salaryType: 'DAILY' as const,
@@ -24,6 +26,13 @@ const baseInput = {
 
 /** Only the calls the department rule touches; the rest throw if the rule strays. */
 class FakeEmployees implements EmployeeRepository {
+  /** HQ deleted the account behind this employee (Fase 6). */
+  anonymisedAccounts: string[] = [];
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    this.anonymisedAccounts.push(authSubjectId);
+    return 1;
+  }
+
   rows: Employee[] = [];
   private seq = 0;
   async count(): Promise<number> {
@@ -56,6 +65,21 @@ class FakeEmployees implements EmployeeRepository {
   }
   async findByNik(nik: string): Promise<Employee | null> {
     return this.rows.find((r) => r.nik === nik) ?? null;
+  }
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    if (keys.employeeCode && (await this.findByEmployeeCode(keys.employeeCode))) return 'employeeCode';
+    if (keys.nik && (await this.findByNik(keys.nik))) return 'nik';
+    return (await this.findByPhone(keys.phone)) ? 'phone' : null;
+  }
+  async findByAuthSubjectIdOrPhone(
+    _authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    return { linked: null, oldestByPhone: await this.findByPhone(phone) };
   }
   async listHistory(): Promise<EmploymentHistory[]> {
     return [];

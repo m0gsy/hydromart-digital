@@ -62,6 +62,15 @@ describe('AuditInterceptor', () => {
     expect(recorded[0].entityId).toBe('b-99');
   });
 
+  // A write straight at the version root names no entity. The row still has to be written
+  // — an audit trail with a hole in it is worse than one that says "unknown".
+  it('records a path with no entity segment as unknown', async () => {
+    const { interceptor, recorded } = build();
+    const { context, handler } = ctx('POST', '/api/v1/');
+    await firstValueFrom(interceptor.intercept(context, handler));
+    expect(recorded[0]).toMatchObject({ entity: 'unknown', entityId: null });
+  });
+
   it('captures the submitted body as `after`, omitting heavy/sensitive keys', async () => {
     const { interceptor, recorded } = build();
     const { context, handler } = ctx('PATCH', '/api/v1/attendance/a1/adjust', null, {

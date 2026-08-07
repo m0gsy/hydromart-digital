@@ -92,7 +92,7 @@ describe('DeliveryConfigService getters', () => {
     const cfg = buildTestConfig();
     expect(cfg.maxActiveDeliveriesPerDriver('d1')).toBe(1);
     expect(cfg.shiftCheckInRadiusMeters('d1')).toBe(200);
-    expect(cfg.shiftBreakQuotaMinutes('d1')).toBe(30);
+    expect(cfg.shiftBreakQuotaMinutes('d1')).toBe(60);
     expect(cfg.noShowMinContactAttempts('d1')).toBe(2);
     expect(cfg.noShowMinWaitSeconds('d1')).toBe(300);
     expect(cfg.slaMinutes('d1')).toBe(120);

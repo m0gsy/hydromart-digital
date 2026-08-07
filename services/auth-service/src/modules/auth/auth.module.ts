@@ -30,12 +30,13 @@ import { ConsentPrismaRepository } from '../../infrastructure/prisma/repositorie
 import { CapabilityOverridePrismaRepository } from '../../infrastructure/prisma/repositories/capability-override.prisma.repository';
 import { DataSubjectRequestPrismaRepository } from '../../infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../infrastructure/http/customer-data.http.adapter';
+import { HrDirectoryHttpAdapter } from '../../infrastructure/http/hr-directory.http.adapter';
+import { HR_DIRECTORY_PORT } from '../../application/ports/hr-directory.port';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
 import { OtpTokenPrismaRepository } from '../../infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../infrastructure/prisma/repositories/refresh-token.prisma.repository';
 import { AccessTokenSigner } from '../../infrastructure/security/access-token-signer';
 import { CryptoService } from '../../infrastructure/security/crypto.service';
-import { GoogleVerifier } from '../../infrastructure/security/google-verifier';
 import { SystemClock } from '../../infrastructure/security/system-clock';
 import { ConsoleOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/console-otp-delivery.adapter';
 import { SmsOtpDeliveryAdapter } from '../../infrastructure/otp-delivery/sms-otp-delivery.adapter';
@@ -64,12 +65,12 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.AuditLogRepository, useClass: AuditLogPrismaRepository },
   { provide: AUTH_TOKENS.DataSubjectRequestRepository, useClass: DataSubjectRequestPrismaRepository },
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
+  { provide: HR_DIRECTORY_PORT, useClass: HrDirectoryHttpAdapter },
   { provide: AUTH_TOKENS.ConsentRepository, useClass: ConsentPrismaRepository },
   { provide: AUTH_TOKENS.CapabilityOverrideRepository, useClass: CapabilityOverridePrismaRepository },
   { provide: AUTH_TOKENS.CryptoPort, useClass: CryptoService },
   { provide: AUTH_TOKENS.ClockPort, useClass: SystemClock },
   { provide: AUTH_TOKENS.AccessTokenSignerPort, useClass: AccessTokenSigner },
-  { provide: AUTH_TOKENS.GoogleVerifierPort, useClass: GoogleVerifier },
   { provide: AUTH_TOKENS.CustomerNotificationPort, useClass: CustomerNotificationHttpAdapter },
   {
     provide: AUTH_TOKENS.Storage,

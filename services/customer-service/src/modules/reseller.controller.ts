@@ -15,14 +15,13 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Can, AuthenticatedUser, CurrentUser, ImportSummary } from '@hydromart/platform';
 
 import { CustomerImportService } from '../application/services/customer-import.service';
-import { ResellerService } from '../application/services/reseller.service';
+import { ResellerService, ResellerView } from '../application/services/reseller.service';
 import {
   ResellerExistsError,
   ResellerNotFoundError,
 } from '../domain/errors';
 import { ListResellerQueryDto, RegisterResellerDto, UpdateResellerDto } from './dto/reseller.dto';
 import { ImportResellersDto } from './dto/customer-import.dto';
-import { Reseller } from '../application/ports/reseller.repository';
 import { ImportResponseDto, ResellerResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Resellers')
@@ -38,7 +37,10 @@ export class ResellerController {
   @ApiOkResponse({ type: ResellerResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: 'List resellers (optionally by depot / active)' })
-  list(@CurrentUser() user: AuthenticatedUser, @Query() q: ListResellerQueryDto): Promise<Reseller[]> {
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() q: ListResellerQueryDto,
+  ): Promise<ResellerView[]> {
     return this.resellers.list(user, { homeDepotId: q.depotId, active: q.active });
   }
 

@@ -147,6 +147,17 @@ describe('toEmployeePayload', () => {
     if (!r.ok) expect(r.error).toContain('fullName');
   });
 
+  // Adding an employee mints their login, and no account can be minted without a role.
+  it('demands a jabatan when creating, but not when editing', () => {
+    const noRole = validForm({ role: '' });
+    const created = toEmployeePayload(noRole, { creating: true });
+    expect(created.ok).toBe(false);
+    if (!created.ok) expect(created.error).toContain('Jabatan');
+
+    // On edit "" means "leave it alone" — and rows written before this release have none.
+    expect(toEmployeePayload(noRole).ok).toBe(true);
+  });
+
   it('rejects DAILY salary without a positive dailyRate', () => {
     expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '0' })).ok).toBe(false);
     expect(toEmployeePayload(validForm({ salaryType: 'DAILY', dailyRate: '' })).ok).toBe(false);

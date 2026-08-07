@@ -69,3 +69,69 @@ describe('GallonNetworkService.outstanding', () => {
     expect(await service.outstanding()).toEqual([]);
   });
 });
+
+/*
+ * J-2: what one depot's customers still owe it, and still have on deposit there — the two
+ * columns the depot customer directory used to render as a hardcoded null.
+ *
+ * Same arithmetic as the network rollup one level up, floored at zero so a return recorded
+ * against the wrong depot cannot show as a negative loan.
+ */
+describe('GallonNetworkService.perCustomer (J-2)', () => {
+  const perCustomer = (
+    issued: { customerId: string; gallons: number; amountIdr: number }[],
+    returned: { customerId: string; gallons: number; amountIdr: number }[],
+  ) =>
+    new GallonNetworkService(
+      { perCustomerForDepot: async () => issued } as unknown as GallonIssueRepository,
+      { perCustomerForDepot: async () => returned } as unknown as GallonReturnRepository,
+    ).perCustomer('d1');
+
+  it('nets returns off issues, per customer', async () => {
+    await expect(
+      perCustomer(
+        [
+          { customerId: 'c1', gallons: 5, amountIdr: 100_000 },
+          { customerId: 'c2', gallons: 2, amountIdr: 40_000 },
+        ],
+        [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
+      ),
+    ).resolves.toEqual([
+      { customerId: 'c1', gallonsOnLoan: 3, depositHeldIdr: 60_000 },
+      { customerId: 'c2', gallonsOnLoan: 2, depositHeldIdr: 40_000 },
+    ]);
+  });
+
+  it('drops a customer who owes nothing and holds no deposit', async () => {
+    await expect(
+      perCustomer(
+        [{ customerId: 'c1', gallons: 3, amountIdr: 60_000 }],
+        [{ customerId: 'c1', gallons: 3, amountIdr: 60_000 }],
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  // A return logged against the wrong depot must not read as "the depot owes them gallons".
+  it('floors both numbers at zero rather than going negative', async () => {
+    await expect(
+      perCustomer(
+        [{ customerId: 'c1', gallons: 1, amountIdr: 20_000 }],
+        [{ customerId: 'c1', gallons: 4, amountIdr: 80_000 }],
+      ),
+    ).resolves.toEqual([]);
+  });
+
+  // A deposit still held with every gallon back is a real row: the money is still there.
+  it('keeps a customer who returned the gallons but is owed a refund', async () => {
+    await expect(
+      perCustomer(
+        [{ customerId: 'c1', gallons: 2, amountIdr: 40_000 }],
+        [{ customerId: 'c1', gallons: 2, amountIdr: 0 }],
+      ),
+    ).resolves.toEqual([{ customerId: 'c1', gallonsOnLoan: 0, depositHeldIdr: 40_000 }]);
+  });
+
+  it('is empty for a depot that has issued nothing', async () => {
+    await expect(perCustomer([], [])).resolves.toEqual([]);
+  });
+});

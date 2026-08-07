@@ -126,13 +126,21 @@ export class Customer {
    * Admin action (staff & roles, PRD Module 7): assign a staff role to this account.
    * An invited/promoted staff member is pre-trusted, so a still-pending account is
    * activated immediately (they sign in by phone OTP; no self-verification needed).
+   *
+   * SUSPENDED is lifted too: that is the status a resignation writes, so re-hiring
+   * someone would otherwise leave them locked out with nothing on screen to explain it.
+   * DELETED is NOT lifted — that account's identity has been anonymised, so "hire again"
+   * has to mint a new one rather than resurrect a record nobody can read back.
    */
   promoteToStaff(role: Role, depotId?: string | null): void {
     this.props.role = role;
     if (depotId !== undefined) {
       this.props.assignedDepotId = depotId;
     }
-    if (this.props.status === CustomerStatus.PENDING_VERIFICATION) {
+    if (
+      this.props.status === CustomerStatus.PENDING_VERIFICATION ||
+      this.props.status === CustomerStatus.SUSPENDED
+    ) {
       this.props.status = CustomerStatus.ACTIVE;
     }
   }
@@ -168,6 +176,61 @@ export class Customer {
     if (plateNumber !== undefined) {
       this.props.plateNumber = plateNumber;
     }
+  }
+
+  /**
+   * Move a staff account to another depot, and nothing else.
+   *
+   * Deliberately not `promoteToStaff(sameRole, depot)`: that one activates a suspended
+   * account, and a transfer must never be a way to quietly hand somebody their login back.
+   */
+  assignDepot(depotId: string | null): void {
+    this.props.assignedDepotId = depotId;
+  }
+
+  /**
+   * Change a staff account's role (and optionally its depot), and nothing else.
+   *
+   * B-1. `assignDepot` above was given its own path precisely so a transfer could not hand
+   * somebody their login back — but the role path was still `promoteToStaff`, which lifts
+   * SUSPENDED to ACTIVE. hr-service calls it on `roleMoved || depotMoved`, so editing a
+   * RESIGNED employee's DEPOT alone reactivated their login while HR still said RESIGNED.
+   *
+   * Reactivation belongs to the two places that mean it: the invite (`promoteToStaff`,
+   * where being invited is the point) and `setActive`.
+   */
+  assignRole(role: Role, depotId?: string | null): void {
+    this.props.role = role;
+    if (depotId !== undefined) {
+      this.props.assignedDepotId = depotId;
+    }
+  }
+
+  /**
+   * Switch the login on or off, and nothing else.
+   *
+   * Its own path rather than `promoteToStaff`, which also writes role and depot: turning
+   * somebody off when they resign must not quietly re-role them, and turning them back on
+   * must not resurrect a depot they no longer work at.
+   *
+   * DELETED is never revived here — that identity has been anonymised, so "activate" would
+   * bring back an account nobody can read back. Re-hiring mints a new one.
+   */
+  /**
+   * Soft delete: the account can never sign in again and is filtered out of the staff
+   * directory. Irreversible on purpose — `setActive` and `promoteToStaff` both refuse to
+   * lift DELETED, because by the time this is called the identity has been anonymised and
+   * there is nothing left to bring back.
+   */
+  markDeleted(): void {
+    this.props.status = CustomerStatus.DELETED;
+  }
+
+  setActive(active: boolean): void {
+    if (this.props.status === CustomerStatus.DELETED) {
+      return;
+    }
+    this.props.status = active ? CustomerStatus.ACTIVE : CustomerStatus.SUSPENDED;
   }
 
   /** Snapshot for persistence mapping. */

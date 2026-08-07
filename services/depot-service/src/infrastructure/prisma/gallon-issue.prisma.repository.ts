@@ -1,3 +1,4 @@
+import type { GallonCustomerRow } from '../../application/ports/gallon-issue.repository';
 import { Injectable } from '@nestjs/common';
 
 import {
@@ -47,6 +48,19 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
       gallons: agg._sum.quantity ?? 0,
       depositHeld: agg._sum.depositHeld ?? 0,
     };
+  }
+
+  async perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]> {
+    const grouped = await this.prisma.gallonIssue.groupBy({
+      by: ['customerId'],
+      where: { depotId, customerId: { not: null } },
+      _sum: { quantity: true, depositHeld: true },
+    });
+    return grouped.map((g) => ({
+      customerId: g.customerId as string,
+      gallons: g._sum.quantity ?? 0,
+      amountIdr: g._sum.depositHeld ?? 0,
+    }));
   }
 
   async networkSummary(): Promise<GallonIssueDepotRow[]> {

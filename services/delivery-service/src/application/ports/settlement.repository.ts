@@ -42,6 +42,15 @@ export interface SettlementQuery {
   status?: SettlementStatus;
 }
 
+/** What a depot took in from courier COD in a window, for its daily close. */
+export interface DepositedCod {
+  /** Rupiah handed over and accepted. */
+  depositedIdr: number;
+  /** Rupiah the couriers were expected to hand over — the pair is what makes a gap visible. */
+  expectedIdr: number;
+  settlements: number;
+}
+
 /** One courier's charged COD shortfall total at a depot in a window (design 11c). */
 export interface CourierShortfall {
   driverId: string;
@@ -68,6 +77,12 @@ export interface SettlementRepository {
    * settlements with chargedToDriver=true (a genuine, cashier-accepted shortfall) count.
    */
   chargedShortfallByDriver(depotId: string, from: Date, to: Date): Promise<CourierShortfall[]>;
+  /**
+   * COD a depot actually took in during [from, to) — the courier deposits a cashier
+   * VERIFIED in that window, not the ones merely submitted. Feeds the depot's daily close:
+   * money the depot has not accepted yet is not money the depot can close its books on.
+   */
+  depositedInWindow(depotId: string, from: Date, to: Date): Promise<DepositedCod>;
   /** Verified settlements handled per operator at one depot in [from,to). */
   verifiedByOperatorInWindow(
     depotId: string,

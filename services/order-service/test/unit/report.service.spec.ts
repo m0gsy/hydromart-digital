@@ -249,6 +249,86 @@ describe('ReportService', () => {
     expect(rep.gallonsDamaged).toBeNull();
   });
 
+  // The export behind the button that used to do nothing. It must show the SAME day the
+  // report shows, and it must carry cancelled orders — a file that drops them silently
+  // cannot be reconciled against the till.
+  it('exports the day order by order, cancelled rows included and flagged', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r, reportTestConfig());
+    const depot = randomUUID();
+    const day = '2026-07-15';
+    const items = [
+      {
+        productId: randomUUID(),
+        productName: 'Galon 19L',
+        sku: 'G19',
+        unit: 'Galon',
+        volumeMl: 19000,
+        isGallon: true,
+        unitPrice: 20000,
+        quantity: 2,
+        lineTotal: 40000,
+      },
+    ];
+    const kept = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    const gone = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    const yesterday = await r.create({ ...orderData({ depotId: depot, total: 40000 }), items });
+    r.rows.find((x) => x.id === kept.id)!.createdAt = new Date('2026-07-14T17:00:00.000Z'); // 00:00 WIB
+    r.rows.find((x) => x.id === gone.id)!.createdAt = new Date(`${day}T02:00:00.000Z`); // 09:00 WIB
+    r.rows.find((x) => x.id === yesterday.id)!.createdAt = new Date('2026-07-14T16:59:00.000Z');
+    await r.applyStatus(gone.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
+
+    const rows = await svc.depotDailyRows(depot, day);
+
+    expect(rows.map((x) => x.orderNumber)).toEqual([kept.orderNumber, gone.orderNumber]);
+    expect(rows[1]).toMatchObject({ cancelled: true, gallons: 2, totalIdr: 40000 });
+    expect(rows[0]).toMatchObject({ cancelled: false, recipientName: kept.recipientName });
+  });
+
+  /*
+   * K-2. The export's own doc said it "reads the exact window depotDaily reads" while
+   * reading a UTC one. Both now come from the same private `dayWindow`, and this test is
+   * what keeps them there: it asserts the file and the screen agree order-for-order,
+   * including the two WIB edges, rather than asserting either window's shape.
+   */
+  it('exports exactly the orders the daily report counted, edges included', async () => {
+    const r = new InMemoryOrderRepository();
+    const svc = new ReportService(r, reportTestConfig());
+    const depot = randomUUID();
+    const place = async (iso: string) => {
+      const o = await r.create({ ...orderData({ depotId: depot, total: 50000 }) });
+      const row = r.rows.find((x) => x.id === o.id)!;
+      row.status = OrderStatus.DELIVERED;
+      row.createdAt = new Date(iso);
+    };
+    await place('2026-07-14T17:00:00.000Z'); // 00:00 WIB on the 15th — in
+    await place('2026-07-15T16:59:00.000Z'); // 23:59 WIB on the 15th — in
+    await place('2026-07-14T16:59:00.000Z'); // 23:59 WIB on the 14th — out
+    await place('2026-07-15T17:00:00.000Z'); // 00:00 WIB on the 16th — out
+
+    const report = await svc.depotDaily(depot, '2026-07-15');
+    const rows = await svc.depotDailyRows(depot, '2026-07-15');
+    expect(rows).toHaveLength(report.orders);
+    expect(rows.reduce((s, x) => s + x.totalIdr, 0)).toBe(report.revenueIdr);
+  });
+
+  it('defaults the export to the same WIB today the report defaults to', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-03T19:00:00Z')); // 02:00 WIB, 4 Aug
+    try {
+      const r = new InMemoryOrderRepository();
+      const svc = new ReportService(r, reportTestConfig());
+      const depot = randomUUID();
+      const o = await r.create({ ...orderData({ depotId: depot, total: 50000 }) });
+      r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-08-03T19:30:00Z');
+
+      expect((await svc.depotDaily(depot)).date).toBe('2026-08-04');
+      // A UTC default would have asked for 2026-08-03 and returned nothing.
+      expect(await svc.depotDailyRows(depot)).toHaveLength(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   // H-16: the window used to be [date T00:00Z, +24h) — which is 07:00 WIB to 07:00 WIB.
   // An order at 01:00 WIB fell into the PREVIOUS day's report and one at 03:00 WIB the
   // next morning was counted as today's, so the depot's daily revenue was wrong twice

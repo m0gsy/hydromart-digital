@@ -101,19 +101,32 @@ const DEPOTS = [
 ];
 
 // First staff accounts. Sign in later with phone + OTP (console adapter logs the code in dev).
+// Inviting staff now opens their HR record too, so every invite carries the employment
+// fields hr-service needs to pay and roster them. Spread into each row rather than typed
+// per person: which salary a seeded fixture has is not what any test is about.
+const EMPLOYMENT = {
+  position: 'Staf',
+  joinDate: '2026-01-01',
+  employmentStatus: 'PERMANENT',
+  salaryType: 'MONTHLY',
+  monthlyRate: 5_000_000,
+};
+
 const STAFF = [
-  { phone: '+6281100000001', role: 'SUPER_ADMIN', fullName: 'Admin Hydromart' },
-  { phone: '+6281100000002', role: 'MANAGER', fullName: 'Manajer Depot Cikini' },
-  { phone: '+6281100000003', role: 'STAFF_DEPOT', fullName: 'Staf Depot Satu' },
-  { phone: '+6281100000004', role: 'HR', fullName: 'HR Hydromart' },
-  { phone: '+6281100000005', role: 'KEPALA_DEPOT', fullName: 'Kepala Depot Cikini' },
-  { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu' },
-  { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu' },
-  { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart' },
+  { phone: '+6281100000001', role: 'SUPER_ADMIN', fullName: 'Admin Hydromart', ...EMPLOYMENT },
+  { phone: '+6281100000002', role: 'MANAGER', fullName: 'Manajer Depot Cikini', ...EMPLOYMENT },
+  { phone: '+6281100000003', role: 'STAFF_DEPOT', fullName: 'Staf Depot Satu', ...EMPLOYMENT },
+  { phone: '+6281100000004', role: 'HR', fullName: 'HR Hydromart', ...EMPLOYMENT },
+  { phone: '+6281100000005', role: 'KEPALA_DEPOT', fullName: 'Kepala Depot Cikini', ...EMPLOYMENT },
+  { phone: '+6281100000006', role: 'ASSISTANT_SUPERVISOR', fullName: 'Asisten SPV Satu', ...EMPLOYMENT },
+  { phone: '+6281100000007', role: 'SUPERVISOR', fullName: 'SPV Satu', ...EMPLOYMENT },
+  { phone: '+6281100000008', role: 'DIREKTUR', fullName: 'Direktur Hydromart', ...EMPLOYMENT },
   // Owners of the two WARALABA depots below. depot-service refuses to create a franchise
-  // depot without one, so these are invited BEFORE the depots (see main()).
-  { phone: '+6281100000009', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Dago' },
-  { phone: '+6281100000010', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Gubeng' },
+  // depot without one, so these are invited BEFORE the depots (see main()). They get no
+  // employee record server-side — an owner is a counterpart, not headcount — but the DTO
+  // still validates the shape, so the fields travel.
+  { phone: '+6281100000009', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Dago', ...EMPLOYMENT },
+  { phone: '+6281100000010', role: 'FRANCHISE_OWNER', fullName: 'Pemilik Waralaba Gubeng', ...EMPLOYMENT },
 ];
 
 // Sample HR employees (HRIS module). Seeded into the first depot; joinDate fixed for

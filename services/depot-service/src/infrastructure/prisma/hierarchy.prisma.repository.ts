@@ -74,6 +74,14 @@ export class HierarchyPrismaRepository implements HierarchyRepository {
     await this.prisma.staffDepotAssignment.deleteMany({ where: { staffId, depotId } });
   }
 
+  async superiorOf(staffId: string): Promise<string | null> {
+    const link = await this.prisma.staffSupervision.findUnique({
+      where: { staffId },
+      select: { superiorId: true },
+    });
+    return link?.superiorId ?? null;
+  }
+
   async describe(staffId: string): Promise<{
     superiorId: string | null;
     subordinateIds: string[];

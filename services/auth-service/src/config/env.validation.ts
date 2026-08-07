@@ -44,6 +44,9 @@ export const envValidationSchema = Joi.object({
   // UU PDP tahap 1 (item 13). Blank is allowed so a dev box boots without it; the
   // adapter then fails closed at call time rather than silently half-processing.
   CUSTOMER_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // hr-service, for the employee row behind an invited staff account. Blank is allowed so
+  // the service still boots, but an invite then fails 503 rather than half-creating a person.
+  HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   INTERNAL_SERVICE_KEY: optionalSecret(16),
 
   SMS_API_BASE_URL: Joi.string().uri().allow('').optional(),

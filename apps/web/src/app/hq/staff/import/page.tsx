@@ -57,6 +57,28 @@ export default function HqStaffImportPage() {
           return match.id;
         },
       },
+      // Employment columns: an invited account now opens an employee record too, so the
+      // file has to carry what HR needs to pay and roster the person. Required, because a
+      // spreadsheet that omits them would create exactly the half-people this replaces.
+      { key: 'position', required: true, example: 'Kurir' },
+      { key: 'joinDate', required: true, example: '2026-08-04', text: true },
+      {
+        key: 'employmentStatus',
+        required: true,
+        example: 'PROBATION',
+        options: ['TRAINING', 'PROBATION', 'PERMANENT'],
+      },
+      { key: 'salaryType', required: true, example: 'MONTHLY', options: ['DAILY', 'MONTHLY'] },
+      {
+        key: 'dailyRate',
+        example: '150000',
+        parse: (raw) => (raw.trim() === '' ? undefined : Number(raw)),
+      },
+      {
+        key: 'monthlyRate',
+        example: '4500000',
+        parse: (raw) => (raw.trim() === '' ? undefined : Number(raw)),
+      },
     ],
     [depotRows],
   );
@@ -65,7 +87,7 @@ export default function HqStaffImportPage() {
     <div className="mx-auto max-w-5xl">
       <CsvImport
         title="Impor Staf Massal"
-        description="Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot."
+        description="Unggah Excel atau CSV untuk membuat banyak akun staf sekaligus. Mereka masuk lewat OTP dengan nomor yang ditulis, dan setiap baris juga membuka kartu karyawan di HR. Nomor yang sudah punya akun tidak digandakan — perannya diperbarui. Kolom depot wajib diisi untuk peran Kurir dan Kepala Depot; isi dailyRate untuk gaji harian, monthlyRate untuk bulanan."
         columns={columns}
         endpoint={endpoints.auth.importStaff}
         templateName="staf"

@@ -43,6 +43,10 @@ export class DashboardConfigService {
   get internalServiceKey(): string {
     return this.config.getOrThrow<string>('INTERNAL_SERVICE_KEY');
   }
+  /** auth-service base URL; used to put a name on each "Pelanggan teratas" row (§G-3). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get corsOrigins(): string[] {
     return this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

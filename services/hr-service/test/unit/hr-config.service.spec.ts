@@ -89,6 +89,45 @@ describe('HrConfigService', () => {
     expect(svc.performanceSalesTarget()).toBe(0);
   });
 
+  // Q-13. The store keeps percentages ×100 because it is integer-only, so the thing that
+  // matters here is that they come back as real percentages and the rupiah ceilings do not.
+  it('divides the stored ×100 percentages back, and leaves the rupiah ceilings alone', async () => {
+    const svc = new HrConfigService(config(), await cacheWith([]));
+
+    expect(svc.statutoryRates()).toEqual({
+      healthEmployeePct: 1,
+      healthCeilingIdr: 12_000_000,
+      jhtEmployeePct: 2,
+      jpEmployeePct: 1,
+      jpCeilingIdr: 10_547_400,
+      occupationalCostPct: 5,
+      occupationalCostCapIdr: 500_000,
+      noNpwpSurchargePct: 20,
+    });
+  });
+
+  it('takes a per-depot statutory override', async () => {
+    const cache = await cacheWith([
+      { scope: 'DEPOT', depotId, key: 'bpjsJhtEmployeePctX100', value: '300' },
+      { scope: 'DEPOT', depotId, key: 'bpjsJpCeilingIdr', value: '11000000' },
+    ]);
+    const svc = new HrConfigService(config(), cache);
+
+    expect(svc.statutoryRates(depotId).jhtEmployeePct).toBe(3);
+    expect(svc.statutoryRates(depotId).jpCeilingIdr).toBe(11_000_000);
+    expect(svc.statutoryRates().jhtEmployeePct).toBe(2);
+  });
+
+  // B-19. The dev fallback is what keeps CI and a local box running on throwaway data;
+  // production is held to a real key by env validation, not by this getter.
+  it('reads the face encryption key, falling back for dev', () => {
+    const cache = new SettingsCache(new FakeSource([]));
+    expect(new HrConfigService(config(), cache).faceEncryptionKey).toBe('hydromart-dev-face-key');
+    expect(
+      new HrConfigService(config({ HR_FACE_ENCRYPTION_KEY: 'real-key' }), cache).faceEncryptionKey,
+    ).toBe('real-key');
+  });
+
   it('reads the crm notification target from ENV', () => {
     const svc = new HrConfigService(
       config({ CRM_SERVICE_URL: 'http://crm:3012', INTERNAL_SERVICE_KEY: 'k' }),

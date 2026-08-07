@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Input, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -51,7 +52,14 @@ function PayrollInner() {
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
         <label className="text-sm">Periode<Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} /></label>
-        <label className="text-sm">Employee ID (opsional)<Input value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="UUID karyawan" className="w-64" /></label>
+        {/* G-1. Optional filter, so the empty option means "semua karyawan". */}
+        <EmployeeSelect
+          value={employeeId}
+          onChange={setEmployeeId}
+          label="Karyawan (opsional)"
+          placeholder="Semua karyawan"
+          className="w-64"
+        />
         {canRunPayroll(customer?.role) && <Button onClick={generate} loading={busy}>Generate</Button>}
       </Card>
 

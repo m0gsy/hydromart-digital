@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import { EmployeeSelect } from '@/components/hr/employee-select';
 import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -79,15 +80,9 @@ function PerformanceInner() {
       <ScoreDashboard period={period} onPeriod={setPeriod} isAdmin={isAdmin} />
 
       <Card className="flex flex-wrap items-end gap-3 p-4">
-        <label className="text-sm">
-          Employee ID
-          <Input
-            value={employeeId}
-            onChange={(e) => setEmployeeId(e.target.value)}
-            placeholder="UUID karyawan"
-            className="w-64"
-          />
-        </label>
+        {/* G-1: this page already lists scored employees by name — the box that chose one
+            was still a UUID field. */}
+        <EmployeeSelect value={employeeId} onChange={setEmployeeId} className="w-64" />
         <Button variant="secondary" onClick={load}>
           Muat riwayat
         </Button>

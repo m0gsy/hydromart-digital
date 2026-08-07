@@ -15,16 +15,15 @@ import {
   PTKP_STATUS_LABEL,
   departmentsForDepot,
   type Department,
-  type Employee,
   type EmployeeForm as Form,
   type EmploymentStatus,
   type Gender,
-  type HrPage,
   type PtkpStatus,
   type SalaryType,
   toEmployeePayload,
 } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
+import type { Customer } from '@/lib/types';
 
 interface DepotOption {
   id: string;
@@ -39,39 +38,65 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // K-9: reference data, so getCached — main converted every one of these reads (F-2/F-13)
+  // and the contract is that a depot list and a department list are not re-fetched per form.
   const depots = useAsync<{ items: DepotOption[] }>(
-    () => api.get<{ items: DepotOption[] }>(endpoints.depots.browse({ limit: 100 }), true),
+    () => api.getCached<{ items: DepotOption[] }>(endpoints.depots.browse({ limit: 100 }), true),
     [],
   );
 
-  // Supervisor candidates: active staff of the chosen depot (self excluded on edit).
-  const supervisors = useAsync<HrPage<Employee>>(
-    () =>
-      form.depotId
-        ? api.get<HrPage<Employee>>(
-            endpoints.hr.employees({ depotId: form.depotId, status: 'ACTIVE', pageSize: 100 }),
-            true,
-          )
-        : Promise.resolve({ rows: [], total: 0, page: 1, pageSize: 100 }),
-    [form.depotId],
-  );
-
   const departments = useAsync<Department[]>(
-    () => api.get<Department[]>(endpoints.hr.departments(), true),
+    () => api.getCached<Department[]>(endpoints.hr.departments(), true),
     [],
   );
   // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
   const deptOptions = form.depotId ? departmentsForDepot(departments.data ?? [], form.depotId) : [];
 
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // D-12: `HR_ROLE_LABEL[role as HrManagedRole] ?? role` asserted a type the value usually
+  // is not — this account is nearly always a CUSTOMER. Runtime-safe via the `??`, but the
+  // cast defeated the `Record`'s exhaustiveness, which is the only thing making that lookup
+  // trustworthy. A plain lookup with a fallback says the same thing and stays honest.
+  const roleLabel = (role: string): string =>
+    (HR_ROLE_LABEL as Record<string, string | undefined>)[role] ?? role;
+
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => {
+    // A corrected number is a different person: the confirmation has to be asked again.
+    //
+    // D-13: so is a different jabatan. The dialog names the role the account is about to
+    // become, so confirming "Kurir" and then switching to "Kepala Depot" promoted somebody
+    // to a role nobody agreed to — the confirmation was for a different sentence.
+    if (k === 'phone' || k === 'role') setConfirmOwner(null);
+    setForm((f) => ({ ...f, [k]: v }));
+  };
+
+  /**
+   * Whoever already owns the phone number being typed, when adding.
+   *
+   * Saving promotes that account to the chosen jabatan, so one mistyped digit turns a
+   * customer into a kepala depot. The name is shown and confirmed before the write, rather
+   * than discovered afterwards by the person who lost their account.
+   */
+  const [confirmOwner, setConfirmOwner] = useState<Customer | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr(null);
-    const payload = toEmployeePayload(form);
+    const payload = toEmployeePayload(form, { creating: !id });
     if (!payload.ok) {
       setErr(payload.error);
       return;
+    }
+    // Ask auth-service whose number this is, once, before the first save attempt. 404 (no
+    // account) and any lookup failure both fall through to the normal save: the pre-check
+    // is a warning, not a gate — the server still decides.
+    if (!id && !confirmOwner) {
+      const owner = await api
+        .get<Customer>(endpoints.auth.customerLookup(form.phone.trim()), true)
+        .catch(() => null);
+      if (owner) {
+        setConfirmOwner(owner);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -133,7 +158,8 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
             onChange={(e) => set('role', e.target.value as HrManagedRole | '')}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">Tidak diubah</option>
+            {/* Required when adding: the login account is created with this role. */}
+            <option value="">{id ? 'Tidak diubah' : 'Pilih jabatan…'}</option>
             {HR_MANAGED_ROLES.map((r) => (
               <option key={r} value={r}>
                 {HR_ROLE_LABEL[r]}
@@ -203,23 +229,10 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           />
         </Field>
 
-        <Field label="Atasan (opsional)">
-          <select
-            value={form.supervisorId}
-            onChange={(e) => set('supervisorId', e.target.value)}
-            disabled={!form.depotId}
-            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
-          >
-            <option value="">{form.depotId ? 'Tanpa atasan' : 'Pilih depot dulu…'}</option>
-            {supervisors.data?.rows
-              .filter((s) => s.id !== id)
-              .map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.fullName} — {s.position}
-                </option>
-              ))}
-          </select>
-        </Field>
+        {/* "Atasan" used to live here and wrote a column nobody else read, so the same
+            person could have one superior in HR and another in the hierarchy map. The
+            reporting line is recorded once, at /hq/hierarchy, and shown read-only on the
+            employee's detail page. */}
         <Field label="Departemen (opsional)">
           <select
             value={form.departmentId}
@@ -305,9 +318,30 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           {err}
         </p>
       )}
+
+      {/* Saving does not create a second account for a number that already has one — it
+          promotes the one that is there. Whose it is has to be read before that happens. */}
+      {confirmOwner && (
+        <Card className="border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-900" role="alert">
+            Nomor {form.phone} sudah dipakai akun atas nama{' '}
+            {confirmOwner.fullName || '(tanpa nama)'} ({roleLabel(confirmOwner.role)}).
+          </p>
+          <p className="mt-1 text-sm text-amber-900">
+            Menyimpan akan mengubah akun itu menjadi{' '}
+            {form.role ? HR_ROLE_LABEL[form.role] : 'jabatan yang dipilih'} — bukan membuat akun
+            baru. Kalau nomornya salah ketik, betulkan dulu.
+          </p>
+        </Card>
+      )}
+
       <div className="flex gap-3">
         <Button type="submit" loading={saving}>
-          {id ? 'Simpan Perubahan' : 'Tambah Karyawan'}
+          {confirmOwner
+            ? 'Ya, gunakan akun itu'
+            : id
+              ? 'Simpan Perubahan'
+              : 'Tambah Karyawan'}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           Batal

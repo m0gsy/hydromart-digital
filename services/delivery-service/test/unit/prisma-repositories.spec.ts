@@ -568,6 +568,7 @@ describe('SettlementPrismaRepository', () => {
     findMany: jest.fn(),
     groupBy: jest.fn(),
     update: jest.fn(),
+    aggregate: jest.fn(),
   };
   const prisma = { cashSettlement } as unknown as PrismaService;
   const repo = new SettlementPrismaRepository(prisma);
@@ -689,6 +690,42 @@ describe('SettlementPrismaRepository', () => {
       by: ['driverId'],
       where: { depotId: 'dep-1', chargedToDriver: true, createdAt: { gte: from, lt: to } },
       _sum: { variance: true },
+    });
+  });
+
+  // The depot's daily close reads this. Keyed on verifiedAt, not createdAt: a deposit
+  // belongs to the day the cashier ACCEPTED the cash, which is the day it can be closed on.
+  it('depositedInWindow sums only VERIFIED settlements, by the day they were accepted', async () => {
+    const from = new Date('2026-08-04T00:00:00.000Z');
+    const to = new Date('2026-08-05T00:00:00.000Z');
+    cashSettlement.aggregate.mockResolvedValue({
+      _sum: { depositedAmount: 500_000, expectedAmount: 520_000 },
+      _count: { _all: 3 },
+    });
+
+    await expect(repo.depositedInWindow('dep-1', from, to)).resolves.toEqual({
+      depositedIdr: 500_000,
+      expectedIdr: 520_000,
+      settlements: 3,
+    });
+    expect(cashSettlement.aggregate).toHaveBeenCalledWith({
+      where: { depotId: 'dep-1', status: 'VERIFIED', verifiedAt: { gte: from, lt: to } },
+      _sum: { depositedAmount: true, expectedAmount: true },
+      _count: { _all: true },
+    });
+  });
+
+  // A day with no deposits is zero, never null — a close must not record "unknown".
+  it('depositedInWindow reads an empty day as zero', async () => {
+    cashSettlement.aggregate.mockResolvedValue({
+      _sum: { depositedAmount: null, expectedAmount: null },
+      _count: { _all: 0 },
+    });
+
+    await expect(repo.depositedInWindow('dep-1', new Date(), new Date())).resolves.toEqual({
+      depositedIdr: 0,
+      expectedIdr: 0,
+      settlements: 0,
     });
   });
 

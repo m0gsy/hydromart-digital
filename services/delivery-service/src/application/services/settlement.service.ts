@@ -15,7 +15,7 @@ import { ShiftStatus } from '../../domain/shift';
 import { CashCollectionPort } from '../ports/cash-collection.port';
 import { CourierPayoutPort } from '../ports/courier-payout.port';
 import { DeliveryRepository } from '../ports/delivery.repository';
-import { SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
+import { DepositedCod, SettlementRecord, SettlementRepository } from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 
@@ -149,6 +149,15 @@ export class SettlementService {
   /** Cashier queue for a depot, optionally filtered by status. */
   async searchForDepot(depotId: string, status?: SettlementStatus): Promise<SettlementRecord[]> {
     return this.settlements.search({ depotId, status });
+  }
+
+  /**
+   * COD a depot accepted in [from, to). Read by depot-service when it closes the day's
+   * books: counter cash posts itself into the cashbook, courier COD does not, so without
+   * this the day's takings are only half the money.
+   */
+  async depositedForDepot(depotId: string, from: Date, to: Date): Promise<DepositedCod> {
+    return this.settlements.depositedInWindow(depotId, from, to);
   }
 
   private async resolvable(id: string, user: AuthenticatedUser): Promise<SettlementRecord> {

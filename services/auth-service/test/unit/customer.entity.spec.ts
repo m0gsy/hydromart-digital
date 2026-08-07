@@ -59,6 +59,24 @@ describe('Customer entity', () => {
     expect(() => customer.ensureCanAuthenticate()).toThrow(AccountNotActiveError);
   });
 
+  // Re-hiring: HR sets a resigned employee back to ACTIVE, which lifts the SUSPENDED
+  // login. Without this the person is locked out with nothing on screen to explain it.
+  it('reactivates a suspended account when it is promoted to staff again', () => {
+    const customer = Customer.fromPersistence(
+      baseProps({ status: CustomerStatus.SUSPENDED, role: Role.STAFF_DEPOT }),
+    );
+    customer.promoteToStaff(Role.STAFF_DEPOT, 'depot-1');
+    expect(customer.isActive()).toBe(true);
+  });
+
+  // A deleted account is anonymised; "hire again" must mint a new one, never resurrect it.
+  it('refuses to resurrect a deleted account', () => {
+    const customer = Customer.fromPersistence(baseProps({ status: CustomerStatus.DELETED }));
+    customer.promoteToStaff(Role.STAFF_DEPOT, 'depot-1');
+    expect(customer.isActive()).toBe(false);
+    expect(() => customer.ensureCanAuthenticate()).toThrow(AccountNotActiveError);
+  });
+
   it('links Google identity and fills missing profile fields only', () => {
     const customer = Customer.fromPersistence(
       baseProps({ status: CustomerStatus.ACTIVE, email: 'existing@x.com' }),
@@ -73,5 +91,18 @@ describe('Customer entity', () => {
     const customer = Customer.fromPersistence(baseProps({ status: CustomerStatus.ACTIVE }));
     customer.recordLogin(now);
     expect(customer.lastLoginAt).toEqual(now);
+  });
+});
+
+describe('Customer.markDeleted', () => {
+  it('closes the login for good, and neither setActive nor an invite lifts it', () => {
+    const customer = Customer.fromPersistence(baseProps({ role: Role.HEAD_OFFICE }));
+    customer.markDeleted();
+    expect(customer.status).toBe(CustomerStatus.DELETED);
+
+    customer.setActive(true);
+    expect(customer.status).toBe(CustomerStatus.DELETED);
+    customer.promoteToStaff(Role.HEAD_OFFICE);
+    expect(customer.status).toBe(CustomerStatus.DELETED);
   });
 });

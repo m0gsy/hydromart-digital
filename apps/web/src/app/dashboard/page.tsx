@@ -193,7 +193,11 @@ function TopListsWidgets({ data }: { data: ExecutiveDashboard }) {
             {customers.slice(0, 5).map((c) => (
               <li key={c.customerId} className="flex items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="truncate">
-                  <span className="font-mono text-xs">{c.customerId.slice(0, 8)}</span>
+                  {c.customerName ? (
+                    <span className="font-medium">{c.customerName}</span>
+                  ) : (
+                    <span className="font-mono text-xs">{c.customerId.slice(0, 8)}</span>
+                  )}
                   <span className="ml-2 text-xs text-muted">{t('dashboard.landing.orders', { n: c.orderCount })}</span>
                 </span>
                 <Money amount={c.revenue} className="shrink-0 font-medium" />

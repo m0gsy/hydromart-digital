@@ -35,6 +35,16 @@ export interface ShiftRepository {
   /** The active shift for a depot (its own, else a null-depot default), for late calc. */
   /** `null` = no home depot, so only a network-wide shift can match. */
   findActiveForDepot(depotId: string | null): Promise<Shift | null>;
+  /**
+   * How many things still point at this shift (B2).
+   *
+   * Three of them, because none is a foreign key in the schema:
+   * `ShiftAssignment.shiftId` and `Employee.shiftId` are bare UUID columns, and a rotation
+   * names shifts inside its `pattern` JSON. Deleting a shift they reference does not fail —
+   * it leaves `shiftIdForDay` returning an id `findById` cannot resolve, and the clock-in
+   * time silently drops to another rung of the precedence with nothing recorded anywhere.
+   */
+  countReferences(shiftId: string): Promise<number>;
 
   // ── rotations & assignments (C3) ──────────────────────────────────
   createRotation(data: RotationWrite): Promise<ShiftRotation>;

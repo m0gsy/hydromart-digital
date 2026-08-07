@@ -12,7 +12,7 @@ import {
 
 import { HierarchyService } from '../application/services/hierarchy.service';
 import { HierarchyRepository } from '../application/ports/hierarchy.repository';
-import { InternalOwnedResponseDto } from './dto/responses.generated.dto';
+import { InternalDescribeResponseDto, InternalOwnedResponseDto } from './dto/responses.generated.dto';
 
 export class SetAssistantDto {
   @IsUUID()
@@ -50,6 +50,32 @@ export class HierarchyController {
     @Query('role') role: string,
   ): Promise<{ depotIds: string[] }> {
     return { depotIds: await this.hierarchy.scopedDepotIds(staffId, role ?? '') };
+  }
+
+  /**
+   * The supervision link itself, for services that need to know WHO somebody reports to
+   * rather than which depots they cover — hr-service notifying a leave approver, for one.
+   *
+   * Same internal-key shape as the scope route above, and declared with it so the static
+   * `internal` segment wins over `:staffId`. It exists because this table became the single
+   * place a reporting line is recorded; asking hr-service's own column would read a copy
+   * that no longer gets written.
+   *
+   * K-10 — why this is NOT folded into `internal/scope/:staffId`, which reads the same
+   * table under the same guard. `scope` answers one question with one array and is asked by
+   * every service on every cache miss; this one is a four-query aggregate (superior, direct
+   * reports, granted depots, hierarchy depots) asked rarely, by hr-service, about one named
+   * person. Adding the superior to `scope` would make the hot path pay for the cold one on
+   * every request, to save a route that costs nothing to keep.
+   */
+  @ApiOkResponse({ type: InternalDescribeResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/describe/:staffId')
+  @ApiOperation({ summary: 'Superior, direct reports and depots recorded for one account' })
+  internalDescribe(@Param('staffId', ParseUUIDPipe) staffId: string) {
+    return this.hierarchy.describe(staffId);
   }
 
   // Declared before the `:staffId` routes: `depots` is a static segment and must never be

@@ -220,6 +220,27 @@ export class InMemoryCustomerRepository implements CustomerRepository {
         (!to || p.createdAt < to),
     ).length;
   }
+
+  /**
+   * The guard and the write together, as the port promises (B-4). In-process there is no
+   * concurrency to lose the race to — what the fake has to preserve is that the count is
+   * ACTIVE super admins only, and that a refusal writes nothing.
+   */
+  async markDeletedGuardingLastSuperAdmin(
+    customerId: string,
+  ): Promise<'deleted' | 'last-super-admin' | 'not-found'> {
+    const props = this.rows.get(customerId);
+    if (!props) return 'not-found';
+    if (props.role === Role.SUPER_ADMIN) {
+      const others = [...this.rows.values()].filter(
+        (p) =>
+          p.id !== customerId && p.role === Role.SUPER_ADMIN && p.status === CustomerStatus.ACTIVE,
+      );
+      if (others.length === 0) return 'last-super-admin';
+    }
+    this.rows.set(customerId, { ...props, status: CustomerStatus.DELETED });
+    return 'deleted';
+  }
 }
 
 export class InMemoryOtpTokenRepository implements OtpTokenRepository {

@@ -30,6 +30,7 @@ import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance
 import { HOLIDAY_REPOSITORY, HolidayRepository } from '../ports/holiday.repository';
 import { LEAVE_REPOSITORY, LeaveRepository } from '../ports/leave.repository';
 import { NOTIFICATION_PORT, NotificationPort } from '../ports/notification.port';
+import { SUPERVISION_PORT, SupervisionPort } from '../ports/supervision.port';
 import { EmployeeService } from './employee.service';
 
 export interface SubmitLeaveInput {
@@ -58,6 +59,7 @@ export class LeaveService {
     private readonly config: HrConfigService,
     @Optional() @Inject(HOLIDAY_REPOSITORY) private readonly holidays?: HolidayRepository,
     @Optional() @Inject(NOTIFICATION_PORT) private readonly notifications?: NotificationPort,
+    @Optional() @Inject(SUPERVISION_PORT) private readonly supervision?: SupervisionPort,
   ) {}
 
   // ── employee side ───────────────────────────────────────────────────
@@ -293,10 +295,21 @@ export class LeaveService {
     );
   }
 
-  /** Fail-open by construction: the notification port itself never throws (see A2). */
+  /**
+   * Fail-open by construction: the notification port itself never throws (see A2), and the
+   * supervision lookup swallows its own failures.
+   *
+   * The reporting line comes from depot-service's supervision table, not from
+   * `Employee.supervisorId`. That column stopped being written when `/hq/hierarchy` became
+   * the single place a superior is recorded; reading it here would notify whoever happened
+   * to be in an older copy. Approval rights are unaffected — leave is approved by role
+   * (MANAGER/HR/SUPER_ADMIN) plus the depot scope, never by this link.
+   */
   private async notifySupervisor(employee: Employee, request: LeaveRequest): Promise<void> {
-    if (!this.notifications || !employee.supervisorId) return;
-    const supervisor = await this.employees.findByIdInternal(employee.supervisorId);
+    if (!this.notifications || !this.supervision || !employee.authSubjectId) return;
+    const superiorAccountId = await this.supervision.superiorOf(employee.authSubjectId);
+    if (!superiorAccountId) return;
+    const supervisor = await this.employees.findByAuthSubjectId(superiorAccountId);
     if (!supervisor?.authSubjectId) return;
     await this.notifications.notify(
       'LEAVE_SUBMITTED',

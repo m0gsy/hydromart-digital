@@ -1,4 +1,10 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import { Prisma, Shift, ShiftAssignment, ShiftRotation } from '../../../prisma/generated/client';
@@ -70,10 +76,31 @@ export class ShiftService {
     });
   }
 
+  /**
+   * B2: a shift in use is not deletable.
+   *
+   * `ShiftAssignment.shiftId` and `Employee.shiftId` are bare UUID columns with no foreign
+   * key, and a rotation names shifts inside its `pattern` JSON — so deleting "Pagi" used to
+   * succeed and leave every row pointing at it dangling. `shiftIdForDay` then returned an id
+   * `findById` could not resolve, `assignedShiftStart` became null, and the clock-in time
+   * dropped to the depot shift and then to `workStartTime`. Lateness — and `lateMinutes`,
+   * which reaches payroll — changed for everyone on that shift, with no trace and no screen
+   * saying so. The UI's own answer for the dangling id is the string "shift terhapus".
+   *
+   * Deactivating is the intended way out and already exists on `update`, so the refusal
+   * names it: history keeps working, and nobody's past attendance is re-judged.
+   */
   async remove(user: AuthenticatedUser, id: string): Promise<void> {
     const shift = await this.repo.findById(id);
     if (!shift) throw new NotFoundException('Shift tidak ditemukan');
     if (shift.depotId) assertDepotAccess(user, shift.depotId);
+    const references = await this.repo.countReferences(id);
+    if (references > 0) {
+      throw new ConflictException(
+        `Shift ini masih dipakai ${references} data (jadwal, rotasi, atau karyawan). ` +
+          'Nonaktifkan shift ini daripada menghapusnya.',
+      );
+    }
     await this.repo.delete(id);
   }
 
@@ -85,10 +112,12 @@ export class ShiftService {
 
   async createRotation(user: AuthenticatedUser, input: RotationInput): Promise<ShiftRotation> {
     if (input.depotId) assertDepotAccess(user, input.depotId);
+    const pattern = this.cleanPattern(input.pattern);
+    await this.assertPatternShiftsExist(user, pattern);
     return this.repo.createRotation({
       name: input.name,
       depotId: input.depotId ?? null,
-      pattern: this.cleanPattern(input.pattern) as Prisma.InputJsonValue,
+      pattern: pattern as Prisma.InputJsonValue,
       active: input.active ?? true,
     });
   }
@@ -102,13 +131,13 @@ export class ShiftService {
     if (!rotation) throw new NotFoundException('Rotasi shift tidak ditemukan');
     if (rotation.depotId) assertDepotAccess(user, rotation.depotId);
     if (input.depotId) assertDepotAccess(user, input.depotId);
+    const pattern = input.pattern !== undefined ? this.cleanPattern(input.pattern) : undefined;
+    if (pattern) await this.assertPatternShiftsExist(user, pattern);
     return this.repo.updateRotation(id, {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.depotId !== undefined ? { depotId: input.depotId } : {}),
       ...(input.active !== undefined ? { active: input.active } : {}),
-      ...(input.pattern !== undefined
-        ? { pattern: this.cleanPattern(input.pattern) as Prisma.InputJsonValue }
-        : {}),
+      ...(pattern ? { pattern: pattern as Prisma.InputJsonValue } : {}),
     });
   }
 
@@ -144,6 +173,31 @@ export class ShiftService {
   async listAssignments(user: AuthenticatedUser, employeeId: string): Promise<ShiftAssignment[]> {
     await this.employees.getById(user, employeeId); // 404 + depot check
     return this.repo.listAssignments(employeeId);
+  }
+
+  /**
+   * B3: every shift a pattern names must exist, and be one this caller may use.
+   *
+   * `cleanPattern` only ever tidied the KEYS. `assign` in this same file already validates
+   * that a `shiftId` exists — so one write path checked and the other did not, and a
+   * rotation could point at a random id, another depot's shift, or one already deleted. The
+   * consequence is B2's: `shiftIdForDay` returns an id, `findById` returns null, and the
+   * clock-in time silently falls through to a different rung with nothing recorded.
+   *
+   * A null value is a day off and is skipped. Ids are de-duplicated first — a weekly pattern
+   * usually names two or three shifts across seven days.
+   */
+  private async assertPatternShiftsExist(
+    user: AuthenticatedUser,
+    pattern: Record<string, string | null>,
+  ): Promise<void> {
+    const ids = [...new Set(Object.values(pattern).filter((v): v is string => v !== null))];
+    for (const id of ids) {
+      const shift = await this.repo.findById(id);
+      if (!shift) throw new NotFoundException(`Shift ${id} tidak ditemukan`);
+      // A network-wide shift (null depot) is usable by everyone; a depot's own is not.
+      if (shift.depotId) assertDepotAccess(user, shift.depotId);
+    }
   }
 
   /** Weekday keys only, blank shift ids normalised to null (a day off). */

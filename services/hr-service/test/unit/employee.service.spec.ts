@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
@@ -21,6 +22,13 @@ const manager = (depotId: string): AuthenticatedUser => ({
 });
 
 class FakeRepo implements EmployeeRepository {
+  /** HQ deleted the account behind this employee (Fase 6). */
+  anonymisedAccounts: string[] = [];
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    this.anonymisedAccounts.push(authSubjectId);
+    return 1;
+  }
+
   /** Retention report: departed rows dormant since before the cutoff. */
   retentionEligible = 0;
   /** Retention enforcement: rows anonymised / embeddings purged, recorded for assertions. */
@@ -66,6 +74,24 @@ class FakeRepo implements EmployeeRepository {
   }
   async findByNik(nik: string): Promise<Employee | null> {
     return this.rows.find((r) => r.nik === nik) ?? null;
+  }
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    if (keys.employeeCode && (await this.findByEmployeeCode(keys.employeeCode))) return 'employeeCode';
+    if (keys.nik && (await this.findByNik(keys.nik))) return 'nik';
+    return (await this.findByPhone(keys.phone)) ? 'phone' : null;
+  }
+  async findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    return {
+      linked: await this.findByAuthSubjectId(authSubjectId),
+      oldestByPhone: await this.findByPhone(phone),
+    };
   }
   async listHistory(employeeId: string): Promise<EmploymentHistory[]> {
     return this.history
@@ -122,26 +148,128 @@ const baseInput = {
   phone: '0811',
   depotId: DEPOT_A,
   position: 'Kurir',
+  // Required since "+ Tambah" mints the login too: an employee with no jabatan is somebody
+  // the account could not be created for.
+  role: 'STAFF_DEPOT' as const,
   employmentStatus: 'PROBATION' as const,
   joinDate: '2026-01-01',
   salaryType: 'DAILY' as const,
   dailyRate: 50000,
 };
 
+/** A row from before this release: employee exists, account never did. */
+function unlink(repo: FakeRepo, id: string): void {
+  const row = repo.rows.find((r) => r.id === id);
+  if (row) row.authSubjectId = null;
+}
+
 function make() {
   const repo = new FakeRepo();
   const identity = fakeIdentity();
-  return { repo, identity, svc: new EmployeeService(repo, identity) };
+  // depot-service's supervision table, where a reporting line lives now.
+  const supervision = {
+    links: [] as { staff: string; superior: string }[],
+    async superiorOf(staff: string) {
+      return supervision.links.find((l) => l.staff === staff)?.superior ?? null;
+    },
+    async setSuperior(staff: string, superior: string) {
+      supervision.links.push({ staff, superior });
+    },
+  };
+  return {
+    repo,
+    identity,
+    supervision,
+    svc: new EmployeeService(repo, identity, undefined, supervision),
+  };
 }
 
 describe('EmployeeService (M1)', () => {
   it('mints a sequential HR-#### code and a HIRED history row on create', async () => {
     const { repo, svc } = make();
     const a = await svc.create(hr, baseInput);
-    const b = await svc.create(hr, { ...baseInput, fullName: 'Siti' });
+    const b = await svc.create(hr, { ...baseInput, fullName: 'Siti', phone: '0812' });
     expect(a.employeeCode).toBe('HR-0001');
     expect(b.employeeCode).toBe('HR-0002');
     expect(repo.history[0]).toMatchObject({ changeType: 'HIRED' });
+  });
+
+  // "+ Tambah" used to write an employee row and nothing else, so the person existed in HR
+  // and could not log in anywhere — the single biggest way the two lists disagreed.
+  it('mints the login account when adding an employee, and links it', async () => {
+    const { identity, svc } = make();
+
+    const e = await svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' });
+
+    expect(identity.calls).toEqual([
+      { phone: baseInput.phone, role: 'KEPALA_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+    ]);
+    expect(e.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
+  });
+
+  // Fail hard, like the import path: an employee row with no account is somebody who
+  // cannot clock in, and nothing downstream would notice.
+  it('writes no employee row at all when auth-service refuses', async () => {
+    const { repo, identity, svc } = make();
+    identity.fail(new Error('auth down'));
+
+    await expect(svc.create(hr, { ...baseInput, role: 'KEPALA_DEPOT' })).rejects.toThrow('auth down');
+    expect(repo.rows).toHaveLength(0);
+  });
+
+  // The pre-check matters more than it looks: without it the NIK collision surfaces at the
+  // employee write, AFTER the account was minted, leaving an orphan staff login nobody
+  // recorded anywhere.
+  it('rejects a duplicate NIK before it provisions anything', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', nik: '3201010101010001' });
+    identity.calls.length = 0;
+
+    await expect(
+      svc.create(hr, {
+        ...baseInput,
+        role: 'STAFF_DEPOT',
+        phone: '0899',
+        nik: '3201010101010001',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('rejects a second employee on a phone that already has one, before provisioning', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
+    identity.calls.length = 0;
+
+    await expect(svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('rejects a supplied staff code that is already taken, before provisioning', async () => {
+    const { identity, svc } = make();
+    await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', employeeCode: 'STAFF-7' });
+    identity.calls.length = 0;
+
+    await expect(
+      svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT', phone: '0899', employeeCode: 'staff-7' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
+  // The import provisions before it calls create(); create() must not mint a second one.
+  it('uses the account the caller already provisioned instead of minting another', async () => {
+    const { identity, svc } = make();
+
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    expect(identity.calls).toEqual([]);
+    expect(e.authSubjectId).toBe('11111111-1111-4111-8111-111111111111');
   });
 
   // The gap this closes: a promotion used to change the title and leave the login on the
@@ -167,10 +295,247 @@ describe('EmployeeService (M1)', () => {
     expect(identity.roleCalls).toHaveLength(1);
   });
 
-  it('leaves the login alone for an employee with no account', async () => {
+  // Used to pass silently: no account, no call, no error — the promotion simply did not
+  // happen and nothing said so. A refusal is the only outcome that reaches a human.
+  it('refuses a jabatan change for an employee with no login account', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.roleCalls.length = 0;
+
+    await expect(svc.update(hr, e.id, { role: 'KEPALA_DEPOT' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(identity.roleCalls).toHaveLength(0);
+    // The employee row must not carry the new jabatan either — that is the disagreement
+    // between title and token this whole change exists to prevent.
+    expect((await svc.getById(hr, e.id)).role).toBe('STAFF_DEPOT');
+  });
+
+  // Somebody who resigned on Friday could still open the app on Monday: the employee row
+  // said RESIGNED and the login knew nothing about it.
+  it('switches the login off when the employee stops being active, and back on', async () => {
     const { identity, svc } = make();
-    const e = await svc.create(hr, { ...baseInput, role: 'STAFF_DEPOT' });
-    await svc.update(hr, e.id, { role: 'KEPALA_DEPOT' });
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { status: 'RESIGNED' });
+    expect(identity.activeCalls).toEqual([
+      { customerId: '11111111-1111-4111-8111-111111111111', active: false },
+    ]);
+
+    await svc.update(hr, e.id, { status: 'ACTIVE' });
+    expect(identity.activeCalls[1]).toEqual({
+      customerId: '11111111-1111-4111-8111-111111111111',
+      active: true,
+    });
+  });
+
+  // The half auth-service calls: writes, says nothing back. Answering would bounce the same
+  // change between the two services forever.
+  it('mirrors a console switch-off without calling auth-service back', async () => {
+    const { repo, identity, svc } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    identity.activeCalls.length = 0;
+
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', false),
+    ).resolves.toEqual({ updated: true });
+
+    expect(repo.rows[0]?.status).toBe('INACTIVE');
+    expect(identity.activeCalls).toEqual([]);
+  });
+
+  it('leaves RESIGNED alone and reports nothing changed for an account it does not know', async () => {
+    const { repo, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    await svc.update(hr, e.id, { status: 'RESIGNED' });
+
+    // A plain "switch off" must not overwrite a departure with a weaker status.
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', false),
+    ).resolves.toEqual({ updated: false });
+    expect(repo.rows[0]?.status).toBe('RESIGNED');
+
+    // auth-service also holds identities that were never employees.
+    await expect(
+      svc.setActiveInternal('22222222-2222-4222-8222-222222222222', false),
+    ).resolves.toEqual({ updated: false });
+  });
+
+  // Moving a depot pushes the new depot onto the login, and assignRole carries the role the
+  // token must end up with. A row with an account but no jabatan has nothing to send, and
+  // guessing one would hand somebody access nobody chose.
+  it('refuses to move an accounted employee that has no jabatan to send', async () => {
+    const { svc, repo } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    repo.rows[0].role = null;
+
+    await expect(svc.update(hr, e.id, { depotId: DEPOT_B })).rejects.toThrow(/belum punya jabatan/);
+  });
+
+  // Re-sending a switch the record already agrees with must not write, or every console
+  // save would add a history row saying nothing happened.
+  it('reports nothing changed when the record already holds that status', async () => {
+    const { svc, repo } = make();
+    await svc.create(hr, {
+      ...baseInput,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    // The DB default the fake repo does not apply.
+    repo.rows[0].status = 'ACTIVE';
+
+    await expect(
+      svc.setActiveInternal('11111111-1111-4111-8111-111111111111', true),
+    ).resolves.toEqual({ updated: false });
+  });
+
+  // The unique keys the DB enforces, each turned into a sentence the person uploading the
+  // file can act on. A raw P2002 tells them nothing about which column collided.
+  describe('duplicate keys on create', () => {
+    it('names the NIK when the pre-check catches it', async () => {
+      const { svc } = make();
+      const nik = '3201010101010001';
+      await svc.create(hr, { ...baseInput, nik });
+
+      await expect(svc.create(hr, { ...baseInput, phone: '0812', nik })).rejects.toThrow(
+        /NIK sudah dipakai/,
+      );
+    });
+
+    it('refuses a supplied staff code the pre-check already knows about', async () => {
+      const { svc, repo } = make();
+      await svc.create(hr, { ...baseInput, employeeCode: 'STAFF-7' });
+
+      await expect(
+        svc.create(hr, { ...baseInput, phone: '0812', employeeCode: 'staff-7' }),
+      ).rejects.toThrow(/Kode karyawan sudah dipakai/);
+      expect(repo.rows).toHaveLength(1);
+    });
+
+    // The race the pre-check cannot win: two uploads a millisecond apart both read "free"
+    // and the index decides. The message has to be the same one, or the same duplicate
+    // reads as a database error to whoever uploaded second.
+    describe('when the index, not the pre-check, is what refuses', () => {
+      const racing = () => {
+        const made = make();
+        // Both rows look free at check time.
+        made.repo.findConflicting = async () => null;
+        return made;
+      };
+
+      it('still names the NIK', async () => {
+        const { svc } = racing();
+        const nik = '3201010101010001';
+        await svc.create(hr, { ...baseInput, nik });
+
+        await expect(svc.create(hr, { ...baseInput, phone: '0812', nik })).rejects.toThrow(
+          /NIK sudah dipakai/,
+        );
+      });
+
+      // A code the file supplied is a fact about that row. Retrying past it would mint
+      // HR-0042 for a row that said STAFF-7 — a code nobody typed and nobody expects.
+      it('refuses a supplied staff code rather than minting a different one', async () => {
+        const { svc, repo } = racing();
+        await svc.create(hr, { ...baseInput, employeeCode: 'STAFF-7' });
+
+        await expect(
+          svc.create(hr, { ...baseInput, phone: '0812', employeeCode: 'staff-7' }),
+        ).rejects.toThrow(/Kode karyawan sudah dipakai/);
+        expect(repo.rows).toHaveLength(1);
+      });
+
+    });
+  });
+
+  // The repair path for rows written before "+ Tambah" minted accounts, and the button
+  // behind the reconciliation badge on /hr/employees.
+  it('creates the missing account for an existing employee, once', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.calls.length = 0;
+
+    const linked = await svc.createAccountFor(hr, e.id);
+    expect(identity.calls).toEqual([
+      { phone: baseInput.phone, role: 'STAFF_DEPOT', fullName: baseInput.fullName, depotId: DEPOT_A },
+    ]);
+    expect(linked.authSubjectId).toBe('00000000-0000-4000-8000-000000000002');
+
+    // Clicking twice must not mint a second account.
+    identity.calls.length = 0;
+    await svc.createAccountFor(hr, e.id);
+    expect(identity.calls).toEqual([]);
+  });
+
+  it('refuses to mint an account for an employee with no jabatan', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: undefined,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    unlink(repo, e.id);
+    identity.calls.length = 0;
+
+    await expect(svc.createAccountFor(hr, e.id)).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.calls).toEqual([]);
+  });
+
+  // Moving a courier between depots without touching their title left the ACCOUNT at the
+  // old depot — and once the dispatch roster is depot-filtered, that courier simply
+  // vanishes from their new depot's dropdown.
+  it('pushes a depot move onto the login even when the jabatan does not change', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { depotId: DEPOT_B });
+
+    expect(identity.roleCalls).toEqual([
+      {
+        customerId: '11111111-1111-4111-8111-111111111111',
+        role: 'STAFF_DEPOT',
+        depotId: DEPOT_B,
+      },
+    ]);
+  });
+
+  it('says nothing to auth when neither jabatan nor depot moved', async () => {
+    const { identity, svc } = make();
+    const e = await svc.create(hr, {
+      ...baseInput,
+      role: 'STAFF_DEPOT',
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await svc.update(hr, e.id, { position: 'Kurir Senior', depotId: DEPOT_A });
+
+    expect(identity.roleCalls).toEqual([]);
+  });
+
+  it('leaves an employee with no account alone when the edit does not touch the jabatan', async () => {
+    const { repo, identity, svc } = make();
+    const e = await svc.create(hr, baseInput);
+    unlink(repo, e.id);
+    identity.roleCalls.length = 0;
+
+    await svc.update(hr, e.id, { position: 'Kurir Senior' });
     expect(identity.roleCalls).toHaveLength(0);
   });
 
@@ -218,7 +583,7 @@ describe('EmployeeService (M1)', () => {
   it('scopes list to a depot manager’s own depot', async () => {
     const { svc } = make();
     await svc.create(hr, baseInput);
-    await svc.create(hr, { ...baseInput, depotId: DEPOT_B });
+    await svc.create(hr, { ...baseInput, phone: '0812', depotId: DEPOT_B });
     const own = await svc.list(manager(DEPOT_A), { page: 1, pageSize: 20 });
     expect(own.total).toBe(1);
     expect(own.rows[0].depotId).toBe(DEPOT_A);
@@ -294,7 +659,9 @@ describe('EmployeeService.importMany', () => {
     // Same phone twice -> auth-service hands back the same account both times.
     const svc = new EmployeeService(repo, {
       provisionStaff: async () => ({ customerId: 'auth-same' }),
+      provisionManagedStaff: async () => ({ customerId: 'auth-same' }),
       assignRole: async () => {},
+      setStaffActive: async () => {},
     });
 
     await svc.importMany(hr, [row]);
@@ -323,6 +690,25 @@ describe('EmployeeService.importMany', () => {
 
     expect(summary).toMatchObject({ created: 0, failed: 1 });
     expect(repo.rows).toHaveLength(0);
+  });
+
+  /*
+   * B-2. `provisionStaff` promotes BY PHONE, so it must never run before hr-service has
+   * decided the row is importable at all. One mistyped digit landing on somebody who is
+   * already an employee used to mint the promotion first and reject the row second — the
+   * summary said `skipped`, and a promotion nobody asked for stayed.
+   */
+  it('asks auth-service for nothing when the row collides with an employee already here', async () => {
+    const { repo, identity, svc } = make();
+    await svc.importMany(hr, [row]);
+    const callsAfterFirst = identity.calls.length;
+
+    const second = await svc.importMany(hr, [{ ...row, fullName: 'Orang Lain' }]);
+
+    expect(second).toMatchObject({ created: 0, skipped: 1, failed: 0 });
+    // The assertion that matters: no second promotion for that phone.
+    expect(identity.calls).toHaveLength(callsAfterFirst);
+    expect(repo.rows).toHaveLength(1);
   });
 
   it('returns an empty summary for an empty batch', async () => {
@@ -360,8 +746,11 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     expect(repo.rows).toHaveLength(1);
   });
 
+  // The link now lands in depot-service's supervision table, keyed by ACCOUNT, instead of
+  // Employee.supervisorId — one place a reporting line is recorded, the one /hq/hierarchy
+  // draws and the leave notifications read.
   it('resolves a supervisor who only appears further down the same file', async () => {
-    const { repo, svc } = make();
+    const { repo, supervision, svc } = make();
 
     const summary = await svc.importMany(hr, [
       { ...row, fullName: 'Anak Buah', supervisorCode: 'HR-0002' },
@@ -369,7 +758,11 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     ]);
 
     expect(summary).toMatchObject({ created: 2, failed: 0 });
-    expect(repo.rows[0]?.supervisorId).toBe(repo.rows[1]?.id);
+    expect(supervision.links).toEqual([
+      { staff: repo.rows[0]?.authSubjectId, superior: repo.rows[1]?.authSubjectId },
+    ]);
+    // The old column is left alone: this release stops writing it, the drop comes later.
+    expect(repo.rows[0]?.supervisorId).toBeNull();
   });
 
   it('keeps the row but says so when the supervisor code does not exist', async () => {
@@ -440,6 +833,43 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     expect(repo.rows[0]?.phone).toBe('0899');
   });
 
+  // "Sudah saya upload dari HR kok orangnya tidak kebaca": the row was added by hand, so it
+  // has no login, and UPSERT reported `updated` every single time without ever minting one.
+  it('UPSERT mints the missing account for a row that was added by hand', async () => {
+    const { repo, identity, svc } = make();
+    const byHand = await svc.create(hr, {
+      ...baseInput,
+      role: undefined,
+      authSubjectId: '11111111-1111-4111-8111-111111111111',
+    });
+    unlink(repo, byHand.id); // a row from before "+ Tambah" minted accounts
+    identity.calls.length = 0;
+
+    const summary = await svc.importMany(hr, [{ ...row, position: 'Supervisor' }], 'UPSERT');
+
+    expect(summary).toMatchObject({ created: 0, updated: 1, failed: 0 });
+    expect(identity.calls).toEqual([
+      { phone: row.phone, role: 'KEPALA_DEPOT', fullName: row.fullName, depotId: DEPOT_A },
+    ]);
+    expect(repo.rows).toHaveLength(1);
+    expect(repo.rows[0]?.id).toBe(byHand.id);
+    expect(repo.rows[0]?.authSubjectId).toBe('00000000-0000-4000-8000-000000000001');
+    // Said out loud, because "updated" alone reads as "nothing was missing".
+    expect(summary.results[0]?.message).toBe('Akun login dibuat');
+  });
+
+  it('UPSERT still refuses to re-role an account that already exists', async () => {
+    const { identity, svc } = make();
+    await svc.importMany(hr, [row]); // creates employee + account
+    identity.calls.length = 0;
+
+    await svc.importMany(hr, [{ ...row, role: 'STAFF_DEPOT' }], 'UPSERT');
+
+    // One spreadsheet column must not change what somebody may do in 18 services.
+    expect(identity.calls).toEqual([]);
+    expect(identity.roleCalls).toEqual([]);
+  });
+
   it('UPSERT creates the row when nothing matches', async () => {
     const { repo, svc } = make();
 
@@ -486,6 +916,126 @@ describe('EmployeeService.importMany — codes, supervisors and upsert', () => {
     await expect(
       svc.create(hr, { ...baseInput, phone: '0899', nik: '3201010101010003' }),
     ).rejects.toThrow('NIK sudah dipakai');
+  });
+});
+
+/*
+ * The staff console invited somebody and hr-service is being told. It adopts an employee
+ * row that has no account yet — but `Employee.phone` has no `@unique`, so the row it finds
+ * is "the oldest with that phone", which is not necessarily this person.
+ */
+describe('EmployeeService.provisionFromInvite (B-3)', () => {
+  const invite = {
+    ...baseInput,
+    authSubjectId: '00000000-0000-4000-8000-0000000000aa',
+  };
+
+  /** A row typed in by hand, or imported before the two sides created each other. */
+  function seedUnlinked(repo: FakeRepo, overrides: Partial<Employee> = {}) {
+    const row = {
+      id: 'emp-seeded',
+      employeeCode: 'HR-0900',
+      fullName: 'Budi',
+      phone: '0811',
+      depotId: DEPOT_A,
+      role: 'KEPALA_DEPOT',
+      status: 'ACTIVE',
+      authSubjectId: null,
+      ...overrides,
+    } as unknown as Employee;
+    repo.rows.push(row);
+    return row;
+  }
+
+  /*
+   * The bug CI's first e2e run found, and the one these fakes are structurally blind to:
+   * `createdBy`, `updatedBy` and `EmploymentHistory.createdBy` are all `@db.Uuid`, and this
+   * path acts as a system actor whose `sub` is the string 'system'. Postgres rejects that
+   * outright, so EVERY staff invite came back 500 from auth-service — while the fake repo,
+   * which only pushes the row into an array, accepted it happily.
+   *
+   * `null` is the honest author: the platform wrote this, not a person.
+   */
+  it('records no author when the platform, not a person, opened the record', async () => {
+    const { repo, svc } = make();
+
+    await svc.provisionFromInvite(invite);
+
+    expect(repo.rows[0]).toMatchObject({ createdBy: null, updatedBy: null });
+    expect(repo.history[0].createdBy).toBeNull();
+  });
+
+  it('still names a real person when one is the author', async () => {
+    const { repo, svc } = make();
+    // A real token's `sub` IS an account id — that is what the column is typed for.
+    const person = { ...hr, sub: '00000000-0000-4000-8000-0000000000bb' };
+
+    await svc.create(person, baseInput);
+
+    expect(repo.rows[0]).toMatchObject({ createdBy: person.sub, updatedBy: person.sub });
+  });
+
+  it('adopts an unlinked row with the same phone, and records that it did', async () => {
+    const { repo, svc } = make();
+    const existing = seedUnlinked(repo);
+
+    const adopted = await svc.provisionFromInvite(invite);
+
+    expect(adopted.id).toBe(existing.id);
+    expect(adopted.authSubjectId).toBe(invite.authSubjectId);
+    expect(repo.history).toHaveLength(1);
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  /*
+   * The write was an update, so it raised no P2002: the other account's link simply stopped
+   * existing, with nothing anywhere saying it ever had. Refusing is the right answer — two
+   * employees on one phone is ordinary (a family number), and which of them this invite
+   * means is not something a service may guess.
+   */
+  it('never steals a row that already belongs to another account', async () => {
+    const { repo, svc } = make();
+    const other = seedUnlinked(repo, { authSubjectId: 'auth-someone-else' });
+
+    await expect(svc.provisionFromInvite(invite)).rejects.toThrow('Nomor telepon');
+
+    expect(repo.rows.find((r) => r.id === other.id)?.authSubjectId).toBe('auth-someone-else');
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  // A RESIGNED employee behind an ACTIVE login is the exact half-a-person this release
+  // exists to remove — arriving through the one path meant to fix it.
+  it('never adopts a resigned row', async () => {
+    const { repo, svc } = make();
+    const gone = seedUnlinked(repo, { status: 'RESIGNED' });
+
+    await expect(svc.provisionFromInvite(invite)).rejects.toThrow('Nomor telepon');
+
+    expect(repo.rows.find((r) => r.id === gone.id)?.authSubjectId).toBeNull();
+  });
+
+  it('is still idempotent on authSubjectId — a repeat invite writes nothing', async () => {
+    const { repo, svc } = make();
+    const first = await svc.provisionFromInvite(invite);
+    const second = await svc.provisionFromInvite({ ...invite, fullName: 'Nama Lain' });
+
+    expect(second.id).toBe(first.id);
+    expect(repo.rows).toHaveLength(1);
+  });
+});
+
+/*
+ * B-7. `createAccountFor` keys the "buatkan akun" badge on "has a role, no account", so a
+ * role left behind by anonymisation lit that badge forever — and clicking it POSTed
+ * `{phone: '-', fullName: '[REDACTED]', role}` at auth-service.
+ */
+describe('EmployeePrismaRepository.anonymiseByAuthSubjectId (B-7)', () => {
+  it('clears the jabatan along with the identity', () => {
+    const source = readFileSync('src/infrastructure/prisma/employee.prisma.repository.ts', 'utf8');
+    const body = source.slice(source.indexOf('async anonymiseByAuthSubjectId'));
+    const update = body.slice(0, body.indexOf('return 1;'));
+    expect(update).toContain('role: null');
+    expect(update).toContain('authSubjectId: null');
   });
 });
 
@@ -575,5 +1125,85 @@ describe('EmployeeService salary, dates and code lookup', () => {
     await expect(svc.getById(manager(DEPOT_B), e.id)).rejects.toBeInstanceOf(ForbiddenException);
     await expect(svc.findByIdInternal(e.id)).resolves.toMatchObject({ id: e.id });
     await expect(svc.findByIdInternal('missing')).resolves.toBeNull();
+  });
+});
+
+/*
+ * K-4: `provision-many`. Sequential on purpose (the HR-#### allocator retries on
+ * collision), so what has to hold is that a row which throws fails only itself and its
+ * reason travels back — auth-service has already minted that account and needs to say
+ * which half is missing.
+ */
+describe('EmployeeService.provisionManyFromInvite (K-4)', () => {
+  const invite = (over: Record<string, unknown> = {}) => ({
+    ...baseInput,
+    authSubjectId: '00000000-0000-4000-8000-0000000000b1',
+    ...over,
+  });
+
+  it('reports one verdict per row, in order', async () => {
+    const { repo, svc } = make();
+    const out = await svc.provisionManyFromInvite([
+      invite({ authSubjectId: 'auth-1', phone: '0811' }),
+      invite({ authSubjectId: 'auth-2', phone: '0812' }),
+    ]);
+    expect(out.results).toEqual([
+      { index: 0, ok: true, message: null },
+      { index: 1, ok: true, message: null },
+    ]);
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  it('fails only the bad row, and says why', async () => {
+    const { repo, svc } = make();
+    const out = await svc.provisionManyFromInvite([
+      invite({ authSubjectId: 'auth-1', phone: '0811' }),
+      // Same phone: rejected by the uniqueness check, so this row alone fails.
+      invite({ authSubjectId: 'auth-2', phone: '0811' }),
+    ]);
+    expect(out.results[0]).toMatchObject({ index: 0, ok: true });
+    expect(out.results[1]).toMatchObject({ index: 1, ok: false });
+    expect(out.results[1]?.message).toContain('Nomor telepon');
+    expect(repo.rows).toHaveLength(1);
+  });
+
+  it('returns an empty verdict list for an empty file', async () => {
+    const { svc } = make();
+    await expect(svc.provisionManyFromInvite([])).resolves.toEqual({ results: [] });
+  });
+});
+
+describe('EmployeeService uniqueness and account plumbing', () => {
+  it('refuses a duplicate NIK by name', async () => {
+    const { svc } = make();
+    await svc.create(hr, { ...baseInput, nik: '3201010101010009' });
+    await expect(
+      svc.create(hr, { ...baseInput, phone: '0899', nik: '3201010101010009' }),
+    ).rejects.toThrow('NIK sudah dipakai');
+  });
+
+  it('refuses to mint an account for a row with no jabatan', async () => {
+    const { svc } = make();
+    await expect(
+      svc.create(hr, { ...baseInput, role: undefined }),
+    ).rejects.toThrow('Jabatan');
+  });
+
+  it('scrubs the employee behind a deleted account, and reports a miss as zero', async () => {
+    const { repo, svc } = make();
+    await expect(svc.anonymiseByAccount('auth-x')).resolves.toEqual({ anonymised: 1 });
+    expect(repo.anonymisedAccounts).toContain('auth-x');
+  });
+
+  it('resolves an employee by the account behind them', async () => {
+    const { svc } = make();
+    const created = await svc.create(hr, { ...baseInput, authSubjectId: 'auth-self' });
+    await expect(svc.findByAuthSubjectId('auth-self')).resolves.toMatchObject({ id: created.id });
+  });
+
+  // The other direction of the ping-pong guard: nothing to update is not an error.
+  it('reports setActiveInternal on an unknown account as no update', async () => {
+    const { svc } = make();
+    await expect(svc.setActiveInternal('auth-nobody', false)).resolves.toEqual({ updated: false });
   });
 });

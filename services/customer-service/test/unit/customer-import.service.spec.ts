@@ -62,6 +62,51 @@ const RESELLER = {
   joinDate: '2026-01-01',
 };
 
+// §I: the counter buyer, resolved server-side. This used to live in the POS page's
+// browser, so any other client posting /orders/walk-in created nobody.
+describe('CustomerImportService.resolveByPhone', () => {
+  const build = (status: 'created' | 'pending' | 'active') => {
+    const identity = new FakeIdentity(() => ({ customerId: 'cust-9', status }));
+    const profiles = makeProfiles();
+    return {
+      identity,
+      profiles,
+      svc: new CustomerImportService(identity, profiles as never, {} as never, {} as never),
+    };
+  };
+
+  it('pre-registers the phone and points the new account at the selling depot', async () => {
+    const { identity, profiles, svc } = build('created');
+
+    await expect(svc.resolveByPhone('0811', 'Budi', DEPOT_A)).resolves.toEqual({
+      customerId: 'cust-9',
+      status: 'created',
+    });
+    expect(identity.calls).toEqual([{ phone: '0811', fullName: 'Budi' }]);
+    expect(profiles.upsertFavoriteDepot).toHaveBeenCalledWith('cust-9', DEPOT_A);
+  });
+
+  // An account somebody already claimed belongs to that person: the depot that happens to
+  // sell them water today must not repoint their home depot.
+  it('leaves an already-active account depot alone', async () => {
+    const { profiles, svc } = build('active');
+
+    await expect(svc.resolveByPhone('0811', 'Budi', DEPOT_A)).resolves.toMatchObject({
+      status: 'active',
+    });
+    expect(profiles.upsertFavoriteDepot).not.toHaveBeenCalled();
+  });
+
+  it('resolves an identity without claiming a depot when none is given', async () => {
+    const { profiles, svc } = build('pending');
+
+    await expect(svc.resolveByPhone('0811', 'Budi')).resolves.toMatchObject({
+      customerId: 'cust-9',
+    });
+    expect(profiles.upsertFavoriteDepot).not.toHaveBeenCalled();
+  });
+});
+
 describe('CustomerImportService.importCustomers', () => {
   it('pre-registers each phone and points the profile at the importing depot', async () => {
     const identity = new FakeIdentity();

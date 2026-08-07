@@ -21,6 +21,8 @@ export const envValidationSchema = Joi.object({
   // shifts can be opened but never closed — deliberate: a shift close that guesses the
   // expected cash would accuse or absolve a real person on made-up numbers.
   PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Courier COD totals for the daily close. Blank = a day cannot be closed (fail closed).
+  DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
   PRICING_TZ: Joi.string().default('Asia/Jakarta'),
   // Per-gallon deposit (IDR) a courier-recorded return refunds (design 2e). Tune per
   // business; the courier never enters the amount — the server computes deposit × qty.

@@ -525,7 +525,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Deliver
     MAX_ACTIVE_DELIVERIES_PER_DRIVER: '1',
     SHIFT_CHECKIN_RADIUS_M: '200',
     SHIFT_LENGTH_HOURS: '8',
-    SHIFT_BREAK_QUOTA_MINUTES: '30',
+    SHIFT_BREAK_QUOTA_MINUTES: '60',
     NO_SHOW_MIN_CONTACT_ATTEMPTS: '2',
     NO_SHOW_MIN_WAIT_SECONDS: '300',
     DELIVERY_SLA_MINUTES: '120',
@@ -592,6 +592,23 @@ export class InMemorySettlementRepository implements SettlementRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((r) => clone(r));
   }
+  /** COD the cashier accepted in the window — what a depot's daily close counts. */
+  async depositedInWindow(depotId: string, from: Date, to: Date) {
+    const rows = this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.status === 'VERIFIED' &&
+        r.verifiedAt != null &&
+        r.verifiedAt.getTime() >= from.getTime() &&
+        r.verifiedAt.getTime() < to.getTime(),
+    );
+    return {
+      depositedIdr: rows.reduce((s, r) => s + r.depositedAmount, 0),
+      expectedIdr: rows.reduce((s, r) => s + r.expectedAmount, 0),
+      settlements: rows.length,
+    };
+  }
+
   async chargedShortfallByDriver(
     depotId: string,
     from: Date,

@@ -19,7 +19,7 @@ import {
   ProposePriceOverrideDto,
 } from '../../src/modules/dto/price-override.dto';
 import { CreatePurchaseOrderDto, CreateSupplierDto } from '../../src/modules/dto/procurement.dto';
-import { BulkRosterDto } from '../../src/modules/dto/roster.dto';
+import { BulkRosterDto, IsMondayConstraint } from '../../src/modules/dto/roster.dto';
 
 // Runs the @Type(() => Number/Nested) transform arrows in each DTO (never triggered by a bare
 // import) so string query/body values are coerced. class-transformer only invokes an arrow for
@@ -101,5 +101,39 @@ describe('DTO @Type transforms coerce query and nested values', () => {
       cells: [{ staffId: 's', staffName: 'n', day: 0, shift: 'MORNING' }],
     });
     expect(roster.cells[0]).toMatchObject({ staffId: 's' });
+  });
+});
+
+/*
+ * B5. The unique key is `(depotId, weekStart, staffId, day)` on this string as typed, so a
+ * Wednesday stores the same week a second time as a parallel grid — and the days off
+ * already filled in "disappear", because they are being read under a different week key.
+ */
+describe('roster weekStart must be a Monday', () => {
+  const isMonday = (value: unknown) => new IsMondayConstraint().validate(value);
+
+  it('accepts a Monday', () => {
+    expect(isMonday('2026-07-13')).toBe(true); // Monday
+    expect(isMonday('2026-08-03')).toBe(true); // Monday
+  });
+
+  it('refuses every other day of the week, including the day either side', () => {
+    expect(isMonday('2026-07-12')).toBe(false); // Sunday
+    expect(isMonday('2026-07-14')).toBe(false); // Tuesday
+    expect(isMonday('2026-07-15')).toBe(false); // Wednesday
+    expect(isMonday('2026-07-19')).toBe(false); // Sunday
+  });
+
+  it('refuses anything that is not a plain YYYY-MM-DD date', () => {
+    expect(isMonday('2026-07-13T00:00:00.000Z')).toBe(false);
+    expect(isMonday('13-07-2026')).toBe(false);
+    expect(isMonday('2026-13-45')).toBe(false);
+    expect(isMonday('')).toBe(false);
+    expect(isMonday(undefined)).toBe(false);
+    expect(isMonday(20260713)).toBe(false);
+  });
+
+  it('carries a message that names Monday, so the caller can fix it', () => {
+    expect(new IsMondayConstraint().defaultMessage()).toContain('Monday');
   });
 });

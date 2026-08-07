@@ -78,6 +78,26 @@ export class Webhook2ResponseDto {
 }
 
 /** Mirrors `Page<PaymentRecord>` — the paged envelope this route already returns. */
+export class RefundQueueRowResponseDto extends PaymentResponseDto {
+  /** §G-3: the order's HM-… number, resolved from order-service. Null when unresolved. */
+  @ApiProperty({ type: String, nullable: true })
+  orderNumber!: string | null;
+}
+
+/** The refund queue's page — same envelope, rows carrying the order number. */
+export class PagedRefundQueueResponseDto {
+  @ApiProperty({ type: [RefundQueueRowResponseDto] })
+  items!: RefundQueueRowResponseDto[];
+  @ApiProperty({ type: Number })
+  total!: number;
+  @ApiProperty({ type: Number })
+  page!: number;
+  @ApiProperty({ type: Number })
+  limit!: number;
+  @ApiProperty({ type: Number })
+  totalPages!: number;
+}
+
 export class PagedPaymentResponseDto {
   @ApiProperty({ type: [PaymentResponseDto] })
   items!: PaymentResponseDto[];

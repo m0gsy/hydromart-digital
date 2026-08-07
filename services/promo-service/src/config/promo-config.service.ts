@@ -32,6 +32,10 @@ export class PromoConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** auth-service base URL; used to name whoever raised a voucher request (§G-3). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '');
   }

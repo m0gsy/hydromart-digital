@@ -63,6 +63,9 @@ export class VoucherRequestResponseDto {
   status!: string;
   @ApiProperty({ type: String })
   requestedBy!: string;
+  /** §G-3: denormalised from auth-service so HQ sees who is asking. */
+  @ApiProperty({ type: String, nullable: true })
+  requestedByName!: string | null;
   @ApiProperty({ type: String, nullable: true })
   decidedBy!: string | null;
   @ApiProperty({ type: String, nullable: true })

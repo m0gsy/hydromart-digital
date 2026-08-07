@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { DepotPrice, DepotPricingPort } from '../../application/ports/depot-pricing.port';
+import {
+  DepotPrice,
+  DepotPriceLookup,
+  DepotPricingPort,
+} from '../../application/ports/depot-pricing.port';
 
 /**
  * Fetches per-depot price overrides from the depot-service public price endpoint.
@@ -19,10 +23,10 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
     depotId: string,
     productIds: string[],
     quantities: number[] = [],
-  ): Promise<Map<string, DepotPrice>> {
+  ): Promise<DepotPriceLookup> {
     const prices = new Map<string, DepotPrice>();
     if (productIds.length === 0) {
-      return prices;
+      return { prices, unavailable: false };
     }
     const query = encodeURIComponent(productIds.join(','));
     const qty =
@@ -53,9 +57,12 @@ export class DepotPricingHttpAdapter implements DepotPricingPort {
       this.logger.warn(
         `Depot price lookup skipped for depot ${depotId}: ${(error as Error).message}`,
       );
+      // Still fail open — but say so, so the order carries the fact that it was priced
+      // from the catalog rather than from the depot.
+      return { prices, unavailable: true };
     } finally {
       clearTimeout(timer);
     }
-    return prices;
+    return { prices, unavailable: false };
   }
 }

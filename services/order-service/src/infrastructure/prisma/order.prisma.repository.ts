@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
 import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/client';
+import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { OrderStatus } from '../../domain/order-status';
 import {
   DuplicateCheckoutError,
@@ -372,9 +373,13 @@ export class OrderPrismaRepository implements OrderRepository {
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     const rows = await this.prisma.order.findMany({
       where: { id: { in: orderIds } },
-      select: { id: true, total: true },
+      select: { id: true, orderNumber: true, total: true },
     });
-    return rows.map((row) => ({ orderId: row.id, totalIdr: Math.round(row.total.toNumber()) }));
+    return rows.map((row) => ({
+      orderId: row.id,
+      orderNumber: row.orderNumber,
+      totalIdr: Math.round(row.total.toNumber()),
+    }));
   }
 
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
@@ -474,6 +479,13 @@ export class OrderPrismaRepository implements OrderRepository {
       orders: page.map((r) => this.toRecord(r)),
       nextCursor: hasMore ? rows[limit].id : null,
     };
+  }
+
+  /** A history row and nothing else — the order's status is repeated, not changed. */
+  async appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void> {
+    await this.prisma.orderStatusHistory.create({
+      data: { orderId: id, status, changedBy, note },
+    });
   }
 
   async applyStatus(
@@ -788,10 +800,22 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async depotCustomerAggregates(depotId: string): Promise<DepotCustomerAggregate[]> {
-    // One aggregate row per customer who has ordered at this depot (CANCELLED excluded).
+    /*
+     * One aggregate row per customer who has ordered at this depot (CANCELLED excluded).
+     *
+     * §I: the anonymous sentinel is excluded HERE, not in the caller. Every counter sale
+     * with no phone shares `ANONYMOUS_CUSTOMER_ID`, so it grouped into one row with the
+     * order count of the whole depot's walk-in trade — and `getCrmDashboard` iterates these
+     * rows directly, which is how "Pelanggan walk-in / -" was being counted as a single,
+     * very loyal, repeat customer in the segment totals.
+     */
     const grouped = await this.prisma.order.groupBy({
       by: ['customerId'],
-      where: { depotId, status: { notIn: VOID_LIKE } },
+      where: {
+        depotId,
+        status: { notIn: VOID_LIKE },
+        customerId: { not: ANONYMOUS_CUSTOMER_ID },
+      },
       _count: { _all: true },
       _sum: { total: true },
       _min: { createdAt: true },

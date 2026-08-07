@@ -106,6 +106,12 @@ async function main() {
     role: 'ASSISTANT_SUPERVISOR',
     fullName: `F6 Sync ${stamp}`,
     depotId,
+    // Required since an invite also opens an HR record; this check is about the ROLE sync.
+    position: 'Asisten SPV',
+    joinDate: '2026-01-01',
+    employmentStatus: 'PERMANENT',
+    salaryType: 'MONTHLY',
+    monthlyRate: 5_000_000,
   });
   const authSubjectId = invited.body?.id;
   check('login account exists for the employee', Boolean(authSubjectId), `status ${invited.status}`);

@@ -37,9 +37,16 @@ export class DataSubjectRequestDto {
   @ApiProperty({ type: String, format: 'date-time' }) requestedAt!: string;
   @ApiProperty({ type: String, format: 'uuid', nullable: true }) processedBy!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true }) processedAt!: string | null;
+  /**
+   * §G-3: the account name behind `customerId`, so the queue does not ask HQ to decide a
+   * deletion against eight hex characters. Only the staff queue fills it — a customer
+   * reading their own requests already knows who they are.
+   */
+  @ApiProperty({ type: String, nullable: true }) customerName!: string | null;
 
-  static from(record: DataSubjectRequestRecord): DataSubjectRequestDto {
+  static from(record: DataSubjectRequestRecord & { customerName?: string | null }): DataSubjectRequestDto {
     return {
+      customerName: record.customerName ?? null,
       id: record.id,
       customerId: record.customerId,
       type: record.type,

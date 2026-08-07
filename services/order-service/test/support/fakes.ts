@@ -62,6 +62,7 @@ import {
   ResellerDiscount,
   ResellerDiscountPort,
 } from '../../src/application/ports/reseller-discount.port';
+import { CustomerDirectoryPort } from '../../src/application/ports/customer-directory.port';
 import { NotificationPort } from '../../src/application/ports/notification.port';
 import { PromoPort } from '../../src/application/ports/promo.port';
 import { InventoryPort, SoldLine } from '../../src/application/ports/inventory.port';
@@ -233,7 +234,7 @@ export class InMemoryOrderRepository implements OrderRepository {
   async findOrderValues(orderIds: string[]): Promise<OrderValue[]> {
     return this.rows
       .filter((row) => orderIds.includes(row.id))
-      .map((row) => ({ orderId: row.id, totalIdr: row.total }));
+      .map((row) => ({ orderId: row.id, orderNumber: row.orderNumber, totalIdr: row.total }));
   }
   async sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     return this.rows
@@ -309,6 +310,13 @@ export class InMemoryOrderRepository implements OrderRepository {
       orders: page.map((r) => structuredClone(r)),
       nextCursor: hasMore ? slice[limit].id : null,
     };
+  }
+
+  /** History rows written without a transition (catalog-pricing marker, design 4b). */
+  notes: { id: string; status: OrderStatus; changedBy: string; note: string }[] = [];
+
+  async appendNote(id: string, status: OrderStatus, changedBy: string, note: string): Promise<void> {
+    this.notes.push({ id, status, changedBy, note });
   }
 
   async applyStatus(
@@ -789,11 +797,14 @@ export class FakeDepotPricing implements DepotPricingPort {
 
   private readonly tiers = new Map<string, { minQty: number; tierPrice: number }>();
 
+  /** Set to mimic depot-service being down: prices still resolve, flagged as not the depot's. */
+  unavailable = false;
+
   async getPrices(
     depotId: string,
     productIds: string[],
     quantities: number[] = [],
-  ): Promise<Map<string, DepotPrice>> {
+  ): Promise<{ prices: Map<string, DepotPrice>; unavailable: boolean }> {
     this.calls.push({ depotId, productIds });
     const forDepot = this.overrides.get(depotId) ?? new Map<string, DepotPrice>();
     const result = new Map<string, DepotPrice>();
@@ -805,7 +816,7 @@ export class FakeDepotPricing implements DepotPricingPort {
       const merged = { ...(row ?? {}), ...tiered };
       if (Object.keys(merged).length > 0) result.set(id, merged);
     });
-    return result;
+    return { prices: this.unavailable ? new Map() : result, unavailable: this.unavailable };
   }
 }
 
@@ -969,6 +980,26 @@ export class FakeResellerDiscount implements ResellerDiscountPort {
   result: ResellerDiscount | null = null;
   async get(_authorization: string): Promise<ResellerDiscount | null> {
     return this.result;
+  }
+}
+
+/** §I: records which depot each checkout claimed, and whether it was the first. */
+export class FakeCustomerDirectory implements CustomerDirectoryPort {
+  readonly claims: { customerId: string; depotId: string }[] = [];
+  private readonly claimed = new Set<string>();
+  async claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean> {
+    this.claims.push({ customerId, depotId });
+    if (this.claimed.has(customerId)) return false;
+    this.claimed.add(customerId);
+    return true;
+  }
+
+  /** phone -> customer id, as customer-service would resolve it. Empty = unreachable. */
+  readonly byPhone = new Map<string, string>();
+  readonly resolveCalls: { phone: string; fullName: string; depotId: string }[] = [];
+  async resolveByPhone(phone: string, fullName: string, depotId: string): Promise<string | null> {
+    this.resolveCalls.push({ phone, fullName, depotId });
+    return this.byPhone.get(phone) ?? null;
   }
 }
 

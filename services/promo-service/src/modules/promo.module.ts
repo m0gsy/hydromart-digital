@@ -2,7 +2,12 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { DepotScopeGuard, JwtAuthGuard, RolesGuard } from '@hydromart/platform';
+import {
+  DepotScopeGuard,
+  JwtAuthGuard,
+  RolesGuard,
+  httpAccountNameResolver,
+} from '@hydromart/platform';
 
 import { PromoConfigService } from '../config/promo-config.service';
 import { PROMO_TOKENS } from '../application/tokens';
@@ -37,6 +42,15 @@ export const providers: Provider[] = [
   { provide: PROMO_TOKENS.CustomerLookup, useClass: CustomerLookupHttpAdapter },
   { provide: PROMO_TOKENS.Notification, useClass: NotificationHttpAdapter },
   { provide: PROMO_TOKENS.OrderValues, useClass: OrderValueHttpAdapter },
+  {
+    provide: PROMO_TOKENS.AccountNames,
+    inject: [PromoConfigService],
+    useFactory: (config: PromoConfigService) =>
+      httpAccountNameResolver({
+        authServiceUrl: config.authServiceUrl,
+        internalKey: config.internalServiceKey,
+      }),
+  },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   // B-14: promo-service exposes `depots/:depotId/voucher-requests` and hands the path

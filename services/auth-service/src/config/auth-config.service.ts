@@ -114,6 +114,19 @@ export class AuthConfigService {
     };
   }
 
+  /**
+   * hr-service, so an invited staff account also becomes an employee HR can pay and
+   * roster. Blank URL fails the invite rather than creating half a person — the same
+   * fail-closed rule hr-service already applies to AUTH_SERVICE_URL in the other
+   * direction.
+   */
+  get hrDirectory(): { hrUrl: string; internalKey: string } {
+    return {
+      hrUrl: this.config.get<string>('HR_SERVICE_URL', ''),
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
+
   // Shared service-to-service secret guarding inbound internal endpoints
   // (e.g. cross-service audit ingest). Blank = those endpoints reject everything.
   get internalServiceKey(): string {

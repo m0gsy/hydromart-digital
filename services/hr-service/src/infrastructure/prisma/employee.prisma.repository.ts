@@ -11,6 +11,13 @@ import {
 import { PrismaService } from './prisma.service';
 
 
+/**
+ * How many rows sharing one phone the invite lookup will read. A family number covers a
+ * handful of people at most; the cap is here so a data-entry accident cannot turn one
+ * lookup into a table scan, not because 25 is a meaningful business number.
+ */
+const SHARED_PHONE_CAP = 25;
+
 @Injectable()
 export class EmployeePrismaRepository implements EmployeeRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -51,6 +58,45 @@ export class EmployeePrismaRepository implements EmployeeRepository {
       }),
     ]);
     return ids.length;
+  }
+
+  /**
+   * The same scrub for ONE employee, triggered by HQ deleting their account rather than by
+   * the retention cutoff. Identical split, deliberately: biometrics, attendance and reviews
+   * go; payroll, bonuses, deductions and loans stay ownerless under the 10-year FINANCIAL
+   * rule. Reusing the shape means "deleted" means one thing here, not two.
+   */
+  async anonymiseByAuthSubjectId(authSubjectId: string): Promise<number> {
+    const employee = await this.prisma.employee.findUnique({
+      where: { authSubjectId },
+      select: { id: true },
+    });
+    if (!employee) return 0;
+
+    await this.prisma.$transaction([
+      this.prisma.faceEmbedding.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.attendance.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.performanceReview.deleteMany({ where: { employeeId: employee.id } }),
+      this.prisma.employee.update({
+        where: { id: employee.id },
+        data: {
+          fullName: EmployeePrismaRepository.REDACTED,
+          phone: '-',
+          email: null,
+          photoUrl: null,
+          authSubjectId: null,
+          // B-7: the jabatan goes with the identity. `createAccountFor` keys the "buatkan
+          // akun" badge on "has a role, no account", so leaving it set made every
+          // anonymised row light that badge forever — and clicking it POSTed
+          // `{phone: '-', fullName: '[REDACTED]', role}` at auth-service, which for a
+          // MANAGER or SUPERVISOR reaches `PhoneNumber.create('-')`. A role is what somebody
+          // does; there is nobody here any more.
+          role: null,
+          status: 'RESIGNED',
+        },
+      }),
+    ]);
+    return 1;
   }
 
   async purgeFaceEmbeddings(cutoff: Date): Promise<number> {
@@ -114,8 +160,48 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return this.prisma.employee.findUnique({ where: { nik } });
   }
 
+  async findConflicting(keys: {
+    employeeCode?: string;
+    nik?: string;
+    phone: string;
+  }): Promise<'employeeCode' | 'nik' | 'phone' | null> {
+    const or: Prisma.EmployeeWhereInput[] = [{ phone: keys.phone }];
+    if (keys.employeeCode) or.push({ employeeCode: keys.employeeCode });
+    if (keys.nik) or.push({ nik: keys.nik });
+    // Only the three columns are selected — the caller wants a verdict, not a person, and
+    // an employee row carries salary and NIK it has no business loading for a check.
+    const hit = await this.prisma.employee.findFirst({
+      where: { OR: or },
+      select: { employeeCode: true, nik: true, phone: true },
+    });
+    if (!hit) return null;
+    // Ordered so the message names the most specific collision: a staff code is typed by
+    // hand, a NIK is copied off a card, a shared phone is the likeliest innocent one.
+    if (keys.employeeCode && hit.employeeCode === keys.employeeCode) return 'employeeCode';
+    if (keys.nik && hit.nik === keys.nik) return 'nik';
+    return 'phone';
+  }
+
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.prisma.employee.findUnique({ where: { authSubjectId } });
+  }
+
+  async findByAuthSubjectIdOrPhone(
+    authSubjectId: string,
+    phone: string,
+  ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }> {
+    // `authSubjectId` is unique so it contributes at most one row; a phone is not (a family
+    // shares a number), so the read is bounded and ordered — `findByPhone`'s own contract is
+    // "the oldest match, the same row every re-upload, rather than a coin flip".
+    const rows = await this.prisma.employee.findMany({
+      where: { OR: [{ authSubjectId }, { phone }] },
+      orderBy: { createdAt: 'asc' },
+      take: SHARED_PHONE_CAP,
+    });
+    return {
+      linked: rows.find((r) => r.authSubjectId === authSubjectId) ?? null,
+      oldestByPhone: rows.find((r) => r.phone === phone) ?? null,
+    };
   }
 
   listHistory(employeeId: string): Promise<EmploymentHistory[]> {

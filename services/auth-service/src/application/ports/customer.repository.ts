@@ -42,4 +42,18 @@ export interface CustomerRepository {
    * in the optional [from, to] window. Both bounds inclusive-of-start / exclusive-of-end.
    */
   countCustomersCreated(from?: Date, to?: Date): Promise<number>;
+  /**
+   * Close a staff login for good, refusing if it would remove the last ACTIVE super admin.
+   *
+   * B-4: the check and the write are ONE transaction with every active super-admin row
+   * locked, because as two separate steps they raced — two concurrent deletes both read
+   * "there are two of us", both passed, and `staffDelete` is SUPER_ADMIN-only, so a system
+   * with no super admin cannot be repaired through the API at all.
+   *
+   * ACTIVE, not "not DELETED": a SUSPENDED super admin cannot sign in, so counting them as
+   * cover meant deleting the only one who could.
+   */
+  markDeletedGuardingLastSuperAdmin(
+    customerId: string,
+  ): Promise<'deleted' | 'last-super-admin' | 'not-found'>;
 }

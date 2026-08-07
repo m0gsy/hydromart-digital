@@ -73,7 +73,11 @@ export default function HqChurnPage() {
                   {c.rows.slice(0, 8).map((x) => (
                     <li key={x.customerId} className="flex items-center justify-between gap-3 text-sm">
                       <div className="min-w-0">
-                        <span className="block font-mono text-xs">{shortId(x.customerId)}</span>
+                        <span
+                          className={`block ${x.customerName ? 'truncate text-sm font-medium' : 'font-mono text-xs'}`}
+                        >
+                          {x.customerName ?? shortId(x.customerId)}
+                        </span>
                         <span className="block text-xs text-muted">
                           {t('hq.churn.daysSince', { n: x.daysSince })} · {t('hq.churn.orders', { n: x.orderCount })}
                         </span>
