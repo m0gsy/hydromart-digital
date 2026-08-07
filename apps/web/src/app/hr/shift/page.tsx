@@ -242,10 +242,14 @@ function Assignments({
     [employeeId],
   );
 
-  const label = (a: ShiftAssignment) =>
-    a.shiftId
-      ? (shifts.find((s) => s.id === a.shiftId)?.name ?? 'shift terhapus')
-      : (rotations.find((r) => r.id === a.rotationId)?.name ?? 'rotasi terhapus');
+  const label = (a: ShiftAssignment) => {
+    if (a.shiftId) return shifts.find((s) => s.id === a.shiftId)?.name ?? 'shift terhapus';
+    if (a.rotationId) return rotations.find((r) => r.id === a.rotationId)?.name ?? 'rotasi terhapus';
+    // Neither is set. The B2 migration cleared the shift id on rows that named a shift
+    // somebody had deleted, and wrote which one into the note — so this is not "rotasi
+    // terhapus", which is what the old two-branch version called it.
+    return 'tanpa shift — lihat catatan';
+  };
 
   async function assign() {
     if (!employeeId || !targetId) {

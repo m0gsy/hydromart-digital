@@ -51,4 +51,42 @@ elif [ "$PREFLIGHT" != "0" ]; then
   echo "[migrate] !! could not preflight the schema (exit $PREFLIGHT) — continuing unverified" >&2
 fi
 
+# A migration that FAILED stays recorded, and Prisma then refuses every later one for that
+# service with P3018 — so every subsequent deploy dies the same way, on an error that names
+# neither the service nor the way out. That happened on 2026-08-07 (hr, the shift FK meeting
+# a genuinely dangling row) and cost an hour of reading logs.
+#
+# Clearing that record is only safe when re-applying the file from scratch does the right
+# thing. That is a property of the migration, not something a script can infer — so the
+# migration DECLARES it, with a `-- RERUNNABLE:` line saying why. Marked ones are resolved
+# here and re-applied below; everything else stops the deploy and prints the command, because
+# an unmarked failure is a human's to look at.
+PG_CONTAINER_NAME="${PG_CONTAINER:-hydromart-postgres}"
+PG_USER_NAME="${PG_USER:-hydromart}"
+STUCK=0
+for svc in auth customer product order payment delivery depot loyalty promo referral            crm recommendation forecast payout admin hr; do
+  failed="$(docker exec "$PG_CONTAINER_NAME" psql -tAX -U "$PG_USER_NAME"     -d "hydromart_${svc}"     -c "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL"     2>/dev/null || true)"
+  [ -n "$failed" ] || continue
+  while read -r m; do
+    [ -n "$m" ] || continue
+    sql="services/${svc}-service/prisma/migrations/${m}/migration.sql"
+    reason="$(grep -m1 '^-- RERUNNABLE:' "$sql" 2>/dev/null || true)"
+    if [ -n "$reason" ]; then
+      echo "[migrate] ${svc}: clearing the failed record for ${m} and re-applying it"
+      echo "[migrate]   ${reason}"
+      npx prisma migrate resolve --rolled-back "$m"         --schema "services/${svc}-service/prisma/schema.prisma"
+    else
+      STUCK=1
+      echo "[migrate] !! ${svc}: ${m} is recorded as FAILED and is not marked re-runnable." >&2
+      echo "             Nothing new can apply to this service until it is cleared. Look at" >&2
+      echo "             the data it choked on, then from this same shell:" >&2
+      echo "               npx prisma migrate resolve --rolled-back ${m} \\" >&2
+      echo "                 --schema services/${svc}-service/prisma/schema.prisma" >&2
+    fi
+  done <<EOF
+$failed
+EOF
+done
+[ "$STUCK" = 0 ] || { echo "[migrate] ABORTING: resolve the failed migration(s) above first." >&2; exit 1; }
+
 npm run db:migrate
