@@ -23,9 +23,13 @@ const nextConfig = {
   // Its own directory so a mobile export never clobbers the `.next` a running
   // `next dev` or the server build is using — CI does both in one checkout. Note what
   // ends up here: with `output: 'export'` Next cleans its intermediates out again, so
-  // `mobile-out/` holds the finished static site and nothing else. That is the
-  // directory Capacitor syncs and the static Playwright project serves.
-  ...(MOBILE ? { distDir: 'mobile-out' } : {}),
+  // this holds the finished static site and nothing else. It is the directory Capacitor
+  // syncs and the static Playwright project serves.
+  //
+  // Named by the caller (scripts/build-mobile.mjs) so each binary builds STRAIGHT into
+  // its own directory. Building into one and renaming afterwards is what Windows refuses
+  // with EPERM whenever anything still holds a handle on the tree Next just wrote.
+  ...(MOBILE ? { distDir: process.env.MOBILE_OUT_DIR || 'mobile-out' } : {}),
   // npm-workspaces monorepo: trace deps from the repo root, not just apps/web.
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   // ponytail: lint runs as its own workspace gate (eslint 8), not inside `next build`.

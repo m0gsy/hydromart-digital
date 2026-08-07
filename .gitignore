@@ -10,6 +10,10 @@ build/
 out/
 # The Android binaries' exported static site (MOBILE_BUILD=1).
 mobile-out/
+mobile-out-*/
+# Where build-mobile.mjs parks the route folders a binary does not serve. Should only
+# ever exist DURING a build; a leftover means a run died and the next one restores it.
+.route-stash/
 *.tsbuildinfo
 
 # Prisma

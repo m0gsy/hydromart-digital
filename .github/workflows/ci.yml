@@ -204,6 +204,36 @@ jobs:
       - name: Build
         run: npm run build
 
+      # The Android binaries ship these pages as FILES inside the APK — there is no server
+      # to ask for `/orders/[id]`. Two whole classes of breakage are invisible to the build
+      # above and cost a white screen on a courier's phone:
+      #   - a page that reaches for useSearchParams() without a <Suspense> boundary fails
+      #     `output: 'export'` outright, and
+      #   - a missing trailingSlash writes `products.html` where the device looks for
+      #     `products/index.html`, which no build log anywhere will tell you about.
+      # Both are caught here, per binary, with no secrets and no backend. The surface
+      # assertions are the other half: a customer app that also shipped the depot cash book
+      # would build perfectly.
+      - name: Mobile export — customer binary
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080
+        run: npm run build:mobile --workspace @hydromart/web -- customer
+
+      - name: Mobile export — ops binary
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8080
+        run: npm run build:mobile --workspace @hydromart/web -- ops
+
+      - name: Install Playwright browser
+        run: npm run test:e2e:install --workspace @hydromart/web
+
+      # Serves each export the way Capacitor serves the assets bundled into the APK, so a
+      # pass here is a statement about the binary and not about a dev server.
+      - name: Exported binaries resolve their own paths
+        run: |
+          npm run test:export:customer --workspace @hydromart/web
+          npm run test:export:ops --workspace @hydromart/web
+
   # Boots the whole prod artifact (all 15 Docker images) via docker-compose and drives
   # the core loop over real HTTP — catches deploy-only bugs the unit gate can't (Dockerfile
   # ordering, Prisma engine/OpenSSL, stale lockfile, missing env). Runs in parallel to verify.
