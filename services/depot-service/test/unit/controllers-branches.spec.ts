@@ -390,13 +390,20 @@ describe('GallonIssueController', () => {
 });
 
 describe('GallonNetworkController', () => {
-  const gallon = { outstanding: jest.fn(), perCustomer: jest.fn() };
+  const gallon = { outstanding: jest.fn(), perCustomer: jest.fn(), customerLedger: jest.fn() };
   const depots = { listMine: jest.fn() };
   const c = new GallonNetworkController(gallon as never, depots as never);
+  const CUSTOMER = '22222222-2222-4222-8222-222222222222';
   beforeEach(() => {
     jest.clearAllMocks();
     gallon.outstanding.mockResolvedValue([{ depotId: DEPOT }, { depotId: 'other' }]);
     gallon.perCustomer.mockResolvedValue([]);
+    gallon.customerLedger.mockResolvedValue([]);
+  });
+
+  it('passes both ids straight through to the customer ledger', async () => {
+    await expect(c.customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+    expect(gallon.customerLedger).toHaveBeenCalledWith(DEPOT, CUSTOMER);
   });
 
   // J-2: the per-customer read customer-service calls over the internal key. No depot

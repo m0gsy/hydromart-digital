@@ -755,6 +755,12 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
     }
     return [...by.values()];
   }
+  async listForCustomerAtDepot(depotId: string, customerId: string, limit: number) {
+    return this.rows
+      .filter((r) => r.depotId === depotId && r.customerId === customerId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+  }
 
   async networkSummary() {
     const map = new Map<string, { gallons: number; depositHeld: number }>();

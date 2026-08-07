@@ -948,6 +948,26 @@ export class InternalDepotCustomers2ResponseDto {
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalCustomerOrdersOrdersResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ type: String })
+  orderNumber!: string;
+  @ApiProperty({ type: String })
+  status!: string;
+  @ApiProperty({ type: Number })
+  totalIdr!: number;
+  @ApiProperty({ type: String })
+  placedAt!: string;
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
+export class InternalCustomerOrdersResponseDto {
+  @ApiProperty({ type: [InternalCustomerOrdersOrdersResponseDto] })
+  orders!: InternalCustomerOrdersOrdersResponseDto[];
+}
+
+/** Mirrors the inline response shape this route already returns (audit D-6). */
 export class RemindStale2ResponseDto {
   @ApiProperty({ type: Number })
   reminded!: number;

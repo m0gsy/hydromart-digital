@@ -6,7 +6,7 @@ import { CheckCircle, DownloadSimple, UploadSimple, Warning } from '@phosphor-ic
 import { Badge, Button, Card } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { downloadBlob, downloadCsv, parseCsvRecords, toCsv, type CsvRecord } from '@/lib/csv';
-import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords } from '@/lib/xlsx';
+import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords, toXlsxBlob } from '@/lib/xlsx';
 
 /** Server-side row cap — mirrors @ArrayMaxSize(500) on every import DTO. */
 export const MAX_IMPORT_ROWS = 500;
@@ -274,8 +274,14 @@ export function CsvImport({
     }
   }
 
-  /** Rebuild a CSV of every row the user still has to fix (client- or server-rejected). */
-  function downloadFailed() {
+  /**
+   * Rebuild a file of every row the user still has to fix (client- or server-rejected).
+   *
+   * .xlsx like the template, and for the same reason: this file exists to be corrected
+   * and re-uploaded, so it has to survive the round trip. A CSV of it would hand Excel
+   * a phone column to renumber before the user has even typed anything.
+   */
+  async function downloadFailed() {
     // The server numbers rows within the submitted (valid) subset, not the file.
     const failed = [
       ...invalid.map((r) => ({ raw: r.raw, reason: r.error ?? '' })),
@@ -283,13 +289,20 @@ export function CsvImport({
         .filter((r) => r.status === 'failed')
         .map((r) => ({ raw: valid[r.row - 1]?.raw ?? {}, reason: r.message ?? '' })),
     ];
-    downloadCsv(
-      `gagal-${templateName}.csv`,
-      toCsv(
-        [...headers, 'alasan_gagal'],
-        failed.map(({ raw, reason }) => [...headers.map((h) => raw[h] ?? ''), reason]),
-      ),
-    );
+    const failedHeaders = [...headers, 'alasan_gagal'];
+    const failedRows = failed.map(({ raw, reason }) => [
+      ...headers.map((h) => raw[h] ?? ''),
+      reason,
+    ]);
+    try {
+      downloadBlob(
+        `gagal-${templateName}.xlsx`,
+        await toXlsxBlob(failedHeaders, failedRows, templateName),
+      );
+    } catch {
+      // Excel writer unavailable (offline chunk) — CSV still gets the rows back to them.
+      downloadCsv(`gagal-${templateName}.csv`, toCsv(failedHeaders, failedRows));
+    }
   }
 
   return (
@@ -384,7 +397,7 @@ export function CsvImport({
               Import {valid.length} baris
             </Button>
             {invalid.length > 0 && (
-              <Button variant="secondary" onClick={downloadFailed}>
+              <Button variant="secondary" onClick={() => void downloadFailed()}>
                 <DownloadSimple size={16} weight="bold" /> Unduh baris bermasalah
               </Button>
             )}
@@ -411,7 +424,7 @@ export function CsvImport({
               ))}
           </ul>
           {(result.failed > 0 || invalid.length > 0) && (
-            <Button variant="secondary" onClick={downloadFailed} className="self-start">
+            <Button variant="secondary" onClick={() => void downloadFailed()} className="self-start">
               <DownloadSimple size={16} weight="bold" /> Unduh baris gagal
             </Button>
           )}

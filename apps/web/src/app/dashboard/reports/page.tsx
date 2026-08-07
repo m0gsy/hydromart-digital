@@ -6,7 +6,8 @@ import { ChartBar, Drop, Export, Lock, Truck, Warning } from '@phosphor-icons/re
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { downloadCsv, toCsv } from '@/lib/csv';
+import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -34,70 +35,80 @@ interface DailyExportRow {
   isWalkIn: boolean;
 }
 
+const DAILY_HEADERS = [
+  'No. pesanan',
+  'Waktu',
+  'Status',
+  'Dibatalkan',
+  'Penerima',
+  'Kurir',
+  'Galon',
+  'Subtotal',
+  'Ongkir',
+  'Diskon',
+  'Total',
+  'Penjualan konter',
+];
+
+const dailyRow = (r: DailyExportRow): CsvCell[] => [
+  r.orderNumber,
+  r.createdAt,
+  r.status,
+  r.cancelled ? 'YA' : '',
+  r.recipientName,
+  r.driverName ?? '',
+  r.gallons,
+  r.subtotalIdr,
+  r.deliveryFeeIdr,
+  r.discountIdr,
+  r.totalIdr,
+  r.isWalkIn ? 'YA' : '',
+];
+
 /**
- * Download the day's orders as CSV. The button used to be `onClick={() => undefined}`.
+ * Download the day's orders. The button used to be `onClick={() => undefined}`.
  *
  * Formatting happens here rather than server-side because the console already owns the
- * CSV rules (separator, BOM for Excel); a rendered file from the API would be a second
+ * file rules (separator, BOM for Excel); a rendered file from the API would be a second
  * copy of those rules to keep in step.
+ *
+ * Both formats are offered because CSV is what other systems ingest, while .xlsx is what
+ * a human opens: the money columns land as real numbers there, and Excel on an Indonesian
+ * locale can't split a comma-separated file into one useless column.
  */
 function ExportDaily({ depotId, date }: { depotId: string; date: string }) {
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'csv' | 'xlsx' | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function run() {
-    setBusy(true);
+  async function run(format: 'csv' | 'xlsx') {
+    setBusy(format);
     setError(null);
     try {
-      const rows = await api.get<DailyExportRow[]>(
-        endpoints.reports.depotDailyExport(depotId, date),
-        true,
-      );
-      downloadCsv(
-        `laporan-harian-${date}.csv`,
-        toCsv(
-          [
-            'No. pesanan',
-            'Waktu',
-            'Status',
-            'Dibatalkan',
-            'Penerima',
-            'Kurir',
-            'Galon',
-            'Subtotal',
-            'Ongkir',
-            'Diskon',
-            'Total',
-            'Penjualan konter',
-          ],
-          rows.map((r) => [
-            r.orderNumber,
-            r.createdAt,
-            r.status,
-            r.cancelled ? 'YA' : '',
-            r.recipientName,
-            r.driverName ?? '',
-            r.gallons,
-            r.subtotalIdr,
-            r.deliveryFeeIdr,
-            r.discountIdr,
-            r.totalIdr,
-            r.isWalkIn ? 'YA' : '',
-          ]),
-        ),
-      );
+      const rows = (
+        await api.get<DailyExportRow[]>(endpoints.reports.depotDailyExport(depotId, date), true)
+      ).map(dailyRow);
+      if (format === 'xlsx') {
+        await downloadXlsx(`laporan-harian-${date}.xlsx`, DAILY_HEADERS, rows, 'Laporan harian');
+      } else {
+        downloadCsv(`laporan-harian-${date}.csv`, toCsv(DAILY_HEADERS, rows));
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Gagal mengekspor laporan.');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <Button variant="ghost" onClick={() => void run()} loading={busy}>
-        <Export size={16} weight="bold" /> Ekspor CSV
-      </Button>
+      <div className="flex items-center gap-1.5">
+        <Button variant="ghost" onClick={() => void run('xlsx')} loading={busy === 'xlsx'}>
+          <Export size={16} weight="bold" /> Ekspor Excel
+        </Button>
+        <Button variant="ghost" onClick={() => void run('csv')} loading={busy === 'csv'}>
+          <Export size={16} weight="bold" /> CSV
+        </Button>
+      </div>
       {error && (
         <p className="text-[11px] font-medium text-red-600" role="alert">
           {error}

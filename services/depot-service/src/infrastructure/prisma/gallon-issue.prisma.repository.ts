@@ -37,6 +37,18 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     return { items, total };
   }
 
+  listForCustomerAtDepot(
+    depotId: string,
+    customerId: string,
+    limit: number,
+  ): Promise<GallonIssueRecord[]> {
+    return this.prisma.gallonIssue.findMany({
+      where: { depotId, customerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+  }
+
   async summaryForDepot(depotId: string): Promise<GallonIssueSummary> {
     const agg = await this.prisma.gallonIssue.aggregate({
       where: { depotId },

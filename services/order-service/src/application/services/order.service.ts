@@ -818,6 +818,28 @@ export class OrderService {
     return this.orders.depotCustomerAggregates(depotId);
   }
 
+  /**
+   * One customer's most recent orders at one depot — the "Pesanan terakhir" panel on the
+   * depot CRM detail screen, which rendered a permanent "Belum ada pesanan" because
+   * customer-service had no way to ask.
+   *
+   * Depot-scoped on purpose: a depot operator reading a customer's card should see what
+   * that customer bought HERE, not their history across the network.
+   */
+  async customerOrdersAtDepot(
+    depotId: string,
+    customerId: string,
+    limit = 5,
+  ): Promise<OrderRecord[]> {
+    const { items } = await this.orders.search({
+      customerId,
+      depotIds: [depotId],
+      page: 1,
+      limit: Math.min(50, Math.max(1, limit)),
+    });
+    return items;
+  }
+
   /** Staff view across all customers, optionally filtered by status. */
   async listAll(input: ListOrdersInput): Promise<Page<OrderRecord>> {
     return this.search(input);

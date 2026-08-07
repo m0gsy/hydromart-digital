@@ -49,7 +49,7 @@ import {
   VoidSaleDto,
   WalkInSaleDto,
 } from './dto/order.dto';
-import { CartResponseDto, ExpireAbandoned2ResponseDto, InternalCompleted2ResponseDto, InternalConfirm2ResponseDto, InternalDepotCustomers2ResponseDto, InternalDepotSales2ResponseDto, InternalRefund2ResponseDto, InternalTotal2ResponseDto, OrderResponseDto, OrderReviewResponseDto, OrderStatusHistoryResponseDto, PagedOrderResponseDto, RatingResponseDto, RemindStale2ResponseDto } from './dto/responses.generated.dto';
+import { CartResponseDto, ExpireAbandoned2ResponseDto, InternalCompleted2ResponseDto, InternalConfirm2ResponseDto, InternalCustomerOrdersResponseDto, InternalDepotCustomers2ResponseDto, InternalDepotSales2ResponseDto, InternalRefund2ResponseDto, InternalTotal2ResponseDto, OrderResponseDto, OrderReviewResponseDto, OrderStatusHistoryResponseDto, PagedOrderResponseDto, RatingResponseDto, RemindStale2ResponseDto } from './dto/responses.generated.dto';
 
 // Staff roles permitted to advance an order through its lifecycle (BR-012).
 const FULFILMENT_ROLES = [
@@ -374,6 +374,41 @@ export class OrderController {
         totalSpent: Math.round(r.totalSpent),
         firstOrderAt: r.firstOrderAt ? r.firstOrderAt.toISOString() : null,
         lastOrderAt: r.lastOrderAt ? r.lastOrderAt.toISOString() : null,
+      })),
+    };
+  }
+
+  /**
+   * The depot CRM detail screen's "Pesanan terakhir" list. Internal key, not a user
+   * capability: the caller is customer-service assembling that screen and it holds no
+   * token for the depot.
+   */
+  @ApiOkResponse({ type: InternalCustomerOrdersResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-orders')
+  @ApiOperation({ summary: "One customer's recent orders at one depot (internal service auth)" })
+  async internalCustomerOrders(
+    @Query('depotId', ParseUUIDPipe) depotId: string,
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+    @Query('limit') limit?: string,
+  ): Promise<{
+    orders: { id: string; orderNumber: string; status: string; totalIdr: number; placedAt: string }[];
+  }> {
+    const parsed = Number(limit);
+    const rows = await this.orders.customerOrdersAtDepot(
+      depotId,
+      customerId,
+      Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+    );
+    return {
+      orders: rows.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        totalIdr: Math.round(o.total),
+        placedAt: o.createdAt.toISOString(),
       })),
     };
   }

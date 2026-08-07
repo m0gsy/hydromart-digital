@@ -667,6 +667,29 @@ describe('OrderService', () => {
         expect.any(Array),
       );
     });
+
+    it('returns one customer’s orders at one depot, and nothing from another depot', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const depotId = order.depotId as string;
+
+      await expect(service.customerOrdersAtDepot(depotId, customer)).resolves.toEqual([
+        expect.objectContaining({ id: order.id }),
+      ]);
+      // Depot-scoped: the same customer at a depot they never bought from is empty.
+      await expect(service.customerOrdersAtDepot(randomUUID(), customer)).resolves.toEqual([]);
+      // ...and so is a different customer at the right depot.
+      await expect(service.customerOrdersAtDepot(depotId, randomUUID())).resolves.toEqual([]);
+    });
+
+    it('clamps the limit into [1, 50] rather than trusting the caller', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      const depotId = order.depotId as string;
+
+      await expect(service.customerOrdersAtDepot(depotId, customer, 0)).resolves.toHaveLength(1);
+      await expect(service.customerOrdersAtDepot(depotId, customer, 9999)).resolves.toHaveLength(1);
+    });
   });
 
   it('batch-reads authoritative totals for existing order ids', async () => {

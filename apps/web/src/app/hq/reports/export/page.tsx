@@ -8,6 +8,8 @@ import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
 import { api } from '@/lib/api';
+import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -21,7 +23,7 @@ import type {
 
 type RangeKey = 'd7' | 'd30' | 'quarter' | 'custom';
 type GroupKey = 'depot' | 'product' | 'method';
-type FormatKey = 'xlsx' | 'csv' | 'pdf';
+type FormatKey = 'xlsx' | 'csv';
 
 const RANGE_DAYS: Record<Exclude<RangeKey, 'custom'>, number> = { d7: 7, d30: 30, quarter: 90 };
 const CHIP =
@@ -103,14 +105,40 @@ export default function HqReportsExportPage() {
   const active = group === 'depot' ? dash : group === 'product' ? byProduct : byMethod;
   const rows: ExportRow[] = isDepot ? depotRows : group === 'product' ? productRows : methodRows;
 
-  function runExport() {
-    // STUB: no report-export job endpoint — Milestone D.
-    toast(t('hq.reportsExport.scheduled'), 'success');
+  /**
+   * The preview table IS the report, so the file is built from it right here — no export
+   * job, no queue, no emailed link. Everything the row needs has already been fetched and
+   * rendered by the time the button is clickable.
+   */
+  async function runExport() {
+    if (rows.length === 0) {
+      toast(t('hq.reportsExport.empty'), 'error');
+      return;
+    }
+    const headers = [
+      t('hq.reportsExport.cols.label'),
+      t('hq.reportsExport.cols.orders'),
+      t('hq.reportsExport.cols.revenue'),
+    ];
+    const body: CsvCell[][] = rows.map((r) => [r.label, r.orders, r.revenue]);
+    const name = `pendapatan-${group}-${from}_${to}`;
+    try {
+      if (format === 'xlsx') {
+        await downloadXlsx(`${name}.xlsx`, headers, body, 'Pendapatan');
+      } else {
+        downloadCsv(`${name}.csv`, toCsv(headers, body));
+      }
+    } catch {
+      toast('Gagal membuat file. Coba format CSV.', 'error');
+    }
   }
 
   const RANGES: RangeKey[] = ['d7', 'd30', 'quarter', 'custom'];
   const GROUPS: GroupKey[] = ['depot', 'product', 'method'];
-  const FORMATS: FormatKey[] = ['xlsx', 'csv', 'pdf'];
+  // No PDF: nothing on this side of the wire renders one, and a third chip that only ever
+  // toasted "dijadwalkan" was a button pretending to have worked. Add it back with a real
+  // server-side renderer, not before.
+  const FORMATS: FormatKey[] = ['xlsx', 'csv'];
 
   return (
     <div className="flex flex-col gap-6">

@@ -26,6 +26,7 @@ function makeService(): Mocked {
     listCompletedPage: jest.fn(),
     sumDepotSales: jest.fn().mockResolvedValue(150000),
     depotCustomerAggregates: jest.fn(),
+    customerOrdersAtDepot: jest.fn().mockResolvedValue([]),
     findOrderValues: jest.fn().mockResolvedValue([{ orderId: 'o1', total: 42000 }]),
     remindStaleCustomers: jest.fn().mockResolvedValue({ reminded: 4 }),
     getForCustomer: jest.fn().mockResolvedValue({ id: 'o1', history: ['h1', 'h2'] }),
@@ -294,6 +295,39 @@ describe('OrderController', () => {
       firstOrderAt: '2026-01-01T00:00:00.000Z',
     });
     expect(out.customers[1]).toMatchObject({ firstOrderAt: null, lastOrderAt: null });
+  });
+
+  it('internalCustomerOrders: maps to the CRM row shape and serialises the date', async () => {
+    service.customerOrdersAtDepot.mockResolvedValue([
+      {
+        id: 'o1',
+        orderNumber: 'HM-20260802-1',
+        status: 'COMPLETED',
+        total: 49999.7,
+        createdAt: new Date('2026-08-02T00:00:00.000Z'),
+      },
+    ]);
+    const out = await controller.internalCustomerOrders('d1', 'c1');
+    expect(out.orders).toEqual([
+      {
+        id: 'o1',
+        orderNumber: 'HM-20260802-1',
+        status: 'COMPLETED',
+        totalIdr: 50000,
+        placedAt: '2026-08-02T00:00:00.000Z',
+      },
+    ]);
+    expect(service.customerOrdersAtDepot).toHaveBeenCalledWith('d1', 'c1', undefined);
+  });
+
+  // A junk `limit` must not become NaN or 0 rows — it falls through to the service default.
+  it('internalCustomerOrders: forwards a usable limit and drops an unusable one', async () => {
+    await controller.internalCustomerOrders('d1', 'c1', '3');
+    expect(service.customerOrdersAtDepot).toHaveBeenLastCalledWith('d1', 'c1', 3);
+    for (const bad of ['abc', '0', '-2', '']) {
+      await controller.internalCustomerOrders('d1', 'c1', bad);
+      expect(service.customerOrdersAtDepot).toHaveBeenLastCalledWith('d1', 'c1', undefined);
+    }
   });
 
   it('internalValues: batch-reads authoritative totals', async () => {

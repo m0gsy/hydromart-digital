@@ -16,6 +16,8 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
+import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -160,6 +162,30 @@ function CashbookBody() {
     (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
   );
 
+  /**
+   * The day's ledger as a file. Built from what is already on screen — no export endpoint
+   * involved, same as the daily depot report.
+   *
+   * Masuk/Keluar are separate columns rather than one signed column: that is the shape a
+   * bookkeeper's sheet already has, and it makes the two SUMs at the bottom trivial.
+   */
+  function exportBook(format: 'csv' | 'xlsx') {
+    const headers = ['Waktu', 'Kategori', 'Keterangan', 'Masuk', 'Keluar'];
+    const rows: CsvCell[][] = entries.map((e) => [
+      timeFmt.format(new Date(e.occurredAt)),
+      e.category,
+      e.label,
+      e.direction === 'IN' ? e.amountIdr : '',
+      e.direction === 'OUT' ? e.amountIdr : '',
+    ]);
+    const day = new Date().toISOString().slice(0, 10);
+    if (format === 'csv') {
+      downloadCsv(`buku-kas-${day}.csv`, toCsv(headers, rows));
+      return;
+    }
+    return downloadXlsx(`buku-kas-${day}.xlsx`, headers, rows, 'Buku kas');
+  }
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
       <div className="flex items-start justify-between gap-3">
@@ -242,11 +268,25 @@ function CashbookBody() {
         </Card>
       )}
 
-      {/* ponytail: export + close-book are static no-ops until those flows are specced. */}
+      {/* ponytail: close-book is still a static no-op until that flow is specced. */}
       <div className="flex gap-3">
-        <Button variant="secondary" className="flex-1">
+        <Button
+          variant="secondary"
+          className="flex-1"
+          onClick={() => void exportBook('xlsx')}
+          disabled={entries.length === 0}
+        >
           <Export size={16} weight="bold" />
-          Ekspor CSV
+          Ekspor Excel
+        </Button>
+        <Button
+          variant="secondary"
+          className="flex-1"
+          onClick={() => exportBook('csv')}
+          disabled={entries.length === 0}
+        >
+          <Export size={16} weight="bold" />
+          CSV
         </Button>
         <Button className="flex-1">Tutup buku hari ini</Button>
       </div>

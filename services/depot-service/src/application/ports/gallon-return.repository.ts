@@ -52,4 +52,10 @@ export interface GallonReturnRepository {
   networkSummary(): Promise<GallonReturnDepotRow[]>;
   /** Return totals per CUSTOMER at one depot (J-2); rows with no customer are excluded. */
   perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
+  /** One customer's most recent returns at one depot — the CRM detail deposit ledger. */
+  listForCustomerAtDepot(
+    depotId: string,
+    customerId: string,
+    limit: number,
+  ): Promise<GallonReturnRecord[]>;
 }

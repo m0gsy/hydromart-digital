@@ -12,11 +12,13 @@ import {
 
 import { DepotService } from '../application/services/depot.service';
 import {
+  CustomerGallonLedgerEntry,
   CustomerGallonRow,
   GallonNetworkService,
   GallonOutstandingRow,
 } from '../application/services/gallon-network.service';
 import {
+  CustomerGallonLedgerEntryResponseDto,
   CustomerGallonRowResponseDto,
   GallonOutstandingRowResponseDto,
 } from './dto/responses.generated.dto';
@@ -51,6 +53,23 @@ export class GallonNetworkController {
   @ApiOperation({ summary: "One depot's outstanding empties + deposit per customer (internal)" })
   perCustomer(@Query('depotId', ParseUUIDPipe) depotId: string): Promise<CustomerGallonRow[]> {
     return this.gallon.perCustomer(depotId);
+  }
+
+  /**
+   * The same customer's movements behind those two numbers — the CRM detail deposit
+   * ledger. Internal key for the same reason as `by-customer` above.
+   */
+  @ApiOkResponse({ type: CustomerGallonLedgerEntryResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-ledger')
+  @ApiOperation({ summary: "One customer's gallon deposit movements at one depot (internal)" })
+  customerLedger(
+    @Query('depotId', ParseUUIDPipe) depotId: string,
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<CustomerGallonLedgerEntry[]> {
+    return this.gallon.customerLedger(depotId, customerId);
   }
 
   @ApiOkResponse({ type: GallonOutstandingRowResponseDto, isArray: true })

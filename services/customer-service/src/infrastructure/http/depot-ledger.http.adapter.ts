@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import {
+  DepotGallonLedgerEntry,
   DepotGallonLedgerRow,
   DepotLedgerPort,
 } from '../../application/ports/depot-ledger.port';
@@ -22,20 +23,38 @@ export class DepotLedgerHttpAdapter implements DepotLedgerPort {
   constructor(private readonly config: CustomerConfigService) {}
 
   async gallonsByCustomer(depotId: string): Promise<DepotGallonLedgerRow[] | null> {
+    const qs = `depotId=${encodeURIComponent(depotId)}`;
+    return this.read<DepotGallonLedgerRow>(`by-customer?${qs}`, null);
+  }
+
+  async customerLedger(depotId: string, customerId: string): Promise<DepotGallonLedgerEntry[]> {
+    const qs = `depotId=${encodeURIComponent(depotId)}&customerId=${encodeURIComponent(customerId)}`;
+    return this.read<DepotGallonLedgerEntry>(`customer-ledger?${qs}`, []);
+  }
+
+  /**
+   * Shared fetch for both reads. `onFailure` differs per caller on purpose — see the port:
+   * the summary must say "not known", the history may say "nothing yet".
+   */
+  private async read<T>(path: string, onFailure: null): Promise<T[] | null>;
+  private async read<T>(path: string, onFailure: T[]): Promise<T[]>;
+  private async read<T>(path: string, onFailure: T[] | null): Promise<T[] | null> {
     const base = this.config.depotServiceUrl;
     const key = this.config.internalServiceKey;
-    if (!base || !key) return null;
-    const url = `${base}/api/v1/gallon-outstanding/internal/by-customer?depotId=${encodeURIComponent(depotId)}`;
+    if (!base || !key) return onFailure;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DepotLedgerHttpAdapter.TIMEOUT_MS);
     try {
-      const res = await fetch(url, { headers: { 'x-internal-key': key }, signal: controller.signal });
+      const res = await fetch(`${base}/api/v1/gallon-outstanding/internal/${path}`, {
+        headers: { 'x-internal-key': key },
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error(`depot-service responded ${res.status}`);
-      const body = (await res.json()) as DepotGallonLedgerRow[];
-      return Array.isArray(body) ? body : null;
+      const body = (await res.json()) as T[];
+      return Array.isArray(body) ? body : onFailure;
     } catch (error) {
       this.logger.warn(`Depot gallon ledger unavailable: ${(error as Error).message}`);
-      return null;
+      return onFailure;
     } finally {
       clearTimeout(timer);
     }

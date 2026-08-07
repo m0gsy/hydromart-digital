@@ -135,3 +135,66 @@ describe('GallonNetworkService.perCustomer (J-2)', () => {
     await expect(perCustomer([], [])).resolves.toEqual([]);
   });
 });
+
+describe('GallonNetworkService.customerLedger', () => {
+  const issue = (id: string, at: string, quantity = 1, depositHeld = 20_000) => ({
+    id,
+    quantity,
+    depositHeld,
+    createdAt: new Date(at),
+  });
+  const ret = (id: string, at: string, quantity = 1, depositRefunded = 20_000) => ({
+    id,
+    quantity,
+    depositRefunded,
+    createdAt: new Date(at),
+  });
+
+  const ledger = (
+    issued: ReturnType<typeof issue>[],
+    returned: ReturnType<typeof ret>[],
+    limit?: number,
+  ) =>
+    new GallonNetworkService(
+      { listForCustomerAtDepot: async () => issued } as unknown as GallonIssueRepository,
+      { listForCustomerAtDepot: async () => returned } as unknown as GallonReturnRepository,
+    ).customerLedger('d1', 'c1', limit);
+
+  it('merges both sides into one newest-first history', async () => {
+    await expect(
+      ledger(
+        [issue('i1', '2026-08-01T00:00:00.000Z'), issue('i2', '2026-08-03T00:00:00.000Z')],
+        [ret('r1', '2026-08-02T00:00:00.000Z')],
+      ),
+    ).resolves.toEqual([
+      { id: 'i2', type: 'ISSUE', quantity: 1, amountIdr: 20_000, at: '2026-08-03T00:00:00.000Z' },
+      { id: 'r1', type: 'RETURN', quantity: 1, amountIdr: 20_000, at: '2026-08-02T00:00:00.000Z' },
+      { id: 'i1', type: 'ISSUE', quantity: 1, amountIdr: 20_000, at: '2026-08-01T00:00:00.000Z' },
+    ]);
+  });
+
+  it('is empty for a customer with no movements at this depot', async () => {
+    await expect(ledger([], [])).resolves.toEqual([]);
+  });
+
+  // Each side is read at the full limit and only the MERGED list is trimmed — otherwise a
+  // customer whose newest movements are all issues would see returns padding the list out.
+  it('trims the merged list to the limit', async () => {
+    const rows = await ledger(
+      [
+        issue('i1', '2026-08-05T00:00:00.000Z'),
+        issue('i2', '2026-08-04T00:00:00.000Z'),
+      ],
+      [ret('r1', '2026-08-01T00:00:00.000Z')],
+      2,
+    );
+    expect(rows.map((r) => r.id)).toEqual(['i1', 'i2']);
+  });
+
+  it('clamps a nonsense limit into [1, 100]', async () => {
+    await expect(ledger([issue('i1', '2026-08-05T00:00:00.000Z')], [], 0)).resolves.toHaveLength(1);
+    await expect(
+      ledger([issue('i1', '2026-08-05T00:00:00.000Z')], [], 9999),
+    ).resolves.toHaveLength(1);
+  });
+});
