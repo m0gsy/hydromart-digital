@@ -47,7 +47,7 @@ describe('DepotCrmService.getCrmDashboard', () => {
   const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 
   function serviceWithStats(stats: DepotCustomerOrderStats[]): DepotCrmService {
-    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
+    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
     return new DepotCrmService(new FakeDepotCrmRepository(), {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, new FakeIdentity(), config);
   }
 
@@ -89,7 +89,7 @@ describe('DepotCrmService.listDepotCustomers', () => {
   ): DepotCrmService {
     const repo = new FakeDepotCrmRepository();
     repo.rows = rows;
-    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats };
+    const orderCrm: OrderCrmPort = { depotCustomerStats: async () => stats, customerOrders: async () => [] };
     return new DepotCrmService(repo, {} as never, {} as never, orderCrm, { gallonsByCustomer: async () => null } as never, identity, config);
   }
 
@@ -169,14 +169,31 @@ describe('DepotCrmService.getDepotDetail', () => {
     ...over,
   });
 
+  /** Everything the detail screen reads cross-service; each defaults to "nothing known". */
+  interface Wired {
+    stats?: DepotCustomerOrderStats[];
+    gallons?: { customerId: string; gallonsOnLoan: number; depositHeldIdr: number }[] | null;
+    ledger?: { id: string; type: 'ISSUE' | 'RETURN'; quantity: number; amountIdr: number; at: string }[];
+    orders?: { id: string; orderNumber: string; status: string; totalIdr: number; placedAt: string }[];
+  }
+
   function service(
     profile: CustomerProfileRecord | null,
     addresses: AddressRecord[],
     identity: IdentityPort = new FakeIdentity(),
+    wired: Wired = {},
   ): DepotCrmService {
     const profiles: ProfileRepository = { findByCustomerId: async () => profile } as unknown as ProfileRepository;
     const addressRepo: AddressRepository = { listByCustomer: async () => addresses } as unknown as AddressRepository;
-    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, {} as never, { gallonsByCustomer: async () => null } as never, identity, {} as never);
+    const orderCrm: OrderCrmPort = {
+      depotCustomerStats: async () => wired.stats ?? [],
+      customerOrders: async () => wired.orders ?? [],
+    };
+    const depotLedger = {
+      gallonsByCustomer: async () => (wired.gallons === undefined ? null : wired.gallons),
+      customerLedger: async () => wired.ledger ?? [],
+    };
+    return new DepotCrmService(new FakeDepotCrmRepository(), addressRepo, profiles, orderCrm, depotLedger as never, identity, {} as never);
   }
 
   const profile = (tier: MembershipTier): CustomerProfileRecord => ({
@@ -223,5 +240,46 @@ describe('DepotCrmService.getDepotDetail', () => {
     const d = await service(null, []).getDepotDetail('c1', 'depot-a');
     expect(d.profile).toMatchObject({ fullName: null, phone: null, membershipTier: MembershipTier.BASIC });
     expect(d.addresses).toEqual([]);
+  });
+
+  it('fills the cross-service numbers, the ledger and the recent orders', async () => {
+    const svc = service(null, [], new FakeIdentity(), {
+      stats: [
+        { customerId: 'c1', name: 'n', phone: 'p', orderCount: 3, totalSpent: 90_000.4, firstOrderAt: null, lastOrderAt: null },
+        { customerId: 'other', name: null, phone: null, orderCount: 9, totalSpent: 1, firstOrderAt: null, lastOrderAt: null },
+      ],
+      gallons: [
+        { customerId: 'c1', gallonsOnLoan: 2, depositHeldIdr: 40_000 },
+        { customerId: 'other', gallonsOnLoan: 7, depositHeldIdr: 1 },
+      ],
+      ledger: [{ id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' }],
+      orders: [{ id: 'o1', orderNumber: 'HM-1', status: 'COMPLETED', totalIdr: 50_000, placedAt: '2026-08-02T00:00:00.000Z' }],
+    });
+
+    const d = await svc.getDepotDetail('c1', 'depot-a');
+
+    // Rounded, and the other customer's row is not the one that lands here.
+    expect(d.profile).toMatchObject({ orderCount: 3, totalSpentIdr: 90_000, gallonsOnLoan: 2, depositHeldIdr: 40_000 });
+    expect(d.depositLedger).toHaveLength(1);
+    // `orderNumber` is not part of the screen's row shape — it must not leak through.
+    expect(d.recentOrders).toEqual([
+      { id: 'o1', status: 'COMPLETED', totalIdr: 50_000, placedAt: '2026-08-02T00:00:00.000Z' },
+    ]);
+  });
+
+  // The distinction the whole J-2 fix exists for: a customer nobody has data ON, at a depot
+  // whose services DID answer, is a real zero. An unreachable service is not.
+  it('a customer missing from an answered aggregate is 0, not null', async () => {
+    const d = await service(null, [], new FakeIdentity(), {
+      stats: [{ customerId: 'someone-else', name: null, phone: null, orderCount: 1, totalSpent: 1, firstOrderAt: null, lastOrderAt: null }],
+      gallons: [{ customerId: 'someone-else', gallonsOnLoan: 1, depositHeldIdr: 1 }],
+    }).getDepotDetail('c1', 'depot-a');
+
+    expect(d.profile).toMatchObject({ orderCount: 0, totalSpentIdr: 0, gallonsOnLoan: 0, depositHeldIdr: 0 });
+  });
+
+  it('unreachable order-service and depot-service stay null, never 0', async () => {
+    const d = await service(null, [], new FakeIdentity(), { stats: [], gallons: null }).getDepotDetail('c1', 'depot-a');
+    expect(d.profile).toMatchObject({ orderCount: null, totalSpentIdr: null, gallonsOnLoan: null, depositHeldIdr: null });
   });
 });

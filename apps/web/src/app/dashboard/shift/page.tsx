@@ -6,6 +6,8 @@ import { CalendarBlank, CaretLeft, CaretRight, DownloadSimple, Lock, PencilSimpl
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { downloadCsv, toCsv } from '@/lib/csv';
+import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -124,19 +126,32 @@ function RosterBody() {
     }
   }
 
+  /** Header + one row per staff member, shared by both export formats. */
+  function rosterTable(): { headers: string[]; rows: string[][] } {
+    return {
+      headers: ['Staf', ...DAY_LABELS],
+      rows: staff.map((s) => [
+        s.name,
+        ...DAY_LABELS.map((_, day) => SHIFT_LABEL[cells[cellKey(s.id, day)] ?? 'OFF']),
+      ]),
+    };
+  }
+
   function exportCsv() {
-    const header = ['Staf', ...DAY_LABELS];
-    const rows = staff.map((s) => [
-      s.name,
-      ...DAY_LABELS.map((_, day) => SHIFT_LABEL[cells[cellKey(s.id, day)] ?? 'OFF']),
-    ]);
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `jadwal-shift-${weekStart}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const { headers, rows } = rosterTable();
+    // lib/csv writes a BOM and quotes only what needs it — the hand-rolled version here
+    // did neither, so accented names came out mojibake in Excel.
+    downloadCsv(`jadwal-shift-${weekStart}.csv`, toCsv(headers, rows));
+  }
+
+  async function exportXlsx() {
+    const { headers, rows } = rosterTable();
+    setSaveError(null);
+    try {
+      await downloadXlsx(`jadwal-shift-${weekStart}.xlsx`, headers, rows, 'Jadwal shift');
+    } catch {
+      setSaveError('Gagal membuat file Excel. Coba ekspor CSV.');
+    }
   }
 
   const loading = roster.loading || drivers.loading;
@@ -165,9 +180,13 @@ function RosterBody() {
               {editing ? 'Selesai atur' : 'Atur shift'}
             </Button>
           )}
+          <Button variant="ghost" onClick={() => void exportXlsx()} disabled={staff.length === 0}>
+            <DownloadSimple size={16} weight="bold" className="mr-1.5" />
+            Ekspor Excel
+          </Button>
           <Button variant="ghost" onClick={exportCsv} disabled={staff.length === 0}>
             <DownloadSimple size={16} weight="bold" className="mr-1.5" />
-            Ekspor jadwal
+            CSV
           </Button>
         </div>
       </div>

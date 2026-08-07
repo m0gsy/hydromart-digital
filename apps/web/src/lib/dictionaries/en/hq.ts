@@ -632,7 +632,6 @@ export const hq = {
     empty: 'No data in this range.',
     format: 'Format',
     export: 'Export report',
-    scheduled: 'Export scheduled (sample)',
   },
   forms: {
     cancel: 'Cancel',

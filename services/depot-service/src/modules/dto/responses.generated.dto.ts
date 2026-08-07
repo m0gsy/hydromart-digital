@@ -1254,3 +1254,17 @@ export class CustomerGallonRowResponseDto {
   @ApiProperty({ type: Number })
   depositHeldIdr!: number;
 }
+
+/** Mirrors `CustomerGallonLedgerEntry` exactly — generated for audit D-6, no field added or removed. */
+export class CustomerGallonLedgerEntryResponseDto {
+  @ApiProperty({ type: String })
+  id!: string;
+  @ApiProperty({ enum: ['ISSUE', 'RETURN'] })
+  type!: string;
+  @ApiProperty({ type: Number })
+  quantity!: number;
+  @ApiProperty({ type: Number })
+  amountIdr!: number;
+  @ApiProperty({ type: String })
+  at!: string;
+}

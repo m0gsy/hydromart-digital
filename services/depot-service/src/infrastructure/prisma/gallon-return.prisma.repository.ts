@@ -58,6 +58,19 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
     return { items: rows.map((r) => this.toRecord(r)), total };
   }
 
+  async listForCustomerAtDepot(
+    depotId: string,
+    customerId: string,
+    limit: number,
+  ): Promise<GallonReturnRecord[]> {
+    const rows = await this.prisma.gallonReturn.findMany({
+      where: { depotId, customerId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
   async summaryForDepot(depotId: string): Promise<GallonReturnSummary> {
     const [agg, damaged] = await Promise.all([
       this.prisma.gallonReturn.aggregate({

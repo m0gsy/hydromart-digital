@@ -24,6 +24,15 @@ export interface CustomerGallonRow {
   depositHeldIdr: number;
 }
 
+/** One movement of the deposit ledger, as the CRM detail screen lists it. */
+export interface CustomerGallonLedgerEntry {
+  id: string;
+  type: 'ISSUE' | 'RETURN';
+  quantity: number;
+  amountIdr: number;
+  at: string;
+}
+
 /**
  * Network gallon rollup (HQ compare 14d + reconciliation 22a). Merges the per-depot
  * issue and return group-bys into outstanding empties + net deposit held. One row per
@@ -60,6 +69,44 @@ export class GallonNetworkService {
       });
     }
     return rows.filter((r) => r.gallonsOnLoan > 0 || r.depositHeldIdr > 0);
+  }
+
+  /**
+   * One customer's deposit movements at one depot, newest first — the "Deposit galon"
+   * panel on the CRM detail screen, which printed "Belum ada riwayat" for everyone
+   * because customer-service had no endpoint to ask.
+   *
+   * Both sides are fetched at `limit` and merged, so the merged list is correct even
+   * when all of the newest movements happen to be issues (or all returns).
+   */
+  async customerLedger(
+    depotId: string,
+    customerId: string,
+    limit = 20,
+  ): Promise<CustomerGallonLedgerEntry[]> {
+    const capped = Math.min(100, Math.max(1, limit));
+    const [issues, returns] = await Promise.all([
+      this.issues.listForCustomerAtDepot(depotId, customerId, capped),
+      this.returns.listForCustomerAtDepot(depotId, customerId, capped),
+    ]);
+    return [
+      ...issues.map((i) => ({
+        id: i.id,
+        type: 'ISSUE' as const,
+        quantity: i.quantity,
+        amountIdr: i.depositHeld,
+        at: i.createdAt.toISOString(),
+      })),
+      ...returns.map((r) => ({
+        id: r.id,
+        type: 'RETURN' as const,
+        quantity: r.quantity,
+        amountIdr: r.depositRefunded,
+        at: r.createdAt.toISOString(),
+      })),
+    ]
+      .sort((a, b) => b.at.localeCompare(a.at))
+      .slice(0, capped);
   }
 
   async outstanding(): Promise<GallonOutstandingRow[]> {

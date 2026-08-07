@@ -91,4 +91,43 @@ describe('DepotLedgerHttpAdapter', () => {
       [],
     );
   });
+
+  /**
+   * The movement history is the one read that falls back to `[]` rather than `null`, and it
+   * is deliberate: the two stat cards above it already say "belum tersambung" when the
+   * service is down, so an empty history there cannot be mistaken for a confirmed zero.
+   */
+  describe('customerLedger', () => {
+    const CUSTOMER = '22222222-2222-4222-8222-222222222222';
+
+    it('asks for the one customer, with the internal key', async () => {
+      const rows = [{ id: 'l1', type: 'ISSUE', quantity: 2, amountIdr: 40_000, at: '2026-08-01T00:00:00.000Z' }];
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true, json: async () => rows });
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+
+      await expect(
+        new DepotLedgerHttpAdapter(configured).customerLedger(DEPOT, CUSTOMER),
+      ).resolves.toEqual(rows);
+
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toBe(
+        `http://depot:3007/api/v1/gallon-outstanding/internal/customer-ledger?depotId=${DEPOT}&customerId=${CUSTOMER}`,
+      );
+      expect(init.headers['x-internal-key']).toBe('k');
+    });
+
+    it('is [] — not null — on every failure path', async () => {
+      const blank = buildTestConfig({ DEPOT_SERVICE_URL: '', INTERNAL_SERVICE_KEY: 'k' });
+      await expect(new DepotLedgerHttpAdapter(blank).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 });
+      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+      await expect(quiet(new DepotLedgerHttpAdapter(configured)).customerLedger(DEPOT, CUSTOMER)).resolves.toEqual([]);
+    });
+  });
 });

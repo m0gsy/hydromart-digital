@@ -635,7 +635,6 @@ export const hq = {
     empty: 'Tidak ada data pada rentang ini.',
     format: 'Format',
     export: 'Ekspor laporan',
-    scheduled: 'Ekspor dijadwalkan (contoh)',
   },
   forms: {
     cancel: 'Batal',

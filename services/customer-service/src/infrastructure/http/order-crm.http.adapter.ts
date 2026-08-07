@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
-import { DepotCustomerOrderStats, OrderCrmPort } from '../../application/ports/order-crm.port';
+import {
+  DepotCustomerOrder,
+  DepotCustomerOrderStats,
+  OrderCrmPort,
+} from '../../application/ports/order-crm.port';
 
 interface RawStat {
   customerId: string;
@@ -52,6 +56,31 @@ export class OrderCrmHttpAdapter implements OrderCrmPort {
       }));
     } catch (err) {
       this.logger.warn(`depot-customers fetch failed: ${err instanceof Error ? err.message : err}`);
+      return [];
+    }
+  }
+
+  async customerOrders(depotId: string, customerId: string): Promise<DepotCustomerOrder[]> {
+    const url = this.config.orderServiceUrl;
+    const key = this.config.internalServiceKey;
+    if (!url || !key) return [];
+    const qs = `depotId=${encodeURIComponent(depotId)}&customerId=${encodeURIComponent(customerId)}`;
+    try {
+      const res = await fetch(
+        `${url.replace(/\/$/, '')}/api/v1/orders/internal/customer-orders?${qs}`,
+        {
+          headers: { 'x-internal-key': key },
+          signal: AbortSignal.timeout(OrderCrmHttpAdapter.TIMEOUT_MS),
+        },
+      );
+      if (!res.ok) {
+        this.logger.warn(`customer-orders ${res.status} for customer ${customerId}`);
+        return [];
+      }
+      const body = (await res.json()) as { orders?: DepotCustomerOrder[] };
+      return body.orders ?? [];
+    } catch (err) {
+      this.logger.warn(`customer-orders fetch failed: ${err instanceof Error ? err.message : err}`);
       return [];
     }
   }

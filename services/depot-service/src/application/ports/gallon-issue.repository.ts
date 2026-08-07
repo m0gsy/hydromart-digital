@@ -64,4 +64,10 @@ export interface GallonIssueRepository {
    * an anonymous counter issue is not a person anybody can chase for a gallon back.
    */
   perCustomerForDepot(depotId: string): Promise<GallonCustomerRow[]>;
+  /** One customer's most recent issues at one depot — the CRM detail deposit ledger. */
+  listForCustomerAtDepot(
+    depotId: string,
+    customerId: string,
+    limit: number,
+  ): Promise<GallonIssueRecord[]>;
 }

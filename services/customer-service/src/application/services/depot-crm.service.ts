@@ -131,13 +131,12 @@ function matches(item: DepotCustomerListItem, q: string): boolean {
 
 /**
  * Depot customer directory (Depot Operator 6a/7a, Depot Manager 12b). Profile + address data
- * is served for real from customer-service; the order and gallon-deposit aggregates are
- * cross-service and returned as zero/empty for now.
+ * is served from customer-service; order counts and the gallon-deposit ledger are read
+ * cross-service over `OrderCrmPort` / `DepotLedgerPort`, both of which fail soft.
  *
- * ponytail: TODO wire order/depot aggregate — orderCount/lastOrderAt/totalSpent/isSubscriber
- * from an order-service port; gallonsOnLoan/depositHeldIdr + the deposit ledger + address
- * inRadius from a depot-service (gallon-issue/gallon-return + serviceRadiusKm) port. The DTO
- * and FE already render these fields, so wiring is drop-in once those internal endpoints exist.
+ * Anything still unwired is `null`, never a fabricated 0 — see the field comments. Left:
+ * `isSubscriber` (depot subscriptions have no customer id to match on), `churnRisk`
+ * (forecast-service has no port here) and address `inRadius` (needs depot serviceRadiusKm).
  */
 @Injectable()
 export class DepotCrmService {
@@ -282,14 +281,34 @@ export class DepotCrmService {
     return this.crm.findIdsByDepot(depotId);
   }
 
-  async getDepotDetail(customerId: string, _depotId: string): Promise<DepotCustomerDetail> {
-    const [profile, addressRecords, identities] = await Promise.all([
-      this.profiles.findByCustomerId(customerId),
-      this.addresses.listByCustomer(customerId),
-      this.identity.getCustomerNames([customerId]),
-    ]);
+  /**
+   * One customer's card at one depot.
+   *
+   * Every cross-service number here used to be a hardcoded `null`, so the screen said
+   * "belum tersambung" forever even though the directory one click away was already
+   * showing the same customer's real order count. It now asks the same two ports the
+   * list does, plus the two per-customer reads that only this screen needs.
+   *
+   * ponytail: `depotCustomerStats` is a whole-depot aggregate filtered down to one row.
+   * That is one extra HTTP call the list already makes for every customer at once — add a
+   * per-customer variant upstream only if a depot's directory ever gets big enough to hurt.
+   */
+  async getDepotDetail(customerId: string, depotId: string): Promise<DepotCustomerDetail> {
+    const [profile, addressRecords, identities, stats, ledgerRows, ledger, orders] =
+      await Promise.all([
+        this.profiles.findByCustomerId(customerId),
+        this.addresses.listByCustomer(customerId),
+        this.identity.getCustomerNames([customerId]),
+        this.orderCrm.depotCustomerStats(depotId),
+        // J-2: null (not []) when depot-service could not answer at all.
+        this.depotLedger.gallonsByCustomer(depotId),
+        this.depotLedger.customerLedger(depotId, customerId),
+        this.orderCrm.customerOrders(depotId, customerId),
+      ]);
     const primary = addressRecords.find((a) => a.isPrimary) ?? addressRecords[0] ?? null;
     const account = identities.get(customerId);
+    const stat = stats.find((s) => s.customerId === customerId);
+    const gallons = ledgerRows?.find((r) => r.customerId === customerId);
 
     return {
       profile: {
@@ -298,18 +317,26 @@ export class DepotCrmService {
         fullName: account?.fullName ?? primary?.recipientName ?? null,
         phone: account?.phone ?? primary?.phone ?? null,
         membershipTier: profile?.membershipTier ?? MembershipTier.BASIC,
-        // Cross-service aggregates unwired — null ("unknown"), never a fabricated 0/false.
+        // Same null-vs-zero rule as the directory: a customer who has never ordered comes
+        // back as 0, order-service being unreachable comes back as null. Different answers.
+        orderCount: stats.length > 0 ? (stat?.orderCount ?? 0) : null,
+        totalSpentIdr: stats.length > 0 ? Math.round(stat?.totalSpent ?? 0) : null,
+        gallonsOnLoan: ledgerRows ? (gallons?.gallonsOnLoan ?? 0) : null,
+        depositHeldIdr: ledgerRows ? (gallons?.depositHeldIdr ?? 0) : null,
+        // Still unwired: depot subscriptions carry a free-text customerName and a nullable
+        // customerId, so there is no id to match on for most of them.
         isSubscriber: null,
-        orderCount: null,
-        totalSpentIdr: null,
-        gallonsOnLoan: null,
-        depositHeldIdr: null,
+        // Still unwired: churn scoring lives in forecast-service, which has no port here.
         churnRisk: null,
       },
       addresses: addressRecords.map((a) => this.toAddress(a)),
-      // TODO wire order/depot aggregate — deposit ledger + recent orders (see class doc).
-      depositLedger: [],
-      recentOrders: [],
+      depositLedger: ledger,
+      recentOrders: orders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        totalIdr: o.totalIdr,
+        placedAt: o.placedAt,
+      })),
     };
   }
 

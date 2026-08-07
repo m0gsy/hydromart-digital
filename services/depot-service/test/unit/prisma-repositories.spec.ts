@@ -585,6 +585,16 @@ describe('GallonIssuePrismaRepository', () => {
     expect(model.create).toHaveBeenCalledWith({ data: { depotId: 'depot-1' } });
   });
 
+  it('reads one customer’s issues at one depot, newest first and capped', async () => {
+    model.findMany.mockResolvedValue([row]);
+    await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([row]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: 'c1' },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  });
+
   /*
    * J-2: issue totals per CUSTOMER at one depot. Rows with no customer are excluded in the
    * `where` — an anonymous counter issue is not somebody anybody can chase for a gallon.
@@ -657,6 +667,20 @@ describe('GallonReturnPrismaRepository', () => {
   };
   const prisma = { gallonReturn: model } as unknown as PrismaService;
   const repo = new GallonReturnPrismaRepository(prisma);
+
+  it('reads one customer’s returns at one depot, coercing the Decimal refund', async () => {
+    model.findMany.mockResolvedValue([
+      { id: 'gr-1', depotId: 'depot-1', customerId: 'c1', quantity: 2, condition: 'GOOD', depositRefunded: { toString: () => '40000' } },
+    ]);
+    await expect(repo.listForCustomerAtDepot('depot-1', 'c1', 20)).resolves.toEqual([
+      expect.objectContaining({ id: 'gr-1', depositRefunded: 40_000 }),
+    ]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { depotId: 'depot-1', customerId: 'c1' },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+  });
 
   // J-2, the other half of the netting. `depositRefunded` is a Decimal column, so the sum
   // comes back as a Decimal and has to be coerced — a Decimal reaching the DTO serialises

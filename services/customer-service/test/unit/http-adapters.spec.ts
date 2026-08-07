@@ -119,6 +119,30 @@ describe('OrderCrmHttpAdapter (fail-soft → [])', () => {
     fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
     expect(await new OrderCrmHttpAdapter(cfg()).depotCustomerStats('d1')).toEqual([]);
   });
+
+  describe('customerOrders', () => {
+    it('passes both ids and returns the orders verbatim', async () => {
+      const orders = [{ id: 'o1', orderNumber: 'HM-1', status: 'COMPLETED', totalIdr: 50_000, placedAt: '2026-08-02T00:00:00.000Z' }];
+      fetchMock.mockResolvedValue(res({ ok: true, json: { orders } }));
+
+      await expect(new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).resolves.toEqual(orders);
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://order:3004/api/v1/orders/internal/customer-orders?depotId=d1&customerId=c1',
+        { headers: { 'x-internal-key': KEY }, signal: expect.any(AbortSignal) },
+      );
+    });
+
+    it('returns [] when unconfigured, refused, unreachable, or handed a body with no orders', async () => {
+      expect(await new OrderCrmHttpAdapter(cfg({ orderServiceUrl: '' })).customerOrders('d1', 'c1')).toEqual([]);
+      expect(fetchMock).not.toHaveBeenCalled();
+      fetchMock.mockResolvedValueOnce(res({ ok: false, status: 500 }));
+      expect(await new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).toEqual([]);
+      fetchMock.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+      expect(await new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).toEqual([]);
+      fetchMock.mockResolvedValueOnce(res({ ok: true, json: {} }));
+      expect(await new OrderCrmHttpAdapter(cfg()).customerOrders('d1', 'c1')).toEqual([]);
+    });
+  });
 });
 
 describe('ProductCatalogHttpAdapter', () => {

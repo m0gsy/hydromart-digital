@@ -7,7 +7,9 @@
 // Text — which is what stops Excel turning a long number into 8.12E+10 and losing
 // digits for real.
 
-import type { CsvRecord } from './csv';
+import { downloadBlob, type CsvCell, type CsvRecord } from './csv';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 export interface TemplateColumn {
   key: string;
@@ -94,9 +96,42 @@ export async function buildTemplateXlsx(
     }
   });
 
-  return new Blob([await workbook.xlsx.writeBuffer()], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  return new Blob([await workbook.xlsx.writeBuffer()], { type: XLSX_MIME });
+}
+
+/**
+ * Build a plain single-sheet .xlsx from a header row + data rows — the Excel twin of
+ * `toCsv`. Numbers stay numbers, so Excel sums them without a locale fight, and strings
+ * stay strings, so a phone number keeps its leading zero instead of becoming 8.12E+10.
+ */
+export async function toXlsxBlob(
+  headers: string[],
+  rows: CsvCell[][],
+  sheetName: string,
+): Promise<Blob> {
+  const ExcelJS = await excel();
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName.slice(0, 31)); // Excel's sheet-name limit
+
+  sheet.addRow(headers);
+  sheet.getRow(1).font = { bold: true };
+  for (const row of rows) sheet.addRow(row.map((cell) => cell ?? ''));
+
+  headers.forEach((header, index) => {
+    sheet.getColumn(index + 1).width = Math.max(12, header.length + 4);
   });
+
+  return new Blob([await workbook.xlsx.writeBuffer()], { type: XLSX_MIME });
+}
+
+/** Build and download an .xlsx in one call — the Excel twin of `downloadCsv`. */
+export async function downloadXlsx(
+  filename: string,
+  headers: string[],
+  rows: CsvCell[][],
+  sheetName: string,
+): Promise<void> {
+  downloadBlob(filename, await toXlsxBlob(headers, rows, sheetName));
 }
 
 export type ImportFileKind = 'spreadsheet' | 'delimited' | 'legacy' | 'unsupported';
