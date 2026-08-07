@@ -51,7 +51,7 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
   return (
     <Card className="flex flex-col gap-3 p-4">
       <div className="flex items-start justify-between gap-3">
-        <Link href={`/dashboard/purchase-orders/${po.id}`} className="min-w-0">
+        <Link href={`/dashboard/purchase-orders/detail?id=${po.id}`} className="min-w-0">
           <p className="truncate font-semibold hover:underline">{po.poNumber}</p>
           <p className="truncate text-xs text-muted">{po.supplierName}</p>
         </Link>

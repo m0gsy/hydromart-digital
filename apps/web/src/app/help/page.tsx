@@ -16,6 +16,7 @@ import type { Icon } from '@phosphor-icons/react';
 import { useT } from '@/lib/locale-context';
 import { help as helpID } from '@/lib/dictionaries/id/help';
 import { help as helpEN } from '@/lib/dictionaries/en/help';
+import { ExternalLink } from '@/components/external-link';
 
 // ponytail: support number is a single placeholder constant — no per-depot CS
 // routing in scope. Swap for a real hotline / wire to config when one exists.
@@ -129,22 +130,20 @@ export default function HelpPage() {
 
       {/* CS contact */}
       <div className="mt-[18px] flex gap-2.5">
-        <a
+        <ExternalLink
           href={WA_LINK}
-          target="_blank"
-          rel="noopener noreferrer"
           className="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-[13px] bg-brand-600 text-sm font-extrabold text-on-brand transition-colors hover:bg-brand-800"
         >
           <ChatCircleDots size={17} weight="fill" />
           {t('help.chatCta')}
-        </a>
-        <a
+        </ExternalLink>
+        <ExternalLink
           href={`tel:${SUPPORT_PHONE.replace(/\s/g, '')}`}
           aria-label={t('help.callAria')}
           className="flex h-[50px] w-14 items-center justify-center rounded-[13px] border border-app surface transition-colors hover:border-brand-600"
         >
           <Phone size={19} weight="fill" className="text-brand-600" />
-        </a>
+        </ExternalLink>
       </div>
     </div>
   );

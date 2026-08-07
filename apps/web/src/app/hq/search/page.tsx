@@ -110,7 +110,7 @@ export default function HqSearchPage() {
           {results.depots.length > 0 && (
             <Group icon={<Storefront size={16} weight="fill" />} title={t('hq.search.groups.depots')}>
               {results.depots.map((d) => (
-                <Link key={d.id} href={`/hq/depots/${d.id}`} className="block">
+                <Link key={d.id} href={`/hq/depots/detail?id=${d.id}`} className="block">
                   <ResultRow title={d.name} meta={`${d.code} · ${d.city}`} />
                 </Link>
               ))}

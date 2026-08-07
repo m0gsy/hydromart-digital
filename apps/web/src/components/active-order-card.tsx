@@ -30,7 +30,7 @@ export function ActiveOrderCard() {
 
   return (
     <Link
-      href={`/orders/${active.id}`}
+      href={`/orders/detail?id=${active.id}`}
       className="surface flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-full border border-app px-[22px] py-[13px] transition-shadow hover:shadow-card"
     >
       <span className="relative flex h-2.5 w-2.5 shrink-0">

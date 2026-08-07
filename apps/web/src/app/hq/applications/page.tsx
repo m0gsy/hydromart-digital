@@ -75,7 +75,7 @@ export default function HqApplicationsPage() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => router.push(`/hq/applications/${a.id}`)}>
+                  <Button variant="secondary" onClick={() => router.push(`/hq/applications/detail?id=${a.id}`)}>
                     {t('hq.applications.review')}
                   </Button>
                 </div>

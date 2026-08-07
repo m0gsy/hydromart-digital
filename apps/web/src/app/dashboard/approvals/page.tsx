@@ -50,7 +50,7 @@ function Row({ a }: { a: Approval }) {
   const { t } = useT();
   const Icon = TYPE_ICON[a.type] ?? Coins;
   return (
-    <Link href={`/dashboard/approvals/${a.id}`} className="block">
+    <Link href={`/dashboard/approvals/detail?id=${a.id}`} className="block">
       <Card className="flex items-center gap-3 p-4 transition hover:border-brand-300">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
           <Icon size={20} weight="fill" />

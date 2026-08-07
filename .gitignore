@@ -8,6 +8,8 @@ dist/
 build/
 .next/
 out/
+# The Android binaries' exported static site (MOBILE_BUILD=1).
+mobile-out/
 *.tsbuildinfo
 
 # Prisma

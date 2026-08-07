@@ -40,7 +40,7 @@ export function ProductCard({
     e.preventDefault();
     e.stopPropagation();
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/${product.id}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${product.id}`)}`);
       return;
     }
     setAdding(true);
@@ -59,7 +59,7 @@ export function ProductCard({
 
   return (
     <Link
-      href={`/products/${product.id}`}
+      href={`/products/detail?id=${product.id}`}
       className="surface group flex flex-col overflow-hidden rounded-[20px] shadow-card transition-[box-shadow,transform] duration-[180ms] hover:-translate-y-[3px] hover:shadow-lift"
     >
       <div className="relative flex aspect-square items-center justify-center bg-[color:var(--surface-soft)]">

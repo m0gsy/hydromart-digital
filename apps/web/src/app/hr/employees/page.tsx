@@ -167,7 +167,7 @@ export default function EmployeesPage() {
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 p-4">
-              <Link href={`/hr/employees/${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
+              <Link href={`/hr/employees/detail?id=${e.id}`} className="min-w-0 flex-1 hover:opacity-80">
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">
                   {e.employeeCode} · {e.position} · {EMPLOYMENT_STATUS_LABEL[e.employmentStatus]} ·{' '}

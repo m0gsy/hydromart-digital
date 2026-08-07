@@ -30,7 +30,7 @@ function subtitle(a: Approval): string {
 
 function Row({ a }: { a: Approval }) {
   return (
-    <Link href={`/m/manager/approvals/${a.id}`}>
+    <Link href={`/m/manager/approvals/detail?id=${a.id}`}>
       <Card className="flex items-start gap-3 p-4">
         <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
           <Gavel size={18} weight="fill" />

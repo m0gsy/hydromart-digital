@@ -11,6 +11,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { Badge } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
@@ -137,13 +138,13 @@ export function OrderProgress({
             )}
           </div>
           {driverPhone && (
-            <a
+            <ExternalLink
               href={`tel:${driverPhone}`}
               aria-label={t('order.detail.callDriver')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand transition-opacity hover:opacity-90"
             >
               <Phone size={17} weight="fill" />
-            </a>
+            </ExternalLink>
           )}
         </div>
       ) : (

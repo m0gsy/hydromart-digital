@@ -118,7 +118,7 @@ export default function HqOrdersPage() {
                 <tr
                   key={o.id}
                   className="cursor-pointer transition-colors hover:bg-[color:var(--surface-soft)]"
-                  onClick={() => router.push(`/hq/orders/${o.id}`)}
+                  onClick={() => router.push(`/hq/orders/detail?id=${o.id}`)}
                 >
                   <td className="px-4 py-3">
                     <span className="block font-mono text-xs">{o.orderNumber}</span>

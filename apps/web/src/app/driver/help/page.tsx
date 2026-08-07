@@ -18,6 +18,7 @@ import {
   WarningOctagon,
 } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
@@ -140,22 +141,20 @@ function Help() {
           </div>
         </div>
         <div className="mt-3 flex gap-2.5">
-          <a
+          <ExternalLink
             href={`tel:${DEPOT_PHONE.replace(/\s/g, '')}`}
             className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white text-[13px] font-extrabold text-brand-700"
           >
             <Phone size={16} weight="fill" />
             {t('driver.help.call')}
-          </a>
-          <a
+          </ExternalLink>
+          <ExternalLink
             href={WA_LINK}
-            target="_blank"
-            rel="noreferrer"
             className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/20 text-[13px] font-extrabold"
           >
             <ChatCircleText size={16} weight="fill" />
             {t('driver.help.chat')}
-          </a>
+          </ExternalLink>
         </div>
       </Card>
 
