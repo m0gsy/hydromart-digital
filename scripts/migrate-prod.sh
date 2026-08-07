@@ -51,4 +51,32 @@ elif [ "$PREFLIGHT" != "0" ]; then
   echo "[migrate] !! could not preflight the schema (exit $PREFLIGHT) — continuing unverified" >&2
 fi
 
+# A migration that FAILED stays recorded, and Prisma then refuses every later one for that
+# service with P3018 — so every subsequent deploy dies the same way, on an error that names
+# neither the service nor the way out. That happened on 2026-08-07 (hr, the shift FK meeting
+# a genuinely dangling row) and cost an hour of reading logs.
+#
+# Detect it and say the one command that clears it. NOT resolved automatically: marking a
+# migration rolled back is only safe when it is idempotent, and this script cannot know that
+# for a migration it has never seen.
+PG_CONTAINER_NAME="${PG_CONTAINER:-hydromart-postgres}"
+PG_USER_NAME="${PG_USER:-hydromart}"
+STUCK=0
+for svc in auth customer product order payment delivery depot loyalty            promo referral crm recommendation forecast payout admin hr; do
+  failed="$(docker exec "$PG_CONTAINER_NAME" psql -tAX -U "$PG_USER_NAME" -d "hydromart_${svc}"     -c "SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NULL AND rolled_back_at IS NULL"     2>/dev/null || true)"
+  [ -n "$failed" ] || continue
+  STUCK=1
+  echo "[migrate] !! ${svc}: a migration is recorded as FAILED — nothing new can apply until it is cleared:" >&2
+  echo "$failed" | sed 's/^/             /' >&2
+  echo "             fix the data it choked on, then re-run THIS script with:" >&2
+  echo "$failed" | while read -r m; do
+    [ -n "$m" ] || continue
+    echo "               npx prisma migrate resolve --rolled-back $m \\" >&2
+    echo "                 --schema services/${svc}-service/prisma/schema.prisma" >&2
+  done
+  echo "             (the *_DATABASE_URL this script already derived is the one it needs," >&2
+  echo "              so run it from this same shell, or re-source .env first)" >&2
+done
+[ "$STUCK" = 0 ] || { echo "[migrate] ABORTING: resolve the failed migration(s) above first." >&2; exit 1; }
+
 npm run db:migrate
