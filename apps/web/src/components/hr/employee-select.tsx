@@ -37,7 +37,9 @@ export function EmployeeSelect({
   const employees = useAsync<HrPage<Employee>>(
     () =>
       api.getCached<HrPage<Employee>>(
-        endpoints.hr.employees({ status: 'ACTIVE', pageSize: 200 }),
+        // ponytail: 100 is the DTO's hard @Max — a depot past 100 active staff needs a
+        // search-as-you-type picker, not a bigger page.
+        endpoints.hr.employees({ status: 'ACTIVE', pageSize: 100 }),
         true,
       ),
     [],
