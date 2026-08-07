@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ArrowDown, ArrowUp, BookOpen, Export, Lock, Plus, type Icon } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -268,7 +269,6 @@ function CashbookBody() {
         </Card>
       )}
 
-      {/* ponytail: close-book is still a static no-op until that flow is specced. */}
       <div className="flex gap-3">
         <Button
           variant="secondary"
@@ -288,8 +288,21 @@ function CashbookBody() {
           <Export size={16} weight="bold" />
           CSV
         </Button>
-        <Button className="flex-1">Tutup buku hari ini</Button>
       </div>
+
+      {/*
+        "Tutup buku hari ini" used to sit here as a dead button beside the real one on the
+        daily report. Two buttons for one irreversible action is how a depot closes the
+        wrong date — and only the report page has the date picker, the "Buku ditutup"
+        state and the late-entry warning that make the action safe to take.
+      */}
+      <p className="text-center text-[12.5px] text-[color:var(--text-muted)]">
+        Tutup buku harian ada di{' '}
+        <Link href="/dashboard/reports" className="font-semibold text-brand-600 hover:underline">
+          Laporan harian
+        </Link>
+        .
+      </p>
     </div>
   );
 }
