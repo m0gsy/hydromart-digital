@@ -27,13 +27,44 @@ function jsonResponse(status: number, body: unknown): Response {
   });
 }
 
+/**
+ * F3b: tokens live in the Keystore, reached through the SecureStorage plugin, so the
+ * tests need a plugin to reach. One object, holding one string — which is all the native
+ * side is from this file's point of view.
+ */
+function installVault(initial: string | null = null): { value: string | null } {
+  const vault = { value: initial };
+  (window as unknown as { Capacitor: unknown }).Capacitor = {
+    isNativePlatform: () => true,
+    Plugins: {
+      SecureStorage: {
+        internalGetItem: async () => ({ data: vault.value }),
+        internalSetItem: async ({ data }: { data: string }) => {
+          vault.value = data;
+        },
+        internalRemoveItem: async () => {
+          vault.value = null;
+          return { success: true };
+        },
+      },
+      // No screen lock: `unlockTokens` restores without a prompt, which is the path this
+      // file cares about. The prompt itself is `native-biometric.test.ts`.
+      BiometricAuthNative: {
+        checkBiometry: async () => ({ isAvailable: false, deviceIsSecure: false }),
+      },
+    },
+  };
+  return vault;
+}
+
 /** Fresh module graph per test — `token-store` caches the session in module state. */
-async function load() {
+async function load(initialVault: string | null = null) {
   vi.resetModules();
   window.localStorage.clear();
   return {
     api: (await import('@/lib/api')).api,
     tokens: await import('@/lib/token-store'),
+    vault: installVault(initialVault),
   };
 }
 
@@ -75,10 +106,15 @@ describe('native login', () => {
       vi.fn(async () => jsonResponse(200, SESSION_WITH_TOKENS)),
     );
     await first.api.post(VERIFY, {});
+    expect(first.vault.value).toContain('RT-1');
 
-    // Same storage, brand-new module graph: exactly what a WebView restart looks like.
+    // Same vault contents, brand-new module graph: exactly what a WebView restart looks
+    // like. Nothing is in memory until the unlock, which is the F3b change — a Keystore
+    // entry cannot be read synchronously the way localStorage could.
     vi.resetModules();
     const reloaded = await import('@/lib/token-store');
+    expect(reloaded.getAccessToken()).toBeNull();
+    await reloaded.unlockTokens();
     expect(reloaded.getAccessToken()).toBe('AT-1');
   });
 
@@ -189,7 +225,7 @@ describe('native refresh', () => {
   });
 
   it('drops the tokens when the refresh itself is rejected', async () => {
-    const { api, tokens } = await load();
+    const { api, tokens, vault } = await load('{"accessToken":"STALE","refreshToken":"RT-DEAD"}');
     tokens.primeTokens({ accessToken: 'STALE', refreshToken: 'RT-DEAD' });
     vi.stubGlobal(
       'fetch',
@@ -198,6 +234,9 @@ describe('native refresh', () => {
 
     await expect(api.get(ME, true)).rejects.toThrow();
     expect(tokens.hasTokens()).toBe(false);
-    expect(window.localStorage.getItem('hm.tokens')).toBeNull();
+    // And erased from the Keystore, not merely forgotten in memory — a dead refresh
+    // token that comes back on the next launch is a forced OTP for no reason.
+    await tokens.tokensPersisted();
+    expect(vault.value).toBeNull();
   });
 });

@@ -1,0 +1,114 @@
+/**
+ * F3b: turn whatever arrives from outside the app into a route this build actually has.
+ *
+ * Two things call this, and they hand over two different shapes. An Android App Link is
+ * an absolute `https://<web domain>/...` URL, because Android verified that domain
+ * against `assetlinks.json` and handed us the browser's intent. A tapped notification is
+ * the relative path crm-service put in the FCM `data` block.
+ *
+ * The rewriting is the part that is easy to forget. F1 replaced every dynamic segment
+ * with a query parameter so the app could be exported as plain files — `/orders/[id]`
+ * became `/orders/detail?id=`, and in an exported build the old shape is not a route with
+ * stale data, it is a file that does not exist and therefore a blank screen. Links in the
+ * old shape are still in the world: notifications already delivered to phones, WhatsApp
+ * messages, bookmarks, anything sent before the change. They have to keep working, and
+ * this is the only place that can make them.
+ *
+ * Pure and synchronous: the whole thing is exercised in `test/deep-link.test.ts` rather
+ * than on a phone, which is what stops the next route rename from being found in
+ * production.
+ */
+
+/**
+ * Route prefixes whose next segment used to be an id. `/orders/abc` becomes
+ * `/orders/detail?id=abc`, and `/orders/abc/review` becomes
+ * `/orders/detail/review?id=abc` — the sub-page keeps its name, it just moves behind
+ * `detail`, which is exactly what F1 did to the files.
+ *
+ * Longest first: `/dashboard/approvals` has to be tested before anything shorter could
+ * shadow it, and keeping the list in that order means adding an entry cannot quietly
+ * change how an existing one matches.
+ */
+const DYNAMIC_PARENTS = [
+  '/dashboard/purchase-orders',
+  '/dashboard/promotions',
+  '/dashboard/approvals',
+  '/dashboard/customers',
+  '/m/manager/approvals',
+  '/driver/deliveries',
+  '/hr/employees',
+  '/hr/payroll',
+  '/products',
+  '/orders',
+];
+
+/** Segments that are pages in their own right, not ids, under a dynamic parent. */
+const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
+
+/**
+ * The path a deep link should open, or null when there is nothing sensible to open.
+ *
+ * Returns a path, never a URL: the caller hands it to the Next router, and a link that
+ * could name another origin would let anything that can send this app an intent decide
+ * what the WebView loads.
+ */
+export function resolveDeepLink(raw: string): string | null {
+  const target = pathAndQuery(raw);
+  if (target === null) return null;
+
+  const [path, query] = splitQuery(target);
+  const unchanged = query ? `${path}?${query}` : path;
+  const parent = DYNAMIC_PARENTS.find((p) => path.startsWith(`${p}/`));
+  if (!parent) return unchanged;
+
+  const rest = path.slice(parent.length + 1).split('/');
+  const id = rest[0];
+  if (!id || NOT_AN_ID.has(id)) return unchanged;
+
+  const child = rest.slice(1).join('/');
+  const suffix = child ? `/${child}` : '';
+  const extra = query ? `&${query}` : '';
+  return `${parent}/detail${suffix}?id=${encodeURIComponent(safeDecode(id))}${extra}`;
+}
+
+/** A path segment is already percent-encoded; normalise it without trusting it to be valid. */
+function safeDecode(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * Reduce anything to the part of it that names a page here. An absolute URL keeps only
+ * its path and query — the host has already done its job by the time Android delivers
+ * the intent, and honouring it would mean navigating the app's own WebView to somebody
+ * else's site. A protocol-relative `//evil.example/x` is the same trick spelled shorter,
+ * and is why the check is on the second character too.
+ */
+function pathAndQuery(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('/')) return trimmed.startsWith('//') ? null : trimmed;
+  try {
+    const url = new URL(trimmed);
+    return `${url.pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
+function splitQuery(target: string): [string, string] {
+  const at = target.indexOf('?');
+  if (at === -1) return [stripTrailingSlash(target), ''];
+  return [stripTrailingSlash(target.slice(0, at)), target.slice(at + 1)];
+}
+
+/**
+ * `trailingSlash: true` means the exported files live at `orders/detail/index.html`, and
+ * both `/orders/abc` and `/orders/abc/` reach this. The id must not come out as `abc/`.
+ */
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+}

@@ -382,7 +382,10 @@ export class OrderService {
     await this.notification.notify(
       'ORDER_RECEIVED',
       order.phone,
-      { name: order.recipientName, orderNumber: order.orderNumber },
+      // `orderId` names no token in any template — it is what crm-service turns into the
+      // push notification's destination, so tapping "your order is on its way" opens that
+      // order instead of the inbox. Invisible in the message copy either way.
+      { name: order.recipientName, orderNumber: order.orderNumber, orderId: order.id },
       order.customerId,
       authorization,
     );
@@ -546,7 +549,7 @@ export class OrderService {
     await this.notification.notify(
       'ORDER_RECEIVED',
       order.phone,
-      { name: order.recipientName, orderNumber: order.orderNumber },
+      { name: order.recipientName, orderNumber: order.orderNumber, orderId: order.id },
       order.customerId,
       '',
     );
@@ -1227,7 +1230,7 @@ export class OrderService {
       await this.notification.notify(
         event,
         updated.phone,
-        { name: updated.recipientName, orderNumber: updated.orderNumber },
+        { name: updated.recipientName, orderNumber: updated.orderNumber, orderId: updated.id },
         updated.customerId,
         authorization,
       );

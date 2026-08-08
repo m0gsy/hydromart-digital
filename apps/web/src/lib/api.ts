@@ -9,6 +9,7 @@ import {
   getAccessToken,
   getRefreshToken,
   hasTokens,
+  tokensPersisted,
 } from './token-store';
 import type { Session } from './types';
 
@@ -195,7 +196,12 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   // here rather than at each call site, so a future token-bearing endpoint cannot be
   // added without the store already knowing about it. A no-op on the web, where the
   // gateway returns the customer alone and keeps the tokens in httpOnly cookies.
-  captureTokens(data);
+  // F3b: and wait for the Keystore before the caller can act on them. The rotated
+  // refresh token is only useful once — if the process dies between the response and the
+  // disk, the app relaunches holding the previous one, replays it, and the session
+  // service's reuse detection revokes the whole family. A no-op on the web and on every
+  // response that carries no tokens: `persisting` is an already-resolved promise.
+  if (captureTokens(data)) await tokensPersisted();
   return data as T;
 }
 

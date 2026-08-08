@@ -1,9 +1,10 @@
 'use client';
 
 import { isNativeShell } from './platform';
+import { unlockDevice, vaultClear, vaultRead, vaultWrite } from './secure-vault';
 
 /**
- * F2: the native half of the session.
+ * F2: the native half of the session. F3b: and where it sleeps.
  *
  * On the web the credential is an httpOnly cookie the gateway owns and JavaScript can
  * never read (SEC-4), and every function here is a no-op — no web user's token ever
@@ -17,12 +18,12 @@ import { isNativeShell } from './platform';
  * async store would leave a window at boot where a request goes out unauthenticated,
  * 401s, and signs the user out of an app whose session was fine.
  *
- * ponytail: localStorage for now. F3b moves the refresh token to Keystore/StrongBox
- * behind a biometric prompt and calls `primeTokens()` from the native boot sequence
- * before React renders — which is why priming is a function and not an import side
- * effect. localStorage is defensible in the meantime because the WebView loads only
- * bundled assets, so there is no third-party script in the app to steal it, and it is
- * not defensible on the web, which is why the native gate below is unconditional.
+ * At rest the tokens live in the Android Keystore, not in localStorage — F2 shipped with
+ * localStorage and said so, and this is the promised replacement. A synchronous read of
+ * a Keystore entry does not exist, so nothing is read lazily any more: `unlockTokens()`
+ * is awaited once, at boot, before the first request goes out, and it is the only thing
+ * that can put a token into memory from disk. That ordering is enforced in
+ * `auth-context.tsx`, which will not call `/auth/me` until it resolves.
  */
 
 export interface Tokens {
@@ -30,44 +31,109 @@ export interface Tokens {
   refreshToken: string;
 }
 
-const KEY = 'hm.tokens';
+/** Consecutive failed unlock attempts survive an app restart; the token must not outlive them. */
+const FAILURE_KEY = 'hm.unlock-failures';
+
+/**
+ * Three real mismatches and the stored session is destroyed — the user goes back through
+ * OTP, which is the one path that can mint a new one. Never a bypass, never a retry
+ * that leaves the token in place: the whole value of the Keystore copy is that a phone
+ * in someone else's hands cannot be talked into opening it.
+ *
+ * Android's own BiometricPrompt locks out after five bad reads, so in practice the OS
+ * usually gets there first; this counter is what makes a phone that is repeatedly picked
+ * up, failed once, and put down again eventually give up too.
+ */
+const MAX_UNLOCK_FAILURES = 3;
 
 let tokens: Tokens | null = null;
-let hydrated = false;
+/** The last vault write, so a caller can wait for the disk before acting on the token. */
+let persisting: Promise<void> = Promise.resolve();
 
 function isTokens(value: unknown): value is Tokens {
   const t = value as Partial<Tokens> | null | undefined;
   return typeof t?.accessToken === 'string' && typeof t?.refreshToken === 'string';
 }
 
-function hydrate(): void {
-  if (hydrated || !isNativeShell()) return;
-  hydrated = true;
+function parseTokens(raw: string): Tokens | null {
   try {
-    const raw = window.localStorage.getItem(KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : null;
-    tokens = isTokens(parsed) ? parsed : null;
+    const parsed: unknown = JSON.parse(raw);
+    return isTokens(parsed) ? parsed : null;
   } catch {
-    tokens = null;
+    return null;
+  }
+}
+
+function failures(): number {
+  try {
+    return Number(window.localStorage.getItem(FAILURE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setFailures(count: number): void {
+  try {
+    if (count === 0) window.localStorage.removeItem(FAILURE_KEY);
+    else window.localStorage.setItem(FAILURE_KEY, String(count));
+  } catch {
+    /* localStorage evicted or unavailable: the OS lockout is still in force */
   }
 }
 
 /**
- * Seed the store from a secure source that could only be read asynchronously, before
- * the first render. F3b's Keystore read is the caller; nothing calls it today.
+ * Seed the store from a source that could only be read asynchronously, before the first
+ * render. `unlockTokens()` is the caller; tests use it directly to place a session.
  */
 export function primeTokens(next: Tokens | null): void {
-  hydrated = true;
   tokens = next;
 }
 
+/**
+ * Restore the session from the Keystore, behind the device's own lock. Resolves when the
+ * store holds whatever it is going to hold for this launch — the app must not ask the
+ * API anything before it does.
+ *
+ * A device with no screen lock at all restores without a prompt. That is a deliberate
+ * decision, not an oversight: refusing would lock those users out of an app that kept
+ * them signed in yesterday, and there is nothing to protect on a phone anyone can already
+ * open. Everywhere else, the token is only readable after the owner proves it.
+ *
+ * Cancelling the prompt leaves the vault intact and the app signed out for this launch —
+ * dismissing a dialog is not evidence of anything, and destroying a session over it would
+ * mean an accidental back-press costs an OTP.
+ */
+export async function unlockTokens(): Promise<void> {
+  if (!isNativeShell()) return;
+  const stored = await vaultRead();
+  if (!stored) {
+    primeTokens(null);
+    return;
+  }
+
+  const outcome = await unlockDevice('Buka sesi Hydromart Anda');
+  if (outcome === 'ok' || outcome === 'unavailable') {
+    setFailures(0);
+    primeTokens(parseTokens(stored));
+    return;
+  }
+
+  if (outcome === 'failed') {
+    const count = failures() + 1;
+    setFailures(count);
+    if (count >= MAX_UNLOCK_FAILURES) {
+      setFailures(0);
+      await vaultClear();
+    }
+  }
+  primeTokens(null);
+}
+
 export function getAccessToken(): string | null {
-  hydrate();
   return tokens?.accessToken ?? null;
 }
 
 export function getRefreshToken(): string | null {
-  hydrate();
   return tokens?.refreshToken ?? null;
 }
 
@@ -77,12 +143,10 @@ export function getRefreshToken(): string | null {
  * This is what gates a refresh attempt on native, and it is deliberately NOT
  * "is there a cached profile in localStorage". Android clears WebView localStorage on
  * its own schedule — under storage pressure, or when the user clears app data partially
- * — while the token store (Keystore, after F3b) survives. Gating on the profile means a
- * user with a perfectly valid 30-day session gets silently signed out because a UX
- * cache was evicted.
+ * — while the Keystore entry survives. Gating on the profile means a user with a
+ * perfectly valid 30-day session gets silently signed out because a UX cache was evicted.
  */
 export function hasTokens(): boolean {
-  hydrate();
   return tokens !== null;
 }
 
@@ -99,16 +163,22 @@ export function captureTokens(body: unknown): boolean {
 
 export function setTokens(next: Tokens | null): void {
   if (!isNativeShell()) return;
-  hydrated = true;
   tokens = next;
-  try {
-    if (next) window.localStorage.setItem(KEY, JSON.stringify(next));
-    else window.localStorage.removeItem(KEY);
-  } catch {
-    /* private mode / quota — the in-memory copy still carries this session */
-  }
+  // Writing the Keystore is asynchronous where localStorage was not, so the write is
+  // tracked rather than awaited here — `setTokens` is called from inside a synchronous
+  // response handler. `tokensPersisted()` is how the one caller that must not run ahead
+  // of the disk waits for it.
+  persisting = (next ? vaultWrite(JSON.stringify(next)) : vaultClear()).catch(() => {
+    /* Keystore unavailable: this session still works from memory until the app closes */
+  });
+}
+
+/** Resolves once every token written so far is actually on disk. */
+export function tokensPersisted(): Promise<void> {
+  return persisting;
 }
 
 export function clearTokens(): void {
+  setFailures(0);
   setTokens(null);
 }

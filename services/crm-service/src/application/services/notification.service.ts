@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { destinationFor } from '../../domain/notification-destination';
 import { NotificationEvent, OPS_EVENTS, renderMessage, templateFor } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
 import {
@@ -46,7 +47,11 @@ export class NotificationService {
     // transport must never block or fail an already-committed notification.
     if (customerId) {
       void this.push
-        .sendToCustomer(customerId, { title: 'Hydromart', body: message, url: '/notifications' })
+        .sendToCustomer(customerId, {
+          title: 'Hydromart',
+          body: message,
+          url: destinationFor(event, vars),
+        })
         .catch((e) => this.logger.warn(`Push for ${event} failed: ${(e as Error).message}`));
     }
     return this.repo.record({

@@ -7,7 +7,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -20,6 +21,31 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              F3b, App Links. `autoVerify` makes Android fetch
+              https://${webHost}/.well-known/assetlinks.json at install time and, if this
+              app's signing certificate is listed there, open these links directly instead
+              of offering a browser. Caddy serves that file (see Caddyfile); the
+              fingerprint in it is the PLAY APP SIGNING certificate, not the upload key —
+              Play re-signs every AAB, so the upload key's fingerprint verifies nothing.
+
+              Both binaries are installed together on staff phones, so they must not both
+              claim the same paths or Android asks the user which app to open every time.
+              `linkPrefix` is what keeps them apart: the customer build claims the whole
+              site, the ops build claims only `/driver`. Notification taps do not go
+              through here at all — those arrive as plugin events and never leave the app
+              — so the ops build losing most of this costs it nothing.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="${webHost}"
+                    android:pathPrefix="${linkPrefix}" />
             </intent-filter>
 
         </activity>
@@ -35,7 +61,28 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
+    <!--
+      Permissions. Every one of these is justified line by line in
+      docs/MOBILE_PLAY_STORE.md, which is the document the Play Data Safety form is
+      filled in from, and `scripts/audit-manifest.mjs` fails the build on any permission
+      that is not on its list — including one a plugin drags in without being asked.
+
+      What is deliberately NOT here matters as much: no ACCESS_BACKGROUND_LOCATION (it
+      needs a foreground service, a written declaration and a demo video, and this app
+      only ever reads a position while the courier is looking at it), and no
+      READ_MEDIA_IMAGES (the camera is captured live through getUserMedia; nothing reads
+      the photo library, and asking would trigger the Photo & Video declaration process).
+    -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Push: Android 13+ makes this a runtime prompt, asked after the first order. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Proof-of-delivery photos and HR face check-in, both live getUserMedia captures. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Courier delivery position, foreground only (`lib/geo.ts`). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- F3b: unlocking the stored session. androidx.biometric declares it too; stated
+         here so the audit reads it from our own manifest rather than from a transitive. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 </manifest>
