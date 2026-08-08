@@ -430,6 +430,12 @@ services:
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:ops@hydromart.id}
+      # FCM HTTP v1 (F4) — the Android transport. Blank = Android push disabled, same
+      # shape as VAPID above. The private key is a PEM with its newlines escaped, since
+      # neither .env nor this block can carry a real one.
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
+      FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}
+      FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY:-}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3012/api/v1/health"]
       interval: 30s
@@ -587,6 +593,11 @@ services:
       PAYOUT_SERVICE_URL: http://payout:3016
       ADMIN_SERVICE_URL: http://admin:3017
       HR_SERVICE_URL: http://hr:3018
+      # F5: the Android kill switch, served at GET /mobile-config. 0 = off, and it stays
+      # off until a shipped build has to be stopped — at which point this and a restart
+      # are the whole procedure. No rebuild, no Play review.
+      MOBILE_MIN_VERSION_CODE: ${MOBILE_MIN_VERSION_CODE:-0}
+      MOBILE_UPDATE_MESSAGE: ${MOBILE_UPDATE_MESSAGE:-}
     # H-19: bound to loopback by DEFAULT so only Caddy can reach it. Two reasons this is
     # not optional any more: the gateway is the single public ingress, and gateway.setup.ts
     # now sets `trust proxy` — which means X-Forwarded-For is BELIEVED. A directly

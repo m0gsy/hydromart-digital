@@ -57,4 +57,22 @@ export class CrmConfigService {
       subject: this.config.get<string>('VAPID_SUBJECT', 'mailto:ops@hydromart.id').trim(),
     };
   }
+
+  /**
+   * Firebase service-account credentials for FCM HTTP v1 — the Android transport. Blank
+   * values disable Android push exactly as blank VAPID keys disable browser push: CI has
+   * no Firebase project, and a service that cannot boot without one cannot be tested.
+   *
+   * The private key arrives from env with its newlines escaped, because that is the only
+   * way a PEM survives a .env file and a docker-compose `environment:` block. They have to
+   * be turned back into real ones or `createSign` rejects the key as malformed — which
+   * surfaces much later as "every Android push fails" rather than as a config error.
+   */
+  get fcm(): { projectId: string; clientEmail: string; privateKey: string } {
+    return {
+      projectId: this.config.get<string>('FCM_PROJECT_ID', '').trim(),
+      clientEmail: this.config.get<string>('FCM_CLIENT_EMAIL', '').trim(),
+      privateKey: this.config.get<string>('FCM_PRIVATE_KEY', '').trim().replace(/\\n/g, '\n'),
+    };
+  }
 }

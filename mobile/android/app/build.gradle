@@ -1,0 +1,84 @@
+apply plugin: 'com.android.application'
+
+/**
+ * Two binaries, one Android project.
+ *
+ * `id.hydromart.app` (customer) and `id.hydromart.ops` (staff) differ only in their
+ * applicationId, their label, and which pruned web export was synced into assets — so
+ * they are one source tree driven by Gradle properties rather than two copies of it, or
+ * product flavors whose per-flavor asset directories `cap sync` does not write to.
+ *
+ *   ./gradlew bundleRelease -PhydromartAppId=id.hydromart.ops -PhydromartAppName="Hydromart Ops"
+ *
+ * The defaults are the customer app, so a bare `./gradlew bundleRelease` after a
+ * customer sync does the obvious thing. Getting the pairing wrong is the failure this
+ * cannot catch by itself — `scripts/sync.mjs` prints the matching command for that
+ * reason, and CI (F6) passes both together.
+ */
+def hydromartAppId = project.findProperty('hydromartAppId') ?: 'id.hydromart.app'
+def hydromartAppName = project.findProperty('hydromartAppName') ?: 'Hydromart'
+// Play rejects a re-upload of a versionCode it has already seen, so CI derives this from
+// the release tag. The default only exists so a local debug build runs.
+def hydromartVersionCode = (project.findProperty('hydromartVersionCode') ?: '1') as Integer
+def hydromartVersionName = project.findProperty('hydromartVersionName') ?: '1.0'
+
+android {
+    namespace = "id.hydromart.app"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId hydromartAppId
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode hydromartVersionCode
+        versionName hydromartVersionName
+
+        // Generated here rather than in res/values/strings.xml, which no longer declares
+        // them: Capacitor reads package_name and custom_url_scheme at runtime, and both
+        // have to follow the applicationId this build is actually producing.
+        resValue "string", "app_name", hydromartAppName
+        resValue "string", "title_activity_main", hydromartAppName
+        resValue "string", "package_name", hydromartAppId
+        resValue "string", "custom_url_scheme", hydromartAppId
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 
 import { AuthenticatedUser } from '@hydromart/platform';
@@ -56,14 +60,11 @@ describe('HealthController', () => {
 
 describe('PushController', () => {
   it('returns the configured VAPID public key', () => {
-    const controller = new PushController(
-      {} as never,
-      { vapid: { publicKey: 'pub' } } as never,
-    );
+    const controller = new PushController({} as never, { vapid: { publicKey: 'pub' } } as never);
     expect(controller.vapidPublicKey()).toEqual({ key: 'pub' });
   });
 
-  it('subscribes the caller\'s device (maps dto keys)', async () => {
+  it("subscribes the caller's device (maps dto keys)", async () => {
     const push = { subscribe: jest.fn().mockResolvedValue(undefined) };
     const controller = new PushController(push as never, {} as never);
     await controller.subscribe(user, {
@@ -74,6 +75,19 @@ describe('PushController', () => {
       endpoint: 'https://push/1',
       p256dh: 'k',
       auth: 'a',
+    });
+  });
+
+  // F4: the key columns are NOT NULL and stay that way — no migration for the Android
+  // transport — so an FCM row stores empty strings the FCM adapter never reads.
+  it('stores an Android registration with empty keys rather than refusing it', async () => {
+    const push = { subscribe: jest.fn().mockResolvedValue(undefined) };
+    const controller = new PushController(push as never, {} as never);
+    await controller.subscribe(user, { endpoint: 'fcm:DEVICE-TOKEN' });
+    expect(push.subscribe).toHaveBeenCalledWith('user-1', {
+      endpoint: 'fcm:DEVICE-TOKEN',
+      p256dh: '',
+      auth: '',
     });
   });
 
@@ -91,7 +105,7 @@ describe('PushController', () => {
 });
 
 describe('NotificationController', () => {
-  it('lists the current customer\'s inbox', async () => {
+  it("lists the current customer's inbox", async () => {
     const notifications = { listForCustomer: jest.fn().mockResolvedValue([notifRecord()]) };
     const out = await new NotificationController(notifications as never).listMine(user);
     expect(notifications.listForCustomer).toHaveBeenCalledWith('user-1');
@@ -99,7 +113,10 @@ describe('NotificationController', () => {
   });
 
   it('lists the ops feed with read receipts', async () => {
-    const ops: OpsNotificationRecord = { ...notifRecord({ event: NotificationEvent.STOCK_LOW }), readAt: null };
+    const ops: OpsNotificationRecord = {
+      ...notifRecord({ event: NotificationEvent.STOCK_LOW }),
+      readAt: null,
+    };
     const notifications = { listOpsFeed: jest.fn().mockResolvedValue([ops]) };
     const out = await new NotificationController(notifications as never).listOps(user);
     expect(notifications.listOpsFeed).toHaveBeenCalledWith('user-1');
@@ -193,7 +210,11 @@ describe('CampaignController', () => {
     const controller = new CampaignController(campaigns as never);
     const out = await controller.create(
       user,
-      { name: 'Blast', messageTemplate: 'Hi {{name}}', segment: { tier: 'GOLD' } } as CreateCampaignDto,
+      {
+        name: 'Blast',
+        messageTemplate: 'Hi {{name}}',
+        segment: { tier: 'GOLD' },
+      } as CreateCampaignDto,
       'Bearer tok',
     );
     expect(campaigns.create).toHaveBeenCalledWith(
@@ -209,7 +230,9 @@ describe('CampaignController', () => {
 
   it('lists campaigns (paginated)', async () => {
     const campaigns = {
-      list: jest.fn().mockResolvedValue({ items: [record()], total: 1, page: 1, limit: 20, totalPages: 1 }),
+      list: jest
+        .fn()
+        .mockResolvedValue({ items: [record()], total: 1, page: 1, limit: 20, totalPages: 1 }),
     };
     const controller = new CampaignController(campaigns as never);
     const out = await controller.list({ page: 1, limit: 20 });
@@ -224,7 +247,9 @@ describe('CampaignController', () => {
   });
 
   it('sends a campaign', async () => {
-    const campaigns = { send: jest.fn().mockResolvedValue(record({ status: CampaignStatus.SENT, sentCount: 1 })) };
+    const campaigns = {
+      send: jest.fn().mockResolvedValue(record({ status: CampaignStatus.SENT, sentCount: 1 })),
+    };
     const out = await new CampaignController(campaigns as never).send('camp-1');
     expect(campaigns.send).toHaveBeenCalledWith('camp-1');
     expect(out.status).toBe(CampaignStatus.SENT);
@@ -238,7 +263,15 @@ describe('request DTO transforms', () => {
       keys: { p256dh: 'k', auth: 'a' },
     });
     expect(dto.keys).toBeInstanceOf(Object);
-    expect(dto.keys.p256dh).toBe('k');
+    expect(dto.keys?.p256dh).toBe('k');
+  });
+
+  // F4: an Android registration has no keypair — Google encrypts the transport itself —
+  // so `keys` is optional and the controller has to survive its absence.
+  it('accepts an FCM registration with no keys at all', () => {
+    const dto = plainToInstance(SubscribePushDto, { endpoint: 'fcm:DEVICE-TOKEN' });
+    expect(dto.keys).toBeUndefined();
+    expect(dto.endpoint).toBe('fcm:DEVICE-TOKEN');
   });
 
   it('nests recipient + segment and coerces page numbers (campaign @Type arrows)', () => {

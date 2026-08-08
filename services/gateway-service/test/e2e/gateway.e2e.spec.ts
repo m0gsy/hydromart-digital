@@ -32,6 +32,8 @@ const testEnv: Record<string, string> = {
   CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
   RATE_LIMIT_TTL_SECONDS: '60',
   RATE_LIMIT_MAX: '100',
+  MOBILE_MIN_VERSION_CODE: '7',
+  MOBILE_UPDATE_MESSAGE: 'Perbarui aplikasinya.',
 };
 
 describe('Gateway ingress (e2e)', () => {
@@ -67,6 +69,14 @@ describe('Gateway ingress (e2e)', () => {
     const res = await request(server()).get('/health').expect(200);
     expect(res.body.status).toBe('ok');
     expect(res.body.service).toBe('gateway-service');
+  });
+
+  // F5. Public and unauthenticated on purpose: the shell reads it before the user has
+  // done anything, and a version too old to be trusted is exactly the one that must
+  // still be able to be told so.
+  it('serves the mobile version gate itself, with no auth', async () => {
+    const res = await request(server()).get('/mobile-config').expect(200);
+    expect(res.body).toEqual({ minVersionCode: 7, updateMessage: 'Perbarui aplikasinya.' });
   });
 
   it('returns 404 JSON for an unknown service segment', async () => {

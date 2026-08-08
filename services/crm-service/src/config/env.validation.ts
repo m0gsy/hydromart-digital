@@ -24,6 +24,13 @@ export const envValidationSchema = Joi.object({
   VAPID_PUBLIC_KEY: Joi.string().allow('').default(''),
   VAPID_PRIVATE_KEY: Joi.string().allow('').default(''),
   VAPID_SUBJECT: Joi.string().default('mailto:ops@hydromart.id'),
+  // Firebase service account for FCM HTTP v1 (Android push, F4). Blank = Android push
+  // disabled, same fail-open shape as VAPID — CI has no Firebase project. Declared here
+  // because `check-env-contract.mjs` fails the build for any variable a compose file
+  // passes that no schema knows about.
+  FCM_PROJECT_ID: Joi.string().allow('').default(''),
+  FCM_CLIENT_EMAIL: Joi.string().allow('').default(''),
+  FCM_PRIVATE_KEY: Joi.string().allow('').default(''),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
   DEPOT_SERVICE_URL: Joi.string()

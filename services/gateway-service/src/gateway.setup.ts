@@ -81,7 +81,10 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
       standardHeaders: true,
       legacyHeaders: false,
       keyGenerator: rateLimitKey,
-      skip: (req) => req.path === '/health',
+      // `/mobile-config` joins `/health` as exempt for the same reason: it is read once
+      // per app launch, before the user has done anything, by every installed device. A
+      // 429 there would fail the one check whose whole job is to be answerable.
+      skip: (req) => req.path === '/health' || req.path === '/mobile-config',
       message: { statusCode: 429, message: 'Too many requests' },
     }),
   );
@@ -103,6 +106,24 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
 
   instance.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'gateway-service', timestamp: new Date().toISOString() });
+  });
+
+  /**
+   * F5. The minimum version the installed app is allowed to be. Read once per launch, by
+   * the shell, before anything else happens.
+   *
+   * This has to exist BEFORE the first Play upload. A version gate cannot be added later
+   * to a binary already on someone's phone — the only code that could enforce it is the
+   * code that is not in that build. The endpoint may return `0` forever and never block
+   * anybody; what matters is that every shipped binary knows to ask.
+   *
+   * Owned by the gateway rather than proxied, like `/health`: there is no service behind
+   * it, and for the same reason it is NOT in `apps/web/src/lib/endpoints/` —
+   * `check-endpoint-contracts.mjs` fails any path with no owning service, and adding an
+   * allowlist file to hold one string is more machinery than the literal it replaces.
+   */
+  instance.get('/mobile-config', (_req, res) => {
+    res.json(config.mobile);
   });
 
   // SEC-4: BFF session lifecycle (login-verify/refresh/logout) — owns httpOnly cookies.

@@ -33,4 +33,12 @@ export const envValidationSchema = Joi.object({
   // This number is sized around a frontend defect, not around what the API should need.
   // When F-1 lands and the fan-out drops, bring it back down — it is a ceiling, not a target.
   RATE_LIMIT_MAX: Joi.number().integer().positive().default(600),
+  // F5: the lowest Android versionCode allowed to keep running. 0 = the gate is off,
+  // which is the correct default and the state it will normally be in — it exists so
+  // that a build with a broken checkout or a leaked token can be shut off in minutes
+  // instead of waiting for everybody to update on their own.
+  MOBILE_MIN_VERSION_CODE: Joi.number().integer().min(0).default(0),
+  // Shown on the blocking screen. Blank falls back to the copy in the app, which is the
+  // only string available if the gateway is unreachable anyway.
+  MOBILE_UPDATE_MESSAGE: Joi.string().allow('').default(''),
 });

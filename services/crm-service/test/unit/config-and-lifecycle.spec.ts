@@ -10,7 +10,8 @@ import { SegmentUnavailableError } from '../../src/domain/errors';
 
 function cfg(values: Record<string, string>): CrmConfigService {
   const config = {
-    get: <T>(key: string, def?: T): T => (key in values ? (values[key] as unknown as T) : (def as T)),
+    get: <T>(key: string, def?: T): T =>
+      key in values ? (values[key] as unknown as T) : (def as T),
     getOrThrow: (key: string): string => {
       if (!(key in values)) throw new Error(`missing ${key}`);
       return values[key];
@@ -70,6 +71,32 @@ describe('CrmConfigService', () => {
       privateKey: 'priv',
       subject: 'mailto:ops@hydromart.id',
     });
+  });
+
+  /**
+   * F4. The PEM is the whole point of this test: env files and docker-compose
+   * `environment:` blocks cannot carry a real newline, so the key arrives with them
+   * escaped. Leave them escaped and `createSign` rejects the key, which surfaces as
+   * "every Android push fails" long after anyone is still looking at config.
+   */
+  it('turns the escaped newlines in the FCM private key back into real ones', () => {
+    const config = cfg({
+      FCM_PROJECT_ID: ' hydromart ',
+      FCM_CLIENT_EMAIL: ' push@hydromart.iam.gserviceaccount.com ',
+      FCM_PRIVATE_KEY: '-----BEGIN PRIVATE KEY-----\\nMIIB\\n-----END PRIVATE KEY-----\\n',
+    }).fcm;
+
+    expect(config.projectId).toBe('hydromart');
+    expect(config.clientEmail).toBe('push@hydromart.iam.gserviceaccount.com');
+    // Trailing newline kept: `trim()` runs before the unescape, so the final `\n` of a
+    // PEM survives — which is what OpenSSL expects to see.
+    expect(config.privateKey).toBe(
+      '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----\n',
+    );
+  });
+
+  it('reports blank FCM credentials as blank, so the adapter can disable itself', () => {
+    expect(cfg({}).fcm).toEqual({ projectId: '', clientEmail: '', privateKey: '' });
   });
 });
 
