@@ -91,6 +91,18 @@ export class GatewayConfigService {
    * really is served from `https://localhost` still cannot ride a signed-in browser
    * session; it can only make the same anonymous calls any origin can.
    */
+  /**
+   * F5: what `GET /mobile-config` answers. Reading it from env means the kill switch is
+   * an env edit and a container restart — no rebuild, no Play review, no waiting for
+   * users to update. Which is the entire point of having it.
+   */
+  get mobile(): { minVersionCode: number; updateMessage: string } {
+    return {
+      minVersionCode: Number(this.config.get<string>('MOBILE_MIN_VERSION_CODE', '0')),
+      updateMessage: this.config.get<string>('MOBILE_UPDATE_MESSAGE', '').trim(),
+    };
+  }
+
   get corsOrigins(): string[] {
     const configured = this.config
       .get<string>('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')

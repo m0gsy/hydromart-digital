@@ -93,6 +93,26 @@ describe('GatewayConfigService', () => {
     });
   });
 
+  // F5: the kill switch is an env edit and a restart — no rebuild, no Play review. It is
+  // off (0) unless somebody turns it on, which is how it will normally sit.
+  it('reads the mobile version gate, defaulting to off', () => {
+    expect(new GatewayConfigService(makeConfig(BASE)).mobile).toEqual({
+      minVersionCode: 0,
+      updateMessage: '',
+    });
+  });
+
+  it('reads a configured minimum version and trims its message', () => {
+    const svc = new GatewayConfigService(
+      makeConfig({
+        ...BASE,
+        MOBILE_MIN_VERSION_CODE: '42',
+        MOBILE_UPDATE_MESSAGE: '  Perbarui.  ',
+      }),
+    );
+    expect(svc.mobile).toEqual({ minVersionCode: 42, updateMessage: 'Perbarui.' });
+  });
+
   it('maps every segment to its upstream and strips trailing slashes', () => {
     const map = new GatewayConfigService(makeConfig(BASE)).upstreams();
     expect(map.auth).toBe('http://auth:1'); // trailing slash stripped

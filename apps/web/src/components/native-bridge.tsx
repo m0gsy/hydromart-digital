@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from 'react';
 
-import { callPlugin, onPluginEvent } from '@/lib/capacitor';
+import { api } from '@/lib/api';
+import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
 import { isNativeShell, openExternal } from '@/lib/platform';
 
 /**
  * Everything the app has to do because it is running inside a WebView and not a browser.
- * Renders nothing on the web, and nothing on native either unless the WebView itself is
- * too old to run the app — see below.
+ * Renders nothing on the web, and nothing on native either unless the app must not be
+ * allowed to continue — see the two gates below.
  *
- * Mounted once, in the root layout, because both of its jobs are global: there is one
- * hardware back button and one WebView.
+ * Mounted once, in the root layout, because all of its jobs are global: there is one
+ * hardware back button, one WebView, and one installed version.
  */
 
 /**
@@ -26,13 +27,29 @@ import { isNativeShell, openExternal } from '@/lib/platform';
  */
 const MIN_CHROME = 111;
 
+const WEBVIEW_PACKAGE = 'com.google.android.webview';
+
+interface Block {
+  title: string;
+  message: string;
+  /** Play Store package the button sends the user to. */
+  target: string;
+}
+
+const WEBVIEW_BLOCK: Block = {
+  title: 'Perbarui Android System WebView',
+  message:
+    'Aplikasi Hydromart butuh komponen WebView yang lebih baru agar tampil dengan benar. Perbarui lewat Play Store, lalu buka aplikasi ini lagi.',
+  target: WEBVIEW_PACKAGE,
+};
+
 function chromeMajor(): number | null {
   const match = /Chrome\/(\d+)/.exec(navigator.userAgent);
   return match ? Number(match[1]) : null;
 }
 
 export function NativeBridge() {
-  const [webViewTooOld, setWebViewTooOld] = useState(false);
+  const [block, setBlock] = useState<Block | null>(null);
 
   useEffect(() => {
     if (!isNativeShell()) return;
@@ -40,13 +57,60 @@ export function NativeBridge() {
     const major = chromeMajor();
     // A missing Chrome token means this is not the WebView we know how to judge; do not
     // lock a user out on a guess.
-    if (major !== null && major < MIN_CHROME) setWebViewTooOld(true);
+    if (major !== null && major < MIN_CHROME) {
+      setBlock(WEBVIEW_BLOCK);
+      // No point asking the server anything: this screen is already the final answer.
+      return;
+    }
+
+    void minimumVersionBlock().then((found) => {
+      if (found) setBlock(found);
+    });
 
     return onPluginEvent('App', 'backButton', handleBack);
   }, []);
 
-  if (!webViewTooOld) return null;
-  return <WebViewTooOld />;
+  if (!block) return null;
+  return <BlockingScreen block={block} />;
+}
+
+/**
+ * F5. Ask the gateway the lowest version it will still serve, and compare it with the
+ * versionCode this binary was built with.
+ *
+ * The gate normally returns 0 and blocks nobody. It exists so that a build with a broken
+ * checkout, or one shipping a token it should not, can be switched off in the minutes it
+ * takes to edit an env var — instead of waiting for every user to update on their own.
+ * That switch cannot be retrofitted: only the code inside an already-installed binary can
+ * enforce it, which is why this ships before the first Play upload rather than after the
+ * first emergency.
+ *
+ * Fails OPEN, deliberately, at every step. An unreachable gateway, a missing plugin or a
+ * malformed answer must never be the reason a working app refuses to start — the gate is
+ * a kill switch for us, not a dependency for the user.
+ *
+ * `/mobile-config` is called as a literal rather than through `lib/endpoints`, where
+ * `check-endpoint-contracts.mjs` would fail it for having no owning service. It has none:
+ * the gateway answers it itself, like `/health`.
+ */
+async function minimumVersionBlock(): Promise<Block | null> {
+  const info = await askPlugin<{ id?: string; build?: string }>('App', 'getInfo');
+  const installed = Number(info?.build);
+  if (!info?.id || !Number.isFinite(installed)) return null;
+
+  const config = await api
+    .get<{ minVersionCode?: number; updateMessage?: string }>('/mobile-config')
+    .catch(() => null);
+  const minimum = Number(config?.minVersionCode);
+  if (!Number.isFinite(minimum) || installed >= minimum) return null;
+
+  return {
+    title: 'Versi aplikasi sudah usang',
+    message:
+      config?.updateMessage ||
+      'Versi aplikasi ini sudah tidak didukung. Perbarui lewat Play Store untuk melanjutkan.',
+    target: info.id,
+  };
 }
 
 /**
@@ -73,11 +137,11 @@ function handleBack(): void {
 }
 
 /**
- * Deliberately styled with inline attributes and system fonts only. Tailwind is exactly
- * what is broken on the WebView this screen exists to report, so a class name here would
- * render as nothing and the user would see a blank app instead of a reason.
+ * Deliberately styled with inline attributes and system fonts only. One of the two
+ * things that render this screen is a WebView too old for Tailwind, so a class name here
+ * would render as nothing and the user would see a blank app instead of a reason.
  */
-function WebViewTooOld() {
+function BlockingScreen({ block }: { block: Block }) {
   return (
     <div
       style={{
@@ -96,18 +160,13 @@ function WebViewTooOld() {
         textAlign: 'center',
       }}
     >
-      <h1 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
-        Perbarui Android System WebView
-      </h1>
-      <p style={{ margin: 0, maxWidth: '360px' }}>
-        Aplikasi Hydromart butuh komponen WebView yang lebih baru agar tampil dengan benar. Perbarui
-        lewat Play Store, lalu buka aplikasi ini lagi.
-      </p>
+      <h1 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>{block.title}</h1>
+      <p style={{ margin: 0, maxWidth: '360px' }}>{block.message}</p>
       <button
         type="button"
         // ponytail: `market://` goes straight to the Play app. A device without Play
         // cannot have installed this app from Play either, so there is no fallback here.
-        onClick={() => openExternal('market://details?id=com.google.android.webview')}
+        onClick={() => openExternal(`market://details?id=${block.target}`)}
         style={{
           padding: '12px 20px',
           borderRadius: '999px',

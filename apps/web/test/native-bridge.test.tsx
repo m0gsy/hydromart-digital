@@ -18,12 +18,16 @@ const plugins: Record<string, Record<string, ReturnType<typeof vi.fn>>> = {};
 const listeners: Record<string, Listener> = {};
 const removed: string[] = [];
 
+/** What `App.getInfo()` reports — the installed binary's own versionCode. */
+let appInfo: { id?: string; build?: string } | null = { id: 'id.hydromart.app', build: '12' };
+
 function installBridge() {
   for (const name of ['App', 'Browser', 'Filesystem', 'Share']) {
     plugins[name] = {
       open: vi.fn(async () => undefined),
       share: vi.fn(async () => undefined),
       exitApp: vi.fn(async () => undefined),
+      getInfo: vi.fn(async () => appInfo),
       writeFile: vi.fn(async () => ({ uri: 'file:///cache/x' })),
       addListener: vi.fn(async (event: string, handler: Listener) => {
         listeners[event] = handler;
@@ -40,13 +44,31 @@ function setUserAgent(ua: string) {
 
 const MODERN = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/126.0.0.0 Mobile';
 
+/** What `GET /mobile-config` answers. 0 = the gate is off, the normal state. */
+let mobileConfig: unknown = { minVersionCode: 0, updateMessage: '' };
+let mobileConfigStatus = 200;
+
 beforeEach(() => {
   installBridge();
   setUserAgent(MODERN);
+  appInfo = { id: 'id.hydromart.app', build: '12' };
+  mobileConfig = { minVersionCode: 0, updateMessage: '' };
+  mobileConfigStatus = 200;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify(mobileConfig), {
+          status: mobileConfigStatus,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    ),
+  );
 });
 
 afterEach(() => {
   delete (window as unknown as { Capacitor?: unknown }).Capacitor;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -78,6 +100,58 @@ describe('WebView version gate', () => {
     setUserAgent('Mozilla/5.0 (Linux; Android 13) SomeOtherEngine/1.0');
     const { container } = render(<NativeBridge />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('minimum version gate', () => {
+  it('lets a current build through', async () => {
+    mobileConfig = { minVersionCode: 12 };
+    const { container } = render(<NativeBridge />);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('blocks a build below the minimum and points at THIS app, not the WebView', async () => {
+    mobileConfig = { minVersionCode: 20, updateMessage: 'Ada perbaikan penting.' };
+    render(<NativeBridge />);
+
+    await screen.findByRole('heading', { name: /usang/i });
+    expect(screen.getByText('Ada perbaikan penting.')).toBeInTheDocument();
+  });
+
+  it('falls back to its own copy when the server sends no message', async () => {
+    mobileConfig = { minVersionCode: 20, updateMessage: '' };
+    render(<NativeBridge />);
+    expect(
+      await screen.findByText(/Perbarui lewat Play Store untuk melanjutkan/i),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * Every failure below fails OPEN. The gate is a kill switch for us; it must never be
+   * the reason a working app refuses to start.
+   */
+  it.each([
+    ['the gateway is unreachable', () => (mobileConfigStatus = 503)],
+    ['the answer is malformed', () => (mobileConfig = { minVersionCode: 'soon' })],
+    ['the gate is off', () => (mobileConfig = { minVersionCode: 0 })],
+    ['the plugin cannot say what version this is', () => (appInfo = null)],
+    ['the build number is not a number', () => (appInfo = { id: 'id.hydromart.app', build: 'x' })],
+  ])('does not block when %s', async (_label, arrange) => {
+    arrange();
+    const { container } = render(<NativeBridge />);
+    // Give the whole async check a chance to have blocked, then assert it did not.
+    await vi.waitFor(() => expect(plugins.App!.getInfo).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('does not even ask when the WebView is already too old to render the answer', async () => {
+    setUserAgent('Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Chrome/98.0.0.0 Mobile');
+    mobileConfig = { minVersionCode: 20 };
+    render(<NativeBridge />);
+
+    expect(screen.getByRole('heading', { name: /WebView/i })).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
