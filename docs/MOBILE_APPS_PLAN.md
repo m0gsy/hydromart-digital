@@ -21,6 +21,7 @@ dimuat.
 | Rute dinamis         | **Diubah semua ke query-param, web ikut berubah**                                                              |
 | Fitur native rilis 1 | Push FCM, gerbang versi minimum, deep link (App Links), login biometrik                                        |
 | Update               | **Play Store saja, tanpa OTA** — API wajib backward-compatible dan gerbang versi wajib ada sejak rilis pertama |
+| Akun Play            | **Pribadi (perorangan), bukan organisasi** — memicu syarat closed testing 12 penguji × 14 hari; lihat Fase 7   |
 
 ---
 
@@ -468,31 +469,102 @@ tidak berlaku lintas app.
 Rilis bertahap: internal testing → closed testing → production, dengan staged rollout
 (misalnya 10% dulu). Ini juga yang membuat gerbang versi (F5) berguna sejak hari pertama.
 
-⚠️ **Catatan kalender yang bisa menggeser jadwal berminggu-minggu, dan harus dicek
-sekarang, bukan nanti:** akun Google Play **pribadi** yang baru dibuat wajib menjalankan
-closed testing dengan minimal 12 penguji yang ikut serta selama 14 hari berturut-turut
-sebelum boleh mengajukan akses produksi. Akun **organisasi** dikecualikan. Kalau Hydromart
-mendaftar sebagai pribadi, tambahkan ±3 minggu kalender di ujung — dan mulai perekrutan
-penguji **paralel dengan Fase 1**, jangan menunggu binary siap. Kebijakan ini pernah
-berubah; verifikasi teksnya di Play Console saat mendaftar.
+### ⚠️ Akun pribadi: 12 penguji × 14 hari (DIPUTUSKAN, bukan lagi "kalau")
+
+Akun Play yang dipakai adalah **akun pribadi**, jadi syarat ini berlaku penuh: sebelum
+boleh mengajukan akses produksi, akun harus menjalankan **closed testing dengan minimal
+12 penguji yang ikut serta (opt-in) selama 14 hari berturut-turut.** Akun organisasi
+dikecualikan; kita tidak.
+
+Kebijakan ini pernah berubah dan detailnya kadang berbeda per-wilayah — **verifikasi
+teksnya di Play Console saat mendaftar**, khususnya dua hal: apakah 14 hari itu diukur
+per-akun (sekali, lalu berlaku untuk app berikutnya) atau per-app, dan apakah penguji
+harus tetap opt-in sepanjang periode. Rencana di bawah mengasumsikan yang paling ketat.
+
+**Ini kalender, bukan pekerjaan** — dan itu yang menentukan cara membayarnya. 14 hari
+menunggu tidak bisa dipercepat, tapi bisa **ditumpuk di atas pekerjaan lain**, asal ada
+AAB tertandatangani yang sudah naik ke closed track. Karena itu urutan fasenya berubah
+(lihat bagian Urutan): kejar dulu jalur terpendek menuju "AAB pertama masuk closed
+testing", lalu kerjakan F3b dan F4 **selama** jam 14 hari itu jalan, sebagai update ke
+track yang sama.
+
+Jalur terpendek itu = **F2 → F3 → F5 → F6 → F7-lite** (≈13 hari kerja). Tidak bisa lebih
+pendek lagi, karena:
+
+- tanpa F2 tidak ada yang bisa login, jadi penguji tidak bisa menguji apa pun;
+- tanpa F3 tidak ada binary sama sekali;
+- **F5 wajib ada di unggahan pertama** — gerbang versi tidak bisa dipasang ke binary yang
+  sudah terpasang di perangkat penguji, dan penguji closed testing adalah pengguna
+  pertama yang binary-nya akan basi;
+- tanpa F6 tidak ada AAB tertandatangani untuk diunggah;
+- **F7-lite bukan opsional**: Data Safety, content rating, target audience, ikon 512,
+  feature graphic, 2 screenshot, dan deskripsi wajib diisi sebelum rilis ke track **mana
+  pun**, termasuk closed. Yang boleh ditunda hanyalah polesan listing untuk produksi.
+
+**Jalankan closed testing pada app PELANGGAN**, bukan Ops. Ops seluruhnya di balik login
+staf, dan reviewer Play menolak app yang tampak publik tapi tidak bisa dimasuki tanpa
+penjelasan — J6 berlaku dua kali lipat di sana. App pelanggan juga yang cakupannya paling
+kecil dan sudah paling siap (27 halaman, 2,7 MB).
+
+**Rekrut 15–20, bukan 12.** 12 adalah lantai, bukan target: satu penguji yang mencopot
+opt-in di hari ke-9 bisa membatalkan hitungan. Penguji butuh akun Google sungguhan, dan
+paling mudah dikelola lewat satu Google Group. Kandidat yang sudah ada: staf depot,
+keluarga staf, dan pelanggan langganan yang ramah.
+
+**Yang harus dikerjakan minggu ini, sebelum satu baris F2 pun ditulis** — semuanya
+kalender, bukan koding, dan semuanya bisa jalan paralel:
+
+1. Daftar akun Play pribadi. Verifikasi identitas bisa makan beberapa hari dan tidak bisa
+   dipercepat.
+2. Daftar **Play App Signing** sejak awal — dengan itu keystore kita hanya kunci _upload_
+   dan kehilangannya masih bisa dipulihkan.
+3. Buat Google Group penguji, mulai kumpulkan alamat. Target 15–20 terkonfirmasi.
+4. Buat dua proyek Firebase (satu per `applicationId`) — dibutuhkan F4, dan
+   pembuatannya gratis serta tidak menghalangi apa pun.
 
 ---
 
 ## Urutan
 
-```text
-F0 ──────────────────────────────────► bisa dirilis ke web sekarang, nol ketergantungan mobile
-     │
-     ├─► F1 (export) ─┬─► F3 (shell) ─┬─► F3b (biometrik + deep link)
-     │                │               ├─► F4 (FCM)
-     └─► F2 (auth) ───┘               ├─► F5 (gerbang versi) ← wajib sebelum unggah pertama
-                                      └─► F6 (CI) ─► F7 (toko)
+Urutan ini sudah **disusun ulang** oleh keputusan akun pribadi. Yang menentukan tanggal
+rilis bukan lagi jumlah hari koding, melainkan kapan jam 14 hari closed testing mulai
+berdetak — jadi semuanya dikejar ke titik itu, dan sisanya dikerjakan sementara jam
+berjalan.
 
- (paralel, dari hari ke-1) akun Play + keystore + Firebase + rekrut 12 penguji
+```text
+F0 ✅ ──────────────────────────────► sudah bisa dirilis ke web, nol ketergantungan mobile
+      │
+      ├─► F1 ✅ (export + F1c) ─┐
+      │                         ├─► F3 (shell) ─► F5 (gerbang versi) ─► F6 (CI/tanda tangan)
+      └─► F2 (auth) ────────────┘                                          │
+                                                                           ▼
+                                              F7-lite (Data Safety + listing minimum)
+                                                                           │
+                                                        ┌──────────────────┴─────────────┐
+                                                        ▼                                │
+                                    ⏱  AAB pertama → CLOSED TESTING                      │
+                                       jam 14 hari MULAI di sini                         │
+                                                        │                                │
+                                       selama 14 hari itu berjalan: ◄────────────────────┘
+                                       F3b (biometrik + deep link) + F4 (FCM),
+                                       dirilis sebagai update ke track yang sama
+                                                        │
+                                                        ▼
+                                       ajukan akses produksi → staged rollout 10%
+
+ (paralel, MULAI MINGGU INI) akun Play + Play App Signing + Firebase ×2
+                             + rekrut 15–20 penguji (lantai 12, bukan target)
 ```
 
-F1 dan F2 bisa paralel (berkas beda, service beda). Yang di baris terakhir bukan koding
-tapi jalur kritis sungguhan — kalau baru dimulai saat binary siap, ia yang jadi penghambat.
+F1 dan F2 bisa paralel (berkas beda, service beda) — F1 sudah selesai. Baris terakhir
+bukan koding tapi jalur kritis sungguhan: kalau baru dimulai saat binary siap, ia yang
+jadi penghambat, dan kali ini penghambatnya berharga dua minggu penuh.
+
+**Kenapa F3b dan F4 pindah ke belakang unggahan pertama:** keduanya lapisan di atas hal
+yang sudah jadi dan tidak satu pun dibutuhkan penguji untuk membuktikan app-nya jalan.
+Menahan unggahan demi keduanya berarti membayar 14 hari kalender **setelah** membayar 7
+hari kerja, berurutan, padahal keduanya bisa bertumpuk. Yang **tidak** boleh ikut mundur
+adalah F5 — lihat kotak peringatan di Fase 7.
 
 ---
 
@@ -554,22 +626,32 @@ Supaya tidak terbaca sebagai kelalaian:
 
 ## Ukuran, dan satu tuas yang bisa memotongnya separuh
 
-| Fase                      | Hari                               |
-| ------------------------- | ---------------------------------- |
-| F0 perbaikan web          | 2                                  |
-| F1 export                 | 5–8                                |
-| F1c ukuran APK            | 1                                  |
-| F2 auth                   | 4                                  |
-| F3 shell                  | 4–5                                |
-| F3b biometrik + deep link | 3                                  |
-| F4 FCM                    | 4                                  |
-| F5 gerbang versi          | 1                                  |
-| F6 CI/CD                  | 2–3                                |
-| F7 toko                   | 3                                  |
-| **Total**                 | **±29–34 hari kerja ≈ 6–7 minggu** |
+| Fase                      | Hari | Status                                       |
+| ------------------------- | ---- | -------------------------------------------- |
+| F0 perbaikan web          | 2    | ✅ selesai                                    |
+| F1 export                 | 5–8  | ✅ selesai                                    |
+| F1c ukuran APK            | 1    | ✅ selesai — 229→27 halaman, 12,1→2,7 MB      |
+| F2 auth                   | 4    | jalur kritis menuju unggahan pertama         |
+| F3 shell                  | 4–5  | jalur kritis                                 |
+| F5 gerbang versi          | 1    | jalur kritis — **wajib di unggahan pertama** |
+| F6 CI/CD                  | 2–3  | jalur kritis                                 |
+| F7-lite (syarat rilis)    | 2    | jalur kritis                                 |
+| **→ AAB pertama naik**    |      | **≈13 hari kerja dari sekarang**             |
+| F3b biometrik + deep link | 3    | selama 14 hari closed testing berjalan       |
+| F4 FCM                    | 4    | selama 14 hari closed testing berjalan       |
+| F7 sisa (polesan listing) | 1    | selama 14 hari closed testing berjalan       |
+| **Total koding**          |      | **±22–25 hari kerja tersisa ≈ 4,5–5 minggu** |
 
-Ditambah kalender di luar koding: akun Play (verifikasi identitas bisa makan hari) dan —
-kalau akunnya pribadi — 14 hari closed testing dengan 12 penguji.
+Kalender di luar koding, dan ini yang sekarang menentukan tanggal rilis:
+
+- Verifikasi identitas akun Play — beberapa hari, tidak bisa dipercepat, **mulai sekarang**.
+- **14 hari closed testing dengan ≥12 penguji** (akun pribadi). Bertumpuk dengan F3b + F4,
+  jadi biayanya bukan 14 hari penuh — tapi hanya kalau AAB pertama naik tepat waktu.
+- Review pengajuan akses produksi setelah 14 hari itu — beberapa hari lagi.
+
+Jadi ±13 hari kerja ke unggahan pertama, lalu 14 hari kalender yang sebagian besar
+dipakai untuk F3b + F4, lalu review. **Realistis ≈ 6 minggu kalender ke produksi**, dan
+angka itu hanya berlaku kalau perekrutan penguji dan pendaftaran akun mulai minggu ini.
 
 **Tuasnya: rilis satu audiens dulu.** Kalau App 1 (pelanggan) dirilis sendiri, yang gugur
 adalah face capture, unggah PoD, antrean offline, ekspor XLSX/CSV, `window.print`,
