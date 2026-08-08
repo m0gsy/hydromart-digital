@@ -131,6 +131,38 @@ describe('native login', () => {
 });
 
 describe('native requests', () => {
+  /**
+   * The cold-start race F3b would otherwise have introduced. Reading the Keystore is
+   * asynchronous and can sit behind a biometric prompt, while `/driver` fires four
+   * authenticated requests the instant it renders — all of which used to find a token
+   * synchronously in localStorage. Without the wait in `request()` they leave bare, 401,
+   * find nothing to refresh with, and the courier's home screen opens on four errors.
+   */
+  it('waits for the Keystore before sending an authenticated request', async () => {
+    const { api, vault } = await load('{"accessToken":"AT-1","refreshToken":"RT-1"}');
+    const fetchMock = vi.fn(async () => jsonResponse(200, { ok: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(vault.value).toContain('AT-1');
+
+    // Nothing has unlocked yet — exactly the state a page's first render is in.
+    await api.get(ME, true);
+
+    expect(headerOf(lastInit(fetchMock), 'Authorization')).toBe('Bearer AT-1');
+  });
+
+  it('does not wait, or unlock, for a public request', async () => {
+    const { api, tokens } = await load('{"accessToken":"AT-1","refreshToken":"RT-1"}');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse(200, { ok: true })),
+    );
+
+    await api.get('/products/api/v1/products');
+
+    // A public GET must not be the thing that raises a biometric prompt.
+    expect(tokens.hasTokens()).toBe(false);
+  });
+
   it('carries the access token as a bearer', async () => {
     const { api, tokens } = await load();
     tokens.primeTokens({ accessToken: 'AT-1', refreshToken: 'RT-1' });

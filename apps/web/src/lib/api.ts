@@ -10,6 +10,7 @@ import {
   getRefreshToken,
   hasTokens,
   tokensPersisted,
+  unlockTokens,
 } from './token-store';
 import type { Session } from './types';
 
@@ -207,6 +208,18 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
 
 /** Authenticated request with transparent refresh-and-retry on 401. */
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // F3b: nothing that needs a bearer may go out before the Keystore has been read.
+  //
+  // Reading it is asynchronous and can sit behind a biometric prompt for several
+  // seconds, while React mounts the landing screen immediately — and the courier's
+  // `/driver` home fires four authenticated requests the moment it renders. Without this
+  // line every one of them leaves with no token, 401s, finds no credential to refresh
+  // with, and the app opens onto four error states for a session that was never in
+  // trouble. `RequireAuth` covers the pages that use it; this covers the ones that do
+  // not, in the one place they all pass through.
+  //
+  // Resolved-promise no-op on the web and on every request after the first.
+  if (options.auth) await unlockTokens();
   try {
     return await rawRequest<T>(path, options);
   } catch (err) {
@@ -283,6 +296,10 @@ export async function uploadFile<T = { url: string }>(
   /** internal: prevents an infinite refresh loop */
   _retry = false,
 ): Promise<T> {
+  // Same wait as `request()`: the offline queue flushes proof-of-delivery photos on the
+  // first signal after a cold start, which can be before the Keystore has been read.
+  await unlockTokens();
+
   const form = new FormData();
   form.append('file', file);
   for (const [key, value] of Object.entries(fields)) form.append(key, value);

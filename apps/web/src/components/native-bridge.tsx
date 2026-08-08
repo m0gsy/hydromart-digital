@@ -69,6 +69,13 @@ export function NativeBridge() {
       return;
     }
 
+    // F3. The one call that keeps the app out from under the status bar, instead of an
+    // audit of 226 pages for a `safe-area-inset-top` none of them have: Capacitor draws
+    // the WebView edge-to-edge by default, so the header of every screen renders behind
+    // the clock and the battery icon. `overlay: false` gives the status bar its own strip
+    // and starts the WebView below it. No-op on the web, where the plugin is absent.
+    callPlugin('StatusBar', 'setOverlaysWebView', { overlay: false });
+
     void minimumVersionBlock().then((found) => {
       if (found) setBlock(found);
     });

@@ -49,6 +49,8 @@ const MAX_UNLOCK_FAILURES = 3;
 let tokens: Tokens | null = null;
 /** The last vault write, so a caller can wait for the disk before acting on the token. */
 let persisting: Promise<void> = Promise.resolve();
+/** The one unlock this process will ever do. See `unlockTokens`. */
+let unlocking: Promise<void> | null = null;
 
 function isTokens(value: unknown): value is Tokens {
   const t = value as Partial<Tokens> | null | undefined;
@@ -103,8 +105,26 @@ export function primeTokens(next: Tokens | null): void {
  * dismissing a dialog is not evidence of anything, and destroying a session over it would
  * mean an accidental back-press costs an OTP.
  */
-export async function unlockTokens(): Promise<void> {
-  if (!isNativeShell()) return;
+export function unlockTokens(): Promise<void> {
+  if (!isNativeShell()) return Promise.resolve();
+  // Single-flight and permanent. Every authenticated request waits on this promise, and
+  // the first one to arrive starts it — so it does not matter whether the app boots into
+  // a screen that fetches immediately or one that does not, and there is no ordering
+  // between `AuthProvider` and the rest of the tree to get wrong. Kept after it resolves
+  // because a second unlock would be a second biometric prompt for a session that is
+  // already open, including right after a sign-out.
+  unlocking ??= restoreFromVault();
+  return unlocking;
+}
+
+async function restoreFromVault(): Promise<void> {
+  // A session already established this launch needs no unlocking, and must not be
+  // overwritten by what happens to be on disk. The case that matters is the one right
+  // after an OTP login: the tokens are in memory, the first authenticated request
+  // arrives, and without this it would raise a biometric prompt to re-open a session the
+  // user opened thirty seconds ago with a code from an SMS.
+  if (tokens) return;
+
   const stored = await vaultRead();
   if (!stored) {
     primeTokens(null);

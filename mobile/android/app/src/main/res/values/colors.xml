@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The brand teal, used by Android to tint the notification silhouette. Capacitor's
+      own colors.xml supplies colorPrimary/colorPrimaryDark/colorAccent from the AAR, so
+      only what is ours lives here.
+    -->
+    <color name="hydromart_brand">#0C97AC</color>
+</resources>

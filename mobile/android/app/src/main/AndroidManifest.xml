@@ -50,6 +50,18 @@
 
         </activity>
 
+        <!--
+          F4. Without this, FCM renders the launcher icon as the status-bar notification
+          and Android reduces it to its alpha channel — a solid white square on every
+          push. The colour is applied by the system, so the drawable is a silhouette.
+        -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/hydromart_brand" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

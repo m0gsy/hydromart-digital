@@ -29,8 +29,9 @@ let appInfo: { id?: string; build?: string } | null = { id: 'id.hydromart.app', 
 let launchUrl: { url?: string } | null = null;
 
 function installBridge() {
-  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications']) {
+  for (const name of ['App', 'Browser', 'Filesystem', 'Share', 'PushNotifications', 'StatusBar']) {
     plugins[name] = {
+      setOverlaysWebView: vi.fn(async () => undefined),
       open: vi.fn(async () => undefined),
       share: vi.fn(async () => undefined),
       exitApp: vi.fn(async () => undefined),
@@ -162,6 +163,15 @@ describe('minimum version gate', () => {
 
     expect(screen.getByRole('heading', { name: /WebView/i })).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('status bar', () => {
+  it('takes the WebView out from under the status bar', () => {
+    render(<NativeBridge />);
+    // Capacitor draws edge-to-edge by default, which puts every screen's header behind
+    // the clock. One call, instead of a safe-area audit of 226 pages.
+    expect(plugins.StatusBar!.setOverlaysWebView).toHaveBeenCalledWith({ overlay: false });
   });
 });
 

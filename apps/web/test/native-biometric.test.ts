@@ -176,6 +176,28 @@ describe('unlockTokens', () => {
     expect(vault.value).toBe(STORED);
   });
 
+  it('prompts once however many callers ask, and never again after it has answered', async () => {
+    const { promptCount } = install({ stored: STORED });
+    const store = await loadStore();
+
+    await Promise.all([store.unlockTokens(), store.unlockTokens(), store.unlockTokens()]);
+    await store.unlockTokens();
+
+    expect(promptCount()).toBe(1);
+  });
+
+  it('does not prompt to re-open a session that was just opened by OTP', async () => {
+    const { promptCount } = install({ stored: STORED });
+    const store = await loadStore();
+    // What `captureTokens` does on a verify response, before anything has unlocked.
+    store.primeTokens({ accessToken: 'AT-NEW', refreshToken: 'RT-NEW' });
+
+    await store.unlockTokens();
+
+    expect(promptCount()).toBe(0);
+    expect(store.getAccessToken()).toBe('AT-NEW');
+  });
+
   it('unlocks nothing and prompts for nothing on the web', async () => {
     const { promptCount } = install({ stored: STORED });
     // The one thing every native path is gated on: the WebView origin.
