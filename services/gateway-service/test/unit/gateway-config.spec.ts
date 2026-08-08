@@ -60,13 +60,30 @@ describe('GatewayConfigService', () => {
     const svc = new GatewayConfigService(
       makeConfig({ ...BASE, CORS_ALLOWED_ORIGINS: 'http://a.com, http://b.com , ' }),
     );
-    expect(svc.corsOrigins).toEqual(['http://a.com', 'http://b.com']);
+    expect(svc.corsOrigins).toEqual([
+      'http://a.com',
+      'http://b.com',
+      'https://localhost',
+      'capacitor://localhost',
+    ]);
   });
 
   it('defaults CORS origins when unset', () => {
     expect(new GatewayConfigService(makeConfig(BASE)).corsOrigins).toEqual([
       'http://localhost:3000',
+      'https://localhost',
+      'capacitor://localhost',
     ]);
+  });
+
+  // F2: the shipped app is served from `https://localhost`, so it is always allowed —
+  // an env var that has to be edited by hand on the VPS is an env var that gets
+  // forgotten, and the failure mode is every request from the app failing CORS.
+  it('never duplicates a native origin the env already listed', () => {
+    const svc = new GatewayConfigService(
+      makeConfig({ ...BASE, CORS_ALLOWED_ORIGINS: 'https://localhost, http://a.com' }),
+    );
+    expect(svc.corsOrigins).toEqual(['https://localhost', 'http://a.com', 'capacitor://localhost']);
   });
 
   it('reads the rate-limit config as numbers', () => {

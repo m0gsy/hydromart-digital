@@ -1,7 +1,15 @@
 'use client';
 
 import { endpoints } from './endpoints';
+import { isNativeShell } from './platform';
 import { getSession, setSession } from './session-store';
+import {
+  captureTokens,
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  hasTokens,
+} from './token-store';
 import type { Session } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
@@ -69,21 +77,47 @@ interface RequestOptions {
   _rateRetry?: boolean;
 }
 
+/**
+ * F2: the native shell has no cookie jar the gateway can reach, so it carries the access
+ * token itself. Attached whenever one is held rather than only when `auth: true` — the
+ * cookie it replaces was always sent too, and the gateway leaves an explicit
+ * Authorization header intact (`gateway.setup.ts`), so the two transports behave alike.
+ * On the web this is always empty and no request changes.
+ */
+function authHeader(): Record<string, string> {
+  const at = getAccessToken();
+  return at ? { Authorization: `Bearer ${at}` } : {};
+}
+
+/**
+ * Whether this client holds a credential worth spending a refresh round-trip on.
+ *
+ * On the web that can only be inferred from the cached profile — the cookie is httpOnly
+ * and unreadable. On native it must NOT be: Android evicts WebView localStorage on its
+ * own schedule while the token store survives, so gating the refresh on the profile
+ * would sign a user out of a session that was never in trouble.
+ */
+function hasCredential(): boolean {
+  return isNativeShell() ? hasTokens() : getSession() !== null;
+}
+
 // Single-flight refresh: concurrent 401s share one refresh round-trip.
 let refreshing: Promise<Session | null> | null = null;
 
 async function refreshSession(): Promise<Session | null> {
-  // The refresh token rides in an httpOnly cookie the gateway reads — nothing to send.
-  // If we hold no cached session there's no cookie to refresh against either.
-  if (!getSession()) return null;
+  // On the web the refresh token rides in an httpOnly cookie the gateway reads — nothing
+  // to send. Native holds its own and has to hand it over explicitly.
+  if (!hasCredential()) return null;
+  const body = isNativeShell() ? { refreshToken: getRefreshToken() } : undefined;
   if (!refreshing) {
-    refreshing = rawRequest<Session>(endpoints.auth.refresh, { method: 'POST' })
+    refreshing = rawRequest<Session>(endpoints.auth.refresh, { method: 'POST', body })
       .then((next) => {
         setSession(next);
         return next;
       })
       .catch(() => {
         setSession(null);
+        clearTokens();
         return null;
       })
       .finally(() => {
@@ -94,7 +128,11 @@ async function refreshSession(): Promise<Session | null> {
 }
 
 /** `fetch` with a hard deadline. An abort surfaces as 408, a transport failure as 0. */
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -122,7 +160,7 @@ function retryAfterMs(res: Response): number {
 
 async function rawRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body } = options;
-  const headers: Record<string, string> = { ...options.headers };
+  const headers: Record<string, string> = { ...authHeader(), ...options.headers };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
   const res = await fetchWithTimeout(
@@ -152,6 +190,12 @@ async function rawRequest<T>(path: string, options: RequestOptions = {}): Promis
   const data = parseBody(await res.text());
 
   if (!res.ok) throw new ApiError(res.status, messageFrom(res.status, data));
+  // F2: the one door tokens enter this client through. On native the gateway returns the
+  // session's tokens in the body (login-verify and refresh both), and they are taken out
+  // here rather than at each call site, so a future token-bearing endpoint cannot be
+  // added without the store already knowing about it. A no-op on the web, where the
+  // gateway returns the customer alone and keeps the tokens in httpOnly cookies.
+  captureTokens(data);
   return data as T;
 }
 
@@ -241,8 +285,11 @@ export async function uploadFile<T = { url: string }>(
     `${BASE_URL}${path}`,
     {
       method: 'POST',
-      // SEC-4: httpOnly session cookie carries auth; let the browser set the multipart boundary.
+      // SEC-4: httpOnly session cookie carries auth; let the browser set the multipart
+      // boundary. Do NOT set Content-Type here — `authHeader()` is bearer-only for the
+      // native shell, which has no cookie.
       credentials: 'include',
+      headers: authHeader(),
       body: form,
     },
     FILE_TIMEOUT_MS,
@@ -269,7 +316,7 @@ export async function uploadFile<T = { url: string }>(
 export async function getBlob(path: string, _retry = false): Promise<Blob> {
   const res = await fetchWithTimeout(
     `${BASE_URL}${path}`,
-    { method: 'GET', credentials: 'include' },
+    { method: 'GET', credentials: 'include', headers: authHeader() },
     FILE_TIMEOUT_MS,
   );
 
