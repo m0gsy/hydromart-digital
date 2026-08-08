@@ -33,20 +33,20 @@ name: Mobile release
 
 on:
   push:
-    tags: ["mobile-v*"]
+    tags: ['mobile-v*']
   # The compile job below only. Scoped to paths so a backend PR never waits on an
   # Android toolchain, and so this can never become the thing blocking a gateway hotfix.
   pull_request:
     branches: [main]
     paths:
-      - "mobile/**"
-      - ".github/workflows/mobile.yml"
+      - 'mobile/**'
+      - '.github/workflows/mobile.yml'
   workflow_dispatch:
     inputs:
       version_name:
-        description: "versionName shown in the Play listing (e.g. 1.4.2)"
+        description: 'versionName shown in the Play listing (e.g. 1.4.2)'
         required: false
-        default: "0.0.0-dev"
+        default: '0.0.0-dev'
 
 concurrency:
   group: mobile-release-${{ github.ref }}
@@ -76,7 +76,7 @@ jobs:
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
           cache: gradle
 
       - name: Install Capacitor dependencies
@@ -129,7 +129,7 @@ jobs:
       - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: '21'
 
       # `api.ts` falls back to `http://localhost:8080` when this is unset, and Android
       # blocks cleartext — so the app would install, open, and fail every request with a
