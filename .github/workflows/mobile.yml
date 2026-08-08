@@ -83,6 +83,15 @@ jobs:
         working-directory: mobile
         run: npm ci
 
+      # `cap update` and not `cap sync`: it regenerates the native project — the
+      # `capacitor-cordova-android-plugins` bridge module that `capacitor.build.gradle`
+      # reads, and the settings.gradle listing every plugin — without wanting a web
+      # export to copy. Both are generated, both are correctly gitignored, and without
+      # this the build fails on a script that is not in the repo and never should be.
+      - name: Generate the native project
+        working-directory: mobile
+        run: npx cap update android
+
       - name: Customer binary compiles
         working-directory: mobile/android
         run: |
