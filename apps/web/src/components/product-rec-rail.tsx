@@ -31,7 +31,7 @@ function RailCard({ item }: { item: Recommendation }) {
     e.preventDefault();
     e.stopPropagation();
     if (!customer) {
-      router.push(`/login?next=${encodeURIComponent(`/products/${item.productId}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/products/detail?id=${item.productId}`)}`);
       return;
     }
     setAdding(true);
@@ -50,7 +50,7 @@ function RailCard({ item }: { item: Recommendation }) {
 
   return (
     <Link
-      href={`/products/${item.productId}`}
+      href={`/products/detail?id=${item.productId}`}
       className="surface group flex flex-col overflow-hidden rounded-[20px] shadow-card transition-[box-shadow,transform] duration-[180ms] hover:-translate-y-[3px] hover:shadow-lift"
     >
       <div className="flex aspect-square items-center justify-center bg-[color:var(--surface-soft)]">

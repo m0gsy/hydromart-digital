@@ -144,7 +144,7 @@ function DriverConsole() {
         deliveries.map((d) => (
           <Card key={d.id} className="space-y-3 p-5">
             <div className="flex items-center justify-between">
-              <Link href={`/driver/deliveries/${d.id}`} className="font-semibold tabular-nums">
+              <Link href={`/driver/deliveries/detail?id=${d.id}`} className="font-semibold tabular-nums">
                 {d.orderNumber}
               </Link>
               <Badge tone={DELIVERY_STATUS_TONE[d.status]}>{DELIVERY_STATUS_LABEL[d.status]}</Badge>

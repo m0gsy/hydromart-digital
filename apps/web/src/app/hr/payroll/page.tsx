@@ -69,7 +69,7 @@ function PayrollInner() {
       {data && data.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {data.rows.map((p) => (
-            <Link key={p.id} href={`/hr/payroll/${p.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
+            <Link key={p.id} href={`/hr/payroll/detail?id=${p.id}`} className="flex items-center justify-between gap-3 p-4 hover:bg-brand-50">
               <div>
                 <p className="font-semibold tabular-nums">{p.periodMonth}</p>
                 <p className="text-xs text-muted">{p.presentDays} hari hadir · dibuat {fmtDate(p.createdAt)}</p>

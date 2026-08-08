@@ -324,7 +324,7 @@ function CheckoutInner() {
         /* order exists; payment can be retried on the order page */
       }
       // placed=1 triggers the one-time success banner on the order page (spec 5b).
-      router.replace(`/orders/${order.id}?placed=1`);
+      router.replace(`/orders/detail?id=${order.id}&placed=1`);
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : t('order.checkout.placeOrderError'));
       setSubmitting(false);

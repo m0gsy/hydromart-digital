@@ -80,9 +80,16 @@ export function Footer() {
 
         <div className="mt-8 flex flex-col gap-2 border-t border-white/15 pt-5 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <span>{t('auth.footer.copyright')}</span>
-          <Link href="/kebijakan-privasi" className="text-white/65 hover:text-white">
-            {t('privacy.title')}
-          </Link>
+          <span className="flex gap-4">
+            <Link href="/kebijakan-privasi" className="text-white/65 hover:text-white">
+              {t('privacy.title')}
+            </Link>
+            {/* Play wants the account-deletion page reachable without signing in; a footer
+                link is also how the reviewer finds it from the listing URL. */}
+            <Link href="/hapus-akun" className="text-white/65 hover:text-white">
+              {t('deleteAccount.navLabel')}
+            </Link>
+          </span>
         </div>
       </div>
     </footer>

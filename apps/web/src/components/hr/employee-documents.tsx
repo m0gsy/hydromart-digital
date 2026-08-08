@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 
+import { ExternalLink } from '@/components/external-link';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, Field, Skeleton } from '@/components/ui';
 import { ApiError, api, uploadFile } from '@/lib/api';
@@ -91,14 +92,12 @@ export function EmployeeDocuments({
                   {d.expiresAt ? ` · berlaku s/d ${fmtDate(d.expiresAt)}` : ''}
                 </p>
               </div>
-              <a
+              <ExternalLink
                 href={d.fileUrl}
-                target="_blank"
-                rel="noreferrer"
                 className="shrink-0 text-sm font-semibold text-brand-700 hover:underline"
               >
                 Lihat
-              </a>
+              </ExternalLink>
             </div>
           ))}
         </div>

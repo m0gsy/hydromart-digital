@@ -252,13 +252,13 @@ function CartInner() {
                     className="surface flex items-center gap-3 rounded-[16px] p-[11px] shadow-card"
                   >
                     <Link
-                      href={`/products/${rec.productId}`}
+                      href={`/products/detail?id=${rec.productId}`}
                       className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-[color:var(--surface-soft)]"
                     >
                       <Drop size={22} weight="thin" className="text-brand-300" />
                     </Link>
                     <Link
-                      href={`/products/${rec.productId}`}
+                      href={`/products/detail?id=${rec.productId}`}
                       className="min-w-0 flex-1 text-[13px] font-bold leading-snug hover:text-brand-700"
                     >
                       <span className="line-clamp-2">{rec.name}</span>

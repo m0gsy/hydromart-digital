@@ -1,3 +1,5 @@
+import { saveFile } from './platform';
+
 // Client-side CSV for the bulk-import wizard: the browser parses the file and
 // posts typed JSON, so no service needs a CSV parser or a multipart route.
 // Mirrors services/hr-service/src/domain/csv.ts on the write side (that one is
@@ -112,8 +114,16 @@ export function toCsv(headers: string[], rows: CsvCell[][]): string {
   return [headers, ...rows].map((r) => r.map(escapeCell).join(',')).join('\r\n');
 }
 
-/** Trigger a browser download of `blob` as `filename`. */
+/**
+ * Trigger a download of `blob` as `filename`. The single download path in the app —
+ * four screens used to hand-roll their own object URL and so were invisible to any
+ * change made here, including the native one below.
+ */
 export function downloadBlob(filename: string, blob: Blob): void {
+  // An Android WebView has no download manager listening for the synthetic click, so
+  // the user would get no file and no error. F3 writes it out instead.
+  if (saveFile(filename, blob)) return;
+
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

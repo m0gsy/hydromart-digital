@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Lock, Receipt } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -61,9 +62,9 @@ function ClaimRow({ c, onDone }: { c: ExpenseClaim; onDone: () => void }) {
       </div>
 
       {c.receiptUrl && (
-        <a href={c.receiptUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand-600 underline">
+        <ExternalLink href={c.receiptUrl} className="text-xs font-bold text-brand-600 underline">
           Lihat struk
-        </a>
+        </ExternalLink>
       )}
 
       {c.status === 'PENDING' ? (

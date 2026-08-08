@@ -49,7 +49,7 @@ function OrdersInner() {
       <ul className="flex flex-col gap-3">
         {data.items.map((order) => (
           <li key={order.id}>
-            <Link href={`/orders/${order.id}`}>
+            <Link href={`/orders/detail?id=${order.id}`}>
               <Card className="flex items-center gap-3 p-4 transition-shadow hover:shadow-md">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">

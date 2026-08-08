@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { UserCircle } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Input, Money } from '@/components/ui';
 import { useToast } from '@/components/toast';
@@ -113,12 +114,12 @@ export default function HqCustomersPage() {
               <Button variant="secondary" onClick={() => toast(t('hq.customers.gavePoints', { name: customer.fullName || customer.phone }), 'success')}>
                 {t('hq.customers.givePoints')}
               </Button>
-              <a
+              <ExternalLink
                 href={`tel:${customer.phone}`}
                 className="inline-flex items-center justify-center gap-2 rounded-lg border border-app px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-brand-50"
               >
                 {t('hq.customers.contact')}
-              </a>
+              </ExternalLink>
             </div>
           </Card>
 

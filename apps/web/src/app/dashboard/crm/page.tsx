@@ -2,6 +2,7 @@
 
 import { ChartPieSlice, Lock, UsersThree, WhatsappLogo } from '@phosphor-icons/react';
 
+import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -46,15 +47,13 @@ function FollowUpRow({ f }: { f: CrmFollowUp }) {
         </span>
       </span>
       {f.phone ? (
-        <a
+        <ExternalLink
           href={waLink(f.phone, t('dashA.crm.waTemplate', { name }))}
-          target="_blank"
-          rel="noopener noreferrer"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
         >
           <WhatsappLogo size={16} weight="fill" />
           {t('dashA.crm.wa')}
-        </a>
+        </ExternalLink>
       ) : (
         <span className="shrink-0 text-xs text-muted">{t('dashA.crm.noPhone')}</span>
       )}

@@ -65,7 +65,7 @@ function ApprovalsWidget() {
           <ul className="divide-y divide-[color:var(--border)]">
             {items.slice(0, 5).map((a) => (
               <li key={a.id}>
-                <Link href={`/dashboard/approvals/${a.id}`} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:opacity-80">
+                <Link href={`/dashboard/approvals/detail?id=${a.id}`} className="flex items-center justify-between gap-2 py-2.5 text-sm hover:opacity-80">
                   <span className="truncate">{a.title}</span>
                   <Money amount={Math.abs(a.amountIdr)} className="shrink-0 font-medium text-[color:var(--danger)]" />
                 </Link>

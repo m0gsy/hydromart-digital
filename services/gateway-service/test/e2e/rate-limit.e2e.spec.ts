@@ -120,4 +120,42 @@ describe('Gateway rate limit is per client, not per deployment (e2e)', () => {
     }
     await get('198.51.100.7').expect(429);
   });
+
+  // J5: `trust proxy` only splits buckets by ADDRESS. Eight couriers behind one depot
+  // router or one 4G hotspot still share one address — and the offline queue flushes
+  // them all in the same instant when signal returns. These two pin that an identified
+  // caller is charged to themselves, on both transports, since the limiter runs ahead
+  // of the cookie -> bearer translation and so has to read each one itself.
+  it('gives two bearer clients behind ONE address their own budgets', async () => {
+    const nat = '192.0.2.50';
+    const asUser = (token: string) => get(nat).set('authorization', `Bearer ${token}`);
+
+    for (let i = 0; i < LIMIT; i += 1) {
+      await asUser('courier-a').expect(200);
+    }
+    await asUser('courier-a').expect(429);
+
+    await asUser('courier-b').expect(200);
+  });
+
+  it('reads the session cookie as an identity too, not just the header', async () => {
+    const office = '192.0.2.51';
+    const asUser = (at: string) => get(office).set('cookie', `hm_at=${at}`);
+
+    for (let i = 0; i < LIMIT; i += 1) {
+      await asUser('staff-a').expect(200);
+    }
+    await asUser('staff-a').expect(429);
+
+    await asUser('staff-b').expect(200);
+  });
+
+  it('still falls back to the address when the caller is anonymous', async () => {
+    // Login and catalogue browsing carry no credential; an unauthenticated flood has
+    // no identity to charge, so the IP bucket is the right — and only — answer there.
+    for (let i = 0; i < LIMIT; i += 1) {
+      await get('192.0.2.77').expect(200);
+    }
+    await get('192.0.2.77').expect(429);
+  });
 });
