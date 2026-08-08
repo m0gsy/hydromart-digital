@@ -34,6 +34,13 @@ name: Mobile release
 on:
   push:
     tags: ["mobile-v*"]
+  # The compile job below only. Scoped to paths so a backend PR never waits on an
+  # Android toolchain, and so this can never become the thing blocking a gateway hotfix.
+  pull_request:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile.yml"
   workflow_dispatch:
     inputs:
       version_name:
@@ -46,8 +53,61 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Does the Android project actually build?
+  #
+  # Everything below this job needs secrets that only exist once there is a Play account,
+  # so until the first tag it never runs — and that left the entire native half of the
+  # app compiled by nobody, ever. A Gradle property that does not resolve, a manifest
+  # placeholder with no value, a plugin whose AAR needs an SDK version this project does
+  # not set: all of them are silent in every check the repo has, and all of them surface
+  # here in about four minutes.
+  #
+  # `assembleRelease` rather than debug, unsigned: it is the build type that runs R8 and
+  # shrinks resources, which is the one that can delete something a plugin resolves by
+  # name. Web assets are deliberately not synced — this asks whether the native project
+  # compiles, and the export has its own gate in `CI`.
+  compile:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Install Capacitor dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Customer binary compiles
+        working-directory: mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease \
+            -PhydromartAppId=id.hydromart.app \
+            -PhydromartAppName=Hydromart \
+            -PhydromartWebHost=hydromart.example \
+            -PhydromartLinkPrefix=/
+
+      - name: Permissions are the ones we justified
+        working-directory: mobile
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+
+      - name: Ops binary compiles
+        working-directory: mobile/android
+        run: |
+          ./gradlew --no-daemon assembleRelease \
+            -PhydromartAppId=id.hydromart.ops \
+            -PhydromartAppName='Hydromart Ops' \
+            -PhydromartWebHost=hydromart.example \
+            -PhydromartLinkPrefix=/driver
+
   bundle:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
