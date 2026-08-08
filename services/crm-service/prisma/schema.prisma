@@ -172,6 +172,14 @@ model OpsNotificationRead {
 /// A browser Web Push subscription (RFC 8291) owned by a customer/driver. One row per
 /// device endpoint; the keys encrypt the push payload. Pruned when the push service
 /// reports the endpoint gone (404/410).
+/// Despite the name, this holds BOTH transports (F4). A browser row stores its push
+/// service URL in `endpoint`; an Android device stores `fcm:<registration token>` and
+/// leaves `p256dh`/`auth` empty, because FCM encrypts the transport itself.
+///
+/// A prefix rather than a new model on purpose: `pending_migrations()` in
+/// deploy-common.sh enforces "schema ships one release before its reader", so a new
+/// table would be two releases where this is one. The same trick the water-meter unit
+/// column already uses. The price is exactly this comment.
 model WebPushSubscription {
   id         String   @id @default(uuid())
   customerId String

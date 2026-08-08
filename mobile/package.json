@@ -16,6 +16,7 @@
     "@capacitor/geolocation": "8.2.1",
     "@capacitor/keyboard": "8.0.5",
     "@capacitor/preferences": "8.0.1",
+    "@capacitor/push-notifications": "8.1.2",
     "@capacitor/share": "8.0.1",
     "@capacitor/status-bar": "8.0.3"
   },

@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, CurrentUser } from '@hydromart/platform';
@@ -33,11 +43,17 @@ export class PushController {
   @Post('subscriptions')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Register this device for push notifications' })
-  async subscribe(@CurrentUser() user: AuthenticatedUser, @Body() dto: SubscribePushDto): Promise<void> {
+  async subscribe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscribePushDto,
+  ): Promise<void> {
+    // An FCM registration carries no keypair. The columns are NOT NULL and stay that way
+    // — no migration for this — so they hold empty strings for an Android row, which the
+    // FCM adapter never reads.
     await this.push.subscribe(user.sub, {
       endpoint: dto.endpoint,
-      p256dh: dto.keys.p256dh,
-      auth: dto.keys.auth,
+      p256dh: dto.keys?.p256dh ?? '',
+      auth: dto.keys?.auth ?? '',
     });
   }
 
