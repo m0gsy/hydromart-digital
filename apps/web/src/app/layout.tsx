@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 
 import './globals.css';
 import { AppShell } from '@/components/app-shell';
+import { NativeBridge } from '@/components/native-bridge';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
 import { LocaleProvider } from '@/lib/locale-context';
@@ -49,6 +50,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-[100dvh] overflow-x-hidden">
+        {/* Outside the providers: its WebView-too-old screen has to render even if
+            everything below it is failing, and it needs none of their context. */}
+        <NativeBridge />
         <ThemeProvider>
           <LocaleProvider>
             <AuthProvider>
