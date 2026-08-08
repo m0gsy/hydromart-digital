@@ -1,0 +1,198 @@
+name: Mobile release
+
+# F6: builds and signs the two Android App Bundles.
+#
+# Deliberately separate from the four existing workflows, and deliberately NOT triggered
+# by pull_request. It holds the upload keystore and the Firebase config, it takes twenty
+# minutes to run, and nothing it produces gates a backend deploy — wiring it into `CI`
+# would mean an Android toolchain failure blocking a hotfix to the gateway. What DOES run
+# on every PR is the export build inside `CI`, which is the part that catches the
+# regressions a person can cause by editing a page.
+#
+# Tag a release to build one:
+#
+#   git tag mobile-v1.4.2 && git push origin mobile-v1.4.2
+#
+# The versionCode is the run number, not the tag: Play refuses a versionCode it has
+# already seen, and a re-run of the same tag has to produce a higher one.
+#
+# Required secrets:
+#   ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#   GOOGLE_SERVICES_JSON_BASE64  base64 of google-services.json (one file, both apps)
+#
+# Required variables (Settings → Secrets and variables → Actions → Variables):
+#   MOBILE_API_URL   https://<API_DOMAIN>  — see the guard below, this one is load-bearing
+#   MOBILE_WEB_HOST  <WEB_DOMAIN>          — the host the App Links intent-filter claims
+#
+# Enrol in Play App Signing before the first upload. With it, the keystore above is only
+# an UPLOAD key and losing it is recoverable. Without it, losing it means the app can
+# never be updated again by anyone, ever.
+
+on:
+  push:
+    tags: ["mobile-v*"]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "versionName shown in the Play listing (e.g. 1.4.2)"
+        required: false
+        default: "0.0.0-dev"
+
+concurrency:
+  group: mobile-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.2.2
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # `api.ts` falls back to `http://localhost:8080` when this is unset, and Android
+      # blocks cleartext — so the app would install, open, and fail every request with a
+      # network error that names nothing. Same guard as `apps/web/Dockerfile`.
+      - name: Required configuration is present
+        env:
+          MOBILE_API_URL: ${{ vars.MOBILE_API_URL }}
+          MOBILE_WEB_HOST: ${{ vars.MOBILE_WEB_HOST }}
+        run: |
+          test -n "$MOBILE_API_URL" || { echo "MOBILE_API_URL is empty — the app would call http://localhost:8080"; exit 1; }
+          test -n "$MOBILE_WEB_HOST" || { echo "MOBILE_WEB_HOST is empty — App Links would claim the placeholder domain"; exit 1; }
+          case "$MOBILE_API_URL" in https://*) ;; *) echo "MOBILE_API_URL must be https — Android blocks cleartext"; exit 1 ;; esac
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Install Capacitor dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        # One file covers both binaries: it lists every app in the Firebase project and
+        # the Gradle plugin picks the entry matching the applicationId being built. Never
+        # committed — gitleaks scans for exactly this shape, and it names the project to
+        # anyone who reads it.
+        run: |
+          test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "GOOGLE_SERVICES_JSON_BASE64 is empty — push would not work in the shipped build"; exit 1; }
+          echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > mobile/android/app/google-services.json
+
+      - name: Signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64" || { echo "ANDROID_KEYSTORE_BASE64 is empty"; exit 1; }
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/android/upload.jks
+
+      - name: Version numbers
+        id: version
+        # versionCode must rise on every upload Play accepts, and the run number is the
+        # only counter here that never goes backwards — a tag can be deleted and re-pushed.
+        run: |
+          NAME="${{ github.event.inputs.version_name }}"
+          if [ -z "$NAME" ]; then NAME="${GITHUB_REF_NAME#mobile-v}"; fi
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # Two exports, two syncs, two bundles — and they cannot be interleaved. `cap sync`
+      # copies into one shared assets directory (see mobile/android/app/build.gradle for
+      # why this project uses Gradle properties rather than product flavors), so the
+      # customer AAB has to be finished and out of the way before the ops export is
+      # copied over the top of it.
+      - name: Customer — export
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+        run: npm run build:mobile --workspace @hydromart/web -- customer
+
+      - name: Customer — sync
+        working-directory: mobile
+        run: npm run sync:customer
+
+      - name: Customer — bundle
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon bundleRelease \
+            -PhydromartAppId=id.hydromart.app \
+            -PhydromartAppName=Hydromart \
+            -PhydromartWebHost='${{ vars.MOBILE_WEB_HOST }}' \
+            -PhydromartLinkPrefix=/ \
+            -PhydromartVersionCode=${{ steps.version.outputs.code }} \
+            -PhydromartVersionName=${{ steps.version.outputs.name }}
+
+      # The only place the AAR-contributed permissions are visible. A plugin that quietly
+      # adds READ_MEDIA_IMAGES costs weeks in Play review, and this is where it is caught
+      # — after the merge, before the upload.
+      - name: Customer — permission audit
+        working-directory: mobile
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+
+      - name: Customer — keep the AAB
+        run: mv mobile/android/app/build/outputs/bundle/release/app-release.aab hydromart-customer.aab
+
+      - name: Ops — export
+        env:
+          NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+        run: npm run build:mobile --workspace @hydromart/web -- ops
+
+      - name: Ops — sync
+        working-directory: mobile
+        run: npm run sync:ops
+
+      - name: Ops — bundle
+        working-directory: mobile/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew --no-daemon bundleRelease \
+            -PhydromartAppId=id.hydromart.ops \
+            -PhydromartAppName='Hydromart Ops' \
+            -PhydromartWebHost='${{ vars.MOBILE_WEB_HOST }}' \
+            -PhydromartLinkPrefix=/driver \
+            -PhydromartVersionCode=${{ steps.version.outputs.code }} \
+            -PhydromartVersionName=${{ steps.version.outputs.name }}
+
+      - name: Ops — permission audit
+        working-directory: mobile
+        run: node scripts/audit-manifest.mjs android/app/build/intermediates/merged_manifests/release/AndroidManifest.xml
+
+      - name: Ops — keep the AAB
+        run: mv mobile/android/app/build/outputs/bundle/release/app-release.aab hydromart-ops.aab
+
+      # Uploaded by hand to Play Console for now. A service-account upload is the obvious
+      # next step and is deliberately not here yet: it needs a Play account that exists,
+      # an app already created in it, and the first release to have gone through review
+      # once by hand anyway.
+      - name: Upload the bundles
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hydromart-aab-${{ steps.version.outputs.name }}
+          path: |
+            hydromart-customer.aab
+            hydromart-ops.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove the signing material
+        if: always()
+        run: rm -f mobile/android/upload.jks mobile/android/app/google-services.json
