@@ -113,17 +113,36 @@ const ASKED_KEY = 'hm.push-asked';
  * obviously the point.
  *
  * The flag survives a denial deliberately: re-asking is the behaviour Android is
- * protecting users from, and the second dialog would never appear anyway.
+ * protecting users from, and the second dialog would never appear anyway. It also
+ * survives a dismissal, for the same reason — Android turns a second dismissal into a
+ * permanent denial, so a retry there spends the user's last answer.
+ *
+ * What it does NOT survive is a failure AFTER the permission was granted: no Play
+ * Services, no registration token, or a `POST /push/subscribe` that did not reach
+ * crm-service. Writing the flag before the attempt — which is what this did first —
+ * turned every one of those into a device that had granted permission and would never
+ * be registered, with nothing left to try again. Those cases leave the flag unset; the
+ * permission dialog will not reappear (it is already granted) so the retry is silent.
+ *
+ * Called from the moment the notification explains itself in each binary: after a
+ * customer's first order is placed, and after a courier's first shift check-in.
  */
 export async function requestPushOnce(): Promise<void> {
   if (!isNativeShell()) return;
   try {
     if (window.localStorage.getItem(ASKED_KEY)) return;
-    window.localStorage.setItem(ASKED_KEY, '1');
   } catch {
     return; // no storage to remember the ask by — better to never ask than to ask always
   }
-  await subscribeToPush().catch(() => {});
+  // `null` is a thrown subscribe (the endpoint POST); 'unsupported' is a granted
+  // permission with no token behind it. Both are worth another go.
+  const state = await subscribeToPush().catch(() => null);
+  if (state === null || state === 'unsupported') return;
+  try {
+    window.localStorage.setItem(ASKED_KEY, '1');
+  } catch {
+    /* asked, but nothing to remember it by — the dialog itself will not come back */
+  }
 }
 
 /** Current push state without prompting for permission. */

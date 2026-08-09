@@ -21,6 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
 import { runOrQueue } from '@/lib/offline-queue';
+import { requestPushOnce } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
@@ -78,6 +79,12 @@ function CheckIn() {
         setBusy(false);
         return;
       }
+      // The Ops binary's equivalent of the customer's first order: the one moment where
+      // "let me know when a delivery lands" explains itself. Asking at first launch
+      // collects a denial from someone with no reason yet to want one, and Android makes
+      // that close to permanent. Not on the queued branch — there is no network there to
+      // register the token with, and the next successful check-in asks instead.
+      void requestPushOnce();
       router.replace('/driver');
     } catch (e) {
       // Keep the thrown message — "Lokasi GPS ditolak. Aktifkan izin lokasi." tells the
