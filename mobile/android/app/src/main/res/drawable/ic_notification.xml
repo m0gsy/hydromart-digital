@@ -1,21 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  The status-bar icon for every push notification.
-
-  Android renders a notification icon as a SILHOUETTE from API 21 on: it keeps the alpha
-  channel and throws the colours away. Without this file FCM falls back to the launcher
-  icon, whose alpha is a filled square, and every notification shows a solid white block
-  where the drop should be. That is not a setting anyone can fix after install.
-
-  Same path as apps/web/src/app/icon.svg, filled white so the silhouette is the drop.
--->
+<!-- Ikon status bar. Android membuang seluruh warna dan hanya memakai kanal
+     alfa, jadi bentuknya sengaja dibuat siluet H padat satu warna: palang
+     tengah solid, bukan garis ombak (garis ombak jadi bubur di 24dp). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="#FFFFFF">
+    android:viewportHeight="24">
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,2.25S4.75,10.1 4.75,14.6a7.25,7.25 0,0 0,14.5 0C19.25,10.1 12,2.25 12,2.25z" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4.08,2 h4.17 v7.71 h7.47 V2 h4.19 v20 h-4.19 v-8.05 h-7.47 V22 h-4.17 Z" />
 </vector>
