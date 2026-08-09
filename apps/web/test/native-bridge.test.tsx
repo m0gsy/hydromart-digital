@@ -205,6 +205,30 @@ describe('hardware back button', () => {
     expect(plugins.App!.exitApp).not.toHaveBeenCalled();
   });
 
+  // The regression this pair exists for: `history.length` counts entries and never counts
+  // down, so on the first entry it still reads 2 and `history.back()` is a silent no-op.
+  // Only the event knows where in the stack the WebView actually is.
+  it('leaves the app when the WebView is on its first history entry', () => {
+    render(<NativeBridge />);
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    window.history.pushState({}, '', '/cart');
+
+    listeners.backButton?.({ canGoBack: false });
+
+    expect(back).not.toHaveBeenCalled();
+    expect(plugins.App!.exitApp).toHaveBeenCalled();
+  });
+
+  it('falls back to the history length when the event carries no answer', () => {
+    render(<NativeBridge />);
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    window.history.pushState({}, '', '/cart');
+
+    listeners.backButton?.({});
+
+    expect(back).toHaveBeenCalled();
+  });
+
   it('unsubscribes on unmount', () => {
     const { unmount } = render(<NativeBridge />);
     unmount();

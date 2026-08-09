@@ -169,13 +169,20 @@ async function minimumVersionBlock(): Promise<Block | null> {
  * one is open, and every overlay in the app already closes on Escape (`overlay.tsx`,
  * `command-palette.tsx`), so dispatching one closes whichever is on top without this
  * file needing to know they exist — including any overlay added later.
+ *
+ * `canGoBack` comes from the event and is the only correct source for the second
+ * decision. `window.history.length` counts entries and never counts down, so after
+ * home → detail → back the length is still 2 while the WebView is sitting on its first
+ * entry: `history.back()` then does nothing at all and the button reads as broken —
+ * neither navigating nor leaving, however many times it is pressed. The length is kept
+ * only as the answer for a payload that did not arrive.
  */
-function handleBack(): void {
+function handleBack(event?: { canGoBack?: boolean }): void {
   if (document.querySelector('[aria-modal="true"]')) {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return;
   }
-  if (window.history.length > 1) {
+  if (event?.canGoBack ?? window.history.length > 1) {
     window.history.back();
     return;
   }
